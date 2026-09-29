@@ -230,7 +230,7 @@ putNormal fops ctx tm = case tm of
       <> putCCs ccs
       <> putNormal fops ctx l
       <> putNormal fops (pushCtx us ctx) e
-  v -> exn [] $ "putNormal: malformed term\n" ++ show v
+  v -> exn [] $ "CodeV4: putNormal: malformed term\n" ++ show v
 
 getNormal ::
   (PrimBase m) =>
@@ -304,6 +304,7 @@ putFunc ctx f = case f of
   FReq r c -> putTag FReqT <> putRefNum r <> putCTag c
   FPrim (Left p) -> putTag FPrimT <> putPOp p
   FPrim (Right f) -> putTag FForeignT <> putFOp f
+  FRec recSchema -> putTag FRecT <> putRecordSchema recSchema
 
 getFunc :: (PrimBase m, Var v) => [v] -> Get m (Func RefNum v)
 getFunc ctx =
@@ -315,6 +316,7 @@ getFunc ctx =
     FReqT -> FReq <$> getRefNum <*> getCTag
     FPrimT -> FPrim . Left <$> getPOp
     FForeignT -> FPrim . Right <$> getFOp
+    FRecT -> FRec <$> getRecordSchema
 {-# INLINEABLE getFunc #-}
 
 -- Note: this numbering is derived, and so not particularly stable.
@@ -400,6 +402,8 @@ putBranches fops ctx bs = case bs of
       <> putMaybe df (putNormal fops ctx)
   MatchBytes _ _ ->
     exn [] "putBranches: Bytes pattern matching not supported in V4 codec"
+  MatchRec _ _ ->
+    exn [] "putBranches: record pattern matching not supported in V4 codec"
   _ -> exn [] "putBranches: malformed intermediate term"
 
 getBranches ::
@@ -439,6 +443,7 @@ getBranches ctx frsh0 =
         <*> getEnumMap getWord64be (getNormal ctx frsh0)
         <*> getMaybe (getNormal ctx frsh0)
     MBytesT -> exn [] "getBranches: Bytes pattern matching not supported in V4 codec"
+    MRecT -> exn [] "getBranches: record pattern matching not supported in V4 codec"
 {-# INLINEABLE getBranches #-}
 
 putCase ::

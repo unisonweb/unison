@@ -64,6 +64,7 @@ import Unison.Term
 import Unison.Type (Type, pattern ForallsNamed')
 import Unison.Type qualified as Type
 import Unison.Util.Bytes qualified as Bytes
+import Unison.Util.List qualified as List
 import Unison.Util.Monoid (foldMapM, intercalateMap, intercalateMapM)
 import Unison.Util.Pretty (ColorText, Pretty, Width)
 import Unison.Util.Pretty qualified as PP
@@ -351,6 +352,13 @@ pretty0
             let open = listLink "[" `PP.orElse` listLink "[ "
             let close = listLink "]" `PP.orElse` ("\n" <> listLink "]")
             pure $ PP.group (open <> PP.sep comma pelems <> close)
+          Record' fields -> do
+            renderedFields <- for (Map.toList fields) \(fieldName, v) ->
+              do
+                pretty0 (ac Annotation Normal im doc) v
+                <&> (\v -> fmt (S.RecordFieldName fieldName) (PP.text fieldName) <> fmt S.RecordFieldValueColon ": " <> v)
+                <&> PP.indentNAfterNewline 2
+            pure $ PP.group $ PP.surroundCommas "{" "}" renderedFields
           If' cond t f ->
             do
               pcond <- pretty0 (ac Control Block im doc) cond
@@ -379,6 +387,16 @@ pretty0
           LetBlock bs e ->
             let (im', uses) = calcImports im term
              in printLet a {imports = im'} bc bs e uses
+          -- A single-field record match is what `base@field` desugars to, so
+          -- print it back that way rather than as the underlying match.
+          (asRecordProjection -> Just (base, field)) -> do
+            -- `Top` so anything that parenthesizes at all gets parens; a
+            -- projection binds tighter than application and than `!`/`'`.
+            pbase <- goNormal Top base
+            pure $
+              pbase
+                <> fmt S.DelimiterChar "@"
+                <> fmt (S.RecordFieldName field) (PP.text field)
           -- Some matches are rendered as a destructuring bind, like
           --   match foo with (a,b) -> blah
           -- becomes
@@ -423,7 +441,7 @@ pretty0
                       ]
                   else (fmt S.ControlKeyword "match " <> ps <> fmt S.ControlKeyword " with") `PP.hang` pbs
           Apps' f args -> paren (p >= Application) <$> (PP.hang <$> goNormal (InfixOp Highest) f <*> PP.spacedTraverse (goNormal Application) args)
-          t -> pure $ l "error: " <> l (show t)
+          t -> pure $ l "TermPrinter:pretty0: Unhandled term: " <> l (show t)
     where
       goNormal prec tm = pretty0 (ac prec Normal im doc) tm
       specialCases term go = do
@@ -659,6 +677,7 @@ pretty0
 
       isDelay (Delay' _) = True
       isDelay _ = False
+
       varList = intercalateMap PP.softbreak prettyBinder
 
       nonForcePred :: Term3 v PrintAnnotation -> Bool
@@ -768,6 +787,30 @@ prettyPattern n c@AmbientContext {imports = im} p vs patt = case patt of
               `PP.hang` pats_printed,
           tail_vs
         )
+  Pattern.RecordLiteral _loc fields -> do
+    let (renderedFields, vs') =
+          fields
+            & Map.toList
+            & flip
+              foldl'
+              ([], vs)
+              ( \(acc, currentVS) (fieldName, p) ->
+                  let (renderedPat, tailVS) = do
+                        prettyPattern n c Bottom currentVS p
+                      renderedField =
+                        fmt (S.RecordFieldName fieldName) (PP.text fieldName)
+                          <> fmt S.RecordFieldValueColon ": "
+                          <> renderedPat
+                   in (acc <> [renderedField], tailVS)
+              )
+     in ( PP.group
+            ( PP.surroundCommas
+                (fmt S.DelimiterChar "{")
+                (fmt S.DelimiterChar "}")
+                (map (PP.indentNAfterNewline 2) renderedFields)
+            ),
+          vs'
+        )
   Pattern.As _ pat ->
     case vs of
       (v : tail_vs) ->
@@ -835,14 +878,14 @@ groupCases ::
   (Ord v) =>
   [MatchCase' () (Term3 v ann)] ->
   [([Pattern ()], [v], [(Maybe (Term3 v ann), ([v], Term3 v ann))])]
-groupCases = \cases
-  [] -> []
-  ms@((p1, _, AbsN' vs1 _) : _) -> go (p1, vs1) [] ms
-  where
-    go (p0, vs0) acc [] = [(p0, vs0, reverse acc)]
-    go (p0, vs0) acc ms@((p1, g1, AbsN' vs body) : tl)
-      | p0 == p1 && vs == vs0 = go (p0, vs0) ((g1, (vs, body)) : acc) tl
-      | otherwise = (p0, vs0, reverse acc) : groupCases ms
+groupCases ms =
+  ms
+    & List.groupMap
+      ( \case
+          (p, g, AbsN' vs body) -> ((p, vs), (g, body))
+      )
+    & foldMap \((p, vs), guardRows) ->
+      [(p, vs, second (vs,) <$> toList guardRows)]
 
 printCase ::
   forall m v.
@@ -1416,6 +1459,8 @@ countPatternUsages n usedTm = Pattern.foldMap' f
         if noImportRefs (r ^. ConstructorReference.reference_)
           then mempty
           else countHQ usedTm $ PrettyPrintEnv.patternName n r
+      Pattern.RecordLiteral _loc fields ->
+        foldMap (countPatternUsages n usedTm) fields
 
 countHQ :: (HasCallStack) => Set Name -> HQ.HashQualified Name -> PrintAnnotation
 countHQ used (HQ.NameOnly n)
@@ -1687,6 +1732,20 @@ isLet _ = False
 -- Has shadowing, is rendered as a regular `match`.
 --   match blah with 42 -> body
 -- Pattern has (is) a literal, rendered as a regular match (rather than `42 = blah; body`)
+
+-- | Recognize the term that `base@field` desugars to: a match with one
+-- irrefutable single-field record pattern whose body is just the bound
+-- variable. Printing it back as a projection keeps `view` showing the syntax
+-- that was written.
+asRecordProjection ::
+  (Var v) => Term3 v PrintAnnotation -> Maybe (Term3 v PrintAnnotation, Text)
+asRecordProjection = \case
+  Match' scrutinee [MatchCase (Pattern.RecordLiteral _ fields) Nothing (AbsN' [v] (Var' v'))]
+    | v == v',
+      [(field, Pattern.Var _)] <- Map.toList fields ->
+        Just (scrutinee, field)
+  _ -> Nothing
+
 isDestructuringBind :: (Ord v) => ABT.Term f v a -> [MatchCase loc (ABT.Term f v a)] -> Bool
 isDestructuringBind scrutinee [MatchCase pat _ (ABT.AbsN' vs _)] =
   all (`Set.notMember` ABT.freeVars scrutinee) vs && not (hasLiteral pat)
@@ -1700,6 +1759,8 @@ isDestructuringBind scrutinee [MatchCase pat _ (ABT.AbsN' vs _)] =
       Pattern.Char _ _ -> True
       Pattern.Bytes _ _ -> True
       Pattern.Constructor _ _ ps -> any hasLiteral ps
+      Pattern.RecordLiteral _loc fields ->
+        any hasLiteral fields
       Pattern.As _ p -> hasLiteral p
       Pattern.EffectPure _ p -> hasLiteral p
       Pattern.EffectBind _ _ ps pk -> any hasLiteral (pk : ps)

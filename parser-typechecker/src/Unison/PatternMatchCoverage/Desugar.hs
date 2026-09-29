@@ -3,6 +3,9 @@ module Unison.PatternMatchCoverage.Desugar
   )
 where
 
+import Data.Align qualified as Align
+import Data.Map qualified as Map
+import Data.These (These (..))
 import U.Core.ABT qualified as ABT
 import Unison.Pattern
 import Unison.Pattern qualified as Pattern
@@ -10,6 +13,7 @@ import Unison.PatternMatchCoverage.Class
 import Unison.PatternMatchCoverage.GrdTree
 import Unison.PatternMatchCoverage.PmGrd
 import Unison.PatternMatchCoverage.PmLit qualified as PmLit
+import Unison.Prelude
 import Unison.Term (MatchCase (..), Term', app, var)
 import Unison.Type (Type)
 import Unison.Type qualified as Type
@@ -70,6 +74,13 @@ desugarPattern typ v0 pat k vs = case pat of
         tpatvars = zipWith (\(v, p) t -> (v, p, t)) patvars contyps
     rest <- foldr (\(v, pat, t) b -> desugarPattern t v pat b) k tpatvars vs
     pure (Grd c rest)
+  RecordLiteral _loc fields
+    | Type.Record' _fb typeFields <- Type.stripIntroOuters typ -> handleRecord typ typeFields v0 k fields vs
+    -- The typechecker rejects a record pattern whose scrutinee isn't a record,
+    -- so reaching this means the two disagree.
+    | otherwise ->
+        error $
+          "impossible: desugarPattern: record pattern against a non-record type: " <> show typ
   As _ rest -> desugarPattern typ v0 rest k (v0 : vs)
   EffectPure _ resume -> do
     v <- fresh
@@ -88,6 +99,42 @@ desugarPattern typ v0 pat k vs = case pat of
     pure (Grd c rest)
   SequenceLiteral {} -> handleSequence typ v0 pat k vs
   SequenceOp {} -> handleSequence typ v0 pat k vs
+
+handleRecord ::
+  forall v vt loc m.
+  (Pmc vt v loc m) =>
+  Type vt loc ->
+  (Map Text (Type vt loc)) ->
+  v ->
+  ([v] -> m (GrdTree (PmGrd vt v loc) loc)) ->
+  Map Text (Pattern loc) ->
+  [v] ->
+  m (GrdTree (PmGrd vt v loc) loc)
+handleRecord typ typeFields recordVar k fieldPats vs = do
+  -- Each field the pattern mentions gets a fresh variable standing for that
+  -- field of the scrutinee, then its subpattern is desugared against it.
+  let go ::
+        (Text, ((v, Type vt loc), Pattern loc)) ->
+        ([v] -> m (GrdTree (PmGrd vt v loc) loc)) ->
+        [v] ->
+        m (GrdTree (PmGrd vt v loc) loc)
+      go (_fieldName, ((fieldVar, fieldType), fieldPat)) k vs =
+        desugarPattern fieldType fieldVar fieldPat k vs
+  -- Fields present in only one of the two maps are dropped: a field the type
+  -- has but the pattern doesn't is simply unmatched, and a field the pattern
+  -- has but the type doesn't was already rejected by the typechecker.
+  let matched =
+        Align.align typeFields fieldPats
+          & Map.mapMaybe \case
+            This _ -> Nothing
+            That _ -> Nothing
+            These t p -> Just (t, p)
+  withVars <- for matched \(fieldType, fieldPat) -> do
+    v <- fresh
+    pure ((v, fieldType), fieldPat)
+  let fieldVars = fst <$> withVars
+  subtree <- foldr go k (Map.toAscList withVars) vs
+  pure $ Grd (PmRecordLiteral fieldVars recordVar typ) subtree
 
 handleSequence ::
   forall v vt loc m.

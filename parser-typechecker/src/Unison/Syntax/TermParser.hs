@@ -55,7 +55,7 @@ import Unison.Syntax.Lexer.Unison qualified as L
 import Unison.Syntax.Name qualified as Name (toText, toVar, unsafeParseVar)
 import Unison.Syntax.NameSegment qualified as NameSegment
 import Unison.Syntax.Parser hiding (seq)
-import Unison.Syntax.Parser qualified as Parser (seq, uniqueName)
+import Unison.Syntax.Parser qualified as Parser
 import Unison.Syntax.Parser.Doc.Data qualified as Doc
 import Unison.Syntax.Pattern qualified as Syntax.Pattern
 import Unison.Syntax.Precedence (operatorPrecedence)
@@ -304,6 +304,8 @@ parsePattern =
           Parser.seq Syntax.Pattern.SequenceLiteral pRoot,
           -- () or (pat, pat) or (pat, pat, pat) [which is actually parsed as (pat, (pat, pat)]
           pParenOrTuple,
+          -- { a : b, c : d }
+          P.try pRecord,
           -- { pat -> pat } or { pat }
           pEffect
         ]
@@ -397,6 +399,19 @@ parsePattern =
         pEffectPure =
           parsePattern <&> \pat -> Syntax.Pattern.EffectPure (ann pat) pat
 
+    pRecord :: P v m (Syntax.Pattern.Pattern v)
+    pRecord = do
+      start <- openBlockWith "{"
+      let field = do
+            fieldName <- Parser.recordFieldName
+            _ <- reserved ":"
+            fieldPattern <- parsePattern
+            pure (fieldName, fieldPattern)
+      fields <- sepBy (reserved ",") field
+      end <- closeBlock
+      checkForDuplicateRecordFields (fst <$> fields)
+      pure (Syntax.Pattern.RecordLiteral (ann start <> ann end) (Map.fromList (first L.payload <$> fields)))
+
     -- Parse an "HQ-namey", which could either definitely be a nullary constructor (because it's either hash-only or
     -- hash-qualified or symboly), or either a variable or nullary constructor (because it's a wordy name-only). And if
     -- it's the latter, we might see that it's actually not a nullary constructor but actually a variable in an
@@ -451,6 +466,8 @@ bindConstructorsInPattern =
         )
           <$> bindConstructorsInPattern1 lpat1
           <*> bindConstructorsInPattern1 lpat2
+      Syntax.Pattern.RecordLiteral pos fields ->
+        traverse bindConstructorsInPattern1 fields <&> Pattern.RecordLiteral pos
       Syntax.Pattern.SequenceLiteral pos pats -> Pattern.SequenceLiteral pos <$> traverse bindConstructorsInPattern1 pats
       Syntax.Pattern.SequenceOp pos lpat1 op lpat2 ->
         Pattern.SequenceOp pos
@@ -664,7 +681,58 @@ resolveHashQualified tok = do
           | otherwise -> pure $ Term.fromReferent (ann tok) (Set.findMin s)
 
 termLeaf :: forall m v. (Monad m, Var v) => TermP v m
-termLeaf =
+termLeaf = termLeafNoProjection >>= recordProjections
+
+-- | Parse a chain of record field projections onto an already-parsed term, so
+-- that @r\@x@ reads the @x@ field of the record @r@.
+--
+-- The @\@@ must be adjacent to both sides -- @r\@x@, never @r \@ x@. That keeps
+-- it from reading as an ordinary infix operator, and keeps it clear of the
+-- @\@@ that introduces doc special forms.
+--
+-- Because this wraps a leaf, projection binds tighter than application:
+-- @f r\@x@ is @f (r\@x)@.
+recordProjections :: forall m v. (Monad m, Var v) => Term v Ann -> P v m (Term v Ann)
+recordProjections base = do
+  mfield <- optional . P.try $ do
+    at <- reserved "@"
+    guard (adjacentAnns (ann base) (ann at))
+    field <- recordFieldName
+    guard (adjacentAnns (ann at) (ann field))
+    pure field
+  case mfield of
+    Nothing -> pure base
+    Just field -> recordProjections (recordProjection base field)
+
+-- | Whether the second annotation begins exactly where the first ends, meaning
+-- there was no whitespace between the two tokens.
+adjacentAnns :: Ann -> Ann -> Bool
+adjacentAnns (Ann _ e) (Ann s _) = e == s
+adjacentAnns _ _ = False
+
+-- | @base\@field@ desugars to a single-field record match.
+--
+-- That needs no new term form: it typechecks to @{field: t | ...} -> t@ through
+-- the existing record pattern machinery, and compiles to the existing
+-- @RecUnpack@ instruction. The bound variable scopes over nothing but itself,
+-- so it cannot capture and needs no freshening.
+recordProjection :: (Var v) => Term v Ann -> L.Token Text -> Term v Ann
+recordProjection base fieldTok =
+  let fieldAnn = ann fieldTok
+      -- Not `_field`: a leading underscore makes it a wildcard when the
+      -- printed form is re-parsed, which would drop the binding.
+      v = Var.named "field"
+   in Term.match
+        (ann base <> fieldAnn)
+        base
+        [ Term.MatchCase
+            (Pattern.RecordLiteral fieldAnn (Map.singleton (L.payload fieldTok) (Pattern.Var fieldAnn)))
+            Nothing
+            (ABT.abs' fieldAnn v (Term.var fieldAnn v))
+        ]
+
+termLeafNoProjection :: forall m v. (Monad m, Var v) => TermP v m
+termLeafNoProjection =
   asum
     [ force,
       hashQualifiedPrefixTerm,
@@ -674,6 +742,7 @@ termLeaf =
       bytes,
       boolean,
       link,
+      recordLiteral,
       tupleOrParenthesizedTerm,
       keywordBlock,
       list term,
@@ -1342,6 +1411,23 @@ number' i u f = fmap go numeric
       | take 1 p == "+" = i (read . drop 1 <$> num)
       | take 1 p == "-" = i (read <$> num)
       | otherwise = u (read <$> num)
+
+-- E.g. { name = "Steve", age = 30 }
+recordLiteral ::
+  forall v m.
+  (Var v, Ord v, Monad m) =>
+  TermP v m
+recordLiteral = do
+  (spanAnn, kvs) <- seq' "{" (,) keyValueP
+  checkForDuplicateRecordFields (fst <$> kvs)
+  pure $ Term.record spanAnn (Map.fromList (first L.payload <$> kvs))
+  where
+    keyValueP :: P v m (L.Token Text, Term v Ann)
+    keyValueP = do
+      key <- recordFieldName
+      _ <- reserved ":"
+      value <- term
+      pure (key, value)
 
 tupleOrParenthesizedTerm :: (Monad m, Var v) => TermP v m
 tupleOrParenthesizedTerm = label "tuple" $ do

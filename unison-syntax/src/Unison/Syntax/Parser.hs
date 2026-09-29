@@ -60,6 +60,8 @@ module Unison.Syntax.Parser
     varOrNullaryConstructor,
     wordyDefinitionName,
     wordyPatternName,
+    recordFieldName,
+    checkForDuplicateRecordFields,
   )
 where
 
@@ -233,6 +235,9 @@ data Error v
   | -- | Pattern found in function declaration head (e.g. `f [] = ...`)
     -- Carries the function name and the location of the pattern token.
     PatternInFunctionDeclaration v Ann
+  | -- | The same field name appeared twice in one record type, literal, or
+    -- pattern. Args are the first occurrence, the second, and the name.
+    DuplicateRecordField Ann Ann Text
   deriving (Show, Eq, Ord)
 
 tokenToPair :: L.Token a -> (Ann, a)
@@ -368,6 +373,26 @@ wordyDefinitionName :: (Var v) => P v m (L.Token v)
 wordyDefinitionName = queryToken \case
   L.WordyId n -> Just $ Name.toVar (HQ'.toName n)
   _ -> Nothing
+
+recordFieldName :: (Var v) => P v m (L.Token Text)
+recordFieldName = queryToken \case
+  L.WordyId (HQ'.NameOnly (Name.segments -> (seg Nel.:| []))) -> Just (NameSegment.toUnescapedText seg)
+  _ -> Nothing
+
+-- | Reject a record type, literal, or pattern that names the same field twice.
+-- Without this the field map is built with `Map.fromList`, which silently keeps
+-- the last binding.
+checkForDuplicateRecordFields :: (Ord v) => [L.Token Text] -> P v m ()
+checkForDuplicateRecordFields = go []
+  where
+    go _ [] = pure ()
+    go seen (t : ts) =
+      let name = L.payload t
+       in case lookup name seen of
+            Just ann0 -> P.customFailure (DuplicateRecordField ann0 (ann t) name)
+            -- Appending keeps `seen` in source order, so the error points at
+            -- the first occurrence rather than the nearest one.
+            Nothing -> go (seen <> [(name, ann t)]) ts
 
 -- | Parse a wordyId as a Name, rejecting any hash
 importWordyId :: (Ord v) => P v m (L.Token Name)
