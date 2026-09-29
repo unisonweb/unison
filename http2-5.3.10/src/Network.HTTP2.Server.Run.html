@@ -1,0 +1,425 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE OverloadedStrings #-}</span><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# LANGUAGE RecordWildCards #-}</span><span>
+</span><span id="line-3"></span><span>
+</span><span id="line-4"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Network.HTTP2.Server.Run.html"><span class="hs-identifier">Network.HTTP2.Server.Run</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-5"></span><span>
+</span><span id="line-6"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Concurrent.Async</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">concurrently_</span></span><span class="hs-special">)</span><span>
+</span><span id="line-7"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Concurrent.STM</span></span><span>
+</span><span id="line-8"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Control.Exception</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">E</span></span><span>
+</span><span id="line-9"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Imports.html"><span class="hs-identifier">Imports</span></a></span><span>
+</span><span id="line-10"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Network.Control</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">defaultMaxData</span></span><span class="hs-special">)</span><span>
+</span><span id="line-11"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Network.HTTP.Semantics.IO</span></span><span>
+</span><span id="line-12"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Network.HTTP.Semantics.Server</span></span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Network.HTTP.Semantics.Server.Internal</span></span><span>
+</span><span id="line-14"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Network.Socket</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">SockAddr</span></span><span class="hs-special">)</span><span>
+</span><span id="line-15"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">System.ThreadManager</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">T</span></span><span>
+</span><span id="line-16"></span><span>
+</span><span id="line-17"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Network.HTTP2.Frame.html"><span class="hs-identifier">Network.HTTP2.Frame</span></a></span><span>
+</span><span id="line-18"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Network.HTTP2.H2.html"><span class="hs-identifier">Network.HTTP2.H2</span></a></span><span>
+</span><span id="line-19"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Network.HTTP2.Server.Worker.html"><span class="hs-identifier">Network.HTTP2.Server.Worker</span></a></span><span>
+</span><span id="line-20"></span><span>
+</span><span id="line-21"></span><span class="annot"><span class="hs-comment">-- | Server configuration</span></span><span>
+</span><span id="line-22"></span><span class="hs-keyword">data</span><span> </span><span id="ServerConfig"><span class="annot"><a href="Network.HTTP2.Server.Run.html#ServerConfig"><span class="hs-identifier hs-var">ServerConfig</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="ServerConfig"><span class="annot"><a href="Network.HTTP2.Server.Run.html#ServerConfig"><span class="hs-identifier hs-var">ServerConfig</span></a></span></span><span>
+</span><span id="line-23"></span><span>    </span><span class="hs-special">{</span><span> </span><span id="numberOfWorkers"><span class="annot"><span class="annottext">ServerConfig -&gt; Int
+</span><a href="Network.HTTP2.Server.Run.html#numberOfWorkers"><span class="hs-identifier hs-var hs-var">numberOfWorkers</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>
+</span><span id="line-24"></span><span>    </span><span class="annot"><span class="hs-comment">-- ^ Deprecated field.</span></span><span>
+</span><span id="line-25"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="connectionWindowSize"><span class="annot"><span class="annottext">ServerConfig -&gt; Int
+</span><a href="Network.HTTP2.Server.Run.html#connectionWindowSize"><span class="hs-identifier hs-var hs-var">connectionWindowSize</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">WindowSize</span></span><span>
+</span><span id="line-26"></span><span>    </span><span class="annot"><span class="hs-comment">-- ^ The window size of incoming streams</span></span><span>
+</span><span id="line-27"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="settings"><span class="annot"><span class="annottext">ServerConfig -&gt; Settings
+</span><a href="Network.HTTP2.Server.Run.html#settings"><span class="hs-identifier hs-var hs-var">settings</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Network.HTTP2.H2.Settings.html#Settings"><span class="hs-identifier hs-type">Settings</span></a></span><span>
+</span><span id="line-28"></span><span>    </span><span class="annot"><span class="hs-comment">-- ^ Settings</span></span><span>
+</span><span id="line-29"></span><span>    </span><span class="hs-special">}</span><span>
+</span><span id="line-30"></span><span>    </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679137800"><span id="local-6989586621679137807"><span class="annot"><span class="annottext">ServerConfig -&gt; ServerConfig -&gt; Bool
+(ServerConfig -&gt; ServerConfig -&gt; Bool)
+-&gt; (ServerConfig -&gt; ServerConfig -&gt; Bool) -&gt; Eq ServerConfig
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: ServerConfig -&gt; ServerConfig -&gt; Bool
+== :: ServerConfig -&gt; ServerConfig -&gt; Bool
+$c/= :: ServerConfig -&gt; ServerConfig -&gt; Bool
+/= :: ServerConfig -&gt; ServerConfig -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679137812"><span id="local-6989586621679137821"><span id="local-6989586621679137825"><span class="annot"><span class="annottext">Int -&gt; ServerConfig -&gt; ShowS
+[ServerConfig] -&gt; ShowS
+ServerConfig -&gt; String
+(Int -&gt; ServerConfig -&gt; ShowS)
+-&gt; (ServerConfig -&gt; String)
+-&gt; ([ServerConfig] -&gt; ShowS)
+-&gt; Show ServerConfig
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; ServerConfig -&gt; ShowS
+showsPrec :: Int -&gt; ServerConfig -&gt; ShowS
+$cshow :: ServerConfig -&gt; String
+show :: ServerConfig -&gt; String
+$cshowList :: [ServerConfig] -&gt; ShowS
+showList :: [ServerConfig] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-31"></span><span>
+</span><span id="line-32"></span><span class="hs-pragma">{-# DEPRECATED</span><span> </span><span class="hs-pragma">numberOfWorkers</span><span> </span><span class="hs-pragma">&quot;No effect anymore&quot;</span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-33"></span><span>
+</span><span id="line-34"></span><span class="hs-comment">-- | The default server config.</span><span>
+</span><span id="line-35"></span><span class="hs-comment">--</span><span>
+</span><span id="line-36"></span><span class="hs-comment">-- &gt;&gt;&gt; defaultServerConfig</span><span>
+</span><span id="line-37"></span><span class="hs-comment">-- ServerConfig {numberOfWorkers = 8, connectionWindowSize = 16777216, settings = Settings {headerTableSize = 4096, enablePush = True, maxConcurrentStreams = Just 64, initialWindowSize = 262144, maxFrameSize = 16384, maxHeaderListSize = Nothing, pingRateLimit = 10, emptyFrameRateLimit = 4, settingsRateLimit = 4, rstRateLimit = 4}}</span><span>
+</span><span id="line-38"></span><span class="annot"><a href="Network.HTTP2.Server.Run.html#defaultServerConfig"><span class="hs-identifier hs-type">defaultServerConfig</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Network.HTTP2.Server.Run.html#ServerConfig"><span class="hs-identifier hs-type">ServerConfig</span></a></span><span>
+</span><span id="line-39"></span><span id="defaultServerConfig"><span class="annot"><span class="annottext">defaultServerConfig :: ServerConfig
+</span><a href="Network.HTTP2.Server.Run.html#defaultServerConfig"><span class="hs-identifier hs-var hs-var">defaultServerConfig</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-40"></span><span>    </span><span class="annot"><a href="Network.HTTP2.Server.Run.html#ServerConfig"><span class="hs-identifier hs-type">ServerConfig</span></a></span><span>
+</span><span id="line-41"></span><span>        </span><span class="hs-special">{</span><span> </span><span class="annot"><span class="annottext">numberOfWorkers :: Int
+</span><a href="Network.HTTP2.Server.Run.html#numberOfWorkers"><span class="hs-identifier hs-var">numberOfWorkers</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">8</span></span><span>
+</span><span id="line-42"></span><span>        </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">connectionWindowSize :: Int
+</span><a href="Network.HTTP2.Server.Run.html#connectionWindowSize"><span class="hs-identifier hs-var">connectionWindowSize</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-identifier hs-var">defaultMaxData</span></span><span>
+</span><span id="line-43"></span><span>        </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">settings :: Settings
+</span><a href="Network.HTTP2.Server.Run.html#settings"><span class="hs-identifier hs-var">settings</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Settings
+</span><a href="Network.HTTP2.H2.Settings.html#defaultSettings"><span class="hs-identifier hs-var">defaultSettings</span></a></span><span>
+</span><span id="line-44"></span><span>        </span><span class="hs-special">}</span><span>
+</span><span id="line-45"></span><span>
+</span><span id="line-46"></span><span class="hs-comment">----------------------------------------------------------------</span><span>
+</span><span id="line-47"></span><span>
+</span><span id="line-48"></span><span class="annot"><span class="hs-comment">-- | Running HTTP/2 server.</span></span><span>
+</span><span id="line-49"></span><span class="annot"><a href="Network.HTTP2.Server.Run.html#run"><span class="hs-identifier hs-type">run</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Network.HTTP2.Server.Run.html#ServerConfig"><span class="hs-identifier hs-type">ServerConfig</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Network.HTTP2.H2.Types.html#Config"><span class="hs-identifier hs-type">Config</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Server</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-50"></span><span id="run"><span class="annot"><span class="annottext">run :: ServerConfig -&gt; Config -&gt; Server -&gt; IO ()
+</span><a href="Network.HTTP2.Server.Run.html#run"><span class="hs-identifier hs-var hs-var">run</span></a></span></span><span> </span><span id="local-6989586621679137832"><span class="annot"><span class="annottext">ServerConfig
+</span><a href="#local-6989586621679137832"><span class="hs-identifier hs-var">sconf</span></a></span></span><span> </span><span id="local-6989586621679137833"><span class="annot"><span class="annottext">Config
+</span><a href="#local-6989586621679137833"><span class="hs-identifier hs-var">conf</span></a></span></span><span> </span><span id="local-6989586621679137834"><span class="annot"><span class="annottext">Server
+</span><a href="#local-6989586621679137834"><span class="hs-identifier hs-var">server</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-51"></span><span>    </span><span id="local-6989586621679137835"><span class="annot"><a href="#local-6989586621679137835"><span class="hs-identifier hs-var">ok</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Config -&gt; IO Bool
+</span><a href="Network.HTTP2.Server.Run.html#checkPreface"><span class="hs-identifier hs-var">checkPreface</span></a></span><span> </span><span class="annot"><span class="annottext">Config
+</span><a href="#local-6989586621679137833"><span class="hs-identifier hs-var">conf</span></a></span><span>
+</span><span id="line-52"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">when</span></span><span> </span><span class="annot"><a href="#local-6989586621679137835"><span class="hs-identifier hs-type">ok</span></a></span><span> </span><span class="annot"><span class="hs-operator hs-type">$</span></span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-53"></span><span>        </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679137838"><span class="annot"><a href="#local-6989586621679137838"><span class="hs-identifier hs-var hs-var">lnch</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Config -&gt; Server -&gt; Launch
+</span><a href="Network.HTTP2.Server.Worker.html#runServer"><span class="hs-identifier hs-var">runServer</span></a></span><span> </span><span class="annot"><span class="annottext">Config
+</span><a href="#local-6989586621679137833"><span class="hs-identifier hs-var">conf</span></a></span><span> </span><span class="annot"><span class="annottext">Server
+</span><a href="#local-6989586621679137834"><span class="hs-identifier hs-var">server</span></a></span><span>
+</span><span id="line-54"></span><span>        </span><span id="local-6989586621679137840"><span class="annot"><a href="#local-6989586621679137840"><span class="hs-identifier hs-var">ctx</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><a href="Network.HTTP2.Server.Run.html#setup"><span class="hs-identifier hs-type">setup</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679137832"><span class="hs-identifier hs-type">sconf</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679137833"><span class="hs-identifier hs-type">conf</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679137838"><span class="hs-identifier hs-type">lnch</span></a></span><span>
+</span><span id="line-55"></span><span>        </span><span class="annot"><a href="Network.HTTP2.Server.Run.html#runH2"><span class="hs-identifier hs-type">runH2</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679137833"><span class="hs-identifier hs-type">conf</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679137840"><span class="hs-identifier hs-type">ctx</span></a></span><span>
+</span><span id="line-56"></span><span>
+</span><span id="line-57"></span><span class="hs-comment">----------------------------------------------------------------</span><span>
+</span><span id="line-58"></span><span>
+</span><span id="line-59"></span><span class="hs-keyword">data</span><span> </span><span id="ServerIO"><span class="annot"><a href="Network.HTTP2.Server.Run.html#ServerIO"><span class="hs-identifier hs-var">ServerIO</span></a></span></span><span> </span><span id="local-6989586621679137725"><span class="annot"><a href="#local-6989586621679137725"><span class="hs-identifier hs-type">a</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="ServerIO"><span class="annot"><a href="Network.HTTP2.Server.Run.html#ServerIO"><span class="hs-identifier hs-var">ServerIO</span></a></span></span><span>
+</span><span id="line-60"></span><span>    </span><span class="hs-special">{</span><span> </span><span id="sioMySockAddr"><span class="annot"><span class="annottext">forall a. ServerIO a -&gt; SockAddr
+</span><a href="Network.HTTP2.Server.Run.html#sioMySockAddr"><span class="hs-identifier hs-var hs-var">sioMySockAddr</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">SockAddr</span></span><span>
+</span><span id="line-61"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="sioPeerSockAddr"><span class="annot"><span class="annottext">forall a. ServerIO a -&gt; SockAddr
+</span><a href="Network.HTTP2.Server.Run.html#sioPeerSockAddr"><span class="hs-identifier hs-var hs-var">sioPeerSockAddr</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">SockAddr</span></span><span>
+</span><span id="line-62"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="sioReadRequest"><span class="annot"><span class="annottext">forall a. ServerIO a -&gt; IO (a, Request)
+</span><a href="Network.HTTP2.Server.Run.html#sioReadRequest"><span class="hs-identifier hs-var hs-var">sioReadRequest</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679137725"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Request</span></span><span class="hs-special">)</span><span>
+</span><span id="line-63"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="sioWriteResponse"><span class="annot"><span class="annottext">forall a. ServerIO a -&gt; a -&gt; Response -&gt; IO ()
+</span><a href="Network.HTTP2.Server.Run.html#sioWriteResponse"><span class="hs-identifier hs-var hs-var">sioWriteResponse</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="#local-6989586621679137725"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Response</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-64"></span><span>    </span><span class="hs-comment">-- ^ 'Response' MUST be created with 'responseBuilder'.</span><span>
+</span><span id="line-65"></span><span>    </span><span class="hs-comment">-- Others are not supported.</span><span>
+</span><span id="line-66"></span><span>    </span><span class="hs-special">}</span><span>
+</span><span id="line-67"></span><span>
+</span><span id="line-68"></span><span class="hs-comment">-- | Launching a receiver and a sender without workers.</span><span>
+</span><span id="line-69"></span><span class="hs-comment">-- Any frames can be sent with `sioWriteBytes`.</span><span>
+</span><span id="line-70"></span><span class="annot"><a href="Network.HTTP2.Server.Run.html#runIO"><span class="hs-identifier hs-type">runIO</span></a></span><span>
+</span><span id="line-71"></span><span>    </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Network.HTTP2.Server.Run.html#ServerConfig"><span class="hs-identifier hs-type">ServerConfig</span></a></span><span>
+</span><span id="line-72"></span><span>    </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Network.HTTP2.H2.Types.html#Config"><span class="hs-identifier hs-type">Config</span></a></span><span>
+</span><span id="line-73"></span><span>    </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Network.HTTP2.Server.Run.html#ServerIO"><span class="hs-identifier hs-type">ServerIO</span></a></span><span> </span><span class="annot"><a href="Network.HTTP2.H2.Types.html#Stream"><span class="hs-identifier hs-type">Stream</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-74"></span><span>    </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-75"></span><span id="runIO"><span class="annot"><span class="annottext">runIO :: ServerConfig -&gt; Config -&gt; (ServerIO Stream -&gt; IO (IO ())) -&gt; IO ()
+</span><a href="Network.HTTP2.Server.Run.html#runIO"><span class="hs-identifier hs-var hs-var">runIO</span></a></span></span><span> </span><span id="local-6989586621679137851"><span class="annot"><span class="annottext">ServerConfig
+</span><a href="#local-6989586621679137851"><span class="hs-identifier hs-var">sconf</span></a></span></span><span> </span><span id="local-6989586621679137852"><span class="annot"><span class="annottext">conf :: Config
+</span><a href="#local-6989586621679137852"><span class="hs-identifier hs-var">conf</span></a></span></span><span class="hs-glyph">@</span><span class="annot"><a href="Network.HTTP2.H2.Types.html#Config"><span class="hs-identifier hs-type">Config</span></a></span><span class="hs-special">{</span><span id="local-6989586621679137854"><span id="local-6989586621679137855"><span id="local-6989586621679137856"><span id="local-6989586621679137857"><span id="local-6989586621679137858"><span id="local-6989586621679137859"><span id="local-6989586621679137860"><span id="local-6989586621679137861"><span class="annot"><span class="annottext">Int
+Buffer
+SockAddr
+Manager
+Int -&gt; IO ByteString
+PositionReadMaker
+ByteString -&gt; IO ()
+confWriteBuffer :: Buffer
+confBufferSize :: Int
+confSendAll :: ByteString -&gt; IO ()
+confReadN :: Int -&gt; IO ByteString
+confPositionReadMaker :: PositionReadMaker
+confTimeoutManager :: Manager
+confMySockAddr :: SockAddr
+confPeerSockAddr :: SockAddr
+confPeerSockAddr :: Config -&gt; SockAddr
+confMySockAddr :: Config -&gt; SockAddr
+confTimeoutManager :: Config -&gt; Manager
+confPositionReadMaker :: Config -&gt; PositionReadMaker
+confReadN :: Config -&gt; Int -&gt; IO ByteString
+confSendAll :: Config -&gt; ByteString -&gt; IO ()
+confBufferSize :: Config -&gt; Int
+confWriteBuffer :: Config -&gt; Buffer
+</span><a href="#local-6989586621679137854"><span class="hs-glyph hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">..</span></a></span></span></span></span></span></span></span></span></span><span class="hs-special">}</span><span> </span><span id="local-6989586621679137870"><span class="annot"><span class="annottext">ServerIO Stream -&gt; IO (IO ())
+</span><a href="#local-6989586621679137870"><span class="hs-identifier hs-var">action</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-76"></span><span>    </span><span id="local-6989586621679137871"><span class="annot"><a href="#local-6989586621679137871"><span class="hs-identifier hs-var">ok</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Config -&gt; IO Bool
+</span><a href="Network.HTTP2.Server.Run.html#checkPreface"><span class="hs-identifier hs-var">checkPreface</span></a></span><span> </span><span class="annot"><span class="annottext">Config
+</span><a href="#local-6989586621679137852"><span class="hs-identifier hs-var">conf</span></a></span><span>
+</span><span id="line-77"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">when</span></span><span> </span><span class="annot"><a href="#local-6989586621679137871"><span class="hs-identifier hs-type">ok</span></a></span><span> </span><span class="annot"><span class="hs-operator hs-type">$</span></span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-78"></span><span>        </span><span id="local-6989586621679137872"><span class="annot"><a href="#local-6989586621679137872"><span class="hs-identifier hs-var">inpQ</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="hs-identifier hs-type">newTQueueIO</span></span><span>
+</span><span id="line-79"></span><span>        </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679137874"><span class="annot"><a href="#local-6989586621679137874"><span class="hs-identifier hs-var hs-var">lnch</span></a></span></span><span> </span><span class="annot"><span class="annottext">p
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621679137875"><span class="annot"><span class="annottext">Stream
+</span><a href="#local-6989586621679137875"><span class="hs-identifier hs-var">strm</span></a></span></span><span> </span><span id="local-6989586621679137876"><span class="annot"><span class="annottext">InpObj
+</span><a href="#local-6989586621679137876"><span class="hs-identifier hs-var">inpObj</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">STM () -&gt; IO ()
+forall a. STM a -&gt; IO a
+</span><span class="hs-identifier hs-var">atomically</span></span><span> </span><span class="annot"><span class="annottext">(STM () -&gt; IO ()) -&gt; STM () -&gt; IO ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">TQueue (Stream, InpObj) -&gt; (Stream, InpObj) -&gt; STM ()
+forall a. TQueue a -&gt; a -&gt; STM ()
+</span><span class="hs-identifier hs-var">writeTQueue</span></span><span> </span><span class="annot"><span class="annottext">TQueue (Stream, InpObj)
+</span><a href="#local-6989586621679137872"><span class="hs-identifier hs-var">inpQ</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Stream
+</span><a href="#local-6989586621679137875"><span class="hs-identifier hs-var">strm</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">InpObj
+</span><a href="#local-6989586621679137876"><span class="hs-identifier hs-var">inpObj</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-80"></span><span>        </span><span id="local-6989586621679137879"><span class="annot"><a href="#local-6989586621679137879"><span class="hs-identifier hs-var">ctx</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><a href="Network.HTTP2.Server.Run.html#setup"><span class="hs-identifier hs-type">setup</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679137851"><span class="hs-identifier hs-type">sconf</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679137852"><span class="hs-identifier hs-type">conf</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679137874"><span class="hs-identifier hs-type">lnch</span></a></span><span>
+</span><span id="line-81"></span><span>        </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679137882"><span class="annot"><a href="#local-6989586621679137882"><span class="hs-identifier hs-var hs-var">get</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-82"></span><span>                </span><span class="hs-special">(</span><span id="local-6989586621679137883"><span class="annot"><a href="#local-6989586621679137883"><span class="hs-identifier hs-var">strm</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679137884"><span class="annot"><a href="#local-6989586621679137884"><span class="hs-identifier hs-var">inpObj</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">STM (Stream, InpObj) -&gt; IO (Stream, InpObj)
+forall a. STM a -&gt; IO a
+</span><span class="hs-identifier hs-var">atomically</span></span><span> </span><span class="annot"><span class="annottext">(STM (Stream, InpObj) -&gt; IO (Stream, InpObj))
+-&gt; STM (Stream, InpObj) -&gt; IO (Stream, InpObj)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">TQueue (Stream, InpObj) -&gt; STM (Stream, InpObj)
+forall a. TQueue a -&gt; STM a
+</span><span class="hs-identifier hs-var">readTQueue</span></span><span> </span><span class="annot"><span class="annottext">TQueue (Stream, InpObj)
+</span><a href="#local-6989586621679137872"><span class="hs-identifier hs-var">inpQ</span></a></span><span>
+</span><span id="line-83"></span><span>                </span><span class="annot"><span class="hs-identifier hs-type">return</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679137883"><span class="hs-identifier hs-type">strm</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Request</span></span><span> </span><span class="annot"><a href="#local-6989586621679137884"><span class="hs-identifier hs-type">inpObj</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-84"></span><span>            </span><span id="local-6989586621679137889"><span class="annot"><a href="#local-6989586621679137889"><span class="hs-identifier hs-var hs-var">putR</span></a></span></span><span> </span><span id="local-6989586621679137890"><span class="annot"><span class="annottext">Stream
+</span><a href="#local-6989586621679137890"><span class="hs-identifier hs-var">strm</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Response</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">OutObj</span></span><span class="hs-special">{</span><span id="local-6989586621679137892"><span id="local-6989586621679137893"><span id="local-6989586621679137894"><span class="annot"><span class="annottext">[Header]
+OutBody
+TrailersMaker
+outObjHeaders :: [Header]
+outObjBody :: OutBody
+outObjTrailers :: TrailersMaker
+outObjTrailers :: OutObj -&gt; TrailersMaker
+outObjBody :: OutObj -&gt; OutBody
+outObjHeaders :: OutObj -&gt; [Header]
+</span><a href="#local-6989586621679137892"><span class="hs-glyph hs-var hs-var hs-var hs-var hs-var hs-var">..</span></a></span></span></span></span><span class="hs-special">}</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-85"></span><span>                </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">OutBody
+</span><a href="#local-6989586621679137893"><span class="hs-identifier hs-var">outObjBody</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-86"></span><span>                    </span><span class="annot"><span class="hs-identifier hs-type">OutBodyBuilder</span></span><span> </span><span id="local-6989586621679137899"><span class="annot"><span class="annottext">Builder
+</span><a href="#local-6989586621679137899"><span class="hs-identifier hs-var">builder</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-87"></span><span>                        </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679137900"><span class="annot"><span class="annottext">next :: DynaNext
+</span><a href="#local-6989586621679137900"><span class="hs-identifier hs-var hs-var">next</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Builder -&gt; DynaNext
+</span><span class="hs-identifier hs-var">fillBuilderBodyGetNext</span></span><span> </span><span class="annot"><span class="annottext">Builder
+</span><a href="#local-6989586621679137899"><span class="hs-identifier hs-var">builder</span></a></span><span>
+</span><span id="line-88"></span><span>                            </span><span id="local-6989586621679137902"><span class="annot"><span class="annottext">otyp :: OutputType
+</span><a href="#local-6989586621679137902"><span class="hs-identifier hs-var hs-var">otyp</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Header] -&gt; Maybe DynaNext -&gt; TrailersMaker -&gt; OutputType
+</span><a href="Network.HTTP2.H2.Types.html#OHeader"><span class="hs-identifier hs-var">OHeader</span></a></span><span> </span><span class="annot"><span class="annottext">[Header]
+</span><a href="#local-6989586621679137892"><span class="hs-identifier hs-var">outObjHeaders</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">DynaNext -&gt; Maybe DynaNext
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">DynaNext
+</span><a href="#local-6989586621679137900"><span class="hs-identifier hs-var">next</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">TrailersMaker
+</span><a href="#local-6989586621679137894"><span class="hs-identifier hs-var">outObjTrailers</span></a></span><span>
+</span><span id="line-89"></span><span>                        </span><span class="annot"><span class="annottext">Context -&gt; Stream -&gt; OutputType -&gt; IO ()
+</span><a href="Network.HTTP2.H2.Sync.html#enqueueOutputSIO"><span class="hs-identifier hs-var">enqueueOutputSIO</span></a></span><span> </span><span class="annot"><span class="annottext">Context
+</span><a href="#local-6989586621679137879"><span class="hs-identifier hs-var">ctx</span></a></span><span> </span><span class="annot"><span class="annottext">Stream
+</span><a href="#local-6989586621679137890"><span class="hs-identifier hs-var">strm</span></a></span><span> </span><span class="annot"><span class="annottext">OutputType
+</span><a href="#local-6989586621679137902"><span class="hs-identifier hs-var">otyp</span></a></span><span>
+</span><span id="line-90"></span><span>                    </span><span class="annot"><span class="annottext">OutBody
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">String -&gt; IO ()
+forall a. HasCallStack =&gt; String -&gt; a
+</span><span class="hs-identifier hs-var">error</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Response other than OutBodyBuilder is not supported&quot;</span></span><span>
+</span><span id="line-91"></span><span>            </span><span id="local-6989586621679137906"><span class="annot"><a href="#local-6989586621679137906"><span class="hs-identifier hs-var hs-var">serverIO</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-92"></span><span>                </span><span class="annot"><a href="Network.HTTP2.Server.Run.html#ServerIO"><span class="hs-identifier hs-type">ServerIO</span></a></span><span>
+</span><span id="line-93"></span><span>                    </span><span class="hs-special">{</span><span> </span><span class="annot"><span class="annottext">sioMySockAddr :: SockAddr
+</span><a href="Network.HTTP2.Server.Run.html#sioMySockAddr"><span class="hs-identifier hs-var">sioMySockAddr</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">SockAddr
+</span><a href="#local-6989586621679137860"><span class="hs-identifier hs-var">confMySockAddr</span></a></span><span>
+</span><span id="line-94"></span><span>                    </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">sioPeerSockAddr :: SockAddr
+</span><a href="Network.HTTP2.Server.Run.html#sioPeerSockAddr"><span class="hs-identifier hs-var">sioPeerSockAddr</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">SockAddr
+</span><a href="#local-6989586621679137861"><span class="hs-identifier hs-var">confPeerSockAddr</span></a></span><span>
+</span><span id="line-95"></span><span>                    </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">sioReadRequest :: IO (Stream, Request)
+</span><a href="Network.HTTP2.Server.Run.html#sioReadRequest"><span class="hs-identifier hs-var">sioReadRequest</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">IO (Stream, Request)
+</span><a href="#local-6989586621679137882"><span class="hs-identifier hs-var">get</span></a></span><span>
+</span><span id="line-96"></span><span>                    </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">sioWriteResponse :: Stream -&gt; Response -&gt; IO ()
+</span><a href="Network.HTTP2.Server.Run.html#sioWriteResponse"><span class="hs-identifier hs-var">sioWriteResponse</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Stream -&gt; Response -&gt; IO ()
+</span><a href="#local-6989586621679137889"><span class="hs-identifier hs-var">putR</span></a></span><span>
+</span><span id="line-97"></span><span>                    </span><span class="hs-special">}</span><span>
+</span><span id="line-98"></span><span>        </span><span id="local-6989586621679137907"><span class="annot"><a href="#local-6989586621679137907"><span class="hs-identifier hs-var">io</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><a href="#local-6989586621679137870"><span class="hs-identifier hs-type">action</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679137906"><span class="hs-identifier hs-type">serverIO</span></a></span><span>
+</span><span id="line-99"></span><span>        </span><span class="annot"><span class="hs-identifier hs-type">concurrently_</span></span><span> </span><span class="annot"><a href="#local-6989586621679137907"><span class="hs-identifier hs-type">io</span></a></span><span> </span><span class="annot"><span class="hs-operator hs-type">$</span></span><span> </span><span class="annot"><a href="Network.HTTP2.Server.Run.html#runH2"><span class="hs-identifier hs-type">runH2</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679137852"><span class="hs-identifier hs-type">conf</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679137879"><span class="hs-identifier hs-type">ctx</span></a></span><span>
+</span><span id="line-100"></span><span>
+</span><span id="line-101"></span><span class="annot"><a href="Network.HTTP2.Server.Run.html#checkPreface"><span class="hs-identifier hs-type">checkPreface</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Network.HTTP2.H2.Types.html#Config"><span class="hs-identifier hs-type">Config</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>
+</span><span id="line-102"></span><span id="checkPreface"><span class="annot"><span class="annottext">checkPreface :: Config -&gt; IO Bool
+</span><a href="Network.HTTP2.Server.Run.html#checkPreface"><span class="hs-identifier hs-var hs-var">checkPreface</span></a></span></span><span> </span><span id="local-6989586621679137908"><span class="annot"><span class="annottext">conf :: Config
+</span><a href="#local-6989586621679137908"><span class="hs-identifier hs-var">conf</span></a></span></span><span class="hs-glyph">@</span><span class="annot"><a href="Network.HTTP2.H2.Types.html#Config"><span class="hs-identifier hs-type">Config</span></a></span><span class="hs-special">{</span><span id="local-6989586621679137909"><span id="local-6989586621679137910"><span id="local-6989586621679137911"><span id="local-6989586621679137912"><span id="local-6989586621679137913"><span id="local-6989586621679137914"><span id="local-6989586621679137915"><span id="local-6989586621679137916"><span class="annot"><span class="annottext">Int
+Buffer
+SockAddr
+Manager
+Int -&gt; IO ByteString
+PositionReadMaker
+ByteString -&gt; IO ()
+confPeerSockAddr :: Config -&gt; SockAddr
+confMySockAddr :: Config -&gt; SockAddr
+confTimeoutManager :: Config -&gt; Manager
+confPositionReadMaker :: Config -&gt; PositionReadMaker
+confReadN :: Config -&gt; Int -&gt; IO ByteString
+confSendAll :: Config -&gt; ByteString -&gt; IO ()
+confBufferSize :: Config -&gt; Int
+confWriteBuffer :: Config -&gt; Buffer
+confWriteBuffer :: Buffer
+confBufferSize :: Int
+confSendAll :: ByteString -&gt; IO ()
+confReadN :: Int -&gt; IO ByteString
+confPositionReadMaker :: PositionReadMaker
+confTimeoutManager :: Manager
+confMySockAddr :: SockAddr
+confPeerSockAddr :: SockAddr
+</span><a href="Network.HTTP2.H2.Types.html#confPeerSockAddr"><span class="hs-glyph hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">..</span></a></span></span></span></span></span></span></span></span></span><span class="hs-special">}</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-103"></span><span>    </span><span id="local-6989586621679137917"><span class="annot"><a href="#local-6989586621679137917"><span class="hs-identifier hs-var">preface</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Int -&gt; IO ByteString
+</span><a href="#local-6989586621679137912"><span class="hs-identifier hs-var">confReadN</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="Network.HTTP2.Frame.html#connectionPrefaceLength"><span class="hs-identifier hs-var">connectionPrefaceLength</span></a></span><span>
+</span><span id="line-104"></span><span>    </span><span class="hs-keyword">if</span><span> </span><span class="annot"><a href="Network.HTTP2.Frame.html#connectionPreface"><span class="hs-identifier hs-type">connectionPreface</span></a></span><span> </span><span class="annot"><span class="hs-operator hs-type">/=</span></span><span> </span><span class="annot"><a href="#local-6989586621679137917"><span class="hs-identifier hs-type">preface</span></a></span><span>
+</span><span id="line-105"></span><span>        </span><span class="hs-keyword">then</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-106"></span><span>            </span><span class="annot"><a href="Network.HTTP2.Server.Run.html#goaway"><span class="hs-identifier hs-type">goaway</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679137908"><span class="hs-identifier hs-type">conf</span></a></span><span> </span><span class="annot"><a href="Network.HTTP2.Frame.Types.html#ProtocolError"><span class="hs-identifier hs-type">ProtocolError</span></a></span><span> </span><span class="annot"><span class="hs-string">&quot;Preface mismatch&quot;</span></span><span>
+</span><span id="line-107"></span><span>            </span><span class="annot"><span class="hs-identifier hs-type">return</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">False</span></span><span>
+</span><span id="line-108"></span><span>        </span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="hs-identifier hs-type">return</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">True</span></span><span>
+</span><span id="line-109"></span><span>
+</span><span id="line-110"></span><span class="annot"><a href="Network.HTTP2.Server.Run.html#setup"><span class="hs-identifier hs-type">setup</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Network.HTTP2.Server.Run.html#ServerConfig"><span class="hs-identifier hs-type">ServerConfig</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Network.HTTP2.H2.Types.html#Config"><span class="hs-identifier hs-type">Config</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Network.HTTP2.H2.Context.html#Launch"><span class="hs-identifier hs-type">Launch</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="Network.HTTP2.H2.Context.html#Context"><span class="hs-identifier hs-type">Context</span></a></span><span>
+</span><span id="line-111"></span><span id="setup"><span class="annot"><span class="annottext">setup :: ServerConfig -&gt; Config -&gt; Launch -&gt; IO Context
+</span><a href="Network.HTTP2.Server.Run.html#setup"><span class="hs-identifier hs-var hs-var">setup</span></a></span></span><span> </span><span class="annot"><a href="Network.HTTP2.Server.Run.html#ServerConfig"><span class="hs-identifier hs-type">ServerConfig</span></a></span><span class="hs-special">{</span><span id="local-6989586621679137923"><span id="local-6989586621679137924"><span id="local-6989586621679137925"><span class="annot"><span class="annottext">Int
+Settings
+numberOfWorkers :: ServerConfig -&gt; Int
+connectionWindowSize :: ServerConfig -&gt; Int
+settings :: ServerConfig -&gt; Settings
+numberOfWorkers :: Int
+connectionWindowSize :: Int
+settings :: Settings
+</span><a href="Network.HTTP2.Server.Run.html#numberOfWorkers"><span class="hs-glyph hs-var hs-var hs-var hs-var hs-var hs-var">..</span></a></span></span></span></span><span class="hs-special">}</span><span> </span><span id="local-6989586621679137926"><span class="annot"><span class="annottext">conf :: Config
+</span><a href="#local-6989586621679137926"><span class="hs-identifier hs-var">conf</span></a></span></span><span class="hs-glyph">@</span><span class="annot"><a href="Network.HTTP2.H2.Types.html#Config"><span class="hs-identifier hs-type">Config</span></a></span><span class="hs-special">{</span><span id="local-6989586621679137927"><span id="local-6989586621679137928"><span id="local-6989586621679137929"><span id="local-6989586621679137930"><span id="local-6989586621679137931"><span id="local-6989586621679137932"><span id="local-6989586621679137933"><span id="local-6989586621679137934"><span class="annot"><span class="annottext">Int
+Buffer
+SockAddr
+Manager
+Int -&gt; IO ByteString
+PositionReadMaker
+ByteString -&gt; IO ()
+confPeerSockAddr :: Config -&gt; SockAddr
+confMySockAddr :: Config -&gt; SockAddr
+confTimeoutManager :: Config -&gt; Manager
+confPositionReadMaker :: Config -&gt; PositionReadMaker
+confReadN :: Config -&gt; Int -&gt; IO ByteString
+confSendAll :: Config -&gt; ByteString -&gt; IO ()
+confBufferSize :: Config -&gt; Int
+confWriteBuffer :: Config -&gt; Buffer
+confWriteBuffer :: Buffer
+confBufferSize :: Int
+confSendAll :: ByteString -&gt; IO ()
+confReadN :: Int -&gt; IO ByteString
+confPositionReadMaker :: PositionReadMaker
+confTimeoutManager :: Manager
+confMySockAddr :: SockAddr
+confPeerSockAddr :: SockAddr
+</span><a href="Network.HTTP2.H2.Types.html#confPeerSockAddr"><span class="hs-glyph hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">..</span></a></span></span></span></span></span></span></span></span></span><span class="hs-special">}</span><span> </span><span id="local-6989586621679137935"><span class="annot"><span class="annottext">Launch
+</span><a href="#local-6989586621679137935"><span class="hs-identifier hs-var">lnch</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-112"></span><span>    </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679137936"><span class="annot"><span class="annottext">serverInfo :: RoleInfo
+</span><a href="#local-6989586621679137936"><span class="hs-identifier hs-var hs-var">serverInfo</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Launch -&gt; RoleInfo
+</span><a href="Network.HTTP2.H2.Context.html#newServerInfo"><span class="hs-identifier hs-var">newServerInfo</span></a></span><span> </span><span class="annot"><span class="annottext">Launch
+</span><a href="#local-6989586621679137935"><span class="hs-identifier hs-var">lnch</span></a></span><span>
+</span><span id="line-113"></span><span>    </span><span class="annot"><span class="annottext">RoleInfo
+-&gt; Config -&gt; Int -&gt; Int -&gt; Settings -&gt; Manager -&gt; IO Context
+</span><a href="Network.HTTP2.H2.Context.html#newContext"><span class="hs-identifier hs-var">newContext</span></a></span><span>
+</span><span id="line-114"></span><span>        </span><span class="annot"><span class="annottext">RoleInfo
+</span><a href="#local-6989586621679137936"><span class="hs-identifier hs-var">serverInfo</span></a></span><span>
+</span><span id="line-115"></span><span>        </span><span class="annot"><span class="annottext">Config
+</span><a href="#local-6989586621679137926"><span class="hs-identifier hs-var">conf</span></a></span><span>
+</span><span id="line-116"></span><span>        </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span>
+</span><span id="line-117"></span><span>        </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679137924"><span class="hs-identifier hs-var">connectionWindowSize</span></a></span><span>
+</span><span id="line-118"></span><span>        </span><span class="annot"><span class="annottext">Settings
+</span><a href="#local-6989586621679137925"><span class="hs-identifier hs-var">settings</span></a></span><span>
+</span><span id="line-119"></span><span>        </span><span class="annot"><span class="annottext">Manager
+</span><a href="#local-6989586621679137932"><span class="hs-identifier hs-var">confTimeoutManager</span></a></span><span>
+</span><span id="line-120"></span><span>
+</span><span id="line-121"></span><span class="annot"><a href="Network.HTTP2.Server.Run.html#runH2"><span class="hs-identifier hs-type">runH2</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Network.HTTP2.H2.Types.html#Config"><span class="hs-identifier hs-type">Config</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Network.HTTP2.H2.Context.html#Context"><span class="hs-identifier hs-type">Context</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-122"></span><span id="runH2"><span class="annot"><span class="annottext">runH2 :: Config -&gt; Context -&gt; IO ()
+</span><a href="Network.HTTP2.Server.Run.html#runH2"><span class="hs-identifier hs-var hs-var">runH2</span></a></span></span><span> </span><span id="local-6989586621679137939"><span class="annot"><span class="annottext">Config
+</span><a href="#local-6989586621679137939"><span class="hs-identifier hs-var">conf</span></a></span></span><span> </span><span id="local-6989586621679137940"><span class="annot"><span class="annottext">Context
+</span><a href="#local-6989586621679137940"><span class="hs-identifier hs-var">ctx</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-123"></span><span>    </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679137941"><span class="annot"><span class="annottext">mgr :: ThreadManager
+</span><a href="#local-6989586621679137941"><span class="hs-identifier hs-var hs-var">mgr</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Context -&gt; ThreadManager
+</span><a href="Network.HTTP2.H2.Context.html#threadManager"><span class="hs-identifier hs-var">threadManager</span></a></span><span> </span><span class="annot"><span class="annottext">Context
+</span><a href="#local-6989586621679137940"><span class="hs-identifier hs-var">ctx</span></a></span><span>
+</span><span id="line-124"></span><span>        </span><span id="local-6989586621679137943"><span class="annot"><span class="annottext">runReceiver :: IO ()
+</span><a href="#local-6989586621679137943"><span class="hs-identifier hs-var hs-var">runReceiver</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Context -&gt; Config -&gt; IO ()
+</span><a href="Network.HTTP2.H2.Receiver.html#frameReceiver"><span class="hs-identifier hs-var">frameReceiver</span></a></span><span> </span><span class="annot"><span class="annottext">Context
+</span><a href="#local-6989586621679137940"><span class="hs-identifier hs-var">ctx</span></a></span><span> </span><span class="annot"><span class="annottext">Config
+</span><a href="#local-6989586621679137939"><span class="hs-identifier hs-var">conf</span></a></span><span>
+</span><span id="line-125"></span><span>        </span><span id="local-6989586621679137945"><span class="annot"><span class="annottext">runSender :: IO ()
+</span><a href="#local-6989586621679137945"><span class="hs-identifier hs-var hs-var">runSender</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Context -&gt; Config -&gt; IO ()
+</span><a href="Network.HTTP2.H2.Sender.html#frameSender"><span class="hs-identifier hs-var">frameSender</span></a></span><span> </span><span class="annot"><span class="annottext">Context
+</span><a href="#local-6989586621679137940"><span class="hs-identifier hs-var">ctx</span></a></span><span> </span><span class="annot"><span class="annottext">Config
+</span><a href="#local-6989586621679137939"><span class="hs-identifier hs-var">conf</span></a></span><span>
+</span><span id="line-126"></span><span>        </span><span id="local-6989586621679137951"><span class="annot"><span class="annottext">runBackgroundThreads :: IO ()
+</span><a href="#local-6989586621679137951"><span class="hs-identifier hs-var hs-var">runBackgroundThreads</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-127"></span><span>            </span><span id="local-6989586621679137952"><span class="annot"><a href="#local-6989586621679137952"><span class="hs-identifier hs-var">er</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">IO () -&gt; IO (Either SomeException ())
+forall e a. Exception e =&gt; IO a -&gt; IO (Either e a)
+</span><span class="hs-identifier hs-var">E.try</span></span><span> </span><span class="annot"><span class="annottext">(IO () -&gt; IO (Either SomeException ()))
+-&gt; IO () -&gt; IO (Either SomeException ())
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">IO () -&gt; IO () -&gt; IO ()
+forall a b. IO a -&gt; IO b -&gt; IO ()
+</span><span class="hs-identifier hs-var">concurrently_</span></span><span> </span><span class="annot"><span class="annottext">IO ()
+</span><a href="#local-6989586621679137943"><span class="hs-identifier hs-var">runReceiver</span></a></span><span> </span><span class="annot"><span class="annottext">IO ()
+</span><a href="#local-6989586621679137945"><span class="hs-identifier hs-var">runSender</span></a></span><span>
+</span><span id="line-128"></span><span>            </span><span class="hs-keyword">case</span><span> </span><span class="annot"><a href="#local-6989586621679137952"><span class="hs-identifier hs-type">er</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-129"></span><span>                </span><span class="annot"><span class="hs-identifier hs-type">Right</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">() -&gt; IO ()
+forall a. a -&gt; IO a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-130"></span><span>                </span><span class="annot"><span class="hs-identifier hs-type">Left</span></span><span> </span><span id="local-6989586621679137954"><span class="annot"><span class="annottext">SomeException
+</span><a href="#local-6989586621679137954"><span class="hs-identifier hs-var">e</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Config -&gt; SomeException -&gt; IO ()
+forall a. Config -&gt; SomeException -&gt; IO a
+</span><a href="Network.HTTP2.H2.Receiver.html#closureServer"><span class="hs-identifier hs-var">closureServer</span></a></span><span> </span><span class="annot"><span class="annottext">Config
+</span><a href="#local-6989586621679137939"><span class="hs-identifier hs-var">conf</span></a></span><span> </span><span class="annot"><span class="annottext">SomeException
+</span><a href="#local-6989586621679137954"><span class="hs-identifier hs-var">e</span></a></span><span>
+</span><span id="line-131"></span><span>    </span><span class="annot"><span class="annottext">ThreadManager -&gt; IO () -&gt; (Maybe SomeException -&gt; IO ()) -&gt; IO ()
+forall a.
+ThreadManager -&gt; IO a -&gt; (Maybe SomeException -&gt; IO ()) -&gt; IO a
+</span><span class="hs-identifier hs-var">T.stopAfter</span></span><span> </span><span class="annot"><span class="annottext">ThreadManager
+</span><a href="#local-6989586621679137941"><span class="hs-identifier hs-var">mgr</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">IO ()
+</span><a href="#local-6989586621679137951"><span class="hs-identifier hs-var">runBackgroundThreads</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">((Maybe SomeException -&gt; IO ()) -&gt; IO ())
+-&gt; (Maybe SomeException -&gt; IO ()) -&gt; IO ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679137957"><span class="annot"><span class="annottext">Maybe SomeException
+</span><a href="#local-6989586621679137957"><span class="hs-identifier hs-var">res</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-132"></span><span>        </span><span class="annot"><span class="annottext">TVar OddStreamTable
+-&gt; TVar EvenStreamTable -&gt; Maybe SomeException -&gt; IO ()
+</span><a href="Network.HTTP2.H2.Stream.html#closeAllStreams"><span class="hs-identifier hs-var">closeAllStreams</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Context -&gt; TVar OddStreamTable
+</span><a href="Network.HTTP2.H2.Context.html#oddStreamTable"><span class="hs-identifier hs-var">oddStreamTable</span></a></span><span> </span><span class="annot"><span class="annottext">Context
+</span><a href="#local-6989586621679137940"><span class="hs-identifier hs-var">ctx</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Context -&gt; TVar EvenStreamTable
+</span><a href="Network.HTTP2.H2.Context.html#evenStreamTable"><span class="hs-identifier hs-var">evenStreamTable</span></a></span><span> </span><span class="annot"><span class="annottext">Context
+</span><a href="#local-6989586621679137940"><span class="hs-identifier hs-var">ctx</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Maybe SomeException
+</span><a href="#local-6989586621679137957"><span class="hs-identifier hs-var">res</span></a></span><span>
+</span><span id="line-133"></span><span>
+</span><span id="line-134"></span><span class="hs-comment">-- connClose must not be called here since Run:fork calls it</span><span>
+</span><span id="line-135"></span><span class="annot"><a href="Network.HTTP2.Server.Run.html#goaway"><span class="hs-identifier hs-type">goaway</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Network.HTTP2.H2.Types.html#Config"><span class="hs-identifier hs-type">Config</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Network.HTTP2.Frame.Types.html#ErrorCode"><span class="hs-identifier hs-type">ErrorCode</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ByteString</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-136"></span><span id="goaway"><span class="annot"><span class="annottext">goaway :: Config -&gt; ErrorCode -&gt; ByteString -&gt; IO ()
+</span><a href="Network.HTTP2.Server.Run.html#goaway"><span class="hs-identifier hs-var hs-var">goaway</span></a></span></span><span> </span><span class="annot"><a href="Network.HTTP2.H2.Types.html#Config"><span class="hs-identifier hs-type">Config</span></a></span><span class="hs-special">{</span><span id="local-6989586621679137961"><span id="local-6989586621679137962"><span id="local-6989586621679137963"><span id="local-6989586621679137964"><span id="local-6989586621679137965"><span id="local-6989586621679137966"><span id="local-6989586621679137967"><span id="local-6989586621679137968"><span class="annot"><span class="annottext">Int
+Buffer
+SockAddr
+Manager
+Int -&gt; IO ByteString
+PositionReadMaker
+ByteString -&gt; IO ()
+confPeerSockAddr :: Config -&gt; SockAddr
+confMySockAddr :: Config -&gt; SockAddr
+confTimeoutManager :: Config -&gt; Manager
+confPositionReadMaker :: Config -&gt; PositionReadMaker
+confReadN :: Config -&gt; Int -&gt; IO ByteString
+confSendAll :: Config -&gt; ByteString -&gt; IO ()
+confBufferSize :: Config -&gt; Int
+confWriteBuffer :: Config -&gt; Buffer
+confWriteBuffer :: Buffer
+confBufferSize :: Int
+confSendAll :: ByteString -&gt; IO ()
+confReadN :: Int -&gt; IO ByteString
+confPositionReadMaker :: PositionReadMaker
+confTimeoutManager :: Manager
+confMySockAddr :: SockAddr
+confPeerSockAddr :: SockAddr
+</span><a href="Network.HTTP2.H2.Types.html#confPeerSockAddr"><span class="hs-glyph hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">..</span></a></span></span></span></span></span></span></span></span></span><span class="hs-special">}</span><span> </span><span id="local-6989586621679137969"><span class="annot"><span class="annottext">ErrorCode
+</span><a href="#local-6989586621679137969"><span class="hs-identifier hs-var">etype</span></a></span></span><span> </span><span id="local-6989586621679137970"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679137970"><span class="hs-identifier hs-var">debugmsg</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; IO ()
+</span><a href="#local-6989586621679137963"><span class="hs-identifier hs-var">confSendAll</span></a></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679137971"><span class="hs-identifier hs-var">bytestream</span></a></span><span>
+</span><span id="line-137"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-138"></span><span>    </span><span id="local-6989586621679137971"><span class="annot"><span class="annottext">bytestream :: ByteString
+</span><a href="#local-6989586621679137971"><span class="hs-identifier hs-var hs-var">bytestream</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; ErrorCode -&gt; ByteString -&gt; ByteString
+</span><a href="Network.HTTP2.H2.EncodeFrame.html#goawayFrame"><span class="hs-identifier hs-var">goawayFrame</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span> </span><span class="annot"><span class="annottext">ErrorCode
+</span><a href="#local-6989586621679137969"><span class="hs-identifier hs-var">etype</span></a></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679137970"><span class="hs-identifier hs-var">debugmsg</span></a></span><span>
+</span><span id="line-139"></span></pre></body></html>

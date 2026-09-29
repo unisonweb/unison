@@ -1,0 +1,182 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-comment">-- Copyright (c) 2016-present, Facebook, Inc.</span><span>
+</span><span id="line-2"></span><span class="hs-comment">-- Copyright (c) 2019-present, Luis Pedro Coelho</span><span>
+</span><span id="line-3"></span><span class="hs-comment">-- All rights reserved.</span><span>
+</span><span id="line-4"></span><span class="hs-comment">--</span><span>
+</span><span id="line-5"></span><span class="hs-comment">-- This source code is licensed under the BSD-style license found in</span><span>
+</span><span id="line-6"></span><span class="hs-comment">-- the LICENSE file in the root directory of this source tree. An</span><span>
+</span><span id="line-7"></span><span class="hs-comment">-- additional grant of patent rights can be found in the PATENTS file</span><span>
+</span><span id="line-8"></span><span class="hs-comment">-- in the same directory.</span><span>
+</span><span id="line-9"></span><span>
+</span><span id="line-10"></span><span class="hs-pragma">{-# LANGUAGE BangPatterns #-}</span><span>
+</span><span id="line-11"></span><span>
+</span><span id="line-12"></span><span class="hs-comment">-- |</span><span>
+</span><span id="line-13"></span><span class="hs-comment">-- Module      : Codec.Compression.Zstd.Types</span><span>
+</span><span id="line-14"></span><span class="hs-comment">-- Copyright   : (c) 2016-present, Facebook, Inc. All rights reserved.</span><span>
+</span><span id="line-15"></span><span class="hs-comment">--</span><span>
+</span><span id="line-16"></span><span class="hs-comment">-- License     : BSD3</span><span>
+</span><span id="line-17"></span><span class="hs-comment">-- Maintainer  : bryano@fb.com</span><span>
+</span><span id="line-18"></span><span class="hs-comment">-- Stability   : experimental</span><span>
+</span><span id="line-19"></span><span class="hs-comment">-- Portability : GHC</span><span>
+</span><span id="line-20"></span><span class="hs-comment">--</span><span>
+</span><span id="line-21"></span><span class="hs-comment">-- Types supporting zstd compression and decompression.</span><span>
+</span><span id="line-22"></span><span>
+</span><span id="line-23"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Codec.Compression.Zstd.Types.html"><span class="hs-identifier">Codec.Compression.Zstd.Types</span></a></span><span>
+</span><span id="line-24"></span><span>    </span><span class="hs-special">(</span><span>
+</span><span id="line-25"></span><span>      </span><span class="annot"><a href="Codec.Compression.Zstd.Types.html#Decompress"><span class="hs-identifier">Decompress</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-26"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Codec.Compression.Zstd.Types.html#Dict"><span class="hs-identifier">Dict</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-27"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Codec.Compression.Zstd.Types.html#mkDict"><span class="hs-identifier">mkDict</span></a></span><span>
+</span><span id="line-28"></span><span>    </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-29"></span><span>
+</span><span id="line-30"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.DeepSeq</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">NFData</span></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-31"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.ByteString</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">ByteString</span></span><span class="hs-special">)</span><span>
+</span><span id="line-32"></span><span>
+</span><span id="line-33"></span><span class="annot"><span class="hs-comment">-- | The result of a decompression operation.</span></span><span>
+</span><span id="line-34"></span><span class="hs-keyword">data</span><span> </span><span id="Decompress"><span class="annot"><a href="Codec.Compression.Zstd.Types.html#Decompress"><span class="hs-identifier hs-var">Decompress</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-35"></span><span>    </span><span id="Skip"><span class="annot"><a href="Codec.Compression.Zstd.Types.html#Skip"><span class="hs-identifier hs-var">Skip</span></a></span></span><span>
+</span><span id="line-36"></span><span>  </span><span class="hs-comment">-- ^ Either the compressed frame was empty, or it was compressed in</span><span>
+</span><span id="line-37"></span><span>  </span><span class="hs-comment">-- streaming mode and so its size is not known.</span><span>
+</span><span id="line-38"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="Error"><span class="annot"><a href="Codec.Compression.Zstd.Types.html#Error"><span class="hs-identifier hs-var">Error</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span>
+</span><span id="line-39"></span><span>  </span><span class="annot"><span class="hs-comment">-- ^ An error occurred.</span></span><span>
+</span><span id="line-40"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="Decompress"><span class="annot"><a href="Codec.Compression.Zstd.Types.html#Decompress"><span class="hs-identifier hs-var">Decompress</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">ByteString</span></span><span>
+</span><span id="line-41"></span><span>  </span><span class="annot"><span class="hs-comment">-- ^ The payload was successfully decompressed.</span></span><span>
+</span><span id="line-42"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679055886"><span id="local-6989586621679055896"><span class="annot"><span class="annottext">Decompress -&gt; Decompress -&gt; Bool
+(Decompress -&gt; Decompress -&gt; Bool)
+-&gt; (Decompress -&gt; Decompress -&gt; Bool) -&gt; Eq Decompress
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: Decompress -&gt; Decompress -&gt; Bool
+== :: Decompress -&gt; Decompress -&gt; Bool
+$c/= :: Decompress -&gt; Decompress -&gt; Bool
+/= :: Decompress -&gt; Decompress -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679055902"><span id="local-6989586621679055906"><span id="local-6989586621679055909"><span id="local-6989586621679055925"><span class="annot"><span class="annottext">ReadPrec [Decompress]
+ReadPrec Decompress
+Int -&gt; ReadS Decompress
+ReadS [Decompress]
+(Int -&gt; ReadS Decompress)
+-&gt; ReadS [Decompress]
+-&gt; ReadPrec Decompress
+-&gt; ReadPrec [Decompress]
+-&gt; Read Decompress
+forall a.
+(Int -&gt; ReadS a)
+-&gt; ReadS [a] -&gt; ReadPrec a -&gt; ReadPrec [a] -&gt; Read a
+$creadsPrec :: Int -&gt; ReadS Decompress
+readsPrec :: Int -&gt; ReadS Decompress
+$creadList :: ReadS [Decompress]
+readList :: ReadS [Decompress]
+$creadPrec :: ReadPrec Decompress
+readPrec :: ReadPrec Decompress
+$creadListPrec :: ReadPrec [Decompress]
+readListPrec :: ReadPrec [Decompress]
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Read</span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679055933"><span id="local-6989586621679055943"><span id="local-6989586621679055947"><span class="annot"><span class="annottext">Int -&gt; Decompress -&gt; ShowS
+[Decompress] -&gt; ShowS
+Decompress -&gt; String
+(Int -&gt; Decompress -&gt; ShowS)
+-&gt; (Decompress -&gt; String)
+-&gt; ([Decompress] -&gt; ShowS)
+-&gt; Show Decompress
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; Decompress -&gt; ShowS
+showsPrec :: Int -&gt; Decompress -&gt; ShowS
+$cshow :: Decompress -&gt; String
+show :: Decompress -&gt; String
+$cshowList :: [Decompress] -&gt; ShowS
+showList :: [Decompress] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-43"></span><span>
+</span><span id="line-44"></span><span class="annot"><span class="hs-comment">-- | Compression dictionary.</span></span><span>
+</span><span id="line-45"></span><span class="hs-keyword">newtype</span><span> </span><span id="Dict"><span class="annot"><a href="Codec.Compression.Zstd.Types.html#Dict"><span class="hs-identifier hs-var">Dict</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="Dict"><span class="annot"><a href="Codec.Compression.Zstd.Types.html#Dict"><span class="hs-identifier hs-var">Dict</span></a></span></span><span> </span><span class="hs-special">{</span><span>
+</span><span id="line-46"></span><span>    </span><span id="fromDict"><span class="annot"><span class="annottext">Dict -&gt; ByteString
+</span><a href="Codec.Compression.Zstd.Types.html#fromDict"><span class="hs-identifier hs-var hs-var">fromDict</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ByteString</span></span><span>
+</span><span id="line-47"></span><span>  </span><span class="hs-special">}</span><span> </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679055955"><span id="local-6989586621679055959"><span class="annot"><span class="annottext">Dict -&gt; Dict -&gt; Bool
+(Dict -&gt; Dict -&gt; Bool) -&gt; (Dict -&gt; Dict -&gt; Bool) -&gt; Eq Dict
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: Dict -&gt; Dict -&gt; Bool
+== :: Dict -&gt; Dict -&gt; Bool
+$c/= :: Dict -&gt; Dict -&gt; Bool
+/= :: Dict -&gt; Dict -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679055967"><span id="local-6989586621679055972"><span id="local-6989586621679055976"><span id="local-6989586621679055980"><span id="local-6989586621679055984"><span id="local-6989586621679055988"><span id="local-6989586621679055992"><span class="annot"><span class="annottext">Eq Dict
+Eq Dict =&gt;
+(Dict -&gt; Dict -&gt; Ordering)
+-&gt; (Dict -&gt; Dict -&gt; Bool)
+-&gt; (Dict -&gt; Dict -&gt; Bool)
+-&gt; (Dict -&gt; Dict -&gt; Bool)
+-&gt; (Dict -&gt; Dict -&gt; Bool)
+-&gt; (Dict -&gt; Dict -&gt; Dict)
+-&gt; (Dict -&gt; Dict -&gt; Dict)
+-&gt; Ord Dict
+Dict -&gt; Dict -&gt; Bool
+Dict -&gt; Dict -&gt; Ordering
+Dict -&gt; Dict -&gt; Dict
+forall a.
+Eq a =&gt;
+(a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+$ccompare :: Dict -&gt; Dict -&gt; Ordering
+compare :: Dict -&gt; Dict -&gt; Ordering
+$c&lt; :: Dict -&gt; Dict -&gt; Bool
+&lt; :: Dict -&gt; Dict -&gt; Bool
+$c&lt;= :: Dict -&gt; Dict -&gt; Bool
+&lt;= :: Dict -&gt; Dict -&gt; Bool
+$c&gt; :: Dict -&gt; Dict -&gt; Bool
+&gt; :: Dict -&gt; Dict -&gt; Bool
+$c&gt;= :: Dict -&gt; Dict -&gt; Bool
+&gt;= :: Dict -&gt; Dict -&gt; Bool
+$cmax :: Dict -&gt; Dict -&gt; Dict
+max :: Dict -&gt; Dict -&gt; Dict
+$cmin :: Dict -&gt; Dict -&gt; Dict
+min :: Dict -&gt; Dict -&gt; Dict
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-48"></span><span>
+</span><span id="line-49"></span><span class="annot"><span class="hs-comment">-- | Smart constructor.</span></span><span>
+</span><span id="line-50"></span><span class="annot"><a href="Codec.Compression.Zstd.Types.html#mkDict"><span class="hs-identifier hs-type">mkDict</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ByteString</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Codec.Compression.Zstd.Types.html#Dict"><span class="hs-identifier hs-type">Dict</span></a></span><span>
+</span><span id="line-51"></span><span id="mkDict"><span class="annot"><span class="annottext">mkDict :: ByteString -&gt; Dict
+</span><a href="Codec.Compression.Zstd.Types.html#mkDict"><span class="hs-identifier hs-var hs-var">mkDict</span></a></span></span><span> </span><span id="local-6989586621679056003"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679056003"><span class="hs-identifier hs-var">d</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; Dict
+</span><a href="Codec.Compression.Zstd.Types.html#Dict"><span class="hs-identifier hs-var">Dict</span></a></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679056003"><span class="hs-identifier hs-var">d</span></a></span><span>
+</span><span id="line-52"></span><span>
+</span><span id="line-53"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679056006"><span id="local-6989586621679056010"><span class="annot"><span class="hs-identifier hs-type">Show</span></span><span> </span><span class="annot"><a href="Codec.Compression.Zstd.Types.html#Dict"><span class="hs-identifier hs-type">Dict</span></a></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-54"></span><span>    </span><span id="local-6989586621679056013"><span class="annot"><span class="annottext">showsPrec :: Int -&gt; Dict -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var">showsPrec</span></span></span><span> </span><span id="local-6989586621679056014"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679056014"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Codec.Compression.Zstd.Types.html#Dict"><span class="hs-identifier hs-type">Dict</span></a></span><span> </span><span id="local-6989586621679056015"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679056015"><span class="hs-identifier hs-var">d</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621679056016"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679056016"><span class="hs-identifier hs-var">r</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; ByteString -&gt; ShowS
+forall a. Show a =&gt; Int -&gt; a -&gt; ShowS
+</span><span class="hs-identifier hs-var">showsPrec</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679056014"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679056015"><span class="hs-identifier hs-var">d</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679056016"><span class="hs-identifier hs-var">r</span></a></span><span>
+</span><span id="line-55"></span><span>
+</span><span id="line-56"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679056019"><span id="local-6989586621679056023"><span id="local-6989586621679056026"><span class="annot"><span class="hs-identifier hs-type">Read</span></span><span> </span><span class="annot"><a href="Codec.Compression.Zstd.Types.html#Dict"><span class="hs-identifier hs-type">Dict</span></a></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-57"></span><span>    </span><span id="local-6989586621679056029"><span class="annot"><span class="annottext">readsPrec :: Int -&gt; ReadS Dict
+</span><a href="#local-6989586621679056029"><span class="hs-identifier hs-var hs-var hs-var">readsPrec</span></a></span></span><span> </span><span id="local-6989586621679056031"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679056031"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span id="local-6989586621679056032"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679056032"><span class="hs-identifier hs-var">s</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">((ByteString, String) -&gt; (Dict, String))
+-&gt; [(ByteString, String)] -&gt; [(Dict, String)]
+forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+</span><span class="hs-identifier hs-var">map</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span class="hs-special">(</span><span id="local-6989586621679056033"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679056033"><span class="hs-identifier hs-var">a</span></a></span></span><span class="hs-special">,</span><span id="local-6989586621679056034"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679056034"><span class="hs-identifier hs-var">b</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ByteString -&gt; Dict
+</span><a href="Codec.Compression.Zstd.Types.html#Dict"><span class="hs-identifier hs-var">Dict</span></a></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679056033"><span class="hs-identifier hs-var">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679056034"><span class="hs-identifier hs-var">b</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; ReadS ByteString
+forall a. Read a =&gt; Int -&gt; ReadS a
+</span><span class="hs-identifier hs-var">readsPrec</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679056031"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679056032"><span class="hs-identifier hs-var">s</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-58"></span><span>
+</span><span id="line-59"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><span class="hs-identifier hs-type">NFData</span></span><span> </span><span class="annot"><a href="Codec.Compression.Zstd.Types.html#Dict"><span class="hs-identifier hs-type">Dict</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-60"></span><span>    </span><span id="local-6989586621679056040"><span class="annot"><span class="annottext">rnf :: Dict -&gt; ()
+</span><a href="#local-6989586621679056040"><span class="hs-identifier hs-var hs-var hs-var">rnf</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Codec.Compression.Zstd.Types.html#Dict"><span class="hs-identifier hs-type">Dict</span></a></span><span> </span><span id="local-6989586621679056042"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679056042"><span class="hs-identifier hs-var">d</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; ()
+forall a. NFData a =&gt; a -&gt; ()
+</span><span class="hs-identifier hs-var">rnf</span></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679056042"><span class="hs-identifier hs-var">d</span></a></span><span>
+</span><span id="line-61"></span></pre></body></html>

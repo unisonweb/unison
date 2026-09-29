@@ -1,0 +1,419 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE OverloadedStrings #-}</span><span>
+</span><span id="line-2"></span><span class="hs-comment">-----------------------------------------------------------------------------</span><span>
+</span><span id="line-3"></span><span class="hs-comment">-- |</span><span>
+</span><span id="line-4"></span><span class="hs-comment">-- Module     : Algebra.Graph.Export</span><span>
+</span><span id="line-5"></span><span class="hs-comment">-- Copyright  : (c) Andrey Mokhov 2016-2022</span><span>
+</span><span id="line-6"></span><span class="hs-comment">-- License    : MIT (see the file LICENSE)</span><span>
+</span><span id="line-7"></span><span class="hs-comment">-- Maintainer : andrey.mokhov@gmail.com</span><span>
+</span><span id="line-8"></span><span class="hs-comment">-- Stability  : experimental</span><span>
+</span><span id="line-9"></span><span class="hs-comment">--</span><span>
+</span><span id="line-10"></span><span class="hs-comment">-- __Alga__ is a library for algebraic construction and manipulation of graphs</span><span>
+</span><span id="line-11"></span><span class="hs-comment">-- in Haskell. See &lt;https://github.com/snowleopard/alga-paper this paper&gt; for the</span><span>
+</span><span id="line-12"></span><span class="hs-comment">-- motivation behind the library, the underlying theory, and implementation details.</span><span>
+</span><span id="line-13"></span><span class="hs-comment">--</span><span>
+</span><span id="line-14"></span><span class="hs-comment">-- This module defines basic functionality for exporting graphs in textual and</span><span>
+</span><span id="line-15"></span><span class="hs-comment">-- binary formats. &quot;Algebra.Graph.Export.Dot&quot; provides DOT-specific functions.</span><span>
+</span><span id="line-16"></span><span class="hs-comment">-----------------------------------------------------------------------------</span><span>
+</span><span id="line-17"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Algebra.Graph.Export.html"><span class="hs-identifier">Algebra.Graph.Export</span></a></span><span> </span><span class="hs-special">(</span><span>
+</span><span id="line-18"></span><span>    </span><span class="annot"><span class="hs-comment">-- * Constructing and exporting documents</span></span><span>
+</span><span id="line-19"></span><span>    </span><span class="annot"><a href="Algebra.Graph.Export.html#Doc"><span class="hs-identifier">Doc</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Algebra.Graph.Export.html#isEmpty"><span class="hs-identifier">isEmpty</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Algebra.Graph.Export.html#literal"><span class="hs-identifier">literal</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Algebra.Graph.Export.html#render"><span class="hs-identifier">render</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-20"></span><span>
+</span><span id="line-21"></span><span>    </span><span class="annot"><span class="hs-comment">-- * Common combinators for text documents</span></span><span>
+</span><span id="line-22"></span><span>    </span><span class="annot"><a href="Algebra.Graph.Export.html#%3C%2B%3E"><span class="hs-operator">(&lt;+&gt;)</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Algebra.Graph.Export.html#brackets"><span class="hs-identifier">brackets</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Algebra.Graph.Export.html#doubleQuotes"><span class="hs-identifier">doubleQuotes</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Algebra.Graph.Export.html#indent"><span class="hs-identifier">indent</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Algebra.Graph.Export.html#unlines"><span class="hs-identifier">unlines</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-23"></span><span>
+</span><span id="line-24"></span><span>    </span><span class="annot"><span class="hs-comment">-- * Generic graph export</span></span><span>
+</span><span id="line-25"></span><span>    </span><span class="annot"><a href="Algebra.Graph.Export.html#export"><span class="hs-keyword">export</span></a></span><span>
+</span><span id="line-26"></span><span>    </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-27"></span><span>
+</span><span id="line-28"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Foldable</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">fold</span></span><span class="hs-special">)</span><span>
+</span><span id="line-29"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.String</span></span><span> </span><span class="hs-keyword">hiding</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">unlines</span></span><span class="hs-special">)</span><span>
+</span><span id="line-30"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Prelude</span></span><span> </span><span class="hs-keyword">hiding</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">unlines</span></span><span class="hs-special">)</span><span>
+</span><span id="line-31"></span><span>
+</span><span id="line-32"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Algebra.Graph.ToGraph.html"><span class="hs-identifier">Algebra.Graph.ToGraph</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Algebra.Graph.ToGraph.html#ToGraph"><span class="hs-identifier">ToGraph</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Algebra.Graph.ToGraph.html#ToVertex"><span class="hs-identifier">ToVertex</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Algebra.Graph.ToGraph.html#toAdjacencyMap"><span class="hs-identifier">toAdjacencyMap</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-33"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Algebra.Graph.AdjacencyMap.html"><span class="hs-identifier">Algebra.Graph.AdjacencyMap</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Algebra.Graph.AdjacencyMap.html#vertexList"><span class="hs-identifier">vertexList</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Algebra.Graph.AdjacencyMap.html#edgeList"><span class="hs-identifier">edgeList</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-34"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Algebra.Graph.Internal.html"><span class="hs-identifier">Algebra.Graph.Internal</span></a></span><span>
+</span><span id="line-35"></span><span>
+</span><span id="line-36"></span><span class="hs-comment">-- | An abstract document data type with /O(1)/ time concatenation (the current</span><span>
+</span><span id="line-37"></span><span class="hs-comment">-- implementation uses difference lists). Here @s@ is the type of abstract</span><span>
+</span><span id="line-38"></span><span class="hs-comment">-- symbols or strings (text or binary). 'Doc' @s@ is a 'Monoid', therefore</span><span>
+</span><span id="line-39"></span><span class="hs-comment">-- 'mempty' corresponds to the /empty document/ and two documents can be</span><span>
+</span><span id="line-40"></span><span class="hs-comment">-- concatenated with 'mappend' (or operator 'Data.Monoid.&lt;&gt;'). Documents</span><span>
+</span><span id="line-41"></span><span class="hs-comment">-- comprising a single symbol or string can be constructed using the function</span><span>
+</span><span id="line-42"></span><span class="hs-comment">-- 'literal'. Alternatively, you can construct documents as string literals,</span><span>
+</span><span id="line-43"></span><span class="hs-comment">-- e.g. simply as @&quot;alga&quot;@, by using the @OverloadedStrings@ GHC extension. To</span><span>
+</span><span id="line-44"></span><span class="hs-comment">-- extract the document contents use the function 'render'.</span><span>
+</span><span id="line-45"></span><span class="hs-comment">--</span><span>
+</span><span id="line-46"></span><span class="hs-comment">-- Note that the document comprising a single empty string is considered to be</span><span>
+</span><span id="line-47"></span><span class="hs-comment">-- different from the empty document. This design choice is motivated by the</span><span>
+</span><span id="line-48"></span><span class="hs-comment">-- desire to support string types @s@ that have no 'Eq' instance, such as</span><span>
+</span><span id="line-49"></span><span class="hs-comment">-- &quot;Data.ByteString.Builder&quot;, for which there is no way to check whether a</span><span>
+</span><span id="line-50"></span><span class="hs-comment">-- string is empty or not. As a consequence, the 'Eq' and 'Ord' instances are</span><span>
+</span><span id="line-51"></span><span class="hs-comment">-- defined as follows:</span><span>
+</span><span id="line-52"></span><span class="hs-comment">--</span><span>
+</span><span id="line-53"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-54"></span><span class="hs-comment">-- 'mempty' /= 'literal' &quot;&quot;</span><span>
+</span><span id="line-55"></span><span class="hs-comment">-- 'mempty' &lt;  'literal' &quot;&quot;</span><span>
+</span><span id="line-56"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-57"></span><span class="hs-keyword">newtype</span><span> </span><span id="Doc"><span class="annot"><a href="Algebra.Graph.Export.html#Doc"><span class="hs-identifier hs-var">Doc</span></a></span></span><span> </span><span id="local-6989586621679165234"><span class="annot"><a href="#local-6989586621679165234"><span class="hs-identifier hs-type">s</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="Doc"><span class="annot"><a href="Algebra.Graph.Export.html#Doc"><span class="hs-identifier hs-var">Doc</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Algebra.Graph.Internal.html#List"><span class="hs-identifier hs-type">List</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679165234"><span class="hs-identifier hs-type">s</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679165289"><span id="local-6989586621679165294"><span id="local-6989586621679165298"><span class="annot"><span class="annottext">Semigroup (Doc s)
+Doc s
+Semigroup (Doc s) =&gt;
+Doc s
+-&gt; (Doc s -&gt; Doc s -&gt; Doc s)
+-&gt; ([Doc s] -&gt; Doc s)
+-&gt; Monoid (Doc s)
+[Doc s] -&gt; Doc s
+Doc s -&gt; Doc s -&gt; Doc s
+forall s. Semigroup (Doc s)
+forall s. Doc s
+forall a.
+Semigroup a =&gt;
+a -&gt; (a -&gt; a -&gt; a) -&gt; ([a] -&gt; a) -&gt; Monoid a
+forall s. [Doc s] -&gt; Doc s
+forall s. Doc s -&gt; Doc s -&gt; Doc s
+$cmempty :: forall s. Doc s
+mempty :: Doc s
+$cmappend :: forall s. Doc s -&gt; Doc s -&gt; Doc s
+mappend :: Doc s -&gt; Doc s -&gt; Doc s
+$cmconcat :: forall s. [Doc s] -&gt; Doc s
+mconcat :: [Doc s] -&gt; Doc s
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Monoid</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679165304"><span id="local-6989586621679165309"><span id="local-6989586621679165315"><span class="annot"><span class="annottext">NonEmpty (Doc s) -&gt; Doc s
+Doc s -&gt; Doc s -&gt; Doc s
+(Doc s -&gt; Doc s -&gt; Doc s)
+-&gt; (NonEmpty (Doc s) -&gt; Doc s)
+-&gt; (forall b. Integral b =&gt; b -&gt; Doc s -&gt; Doc s)
+-&gt; Semigroup (Doc s)
+forall b. Integral b =&gt; b -&gt; Doc s -&gt; Doc s
+forall s. NonEmpty (Doc s) -&gt; Doc s
+forall s. Doc s -&gt; Doc s -&gt; Doc s
+forall a.
+(a -&gt; a -&gt; a)
+-&gt; (NonEmpty a -&gt; a)
+-&gt; (forall b. Integral b =&gt; b -&gt; a -&gt; a)
+-&gt; Semigroup a
+forall s b. Integral b =&gt; b -&gt; Doc s -&gt; Doc s
+$c&lt;&gt; :: forall s. Doc s -&gt; Doc s -&gt; Doc s
+&lt;&gt; :: Doc s -&gt; Doc s -&gt; Doc s
+$csconcat :: forall s. NonEmpty (Doc s) -&gt; Doc s
+sconcat :: NonEmpty (Doc s) -&gt; Doc s
+$cstimes :: forall s b. Integral b =&gt; b -&gt; Doc s -&gt; Doc s
+stimes :: forall b. Integral b =&gt; b -&gt; Doc s -&gt; Doc s
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Semigroup</span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-58"></span><span>
+</span><span id="line-59"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679165214"><span id="local-6989586621679165326"><span id="local-6989586621679165331"><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Monoid</span></span><span> </span><span class="annot"><a href="#local-6989586621679165214"><span class="hs-identifier hs-type">s</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Show</span></span><span> </span><span class="annot"><a href="#local-6989586621679165214"><span class="hs-identifier hs-type">s</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Show</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Algebra.Graph.Export.html#Doc"><span class="hs-identifier hs-type">Doc</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679165214"><span class="hs-identifier hs-type">s</span></a></span><span class="hs-special">)</span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-60"></span><span>    </span><span id="local-6989586621679165336"><span class="annot"><span class="annottext">show :: Doc s -&gt; String
+</span><a href="#local-6989586621679165336"><span class="hs-identifier hs-var hs-var hs-var">show</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">s -&gt; String
+forall a. Show a =&gt; a -&gt; String
+</span><span class="hs-identifier hs-var">show</span></span><span> </span><span class="annot"><span class="annottext">(s -&gt; String) -&gt; (Doc s -&gt; s) -&gt; Doc s -&gt; String
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Doc s -&gt; s
+forall s. Monoid s =&gt; Doc s -&gt; s
+</span><a href="Algebra.Graph.Export.html#render"><span class="hs-identifier hs-var">render</span></a></span><span>
+</span><span id="line-61"></span><span>
+</span><span id="line-62"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679165221"><span id="local-6989586621679165343"><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Monoid</span></span><span> </span><span class="annot"><a href="#local-6989586621679165221"><span class="hs-identifier hs-type">s</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Eq</span></span><span> </span><span class="annot"><a href="#local-6989586621679165221"><span class="hs-identifier hs-type">s</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Eq</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Algebra.Graph.Export.html#Doc"><span class="hs-identifier hs-type">Doc</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679165221"><span class="hs-identifier hs-type">s</span></a></span><span class="hs-special">)</span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-63"></span><span>    </span><span id="local-6989586621679165350"><span class="annot"><span class="annottext">Doc s
+</span><a href="#local-6989586621679165350"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span id="local-6989586621679165351"><span class="annot"><span class="annottext">== :: Doc s -&gt; Doc s -&gt; Bool
+</span><span class="hs-operator hs-var hs-var hs-var">==</span></span></span><span> </span><span id="local-6989586621679165352"><span class="annot"><span class="annottext">Doc s
+</span><a href="#local-6989586621679165352"><span class="hs-identifier hs-var">y</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Doc s -&gt; Bool
+forall s. Doc s -&gt; Bool
+</span><a href="Algebra.Graph.Export.html#isEmpty"><span class="hs-identifier hs-var">isEmpty</span></a></span><span> </span><span class="annot"><span class="annottext">Doc s
+</span><a href="#local-6989586621679165350"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Doc s -&gt; Bool
+forall s. Doc s -&gt; Bool
+</span><a href="Algebra.Graph.Export.html#isEmpty"><span class="hs-identifier hs-var">isEmpty</span></a></span><span> </span><span class="annot"><span class="annottext">Doc s
+</span><a href="#local-6989586621679165352"><span class="hs-identifier hs-var">y</span></a></span><span>
+</span><span id="line-64"></span><span>           </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Doc s -&gt; Bool
+forall s. Doc s -&gt; Bool
+</span><a href="Algebra.Graph.Export.html#isEmpty"><span class="hs-identifier hs-var">isEmpty</span></a></span><span> </span><span class="annot"><span class="annottext">Doc s
+</span><a href="#local-6989586621679165352"><span class="hs-identifier hs-var">y</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span>
+</span><span id="line-65"></span><span>           </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Doc s -&gt; s
+forall s. Monoid s =&gt; Doc s -&gt; s
+</span><a href="Algebra.Graph.Export.html#render"><span class="hs-identifier hs-var">render</span></a></span><span> </span><span class="annot"><span class="annottext">Doc s
+</span><a href="#local-6989586621679165350"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">s -&gt; s -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">Doc s -&gt; s
+forall s. Monoid s =&gt; Doc s -&gt; s
+</span><a href="Algebra.Graph.Export.html#render"><span class="hs-identifier hs-var">render</span></a></span><span> </span><span class="annot"><span class="annottext">Doc s
+</span><a href="#local-6989586621679165352"><span class="hs-identifier hs-var">y</span></a></span><span>
+</span><span id="line-66"></span><span>
+</span><span id="line-67"></span><span class="annot"><span class="hs-comment">-- | The empty document is smallest.</span></span><span>
+</span><span id="line-68"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679165225"><span id="local-6989586621679165360"><span id="local-6989586621679165364"><span id="local-6989586621679165367"><span id="local-6989586621679165370"><span id="local-6989586621679165373"><span id="local-6989586621679165376"><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Monoid</span></span><span> </span><span class="annot"><a href="#local-6989586621679165225"><span class="hs-identifier hs-type">s</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ord</span></span><span> </span><span class="annot"><a href="#local-6989586621679165225"><span class="hs-identifier hs-type">s</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ord</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Algebra.Graph.Export.html#Doc"><span class="hs-identifier hs-type">Doc</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679165225"><span class="hs-identifier hs-type">s</span></a></span><span class="hs-special">)</span></span></span></span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-69"></span><span>    </span><span id="local-6989586621679165383"><span class="annot"><span class="annottext">compare :: Doc s -&gt; Doc s -&gt; Ordering
+</span><a href="#local-6989586621679165383"><span class="hs-identifier hs-var hs-var hs-var">compare</span></a></span></span><span> </span><span id="local-6989586621679165385"><span class="annot"><span class="annottext">Doc s
+</span><a href="#local-6989586621679165385"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span id="local-6989586621679165386"><span class="annot"><span class="annottext">Doc s
+</span><a href="#local-6989586621679165386"><span class="hs-identifier hs-var">y</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Doc s -&gt; Bool
+forall s. Doc s -&gt; Bool
+</span><a href="Algebra.Graph.Export.html#isEmpty"><span class="hs-identifier hs-var">isEmpty</span></a></span><span> </span><span class="annot"><span class="annottext">Doc s
+</span><a href="#local-6989586621679165385"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">Doc s -&gt; Bool
+forall s. Doc s -&gt; Bool
+</span><a href="Algebra.Graph.Export.html#isEmpty"><span class="hs-identifier hs-var">isEmpty</span></a></span><span> </span><span class="annot"><span class="annottext">Doc s
+</span><a href="#local-6989586621679165386"><span class="hs-identifier hs-var">y</span></a></span><span> </span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="annottext">Ordering
+</span><span class="hs-identifier hs-var">EQ</span></span><span> </span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="annottext">Ordering
+</span><span class="hs-identifier hs-var">LT</span></span><span>
+</span><span id="line-70"></span><span>                </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Doc s -&gt; Bool
+forall s. Doc s -&gt; Bool
+</span><a href="Algebra.Graph.Export.html#isEmpty"><span class="hs-identifier hs-var">isEmpty</span></a></span><span> </span><span class="annot"><span class="annottext">Doc s
+</span><a href="#local-6989586621679165386"><span class="hs-identifier hs-var">y</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Ordering
+</span><span class="hs-identifier hs-var">GT</span></span><span>
+</span><span id="line-71"></span><span>                </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">s -&gt; s -&gt; Ordering
+forall a. Ord a =&gt; a -&gt; a -&gt; Ordering
+</span><span class="hs-identifier hs-var">compare</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Doc s -&gt; s
+forall s. Monoid s =&gt; Doc s -&gt; s
+</span><a href="Algebra.Graph.Export.html#render"><span class="hs-identifier hs-var">render</span></a></span><span> </span><span class="annot"><span class="annottext">Doc s
+</span><a href="#local-6989586621679165385"><span class="hs-identifier hs-var">x</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Doc s -&gt; s
+forall s. Monoid s =&gt; Doc s -&gt; s
+</span><a href="Algebra.Graph.Export.html#render"><span class="hs-identifier hs-var">render</span></a></span><span> </span><span class="annot"><span class="annottext">Doc s
+</span><a href="#local-6989586621679165386"><span class="hs-identifier hs-var">y</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-72"></span><span>
+</span><span id="line-73"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679165228"><span class="annot"><span class="hs-identifier hs-type">IsString</span></span><span> </span><span class="annot"><a href="#local-6989586621679165228"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IsString</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Algebra.Graph.Export.html#Doc"><span class="hs-identifier hs-type">Doc</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679165228"><span class="hs-identifier hs-type">s</span></a></span><span class="hs-special">)</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-74"></span><span>    </span><span id="local-6989586621679165392"><span class="annot"><span class="annottext">fromString :: String -&gt; Doc s
+</span><span class="hs-identifier hs-var hs-var hs-var">fromString</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">s -&gt; Doc s
+forall s. s -&gt; Doc s
+</span><a href="Algebra.Graph.Export.html#literal"><span class="hs-identifier hs-var">literal</span></a></span><span> </span><span class="annot"><span class="annottext">(s -&gt; Doc s) -&gt; (String -&gt; s) -&gt; String -&gt; Doc s
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; s
+forall a. IsString a =&gt; String -&gt; a
+</span><span class="hs-identifier hs-var">fromString</span></span><span>
+</span><span id="line-75"></span><span>
+</span><span id="line-76"></span><span class="hs-comment">-- | Check if a document is empty. The result is the same as when comparing the</span><span>
+</span><span id="line-77"></span><span class="hs-comment">-- given document to 'mempty', but this function does not require the 'Eq' @s@</span><span>
+</span><span id="line-78"></span><span class="hs-comment">-- constraint. Note that the document comprising a single empty string is</span><span>
+</span><span id="line-79"></span><span class="hs-comment">-- considered to be different from the empty document.</span><span>
+</span><span id="line-80"></span><span class="hs-comment">--</span><span>
+</span><span id="line-81"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-82"></span><span class="hs-comment">-- isEmpty 'mempty'       == True</span><span>
+</span><span id="line-83"></span><span class="hs-comment">-- isEmpty ('literal' \&quot;\&quot;) == False</span><span>
+</span><span id="line-84"></span><span class="hs-comment">-- isEmpty x            == (x == 'mempty')</span><span>
+</span><span id="line-85"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-86"></span><span id="local-6989586621679165222"><span class="annot"><a href="Algebra.Graph.Export.html#isEmpty"><span class="hs-identifier hs-type">isEmpty</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Algebra.Graph.Export.html#Doc"><span class="hs-identifier hs-type">Doc</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679165222"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span></span><span>
+</span><span id="line-87"></span><span id="isEmpty"><span class="annot"><span class="annottext">isEmpty :: forall s. Doc s -&gt; Bool
+</span><a href="Algebra.Graph.Export.html#isEmpty"><span class="hs-identifier hs-var hs-var">isEmpty</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Algebra.Graph.Export.html#Doc"><span class="hs-identifier hs-type">Doc</span></a></span><span> </span><span id="local-6989586621679165395"><span class="annot"><span class="annottext">List s
+</span><a href="#local-6989586621679165395"><span class="hs-identifier hs-var">xs</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">List s -&gt; Bool
+forall a. List a -&gt; Bool
+forall (t :: * -&gt; *) a. Foldable t =&gt; t a -&gt; Bool
+</span><span class="hs-identifier hs-var">null</span></span><span> </span><span class="annot"><span class="annottext">List s
+</span><a href="#local-6989586621679165395"><span class="hs-identifier hs-var">xs</span></a></span><span>
+</span><span id="line-88"></span><span>
+</span><span id="line-89"></span><span class="hs-comment">-- | Construct a document comprising a single symbol or string. If @s@ is an</span><span>
+</span><span id="line-90"></span><span class="hs-comment">-- instance of class 'IsString', then documents of type 'Doc' @s@ can be</span><span>
+</span><span id="line-91"></span><span class="hs-comment">-- constructed directly from string literals (see the second example below).</span><span>
+</span><span id="line-92"></span><span class="hs-comment">--</span><span>
+</span><span id="line-93"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-94"></span><span class="hs-comment">-- literal &quot;Hello, &quot; 'Data.Monoid.&lt;&gt;' literal &quot;World!&quot; == literal &quot;Hello, World!&quot;</span><span>
+</span><span id="line-95"></span><span class="hs-comment">-- literal &quot;I am just a string literal&quot;  == &quot;I am just a string literal&quot;</span><span>
+</span><span id="line-96"></span><span class="hs-comment">-- 'render' . literal                      == 'id'</span><span>
+</span><span id="line-97"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-98"></span><span id="local-6989586621679165229"><span class="annot"><a href="Algebra.Graph.Export.html#literal"><span class="hs-identifier hs-type">literal</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="#local-6989586621679165229"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Algebra.Graph.Export.html#Doc"><span class="hs-identifier hs-type">Doc</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679165229"><span class="hs-identifier hs-type">s</span></a></span></span><span>
+</span><span id="line-99"></span><span id="literal"><span class="annot"><span class="annottext">literal :: forall s. s -&gt; Doc s
+</span><a href="Algebra.Graph.Export.html#literal"><span class="hs-identifier hs-var hs-var">literal</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">List s -&gt; Doc s
+forall s. List s -&gt; Doc s
+</span><a href="Algebra.Graph.Export.html#Doc"><span class="hs-identifier hs-var">Doc</span></a></span><span> </span><span class="annot"><span class="annottext">(List s -&gt; Doc s) -&gt; (s -&gt; List s) -&gt; s -&gt; Doc s
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">s -&gt; List s
+forall a. a -&gt; List a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span>
+</span><span id="line-100"></span><span>
+</span><span id="line-101"></span><span class="hs-comment">-- | Render the document as a single string. An inverse of the function 'literal'.</span><span>
+</span><span id="line-102"></span><span class="hs-comment">--</span><span>
+</span><span id="line-103"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-104"></span><span class="hs-comment">-- render ('literal' &quot;al&quot; 'Data.Monoid.&lt;&gt;' 'literal' &quot;ga&quot;) :: ('IsString' s, 'Monoid' s) =&gt; s</span><span>
+</span><span id="line-105"></span><span class="hs-comment">-- render ('literal' &quot;al&quot; 'Data.Monoid.&lt;&gt;' 'literal' &quot;ga&quot;) == &quot;alga&quot;</span><span>
+</span><span id="line-106"></span><span class="hs-comment">-- render 'mempty'                         == 'mempty'</span><span>
+</span><span id="line-107"></span><span class="hs-comment">-- render . 'literal'                      == 'id'</span><span>
+</span><span id="line-108"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-109"></span><span id="local-6989586621679165218"><span class="annot"><a href="Algebra.Graph.Export.html#render"><span class="hs-identifier hs-type">render</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Monoid</span></span><span> </span><span class="annot"><a href="#local-6989586621679165218"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Algebra.Graph.Export.html#Doc"><span class="hs-identifier hs-type">Doc</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679165218"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679165218"><span class="hs-identifier hs-type">s</span></a></span></span><span>
+</span><span id="line-110"></span><span id="render"><span class="annot"><span class="annottext">render :: forall s. Monoid s =&gt; Doc s -&gt; s
+</span><a href="Algebra.Graph.Export.html#render"><span class="hs-identifier hs-var hs-var">render</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Algebra.Graph.Export.html#Doc"><span class="hs-identifier hs-type">Doc</span></a></span><span> </span><span id="local-6989586621679165403"><span class="annot"><span class="annottext">List s
+</span><a href="#local-6989586621679165403"><span class="hs-identifier hs-var">x</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">List s -&gt; s
+forall m. Monoid m =&gt; List m -&gt; m
+forall (t :: * -&gt; *) m. (Foldable t, Monoid m) =&gt; t m -&gt; m
+</span><span class="hs-identifier hs-var">fold</span></span><span> </span><span class="annot"><span class="annottext">List s
+</span><a href="#local-6989586621679165403"><span class="hs-identifier hs-var">x</span></a></span><span>
+</span><span id="line-111"></span><span>
+</span><span id="line-112"></span><span class="hs-comment">-- | Concatenate two documents, separated by a single space, unless one of the</span><span>
+</span><span id="line-113"></span><span class="hs-comment">-- documents is empty. The operator \&lt;+\&gt; is associative with identity 'mempty'.</span><span>
+</span><span id="line-114"></span><span class="hs-comment">--</span><span>
+</span><span id="line-115"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-116"></span><span class="hs-comment">-- x \&lt;+\&gt; 'mempty'         == x</span><span>
+</span><span id="line-117"></span><span class="hs-comment">-- 'mempty' \&lt;+\&gt; x         == x</span><span>
+</span><span id="line-118"></span><span class="hs-comment">-- x \&lt;+\&gt; (y \&lt;+\&gt; z)      == (x \&lt;+\&gt; y) \&lt;+\&gt; z</span><span>
+</span><span id="line-119"></span><span class="hs-comment">-- &quot;name&quot; \&lt;+\&gt; &quot;surname&quot; == &quot;name surname&quot;</span><span>
+</span><span id="line-120"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-121"></span><span id="local-6989586621679165239"><span class="annot"><a href="Algebra.Graph.Export.html#%3C%2B%3E"><span class="hs-operator hs-type">(&lt;+&gt;)</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IsString</span></span><span> </span><span class="annot"><a href="#local-6989586621679165239"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Algebra.Graph.Export.html#Doc"><span class="hs-identifier hs-type">Doc</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679165239"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Algebra.Graph.Export.html#Doc"><span class="hs-identifier hs-type">Doc</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679165239"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Algebra.Graph.Export.html#Doc"><span class="hs-identifier hs-type">Doc</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679165239"><span class="hs-identifier hs-type">s</span></a></span></span><span>
+</span><span id="line-122"></span><span id="local-6989586621679165408"><span class="annot"><span class="annottext">Doc s
+</span><a href="#local-6989586621679165408"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span id="%3C%2B%3E"><span class="annot"><span class="annottext">&lt;+&gt; :: forall s. IsString s =&gt; Doc s -&gt; Doc s -&gt; Doc s
+</span><a href="Algebra.Graph.Export.html#%3C%2B%3E"><span class="hs-operator hs-var hs-var">&lt;+&gt;</span></a></span></span><span> </span><span id="local-6989586621679165409"><span class="annot"><span class="annottext">Doc s
+</span><a href="#local-6989586621679165409"><span class="hs-identifier hs-var">y</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Doc s -&gt; Bool
+forall s. Doc s -&gt; Bool
+</span><a href="Algebra.Graph.Export.html#isEmpty"><span class="hs-identifier hs-var">isEmpty</span></a></span><span> </span><span class="annot"><span class="annottext">Doc s
+</span><a href="#local-6989586621679165408"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Doc s
+</span><a href="#local-6989586621679165409"><span class="hs-identifier hs-var">y</span></a></span><span>
+</span><span id="line-123"></span><span>        </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Doc s -&gt; Bool
+forall s. Doc s -&gt; Bool
+</span><a href="Algebra.Graph.Export.html#isEmpty"><span class="hs-identifier hs-var">isEmpty</span></a></span><span> </span><span class="annot"><span class="annottext">Doc s
+</span><a href="#local-6989586621679165409"><span class="hs-identifier hs-var">y</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Doc s
+</span><a href="#local-6989586621679165408"><span class="hs-identifier hs-var">x</span></a></span><span>
+</span><span id="line-124"></span><span>        </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Doc s
+</span><a href="#local-6989586621679165408"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">Doc s -&gt; Doc s -&gt; Doc s
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Doc s
+</span><span class="hs-string">&quot; &quot;</span></span><span> </span><span class="annot"><span class="annottext">Doc s -&gt; Doc s -&gt; Doc s
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Doc s
+</span><a href="#local-6989586621679165409"><span class="hs-identifier hs-var">y</span></a></span><span>
+</span><span id="line-125"></span><span>
+</span><span id="line-126"></span><span class="hs-keyword">infixl</span><span> </span><span class="hs-number">7</span><span> </span><span class="annot"><a href="Algebra.Graph.Export.html#%3C%2B%3E"><span class="hs-operator hs-type">&lt;+&gt;</span></a></span><span>
+</span><span id="line-127"></span><span>
+</span><span id="line-128"></span><span class="hs-comment">-- | Wrap a document in square brackets.</span><span>
+</span><span id="line-129"></span><span class="hs-comment">--</span><span>
+</span><span id="line-130"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-131"></span><span class="hs-comment">-- brackets &quot;i&quot;    == &quot;[i]&quot;</span><span>
+</span><span id="line-132"></span><span class="hs-comment">-- brackets 'mempty' == &quot;[]&quot;</span><span>
+</span><span id="line-133"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-134"></span><span id="local-6989586621679165241"><span class="annot"><a href="Algebra.Graph.Export.html#brackets"><span class="hs-identifier hs-type">brackets</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IsString</span></span><span> </span><span class="annot"><a href="#local-6989586621679165241"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Algebra.Graph.Export.html#Doc"><span class="hs-identifier hs-type">Doc</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679165241"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Algebra.Graph.Export.html#Doc"><span class="hs-identifier hs-type">Doc</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679165241"><span class="hs-identifier hs-type">s</span></a></span></span><span>
+</span><span id="line-135"></span><span id="brackets"><span class="annot"><span class="annottext">brackets :: forall s. IsString s =&gt; Doc s -&gt; Doc s
+</span><a href="Algebra.Graph.Export.html#brackets"><span class="hs-identifier hs-var hs-var">brackets</span></a></span></span><span> </span><span id="local-6989586621679165415"><span class="annot"><span class="annottext">Doc s
+</span><a href="#local-6989586621679165415"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Doc s
+</span><span class="hs-string">&quot;[&quot;</span></span><span> </span><span class="annot"><span class="annottext">Doc s -&gt; Doc s -&gt; Doc s
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Doc s
+</span><a href="#local-6989586621679165415"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">Doc s -&gt; Doc s -&gt; Doc s
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Doc s
+</span><span class="hs-string">&quot;]&quot;</span></span><span>
+</span><span id="line-136"></span><span>
+</span><span id="line-137"></span><span class="hs-comment">-- | Wrap a document into double quotes.</span><span>
+</span><span id="line-138"></span><span class="hs-comment">--</span><span>
+</span><span id="line-139"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-140"></span><span class="hs-comment">-- doubleQuotes &quot;\/path\/with spaces&quot;   == &quot;\\&quot;\/path\/with spaces\\&quot;&quot;</span><span>
+</span><span id="line-141"></span><span class="hs-comment">-- doubleQuotes (doubleQuotes 'mempty') == &quot;\\&quot;\\&quot;\\&quot;\\&quot;&quot;</span><span>
+</span><span id="line-142"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-143"></span><span id="local-6989586621679165416"><span class="annot"><a href="Algebra.Graph.Export.html#doubleQuotes"><span class="hs-identifier hs-type">doubleQuotes</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IsString</span></span><span> </span><span class="annot"><a href="#local-6989586621679165416"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Algebra.Graph.Export.html#Doc"><span class="hs-identifier hs-type">Doc</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679165416"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Algebra.Graph.Export.html#Doc"><span class="hs-identifier hs-type">Doc</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679165416"><span class="hs-identifier hs-type">s</span></a></span></span><span>
+</span><span id="line-144"></span><span id="doubleQuotes"><span class="annot"><span class="annottext">doubleQuotes :: forall s. IsString s =&gt; Doc s -&gt; Doc s
+</span><a href="Algebra.Graph.Export.html#doubleQuotes"><span class="hs-identifier hs-var hs-var">doubleQuotes</span></a></span></span><span> </span><span id="local-6989586621679165422"><span class="annot"><span class="annottext">Doc s
+</span><a href="#local-6989586621679165422"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Doc s
+</span><span class="hs-string">&quot;\&quot;&quot;</span></span><span> </span><span class="annot"><span class="annottext">Doc s -&gt; Doc s -&gt; Doc s
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Doc s
+</span><a href="#local-6989586621679165422"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">Doc s -&gt; Doc s -&gt; Doc s
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Doc s
+</span><span class="hs-string">&quot;\&quot;&quot;</span></span><span>
+</span><span id="line-145"></span><span>
+</span><span id="line-146"></span><span class="hs-comment">-- | Prepend a given number of spaces to a document.</span><span>
+</span><span id="line-147"></span><span class="hs-comment">--</span><span>
+</span><span id="line-148"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-149"></span><span class="hs-comment">-- indent 0        == 'id'</span><span>
+</span><span id="line-150"></span><span class="hs-comment">-- indent 1 'mempty' == &quot; &quot;</span><span>
+</span><span id="line-151"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-152"></span><span id="local-6989586621679165244"><span class="annot"><a href="Algebra.Graph.Export.html#indent"><span class="hs-identifier hs-type">indent</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IsString</span></span><span> </span><span class="annot"><a href="#local-6989586621679165244"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Algebra.Graph.Export.html#Doc"><span class="hs-identifier hs-type">Doc</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679165244"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Algebra.Graph.Export.html#Doc"><span class="hs-identifier hs-type">Doc</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679165244"><span class="hs-identifier hs-type">s</span></a></span></span><span>
+</span><span id="line-153"></span><span id="indent"><span class="annot"><span class="annottext">indent :: forall s. IsString s =&gt; Int -&gt; Doc s -&gt; Doc s
+</span><a href="Algebra.Graph.Export.html#indent"><span class="hs-identifier hs-var hs-var">indent</span></a></span></span><span> </span><span id="local-6989586621679165426"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679165426"><span class="hs-identifier hs-var">spaces</span></a></span></span><span> </span><span id="local-6989586621679165427"><span class="annot"><span class="annottext">Doc s
+</span><a href="#local-6989586621679165427"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; Doc s
+forall a. IsString a =&gt; String -&gt; a
+</span><span class="hs-identifier hs-var">fromString</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; Char -&gt; String
+forall a. Int -&gt; a -&gt; [a]
+</span><span class="hs-identifier hs-var">replicate</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679165426"><span class="hs-identifier hs-var">spaces</span></a></span><span> </span><span class="annot"><span class="annottext">Char
+</span><span class="hs-char">' '</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Doc s -&gt; Doc s -&gt; Doc s
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Doc s
+</span><a href="#local-6989586621679165427"><span class="hs-identifier hs-var">x</span></a></span><span>
+</span><span id="line-154"></span><span>
+</span><span id="line-155"></span><span class="hs-comment">-- | Concatenate documents after appending a terminating newline symbol to each.</span><span>
+</span><span id="line-156"></span><span class="hs-comment">--</span><span>
+</span><span id="line-157"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-158"></span><span class="hs-comment">-- unlines []                    == 'mempty'</span><span>
+</span><span id="line-159"></span><span class="hs-comment">-- unlines ['mempty']              == &quot;\\n&quot;</span><span>
+</span><span id="line-160"></span><span class="hs-comment">-- unlines [&quot;title&quot;, &quot;subtitle&quot;] == &quot;title\\nsubtitle\\n&quot;</span><span>
+</span><span id="line-161"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-162"></span><span id="local-6989586621679165247"><span class="annot"><a href="Algebra.Graph.Export.html#unlines"><span class="hs-identifier hs-type">unlines</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IsString</span></span><span> </span><span class="annot"><a href="#local-6989586621679165247"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Algebra.Graph.Export.html#Doc"><span class="hs-identifier hs-type">Doc</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679165247"><span class="hs-identifier hs-type">s</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Algebra.Graph.Export.html#Doc"><span class="hs-identifier hs-type">Doc</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679165247"><span class="hs-identifier hs-type">s</span></a></span></span><span>
+</span><span id="line-163"></span><span id="unlines"><span class="annot"><span class="annottext">unlines :: forall s. IsString s =&gt; [Doc s] -&gt; Doc s
+</span><a href="Algebra.Graph.Export.html#unlines"><span class="hs-identifier hs-var hs-var">unlines</span></a></span></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span>     </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Doc s
+forall a. Monoid a =&gt; a
+</span><span class="hs-identifier hs-var">mempty</span></span><span>
+</span><span id="line-164"></span><span class="annot"><a href="Algebra.Graph.Export.html#unlines"><span class="hs-identifier hs-var">unlines</span></a></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679165435"><span class="annot"><span class="annottext">Doc s
+</span><a href="#local-6989586621679165435"><span class="hs-identifier hs-var">x</span></a></span></span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span id="local-6989586621679165436"><span class="annot"><span class="annottext">[Doc s]
+</span><a href="#local-6989586621679165436"><span class="hs-identifier hs-var">xs</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Doc s
+</span><a href="#local-6989586621679165435"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">Doc s -&gt; Doc s -&gt; Doc s
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Doc s
+</span><span class="hs-string">&quot;\n&quot;</span></span><span> </span><span class="annot"><span class="annottext">Doc s -&gt; Doc s -&gt; Doc s
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">[Doc s] -&gt; Doc s
+forall s. IsString s =&gt; [Doc s] -&gt; Doc s
+</span><a href="Algebra.Graph.Export.html#unlines"><span class="hs-identifier hs-var">unlines</span></a></span><span> </span><span class="annot"><span class="annottext">[Doc s]
+</span><a href="#local-6989586621679165436"><span class="hs-identifier hs-var">xs</span></a></span><span>
+</span><span id="line-165"></span><span>
+</span><span id="line-166"></span><span class="hs-comment">-- TODO: Avoid round-trip graph conversion if g :: AdjacencyMap a.</span><span>
+</span><span id="line-167"></span><span class="hs-comment">-- | Export a graph into a document given two functions that construct documents</span><span>
+</span><span id="line-168"></span><span class="hs-comment">-- for individual vertices and edges. The order of export is: vertices, sorted</span><span>
+</span><span id="line-169"></span><span class="hs-comment">-- by 'Ord' @a@, and then edges, sorted by 'Ord' @(a, a)@.</span><span>
+</span><span id="line-170"></span><span class="hs-comment">--</span><span>
+</span><span id="line-171"></span><span class="hs-comment">-- For example:</span><span>
+</span><span id="line-172"></span><span class="hs-comment">--</span><span>
+</span><span id="line-173"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-174"></span><span class="hs-comment">-- vDoc x   = 'literal' ('show' x) &lt;&gt; &quot;\\n&quot;</span><span>
+</span><span id="line-175"></span><span class="hs-comment">-- eDoc x y = 'literal' ('show' x) &lt;&gt; &quot; -&gt; &quot; &lt;&gt; 'literal' ('show' y) &lt;&gt; &quot;\\n&quot;</span><span>
+</span><span id="line-176"></span><span class="hs-comment">-- &gt; putStrLn $ 'render' $ export vDoc eDoc (1 + 2 * (3 + 4) :: 'Algebra.Graph.Graph' Int)</span><span>
+</span><span id="line-177"></span><span class="hs-comment">--</span><span>
+</span><span id="line-178"></span><span class="hs-comment">-- 1</span><span>
+</span><span id="line-179"></span><span class="hs-comment">-- 2</span><span>
+</span><span id="line-180"></span><span class="hs-comment">-- 3</span><span>
+</span><span id="line-181"></span><span class="hs-comment">-- 4</span><span>
+</span><span id="line-182"></span><span class="hs-comment">-- 2 -&gt; 3</span><span>
+</span><span id="line-183"></span><span class="hs-comment">-- 2 -&gt; 4</span><span>
+</span><span id="line-184"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-185"></span><span id="local-6989586621679165249"><span id="local-6989586621679165250"><span id="local-6989586621679165253"><span class="annot"><a href="Algebra.Graph.Export.html#export"><span class="hs-keyword hs-type">export</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ord</span></span><span> </span><span class="annot"><a href="#local-6989586621679165249"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Algebra.Graph.ToGraph.html#ToGraph"><span class="hs-identifier hs-type">ToGraph</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679165250"><span class="hs-identifier hs-type">g</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Algebra.Graph.ToGraph.html#ToVertex"><span class="hs-identifier hs-type">ToVertex</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679165250"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="annot"><span class="hs-operator hs-type">~</span></span><span> </span><span class="annot"><a href="#local-6989586621679165249"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679165249"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Algebra.Graph.Export.html#Doc"><span class="hs-identifier hs-type">Doc</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679165253"><span class="hs-identifier hs-type">s</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679165249"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679165249"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Algebra.Graph.Export.html#Doc"><span class="hs-identifier hs-type">Doc</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679165253"><span class="hs-identifier hs-type">s</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679165250"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Algebra.Graph.Export.html#Doc"><span class="hs-identifier hs-type">Doc</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679165253"><span class="hs-identifier hs-type">s</span></a></span></span></span></span><span>
+</span><span id="line-186"></span><span id="export"><span class="annot"><span class="annottext">export :: forall a g s.
+(Ord a, ToGraph g, ToVertex g ~ a) =&gt;
+(a -&gt; Doc s) -&gt; (a -&gt; a -&gt; Doc s) -&gt; g -&gt; Doc s
+</span><a href="Algebra.Graph.Export.html#export"><span class="hs-keyword hs-var hs-var">export</span></a></span></span><span> </span><span id="local-6989586621679165446"><span class="annot"><span class="annottext">a -&gt; Doc s
+</span><a href="#local-6989586621679165446"><span class="hs-identifier hs-var">v</span></a></span></span><span> </span><span id="local-6989586621679165447"><span class="annot"><span class="annottext">a -&gt; a -&gt; Doc s
+</span><a href="#local-6989586621679165447"><span class="hs-identifier hs-var">e</span></a></span></span><span> </span><span id="local-6989586621679165448"><span class="annot"><span class="annottext">g
+</span><a href="#local-6989586621679165448"><span class="hs-identifier hs-var">g</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Doc s
+</span><a href="#local-6989586621679165449"><span class="hs-identifier hs-var">vDoc</span></a></span><span> </span><span class="annot"><span class="annottext">Doc s -&gt; Doc s -&gt; Doc s
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Doc s
+</span><a href="#local-6989586621679165450"><span class="hs-identifier hs-var">eDoc</span></a></span><span>
+</span><span id="line-187"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-188"></span><span>    </span><span id="local-6989586621679165449"><span class="annot"><span class="annottext">vDoc :: Doc s
+</span><a href="#local-6989586621679165449"><span class="hs-identifier hs-var hs-var">vDoc</span></a></span></span><span>   </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Doc s] -&gt; Doc s
+forall a. Monoid a =&gt; [a] -&gt; a
+</span><span class="hs-identifier hs-var">mconcat</span></span><span> </span><span class="annot"><span class="annottext">([Doc s] -&gt; Doc s) -&gt; [Doc s] -&gt; Doc s
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">(a -&gt; Doc s) -&gt; [a] -&gt; [Doc s]
+forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+</span><span class="hs-identifier hs-var">map</span></span><span>  </span><span class="annot"><span class="annottext">a -&gt; Doc s
+</span><a href="#local-6989586621679165446"><span class="hs-identifier hs-var">v</span></a></span><span>          </span><span class="hs-special">(</span><span class="annot"><span class="annottext">AdjacencyMap a -&gt; [a]
+forall a. AdjacencyMap a -&gt; [a]
+</span><a href="Algebra.Graph.AdjacencyMap.html#vertexList"><span class="hs-identifier hs-var">vertexList</span></a></span><span> </span><span class="annot"><span class="annottext">AdjacencyMap a
+AdjacencyMap (ToVertex g)
+</span><a href="#local-6989586621679165451"><span class="hs-identifier hs-var">adjMap</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-189"></span><span>    </span><span id="local-6989586621679165450"><span class="annot"><span class="annottext">eDoc :: Doc s
+</span><a href="#local-6989586621679165450"><span class="hs-identifier hs-var hs-var">eDoc</span></a></span></span><span>   </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Doc s] -&gt; Doc s
+forall a. Monoid a =&gt; [a] -&gt; a
+</span><span class="hs-identifier hs-var">mconcat</span></span><span> </span><span class="annot"><span class="annottext">([Doc s] -&gt; Doc s) -&gt; [Doc s] -&gt; Doc s
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">((a, a) -&gt; Doc s) -&gt; [(a, a)] -&gt; [Doc s]
+forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+</span><span class="hs-identifier hs-var">map</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(a -&gt; a -&gt; Doc s) -&gt; (a, a) -&gt; Doc s
+forall a b c. (a -&gt; b -&gt; c) -&gt; (a, b) -&gt; c
+</span><span class="hs-identifier hs-var">uncurry</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; a -&gt; Doc s
+</span><a href="#local-6989586621679165447"><span class="hs-identifier hs-var">e</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">AdjacencyMap a -&gt; [(a, a)]
+forall a. AdjacencyMap a -&gt; [(a, a)]
+</span><a href="Algebra.Graph.AdjacencyMap.html#edgeList"><span class="hs-identifier hs-var">edgeList</span></a></span><span>   </span><span class="annot"><span class="annottext">AdjacencyMap a
+AdjacencyMap (ToVertex g)
+</span><a href="#local-6989586621679165451"><span class="hs-identifier hs-var">adjMap</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-190"></span><span>    </span><span id="local-6989586621679165451"><span class="annot"><span class="annottext">adjMap :: AdjacencyMap (ToVertex g)
+</span><a href="#local-6989586621679165451"><span class="hs-identifier hs-var hs-var">adjMap</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">g -&gt; AdjacencyMap (ToVertex g)
+forall t.
+(ToGraph t, Ord (ToVertex t)) =&gt;
+t -&gt; AdjacencyMap (ToVertex t)
+</span><a href="Algebra.Graph.ToGraph.html#toAdjacencyMap"><span class="hs-identifier hs-var">toAdjacencyMap</span></a></span><span> </span><span class="annot"><span class="annottext">g
+</span><a href="#local-6989586621679165448"><span class="hs-identifier hs-var">g</span></a></span><span>
+</span><span id="line-191"></span></pre></body></html>

@@ -1,0 +1,253 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE DataKinds #-}</span><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# LANGUAGE OverloadedStrings #-}</span><span>
+</span><span id="line-3"></span><span class="hs-pragma">{-# LANGUAGE Strict #-}</span><span>
+</span><span id="line-4"></span><span class="hs-pragma">{-# OPTIONS_GHC -Wno-incomplete-uni-patterns #-}</span><span>
+</span><span id="line-5"></span><span>
+</span><span id="line-6"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="GHC.CmmToAsm.Wasm.html"><span class="hs-identifier">GHC.CmmToAsm.Wasm</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.CmmToAsm.Wasm.html#ncgWasm"><span class="hs-identifier">ncgWasm</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-7"></span><span>
+</span><span id="line-8"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../bytestring-0.12.2.0-d3f3/src/Data.ByteString.Builder.html"><span class="hs-identifier">Data.ByteString.Builder</span></a></span><span>
+</span><span id="line-9"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../bytestring-0.12.2.0-d3f3/src/Data.ByteString.Lazy.Char8.html"><span class="hs-identifier">Data.ByteString.Lazy.Char8</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="../../bytestring-0.12.2.0-d3f3/src/Data.ByteString.Lazy.Char8.html#unpack"><span class="hs-identifier">unpack</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-10"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.20.2.0-6654/src/Data.Maybe.html"><span class="hs-identifier">Data.Maybe</span></a></span><span>
+</span><span id="line-11"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.20.2.0-6654/src/Data.Semigroup.html"><span class="hs-identifier">Data.Semigroup</span></a></span><span>
+</span><span id="line-12"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Cmm.html"><span class="hs-identifier">GHC.Cmm</span></a></span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Cmm.ContFlowOpt.html"><span class="hs-identifier">GHC.Cmm.ContFlowOpt</span></a></span><span>
+</span><span id="line-14"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Cmm.GenericOpt.html"><span class="hs-identifier">GHC.Cmm.GenericOpt</span></a></span><span>
+</span><span id="line-15"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.CmmToAsm.Config.html"><span class="hs-identifier">GHC.CmmToAsm.Config</span></a></span><span>
+</span><span id="line-16"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.CmmToAsm.Wasm.Asm.html"><span class="hs-identifier">GHC.CmmToAsm.Wasm.Asm</span></a></span><span>
+</span><span id="line-17"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.CmmToAsm.Wasm.FromCmm.html"><span class="hs-identifier">GHC.CmmToAsm.Wasm.FromCmm</span></a></span><span>
+</span><span id="line-18"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.CmmToAsm.Wasm.Types.html"><span class="hs-identifier">GHC.CmmToAsm.Wasm.Types</span></a></span><span>
+</span><span id="line-19"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Data.Stream.html"><span class="hs-identifier">GHC.Data.Stream</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Data.Stream.html#Stream"><span class="hs-identifier">Stream</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Data.Stream.html#StreamS"><span class="hs-identifier">StreamS</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Data.Stream.html#runStream"><span class="hs-identifier">runStream</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-20"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Driver.DynFlags.html"><span class="hs-identifier">GHC.Driver.DynFlags</span></a></span><span>
+</span><span id="line-21"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Platform.html"><span class="hs-identifier">GHC.Platform</span></a></span><span>
+</span><span id="line-22"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Prelude.html"><span class="hs-identifier">GHC.Prelude</span></a></span><span>
+</span><span id="line-23"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Settings.html"><span class="hs-identifier">GHC.Settings</span></a></span><span>
+</span><span id="line-24"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Types.Unique.Supply.html"><span class="hs-identifier">GHC.Types.Unique.Supply</span></a></span><span>
+</span><span id="line-25"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Unit.html"><span class="hs-identifier">GHC.Unit</span></a></span><span>
+</span><span id="line-26"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Utils.Logger.html"><span class="hs-identifier">GHC.Utils.Logger</span></a></span><span>
+</span><span id="line-27"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Utils.Outputable.html"><span class="hs-identifier">GHC.Utils.Outputable</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Utils.Outputable.html#text"><span class="hs-identifier">text</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-28"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.20.2.0-6654/src/System.IO.html"><span class="hs-identifier">System.IO</span></a></span><span>
+</span><span id="line-29"></span><span>
+</span><span id="line-30"></span><span id="local-6989586621682694508"><span class="annot"><a href="GHC.CmmToAsm.Wasm.html#ncgWasm"><span class="hs-identifier hs-type">ncgWasm</span></a></span><span> </span><span class="hs-glyph">::</span><span>
+</span><span id="line-31"></span><span>  </span><span class="annot"><a href="GHC.CmmToAsm.Config.html#NCGConfig"><span class="hs-identifier hs-type">NCGConfig</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-32"></span><span>  </span><span class="annot"><a href="GHC.Utils.Logger.html#Logger"><span class="hs-identifier hs-type">Logger</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-33"></span><span>  </span><span class="annot"><a href="GHC.Platform.html#Platform"><span class="hs-identifier hs-type">Platform</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-34"></span><span>  </span><span class="annot"><a href="GHC.Settings.html#ToolSettings"><span class="hs-identifier hs-type">ToolSettings</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-35"></span><span>  </span><span class="annot"><a href="GHC.Types.Unique.Supply.html#UniqSupply"><span class="hs-identifier hs-type">UniqSupply</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-36"></span><span>  </span><span class="annot"><a href="GHC.Unit.Module.Location.html#ModLocation"><span class="hs-identifier hs-type">ModLocation</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-37"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">Handle</span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-38"></span><span>  </span><span class="annot"><a href="GHC.Data.Stream.html#Stream"><span class="hs-identifier hs-type">Stream</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="GHC.Cmm.html#RawCmmGroup"><span class="hs-identifier hs-type">RawCmmGroup</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682694508"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-39"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="#local-6989586621682694508"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-40"></span><span id="ncgWasm"><span class="annot"><span class="annottext">ncgWasm :: forall a.
+NCGConfig
+-&gt; Logger
+-&gt; Platform
+-&gt; ToolSettings
+-&gt; UniqSupply
+-&gt; ModLocation
+-&gt; Handle
+-&gt; Stream IO RawCmmGroup a
+-&gt; IO a
+</span><a href="GHC.CmmToAsm.Wasm.html#ncgWasm"><span class="hs-identifier hs-var hs-var">ncgWasm</span></a></span></span><span> </span><span id="local-6989586621682694590"><span class="annot"><span class="annottext">NCGConfig
+</span><a href="#local-6989586621682694590"><span class="hs-identifier hs-var">ncg_config</span></a></span></span><span> </span><span id="local-6989586621682694591"><span class="annot"><span class="annottext">Logger
+</span><a href="#local-6989586621682694591"><span class="hs-identifier hs-var">logger</span></a></span></span><span> </span><span id="local-6989586621682694592"><span class="annot"><span class="annottext">Platform
+</span><a href="#local-6989586621682694592"><span class="hs-identifier hs-var">platform</span></a></span></span><span> </span><span id="local-6989586621682694593"><span class="annot"><span class="annottext">ToolSettings
+</span><a href="#local-6989586621682694593"><span class="hs-identifier hs-var">ts</span></a></span></span><span> </span><span id="local-6989586621682694594"><span class="annot"><span class="annottext">UniqSupply
+</span><a href="#local-6989586621682694594"><span class="hs-identifier hs-var">us</span></a></span></span><span> </span><span id="local-6989586621682694595"><span class="annot"><span class="annottext">ModLocation
+</span><a href="#local-6989586621682694595"><span class="hs-identifier hs-var">loc</span></a></span></span><span> </span><span id="local-6989586621682694596"><span class="annot"><span class="annottext">Handle
+</span><a href="#local-6989586621682694596"><span class="hs-identifier hs-var">h</span></a></span></span><span> </span><span id="local-6989586621682694597"><span class="annot"><span class="annottext">Stream IO RawCmmGroup a
+</span><a href="#local-6989586621682694597"><span class="hs-identifier hs-var">cmms</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-41"></span><span>  </span><span class="hs-special">(</span><span id="local-6989586621682694598"><span class="annot"><a href="#local-6989586621682694598"><span class="hs-identifier hs-var">r</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682694599"><span class="annot"><a href="#local-6989586621682694599"><span class="hs-identifier hs-var">s</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">NCGConfig
+-&gt; Platform
+-&gt; UniqSupply
+-&gt; Stream IO RawCmmGroup a
+-&gt; IO (a, WasmCodeGenState 'I32)
+forall a.
+NCGConfig
+-&gt; Platform
+-&gt; UniqSupply
+-&gt; Stream IO RawCmmGroup a
+-&gt; IO (a, WasmCodeGenState 'I32)
+</span><a href="GHC.CmmToAsm.Wasm.html#streamCmmGroups"><span class="hs-identifier hs-var">streamCmmGroups</span></a></span><span> </span><span class="annot"><span class="annottext">NCGConfig
+</span><a href="#local-6989586621682694590"><span class="hs-identifier hs-var">ncg_config</span></a></span><span> </span><span class="annot"><span class="annottext">Platform
+</span><a href="#local-6989586621682694592"><span class="hs-identifier hs-var">platform</span></a></span><span> </span><span class="annot"><span class="annottext">UniqSupply
+</span><a href="#local-6989586621682694594"><span class="hs-identifier hs-var">us</span></a></span><span> </span><span class="annot"><span class="annottext">Stream IO RawCmmGroup a
+</span><a href="#local-6989586621682694597"><span class="hs-identifier hs-var">cmms</span></a></span><span>
+</span><span id="line-42"></span><span>  </span><span class="annot"><a href="#local-6989586621682694601"><span class="hs-identifier hs-type">outputWasm</span></a></span><span> </span><span class="annot"><span class="hs-operator hs-type">$</span></span><span> </span><span class="annot"><span class="hs-string">&quot;# &quot;</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">&lt;&gt;</span></span><span> </span><span class="annot"><a href="../../bytestring-0.12.2.0-d3f3/src/Data.ByteString.Builder.html#string7"><span class="hs-identifier hs-type">string7</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">fromJust</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">$</span></span><span> </span><span class="annot"><a href="GHC.Unit.Module.Location.html#ml_hs_file"><span class="hs-identifier hs-var">ml_hs_file</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682694595"><span class="hs-identifier hs-type">loc</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="hs-operator hs-type">&lt;&gt;</span></span><span> </span><span class="annot"><span class="hs-string">&quot;\n\n&quot;</span></span><span>
+</span><span id="line-43"></span><span>  </span><span class="annot"><a href="#local-6989586621682694601"><span class="hs-identifier hs-type">outputWasm</span></a></span><span> </span><span class="annot"><span class="hs-operator hs-type">$</span></span><span> </span><span class="annot"><a href="GHC.CmmToAsm.Wasm.Asm.html#execWasmAsmM"><span class="hs-identifier hs-type">execWasmAsmM</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682694606"><span class="hs-identifier hs-type">do_tail_call</span></a></span><span> </span><span class="annot"><span class="hs-operator hs-type">$</span></span><span> </span><span class="annot"><a href="GHC.CmmToAsm.Wasm.Asm.html#asmTellEverything"><span class="hs-identifier hs-type">asmTellEverything</span></a></span><span> </span><span class="annot"><a href="GHC.CmmToAsm.Wasm.Types.html#TagI32"><span class="hs-identifier hs-type">TagI32</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682694599"><span class="hs-identifier hs-type">s</span></a></span><span>
+</span><span id="line-44"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">pure</span></span><span> </span><span class="annot"><a href="#local-6989586621682694598"><span class="hs-identifier hs-type">r</span></a></span><span>
+</span><span id="line-45"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-46"></span><span>    </span><span class="hs-comment">-- See Note [WasmTailCall]</span><span>
+</span><span id="line-47"></span><span>    </span><span id="local-6989586621682694606"><span class="annot"><span class="annottext">do_tail_call :: Bool
+</span><a href="#local-6989586621682694606"><span class="hs-identifier hs-var hs-var">do_tail_call</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ToolSettings -&gt; Bool
+</span><a href="GHC.CmmToAsm.Wasm.html#doTailCall"><span class="hs-identifier hs-var">doTailCall</span></a></span><span> </span><span class="annot"><span class="annottext">ToolSettings
+</span><a href="#local-6989586621682694593"><span class="hs-identifier hs-var">ts</span></a></span><span>
+</span><span id="line-48"></span><span>
+</span><span id="line-49"></span><span>    </span><span id="local-6989586621682694601"><span class="annot"><span class="annottext">outputWasm :: Builder -&gt; IO ()
+</span><a href="#local-6989586621682694601"><span class="hs-identifier hs-var hs-var">outputWasm</span></a></span></span><span> </span><span id="local-6989586621682694610"><span class="annot"><span class="annottext">Builder
+</span><a href="#local-6989586621682694610"><span class="hs-identifier hs-var">builder</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-50"></span><span>      </span><span class="annot"><span class="annottext">Logger -&gt; DumpFlag -&gt; String -&gt; DumpFormat -&gt; SDoc -&gt; IO ()
+</span><a href="GHC.Utils.Logger.html#putDumpFileMaybe"><span class="hs-identifier hs-var">putDumpFileMaybe</span></a></span><span>
+</span><span id="line-51"></span><span>        </span><span class="annot"><span class="annottext">Logger
+</span><a href="#local-6989586621682694591"><span class="hs-identifier hs-var">logger</span></a></span><span>
+</span><span id="line-52"></span><span>        </span><span class="annot"><span class="annottext">DumpFlag
+</span><a href="GHC.Driver.Flags.html#Opt_D_dump_asm"><span class="hs-identifier hs-var">Opt_D_dump_asm</span></a></span><span>
+</span><span id="line-53"></span><span>        </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Asm Code&quot;</span></span><span>
+</span><span id="line-54"></span><span>        </span><span class="annot"><span class="annottext">DumpFormat
+</span><a href="GHC.Utils.Logger.html#FormatASM"><span class="hs-identifier hs-var">FormatASM</span></a></span><span>
+</span><span id="line-55"></span><span>        </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String -&gt; SDoc
+forall doc. IsLine doc =&gt; String -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#text"><span class="hs-identifier hs-var">text</span></a></span><span> </span><span class="annot"><span class="annottext">(String -&gt; SDoc)
+-&gt; (LazyByteString -&gt; String) -&gt; LazyByteString -&gt; SDoc
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">LazyByteString -&gt; String
+</span><a href="../../bytestring-0.12.2.0-d3f3/src/Data.ByteString.Lazy.Char8.html#unpack"><span class="hs-identifier hs-var">unpack</span></a></span><span> </span><span class="annot"><span class="annottext">(LazyByteString -&gt; SDoc) -&gt; LazyByteString -&gt; SDoc
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Builder -&gt; LazyByteString
+</span><a href="../../bytestring-0.12.2.0-d3f3/src/Data.ByteString.Builder.Internal.html#toLazyByteString"><span class="hs-identifier hs-var">toLazyByteString</span></a></span><span> </span><span class="annot"><span class="annottext">Builder
+</span><a href="#local-6989586621682694610"><span class="hs-identifier hs-var">builder</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-56"></span><span>      </span><span class="annot"><span class="annottext">Handle -&gt; Builder -&gt; IO ()
+</span><a href="../../bytestring-0.12.2.0-d3f3/src/Data.ByteString.Builder.html#hPutBuilder"><span class="hs-identifier hs-var">hPutBuilder</span></a></span><span> </span><span class="annot"><span class="annottext">Handle
+</span><a href="#local-6989586621682694596"><span class="hs-identifier hs-var">h</span></a></span><span> </span><span class="annot"><span class="annottext">Builder
+</span><a href="#local-6989586621682694610"><span class="hs-identifier hs-var">builder</span></a></span><span>
+</span><span id="line-57"></span><span>
+</span><span id="line-58"></span><span id="local-6989586621682694517"><span class="annot"><a href="GHC.CmmToAsm.Wasm.html#streamCmmGroups"><span class="hs-identifier hs-type">streamCmmGroups</span></a></span><span> </span><span class="hs-glyph">::</span><span>
+</span><span id="line-59"></span><span>  </span><span class="annot"><a href="GHC.CmmToAsm.Config.html#NCGConfig"><span class="hs-identifier hs-type">NCGConfig</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-60"></span><span>  </span><span class="annot"><a href="GHC.Platform.html#Platform"><span class="hs-identifier hs-type">Platform</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-61"></span><span>  </span><span class="annot"><a href="GHC.Types.Unique.Supply.html#UniqSupply"><span class="hs-identifier hs-type">UniqSupply</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-62"></span><span>  </span><span class="annot"><a href="GHC.Data.Stream.html#Stream"><span class="hs-identifier hs-type">Stream</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="GHC.Cmm.html#RawCmmGroup"><span class="hs-identifier hs-type">RawCmmGroup</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682694517"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-63"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621682694517"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.CmmToAsm.Wasm.Types.html#WasmCodeGenState"><span class="hs-identifier hs-type">WasmCodeGenState</span></a></span><span> </span><span class="hs-special">'</span><span class="annot"><a href="GHC.CmmToAsm.Wasm.Types.html#I32"><span class="hs-identifier hs-type">I32</span></a></span><span class="hs-special">)</span></span><span>
+</span><span id="line-64"></span><span id="streamCmmGroups"><span class="annot"><span class="annottext">streamCmmGroups :: forall a.
+NCGConfig
+-&gt; Platform
+-&gt; UniqSupply
+-&gt; Stream IO RawCmmGroup a
+-&gt; IO (a, WasmCodeGenState 'I32)
+</span><a href="GHC.CmmToAsm.Wasm.html#streamCmmGroups"><span class="hs-identifier hs-var hs-var">streamCmmGroups</span></a></span></span><span> </span><span id="local-6989586621682694620"><span class="annot"><span class="annottext">NCGConfig
+</span><a href="#local-6989586621682694620"><span class="hs-identifier hs-var">ncg_config</span></a></span></span><span> </span><span id="local-6989586621682694621"><span class="annot"><span class="annottext">Platform
+</span><a href="#local-6989586621682694621"><span class="hs-identifier hs-var">platform</span></a></span></span><span> </span><span id="local-6989586621682694622"><span class="annot"><span class="annottext">UniqSupply
+</span><a href="#local-6989586621682694622"><span class="hs-identifier hs-var">us</span></a></span></span><span> </span><span id="local-6989586621682694623"><span class="annot"><span class="annottext">Stream IO RawCmmGroup a
+</span><a href="#local-6989586621682694623"><span class="hs-identifier hs-var">cmms</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-65"></span><span>  </span><span class="annot"><span class="annottext">WasmCodeGenState 'I32
+-&gt; StreamS IO RawCmmGroup a -&gt; IO (a, WasmCodeGenState 'I32)
+</span><a href="#local-6989586621682694624"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Platform -&gt; UniqSupply -&gt; WasmCodeGenState 'I32
+forall (w :: WasmType).
+Platform -&gt; UniqSupply -&gt; WasmCodeGenState w
+</span><a href="GHC.CmmToAsm.Wasm.Types.html#initialWasmCodeGenState"><span class="hs-identifier hs-var">initialWasmCodeGenState</span></a></span><span> </span><span class="annot"><span class="annottext">Platform
+</span><a href="#local-6989586621682694621"><span class="hs-identifier hs-var">platform</span></a></span><span> </span><span class="annot"><span class="annottext">UniqSupply
+</span><a href="#local-6989586621682694622"><span class="hs-identifier hs-var">us</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(StreamS IO RawCmmGroup a -&gt; IO (a, WasmCodeGenState 'I32))
+-&gt; StreamS IO RawCmmGroup a -&gt; IO (a, WasmCodeGenState 'I32)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Stream IO RawCmmGroup a -&gt; StreamS IO RawCmmGroup a
+forall (m :: * -&gt; *) r' r.
+Applicative m =&gt;
+Stream m r' r -&gt; StreamS m r' r
+</span><a href="GHC.Data.Stream.html#runStream"><span class="hs-identifier hs-var">runStream</span></a></span><span> </span><span class="annot"><span class="annottext">Stream IO RawCmmGroup a
+</span><a href="#local-6989586621682694623"><span class="hs-identifier hs-var">cmms</span></a></span><span>
+</span><span id="line-66"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-67"></span><span>    </span><span id="local-6989586621682694624"><span class="annot"><span class="annottext">go :: WasmCodeGenState 'I32
+-&gt; StreamS IO RawCmmGroup a -&gt; IO (a, WasmCodeGenState 'I32)
+</span><a href="#local-6989586621682694624"><span class="hs-identifier hs-var hs-var">go</span></a></span></span><span> </span><span id="local-6989586621682694626"><span class="annot"><span class="annottext">WasmCodeGenState 'I32
+</span><a href="#local-6989586621682694626"><span class="hs-identifier hs-var">s</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Data.Stream.html#Done"><span class="hs-identifier hs-type">Done</span></a></span><span> </span><span id="local-6989586621682694628"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621682694628"><span class="hs-identifier hs-var">r</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(a, WasmCodeGenState 'I32) -&gt; IO (a, WasmCodeGenState 'I32)
+forall a. a -&gt; IO a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621682694628"><span class="hs-identifier hs-var">r</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">WasmCodeGenState 'I32
+</span><a href="#local-6989586621682694626"><span class="hs-identifier hs-var">s</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-68"></span><span>    </span><span class="annot"><a href="#local-6989586621682694624"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span id="local-6989586621682694629"><span class="annot"><span class="annottext">WasmCodeGenState 'I32
+</span><a href="#local-6989586621682694629"><span class="hs-identifier hs-var">s</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Data.Stream.html#Effect"><span class="hs-identifier hs-type">Effect</span></a></span><span> </span><span id="local-6989586621682694631"><span class="annot"><span class="annottext">IO (StreamS IO RawCmmGroup a)
+</span><a href="#local-6989586621682694631"><span class="hs-identifier hs-var">m</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">IO (StreamS IO RawCmmGroup a)
+</span><a href="#local-6989586621682694631"><span class="hs-identifier hs-var">m</span></a></span><span> </span><span class="annot"><span class="annottext">IO (StreamS IO RawCmmGroup a)
+-&gt; (StreamS IO RawCmmGroup a -&gt; IO (a, WasmCodeGenState 'I32))
+-&gt; IO (a, WasmCodeGenState 'I32)
+forall a b. IO a -&gt; (a -&gt; IO b) -&gt; IO b
+forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; (a -&gt; m b) -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;=</span></span><span> </span><span class="annot"><span class="annottext">WasmCodeGenState 'I32
+-&gt; StreamS IO RawCmmGroup a -&gt; IO (a, WasmCodeGenState 'I32)
+</span><a href="#local-6989586621682694624"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">WasmCodeGenState 'I32
+</span><a href="#local-6989586621682694629"><span class="hs-identifier hs-var">s</span></a></span><span>
+</span><span id="line-69"></span><span>    </span><span class="annot"><a href="#local-6989586621682694624"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span id="local-6989586621682694632"><span class="annot"><span class="annottext">WasmCodeGenState 'I32
+</span><a href="#local-6989586621682694632"><span class="hs-identifier hs-var">s</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Data.Stream.html#Yield"><span class="hs-identifier hs-type">Yield</span></a></span><span> </span><span id="local-6989586621682694634"><span class="annot"><span class="annottext">RawCmmGroup
+</span><a href="#local-6989586621682694634"><span class="hs-identifier hs-var">decls</span></a></span></span><span> </span><span id="local-6989586621682694635"><span class="annot"><span class="annottext">StreamS IO RawCmmGroup a
+</span><a href="#local-6989586621682694635"><span class="hs-identifier hs-var">k</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">WasmCodeGenState 'I32
+-&gt; StreamS IO RawCmmGroup a -&gt; IO (a, WasmCodeGenState 'I32)
+</span><a href="#local-6989586621682694624"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">WasmCodeGenM 'I32 ()
+-&gt; WasmCodeGenState 'I32 -&gt; WasmCodeGenState 'I32
+forall (w :: WasmType) a.
+WasmCodeGenM w a -&gt; WasmCodeGenState w -&gt; WasmCodeGenState w
+</span><a href="GHC.CmmToAsm.Wasm.Types.html#wasmExecM"><span class="hs-identifier hs-var">wasmExecM</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">RawCmmGroup -&gt; WasmCodeGenM 'I32 ()
+forall (w :: WasmType). RawCmmGroup -&gt; WasmCodeGenM w ()
+</span><a href="GHC.CmmToAsm.Wasm.FromCmm.html#onCmmGroup"><span class="hs-identifier hs-var">onCmmGroup</span></a></span><span> </span><span class="annot"><span class="annottext">(RawCmmGroup -&gt; WasmCodeGenM 'I32 ())
+-&gt; RawCmmGroup -&gt; WasmCodeGenM 'I32 ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">(GenCmmDecl RawCmmStatics (LabelMap RawCmmStatics) CmmGraph
+ -&gt; GenCmmDecl RawCmmStatics (LabelMap RawCmmStatics) CmmGraph)
+-&gt; RawCmmGroup -&gt; RawCmmGroup
+forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+</span><span class="hs-identifier hs-var">map</span></span><span> </span><span class="annot"><span class="annottext">GenCmmDecl RawCmmStatics (LabelMap RawCmmStatics) CmmGraph
+-&gt; GenCmmDecl RawCmmStatics (LabelMap RawCmmStatics) CmmGraph
+</span><a href="#local-6989586621682694638"><span class="hs-identifier hs-var">opt</span></a></span><span> </span><span class="annot"><span class="annottext">RawCmmGroup
+</span><a href="#local-6989586621682694634"><span class="hs-identifier hs-var">decls</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">WasmCodeGenState 'I32
+</span><a href="#local-6989586621682694632"><span class="hs-identifier hs-var">s</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">StreamS IO RawCmmGroup a
+</span><a href="#local-6989586621682694635"><span class="hs-identifier hs-var">k</span></a></span><span>
+</span><span id="line-70"></span><span>      </span><span class="hs-keyword">where</span><span>
+</span><span id="line-71"></span><span>        </span><span class="hs-comment">-- Run the generic cmm optimizations like other NCGs, followed</span><span>
+</span><span id="line-72"></span><span>        </span><span class="hs-comment">-- by a late control-flow optimization pass that does shrink</span><span>
+</span><span id="line-73"></span><span>        </span><span class="hs-comment">-- the CFG block count in some cases.</span><span>
+</span><span id="line-74"></span><span>        </span><span id="local-6989586621682694638"><span class="annot"><span class="annottext">opt :: GenCmmDecl RawCmmStatics (LabelMap RawCmmStatics) CmmGraph
+-&gt; GenCmmDecl RawCmmStatics (LabelMap RawCmmStatics) CmmGraph
+</span><a href="#local-6989586621682694638"><span class="hs-identifier hs-var hs-var">opt</span></a></span></span><span> </span><span id="local-6989586621682694639"><span class="annot"><span class="annottext">GenCmmDecl RawCmmStatics (LabelMap RawCmmStatics) CmmGraph
+</span><a href="#local-6989586621682694639"><span class="hs-identifier hs-var">decl</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">GenCmmDecl RawCmmStatics (LabelMap RawCmmStatics) CmmGraph
+</span><a href="#local-6989586621682694639"><span class="hs-identifier hs-var">decl</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-75"></span><span>          </span><span class="annot"><a href="GHC.Cmm.html#CmmData"><span class="hs-identifier hs-type">CmmData</span></a></span><span> </span><span class="hs-special">{</span><span class="hs-special">}</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">GenCmmDecl RawCmmStatics (LabelMap RawCmmStatics) CmmGraph
+</span><a href="#local-6989586621682694639"><span class="hs-identifier hs-var">decl</span></a></span><span>
+</span><span id="line-76"></span><span>          </span><span class="annot"><a href="GHC.Cmm.html#CmmProc"><span class="hs-identifier hs-type">CmmProc</span></a></span><span> </span><span class="hs-special">{</span><span class="hs-special">}</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">LabelMap RawCmmStatics
+-&gt; CLabel
+-&gt; [GlobalReg]
+-&gt; CmmGraph
+-&gt; GenCmmDecl RawCmmStatics (LabelMap RawCmmStatics) CmmGraph
+forall d h g. h -&gt; CLabel -&gt; [GlobalReg] -&gt; g -&gt; GenCmmDecl d h g
+</span><a href="GHC.Cmm.html#CmmProc"><span class="hs-identifier hs-var">CmmProc</span></a></span><span> </span><span class="annot"><span class="annottext">LabelMap RawCmmStatics
+</span><a href="#local-6989586621682694642"><span class="hs-identifier hs-var">info</span></a></span><span> </span><span class="annot"><span class="annottext">CLabel
+</span><a href="#local-6989586621682694643"><span class="hs-identifier hs-var">lbl</span></a></span><span> </span><span class="annot"><span class="annottext">[GlobalReg]
+</span><a href="#local-6989586621682694644"><span class="hs-identifier hs-var">live</span></a></span><span> </span><span class="annot"><span class="annottext">(CmmGraph
+ -&gt; GenCmmDecl RawCmmStatics (LabelMap RawCmmStatics) CmmGraph)
+-&gt; CmmGraph
+-&gt; GenCmmDecl RawCmmStatics (LabelMap RawCmmStatics) CmmGraph
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; CmmGraph -&gt; CmmGraph
+</span><a href="GHC.Cmm.ContFlowOpt.html#cmmCfgOpts"><span class="hs-identifier hs-var">cmmCfgOpts</span></a></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span> </span><span class="annot"><span class="annottext">CmmGraph
+</span><a href="#local-6989586621682694646"><span class="hs-identifier hs-var">graph</span></a></span><span>
+</span><span id="line-77"></span><span>            </span><span class="hs-keyword">where</span><span>
+</span><span id="line-78"></span><span>              </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Cmm.html#CmmProc"><span class="hs-identifier hs-type">CmmProc</span></a></span><span> </span><span id="local-6989586621682694642"><span class="annot"><span class="annottext">LabelMap RawCmmStatics
+</span><a href="#local-6989586621682694642"><span class="hs-identifier hs-var">info</span></a></span></span><span> </span><span id="local-6989586621682694643"><span class="annot"><span class="annottext">CLabel
+</span><a href="#local-6989586621682694643"><span class="hs-identifier hs-var">lbl</span></a></span></span><span> </span><span id="local-6989586621682694644"><span class="annot"><span class="annottext">[GlobalReg]
+</span><a href="#local-6989586621682694644"><span class="hs-identifier hs-var">live</span></a></span></span><span> </span><span id="local-6989586621682694646"><span class="annot"><span class="annottext">CmmGraph
+</span><a href="#local-6989586621682694646"><span class="hs-identifier hs-var">graph</span></a></span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">[CLabel]
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">NCGConfig
+-&gt; GenCmmDecl RawCmmStatics (LabelMap RawCmmStatics) CmmGraph
+-&gt; (GenCmmDecl RawCmmStatics (LabelMap RawCmmStatics) CmmGraph,
+    [CLabel])
+</span><a href="GHC.Cmm.GenericOpt.html#cmmToCmm"><span class="hs-identifier hs-var">cmmToCmm</span></a></span><span> </span><span class="annot"><span class="annottext">NCGConfig
+</span><a href="#local-6989586621682694620"><span class="hs-identifier hs-var">ncg_config</span></a></span><span> </span><span class="annot"><span class="annottext">GenCmmDecl RawCmmStatics (LabelMap RawCmmStatics) CmmGraph
+</span><a href="#local-6989586621682694639"><span class="hs-identifier hs-var">decl</span></a></span><span>
+</span><span id="line-79"></span><span>
+</span><span id="line-80"></span><span class="annot"><a href="GHC.CmmToAsm.Wasm.html#doTailCall"><span class="hs-identifier hs-type">doTailCall</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Settings.html#ToolSettings"><span class="hs-identifier hs-type">ToolSettings</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>
+</span><span id="line-81"></span><span id="doTailCall"><span class="annot"><span class="annottext">doTailCall :: ToolSettings -&gt; Bool
+</span><a href="GHC.CmmToAsm.Wasm.html#doTailCall"><span class="hs-identifier hs-var hs-var">doTailCall</span></a></span></span><span> </span><span id="local-6989586621682694648"><span class="annot"><span class="annottext">ToolSettings
+</span><a href="#local-6989586621682694648"><span class="hs-identifier hs-var">ts</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; Option
+</span><a href="GHC.Utils.CliOption.html#Option"><span class="hs-identifier hs-var">Option</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;-mtail-call&quot;</span></span><span> </span><span class="annot"><span class="annottext">Option -&gt; [Option] -&gt; Bool
+forall a. Eq a =&gt; a -&gt; [a] -&gt; Bool
+forall (t :: * -&gt; *) a. (Foldable t, Eq a) =&gt; a -&gt; t a -&gt; Bool
+</span><span class="hs-operator hs-var">`elem`</span></span><span> </span><span class="annot"><span class="annottext">[Option]
+</span><a href="#local-6989586621682694651"><span class="hs-identifier hs-var">as_args</span></a></span><span>
+</span><span id="line-82"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-83"></span><span>    </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String
+</span><span class="hs-identifier">_</span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682694651"><span class="annot"><span class="annottext">[Option]
+</span><a href="#local-6989586621682694651"><span class="hs-identifier hs-var">as_args</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ToolSettings -&gt; (String, [Option])
+</span><a href="GHC.Settings.html#toolSettings_pgm_a"><span class="hs-identifier hs-var">toolSettings_pgm_a</span></a></span><span> </span><span class="annot"><span class="annottext">ToolSettings
+</span><a href="#local-6989586621682694648"><span class="hs-identifier hs-var">ts</span></a></span><span>
+</span><span id="line-84"></span></pre></body></html>

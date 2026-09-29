@@ -1,0 +1,224 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-comment">-- |</span><span>
+</span><span id="line-2"></span><span class="hs-comment">-- The Github Repo Contents API, as documented at</span><span>
+</span><span id="line-3"></span><span class="hs-comment">-- &lt;https://developer.github.com/v3/repos/contents/&gt;</span><span>
+</span><span id="line-4"></span><span>
+</span><span id="line-5"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="GitHub.Endpoints.Repos.Contents.html"><span class="hs-identifier">GitHub.Endpoints.Repos.Contents</span></a></span><span> </span><span class="hs-special">(</span><span>
+</span><span id="line-6"></span><span>    </span><span class="annot"><span class="hs-comment">-- * Querying contents</span></span><span>
+</span><span id="line-7"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Repos.Contents.html#contentsForR"><span class="hs-identifier">contentsForR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-8"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Repos.Contents.html#readmeForR"><span class="hs-identifier">readmeForR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-9"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Repos.Contents.html#archiveForR"><span class="hs-identifier">archiveForR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-10"></span><span>
+</span><span id="line-11"></span><span>    </span><span class="annot"><span class="hs-comment">-- ** Create</span></span><span>
+</span><span id="line-12"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Repos.Contents.html#createFileR"><span class="hs-identifier">createFileR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-13"></span><span>
+</span><span id="line-14"></span><span>    </span><span class="annot"><span class="hs-comment">-- ** Update</span></span><span>
+</span><span id="line-15"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Repos.Contents.html#updateFileR"><span class="hs-identifier">updateFileR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-16"></span><span>
+</span><span id="line-17"></span><span>    </span><span class="annot"><span class="hs-comment">-- ** Delete</span></span><span>
+</span><span id="line-18"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Repos.Contents.html#deleteFileR"><span class="hs-identifier">deleteFileR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-19"></span><span>
+</span><span id="line-20"></span><span>    </span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="GitHub.Data.html"><span class="hs-identifier">GitHub.Data</span></a></span><span>
+</span><span id="line-21"></span><span>    </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-22"></span><span>
+</span><span id="line-23"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GitHub.Data.html"><span class="hs-identifier">GitHub.Data</span></a></span><span>
+</span><span id="line-24"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GitHub.Internal.Prelude.html"><span class="hs-identifier">GitHub.Internal.Prelude</span></a></span><span>
+</span><span id="line-25"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Prelude</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-26"></span><span>
+</span><span id="line-27"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Maybe</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">maybeToList</span></span><span class="hs-special">)</span><span>
+</span><span id="line-28"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Text.Encoding</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">TE</span></span><span>
+</span><span id="line-29"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Network.URI</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">URI</span></span><span class="hs-special">)</span><span>
+</span><span id="line-30"></span><span>
+</span><span id="line-31"></span><span id="local-6989586621679538815"><span class="annot"><a href="GitHub.Endpoints.Repos.Contents.html#contentsForR"><span class="hs-identifier hs-type">contentsForR</span></a></span><span>
+</span><span id="line-32"></span><span>    </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GitHub.Data.Name.html#Name"><span class="hs-identifier hs-type">Name</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.Definitions.html#Owner"><span class="hs-identifier hs-type">Owner</span></a></span><span>
+</span><span id="line-33"></span><span>    </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Name.html#Name"><span class="hs-identifier hs-type">Name</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.Repos.html#Repo"><span class="hs-identifier hs-type">Repo</span></a></span><span>
+</span><span id="line-34"></span><span>    </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span>            </span><span class="annot"><span class="hs-comment">-- ^ file or directory</span></span><span>
+</span><span id="line-35"></span><span>    </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span>      </span><span class="annot"><span class="hs-comment">-- ^ Git commit</span></span><span>
+</span><span id="line-36"></span><span>    </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Request.html#Request"><span class="hs-identifier hs-type">Request</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679538815"><span class="hs-identifier hs-type">k</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.Content.html#Content"><span class="hs-identifier hs-type">Content</span></a></span></span><span>
+</span><span id="line-37"></span><span id="contentsForR"><span class="annot"><span class="annottext">contentsForR :: forall (k :: RW).
+Name Owner -&gt; Name Repo -&gt; Text -&gt; Maybe Text -&gt; Request k Content
+</span><a href="GitHub.Endpoints.Repos.Contents.html#contentsForR"><span class="hs-identifier hs-var hs-var">contentsForR</span></a></span></span><span> </span><span id="local-6989586621679538889"><span class="annot"><span class="annottext">Name Owner
+</span><a href="#local-6989586621679538889"><span class="hs-identifier hs-var">user</span></a></span></span><span> </span><span id="local-6989586621679538890"><span class="annot"><span class="annottext">Name Repo
+</span><a href="#local-6989586621679538890"><span class="hs-identifier hs-var">repo</span></a></span></span><span> </span><span id="local-6989586621679538891"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679538891"><span class="hs-identifier hs-var">path</span></a></span></span><span> </span><span id="local-6989586621679538892"><span class="annot"><span class="annottext">Maybe Text
+</span><a href="#local-6989586621679538892"><span class="hs-identifier hs-var">ref</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-38"></span><span>    </span><span class="annot"><span class="annottext">Paths -&gt; QueryString -&gt; Request k Content
+forall (mt :: RW) a. Paths -&gt; QueryString -&gt; Request mt a
+</span><a href="GitHub.Data.Request.html#query"><span class="hs-identifier hs-var">query</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;repos&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Name Owner -&gt; Text
+forall a. IsPathPart a =&gt; a -&gt; Text
+</span><a href="GitHub.Data.Request.html#toPathPart"><span class="hs-identifier hs-var">toPathPart</span></a></span><span> </span><span class="annot"><span class="annottext">Name Owner
+</span><a href="#local-6989586621679538889"><span class="hs-identifier hs-var">user</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Name Repo -&gt; Text
+forall a. IsPathPart a =&gt; a -&gt; Text
+</span><a href="GitHub.Data.Request.html#toPathPart"><span class="hs-identifier hs-var">toPathPart</span></a></span><span> </span><span class="annot"><span class="annottext">Name Repo
+</span><a href="#local-6989586621679538890"><span class="hs-identifier hs-var">repo</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;contents&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679538891"><span class="hs-identifier hs-var">path</span></a></span><span class="hs-special">]</span><span> </span><span class="annot"><span class="annottext">QueryString
+</span><a href="#local-6989586621679538895"><span class="hs-identifier hs-var">qs</span></a></span><span>
+</span><span id="line-39"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-40"></span><span>    </span><span id="local-6989586621679538895"><span class="annot"><span class="annottext">qs :: QueryString
+</span><a href="#local-6989586621679538895"><span class="hs-identifier hs-var hs-var">qs</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>  </span><span class="annot"><span class="annottext">QueryString -&gt; (Text -&gt; QueryString) -&gt; Maybe Text -&gt; QueryString
+forall b a. b -&gt; (a -&gt; b) -&gt; Maybe a -&gt; b
+</span><span class="hs-identifier hs-var">maybe</span></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span id="local-6989586621679538899"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679538899"><span class="hs-identifier hs-var">r</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="hs-special">(</span><span class="annot"><span class="annottext">ByteString
+</span><span class="hs-string">&quot;ref&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; Maybe ByteString
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">(ByteString -&gt; Maybe ByteString)
+-&gt; (Text -&gt; ByteString) -&gt; Text -&gt; Maybe ByteString
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Text -&gt; ByteString
+</span><span class="hs-identifier hs-var">TE.encodeUtf8</span></span><span> </span><span class="annot"><span class="annottext">(Text -&gt; Maybe ByteString) -&gt; Text -&gt; Maybe ByteString
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679538899"><span class="hs-identifier hs-var">r</span></a></span><span class="hs-special">)</span><span class="hs-special">]</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Maybe Text
+</span><a href="#local-6989586621679538892"><span class="hs-identifier hs-var">ref</span></a></span><span>
+</span><span id="line-41"></span><span>
+</span><span id="line-42"></span><span id="local-6989586621679538836"><span class="annot"><a href="GitHub.Endpoints.Repos.Contents.html#readmeForR"><span class="hs-identifier hs-type">readmeForR</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GitHub.Data.Name.html#Name"><span class="hs-identifier hs-type">Name</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.Definitions.html#Owner"><span class="hs-identifier hs-type">Owner</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Name.html#Name"><span class="hs-identifier hs-type">Name</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.Repos.html#Repo"><span class="hs-identifier hs-type">Repo</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Request.html#Request"><span class="hs-identifier hs-type">Request</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679538836"><span class="hs-identifier hs-type">k</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.Content.html#Content"><span class="hs-identifier hs-type">Content</span></a></span></span><span>
+</span><span id="line-43"></span><span id="readmeForR"><span class="annot"><span class="annottext">readmeForR :: forall (k :: RW). Name Owner -&gt; Name Repo -&gt; Request k Content
+</span><a href="GitHub.Endpoints.Repos.Contents.html#readmeForR"><span class="hs-identifier hs-var hs-var">readmeForR</span></a></span></span><span> </span><span id="local-6989586621679538906"><span class="annot"><span class="annottext">Name Owner
+</span><a href="#local-6989586621679538906"><span class="hs-identifier hs-var">user</span></a></span></span><span> </span><span id="local-6989586621679538907"><span class="annot"><span class="annottext">Name Repo
+</span><a href="#local-6989586621679538907"><span class="hs-identifier hs-var">repo</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-44"></span><span>    </span><span class="annot"><span class="annottext">Paths -&gt; QueryString -&gt; Request k Content
+forall (mt :: RW) a. Paths -&gt; QueryString -&gt; Request mt a
+</span><a href="GitHub.Data.Request.html#query"><span class="hs-identifier hs-var">query</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;repos&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Name Owner -&gt; Text
+forall a. IsPathPart a =&gt; a -&gt; Text
+</span><a href="GitHub.Data.Request.html#toPathPart"><span class="hs-identifier hs-var">toPathPart</span></a></span><span> </span><span class="annot"><span class="annottext">Name Owner
+</span><a href="#local-6989586621679538906"><span class="hs-identifier hs-var">user</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Name Repo -&gt; Text
+forall a. IsPathPart a =&gt; a -&gt; Text
+</span><a href="GitHub.Data.Request.html#toPathPart"><span class="hs-identifier hs-var">toPathPart</span></a></span><span> </span><span class="annot"><span class="annottext">Name Repo
+</span><a href="#local-6989586621679538907"><span class="hs-identifier hs-var">repo</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;readme&quot;</span></span><span class="hs-special">]</span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span>
+</span><span id="line-45"></span><span>
+</span><span id="line-46"></span><span class="hs-comment">-- | Get archive link.</span><span>
+</span><span id="line-47"></span><span class="hs-comment">-- See &lt;https://developer.github.com/v3/repos/contents/#get-archive-link&gt;</span><span>
+</span><span id="line-48"></span><span id="local-6989586621679538840"><span class="annot"><a href="GitHub.Endpoints.Repos.Contents.html#archiveForR"><span class="hs-identifier hs-type">archiveForR</span></a></span><span>
+</span><span id="line-49"></span><span>    </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GitHub.Data.Name.html#Name"><span class="hs-identifier hs-type">Name</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.Definitions.html#Owner"><span class="hs-identifier hs-type">Owner</span></a></span><span>
+</span><span id="line-50"></span><span>    </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Name.html#Name"><span class="hs-identifier hs-type">Name</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.Repos.html#Repo"><span class="hs-identifier hs-type">Repo</span></a></span><span>
+</span><span id="line-51"></span><span>    </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Repos.html#ArchiveFormat"><span class="hs-identifier hs-type">ArchiveFormat</span></a></span><span>   </span><span class="annot"><span class="hs-comment">-- ^ The type of archive to retrieve</span></span><span>
+</span><span id="line-52"></span><span>    </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span>      </span><span class="annot"><span class="hs-comment">-- ^ Git commit</span></span><span>
+</span><span id="line-53"></span><span>    </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Request.html#GenRequest"><span class="hs-identifier hs-type">GenRequest</span></a></span><span> </span><span class="hs-special">'</span><span class="annot"><a href="GitHub.Data.Request.html#MtRedirect"><span class="hs-identifier hs-type">MtRedirect</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679538840"><span class="hs-identifier hs-type">rw</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">URI</span></span></span><span>
+</span><span id="line-54"></span><span id="archiveForR"><span class="annot"><span class="annottext">archiveForR :: forall (rw :: RW).
+Name Owner
+-&gt; Name Repo
+-&gt; ArchiveFormat
+-&gt; Maybe Text
+-&gt; GenRequest 'MtRedirect rw URI
+</span><a href="GitHub.Endpoints.Repos.Contents.html#archiveForR"><span class="hs-identifier hs-var hs-var">archiveForR</span></a></span></span><span> </span><span id="local-6989586621679538908"><span class="annot"><span class="annottext">Name Owner
+</span><a href="#local-6989586621679538908"><span class="hs-identifier hs-var">user</span></a></span></span><span> </span><span id="local-6989586621679538909"><span class="annot"><span class="annottext">Name Repo
+</span><a href="#local-6989586621679538909"><span class="hs-identifier hs-var">repo</span></a></span></span><span> </span><span id="local-6989586621679538910"><span class="annot"><span class="annottext">ArchiveFormat
+</span><a href="#local-6989586621679538910"><span class="hs-identifier hs-var">format</span></a></span></span><span> </span><span id="local-6989586621679538911"><span class="annot"><span class="annottext">Maybe Text
+</span><a href="#local-6989586621679538911"><span class="hs-identifier hs-var">ref</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Paths -&gt; QueryString -&gt; GenRequest 'MtRedirect rw URI
+forall (mt :: MediaType (*)) (rw :: RW) a.
+Paths -&gt; QueryString -&gt; GenRequest mt rw a
+</span><a href="GitHub.Data.Request.html#Query"><span class="hs-identifier hs-var">Query</span></a></span><span> </span><span class="annot"><span class="annottext">Paths
+</span><a href="#local-6989586621679538913"><span class="hs-identifier hs-var">path</span></a></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span>
+</span><span id="line-55"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-56"></span><span>    </span><span id="local-6989586621679538913"><span class="annot"><span class="annottext">path :: Paths
+</span><a href="#local-6989586621679538913"><span class="hs-identifier hs-var hs-var">path</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;repos&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Name Owner -&gt; Text
+forall a. IsPathPart a =&gt; a -&gt; Text
+</span><a href="GitHub.Data.Request.html#toPathPart"><span class="hs-identifier hs-var">toPathPart</span></a></span><span> </span><span class="annot"><span class="annottext">Name Owner
+</span><a href="#local-6989586621679538908"><span class="hs-identifier hs-var">user</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Name Repo -&gt; Text
+forall a. IsPathPart a =&gt; a -&gt; Text
+</span><a href="GitHub.Data.Request.html#toPathPart"><span class="hs-identifier hs-var">toPathPart</span></a></span><span> </span><span class="annot"><span class="annottext">Name Repo
+</span><a href="#local-6989586621679538909"><span class="hs-identifier hs-var">repo</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">ArchiveFormat -&gt; Text
+forall a. IsPathPart a =&gt; a -&gt; Text
+</span><a href="GitHub.Data.Request.html#toPathPart"><span class="hs-identifier hs-var">toPathPart</span></a></span><span> </span><span class="annot"><span class="annottext">ArchiveFormat
+</span><a href="#local-6989586621679538910"><span class="hs-identifier hs-var">format</span></a></span><span class="hs-special">]</span><span> </span><span class="annot"><span class="annottext">Paths -&gt; Paths -&gt; Paths
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Maybe Text -&gt; Paths
+forall a. Maybe a -&gt; [a]
+</span><span class="hs-identifier hs-var">maybeToList</span></span><span> </span><span class="annot"><span class="annottext">Maybe Text
+</span><a href="#local-6989586621679538911"><span class="hs-identifier hs-var">ref</span></a></span><span>
+</span><span id="line-57"></span><span>
+</span><span id="line-58"></span><span class="hs-comment">-- | Create a file.</span><span>
+</span><span id="line-59"></span><span class="hs-comment">-- See &lt;https://developer.github.com/v3/repos/contents/#create-a-file&gt;</span><span>
+</span><span id="line-60"></span><span class="annot"><a href="GitHub.Endpoints.Repos.Contents.html#createFileR"><span class="hs-identifier hs-type">createFileR</span></a></span><span>
+</span><span id="line-61"></span><span>    </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GitHub.Data.Name.html#Name"><span class="hs-identifier hs-type">Name</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.Definitions.html#Owner"><span class="hs-identifier hs-type">Owner</span></a></span><span>
+</span><span id="line-62"></span><span>    </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Name.html#Name"><span class="hs-identifier hs-type">Name</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.Repos.html#Repo"><span class="hs-identifier hs-type">Repo</span></a></span><span>
+</span><span id="line-63"></span><span>    </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Content.html#CreateFile"><span class="hs-identifier hs-type">CreateFile</span></a></span><span>
+</span><span id="line-64"></span><span>    </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Request.html#Request"><span class="hs-identifier hs-type">Request</span></a></span><span> </span><span class="hs-special">'</span><span class="annot"><a href="GitHub.Data.Request.html#RW"><span class="hs-identifier hs-type">RW</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.Content.html#ContentResult"><span class="hs-identifier hs-type">ContentResult</span></a></span><span>
+</span><span id="line-65"></span><span id="createFileR"><span class="annot"><span class="annottext">createFileR :: Name Owner -&gt; Name Repo -&gt; CreateFile -&gt; Request 'RW ContentResult
+</span><a href="GitHub.Endpoints.Repos.Contents.html#createFileR"><span class="hs-identifier hs-var hs-var">createFileR</span></a></span></span><span> </span><span id="local-6989586621679538921"><span class="annot"><span class="annottext">Name Owner
+</span><a href="#local-6989586621679538921"><span class="hs-identifier hs-var">user</span></a></span></span><span> </span><span id="local-6989586621679538922"><span class="annot"><span class="annottext">Name Repo
+</span><a href="#local-6989586621679538922"><span class="hs-identifier hs-var">repo</span></a></span></span><span> </span><span id="local-6989586621679538923"><span class="annot"><span class="annottext">CreateFile
+</span><a href="#local-6989586621679538923"><span class="hs-identifier hs-var">body</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-66"></span><span>    </span><span class="annot"><span class="annottext">CommandMethod -&gt; Paths -&gt; ByteString -&gt; Request 'RW ContentResult
+forall a. CommandMethod -&gt; Paths -&gt; ByteString -&gt; Request 'RW a
+</span><a href="GitHub.Data.Request.html#command"><span class="hs-identifier hs-var">command</span></a></span><span> </span><span class="annot"><span class="annottext">CommandMethod
+</span><a href="GitHub.Data.Request.html#Put"><span class="hs-identifier hs-var">Put</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;repos&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Name Owner -&gt; Text
+forall a. IsPathPart a =&gt; a -&gt; Text
+</span><a href="GitHub.Data.Request.html#toPathPart"><span class="hs-identifier hs-var">toPathPart</span></a></span><span> </span><span class="annot"><span class="annottext">Name Owner
+</span><a href="#local-6989586621679538921"><span class="hs-identifier hs-var">user</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Name Repo -&gt; Text
+forall a. IsPathPart a =&gt; a -&gt; Text
+</span><a href="GitHub.Data.Request.html#toPathPart"><span class="hs-identifier hs-var">toPathPart</span></a></span><span> </span><span class="annot"><span class="annottext">Name Repo
+</span><a href="#local-6989586621679538922"><span class="hs-identifier hs-var">repo</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;contents&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">CreateFile -&gt; Text
+</span><a href="GitHub.Data.Content.html#createFilePath"><span class="hs-identifier hs-var">createFilePath</span></a></span><span> </span><span class="annot"><span class="annottext">CreateFile
+</span><a href="#local-6989586621679538923"><span class="hs-identifier hs-var">body</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">CreateFile -&gt; ByteString
+forall a. ToJSON a =&gt; a -&gt; ByteString
+</span><span class="hs-identifier hs-var">encode</span></span><span> </span><span class="annot"><span class="annottext">CreateFile
+</span><a href="#local-6989586621679538923"><span class="hs-identifier hs-var">body</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-67"></span><span>
+</span><span id="line-68"></span><span class="hs-comment">-- | Update a file.</span><span>
+</span><span id="line-69"></span><span class="hs-comment">-- See &lt;https://developer.github.com/v3/repos/contents/#update-a-file&gt;</span><span>
+</span><span id="line-70"></span><span class="annot"><a href="GitHub.Endpoints.Repos.Contents.html#updateFileR"><span class="hs-identifier hs-type">updateFileR</span></a></span><span>
+</span><span id="line-71"></span><span>    </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GitHub.Data.Name.html#Name"><span class="hs-identifier hs-type">Name</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.Definitions.html#Owner"><span class="hs-identifier hs-type">Owner</span></a></span><span>
+</span><span id="line-72"></span><span>    </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Name.html#Name"><span class="hs-identifier hs-type">Name</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.Repos.html#Repo"><span class="hs-identifier hs-type">Repo</span></a></span><span>
+</span><span id="line-73"></span><span>    </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Content.html#UpdateFile"><span class="hs-identifier hs-type">UpdateFile</span></a></span><span>
+</span><span id="line-74"></span><span>    </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Request.html#Request"><span class="hs-identifier hs-type">Request</span></a></span><span> </span><span class="hs-special">'</span><span class="annot"><a href="GitHub.Data.Request.html#RW"><span class="hs-identifier hs-type">RW</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.Content.html#ContentResult"><span class="hs-identifier hs-type">ContentResult</span></a></span><span>
+</span><span id="line-75"></span><span id="updateFileR"><span class="annot"><span class="annottext">updateFileR :: Name Owner -&gt; Name Repo -&gt; UpdateFile -&gt; Request 'RW ContentResult
+</span><a href="GitHub.Endpoints.Repos.Contents.html#updateFileR"><span class="hs-identifier hs-var hs-var">updateFileR</span></a></span></span><span> </span><span id="local-6989586621679538928"><span class="annot"><span class="annottext">Name Owner
+</span><a href="#local-6989586621679538928"><span class="hs-identifier hs-var">user</span></a></span></span><span> </span><span id="local-6989586621679538929"><span class="annot"><span class="annottext">Name Repo
+</span><a href="#local-6989586621679538929"><span class="hs-identifier hs-var">repo</span></a></span></span><span> </span><span id="local-6989586621679538930"><span class="annot"><span class="annottext">UpdateFile
+</span><a href="#local-6989586621679538930"><span class="hs-identifier hs-var">body</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-76"></span><span>    </span><span class="annot"><span class="annottext">CommandMethod -&gt; Paths -&gt; ByteString -&gt; Request 'RW ContentResult
+forall a. CommandMethod -&gt; Paths -&gt; ByteString -&gt; Request 'RW a
+</span><a href="GitHub.Data.Request.html#command"><span class="hs-identifier hs-var">command</span></a></span><span> </span><span class="annot"><span class="annottext">CommandMethod
+</span><a href="GitHub.Data.Request.html#Put"><span class="hs-identifier hs-var">Put</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;repos&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Name Owner -&gt; Text
+forall a. IsPathPart a =&gt; a -&gt; Text
+</span><a href="GitHub.Data.Request.html#toPathPart"><span class="hs-identifier hs-var">toPathPart</span></a></span><span> </span><span class="annot"><span class="annottext">Name Owner
+</span><a href="#local-6989586621679538928"><span class="hs-identifier hs-var">user</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Name Repo -&gt; Text
+forall a. IsPathPart a =&gt; a -&gt; Text
+</span><a href="GitHub.Data.Request.html#toPathPart"><span class="hs-identifier hs-var">toPathPart</span></a></span><span> </span><span class="annot"><span class="annottext">Name Repo
+</span><a href="#local-6989586621679538929"><span class="hs-identifier hs-var">repo</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;contents&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">UpdateFile -&gt; Text
+</span><a href="GitHub.Data.Content.html#updateFilePath"><span class="hs-identifier hs-var">updateFilePath</span></a></span><span> </span><span class="annot"><span class="annottext">UpdateFile
+</span><a href="#local-6989586621679538930"><span class="hs-identifier hs-var">body</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">UpdateFile -&gt; ByteString
+forall a. ToJSON a =&gt; a -&gt; ByteString
+</span><span class="hs-identifier hs-var">encode</span></span><span> </span><span class="annot"><span class="annottext">UpdateFile
+</span><a href="#local-6989586621679538930"><span class="hs-identifier hs-var">body</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-77"></span><span>
+</span><span id="line-78"></span><span class="hs-comment">-- | Delete a file.</span><span>
+</span><span id="line-79"></span><span class="hs-comment">-- See &lt;https://developer.github.com/v3/repos/contents/#delete-a-file&gt;</span><span>
+</span><span id="line-80"></span><span class="annot"><a href="GitHub.Endpoints.Repos.Contents.html#deleteFileR"><span class="hs-identifier hs-type">deleteFileR</span></a></span><span>
+</span><span id="line-81"></span><span>    </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GitHub.Data.Name.html#Name"><span class="hs-identifier hs-type">Name</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.Definitions.html#Owner"><span class="hs-identifier hs-type">Owner</span></a></span><span>
+</span><span id="line-82"></span><span>    </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Name.html#Name"><span class="hs-identifier hs-type">Name</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.Repos.html#Repo"><span class="hs-identifier hs-type">Repo</span></a></span><span>
+</span><span id="line-83"></span><span>    </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Content.html#DeleteFile"><span class="hs-identifier hs-type">DeleteFile</span></a></span><span>
+</span><span id="line-84"></span><span>    </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Request.html#GenRequest"><span class="hs-identifier hs-type">GenRequest</span></a></span><span> </span><span class="hs-special">'</span><span class="annot"><a href="GitHub.Data.Request.html#MtUnit"><span class="hs-identifier hs-type">MtUnit</span></a></span><span> </span><span class="hs-special">'</span><span class="annot"><a href="GitHub.Data.Request.html#RW"><span class="hs-identifier hs-type">RW</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-85"></span><span id="deleteFileR"><span class="annot"><span class="annottext">deleteFileR :: Name Owner -&gt; Name Repo -&gt; DeleteFile -&gt; GenRequest 'MtUnit 'RW ()
+</span><a href="GitHub.Endpoints.Repos.Contents.html#deleteFileR"><span class="hs-identifier hs-var hs-var">deleteFileR</span></a></span></span><span> </span><span id="local-6989586621679538932"><span class="annot"><span class="annottext">Name Owner
+</span><a href="#local-6989586621679538932"><span class="hs-identifier hs-var">user</span></a></span></span><span> </span><span id="local-6989586621679538933"><span class="annot"><span class="annottext">Name Repo
+</span><a href="#local-6989586621679538933"><span class="hs-identifier hs-var">repo</span></a></span></span><span> </span><span id="local-6989586621679538934"><span class="annot"><span class="annottext">DeleteFile
+</span><a href="#local-6989586621679538934"><span class="hs-identifier hs-var">body</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-86"></span><span>    </span><span class="annot"><span class="annottext">CommandMethod -&gt; Paths -&gt; ByteString -&gt; GenRequest 'MtUnit 'RW ()
+forall (mt :: MediaType (*)) a.
+CommandMethod -&gt; Paths -&gt; ByteString -&gt; GenRequest mt 'RW a
+</span><a href="GitHub.Data.Request.html#Command"><span class="hs-identifier hs-var">Command</span></a></span><span> </span><span class="annot"><span class="annottext">CommandMethod
+</span><a href="GitHub.Data.Request.html#Delete"><span class="hs-identifier hs-var">Delete</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;repos&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Name Owner -&gt; Text
+forall a. IsPathPart a =&gt; a -&gt; Text
+</span><a href="GitHub.Data.Request.html#toPathPart"><span class="hs-identifier hs-var">toPathPart</span></a></span><span> </span><span class="annot"><span class="annottext">Name Owner
+</span><a href="#local-6989586621679538932"><span class="hs-identifier hs-var">user</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Name Repo -&gt; Text
+forall a. IsPathPart a =&gt; a -&gt; Text
+</span><a href="GitHub.Data.Request.html#toPathPart"><span class="hs-identifier hs-var">toPathPart</span></a></span><span> </span><span class="annot"><span class="annottext">Name Repo
+</span><a href="#local-6989586621679538933"><span class="hs-identifier hs-var">repo</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;contents&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">DeleteFile -&gt; Text
+</span><a href="GitHub.Data.Content.html#deleteFilePath"><span class="hs-identifier hs-var">deleteFilePath</span></a></span><span> </span><span class="annot"><span class="annottext">DeleteFile
+</span><a href="#local-6989586621679538934"><span class="hs-identifier hs-var">body</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">DeleteFile -&gt; ByteString
+forall a. ToJSON a =&gt; a -&gt; ByteString
+</span><span class="hs-identifier hs-var">encode</span></span><span> </span><span class="annot"><span class="annottext">DeleteFile
+</span><a href="#local-6989586621679538934"><span class="hs-identifier hs-var">body</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-87"></span></pre></body></html>

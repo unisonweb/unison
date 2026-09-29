@@ -1,0 +1,389 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-comment">-- We don't to strictness analysis on this file to avoid turning loopy unsafe</span><span>
+</span><span id="line-2"></span><span class="hs-comment">-- equality terms below to actual loops. Details in (U5) of</span><span>
+</span><span id="line-3"></span><span class="hs-comment">-- Note [Implementing unsafeCoerce]</span><span>
+</span><span id="line-4"></span><span class="hs-pragma">{-# OPTIONS_GHC -fno-strictness #-}</span><span>
+</span><span id="line-5"></span><span>
+</span><span id="line-6"></span><span class="hs-pragma">{-# LANGUAGE DataKinds #-}</span><span>
+</span><span id="line-7"></span><span class="hs-pragma">{-# LANGUAGE GADTs #-}</span><span>
+</span><span id="line-8"></span><span class="hs-pragma">{-# LANGUAGE MagicHash #-}</span><span>
+</span><span id="line-9"></span><span class="hs-pragma">{-# LANGUAGE NoImplicitPrelude #-}</span><span>
+</span><span id="line-10"></span><span class="hs-pragma">{-# LANGUAGE PolyKinds #-}</span><span>
+</span><span id="line-11"></span><span class="hs-pragma">{-# LANGUAGE ScopedTypeVariables #-}</span><span>
+</span><span id="line-12"></span><span class="hs-pragma">{-# LANGUAGE TypeApplications #-}</span><span>
+</span><span id="line-13"></span><span class="hs-pragma">{-# LANGUAGE Unsafe #-}</span><span>
+</span><span id="line-14"></span><span>
+</span><span id="line-15"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="GHC.Internal.Unsafe.Coerce.html"><span class="hs-identifier">GHC.Internal.Unsafe.Coerce</span></a></span><span>
+</span><span id="line-16"></span><span>  </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="GHC.Internal.Unsafe.Coerce.html#unsafeCoerce"><span class="hs-identifier">unsafeCoerce</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Internal.Unsafe.Coerce.html#unsafeCoerceUnlifted"><span class="hs-identifier">unsafeCoerceUnlifted</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Internal.Unsafe.Coerce.html#unsafeCoerceAddr"><span class="hs-identifier">unsafeCoerceAddr</span></a></span><span>
+</span><span id="line-17"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Internal.Unsafe.Coerce.html#unsafeEqualityProof"><span class="hs-identifier">unsafeEqualityProof</span></a></span><span>
+</span><span id="line-18"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Internal.Unsafe.Coerce.html#UnsafeEquality"><span class="hs-identifier">UnsafeEquality</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-19"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Internal.Unsafe.Coerce.html#unsafeCoerce%23"><span class="hs-identifier">unsafeCoerce#</span></a></span><span>
+</span><span id="line-20"></span><span>  </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-21"></span><span>
+</span><span id="line-22"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Internal.Arr.html"><span class="hs-identifier">GHC.Internal.Arr</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Internal.Arr.html#amap"><span class="hs-identifier">amap</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-comment">-- For amap/unsafeCoerce rule</span><span>
+</span><span id="line-23"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Internal.Base.html"><span class="hs-identifier">GHC.Internal.Base</span></a></span><span>
+</span><span id="line-24"></span><span>
+</span><span id="line-25"></span><span class="hs-comment">{- Note [Implementing unsafeCoerce]
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+The implementation of unsafeCoerce is surprisingly subtle.
+This Note describes the moving parts.  You will find more
+background in MR !1869 and ticket #16893.
+
+The key challenge is this.  Suppose we have
+   case sameTypeRep t1 t2 of
+      False -&gt; blah2
+      True  -&gt; ...(case (x |&gt; UnsafeCo @t1 @t2) of { K -&gt; blah })...
+
+The programmer thinks that the unsafeCoerce from 't1' to 't2' is safe,
+because it is justified by a runtime test (sameTypeRep t1 t2).
+It used to compile to a cast, with a magical 'UnsafeCo' coercion.
+
+But alas, if `x` is known to be evaluated, nothing then stops GHC floating that
+call to unsafeCoerce outwards so we get
+   case (x |&gt; UnsafeCo @t1 @t2) of
+     K -&gt; case sameTypeRep t1 t2 of
+             False -&gt; blah2
+             True  -&gt; ...blah...
+
+and this is utterly wrong, because the unsafeCoerce is being performed
+before the dynamic test. This is exactly the setup in #16893 (search for
+&quot;Diagnosis&quot;).
+
+The solution is this:
+
+* In the library GHC.Internal.Unsafe.Coerce we define:
+
+     unsafeEqualityProof :: forall k (a :: k) (b :: k).
+                            UnsafeEquality a b
+
+* It uses a GADT, Unsafe.Coerce.UnsafeEquality, that is exactly like :~:
+
+    data UnsafeEquality (a :: k) (b :: k) where
+      UnsafeRefl :: UnsafeEquality a a
+
+* We can now define GHC.Internal.Unsafe.Coerce.unsafeCoerce very simply:
+
+   unsafeCoerce :: forall (a :: Type) (b :: Type) . a -&gt; b
+   unsafeCoerce x = case unsafeEqualityProof @a @b of
+                      UnsafeRefl -&gt; x
+
+  There is nothing special about unsafeCoerce; it is an
+  ordinary library definition, and can be freely inlined.
+
+Now our bad case can't happen.  We'll have
+     case unsafeEqualityProof @t1 @t2 of
+        UnsafeRefl (co :: t1 ~ t2) -&gt; ....(x |&gt; co)....
+
+and the (x |&gt; co) mentions the evidence 'co', which prevents it
+floating. See also wrinkle (U11) below.
+
+While unsafeCoerce is a perfectly ordinary function that needs no
+special treatment, GHC.Internal.Unsafe.Coerce.unsafeEqualityProof is magical, in
+several ways
+
+(U1) unsafeEqualityProof is /never/ inlined.
+
+(U2) In CoreToStg.coreToStgExpr, we transform
+       case unsafeEqualityProof of UnsafeRefl g -&gt; blah
+      ==&gt;
+       blah
+
+     This eliminates the overhead of evaluating the unsafe equality proof.
+     (It follows that the Case is trivial iff `blah` is.)
+
+     Any /other/ occurrence of unsafeEqualityProof is left alone.
+     For example you could write
+         f :: UnsafeEquality a b -&gt; blah
+         f eq_proof = case eq_proof of UnsafeRefl -&gt; ...
+    (Nothing special about that.)  In a call, you might write
+         f unsafeEqualityProof
+
+    and we'll generate code simply by passing the top-level
+    unsafeEqualityProof to f.  As (U5) says, it is implemented as
+    UnsafeRefl so all is good.
+
+    NB: Don't discard the case if the case-binder is used
+           case unsafeEqualityProof of wild_xx { UnsafeRefl -&gt;
+           ...wild_xx...
+        That rarely happens, but see #18227.
+
+(U3) In GHC.CoreToStg.Prep.cpeRhsE, if we see
+       let x = case unsafeEqualityProof ... of
+                 UnsafeRefl -&gt; K e
+       in ...
+
+     there is a danger that we'll go to
+        let x = case unsafeEqualityProof ... of
+                  UnsafeRefl -&gt; let a = e in K a
+        in ...
+
+     and produce a thunk even after discarding the unsafeEqualityProof.
+     So instead we float out the case to give
+        case unsafeEqualityProof ... of { UnsafeRefl -&gt;
+        let a = e
+            x = K a
+        in ...  }
+     NB: Floating the case is OK here, even though it broadens the scope,
+     because we are done with simplification and won't float out of
+     branching Case alternatives such as in the `sameTypeRep` example above.
+
+     Neglecting this transformation triggered test failures in GHCi debugger
+     test cases such as `print003`, because it could no longer identify things
+     such as `x` above as a value.
+
+(U4) `case unsafeEqualityProof of UnsafeRefl -&gt; rhs` as trivial iff `rhs` is,
+     see `exprIsTrivial`. One reason is that we want to treat the RHS
+     of unsafeCoerce as very small; see Note [Inline unsafeCoerce] in
+     GHC.Core.Unfold.
+     Another reason is
+       f (case unsafeEqualitProof ... of UnsafeRefl co -&gt; x |&gt; co))
+     we do not want to ANF-ise to
+        let arg = case unsafeEqualitProof ... of UnsafeRefl co -&gt; x |&gt; co
+        in f arg
+     because that `let` will turn into a silly indirection `let arg = x in ..`
+     in CoreToStg. Triviality means we can &quot;look through&quot; the Case in CoreToStg.
+
+(U5) The definition of unsafeEqualityProof in GHC.Internal.Unsafe.Coerce
+     looks very strange:
+        unsafeEqualityProof = case unsafeEqualityProof @a @b of
+                                 UnsafeRefl -&gt; UnsafeRefl
+
+     It looks recursive!  But the above-mentioned CoreToStg
+     transform will change it to
+        unsafeEqualityProof = UnsafeRefl
+     And that is exactly the code we want!  For example, if we say
+        f unsafeEqualityProof
+     we want to pass an UnsafeRefl constructor to f.
+
+     We turn off strictness analysis in this module, otherwise
+     the strictness analyser will mark unsafeEqualityProof as
+     bottom, which is utterly wrong.
+
+(U6) The UnsafeEquality data type is also special in one way.
+     Consider this piece of Core
+        case unsafeEqualityProof @Int @Bool of
+           UnsafeRefl (g :: Int ~# Bool) -&gt; ...g...
+
+     The simplifier normally eliminates case alternatives with
+     contradicatory GADT data constructors; here we bring into
+     scope evidence (g :: Int~Bool).  But we do not want to
+     eliminate this particular alternative!  So we put a special
+     case into DataCon.dataConCannotMatch to account for this.
+
+(U7) We add a built-in RULE
+       unsafeEqualityProof k t t  ==&gt;  UnsafeRefl (Refl t)
+     to simplify the case when the two types are equal.
+
+(U8) The is a super-magic RULE in GHC.base
+         map coerce = coerce
+     (see Note [Getting the map/coerce RULE to work] in GHC.Core.SimpleOpt)
+     But it's all about turning coerce into a cast, and unsafeCoerce
+     no longer does that.  So we need a separate map/unsafeCoerce
+     RULE, in this module.
+
+     Adding these RULES means we must delay inlining unsafeCoerce
+     until the RULES have had a chance to fire; hence the INLINE[1]
+     pragma on unsafeCoerce.  (Side note: this has the coincidental
+     benefit of making the unsafeCoerce-based version of the `reflection`
+     library work -- see #21575.)
+
+There are yet more wrinkles
+
+(U9) unsafeCoerce works only over types of kind `Type`.
+     But what about other types?  In GHC.Internal.Unsafe.Coerce we also define
+
+      unsafeCoerceUnlifted :: forall (a :: TYPE UnliftedRep)
+                                     (b :: TYPE UnliftedRep).
+                              a -&gt; b
+      unsafeCoerceUnlifted x
+        = case unsafeEqualityProof @a @b of
+              UnsafeRefl -&gt; x
+
+     and similarly for unsafeCoerceAddr, unsafeCoerceInt, etc.
+
+(U10) We also want a representation-polymorphic unsafeCoerce#:
+
+       unsafeCoerce# :: forall (r1 :: RuntimeRep) (r2 :: RuntimeRep)
+                        (a :: TYPE r1) (b :: TYPE r2).
+                        a -&gt; b
+
+      This is even more dangerous, because it converts between two types
+      *with different runtime representations*!!  Our goal is to deprecate
+      it entirely.  But for now we want it.
+
+      But having it is hard!  It is defined by a kind of stub in Unsafe.Coerce,
+      and overwritten by the desugarer.  See Note [Wiring in unsafeCoerce#]
+      in Desugar.  Here's the code for it
+        unsafeCoerce# x = case unsafeEqualityProof @r1 @r2 of UnsafeRefl -&gt;
+                          case unsafeEqualityProof @a  @b  of UnsafeRefl -&gt;
+                          x
+      Notice that we can define this kind-/heterogeneous/ function by calling
+      the kind-/homogeneous/ unsafeEqualityProof twice.
+
+      See Note [Wiring in unsafeCoerce#] in Desugar.
+
+(U11) But what stops the whole (case unsafeEqualityProof of ...) from
+      being speculated out of a conditional? (E.g., strict float out.)
+      Answer: we never float a case on something that is not an HNF
+      ('exprIsHNF') outside a conditional.
+      See Note [Floating single-alternative cases].
+
+(U12) In #20143 we found
+         case unsafeEqualityProof @t1 @t2 of UnsafeRefl cv[dead] -&gt; blah
+      where 'blah' didn't mention 'cv'.  We'd like to discard this
+      redundant use of unsafeEqualityProof, via GHC.Core.Opt.Simplify.rebuildCase.
+      To do this we need to know
+        (a) that cv is unused (done by OccAnal), and
+        (b) that unsafeEqualityProof terminates rapidly without side effects.
+      At the moment we check that explicitly in GHC.Core.Utils.exprOkToDiscard,
+      but one might imagine a more systematic check in future.
+-}</span><span>
+</span><span id="line-240"></span><span>
+</span><span id="line-241"></span><span class="hs-comment">-- | This type is treated magically within GHC. Any pattern match of the</span><span>
+</span><span id="line-242"></span><span class="hs-comment">-- form @case unsafeEqualityProof of UnsafeRefl -&gt; body@ gets transformed just into @body@.</span><span>
+</span><span id="line-243"></span><span class="hs-comment">-- This is ill-typed, but the transformation takes place after type-checking is</span><span>
+</span><span id="line-244"></span><span class="hs-comment">-- complete. It is used to implement 'unsafeCoerce'. You probably don't want to</span><span>
+</span><span id="line-245"></span><span class="hs-comment">-- use 'UnsafeRefl' in an expression, but you might conceivably want to pattern-match</span><span>
+</span><span id="line-246"></span><span class="hs-comment">-- on it. Use 'unsafeEqualityProof' to create one of these.</span><span>
+</span><span id="line-247"></span><span class="hs-keyword">data</span><span> </span><span id="UnsafeEquality"><span class="annot"><a href="GHC.Internal.Unsafe.Coerce.html#UnsafeEquality"><span class="hs-identifier hs-var">UnsafeEquality</span></a></span></span><span> </span><span id="local-6989586621679603259"><span class="annot"><a href="#local-6989586621679603259"><span class="hs-identifier hs-type">a</span></a></span></span><span> </span><span id="local-6989586621679603260"><span class="annot"><a href="#local-6989586621679603260"><span class="hs-identifier hs-type">b</span></a></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-248"></span><span>  </span><span id="local-6989586621679603233"><span id="UnsafeRefl"><span class="annot"><a href="GHC.Internal.Unsafe.Coerce.html#UnsafeRefl"><span class="hs-identifier hs-var">UnsafeRefl</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Internal.Unsafe.Coerce.html#UnsafeEquality"><span class="hs-identifier hs-type">UnsafeEquality</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679603233"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679603233"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-249"></span><span>
+</span><span id="line-250"></span><span class="hs-pragma">{-# NOINLINE</span><span> </span><span class="annot"><a href="GHC.Internal.Unsafe.Coerce.html#unsafeEqualityProof"><span class="hs-pragma hs-type">unsafeEqualityProof</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-251"></span><span class="annot"><a href="GHC.Internal.Unsafe.Coerce.html#unsafeEqualityProof"><span class="hs-identifier hs-type">unsafeEqualityProof</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-keyword">forall</span><span> </span><span id="local-6989586621679603227"><span class="annot"><a href="#local-6989586621679603227"><span class="hs-identifier hs-type">a</span></a></span></span><span> </span><span id="local-6989586621679603228"><span class="annot"><a href="#local-6989586621679603228"><span class="hs-identifier hs-type">b</span></a></span></span><span> </span><span class="hs-operator">.</span><span> </span><span class="annot"><a href="GHC.Internal.Unsafe.Coerce.html#UnsafeEquality"><span class="hs-identifier hs-type">UnsafeEquality</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679603227"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679603228"><span class="hs-identifier hs-type">b</span></a></span><span>
+</span><span id="line-252"></span><span class="hs-comment">-- See (U5) of Note [Implementing unsafeCoerce]</span><span>
+</span><span id="line-253"></span><span id="unsafeEqualityProof"><span class="annot"><span class="annottext">unsafeEqualityProof :: forall {k} (a :: k) (b :: k). UnsafeEquality a b
+</span><a href="GHC.Internal.Unsafe.Coerce.html#unsafeEqualityProof"><span class="hs-identifier hs-var hs-var">unsafeEqualityProof</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">forall (a :: k) (b :: k). UnsafeEquality a b
+forall {k} (a :: k) (b :: k). UnsafeEquality a b
+</span><a href="GHC.Internal.Unsafe.Coerce.html#unsafeEqualityProof"><span class="hs-identifier hs-var">unsafeEqualityProof</span></a></span><span> </span><span class="hs-glyph">@</span><span class="annot"><a href="#local-6989586621679603227"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">@</span><span class="annot"><a href="#local-6989586621679603228"><span class="hs-identifier hs-type">b</span></a></span><span> </span><span class="hs-keyword">of</span><span> </span><span class="annot"><span class="annottext">UnsafeEquality a b
+</span><a href="GHC.Internal.Unsafe.Coerce.html#UnsafeRefl"><span class="hs-identifier hs-var">UnsafeRefl</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">UnsafeEquality a a
+UnsafeEquality a b
+forall {k} (a :: k). UnsafeEquality a a
+</span><a href="GHC.Internal.Unsafe.Coerce.html#UnsafeRefl"><span class="hs-identifier hs-var">UnsafeRefl</span></a></span><span>
+</span><span id="line-254"></span><span>
+</span><span id="line-255"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="hs-pragma">[</span><span class="hs-pragma">1</span><span class="hs-pragma">]</span><span> </span><span class="annot"><a href="GHC.Internal.Unsafe.Coerce.html#unsafeCoerce"><span class="hs-pragma hs-type">unsafeCoerce</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-256"></span><span class="hs-comment">-- The INLINE will almost certainly happen automatically, but it's almost</span><span>
+</span><span id="line-257"></span><span class="hs-comment">-- certain to generate (slightly) better code, so let's do it.  For example</span><span>
+</span><span id="line-258"></span><span class="hs-comment">--</span><span>
+</span><span id="line-259"></span><span class="hs-comment">--   case (unsafeCoerce blah) of ...</span><span>
+</span><span id="line-260"></span><span class="hs-comment">--</span><span>
+</span><span id="line-261"></span><span class="hs-comment">-- will turn into</span><span>
+</span><span id="line-262"></span><span class="hs-comment">--</span><span>
+</span><span id="line-263"></span><span class="hs-comment">--   case unsafeEqualityProof of UnsafeRefl -&gt; case blah of ...</span><span>
+</span><span id="line-264"></span><span class="hs-comment">--</span><span>
+</span><span id="line-265"></span><span class="hs-comment">-- which is definitely better.</span><span>
+</span><span id="line-266"></span><span class="hs-comment">--</span><span>
+</span><span id="line-267"></span><span class="hs-comment">-- Why delay inlining to Phase 1?  Because of the RULES for map/unsafeCoerce;</span><span>
+</span><span id="line-268"></span><span class="hs-comment">-- see (U8) in Note [Implementing unsafeCoerce]</span><span>
+</span><span id="line-269"></span><span>
+</span><span id="line-270"></span><span class="hs-comment">-- | `unsafeCoerce` coerces a value from one type to another, bypassing the type-checker.</span><span>
+</span><span id="line-271"></span><span class="hs-comment">--</span><span>
+</span><span id="line-272"></span><span class="hs-comment">-- There are several legitimate ways to use 'unsafeCoerce':</span><span>
+</span><span id="line-273"></span><span class="hs-comment">--</span><span>
+</span><span id="line-274"></span><span class="hs-comment">--   1. To coerce a lifted type such as @Int@ to @Any@, put it in a list of @Any@,</span><span>
+</span><span id="line-275"></span><span class="hs-comment">--      and then later coerce it back to @Int@ before using it.</span><span>
+</span><span id="line-276"></span><span class="hs-comment">--</span><span>
+</span><span id="line-277"></span><span class="hs-comment">--   2. To produce e.g. @(a+b) :~: (b+a)@ from @unsafeCoerce Refl@.</span><span>
+</span><span id="line-278"></span><span class="hs-comment">--      Here the two sides really are the same type -- so nothing unsafe is happening</span><span>
+</span><span id="line-279"></span><span class="hs-comment">--      -- but GHC is not clever enough to see it.</span><span>
+</span><span id="line-280"></span><span class="hs-comment">--</span><span>
+</span><span id="line-281"></span><span class="hs-comment">--   3. In @Data.Typeable@ we have</span><span>
+</span><span id="line-282"></span><span class="hs-comment">--</span><span>
+</span><span id="line-283"></span><span class="hs-comment">--      @</span><span>
+</span><span id="line-284"></span><span class="hs-comment">--        eqTypeRep :: forall k1 k2 (a :: k1) (b :: k2).</span><span>
+</span><span id="line-285"></span><span class="hs-comment">--                     TypeRep a -&gt; TypeRep b -&gt; Maybe (a :~~: b)</span><span>
+</span><span id="line-286"></span><span class="hs-comment">--        eqTypeRep a b</span><span>
+</span><span id="line-287"></span><span class="hs-comment">--          | sameTypeRep a b = Just (unsafeCoerce HRefl)</span><span>
+</span><span id="line-288"></span><span class="hs-comment">--          | otherwise       = Nothing</span><span>
+</span><span id="line-289"></span><span class="hs-comment">--      @</span><span>
+</span><span id="line-290"></span><span class="hs-comment">--</span><span>
+</span><span id="line-291"></span><span class="hs-comment">--      Here again, the @unsafeCoerce HRefl@ is safe, because the two types really</span><span>
+</span><span id="line-292"></span><span class="hs-comment">--      are the same  -- but the proof of that relies on the complex, trusted</span><span>
+</span><span id="line-293"></span><span class="hs-comment">--      implementation of @Typeable@.</span><span>
+</span><span id="line-294"></span><span class="hs-comment">--</span><span>
+</span><span id="line-295"></span><span class="hs-comment">--   4. (superseded) The &quot;reflection trick&quot;, which takes advantage of the fact that in</span><span>
+</span><span id="line-296"></span><span class="hs-comment">--      @class C a where { op :: ty }@, we can safely coerce between @C a@ and @ty@</span><span>
+</span><span id="line-297"></span><span class="hs-comment">--      (which have different kinds!) because it's really just a newtype.</span><span>
+</span><span id="line-298"></span><span class="hs-comment">--      Note: there is /no guarantee, at all/ that this behavior will be supported</span><span>
+</span><span id="line-299"></span><span class="hs-comment">--      into perpetuity.</span><span>
+</span><span id="line-300"></span><span class="hs-comment">--      It is now preferred to use `withDict` in @GHC.Magic.Dict@, which</span><span>
+</span><span id="line-301"></span><span class="hs-comment">--      is type-safe. See Note [withDict] in GHC.Tc.Instance.Class for details.</span><span>
+</span><span id="line-302"></span><span class="hs-comment">--</span><span>
+</span><span id="line-303"></span><span class="hs-comment">--   5. (superseded) Casting between two types which have exactly the same structure:</span><span>
+</span><span id="line-304"></span><span class="hs-comment">--      between a newtype of T and T, or between types which differ only</span><span>
+</span><span id="line-305"></span><span class="hs-comment">--      in &quot;phantom&quot; type parameters.</span><span>
+</span><span id="line-306"></span><span class="hs-comment">--      It is now preferred to use `coerce` from @Data.Coerce@, which</span><span>
+</span><span id="line-307"></span><span class="hs-comment">--      is type-safe.</span><span>
+</span><span id="line-308"></span><span class="hs-comment">--</span><span>
+</span><span id="line-309"></span><span class="hs-comment">--  Other uses of 'unsafeCoerce' are undefined.  In particular, you should not use</span><span>
+</span><span id="line-310"></span><span class="hs-comment">--  'unsafeCoerce' to cast a T to an algebraic data type D, unless T is also</span><span>
+</span><span id="line-311"></span><span class="hs-comment">--  an algebraic data type.  For example, do not cast @'Int'-&gt;'Int'@ to 'Bool', even if</span><span>
+</span><span id="line-312"></span><span class="hs-comment">--  you later cast that 'Bool' back to @'Int'-&gt;'Int'@ before applying it.  The reasons</span><span>
+</span><span id="line-313"></span><span class="hs-comment">--  have to do with GHC's internal representation details (for the cognoscenti, data values</span><span>
+</span><span id="line-314"></span><span class="hs-comment">--  can be entered but function closures cannot).  If you want a safe type to cast things</span><span>
+</span><span id="line-315"></span><span class="hs-comment">--  to, use 'Any', which is not an algebraic data type.</span><span>
+</span><span id="line-316"></span><span>
+</span><span id="line-317"></span><span class="hs-comment">-- NB. It is tempting to think that casting a value to a type that it doesn't have is safe</span><span>
+</span><span id="line-318"></span><span class="hs-comment">-- as long as you don't &quot;do anything&quot; with the value in its cast form, such as seq on it.  This</span><span>
+</span><span id="line-319"></span><span class="hs-comment">-- isn't the case: the compiler can insert seqs itself, and if these happen at the wrong type,</span><span>
+</span><span id="line-320"></span><span class="hs-comment">-- Bad Things Might Happen.  See bug #1616: in this case we cast a function of type (a,b) -&gt; (a,b)</span><span>
+</span><span id="line-321"></span><span class="hs-comment">-- to () -&gt; () and back again.  The strictness analyser saw that the function was strict, but</span><span>
+</span><span id="line-322"></span><span class="hs-comment">-- the wrapper had type () -&gt; (), and hence the wrapper de-constructed the (), the worker re-constructed</span><span>
+</span><span id="line-323"></span><span class="hs-comment">-- a new (), with the result that the code ended up with &quot;case () of (a,b) -&gt; ...&quot;.</span><span>
+</span><span id="line-324"></span><span class="annot"><a href="GHC.Internal.Unsafe.Coerce.html#unsafeCoerce"><span class="hs-identifier hs-type">unsafeCoerce</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-keyword">forall</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679603234"><span class="annot"><a href="#local-6989586621679603234"><span class="hs-identifier hs-type">a</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="../../ghc-prim-0.12.0-595c/src/GHC.Types.html#Type"><span class="hs-identifier hs-type">Type</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679603235"><span class="annot"><a href="#local-6989586621679603235"><span class="hs-identifier hs-type">b</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="../../ghc-prim-0.12.0-595c/src/GHC.Types.html#Type"><span class="hs-identifier hs-type">Type</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-operator">.</span><span> </span><span class="annot"><a href="#local-6989586621679603234"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679603235"><span class="hs-identifier hs-type">b</span></a></span><span>
+</span><span id="line-325"></span><span id="unsafeCoerce"><span class="annot"><span class="annottext">unsafeCoerce :: forall a b. a -&gt; b
+</span><a href="GHC.Internal.Unsafe.Coerce.html#unsafeCoerce"><span class="hs-identifier hs-var hs-var">unsafeCoerce</span></a></span></span><span> </span><span id="local-6989586621679603264"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679603264"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">forall {k} (a :: k) (b :: k). UnsafeEquality a b
+forall a b. UnsafeEquality a b
+</span><a href="GHC.Internal.Unsafe.Coerce.html#unsafeEqualityProof"><span class="hs-identifier hs-var">unsafeEqualityProof</span></a></span><span> </span><span class="hs-glyph">@</span><span class="annot"><a href="#local-6989586621679603234"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">@</span><span class="annot"><a href="#local-6989586621679603235"><span class="hs-identifier hs-type">b</span></a></span><span> </span><span class="hs-keyword">of</span><span> </span><span class="annot"><span class="annottext">UnsafeEquality a b
+</span><a href="GHC.Internal.Unsafe.Coerce.html#UnsafeRefl"><span class="hs-identifier hs-var">UnsafeRefl</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">a
+b
+</span><a href="#local-6989586621679603264"><span class="hs-identifier hs-var">x</span></a></span><span>
+</span><span id="line-326"></span><span>
+</span><span id="line-327"></span><span class="annot"><a href="GHC.Internal.Unsafe.Coerce.html#unsafeCoerceUnlifted"><span class="hs-identifier hs-type">unsafeCoerceUnlifted</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-keyword">forall</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679603238"><span class="annot"><a href="#local-6989586621679603238"><span class="hs-identifier hs-type">a</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="../../ghc-prim-0.12.0-595c/src/GHC.Prim.html#TYPE"><span class="hs-identifier hs-type">TYPE</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">'</span><span class="annot"><a href="../../ghc-prim-0.12.0-595c/src/GHC.Types.html#BoxedRep"><span class="hs-identifier hs-type">BoxedRep</span></a></span><span> </span><span class="hs-special">'</span><span class="annot"><a href="../../ghc-prim-0.12.0-595c/src/GHC.Types.html#Unlifted"><span class="hs-identifier hs-type">Unlifted</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679603239"><span class="annot"><a href="#local-6989586621679603239"><span class="hs-identifier hs-type">b</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="../../ghc-prim-0.12.0-595c/src/GHC.Prim.html#TYPE"><span class="hs-identifier hs-type">TYPE</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">'</span><span class="annot"><a href="../../ghc-prim-0.12.0-595c/src/GHC.Types.html#BoxedRep"><span class="hs-identifier hs-type">BoxedRep</span></a></span><span> </span><span class="hs-special">'</span><span class="annot"><a href="../../ghc-prim-0.12.0-595c/src/GHC.Types.html#Unlifted"><span class="hs-identifier hs-type">Unlifted</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-operator">.</span><span> </span><span class="annot"><a href="#local-6989586621679603238"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679603239"><span class="hs-identifier hs-type">b</span></a></span><span>
+</span><span id="line-328"></span><span class="hs-comment">-- Kind-homogeneous, but representation-monomorphic (TYPE UnliftedRep)</span><span>
+</span><span id="line-329"></span><span id="unsafeCoerceUnlifted"><span class="annot"><span class="annottext">unsafeCoerceUnlifted :: forall (a :: UnliftedType) (b :: UnliftedType). a -&gt; b
+</span><a href="GHC.Internal.Unsafe.Coerce.html#unsafeCoerceUnlifted"><span class="hs-identifier hs-var hs-var">unsafeCoerceUnlifted</span></a></span></span><span> </span><span id="local-6989586621679603267"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679603267"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">forall {k} (a :: k) (b :: k). UnsafeEquality a b
+forall (a :: UnliftedType) (b :: UnliftedType). UnsafeEquality a b
+</span><a href="GHC.Internal.Unsafe.Coerce.html#unsafeEqualityProof"><span class="hs-identifier hs-var">unsafeEqualityProof</span></a></span><span> </span><span class="hs-glyph">@</span><span class="annot"><a href="#local-6989586621679603238"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">@</span><span class="annot"><a href="#local-6989586621679603239"><span class="hs-identifier hs-type">b</span></a></span><span> </span><span class="hs-keyword">of</span><span> </span><span class="annot"><span class="annottext">UnsafeEquality a b
+</span><a href="GHC.Internal.Unsafe.Coerce.html#UnsafeRefl"><span class="hs-identifier hs-var">UnsafeRefl</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">a
+b
+</span><a href="#local-6989586621679603267"><span class="hs-identifier hs-var">x</span></a></span><span>
+</span><span id="line-330"></span><span>
+</span><span id="line-331"></span><span class="annot"><a href="GHC.Internal.Unsafe.Coerce.html#unsafeCoerceAddr"><span class="hs-identifier hs-type">unsafeCoerceAddr</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-keyword">forall</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679603242"><span class="annot"><a href="#local-6989586621679603242"><span class="hs-identifier hs-type">a</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="../../ghc-prim-0.12.0-595c/src/GHC.Prim.html#TYPE"><span class="hs-identifier hs-type">TYPE</span></a></span><span> </span><span class="hs-special">'</span><span class="annot"><a href="../../ghc-prim-0.12.0-595c/src/GHC.Types.html#AddrRep"><span class="hs-identifier hs-type">AddrRep</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679603243"><span class="annot"><a href="#local-6989586621679603243"><span class="hs-identifier hs-type">b</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="../../ghc-prim-0.12.0-595c/src/GHC.Prim.html#TYPE"><span class="hs-identifier hs-type">TYPE</span></a></span><span> </span><span class="hs-special">'</span><span class="annot"><a href="../../ghc-prim-0.12.0-595c/src/GHC.Types.html#AddrRep"><span class="hs-identifier hs-type">AddrRep</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-operator">.</span><span> </span><span class="annot"><a href="#local-6989586621679603242"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679603243"><span class="hs-identifier hs-type">b</span></a></span><span>
+</span><span id="line-332"></span><span class="hs-comment">-- Kind-homogeneous, but representation-monomorphic (TYPE AddrRep)</span><span>
+</span><span id="line-333"></span><span id="unsafeCoerceAddr"><span class="annot"><span class="annottext">unsafeCoerceAddr :: forall (a :: TYPE 'AddrRep) (b :: TYPE 'AddrRep). a -&gt; b
+</span><a href="GHC.Internal.Unsafe.Coerce.html#unsafeCoerceAddr"><span class="hs-identifier hs-var hs-var">unsafeCoerceAddr</span></a></span></span><span> </span><span id="local-6989586621679603270"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679603270"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">forall {k} (a :: k) (b :: k). UnsafeEquality a b
+forall (a :: TYPE 'AddrRep) (b :: TYPE 'AddrRep).
+UnsafeEquality a b
+</span><a href="GHC.Internal.Unsafe.Coerce.html#unsafeEqualityProof"><span class="hs-identifier hs-var">unsafeEqualityProof</span></a></span><span> </span><span class="hs-glyph">@</span><span class="annot"><a href="#local-6989586621679603242"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">@</span><span class="annot"><a href="#local-6989586621679603243"><span class="hs-identifier hs-type">b</span></a></span><span> </span><span class="hs-keyword">of</span><span> </span><span class="annot"><span class="annottext">UnsafeEquality a b
+</span><a href="GHC.Internal.Unsafe.Coerce.html#UnsafeRefl"><span class="hs-identifier hs-var">UnsafeRefl</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">a
+b
+</span><a href="#local-6989586621679603270"><span class="hs-identifier hs-var">x</span></a></span><span>
+</span><span id="line-334"></span><span>
+</span><span id="line-335"></span><span class="hs-comment">-- | Highly, terribly dangerous coercion from one representation type</span><span>
+</span><span id="line-336"></span><span class="hs-comment">-- to another. Misuse of this function can invite the garbage collector</span><span>
+</span><span id="line-337"></span><span class="hs-comment">-- to trounce upon your data and then laugh in your face. You don't want</span><span>
+</span><span id="line-338"></span><span class="hs-comment">-- this function. Really.</span><span>
+</span><span id="line-339"></span><span class="annot"><a href="GHC.Internal.Unsafe.Coerce.html#unsafeCoerce%23"><span class="hs-identifier hs-type">unsafeCoerce#</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-keyword">forall</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679603246"><span class="annot"><a href="#local-6989586621679603246"><span class="hs-identifier hs-type">r1</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="../../ghc-prim-0.12.0-595c/src/GHC.Types.html#RuntimeRep"><span class="hs-identifier hs-type">RuntimeRep</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679603247"><span class="annot"><a href="#local-6989586621679603247"><span class="hs-identifier hs-type">r2</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="../../ghc-prim-0.12.0-595c/src/GHC.Types.html#RuntimeRep"><span class="hs-identifier hs-type">RuntimeRep</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-340"></span><span>                        </span><span class="hs-special">(</span><span id="local-6989586621679603248"><span class="annot"><a href="#local-6989586621679603248"><span class="hs-identifier hs-type">a</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="../../ghc-prim-0.12.0-595c/src/GHC.Prim.html#TYPE"><span class="hs-identifier hs-type">TYPE</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679603246"><span class="hs-identifier hs-type">r1</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679603249"><span class="annot"><a href="#local-6989586621679603249"><span class="hs-identifier hs-type">b</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="../../ghc-prim-0.12.0-595c/src/GHC.Prim.html#TYPE"><span class="hs-identifier hs-type">TYPE</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679603247"><span class="hs-identifier hs-type">r2</span></a></span><span class="hs-special">)</span><span class="hs-operator">.</span><span>
+</span><span id="line-341"></span><span>                 </span><span class="annot"><a href="#local-6989586621679603248"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679603249"><span class="hs-identifier hs-type">b</span></a></span><span>
+</span><span id="line-342"></span><span id="unsafeCoerce%23"><span class="annot"><span class="annottext">unsafeCoerce# :: forall a b. a -&gt; b
+</span><a href="GHC.Internal.Unsafe.Coerce.html#unsafeCoerce%23"><span class="hs-identifier hs-var hs-var">unsafeCoerce#</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; a -&gt; b
+forall a. HasCallStack =&gt; [Char] -&gt; a
+</span><a href="GHC.Internal.Err.html#error"><span class="hs-identifier hs-var">error</span></a></span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><span class="hs-string">&quot;GHC internal error: unsafeCoerce# not unfolded&quot;</span></span><span>
+</span><span id="line-343"></span><span class="hs-comment">-- See (U10) of Note [Implementing unsafeCoerce]</span><span>
+</span><span id="line-344"></span><span class="hs-comment">-- The RHS is updated by Desugar.patchMagicDefns</span><span>
+</span><span id="line-345"></span><span class="hs-comment">-- See Desugar Note [Wiring in unsafeCoerce#]</span><span>
+</span><span id="line-346"></span><span>
+</span><span id="line-347"></span><span class="hs-pragma">{-# RULES</span><span>
+</span><span id="line-348"></span><span class="hs-pragma">-- See (U8) in Note [Implementing unsafeCoerce]</span><span>
+</span><span id="line-349"></span><span>
+</span><span id="line-350"></span><span class="hs-pragma">-- unsafeCoerce version of the map/coerce rule defined in GHC.Internal.Base</span><span>
+</span><span id="line-351"></span><span class="annot"><span class="hs-pragma">&quot;map/unsafeCoerce&quot;</span></span><span> </span><span class="annot"><a href="GHC.Internal.Base.html#map"><span class="hs-pragma hs-type">map</span></a></span><span> </span><span class="annot"><a href="GHC.Internal.Unsafe.Coerce.html#unsafeCoerce"><span class="hs-pragma hs-type">unsafeCoerce</span></a></span><span> </span><span class="hs-pragma">=</span><span> </span><span class="annot"><a href="GHC.Internal.Unsafe.Coerce.html#unsafeCoerce"><span class="hs-pragma hs-type">unsafeCoerce</span></a></span><span>
+</span><span id="line-352"></span><span>
+</span><span id="line-353"></span><span class="hs-pragma">-- unsafeCoerce version of the amap/coerce rule defined in GHC.Internal.Arr</span><span>
+</span><span id="line-354"></span><span class="annot"><span class="hs-pragma">&quot;amap/unsafeCoerce&quot;</span></span><span> </span><span class="annot"><a href="GHC.Internal.Arr.html#amap"><span class="hs-pragma hs-type">amap</span></a></span><span> </span><span class="annot"><a href="GHC.Internal.Unsafe.Coerce.html#unsafeCoerce"><span class="hs-pragma hs-type">unsafeCoerce</span></a></span><span> </span><span class="hs-pragma">=</span><span> </span><span class="annot"><a href="GHC.Internal.Unsafe.Coerce.html#unsafeCoerce"><span class="hs-pragma hs-type">unsafeCoerce</span></a></span><span>
+</span><span id="line-355"></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-356"></span></pre></body></html>

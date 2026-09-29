@@ -1,0 +1,807 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-comment">-----------------------------------------------------------------------------</span><span>
+</span><span id="line-2"></span><span class="hs-comment">-- |</span><span>
+</span><span id="line-3"></span><span class="hs-comment">-- Module      :  Data.Algorithm.DiffContext</span><span>
+</span><span id="line-4"></span><span class="hs-comment">-- Copyright   :  (c) David Fox (2015)</span><span>
+</span><span id="line-5"></span><span class="hs-comment">-- License     :  BSD 3 Clause</span><span>
+</span><span id="line-6"></span><span class="hs-comment">-- Maintainer  :  s.clover@gmail.com</span><span>
+</span><span id="line-7"></span><span class="hs-comment">-- Stability   :  experimental</span><span>
+</span><span id="line-8"></span><span class="hs-comment">-- Portability :  portable</span><span>
+</span><span id="line-9"></span><span class="hs-comment">-- Author      :  David Fox (ddssff at the email service from google)</span><span>
+</span><span id="line-10"></span><span class="hs-comment">--</span><span>
+</span><span id="line-11"></span><span class="hs-comment">-- Generates a grouped diff with merged runs, and outputs them in the manner of diff -u</span><span>
+</span><span id="line-12"></span><span class="hs-comment">-----------------------------------------------------------------------------</span><span>
+</span><span id="line-13"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Data.Algorithm.DiffContext.html"><span class="hs-identifier">Data.Algorithm.DiffContext</span></a></span><span>
+</span><span id="line-14"></span><span>    </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="Data.Algorithm.DiffContext.html#ContextDiff"><span class="hs-identifier">ContextDiff</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Algorithm.DiffContext.html#Hunk"><span class="hs-identifier">Hunk</span></a></span><span>
+</span><span id="line-15"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Algorithm.DiffContext.html#getContextDiff"><span class="hs-identifier">getContextDiff</span></a></span><span>
+</span><span id="line-16"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Algorithm.DiffContext.html#prettyContextDiff"><span class="hs-identifier">prettyContextDiff</span></a></span><span>
+</span><span id="line-17"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Algorithm.DiffContext.html#prettyContextDiffOld"><span class="hs-identifier">prettyContextDiffOld</span></a></span><span>
+</span><span id="line-18"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Algorithm.DiffContext.html#getContextDiffNumbered"><span class="hs-identifier">getContextDiffNumbered</span></a></span><span>
+</span><span id="line-19"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Algorithm.DiffContext.html#Numbered"><span class="hs-identifier">Numbered</span></a></span><span class="hs-special">(</span><span class="annot"><a href="Data.Algorithm.DiffContext.html#Numbered"><span class="hs-identifier">Numbered</span></a></span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Algorithm.DiffContext.html#numbered"><span class="hs-identifier">numbered</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Algorithm.DiffContext.html#unnumber"><span class="hs-identifier">unnumber</span></a></span><span>
+</span><span id="line-20"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Algorithm.DiffContext.html#unNumberContextDiff"><span class="hs-identifier">unNumberContextDiff</span></a></span><span>
+</span><span id="line-21"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Algorithm.DiffContext.html#groupBy%27"><span class="hs-identifier">groupBy'</span></a></span><span>
+</span><span id="line-22"></span><span>    </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-23"></span><span>
+</span><span id="line-24"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Data.Algorithm.Diff.html"><span class="hs-identifier">Data.Algorithm.Diff</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Algorithm.Diff.html#PolyDiff"><span class="hs-identifier">PolyDiff</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Algorithm.Diff.html#Diff"><span class="hs-identifier">Diff</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Algorithm.Diff.html#getGroupedDiff"><span class="hs-identifier">getGroupedDiff</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-25"></span><span class="hs-comment">-- import Data.List (groupBy)</span><span>
+</span><span id="line-26"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Bifunctor</span></span><span>
+</span><span id="line-27"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Text.PrettyPrint</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Doc</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">text</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">empty</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">hcat</span></span><span class="hs-special">)</span><span>
+</span><span id="line-28"></span><span>
+</span><span id="line-29"></span><span class="hs-keyword">type</span><span> </span><span id="ContextDiff"><span class="annot"><a href="Data.Algorithm.DiffContext.html#ContextDiff"><span class="hs-identifier hs-var">ContextDiff</span></a></span></span><span> </span><span id="local-6989586621679046840"><span class="annot"><a href="#local-6989586621679046840"><span class="hs-identifier hs-type">c</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Data.Algorithm.DiffContext.html#Hunk"><span class="hs-identifier hs-type">Hunk</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679046840"><span class="hs-identifier hs-type">c</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-30"></span><span class="hs-keyword">type</span><span> </span><span id="Hunk"><span class="annot"><a href="Data.Algorithm.DiffContext.html#Hunk"><span class="hs-identifier hs-var">Hunk</span></a></span></span><span> </span><span id="local-6989586621679046841"><span class="annot"><a href="#local-6989586621679046841"><span class="hs-identifier hs-type">c</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Data.Algorithm.Diff.html#Diff"><span class="hs-identifier hs-type">Diff</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><a href="#local-6989586621679046841"><span class="hs-identifier hs-type">c</span></a></span><span class="hs-special">]</span><span class="hs-special">]</span><span>
+</span><span id="line-31"></span><span>
+</span><span id="line-32"></span><span class="hs-comment">-- | A version of 'groupBy' that does not assume the argument function</span><span>
+</span><span id="line-33"></span><span class="hs-comment">-- is transitive.  This is used to partition the 'Diff' list into</span><span>
+</span><span id="line-34"></span><span class="hs-comment">-- segments that begin and end with matching ('Both') text, with and</span><span>
+</span><span id="line-35"></span><span class="hs-comment">-- have non-matching ('First' and 'Second') text in the middle.</span><span>
+</span><span id="line-36"></span><span class="hs-comment">--</span><span>
+</span><span id="line-37"></span><span class="hs-comment">--     &gt; let notBoth1 a b = not (a == 1 || b == 1) in</span><span>
+</span><span id="line-38"></span><span class="hs-comment">--     &gt;</span><span>
+</span><span id="line-39"></span><span class="hs-comment">--     &gt; groupBy' notBoth1 [1,1,2,3,1,1,4,5,6,1]</span><span>
+</span><span id="line-40"></span><span class="hs-comment">--     &gt; [[1],[1,2,3,1],[1,4,5,6,1]]</span><span>
+</span><span id="line-41"></span><span class="hs-comment">--     &gt;</span><span>
+</span><span id="line-42"></span><span class="hs-comment">--     &gt; groupBy notBoth1 [1,1,2,3,1,1,4,5,6,1]</span><span>
+</span><span id="line-43"></span><span class="hs-comment">--     &gt; [[1],[1,2,3],[1],[1,4,5,6],[1]]</span><span>
+</span><span id="line-44"></span><span class="hs-comment">--</span><span>
+</span><span id="line-45"></span><span class="hs-comment">-- In the first result the list is split anywhere there are two</span><span>
+</span><span id="line-46"></span><span class="hs-comment">-- adjacent ones, as desired.</span><span>
+</span><span id="line-47"></span><span id="local-6989586621679046743"><span class="annot"><a href="Data.Algorithm.DiffContext.html#groupBy%27"><span class="hs-identifier hs-type">groupBy'</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679046743"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679046743"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="#local-6989586621679046743"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="hs-special">[</span><span class="annot"><a href="#local-6989586621679046743"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">]</span><span class="hs-special">]</span></span><span>
+</span><span id="line-48"></span><span id="groupBy%27"><span class="annot"><span class="annottext">groupBy' :: forall a. (a -&gt; a -&gt; Bool) -&gt; [a] -&gt; [[a]]
+</span><a href="Data.Algorithm.DiffContext.html#groupBy%27"><span class="hs-identifier hs-var hs-var">groupBy'</span></a></span></span><span> </span><span class="annot"><span class="annottext">a -&gt; a -&gt; Bool
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span>
+</span><span id="line-49"></span><span class="annot"><a href="Data.Algorithm.DiffContext.html#groupBy%27"><span class="hs-identifier hs-var">groupBy'</span></a></span><span> </span><span id="local-6989586621679046845"><span class="annot"><span class="annottext">a -&gt; a -&gt; Bool
+</span><a href="#local-6989586621679046845"><span class="hs-identifier hs-var">eq</span></a></span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679046846"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679046846"><span class="hs-identifier hs-var">x0</span></a></span></span><span> </span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span> </span><span id="local-6989586621679046847"><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679046847"><span class="hs-identifier hs-var">xs0</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[a] -&gt; [a] -&gt; [[a]]
+</span><a href="#local-6989586621679046848"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679046846"><span class="hs-identifier hs-var">x0</span></a></span><span class="hs-special">]</span><span> </span><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679046847"><span class="hs-identifier hs-var">xs0</span></a></span><span>
+</span><span id="line-50"></span><span>    </span><span class="hs-keyword">where</span><span>
+</span><span id="line-51"></span><span>      </span><span id="local-6989586621679046848"><span class="annot"><span class="annottext">go :: [a] -&gt; [a] -&gt; [[a]]
+</span><a href="#local-6989586621679046848"><span class="hs-identifier hs-var hs-var">go</span></a></span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679046849"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679046849"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span> </span><span id="local-6989586621679046850"><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679046850"><span class="hs-identifier hs-var">xs</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679046851"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679046851"><span class="hs-identifier hs-var">y</span></a></span></span><span> </span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span> </span><span id="local-6989586621679046852"><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679046852"><span class="hs-identifier hs-var">zs</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">a -&gt; a -&gt; Bool
+</span><a href="#local-6989586621679046845"><span class="hs-identifier hs-var">eq</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679046849"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679046851"><span class="hs-identifier hs-var">y</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[a] -&gt; [a] -&gt; [[a]]
+</span><a href="#local-6989586621679046848"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679046851"><span class="hs-identifier hs-var">y</span></a></span><span> </span><span class="annot"><span class="annottext">a -&gt; [a] -&gt; [a]
+forall a. a -&gt; [a] -&gt; [a]
+</span><span class="hs-glyph hs-var">:</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679046849"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">a -&gt; [a] -&gt; [a]
+forall a. a -&gt; [a] -&gt; [a]
+</span><span class="hs-glyph hs-var">:</span></span><span> </span><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679046850"><span class="hs-identifier hs-var">xs</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679046852"><span class="hs-identifier hs-var">zs</span></a></span><span>
+</span><span id="line-52"></span><span>      </span><span class="annot"><a href="#local-6989586621679046848"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span id="local-6989586621679046853"><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679046853"><span class="hs-identifier hs-var">g</span></a></span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679046854"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679046854"><span class="hs-identifier hs-var">y</span></a></span></span><span> </span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span> </span><span id="local-6989586621679046855"><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679046855"><span class="hs-identifier hs-var">zs</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[a] -&gt; [a]
+forall a. [a] -&gt; [a]
+</span><span class="hs-identifier hs-var">reverse</span></span><span> </span><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679046853"><span class="hs-identifier hs-var">g</span></a></span><span> </span><span class="annot"><span class="annottext">[a] -&gt; [[a]] -&gt; [[a]]
+forall a. a -&gt; [a] -&gt; [a]
+</span><span class="hs-glyph hs-var">:</span></span><span> </span><span class="annot"><span class="annottext">[a] -&gt; [a] -&gt; [[a]]
+</span><a href="#local-6989586621679046848"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679046854"><span class="hs-identifier hs-var">y</span></a></span><span class="hs-special">]</span><span> </span><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679046855"><span class="hs-identifier hs-var">zs</span></a></span><span>
+</span><span id="line-53"></span><span>      </span><span class="annot"><a href="#local-6989586621679046848"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span id="local-6989586621679046857"><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679046857"><span class="hs-identifier hs-var">g</span></a></span></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">[a] -&gt; [a]
+forall a. [a] -&gt; [a]
+</span><span class="hs-identifier hs-var">reverse</span></span><span> </span><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679046857"><span class="hs-identifier hs-var">g</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-54"></span><span>
+</span><span id="line-55"></span><span class="hs-keyword">data</span><span> </span><span id="Numbered"><span class="annot"><a href="Data.Algorithm.DiffContext.html#Numbered"><span class="hs-identifier hs-var">Numbered</span></a></span></span><span> </span><span id="local-6989586621679046766"><span class="annot"><a href="#local-6989586621679046766"><span class="hs-identifier hs-type">a</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="Numbered"><span class="annot"><a href="Data.Algorithm.DiffContext.html#Numbered"><span class="hs-identifier hs-var">Numbered</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="annot"><a href="#local-6989586621679046766"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-keyword">deriving</span><span> </span><span id="local-6989586621679046860"><span id="local-6989586621679046867"><span id="local-6989586621679046871"><span class="annot"><span class="annottext">Int -&gt; Numbered a -&gt; ShowS
+[Numbered a] -&gt; ShowS
+Numbered a -&gt; String
+(Int -&gt; Numbered a -&gt; ShowS)
+-&gt; (Numbered a -&gt; String)
+-&gt; ([Numbered a] -&gt; ShowS)
+-&gt; Show (Numbered a)
+forall a. Show a =&gt; Int -&gt; Numbered a -&gt; ShowS
+forall a. Show a =&gt; [Numbered a] -&gt; ShowS
+forall a. Show a =&gt; Numbered a -&gt; String
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: forall a. Show a =&gt; Int -&gt; Numbered a -&gt; ShowS
+showsPrec :: Int -&gt; Numbered a -&gt; ShowS
+$cshow :: forall a. Show a =&gt; Numbered a -&gt; String
+show :: Numbered a -&gt; String
+$cshowList :: forall a. Show a =&gt; [Numbered a] -&gt; ShowS
+showList :: [Numbered a] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span>
+</span><span id="line-56"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679046754"><span id="local-6989586621679046878"><span class="annot"><span class="hs-identifier hs-type">Eq</span></span><span> </span><span class="annot"><a href="#local-6989586621679046754"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Eq</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Algorithm.DiffContext.html#Numbered"><span class="hs-identifier hs-type">Numbered</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679046754"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-57"></span><span>  </span><span class="annot"><a href="Data.Algorithm.DiffContext.html#Numbered"><span class="hs-identifier hs-type">Numbered</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621679046883"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679046883"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span id="local-6989586621679046884"><span class="annot"><span class="annottext">== :: Numbered a -&gt; Numbered a -&gt; Bool
+</span><span class="hs-operator hs-var hs-var hs-var">==</span></span></span><span> </span><span class="annot"><a href="Data.Algorithm.DiffContext.html#Numbered"><span class="hs-identifier hs-type">Numbered</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621679046885"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679046885"><span class="hs-identifier hs-var">b</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679046883"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="annot"><span class="annottext">a -&gt; a -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679046885"><span class="hs-identifier hs-var">b</span></a></span><span>
+</span><span id="line-58"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679046757"><span id="local-6989586621679046892"><span id="local-6989586621679046896"><span id="local-6989586621679046899"><span id="local-6989586621679046902"><span id="local-6989586621679046905"><span id="local-6989586621679046908"><span class="annot"><span class="hs-identifier hs-type">Ord</span></span><span> </span><span class="annot"><a href="#local-6989586621679046757"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ord</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Algorithm.DiffContext.html#Numbered"><span class="hs-identifier hs-type">Numbered</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679046757"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span></span></span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-59"></span><span>  </span><span id="local-6989586621679046913"><span class="annot"><span class="annottext">compare :: Numbered a -&gt; Numbered a -&gt; Ordering
+</span><a href="#local-6989586621679046913"><span class="hs-identifier hs-var hs-var hs-var">compare</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Algorithm.DiffContext.html#Numbered"><span class="hs-identifier hs-type">Numbered</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621679046915"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679046915"><span class="hs-identifier hs-var">a</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Algorithm.DiffContext.html#Numbered"><span class="hs-identifier hs-type">Numbered</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621679046916"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679046916"><span class="hs-identifier hs-var">b</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">a -&gt; a -&gt; Ordering
+forall a. Ord a =&gt; a -&gt; a -&gt; Ordering
+</span><span class="hs-identifier hs-var">compare</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679046915"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679046916"><span class="hs-identifier hs-var">b</span></a></span><span>
+</span><span id="line-60"></span><span>
+</span><span id="line-61"></span><span id="local-6989586621679046758"><span class="annot"><a href="Data.Algorithm.DiffContext.html#numbered"><span class="hs-identifier hs-type">numbered</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="#local-6989586621679046758"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Data.Algorithm.DiffContext.html#Numbered"><span class="hs-identifier hs-type">Numbered</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679046758"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">]</span></span><span>
+</span><span id="line-62"></span><span id="numbered"><span class="annot"><span class="annottext">numbered :: forall a. [a] -&gt; [Numbered a]
+</span><a href="Data.Algorithm.DiffContext.html#numbered"><span class="hs-identifier hs-var hs-var">numbered</span></a></span></span><span> </span><span id="local-6989586621679046923"><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679046923"><span class="hs-identifier hs-var">xs</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">((Int, a) -&gt; Numbered a) -&gt; [(Int, a)] -&gt; [Numbered a]
+forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(Int -&gt; a -&gt; Numbered a) -&gt; (Int, a) -&gt; Numbered a
+forall a b c. (a -&gt; b -&gt; c) -&gt; (a, b) -&gt; c
+</span><span class="hs-identifier hs-var">uncurry</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; a -&gt; Numbered a
+forall a. Int -&gt; a -&gt; Numbered a
+</span><a href="Data.Algorithm.DiffContext.html#Numbered"><span class="hs-identifier hs-var">Numbered</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[Int] -&gt; [a] -&gt; [(Int, a)]
+forall a b. [a] -&gt; [b] -&gt; [(a, b)]
+</span><span class="hs-identifier hs-var">zip</span></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span class="hs-glyph">..</span><span class="hs-special">]</span><span> </span><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679046923"><span class="hs-identifier hs-var">xs</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-63"></span><span>
+</span><span id="line-64"></span><span id="local-6989586621679046771"><span class="annot"><a href="Data.Algorithm.DiffContext.html#unnumber"><span class="hs-identifier hs-type">unnumber</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Data.Algorithm.DiffContext.html#Numbered"><span class="hs-identifier hs-type">Numbered</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679046771"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679046771"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-65"></span><span id="unnumber"><span class="annot"><span class="annottext">unnumber :: forall a. Numbered a -&gt; a
+</span><a href="Data.Algorithm.DiffContext.html#unnumber"><span class="hs-identifier hs-var hs-var">unnumber</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Algorithm.DiffContext.html#Numbered"><span class="hs-identifier hs-type">Numbered</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621679046925"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679046925"><span class="hs-identifier hs-var">a</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679046925"><span class="hs-identifier hs-var">a</span></a></span><span>
+</span><span id="line-66"></span><span>
+</span><span id="line-67"></span><span class="hs-comment">-- |</span><span>
+</span><span id="line-68"></span><span class="hs-comment">-- &gt; &gt; let textA = [&quot;a&quot;,&quot;b&quot;,&quot;c&quot;,&quot;d&quot;,&quot;e&quot;,&quot;f&quot;,&quot;g&quot;,&quot;h&quot;,&quot;i&quot;,&quot;j&quot;,&quot;k&quot;]</span><span>
+</span><span id="line-69"></span><span class="hs-comment">-- &gt; &gt; let textB = [&quot;a&quot;,&quot;b&quot;,&quot;d&quot;,&quot;e&quot;,&quot;f&quot;,&quot;g&quot;,&quot;h&quot;,&quot;i&quot;,&quot;j&quot;]</span><span>
+</span><span id="line-70"></span><span class="hs-comment">-- &gt; &gt; let diff = getContextDiff (Just 2) textA textB</span><span>
+</span><span id="line-71"></span><span class="hs-comment">-- &gt; &gt; prettyContextDiff (text &quot;file1&quot;) (text &quot;file2&quot;) (text . unnumber) diff</span><span>
+</span><span id="line-72"></span><span class="hs-comment">-- &gt; --- file1</span><span>
+</span><span id="line-73"></span><span class="hs-comment">-- &gt; +++ file2</span><span>
+</span><span id="line-74"></span><span class="hs-comment">-- &gt; @@ -1,5 +1,4 @@</span><span>
+</span><span id="line-75"></span><span class="hs-comment">-- &gt;  a</span><span>
+</span><span id="line-76"></span><span class="hs-comment">-- &gt;  b</span><span>
+</span><span id="line-77"></span><span class="hs-comment">-- &gt; -c</span><span>
+</span><span id="line-78"></span><span class="hs-comment">-- &gt;  d</span><span>
+</span><span id="line-79"></span><span class="hs-comment">-- &gt;  e</span><span>
+</span><span id="line-80"></span><span class="hs-comment">-- &gt; @@ -9,3 +8,2 @@</span><span>
+</span><span id="line-81"></span><span class="hs-comment">-- &gt;  i</span><span>
+</span><span id="line-82"></span><span class="hs-comment">-- &gt;  j</span><span>
+</span><span id="line-83"></span><span class="hs-comment">-- &gt; -k</span><span>
+</span><span id="line-84"></span><span id="local-6989586621679046773"><span class="annot"><a href="Data.Algorithm.DiffContext.html#getContextDiff"><span class="hs-identifier hs-type">getContextDiff</span></a></span><span> </span><span class="hs-glyph">::</span><span>
+</span><span id="line-85"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">Eq</span></span><span> </span><span class="annot"><a href="#local-6989586621679046773"><span class="hs-identifier hs-type">a</span></a></span><span>
+</span><span id="line-86"></span><span>  </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="annot"><span class="hs-comment">-- ^ Number of context elements, Nothing means infinite</span></span><span>
+</span><span id="line-87"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="#local-6989586621679046773"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-88"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="#local-6989586621679046773"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-89"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Data.Algorithm.DiffContext.html#ContextDiff"><span class="hs-identifier hs-type">ContextDiff</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Algorithm.DiffContext.html#Numbered"><span class="hs-identifier hs-type">Numbered</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679046773"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span><span>
+</span><span id="line-90"></span><span id="getContextDiff"><span class="annot"><span class="annottext">getContextDiff :: forall a.
+Eq a =&gt;
+Maybe Int -&gt; [a] -&gt; [a] -&gt; ContextDiff (Numbered a)
+</span><a href="Data.Algorithm.DiffContext.html#getContextDiff"><span class="hs-identifier hs-var hs-var">getContextDiff</span></a></span></span><span> </span><span id="local-6989586621679046928"><span class="annot"><span class="annottext">Maybe Int
+</span><a href="#local-6989586621679046928"><span class="hs-identifier hs-var">context</span></a></span></span><span> </span><span id="local-6989586621679046929"><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679046929"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span id="local-6989586621679046930"><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679046930"><span class="hs-identifier hs-var">b</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-91"></span><span>  </span><span class="annot"><span class="annottext">Maybe Int
+-&gt; [Numbered a] -&gt; [Numbered a] -&gt; ContextDiff (Numbered a)
+forall a.
+Eq a =&gt;
+Maybe Int
+-&gt; [Numbered a] -&gt; [Numbered a] -&gt; ContextDiff (Numbered a)
+</span><a href="Data.Algorithm.DiffContext.html#getContextDiffNumbered"><span class="hs-identifier hs-var">getContextDiffNumbered</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe Int
+</span><a href="#local-6989586621679046928"><span class="hs-identifier hs-var">context</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[a] -&gt; [Numbered a]
+forall a. [a] -&gt; [Numbered a]
+</span><a href="Data.Algorithm.DiffContext.html#numbered"><span class="hs-identifier hs-var">numbered</span></a></span><span> </span><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679046929"><span class="hs-identifier hs-var">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[a] -&gt; [Numbered a]
+forall a. [a] -&gt; [Numbered a]
+</span><a href="Data.Algorithm.DiffContext.html#numbered"><span class="hs-identifier hs-var">numbered</span></a></span><span> </span><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679046930"><span class="hs-identifier hs-var">b</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-92"></span><span>
+</span><span id="line-93"></span><span class="hs-comment">-- | If for some reason you need the line numbers stripped from the</span><span>
+</span><span id="line-94"></span><span class="hs-comment">-- result of getContextDiff for backwards compatibility.</span><span>
+</span><span id="line-95"></span><span id="local-6989586621679046777"><span class="annot"><a href="Data.Algorithm.DiffContext.html#unNumberContextDiff"><span class="hs-identifier hs-type">unNumberContextDiff</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Data.Algorithm.DiffContext.html#ContextDiff"><span class="hs-identifier hs-type">ContextDiff</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Algorithm.DiffContext.html#Numbered"><span class="hs-identifier hs-type">Numbered</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679046777"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Data.Algorithm.DiffContext.html#ContextDiff"><span class="hs-identifier hs-type">ContextDiff</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679046777"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-96"></span><span id="unNumberContextDiff"><span class="annot"><span class="annottext">unNumberContextDiff :: forall a. ContextDiff (Numbered a) -&gt; ContextDiff a
+</span><a href="Data.Algorithm.DiffContext.html#unNumberContextDiff"><span class="hs-identifier hs-var hs-var">unNumberContextDiff</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Hunk (Numbered a) -&gt; Hunk a) -&gt; [Hunk (Numbered a)] -&gt; [Hunk a]
+forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(Diff [Numbered a] -&gt; Diff [a]) -&gt; Hunk (Numbered a) -&gt; Hunk a
+forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">([Numbered a] -&gt; [a])
+-&gt; ([Numbered a] -&gt; [a]) -&gt; Diff [Numbered a] -&gt; Diff [a]
+forall a b c d.
+(a -&gt; b) -&gt; (c -&gt; d) -&gt; PolyDiff a c -&gt; PolyDiff b d
+forall (p :: * -&gt; * -&gt; *) a b c d.
+Bifunctor p =&gt;
+(a -&gt; b) -&gt; (c -&gt; d) -&gt; p a c -&gt; p b d
+</span><span class="hs-identifier hs-var">bimap</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(Numbered a -&gt; a) -&gt; [Numbered a] -&gt; [a]
+forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="annot"><span class="annottext">Numbered a -&gt; a
+forall a. Numbered a -&gt; a
+</span><a href="Data.Algorithm.DiffContext.html#unnumber"><span class="hs-identifier hs-var">unnumber</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(Numbered a -&gt; a) -&gt; [Numbered a] -&gt; [a]
+forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="annot"><span class="annottext">Numbered a -&gt; a
+forall a. Numbered a -&gt; a
+</span><a href="Data.Algorithm.DiffContext.html#unnumber"><span class="hs-identifier hs-var">unnumber</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-97"></span><span>
+</span><span id="line-98"></span><span id="local-6989586621679046776"><span class="annot"><a href="Data.Algorithm.DiffContext.html#getContextDiffNumbered"><span class="hs-identifier hs-type">getContextDiffNumbered</span></a></span><span> </span><span class="hs-glyph">::</span><span>
+</span><span id="line-99"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">Eq</span></span><span> </span><span class="annot"><a href="#local-6989586621679046776"><span class="hs-identifier hs-type">a</span></a></span><span>
+</span><span id="line-100"></span><span>  </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="annot"><span class="hs-comment">-- ^ Number of context elements, Nothing means infinite</span></span><span>
+</span><span id="line-101"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Data.Algorithm.DiffContext.html#Numbered"><span class="hs-identifier hs-type">Numbered</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679046776"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-102"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Data.Algorithm.DiffContext.html#Numbered"><span class="hs-identifier hs-type">Numbered</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679046776"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-103"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Data.Algorithm.DiffContext.html#ContextDiff"><span class="hs-identifier hs-type">ContextDiff</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Algorithm.DiffContext.html#Numbered"><span class="hs-identifier hs-type">Numbered</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679046776"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span><span>
+</span><span id="line-104"></span><span id="getContextDiffNumbered"><span class="annot"><span class="annottext">getContextDiffNumbered :: forall a.
+Eq a =&gt;
+Maybe Int
+-&gt; [Numbered a] -&gt; [Numbered a] -&gt; ContextDiff (Numbered a)
+</span><a href="Data.Algorithm.DiffContext.html#getContextDiffNumbered"><span class="hs-identifier hs-var hs-var">getContextDiffNumbered</span></a></span></span><span> </span><span id="local-6989586621679046940"><span class="annot"><span class="annottext">Maybe Int
+</span><a href="#local-6989586621679046940"><span class="hs-identifier hs-var">context</span></a></span></span><span> </span><span id="local-6989586621679046941"><span class="annot"><span class="annottext">[Numbered a]
+</span><a href="#local-6989586621679046941"><span class="hs-identifier hs-var">a0</span></a></span></span><span> </span><span id="local-6989586621679046942"><span class="annot"><span class="annottext">[Numbered a]
+</span><a href="#local-6989586621679046942"><span class="hs-identifier hs-var">b0</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-105"></span><span>    </span><span class="annot"><span class="annottext">(Diff [Numbered a] -&gt; Diff [Numbered a] -&gt; Bool)
+-&gt; [Diff [Numbered a]] -&gt; [[Diff [Numbered a]]]
+forall a. (a -&gt; a -&gt; Bool) -&gt; [a] -&gt; [[a]]
+</span><a href="Data.Algorithm.DiffContext.html#groupBy%27"><span class="hs-identifier hs-var">groupBy'</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span id="local-6989586621679046943"><span class="annot"><span class="annottext">Diff [Numbered a]
+</span><a href="#local-6989586621679046943"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span id="local-6989586621679046944"><span class="annot"><span class="annottext">Diff [Numbered a]
+</span><a href="#local-6989586621679046944"><span class="hs-identifier hs-var">b</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool
+</span><span class="hs-identifier hs-var">not</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Diff [Numbered a] -&gt; Bool
+forall {a} {b}. PolyDiff a b -&gt; Bool
+</span><a href="#local-6989586621679046946"><span class="hs-identifier hs-var">isBoth</span></a></span><span> </span><span class="annot"><span class="annottext">Diff [Numbered a]
+</span><a href="#local-6989586621679046943"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">&amp;&amp;</span></span><span> </span><span class="annot"><span class="annottext">Diff [Numbered a] -&gt; Bool
+forall {a} {b}. PolyDiff a b -&gt; Bool
+</span><a href="#local-6989586621679046946"><span class="hs-identifier hs-var">isBoth</span></a></span><span> </span><span class="annot"><span class="annottext">Diff [Numbered a]
+</span><a href="#local-6989586621679046944"><span class="hs-identifier hs-var">b</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">([Diff [Numbered a]] -&gt; [[Diff [Numbered a]]])
+-&gt; [Diff [Numbered a]] -&gt; [[Diff [Numbered a]]]
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">[Diff [Numbered a]] -&gt; [Diff [Numbered a]]
+forall {a} {a}. [PolyDiff [a] [a]] -&gt; [PolyDiff [a] [a]]
+</span><a href="#local-6989586621679046948"><span class="hs-identifier hs-var">doPrefix</span></a></span><span> </span><span class="annot"><span class="annottext">([Diff [Numbered a]] -&gt; [Diff [Numbered a]])
+-&gt; [Diff [Numbered a]] -&gt; [Diff [Numbered a]]
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">[Numbered a] -&gt; [Numbered a] -&gt; [Diff [Numbered a]]
+forall a. Eq a =&gt; [a] -&gt; [a] -&gt; [Diff [a]]
+</span><a href="Data.Algorithm.Diff.html#getGroupedDiff"><span class="hs-identifier hs-var">getGroupedDiff</span></a></span><span> </span><span class="annot"><span class="annottext">[Numbered a]
+</span><a href="#local-6989586621679046941"><span class="hs-identifier hs-var">a0</span></a></span><span> </span><span class="annot"><span class="annottext">[Numbered a]
+</span><a href="#local-6989586621679046942"><span class="hs-identifier hs-var">b0</span></a></span><span>
+</span><span id="line-106"></span><span>    </span><span class="hs-keyword">where</span><span>
+</span><span id="line-107"></span><span>      </span><span id="local-6989586621679046946"><span class="annot"><span class="annottext">isBoth :: PolyDiff a b -&gt; Bool
+</span><a href="#local-6989586621679046946"><span class="hs-identifier hs-var hs-var">isBoth</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Algorithm.Diff.html#Both"><span class="hs-identifier hs-type">Both</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">b
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>
+</span><span id="line-108"></span><span>      </span><span class="annot"><a href="#local-6989586621679046946"><span class="hs-identifier hs-var">isBoth</span></a></span><span> </span><span class="annot"><span class="annottext">PolyDiff a b
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span>
+</span><span id="line-109"></span><span>      </span><span class="hs-comment">-- Handle the common text leading up to a diff.</span><span>
+</span><span id="line-110"></span><span>      </span><span id="local-6989586621679046948"><span class="annot"><span class="annottext">doPrefix :: [PolyDiff [a] [a]] -&gt; [PolyDiff [a] [a]]
+</span><a href="#local-6989586621679046948"><span class="hs-identifier hs-var hs-var">doPrefix</span></a></span></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span>
+</span><span id="line-111"></span><span>      </span><span class="annot"><a href="#local-6989586621679046948"><span class="hs-identifier hs-var">doPrefix</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Data.Algorithm.Diff.html#Both"><span class="hs-identifier hs-type">Both</span></a></span><span> </span><span class="annot"><span class="annottext">[a]
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">[a]
+</span><span class="hs-identifier">_</span></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span>
+</span><span id="line-112"></span><span>      </span><span class="annot"><a href="#local-6989586621679046948"><span class="hs-identifier hs-var">doPrefix</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Algorithm.Diff.html#Both"><span class="hs-identifier hs-type">Both</span></a></span><span> </span><span id="local-6989586621679046965"><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679046965"><span class="hs-identifier hs-var">xs</span></a></span></span><span> </span><span id="local-6989586621679046966"><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679046966"><span class="hs-identifier hs-var">ys</span></a></span></span><span> </span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span> </span><span id="local-6989586621679046967"><span class="annot"><span class="annottext">[PolyDiff [a] [a]]
+</span><a href="#local-6989586621679046967"><span class="hs-identifier hs-var">more</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-113"></span><span>          </span><span class="annot"><span class="annottext">[a] -&gt; [a] -&gt; PolyDiff [a] [a]
+forall a b. a -&gt; b -&gt; PolyDiff a b
+</span><a href="Data.Algorithm.Diff.html#Both"><span class="hs-identifier hs-var">Both</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[a] -&gt; (Int -&gt; [a]) -&gt; Maybe Int -&gt; [a]
+forall b a. b -&gt; (a -&gt; b) -&gt; Maybe a -&gt; b
+</span><span class="hs-identifier hs-var">maybe</span></span><span> </span><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679046965"><span class="hs-identifier hs-var">xs</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span id="local-6989586621679046969"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679046969"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Int -&gt; [a] -&gt; [a]
+forall a. Int -&gt; [a] -&gt; [a]
+</span><span class="hs-identifier hs-var">drop</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Ord a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-identifier hs-var">max</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[a] -&gt; Int
+forall a. [a] -&gt; Int
+forall (t :: * -&gt; *) a. Foldable t =&gt; t a -&gt; Int
+</span><span class="hs-identifier hs-var">length</span></span><span> </span><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679046965"><span class="hs-identifier hs-var">xs</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679046969"><span class="hs-identifier hs-var">n</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679046965"><span class="hs-identifier hs-var">xs</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Maybe Int
+</span><a href="#local-6989586621679046940"><span class="hs-identifier hs-var">context</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-114"></span><span>               </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[a] -&gt; (Int -&gt; [a]) -&gt; Maybe Int -&gt; [a]
+forall b a. b -&gt; (a -&gt; b) -&gt; Maybe a -&gt; b
+</span><span class="hs-identifier hs-var">maybe</span></span><span> </span><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679046966"><span class="hs-identifier hs-var">ys</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span id="local-6989586621679046973"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679046973"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Int -&gt; [a] -&gt; [a]
+forall a. Int -&gt; [a] -&gt; [a]
+</span><span class="hs-identifier hs-var">drop</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Ord a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-identifier hs-var">max</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[a] -&gt; Int
+forall a. [a] -&gt; Int
+forall (t :: * -&gt; *) a. Foldable t =&gt; t a -&gt; Int
+</span><span class="hs-identifier hs-var">length</span></span><span> </span><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679046966"><span class="hs-identifier hs-var">ys</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679046973"><span class="hs-identifier hs-var">n</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679046966"><span class="hs-identifier hs-var">ys</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Maybe Int
+</span><a href="#local-6989586621679046940"><span class="hs-identifier hs-var">context</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">PolyDiff [a] [a] -&gt; [PolyDiff [a] [a]] -&gt; [PolyDiff [a] [a]]
+forall a. a -&gt; [a] -&gt; [a]
+</span><span class="hs-glyph hs-var">:</span></span><span> </span><span class="annot"><span class="annottext">[PolyDiff [a] [a]] -&gt; [PolyDiff [a] [a]]
+</span><a href="#local-6989586621679046974"><span class="hs-identifier hs-var">doSuffix</span></a></span><span> </span><span class="annot"><span class="annottext">[PolyDiff [a] [a]]
+</span><a href="#local-6989586621679046967"><span class="hs-identifier hs-var">more</span></a></span><span>
+</span><span id="line-115"></span><span>      </span><span class="hs-comment">-- Prefix finished, do the diff then the following suffix</span><span>
+</span><span id="line-116"></span><span>      </span><span class="annot"><a href="#local-6989586621679046948"><span class="hs-identifier hs-var">doPrefix</span></a></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679046975"><span class="annot"><span class="annottext">PolyDiff [a] [a]
+</span><a href="#local-6989586621679046975"><span class="hs-identifier hs-var">d</span></a></span></span><span> </span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span> </span><span id="local-6989586621679046976"><span class="annot"><span class="annottext">[PolyDiff [a] [a]]
+</span><a href="#local-6989586621679046976"><span class="hs-identifier hs-var">ds</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[PolyDiff [a] [a]] -&gt; [PolyDiff [a] [a]]
+</span><a href="#local-6989586621679046974"><span class="hs-identifier hs-var">doSuffix</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">PolyDiff [a] [a]
+</span><a href="#local-6989586621679046975"><span class="hs-identifier hs-var">d</span></a></span><span> </span><span class="annot"><span class="annottext">PolyDiff [a] [a] -&gt; [PolyDiff [a] [a]] -&gt; [PolyDiff [a] [a]]
+forall a. a -&gt; [a] -&gt; [a]
+</span><span class="hs-glyph hs-var">:</span></span><span> </span><span class="annot"><span class="annottext">[PolyDiff [a] [a]]
+</span><a href="#local-6989586621679046976"><span class="hs-identifier hs-var">ds</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-117"></span><span>      </span><span class="hs-comment">-- Handle the common text following a diff.</span><span>
+</span><span id="line-118"></span><span>      </span><span id="local-6989586621679046974"><span class="annot"><span class="annottext">doSuffix :: [PolyDiff [a] [a]] -&gt; [PolyDiff [a] [a]]
+</span><a href="#local-6989586621679046974"><span class="hs-identifier hs-var hs-var">doSuffix</span></a></span></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span>
+</span><span id="line-119"></span><span>      </span><span class="annot"><a href="#local-6989586621679046974"><span class="hs-identifier hs-var">doSuffix</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Data.Algorithm.Diff.html#Both"><span class="hs-identifier hs-type">Both</span></a></span><span> </span><span id="local-6989586621679046977"><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679046977"><span class="hs-identifier hs-var">xs</span></a></span></span><span> </span><span id="local-6989586621679046978"><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679046978"><span class="hs-identifier hs-var">ys</span></a></span></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">[a] -&gt; [a] -&gt; PolyDiff [a] [a]
+forall a b. a -&gt; b -&gt; PolyDiff a b
+</span><a href="Data.Algorithm.Diff.html#Both"><span class="hs-identifier hs-var">Both</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[a] -&gt; (Int -&gt; [a]) -&gt; Maybe Int -&gt; [a]
+forall b a. b -&gt; (a -&gt; b) -&gt; Maybe a -&gt; b
+</span><span class="hs-identifier hs-var">maybe</span></span><span> </span><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679046977"><span class="hs-identifier hs-var">xs</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span id="local-6989586621679046979"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679046979"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Int -&gt; [a] -&gt; [a]
+forall a. Int -&gt; [a] -&gt; [a]
+</span><span class="hs-identifier hs-var">take</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679046979"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679046977"><span class="hs-identifier hs-var">xs</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Maybe Int
+</span><a href="#local-6989586621679046940"><span class="hs-identifier hs-var">context</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[a] -&gt; (Int -&gt; [a]) -&gt; Maybe Int -&gt; [a]
+forall b a. b -&gt; (a -&gt; b) -&gt; Maybe a -&gt; b
+</span><span class="hs-identifier hs-var">maybe</span></span><span> </span><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679046978"><span class="hs-identifier hs-var">ys</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span id="local-6989586621679046981"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679046981"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Int -&gt; [a] -&gt; [a]
+forall a. Int -&gt; [a] -&gt; [a]
+</span><span class="hs-identifier hs-var">take</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679046981"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679046978"><span class="hs-identifier hs-var">ys</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Maybe Int
+</span><a href="#local-6989586621679046940"><span class="hs-identifier hs-var">context</span></a></span><span class="hs-special">)</span><span class="hs-special">]</span><span>
+</span><span id="line-120"></span><span>      </span><span class="annot"><a href="#local-6989586621679046974"><span class="hs-identifier hs-var">doSuffix</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Algorithm.Diff.html#Both"><span class="hs-identifier hs-type">Both</span></a></span><span> </span><span id="local-6989586621679046982"><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679046982"><span class="hs-identifier hs-var">xs</span></a></span></span><span> </span><span id="local-6989586621679046983"><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679046983"><span class="hs-identifier hs-var">ys</span></a></span></span><span> </span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span> </span><span id="local-6989586621679046984"><span class="annot"><span class="annottext">[PolyDiff [a] [a]]
+</span><a href="#local-6989586621679046984"><span class="hs-identifier hs-var">more</span></a></span></span><span class="hs-special">)</span><span>
+</span><span id="line-121"></span><span>          </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool -&gt; (Int -&gt; Bool) -&gt; Maybe Int -&gt; Bool
+forall b a. b -&gt; (a -&gt; b) -&gt; Maybe a -&gt; b
+</span><span class="hs-identifier hs-var">maybe</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span id="local-6989586621679046985"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679046985"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">[a] -&gt; Int
+forall a. [a] -&gt; Int
+forall (t :: * -&gt; *) a. Foldable t =&gt; t a -&gt; Int
+</span><span class="hs-identifier hs-var">length</span></span><span> </span><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679046982"><span class="hs-identifier hs-var">xs</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&lt;=</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679046985"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">*</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">2</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Maybe Int
+</span><a href="#local-6989586621679046940"><span class="hs-identifier hs-var">context</span></a></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-122"></span><span>              </span><span class="annot"><span class="annottext">[a] -&gt; [a] -&gt; PolyDiff [a] [a]
+forall a b. a -&gt; b -&gt; PolyDiff a b
+</span><a href="Data.Algorithm.Diff.html#Both"><span class="hs-identifier hs-var">Both</span></a></span><span> </span><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679046982"><span class="hs-identifier hs-var">xs</span></a></span><span> </span><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679046983"><span class="hs-identifier hs-var">ys</span></a></span><span> </span><span class="annot"><span class="annottext">PolyDiff [a] [a] -&gt; [PolyDiff [a] [a]] -&gt; [PolyDiff [a] [a]]
+forall a. a -&gt; [a] -&gt; [a]
+</span><span class="hs-glyph hs-var">:</span></span><span> </span><span class="annot"><span class="annottext">[PolyDiff [a] [a]] -&gt; [PolyDiff [a] [a]]
+</span><a href="#local-6989586621679046948"><span class="hs-identifier hs-var">doPrefix</span></a></span><span> </span><span class="annot"><span class="annottext">[PolyDiff [a] [a]]
+</span><a href="#local-6989586621679046984"><span class="hs-identifier hs-var">more</span></a></span><span>
+</span><span id="line-123"></span><span>      </span><span class="annot"><a href="#local-6989586621679046974"><span class="hs-identifier hs-var">doSuffix</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Algorithm.Diff.html#Both"><span class="hs-identifier hs-type">Both</span></a></span><span> </span><span id="local-6989586621679046988"><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679046988"><span class="hs-identifier hs-var">xs</span></a></span></span><span> </span><span id="local-6989586621679046989"><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679046989"><span class="hs-identifier hs-var">ys</span></a></span></span><span> </span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span> </span><span id="local-6989586621679046990"><span class="annot"><span class="annottext">[PolyDiff [a] [a]]
+</span><a href="#local-6989586621679046990"><span class="hs-identifier hs-var">more</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-124"></span><span>          </span><span class="annot"><span class="annottext">[a] -&gt; [a] -&gt; PolyDiff [a] [a]
+forall a b. a -&gt; b -&gt; PolyDiff a b
+</span><a href="Data.Algorithm.Diff.html#Both"><span class="hs-identifier hs-var">Both</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[a] -&gt; (Int -&gt; [a]) -&gt; Maybe Int -&gt; [a]
+forall b a. b -&gt; (a -&gt; b) -&gt; Maybe a -&gt; b
+</span><span class="hs-identifier hs-var">maybe</span></span><span> </span><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679046988"><span class="hs-identifier hs-var">xs</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span id="local-6989586621679046991"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679046991"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Int -&gt; [a] -&gt; [a]
+forall a. Int -&gt; [a] -&gt; [a]
+</span><span class="hs-identifier hs-var">take</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679046991"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679046988"><span class="hs-identifier hs-var">xs</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Maybe Int
+</span><a href="#local-6989586621679046940"><span class="hs-identifier hs-var">context</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[a] -&gt; (Int -&gt; [a]) -&gt; Maybe Int -&gt; [a]
+forall b a. b -&gt; (a -&gt; b) -&gt; Maybe a -&gt; b
+</span><span class="hs-identifier hs-var">maybe</span></span><span> </span><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679046989"><span class="hs-identifier hs-var">ys</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span id="local-6989586621679046992"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679046992"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Int -&gt; [a] -&gt; [a]
+forall a. Int -&gt; [a] -&gt; [a]
+</span><span class="hs-identifier hs-var">take</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679046992"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679046989"><span class="hs-identifier hs-var">ys</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Maybe Int
+</span><a href="#local-6989586621679046940"><span class="hs-identifier hs-var">context</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-125"></span><span>                   </span><span class="annot"><span class="annottext">PolyDiff [a] [a] -&gt; [PolyDiff [a] [a]] -&gt; [PolyDiff [a] [a]]
+forall a. a -&gt; [a] -&gt; [a]
+</span><span class="hs-glyph hs-var">:</span></span><span> </span><span class="annot"><span class="annottext">[PolyDiff [a] [a]] -&gt; [PolyDiff [a] [a]]
+</span><a href="#local-6989586621679046948"><span class="hs-identifier hs-var">doPrefix</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[a] -&gt; [a] -&gt; PolyDiff [a] [a]
+forall a b. a -&gt; b -&gt; PolyDiff a b
+</span><a href="Data.Algorithm.Diff.html#Both"><span class="hs-identifier hs-var">Both</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[a] -&gt; (Int -&gt; [a]) -&gt; Maybe Int -&gt; [a]
+forall b a. b -&gt; (a -&gt; b) -&gt; Maybe a -&gt; b
+</span><span class="hs-identifier hs-var">maybe</span></span><span> </span><span class="annot"><span class="annottext">[a]
+forall a. Monoid a =&gt; a
+</span><span class="hs-identifier hs-var">mempty</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span id="local-6989586621679046993"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679046993"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Int -&gt; [a] -&gt; [a]
+forall a. Int -&gt; [a] -&gt; [a]
+</span><span class="hs-identifier hs-var">drop</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679046993"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679046988"><span class="hs-identifier hs-var">xs</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Maybe Int
+</span><a href="#local-6989586621679046940"><span class="hs-identifier hs-var">context</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[a] -&gt; (Int -&gt; [a]) -&gt; Maybe Int -&gt; [a]
+forall b a. b -&gt; (a -&gt; b) -&gt; Maybe a -&gt; b
+</span><span class="hs-identifier hs-var">maybe</span></span><span> </span><span class="annot"><span class="annottext">[a]
+forall a. Monoid a =&gt; a
+</span><span class="hs-identifier hs-var">mempty</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span id="local-6989586621679046994"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679046994"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Int -&gt; [a] -&gt; [a]
+forall a. Int -&gt; [a] -&gt; [a]
+</span><span class="hs-identifier hs-var">drop</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679046994"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679046989"><span class="hs-identifier hs-var">ys</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Maybe Int
+</span><a href="#local-6989586621679046940"><span class="hs-identifier hs-var">context</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">PolyDiff [a] [a] -&gt; [PolyDiff [a] [a]] -&gt; [PolyDiff [a] [a]]
+forall a. a -&gt; [a] -&gt; [a]
+</span><span class="hs-glyph hs-var">:</span></span><span> </span><span class="annot"><span class="annottext">[PolyDiff [a] [a]]
+</span><a href="#local-6989586621679046990"><span class="hs-identifier hs-var">more</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-126"></span><span>      </span><span class="annot"><a href="#local-6989586621679046974"><span class="hs-identifier hs-var">doSuffix</span></a></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679046995"><span class="annot"><span class="annottext">PolyDiff [a] [a]
+</span><a href="#local-6989586621679046995"><span class="hs-identifier hs-var">d</span></a></span></span><span> </span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span> </span><span id="local-6989586621679046996"><span class="annot"><span class="annottext">[PolyDiff [a] [a]]
+</span><a href="#local-6989586621679046996"><span class="hs-identifier hs-var">ds</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">PolyDiff [a] [a]
+</span><a href="#local-6989586621679046995"><span class="hs-identifier hs-var">d</span></a></span><span> </span><span class="annot"><span class="annottext">PolyDiff [a] [a] -&gt; [PolyDiff [a] [a]] -&gt; [PolyDiff [a] [a]]
+forall a. a -&gt; [a] -&gt; [a]
+</span><span class="hs-glyph hs-var">:</span></span><span> </span><span class="annot"><span class="annottext">[PolyDiff [a] [a]] -&gt; [PolyDiff [a] [a]]
+</span><a href="#local-6989586621679046974"><span class="hs-identifier hs-var">doSuffix</span></a></span><span> </span><span class="annot"><span class="annottext">[PolyDiff [a] [a]]
+</span><a href="#local-6989586621679046996"><span class="hs-identifier hs-var">ds</span></a></span><span>
+</span><span id="line-127"></span><span>
+</span><span id="line-128"></span><span class="annot"><span class="hs-comment">-- | Pretty print a ContextDiff in the manner of diff -u.</span></span><span>
+</span><span id="line-129"></span><span id="local-6989586621679046808"><span class="annot"><a href="Data.Algorithm.DiffContext.html#prettyContextDiff"><span class="hs-identifier hs-type">prettyContextDiff</span></a></span><span> </span><span class="hs-glyph">::</span><span>
+</span><span id="line-130"></span><span>       </span><span class="annot"><span class="hs-identifier hs-type">Doc</span></span><span>            </span><span class="annot"><span class="hs-comment">-- ^ Document 1 name</span></span><span>
+</span><span id="line-131"></span><span>    </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Doc</span></span><span>            </span><span class="annot"><span class="hs-comment">-- ^ Document 2 name</span></span><span>
+</span><span id="line-132"></span><span>    </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Algorithm.DiffContext.html#Numbered"><span class="hs-identifier hs-type">Numbered</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679046808"><span class="hs-identifier hs-type">c</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Doc</span></span><span class="hs-special">)</span><span>     </span><span class="annot"><span class="hs-comment">-- ^ Element pretty printer</span></span><span>
+</span><span id="line-133"></span><span>    </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Data.Algorithm.DiffContext.html#ContextDiff"><span class="hs-identifier hs-type">ContextDiff</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Algorithm.DiffContext.html#Numbered"><span class="hs-identifier hs-type">Numbered</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679046808"><span class="hs-identifier hs-type">c</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-134"></span><span>    </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Doc</span></span></span><span>
+</span><span id="line-135"></span><span id="prettyContextDiff"><span class="annot"><span class="annottext">prettyContextDiff :: forall c.
+Doc
+-&gt; Doc -&gt; (Numbered c -&gt; Doc) -&gt; ContextDiff (Numbered c) -&gt; Doc
+</span><a href="Data.Algorithm.DiffContext.html#prettyContextDiff"><span class="hs-identifier hs-var hs-var">prettyContextDiff</span></a></span></span><span> </span><span class="annot"><span class="annottext">Doc
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">Doc
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">Numbered c -&gt; Doc
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Doc
+</span><span class="hs-identifier hs-var">empty</span></span><span>
+</span><span id="line-136"></span><span class="annot"><a href="Data.Algorithm.DiffContext.html#prettyContextDiff"><span class="hs-identifier hs-var">prettyContextDiff</span></a></span><span> </span><span id="local-6989586621679047009"><span class="annot"><span class="annottext">Doc
+</span><a href="#local-6989586621679047009"><span class="hs-identifier hs-var">old</span></a></span></span><span> </span><span id="local-6989586621679047010"><span class="annot"><span class="annottext">Doc
+</span><a href="#local-6989586621679047010"><span class="hs-identifier hs-var">new</span></a></span></span><span> </span><span id="local-6989586621679047011"><span class="annot"><span class="annottext">Numbered c -&gt; Doc
+</span><a href="#local-6989586621679047011"><span class="hs-identifier hs-var">prettyElem</span></a></span></span><span> </span><span id="local-6989586621679047012"><span class="annot"><span class="annottext">[Hunk (Numbered c)]
+</span><a href="#local-6989586621679047012"><span class="hs-identifier hs-var">hunks</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-137"></span><span>    </span><span class="annot"><span class="annottext">[Doc] -&gt; Doc
+</span><span class="hs-identifier hs-var">hcat</span></span><span> </span><span class="annot"><span class="annottext">([Doc] -&gt; Doc) -&gt; ([Doc] -&gt; [Doc]) -&gt; [Doc] -&gt; Doc
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">(Doc -&gt; Doc) -&gt; [Doc] -&gt; [Doc]
+forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+</span><span class="hs-identifier hs-var">map</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Doc -&gt; Doc -&gt; Doc
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; Doc
+</span><span class="hs-identifier hs-var">text</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;\n&quot;</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">([Doc] -&gt; Doc) -&gt; [Doc] -&gt; Doc
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String -&gt; Doc
+</span><span class="hs-identifier hs-var">text</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;--- &quot;</span></span><span> </span><span class="annot"><span class="annottext">Doc -&gt; Doc -&gt; Doc
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Doc
+</span><a href="#local-6989586621679047009"><span class="hs-identifier hs-var">old</span></a></span><span> </span><span class="annot"><span class="annottext">Doc -&gt; [Doc] -&gt; [Doc]
+forall a. a -&gt; [a] -&gt; [a]
+</span><span class="hs-glyph hs-var">:</span></span><span>
+</span><span id="line-138"></span><span>                                 </span><span class="annot"><span class="annottext">String -&gt; Doc
+</span><span class="hs-identifier hs-var">text</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;+++ &quot;</span></span><span> </span><span class="annot"><span class="annottext">Doc -&gt; Doc -&gt; Doc
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Doc
+</span><a href="#local-6989586621679047010"><span class="hs-identifier hs-var">new</span></a></span><span> </span><span class="annot"><span class="annottext">Doc -&gt; [Doc] -&gt; [Doc]
+forall a. a -&gt; [a] -&gt; [a]
+</span><span class="hs-glyph hs-var">:</span></span><span>
+</span><span id="line-139"></span><span>                                 </span><span class="annot"><span class="annottext">(Hunk (Numbered c) -&gt; [Doc]) -&gt; [Hunk (Numbered c)] -&gt; [Doc]
+forall (t :: * -&gt; *) a b. Foldable t =&gt; (a -&gt; [b]) -&gt; t a -&gt; [b]
+</span><span class="hs-identifier hs-var">concatMap</span></span><span> </span><span class="annot"><span class="annottext">Hunk (Numbered c) -&gt; [Doc]
+</span><a href="#local-6989586621679047015"><span class="hs-identifier hs-var">prettyRun</span></a></span><span> </span><span class="annot"><span class="annottext">[Hunk (Numbered c)]
+</span><a href="#local-6989586621679047012"><span class="hs-identifier hs-var">hunks</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-140"></span><span>    </span><span class="hs-keyword">where</span><span>
+</span><span id="line-141"></span><span>      </span><span class="hs-comment">-- Pretty print a run of adjacent changes</span><span>
+</span><span id="line-142"></span><span>      </span><span id="local-6989586621679047015"><span class="annot"><span class="annottext">prettyRun :: Hunk (Numbered c) -&gt; [Doc]
+</span><a href="#local-6989586621679047015"><span class="hs-identifier hs-var hs-var">prettyRun</span></a></span></span><span> </span><span id="local-6989586621679047019"><span class="annot"><span class="annottext">Hunk (Numbered c)
+</span><a href="#local-6989586621679047019"><span class="hs-identifier hs-var">hunk</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-143"></span><span>        </span><span class="annot"><span class="annottext">String -&gt; Doc
+</span><span class="hs-identifier hs-var">text</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;@@ &quot;</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; ShowS
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Hunk (Numbered c) -&gt; String
+forall {a} {a}. [PolyDiff [Numbered a] [Numbered a]] -&gt; String
+</span><a href="#local-6989586621679047020"><span class="hs-identifier hs-var">formatHunk</span></a></span><span> </span><span class="annot"><span class="annottext">Hunk (Numbered c)
+</span><a href="#local-6989586621679047019"><span class="hs-identifier hs-var">hunk</span></a></span><span> </span><span class="annot"><span class="annottext">String -&gt; ShowS
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot; @@&quot;</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Doc -&gt; [Doc] -&gt; [Doc]
+forall a. a -&gt; [a] -&gt; [a]
+</span><span class="hs-glyph hs-var">:</span></span><span> </span><span class="annot"><span class="annottext">(PolyDiff [Numbered c] [Numbered c] -&gt; [Doc])
+-&gt; Hunk (Numbered c) -&gt; [Doc]
+forall (t :: * -&gt; *) a b. Foldable t =&gt; (a -&gt; [b]) -&gt; t a -&gt; [b]
+</span><span class="hs-identifier hs-var">concatMap</span></span><span> </span><span class="annot"><span class="annottext">PolyDiff [Numbered c] [Numbered c] -&gt; [Doc]
+</span><a href="#local-6989586621679047021"><span class="hs-identifier hs-var">prettyChange</span></a></span><span> </span><span class="annot"><span class="annottext">Hunk (Numbered c)
+</span><a href="#local-6989586621679047019"><span class="hs-identifier hs-var">hunk</span></a></span><span>
+</span><span id="line-144"></span><span>
+</span><span id="line-145"></span><span>      </span><span class="hs-comment">-- Pretty print a single change (e.g. one line of a text file)</span><span>
+</span><span id="line-146"></span><span>      </span><span id="local-6989586621679047021"><span class="annot"><span class="annottext">prettyChange :: PolyDiff [Numbered c] [Numbered c] -&gt; [Doc]
+</span><a href="#local-6989586621679047021"><span class="hs-identifier hs-var hs-var">prettyChange</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Algorithm.Diff.html#Both"><span class="hs-identifier hs-type">Both</span></a></span><span> </span><span id="local-6989586621679047025"><span class="annot"><span class="annottext">[Numbered c]
+</span><a href="#local-6989586621679047025"><span class="hs-identifier hs-var">ts</span></a></span></span><span> </span><span class="annot"><span class="annottext">[Numbered c]
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Numbered c -&gt; Doc) -&gt; [Numbered c] -&gt; [Doc]
+forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+</span><span class="hs-identifier hs-var">map</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span> </span><span id="local-6989586621679047026"><span class="annot"><span class="annottext">Numbered c
+</span><a href="#local-6989586621679047026"><span class="hs-identifier hs-var">l</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">String -&gt; Doc
+</span><span class="hs-identifier hs-var">text</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot; &quot;</span></span><span> </span><span class="annot"><span class="annottext">Doc -&gt; Doc -&gt; Doc
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Numbered c -&gt; Doc
+</span><a href="#local-6989586621679047011"><span class="hs-identifier hs-var">prettyElem</span></a></span><span> </span><span class="annot"><span class="annottext">Numbered c
+</span><a href="#local-6989586621679047026"><span class="hs-identifier hs-var">l</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">[Numbered c]
+</span><a href="#local-6989586621679047025"><span class="hs-identifier hs-var">ts</span></a></span><span>
+</span><span id="line-147"></span><span>      </span><span class="annot"><a href="#local-6989586621679047021"><span class="hs-identifier hs-var">prettyChange</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Algorithm.Diff.html#First"><span class="hs-identifier hs-type">First</span></a></span><span> </span><span id="local-6989586621679047027"><span class="annot"><span class="annottext">[Numbered c]
+</span><a href="#local-6989586621679047027"><span class="hs-identifier hs-var">ts</span></a></span></span><span class="hs-special">)</span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Numbered c -&gt; Doc) -&gt; [Numbered c] -&gt; [Doc]
+forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+</span><span class="hs-identifier hs-var">map</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span> </span><span id="local-6989586621679047028"><span class="annot"><span class="annottext">Numbered c
+</span><a href="#local-6989586621679047028"><span class="hs-identifier hs-var">l</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">String -&gt; Doc
+</span><span class="hs-identifier hs-var">text</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;-&quot;</span></span><span> </span><span class="annot"><span class="annottext">Doc -&gt; Doc -&gt; Doc
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Numbered c -&gt; Doc
+</span><a href="#local-6989586621679047011"><span class="hs-identifier hs-var">prettyElem</span></a></span><span> </span><span class="annot"><span class="annottext">Numbered c
+</span><a href="#local-6989586621679047028"><span class="hs-identifier hs-var">l</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">[Numbered c]
+</span><a href="#local-6989586621679047027"><span class="hs-identifier hs-var">ts</span></a></span><span>
+</span><span id="line-148"></span><span>      </span><span class="annot"><a href="#local-6989586621679047021"><span class="hs-identifier hs-var">prettyChange</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Algorithm.Diff.html#Second"><span class="hs-identifier hs-type">Second</span></a></span><span> </span><span id="local-6989586621679047029"><span class="annot"><span class="annottext">[Numbered c]
+</span><a href="#local-6989586621679047029"><span class="hs-identifier hs-var">ts</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Numbered c -&gt; Doc) -&gt; [Numbered c] -&gt; [Doc]
+forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+</span><span class="hs-identifier hs-var">map</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span> </span><span id="local-6989586621679047030"><span class="annot"><span class="annottext">Numbered c
+</span><a href="#local-6989586621679047030"><span class="hs-identifier hs-var">l</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">String -&gt; Doc
+</span><span class="hs-identifier hs-var">text</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;+&quot;</span></span><span> </span><span class="annot"><span class="annottext">Doc -&gt; Doc -&gt; Doc
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Numbered c -&gt; Doc
+</span><a href="#local-6989586621679047011"><span class="hs-identifier hs-var">prettyElem</span></a></span><span> </span><span class="annot"><span class="annottext">Numbered c
+</span><a href="#local-6989586621679047030"><span class="hs-identifier hs-var">l</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">[Numbered c]
+</span><a href="#local-6989586621679047029"><span class="hs-identifier hs-var">ts</span></a></span><span>
+</span><span id="line-149"></span><span>
+</span><span id="line-150"></span><span>      </span><span id="local-6989586621679047020"><span class="annot"><span class="annottext">formatHunk :: [PolyDiff [Numbered a] [Numbered a]] -&gt; String
+</span><a href="#local-6989586621679047020"><span class="hs-identifier hs-var hs-var">formatHunk</span></a></span></span><span> </span><span id="local-6989586621679047034"><span class="annot"><span class="annottext">[PolyDiff [Numbered a] [Numbered a]]
+</span><a href="#local-6989586621679047034"><span class="hs-identifier hs-var">hunk</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;-&quot;</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; ShowS
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">[Int] -&gt; String
+</span><a href="#local-6989586621679047035"><span class="hs-identifier hs-var">formatRun</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[PolyDiff [Numbered a] [Numbered a]] -&gt; [Int]
+forall {a} {b}. [PolyDiff [Numbered a] b] -&gt; [Int]
+</span><a href="#local-6989586621679047036"><span class="hs-identifier hs-var">firsts</span></a></span><span> </span><span class="annot"><span class="annottext">[PolyDiff [Numbered a] [Numbered a]]
+</span><a href="#local-6989586621679047034"><span class="hs-identifier hs-var">hunk</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">String -&gt; ShowS
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot; +&quot;</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; ShowS
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">[Int] -&gt; String
+</span><a href="#local-6989586621679047035"><span class="hs-identifier hs-var">formatRun</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[PolyDiff [Numbered a] [Numbered a]] -&gt; [Int]
+forall {a} {a}. [PolyDiff a [Numbered a]] -&gt; [Int]
+</span><a href="#local-6989586621679047037"><span class="hs-identifier hs-var">seconds</span></a></span><span> </span><span class="annot"><span class="annottext">[PolyDiff [Numbered a] [Numbered a]]
+</span><a href="#local-6989586621679047034"><span class="hs-identifier hs-var">hunk</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-151"></span><span>
+</span><span id="line-152"></span><span>      </span><span class="annot"><a href="#local-6989586621679047035"><span class="hs-identifier hs-type">formatRun</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span>
+</span><span id="line-153"></span><span>      </span><span id="local-6989586621679047035"><span class="annot"><span class="annottext">formatRun :: [Int] -&gt; String
+</span><a href="#local-6989586621679047035"><span class="hs-identifier hs-var hs-var">formatRun</span></a></span></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;-0,0&quot;</span></span><span>
+</span><span id="line-154"></span><span>      </span><span class="annot"><a href="#local-6989586621679047035"><span class="hs-identifier hs-var">formatRun</span></a></span><span> </span><span class="hs-special">[</span><span id="local-6989586621679047038"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679047038"><span class="hs-identifier hs-var">n</span></a></span></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; String
+forall a. Show a =&gt; a -&gt; String
+</span><span class="hs-identifier hs-var">show</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679047038"><span class="hs-identifier hs-var">n</span></a></span><span>
+</span><span id="line-155"></span><span>      </span><span class="annot"><a href="#local-6989586621679047035"><span class="hs-identifier hs-var">formatRun</span></a></span><span> </span><span id="local-6989586621679047040"><span class="annot"><span class="annottext">ns :: [Int]
+</span><a href="#local-6989586621679047040"><span class="hs-identifier hs-var">ns</span></a></span></span><span class="hs-glyph">@</span><span class="hs-special">(</span><span id="local-6989586621679047041"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679047041"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span> </span><span class="annot"><span class="annottext">[Int]
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; String
+forall a. Show a =&gt; a -&gt; String
+</span><span class="hs-identifier hs-var">show</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679047041"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">String -&gt; ShowS
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;,&quot;</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; ShowS
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; String
+forall a. Show a =&gt; a -&gt; String
+</span><span class="hs-identifier hs-var">show</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[Int] -&gt; Int
+forall a. [a] -&gt; Int
+forall (t :: * -&gt; *) a. Foldable t =&gt; t a -&gt; Int
+</span><span class="hs-identifier hs-var">length</span></span><span> </span><span class="annot"><span class="annottext">[Int]
+</span><a href="#local-6989586621679047040"><span class="hs-identifier hs-var">ns</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-156"></span><span>
+</span><span id="line-157"></span><span>      </span><span id="local-6989586621679047036"><span class="annot"><span class="annottext">firsts :: [PolyDiff [Numbered a] b] -&gt; [Int]
+</span><a href="#local-6989586621679047036"><span class="hs-identifier hs-var hs-var">firsts</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Algorithm.Diff.html#Both"><span class="hs-identifier hs-type">Both</span></a></span><span> </span><span id="local-6989586621679047046"><span class="annot"><span class="annottext">[Numbered a]
+</span><a href="#local-6989586621679047046"><span class="hs-identifier hs-var">ns</span></a></span></span><span> </span><span class="annot"><span class="annottext">b
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span> </span><span id="local-6989586621679047047"><span class="annot"><span class="annottext">[PolyDiff [Numbered a] b]
+</span><a href="#local-6989586621679047047"><span class="hs-identifier hs-var">more</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Numbered a -&gt; Int) -&gt; [Numbered a] -&gt; [Int]
+forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span class="hs-special">(</span><span class="annot"><a href="Data.Algorithm.DiffContext.html#Numbered"><span class="hs-identifier hs-type">Numbered</span></a></span><span> </span><span id="local-6989586621679047048"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679047048"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span class="annot"><span class="annottext">a
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679047048"><span class="hs-identifier hs-var">n</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">[Numbered a]
+</span><a href="#local-6989586621679047046"><span class="hs-identifier hs-var">ns</span></a></span><span> </span><span class="annot"><span class="annottext">[Int] -&gt; [Int] -&gt; [Int]
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">[PolyDiff [Numbered a] b] -&gt; [Int]
+</span><a href="#local-6989586621679047036"><span class="hs-identifier hs-var">firsts</span></a></span><span> </span><span class="annot"><span class="annottext">[PolyDiff [Numbered a] b]
+</span><a href="#local-6989586621679047047"><span class="hs-identifier hs-var">more</span></a></span><span>
+</span><span id="line-158"></span><span>      </span><span class="annot"><a href="#local-6989586621679047036"><span class="hs-identifier hs-var">firsts</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Algorithm.Diff.html#First"><span class="hs-identifier hs-type">First</span></a></span><span> </span><span id="local-6989586621679047049"><span class="annot"><span class="annottext">[Numbered a]
+</span><a href="#local-6989586621679047049"><span class="hs-identifier hs-var">ns</span></a></span></span><span> </span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span> </span><span id="local-6989586621679047050"><span class="annot"><span class="annottext">[PolyDiff [Numbered a] b]
+</span><a href="#local-6989586621679047050"><span class="hs-identifier hs-var">more</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Numbered a -&gt; Int) -&gt; [Numbered a] -&gt; [Int]
+forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span class="hs-special">(</span><span class="annot"><a href="Data.Algorithm.DiffContext.html#Numbered"><span class="hs-identifier hs-type">Numbered</span></a></span><span> </span><span id="local-6989586621679047051"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679047051"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span class="annot"><span class="annottext">a
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679047051"><span class="hs-identifier hs-var">n</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">[Numbered a]
+</span><a href="#local-6989586621679047049"><span class="hs-identifier hs-var">ns</span></a></span><span> </span><span class="annot"><span class="annottext">[Int] -&gt; [Int] -&gt; [Int]
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">[PolyDiff [Numbered a] b] -&gt; [Int]
+</span><a href="#local-6989586621679047036"><span class="hs-identifier hs-var">firsts</span></a></span><span> </span><span class="annot"><span class="annottext">[PolyDiff [Numbered a] b]
+</span><a href="#local-6989586621679047050"><span class="hs-identifier hs-var">more</span></a></span><span>
+</span><span id="line-159"></span><span>      </span><span class="annot"><a href="#local-6989586621679047036"><span class="hs-identifier hs-var">firsts</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Algorithm.Diff.html#Second"><span class="hs-identifier hs-type">Second</span></a></span><span> </span><span class="annot"><span class="annottext">b
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span> </span><span id="local-6989586621679047052"><span class="annot"><span class="annottext">[PolyDiff [Numbered a] b]
+</span><a href="#local-6989586621679047052"><span class="hs-identifier hs-var">more</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[PolyDiff [Numbered a] b] -&gt; [Int]
+</span><a href="#local-6989586621679047036"><span class="hs-identifier hs-var">firsts</span></a></span><span> </span><span class="annot"><span class="annottext">[PolyDiff [Numbered a] b]
+</span><a href="#local-6989586621679047052"><span class="hs-identifier hs-var">more</span></a></span><span>
+</span><span id="line-160"></span><span>      </span><span class="annot"><a href="#local-6989586621679047036"><span class="hs-identifier hs-var">firsts</span></a></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span>
+</span><span id="line-161"></span><span>
+</span><span id="line-162"></span><span>      </span><span id="local-6989586621679047037"><span class="annot"><span class="annottext">seconds :: [PolyDiff a [Numbered a]] -&gt; [Int]
+</span><a href="#local-6989586621679047037"><span class="hs-identifier hs-var hs-var">seconds</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Algorithm.Diff.html#Both"><span class="hs-identifier hs-type">Both</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621679047057"><span class="annot"><span class="annottext">[Numbered a]
+</span><a href="#local-6989586621679047057"><span class="hs-identifier hs-var">ns</span></a></span></span><span> </span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span> </span><span id="local-6989586621679047058"><span class="annot"><span class="annottext">[PolyDiff a [Numbered a]]
+</span><a href="#local-6989586621679047058"><span class="hs-identifier hs-var">more</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Numbered a -&gt; Int) -&gt; [Numbered a] -&gt; [Int]
+forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span class="hs-special">(</span><span class="annot"><a href="Data.Algorithm.DiffContext.html#Numbered"><span class="hs-identifier hs-type">Numbered</span></a></span><span> </span><span id="local-6989586621679047059"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679047059"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span class="annot"><span class="annottext">a
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679047059"><span class="hs-identifier hs-var">n</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">[Numbered a]
+</span><a href="#local-6989586621679047057"><span class="hs-identifier hs-var">ns</span></a></span><span> </span><span class="annot"><span class="annottext">[Int] -&gt; [Int] -&gt; [Int]
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">[PolyDiff a [Numbered a]] -&gt; [Int]
+</span><a href="#local-6989586621679047037"><span class="hs-identifier hs-var">seconds</span></a></span><span> </span><span class="annot"><span class="annottext">[PolyDiff a [Numbered a]]
+</span><a href="#local-6989586621679047058"><span class="hs-identifier hs-var">more</span></a></span><span>
+</span><span id="line-163"></span><span>      </span><span class="annot"><a href="#local-6989586621679047037"><span class="hs-identifier hs-var">seconds</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Algorithm.Diff.html#First"><span class="hs-identifier hs-type">First</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span> </span><span id="local-6989586621679047060"><span class="annot"><span class="annottext">[PolyDiff a [Numbered a]]
+</span><a href="#local-6989586621679047060"><span class="hs-identifier hs-var">more</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[PolyDiff a [Numbered a]] -&gt; [Int]
+</span><a href="#local-6989586621679047037"><span class="hs-identifier hs-var">seconds</span></a></span><span> </span><span class="annot"><span class="annottext">[PolyDiff a [Numbered a]]
+</span><a href="#local-6989586621679047060"><span class="hs-identifier hs-var">more</span></a></span><span>
+</span><span id="line-164"></span><span>      </span><span class="annot"><a href="#local-6989586621679047037"><span class="hs-identifier hs-var">seconds</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Algorithm.Diff.html#Second"><span class="hs-identifier hs-type">Second</span></a></span><span> </span><span id="local-6989586621679047061"><span class="annot"><span class="annottext">[Numbered a]
+</span><a href="#local-6989586621679047061"><span class="hs-identifier hs-var">ns</span></a></span></span><span> </span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span> </span><span id="local-6989586621679047062"><span class="annot"><span class="annottext">[PolyDiff a [Numbered a]]
+</span><a href="#local-6989586621679047062"><span class="hs-identifier hs-var">more</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Numbered a -&gt; Int) -&gt; [Numbered a] -&gt; [Int]
+forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span class="hs-special">(</span><span class="annot"><a href="Data.Algorithm.DiffContext.html#Numbered"><span class="hs-identifier hs-type">Numbered</span></a></span><span> </span><span id="local-6989586621679047063"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679047063"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span class="annot"><span class="annottext">a
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679047063"><span class="hs-identifier hs-var">n</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">[Numbered a]
+</span><a href="#local-6989586621679047061"><span class="hs-identifier hs-var">ns</span></a></span><span> </span><span class="annot"><span class="annottext">[Int] -&gt; [Int] -&gt; [Int]
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">[PolyDiff a [Numbered a]] -&gt; [Int]
+</span><a href="#local-6989586621679047037"><span class="hs-identifier hs-var">seconds</span></a></span><span> </span><span class="annot"><span class="annottext">[PolyDiff a [Numbered a]]
+</span><a href="#local-6989586621679047062"><span class="hs-identifier hs-var">more</span></a></span><span>
+</span><span id="line-165"></span><span>      </span><span class="annot"><a href="#local-6989586621679047037"><span class="hs-identifier hs-var">seconds</span></a></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span>
+</span><span id="line-166"></span><span>
+</span><span id="line-167"></span><span class="annot"><span class="hs-comment">-- | Pretty print without line numbers.</span></span><span>
+</span><span id="line-168"></span><span id="local-6989586621679046824"><span class="annot"><a href="Data.Algorithm.DiffContext.html#prettyContextDiffOld"><span class="hs-identifier hs-type">prettyContextDiffOld</span></a></span><span> </span><span class="hs-glyph">::</span><span>
+</span><span id="line-169"></span><span>       </span><span class="annot"><span class="hs-identifier hs-type">Doc</span></span><span>            </span><span class="annot"><span class="hs-comment">-- ^ Document 1 name</span></span><span>
+</span><span id="line-170"></span><span>    </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Doc</span></span><span>            </span><span class="annot"><span class="hs-comment">-- ^ Document 2 name</span></span><span>
+</span><span id="line-171"></span><span>    </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679046824"><span class="hs-identifier hs-type">c</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Doc</span></span><span class="hs-special">)</span><span>     </span><span class="annot"><span class="hs-comment">-- ^ Element pretty printer</span></span><span>
+</span><span id="line-172"></span><span>    </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Data.Algorithm.DiffContext.html#ContextDiff"><span class="hs-identifier hs-type">ContextDiff</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679046824"><span class="hs-identifier hs-type">c</span></a></span><span>
+</span><span id="line-173"></span><span>    </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Doc</span></span></span><span>
+</span><span id="line-174"></span><span id="prettyContextDiffOld"><span class="annot"><span class="annottext">prettyContextDiffOld :: forall c. Doc -&gt; Doc -&gt; (c -&gt; Doc) -&gt; ContextDiff c -&gt; Doc
+</span><a href="Data.Algorithm.DiffContext.html#prettyContextDiffOld"><span class="hs-identifier hs-var hs-var">prettyContextDiffOld</span></a></span></span><span> </span><span class="annot"><span class="annottext">Doc
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">Doc
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">c -&gt; Doc
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Doc
+</span><span class="hs-identifier hs-var">empty</span></span><span>
+</span><span id="line-175"></span><span class="annot"><a href="Data.Algorithm.DiffContext.html#prettyContextDiffOld"><span class="hs-identifier hs-var">prettyContextDiffOld</span></a></span><span> </span><span id="local-6989586621679047069"><span class="annot"><span class="annottext">Doc
+</span><a href="#local-6989586621679047069"><span class="hs-identifier hs-var">old</span></a></span></span><span> </span><span id="local-6989586621679047070"><span class="annot"><span class="annottext">Doc
+</span><a href="#local-6989586621679047070"><span class="hs-identifier hs-var">new</span></a></span></span><span> </span><span id="local-6989586621679047071"><span class="annot"><span class="annottext">c -&gt; Doc
+</span><a href="#local-6989586621679047071"><span class="hs-identifier hs-var">prettyElem</span></a></span></span><span> </span><span id="local-6989586621679047072"><span class="annot"><span class="annottext">[Hunk c]
+</span><a href="#local-6989586621679047072"><span class="hs-identifier hs-var">hunks</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-176"></span><span>    </span><span class="annot"><span class="annottext">[Doc] -&gt; Doc
+</span><span class="hs-identifier hs-var">hcat</span></span><span> </span><span class="annot"><span class="annottext">([Doc] -&gt; Doc) -&gt; ([Doc] -&gt; [Doc]) -&gt; [Doc] -&gt; Doc
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">(Doc -&gt; Doc) -&gt; [Doc] -&gt; [Doc]
+forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+</span><span class="hs-identifier hs-var">map</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Doc -&gt; Doc -&gt; Doc
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; Doc
+</span><span class="hs-identifier hs-var">text</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;\n&quot;</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">([Doc] -&gt; Doc) -&gt; [Doc] -&gt; Doc
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String -&gt; Doc
+</span><span class="hs-identifier hs-var">text</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;--- &quot;</span></span><span> </span><span class="annot"><span class="annottext">Doc -&gt; Doc -&gt; Doc
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Doc
+</span><a href="#local-6989586621679047069"><span class="hs-identifier hs-var">old</span></a></span><span> </span><span class="annot"><span class="annottext">Doc -&gt; [Doc] -&gt; [Doc]
+forall a. a -&gt; [a] -&gt; [a]
+</span><span class="hs-glyph hs-var">:</span></span><span>
+</span><span id="line-177"></span><span>                                 </span><span class="annot"><span class="annottext">String -&gt; Doc
+</span><span class="hs-identifier hs-var">text</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;+++ &quot;</span></span><span> </span><span class="annot"><span class="annottext">Doc -&gt; Doc -&gt; Doc
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Doc
+</span><a href="#local-6989586621679047070"><span class="hs-identifier hs-var">new</span></a></span><span> </span><span class="annot"><span class="annottext">Doc -&gt; [Doc] -&gt; [Doc]
+forall a. a -&gt; [a] -&gt; [a]
+</span><span class="hs-glyph hs-var">:</span></span><span>
+</span><span id="line-178"></span><span>                                 </span><span class="annot"><span class="annottext">(Hunk c -&gt; [Doc]) -&gt; [Hunk c] -&gt; [Doc]
+forall (t :: * -&gt; *) a b. Foldable t =&gt; (a -&gt; [b]) -&gt; t a -&gt; [b]
+</span><span class="hs-identifier hs-var">concatMap</span></span><span> </span><span class="annot"><span class="annottext">Hunk c -&gt; [Doc]
+forall {t :: * -&gt; *}. Foldable t =&gt; t (PolyDiff [c] [c]) -&gt; [Doc]
+</span><a href="#local-6989586621679047073"><span class="hs-identifier hs-var">prettyRun</span></a></span><span> </span><span class="annot"><span class="annottext">[Hunk c]
+</span><a href="#local-6989586621679047072"><span class="hs-identifier hs-var">hunks</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-179"></span><span>    </span><span class="hs-keyword">where</span><span>
+</span><span id="line-180"></span><span>      </span><span class="hs-comment">-- Pretty print a run of adjacent changes</span><span>
+</span><span id="line-181"></span><span>      </span><span id="local-6989586621679047073"><span class="annot"><span class="annottext">prettyRun :: t (PolyDiff [c] [c]) -&gt; [Doc]
+</span><a href="#local-6989586621679047073"><span class="hs-identifier hs-var hs-var">prettyRun</span></a></span></span><span> </span><span id="local-6989586621679047076"><span class="annot"><span class="annottext">t (PolyDiff [c] [c])
+</span><a href="#local-6989586621679047076"><span class="hs-identifier hs-var">hunk</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-182"></span><span>          </span><span class="annot"><span class="annottext">String -&gt; Doc
+</span><span class="hs-identifier hs-var">text</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;@@&quot;</span></span><span> </span><span class="annot"><span class="annottext">Doc -&gt; [Doc] -&gt; [Doc]
+forall a. a -&gt; [a] -&gt; [a]
+</span><span class="hs-glyph hs-var">:</span></span><span> </span><span class="annot"><span class="annottext">(PolyDiff [c] [c] -&gt; [Doc]) -&gt; t (PolyDiff [c] [c]) -&gt; [Doc]
+forall (t :: * -&gt; *) a b. Foldable t =&gt; (a -&gt; [b]) -&gt; t a -&gt; [b]
+</span><span class="hs-identifier hs-var">concatMap</span></span><span> </span><span class="annot"><span class="annottext">PolyDiff [c] [c] -&gt; [Doc]
+</span><a href="#local-6989586621679047077"><span class="hs-identifier hs-var">prettyChange</span></a></span><span> </span><span class="annot"><span class="annottext">t (PolyDiff [c] [c])
+</span><a href="#local-6989586621679047076"><span class="hs-identifier hs-var">hunk</span></a></span><span>
+</span><span id="line-183"></span><span>
+</span><span id="line-184"></span><span>      </span><span class="hs-comment">-- Pretty print a single change (e.g. one line of a text file)</span><span>
+</span><span id="line-185"></span><span>      </span><span id="local-6989586621679047077"><span class="annot"><span class="annottext">prettyChange :: PolyDiff [c] [c] -&gt; [Doc]
+</span><a href="#local-6989586621679047077"><span class="hs-identifier hs-var hs-var">prettyChange</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Algorithm.Diff.html#Both"><span class="hs-identifier hs-type">Both</span></a></span><span> </span><span id="local-6989586621679047081"><span class="annot"><span class="annottext">[c]
+</span><a href="#local-6989586621679047081"><span class="hs-identifier hs-var">ts</span></a></span></span><span> </span><span class="annot"><span class="annottext">[c]
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(c -&gt; Doc) -&gt; [c] -&gt; [Doc]
+forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+</span><span class="hs-identifier hs-var">map</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span> </span><span id="local-6989586621679047082"><span class="annot"><span class="annottext">c
+</span><a href="#local-6989586621679047082"><span class="hs-identifier hs-var">l</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">String -&gt; Doc
+</span><span class="hs-identifier hs-var">text</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot; &quot;</span></span><span> </span><span class="annot"><span class="annottext">Doc -&gt; Doc -&gt; Doc
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">c -&gt; Doc
+</span><a href="#local-6989586621679047071"><span class="hs-identifier hs-var">prettyElem</span></a></span><span> </span><span class="annot"><span class="annottext">c
+</span><a href="#local-6989586621679047082"><span class="hs-identifier hs-var">l</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">[c]
+</span><a href="#local-6989586621679047081"><span class="hs-identifier hs-var">ts</span></a></span><span>
+</span><span id="line-186"></span><span>      </span><span class="annot"><a href="#local-6989586621679047077"><span class="hs-identifier hs-var">prettyChange</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Algorithm.Diff.html#First"><span class="hs-identifier hs-type">First</span></a></span><span> </span><span id="local-6989586621679047083"><span class="annot"><span class="annottext">[c]
+</span><a href="#local-6989586621679047083"><span class="hs-identifier hs-var">ts</span></a></span></span><span class="hs-special">)</span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(c -&gt; Doc) -&gt; [c] -&gt; [Doc]
+forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+</span><span class="hs-identifier hs-var">map</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span> </span><span id="local-6989586621679047084"><span class="annot"><span class="annottext">c
+</span><a href="#local-6989586621679047084"><span class="hs-identifier hs-var">l</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">String -&gt; Doc
+</span><span class="hs-identifier hs-var">text</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;-&quot;</span></span><span> </span><span class="annot"><span class="annottext">Doc -&gt; Doc -&gt; Doc
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">c -&gt; Doc
+</span><a href="#local-6989586621679047071"><span class="hs-identifier hs-var">prettyElem</span></a></span><span> </span><span class="annot"><span class="annottext">c
+</span><a href="#local-6989586621679047084"><span class="hs-identifier hs-var">l</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">[c]
+</span><a href="#local-6989586621679047083"><span class="hs-identifier hs-var">ts</span></a></span><span>
+</span><span id="line-187"></span><span>      </span><span class="annot"><a href="#local-6989586621679047077"><span class="hs-identifier hs-var">prettyChange</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Algorithm.Diff.html#Second"><span class="hs-identifier hs-type">Second</span></a></span><span> </span><span id="local-6989586621679047085"><span class="annot"><span class="annottext">[c]
+</span><a href="#local-6989586621679047085"><span class="hs-identifier hs-var">ts</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(c -&gt; Doc) -&gt; [c] -&gt; [Doc]
+forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+</span><span class="hs-identifier hs-var">map</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span> </span><span id="local-6989586621679047086"><span class="annot"><span class="annottext">c
+</span><a href="#local-6989586621679047086"><span class="hs-identifier hs-var">l</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">String -&gt; Doc
+</span><span class="hs-identifier hs-var">text</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;+&quot;</span></span><span> </span><span class="annot"><span class="annottext">Doc -&gt; Doc -&gt; Doc
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">c -&gt; Doc
+</span><a href="#local-6989586621679047071"><span class="hs-identifier hs-var">prettyElem</span></a></span><span> </span><span class="annot"><span class="annottext">c
+</span><a href="#local-6989586621679047086"><span class="hs-identifier hs-var">l</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">[c]
+</span><a href="#local-6989586621679047085"><span class="hs-identifier hs-var">ts</span></a></span><span>
+</span><span id="line-188"></span></pre></body></html>

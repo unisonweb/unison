@@ -1,0 +1,742 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE TypeFamilies #-}</span><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# LANGUAGE TypeOperators #-}</span><span>
+</span><span id="line-3"></span><span class="hs-pragma">{-# LANGUAGE TypeSynonymInstances #-}</span><span>
+</span><span id="line-4"></span><span class="hs-pragma">{-# LANGUAGE FlexibleContexts #-}</span><span>
+</span><span id="line-5"></span><span class="hs-pragma">{-# LANGUAGE FlexibleInstances #-}</span><span>
+</span><span id="line-6"></span><span class="hs-pragma">{-# LANGUAGE MultiParamTypeClasses #-}</span><span>
+</span><span id="line-7"></span><span class="hs-pragma">{-# LANGUAGE UndecidableInstances #-}</span><span>
+</span><span id="line-8"></span><span class="hs-comment">----------------------------------------------------------------------</span><span>
+</span><span id="line-9"></span><span class="hs-comment">-- |</span><span>
+</span><span id="line-10"></span><span class="hs-comment">-- Module      :  Control.Monad.Representable.State</span><span>
+</span><span id="line-11"></span><span class="hs-comment">-- Copyright   :  (c) Edward Kmett &amp; Sjoerd Visscher 2011</span><span>
+</span><span id="line-12"></span><span class="hs-comment">-- License     :  BSD3</span><span>
+</span><span id="line-13"></span><span class="hs-comment">--</span><span>
+</span><span id="line-14"></span><span class="hs-comment">-- Maintainer  :  ekmett@gmail.com</span><span>
+</span><span id="line-15"></span><span class="hs-comment">-- Stability   :  experimental</span><span>
+</span><span id="line-16"></span><span class="hs-comment">--</span><span>
+</span><span id="line-17"></span><span class="hs-comment">-- A generalized State monad, parameterized by a Representable functor.</span><span>
+</span><span id="line-18"></span><span class="hs-comment">-- The representation of that functor serves as the state.</span><span>
+</span><span id="line-19"></span><span class="hs-comment">----------------------------------------------------------------------</span><span>
+</span><span id="line-20"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Control.Monad.Representable.State.html"><span class="hs-identifier">Control.Monad.Representable.State</span></a></span><span>
+</span><span id="line-21"></span><span>   </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="Control.Monad.Representable.State.html#State"><span class="hs-identifier">State</span></a></span><span>
+</span><span id="line-22"></span><span>   </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Control.Monad.Representable.State.html#runState"><span class="hs-identifier">runState</span></a></span><span>
+</span><span id="line-23"></span><span>   </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Control.Monad.Representable.State.html#evalState"><span class="hs-identifier">evalState</span></a></span><span>
+</span><span id="line-24"></span><span>   </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Control.Monad.Representable.State.html#execState"><span class="hs-identifier">execState</span></a></span><span>
+</span><span id="line-25"></span><span>   </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Control.Monad.Representable.State.html#mapState"><span class="hs-identifier">mapState</span></a></span><span>
+</span><span id="line-26"></span><span>   </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Control.Monad.Representable.State.html#StateT"><span class="hs-identifier">StateT</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-27"></span><span>   </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Control.Monad.Representable.State.html#stateT"><span class="hs-identifier">stateT</span></a></span><span>
+</span><span id="line-28"></span><span>   </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Control.Monad.Representable.State.html#runStateT"><span class="hs-identifier">runStateT</span></a></span><span>
+</span><span id="line-29"></span><span>   </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Control.Monad.Representable.State.html#evalStateT"><span class="hs-identifier">evalStateT</span></a></span><span>
+</span><span id="line-30"></span><span>   </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Control.Monad.Representable.State.html#execStateT"><span class="hs-identifier">execStateT</span></a></span><span>
+</span><span id="line-31"></span><span>   </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Control.Monad.Representable.State.html#mapStateT"><span class="hs-identifier">mapStateT</span></a></span><span>
+</span><span id="line-32"></span><span>   </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Control.Monad.Representable.State.html#liftCallCC"><span class="hs-identifier">liftCallCC</span></a></span><span>
+</span><span id="line-33"></span><span>   </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Control.Monad.Representable.State.html#liftCallCC%27"><span class="hs-identifier">liftCallCC'</span></a></span><span>
+</span><span id="line-34"></span><span>   </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">MonadState</span></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-35"></span><span>   </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-36"></span><span>
+</span><span id="line-37"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Monad</span></span><span>
+</span><span id="line-38"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Functor.Bind</span></span><span>
+</span><span id="line-39"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Functor.Bind.Trans</span></span><span>
+</span><span id="line-40"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Monad.State.Class</span></span><span>
+</span><span id="line-41"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Monad.Cont.Class</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">MonadCont</span></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-42"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Monad.Reader.Class</span></span><span>
+</span><span id="line-43"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Monad.Writer.Class</span></span><span>
+</span><span id="line-44"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Monad.Free.Class</span></span><span>
+</span><span id="line-45"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Monad.Trans.Class</span></span><span>
+</span><span id="line-46"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Functor.Identity</span></span><span>
+</span><span id="line-47"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Data.Functor.Rep.html"><span class="hs-identifier">Data.Functor.Rep</span></a></span><span>
+</span><span id="line-48"></span><span>
+</span><span id="line-49"></span><span class="hs-comment">-- ---------------------------------------------------------------------------</span><span>
+</span><span id="line-50"></span><span class="hs-comment">-- | A memoized state monad parameterized by a representable functor @g@, where</span><span>
+</span><span id="line-51"></span><span class="hs-comment">-- the representatation of @g@, @Rep g@ is the state to carry.</span><span>
+</span><span id="line-52"></span><span class="hs-comment">--</span><span>
+</span><span id="line-53"></span><span class="hs-comment">-- The 'return' function leaves the state unchanged, while @&gt;&gt;=@ uses</span><span>
+</span><span id="line-54"></span><span class="hs-comment">-- the final state of the first computation as the initial state of</span><span>
+</span><span id="line-55"></span><span class="hs-comment">-- the second.</span><span>
+</span><span id="line-56"></span><span class="hs-keyword">type</span><span> </span><span id="State"><span class="annot"><a href="Control.Monad.Representable.State.html#State"><span class="hs-identifier hs-var">State</span></a></span></span><span> </span><span id="local-6989586621679097773"><span class="annot"><a href="#local-6989586621679097773"><span class="hs-identifier hs-type">g</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="Control.Monad.Representable.State.html#StateT"><span class="hs-identifier hs-type">StateT</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679097773"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Identity</span></span><span>
+</span><span id="line-57"></span><span>
+</span><span id="line-58"></span><span>
+</span><span id="line-59"></span><span class="hs-comment">-- | Unwrap a state monad computation as a function.</span><span>
+</span><span id="line-60"></span><span class="hs-comment">-- (The inverse of 'state'.)</span><span>
+</span><span id="line-61"></span><span id="local-6989586621679097505"><span id="local-6989586621679097507"><span class="annot"><a href="Control.Monad.Representable.State.html#runState"><span class="hs-identifier hs-type">runState</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Data.Functor.Rep.html#Representable"><span class="hs-identifier hs-type">Representable</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679097505"><span class="hs-identifier hs-type">g</span></a></span><span>
+</span><span id="line-62"></span><span>         </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Control.Monad.Representable.State.html#State"><span class="hs-identifier hs-type">State</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679097505"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679097507"><span class="hs-identifier hs-type">a</span></a></span><span>   </span><span class="annot"><span class="hs-comment">-- ^ state-passing computation to execute</span></span><span>
+</span><span id="line-63"></span><span>         </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Data.Functor.Rep.html#Rep"><span class="hs-identifier hs-type">Rep</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679097505"><span class="hs-identifier hs-type">g</span></a></span><span>       </span><span class="annot"><span class="hs-comment">-- ^ initial state</span></span><span>
+</span><span id="line-64"></span><span>         </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679097507"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Functor.Rep.html#Rep"><span class="hs-identifier hs-type">Rep</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679097505"><span class="hs-identifier hs-type">g</span></a></span><span class="hs-special">)</span></span></span><span>  </span><span class="annot"><span class="hs-comment">-- ^ return value and final state</span></span><span>
+</span><span id="line-65"></span><span id="runState"><span class="annot"><span class="annottext">runState :: forall (g :: * -&gt; *) a.
+Representable g =&gt;
+State g a -&gt; Rep g -&gt; (a, Rep g)
+</span><a href="Control.Monad.Representable.State.html#runState"><span class="hs-identifier hs-var hs-var">runState</span></a></span></span><span> </span><span id="local-6989586621679097777"><span class="annot"><span class="annottext">State g a
+</span><a href="#local-6989586621679097777"><span class="hs-identifier hs-var">m</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Identity (a, Rep g) -&gt; (a, Rep g)
+forall a. Identity a -&gt; a
+</span><span class="hs-identifier hs-var">runIdentity</span></span><span> </span><span class="annot"><span class="annottext">(Identity (a, Rep g) -&gt; (a, Rep g))
+-&gt; (Rep g -&gt; Identity (a, Rep g)) -&gt; Rep g -&gt; (a, Rep g)
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">State g a -&gt; Rep g -&gt; Identity (a, Rep g)
+forall (g :: * -&gt; *) (m :: * -&gt; *) a.
+Representable g =&gt;
+StateT g m a -&gt; Rep g -&gt; m (a, Rep g)
+</span><a href="Control.Monad.Representable.State.html#runStateT"><span class="hs-identifier hs-var">runStateT</span></a></span><span> </span><span class="annot"><span class="annottext">State g a
+</span><a href="#local-6989586621679097777"><span class="hs-identifier hs-var">m</span></a></span><span>
+</span><span id="line-66"></span><span>
+</span><span id="line-67"></span><span class="hs-comment">-- | Evaluate a state computation with the given initial state</span><span>
+</span><span id="line-68"></span><span class="hs-comment">-- and return the final value, discarding the final state.</span><span>
+</span><span id="line-69"></span><span class="hs-comment">--</span><span>
+</span><span id="line-70"></span><span class="hs-comment">-- * @'evalState' m s = 'fst' ('runState' m s)@</span><span>
+</span><span id="line-71"></span><span id="local-6989586621679097521"><span id="local-6989586621679097522"><span class="annot"><a href="Control.Monad.Representable.State.html#evalState"><span class="hs-identifier hs-type">evalState</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Data.Functor.Rep.html#Representable"><span class="hs-identifier hs-type">Representable</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679097521"><span class="hs-identifier hs-type">g</span></a></span><span>
+</span><span id="line-72"></span><span>          </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Control.Monad.Representable.State.html#State"><span class="hs-identifier hs-type">State</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679097521"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679097522"><span class="hs-identifier hs-type">a</span></a></span><span>  </span><span class="annot"><span class="hs-comment">-- ^state-passing computation to execute</span></span><span>
+</span><span id="line-73"></span><span>          </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Data.Functor.Rep.html#Rep"><span class="hs-identifier hs-type">Rep</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679097521"><span class="hs-identifier hs-type">g</span></a></span><span>      </span><span class="annot"><span class="hs-comment">-- ^initial value</span></span><span>
+</span><span id="line-74"></span><span>          </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679097522"><span class="hs-identifier hs-type">a</span></a></span></span></span><span>          </span><span class="annot"><span class="hs-comment">-- ^return value of the state computation</span></span><span>
+</span><span id="line-75"></span><span id="evalState"><span class="annot"><span class="annottext">evalState :: forall (g :: * -&gt; *) a. Representable g =&gt; State g a -&gt; Rep g -&gt; a
+</span><a href="Control.Monad.Representable.State.html#evalState"><span class="hs-identifier hs-var hs-var">evalState</span></a></span></span><span> </span><span id="local-6989586621679097783"><span class="annot"><span class="annottext">State g a
+</span><a href="#local-6989586621679097783"><span class="hs-identifier hs-var">m</span></a></span></span><span> </span><span id="local-6989586621679097784"><span class="annot"><span class="annottext">Rep g
+</span><a href="#local-6989586621679097784"><span class="hs-identifier hs-var">s</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(a, Rep g) -&gt; a
+forall a b. (a, b) -&gt; a
+</span><span class="hs-identifier hs-var">fst</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">State g a -&gt; Rep g -&gt; (a, Rep g)
+forall (g :: * -&gt; *) a.
+Representable g =&gt;
+State g a -&gt; Rep g -&gt; (a, Rep g)
+</span><a href="Control.Monad.Representable.State.html#runState"><span class="hs-identifier hs-var">runState</span></a></span><span> </span><span class="annot"><span class="annottext">State g a
+</span><a href="#local-6989586621679097783"><span class="hs-identifier hs-var">m</span></a></span><span> </span><span class="annot"><span class="annottext">Rep g
+</span><a href="#local-6989586621679097784"><span class="hs-identifier hs-var">s</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-76"></span><span>
+</span><span id="line-77"></span><span class="hs-comment">-- | Evaluate a state computation with the given initial state</span><span>
+</span><span id="line-78"></span><span class="hs-comment">-- and return the final state, discarding the final value.</span><span>
+</span><span id="line-79"></span><span class="hs-comment">--</span><span>
+</span><span id="line-80"></span><span class="hs-comment">-- * @'execState' m s = 'snd' ('runState' m s)@</span><span>
+</span><span id="line-81"></span><span id="local-6989586621679097527"><span id="local-6989586621679097528"><span class="annot"><a href="Control.Monad.Representable.State.html#execState"><span class="hs-identifier hs-type">execState</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Data.Functor.Rep.html#Representable"><span class="hs-identifier hs-type">Representable</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679097527"><span class="hs-identifier hs-type">g</span></a></span><span>
+</span><span id="line-82"></span><span>          </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Control.Monad.Representable.State.html#State"><span class="hs-identifier hs-type">State</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679097527"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679097528"><span class="hs-identifier hs-type">a</span></a></span><span>  </span><span class="annot"><span class="hs-comment">-- ^state-passing computation to execute</span></span><span>
+</span><span id="line-83"></span><span>          </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Data.Functor.Rep.html#Rep"><span class="hs-identifier hs-type">Rep</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679097527"><span class="hs-identifier hs-type">g</span></a></span><span>      </span><span class="annot"><span class="hs-comment">-- ^initial value</span></span><span>
+</span><span id="line-84"></span><span>          </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Data.Functor.Rep.html#Rep"><span class="hs-identifier hs-type">Rep</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679097527"><span class="hs-identifier hs-type">g</span></a></span></span></span><span>      </span><span class="annot"><span class="hs-comment">-- ^final state</span></span><span>
+</span><span id="line-85"></span><span id="execState"><span class="annot"><span class="annottext">execState :: forall (g :: * -&gt; *) a.
+Representable g =&gt;
+State g a -&gt; Rep g -&gt; Rep g
+</span><a href="Control.Monad.Representable.State.html#execState"><span class="hs-identifier hs-var hs-var">execState</span></a></span></span><span> </span><span id="local-6989586621679097788"><span class="annot"><span class="annottext">State g a
+</span><a href="#local-6989586621679097788"><span class="hs-identifier hs-var">m</span></a></span></span><span> </span><span id="local-6989586621679097789"><span class="annot"><span class="annottext">Rep g
+</span><a href="#local-6989586621679097789"><span class="hs-identifier hs-var">s</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(a, Rep g) -&gt; Rep g
+forall a b. (a, b) -&gt; b
+</span><span class="hs-identifier hs-var">snd</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">State g a -&gt; Rep g -&gt; (a, Rep g)
+forall (g :: * -&gt; *) a.
+Representable g =&gt;
+State g a -&gt; Rep g -&gt; (a, Rep g)
+</span><a href="Control.Monad.Representable.State.html#runState"><span class="hs-identifier hs-var">runState</span></a></span><span> </span><span class="annot"><span class="annottext">State g a
+</span><a href="#local-6989586621679097788"><span class="hs-identifier hs-var">m</span></a></span><span> </span><span class="annot"><span class="annottext">Rep g
+</span><a href="#local-6989586621679097789"><span class="hs-identifier hs-var">s</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-86"></span><span>
+</span><span id="line-87"></span><span class="hs-comment">-- | Map both the return value and final state of a computation using</span><span>
+</span><span id="line-88"></span><span class="hs-comment">-- the given function.</span><span>
+</span><span id="line-89"></span><span class="hs-comment">--</span><span>
+</span><span id="line-90"></span><span class="hs-comment">-- * @'runState' ('mapState' f m) = f . 'runState' m@</span><span>
+</span><span id="line-91"></span><span id="local-6989586621679097533"><span id="local-6989586621679097534"><span id="local-6989586621679097535"><span class="annot"><a href="Control.Monad.Representable.State.html#mapState"><span class="hs-identifier hs-type">mapState</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Functor</span></span><span> </span><span class="annot"><a href="#local-6989586621679097533"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679097534"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Functor.Rep.html#Rep"><span class="hs-identifier hs-type">Rep</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679097533"><span class="hs-identifier hs-type">g</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679097535"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Functor.Rep.html#Rep"><span class="hs-identifier hs-type">Rep</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679097533"><span class="hs-identifier hs-type">g</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Control.Monad.Representable.State.html#State"><span class="hs-identifier hs-type">State</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679097533"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679097534"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Control.Monad.Representable.State.html#State"><span class="hs-identifier hs-type">State</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679097533"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679097535"><span class="hs-identifier hs-type">b</span></a></span></span></span></span><span>
+</span><span id="line-92"></span><span id="mapState"><span class="annot"><span class="annottext">mapState :: forall (g :: * -&gt; *) a b.
+Functor g =&gt;
+((a, Rep g) -&gt; (b, Rep g)) -&gt; State g a -&gt; State g b
+</span><a href="Control.Monad.Representable.State.html#mapState"><span class="hs-identifier hs-var hs-var">mapState</span></a></span></span><span> </span><span id="local-6989586621679097792"><span class="annot"><span class="annottext">(a, Rep g) -&gt; (b, Rep g)
+</span><a href="#local-6989586621679097792"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Identity (a, Rep g) -&gt; Identity (b, Rep g))
+-&gt; StateT g Identity a -&gt; StateT g Identity b
+forall (g :: * -&gt; *) (m :: * -&gt; *) a (n :: * -&gt; *) b.
+Functor g =&gt;
+(m (a, Rep g) -&gt; n (b, Rep g)) -&gt; StateT g m a -&gt; StateT g n b
+</span><a href="Control.Monad.Representable.State.html#mapStateT"><span class="hs-identifier hs-var">mapStateT</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(b, Rep g) -&gt; Identity (b, Rep g)
+forall a. a -&gt; Identity a
+</span><span class="hs-identifier hs-var">Identity</span></span><span> </span><span class="annot"><span class="annottext">((b, Rep g) -&gt; Identity (b, Rep g))
+-&gt; (Identity (a, Rep g) -&gt; (b, Rep g))
+-&gt; Identity (a, Rep g)
+-&gt; Identity (b, Rep g)
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">(a, Rep g) -&gt; (b, Rep g)
+</span><a href="#local-6989586621679097792"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">((a, Rep g) -&gt; (b, Rep g))
+-&gt; (Identity (a, Rep g) -&gt; (a, Rep g))
+-&gt; Identity (a, Rep g)
+-&gt; (b, Rep g)
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Identity (a, Rep g) -&gt; (a, Rep g)
+forall a. Identity a -&gt; a
+</span><span class="hs-identifier hs-var">runIdentity</span></span><span class="hs-special">)</span><span>
+</span><span id="line-93"></span><span>
+</span><span id="line-94"></span><span class="hs-comment">-- ---------------------------------------------------------------------------</span><span>
+</span><span id="line-95"></span><span class="hs-comment">-- | A state transformer monad parameterized by:</span><span>
+</span><span id="line-96"></span><span class="hs-comment">--</span><span>
+</span><span id="line-97"></span><span class="hs-comment">--   * @g@ - A representable functor used to memoize results for a state @Rep g@</span><span>
+</span><span id="line-98"></span><span class="hs-comment">--</span><span>
+</span><span id="line-99"></span><span class="hs-comment">--   * @m@ - The inner monad.</span><span>
+</span><span id="line-100"></span><span class="hs-comment">--</span><span>
+</span><span id="line-101"></span><span class="hs-comment">-- The 'return' function leaves the state unchanged, while @&gt;&gt;=@ uses</span><span>
+</span><span id="line-102"></span><span class="hs-comment">-- the final state of the first computation as the initial state of</span><span>
+</span><span id="line-103"></span><span class="hs-comment">-- the second.</span><span>
+</span><span id="line-104"></span><span class="hs-keyword">newtype</span><span> </span><span id="StateT"><span class="annot"><a href="Control.Monad.Representable.State.html#StateT"><span class="hs-identifier hs-var">StateT</span></a></span></span><span> </span><span id="local-6989586621679097545"><span class="annot"><a href="#local-6989586621679097545"><span class="hs-identifier hs-type">g</span></a></span></span><span> </span><span id="local-6989586621679097546"><span class="annot"><a href="#local-6989586621679097546"><span class="hs-identifier hs-type">m</span></a></span></span><span> </span><span id="local-6989586621679097547"><span class="annot"><a href="#local-6989586621679097547"><span class="hs-identifier hs-type">a</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="StateT"><span class="annot"><a href="Control.Monad.Representable.State.html#StateT"><span class="hs-identifier hs-var">StateT</span></a></span></span><span> </span><span class="hs-special">{</span><span> </span><span id="getStateT"><span class="annot"><span class="annottext">forall (g :: * -&gt; *) (m :: * -&gt; *) a.
+StateT g m a -&gt; g (m (a, Rep g))
+</span><a href="Control.Monad.Representable.State.html#getStateT"><span class="hs-identifier hs-var hs-var">getStateT</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="#local-6989586621679097545"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679097546"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679097547"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Functor.Rep.html#Rep"><span class="hs-identifier hs-type">Rep</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679097545"><span class="hs-identifier hs-type">g</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-special">}</span><span>
+</span><span id="line-105"></span><span>
+</span><span id="line-106"></span><span id="local-6989586621679097551"><span id="local-6989586621679097552"><span id="local-6989586621679097553"><span class="annot"><a href="Control.Monad.Representable.State.html#stateT"><span class="hs-identifier hs-type">stateT</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Data.Functor.Rep.html#Representable"><span class="hs-identifier hs-type">Representable</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679097551"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Functor.Rep.html#Rep"><span class="hs-identifier hs-type">Rep</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679097551"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679097552"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679097553"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Functor.Rep.html#Rep"><span class="hs-identifier hs-type">Rep</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679097551"><span class="hs-identifier hs-type">g</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Control.Monad.Representable.State.html#StateT"><span class="hs-identifier hs-type">StateT</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679097551"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679097552"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679097553"><span class="hs-identifier hs-type">a</span></a></span></span></span></span><span>
+</span><span id="line-107"></span><span id="stateT"><span class="annot"><span class="annottext">stateT :: forall (g :: * -&gt; *) (m :: * -&gt; *) a.
+Representable g =&gt;
+(Rep g -&gt; m (a, Rep g)) -&gt; StateT g m a
+</span><a href="Control.Monad.Representable.State.html#stateT"><span class="hs-identifier hs-var hs-var">stateT</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">g (m (a, Rep g)) -&gt; StateT g m a
+forall (g :: * -&gt; *) (m :: * -&gt; *) a.
+g (m (a, Rep g)) -&gt; StateT g m a
+</span><a href="Control.Monad.Representable.State.html#StateT"><span class="hs-identifier hs-var">StateT</span></a></span><span> </span><span class="annot"><span class="annottext">(g (m (a, Rep g)) -&gt; StateT g m a)
+-&gt; ((Rep g -&gt; m (a, Rep g)) -&gt; g (m (a, Rep g)))
+-&gt; (Rep g -&gt; m (a, Rep g))
+-&gt; StateT g m a
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">(Rep g -&gt; m (a, Rep g)) -&gt; g (m (a, Rep g))
+forall a. (Rep g -&gt; a) -&gt; g a
+forall (f :: * -&gt; *) a. Representable f =&gt; (Rep f -&gt; a) -&gt; f a
+</span><a href="Data.Functor.Rep.html#tabulate"><span class="hs-identifier hs-var">tabulate</span></a></span><span>
+</span><span id="line-108"></span><span>
+</span><span id="line-109"></span><span id="local-6989586621679097517"><span id="local-6989586621679097518"><span id="local-6989586621679097519"><span class="annot"><a href="Control.Monad.Representable.State.html#runStateT"><span class="hs-identifier hs-type">runStateT</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Data.Functor.Rep.html#Representable"><span class="hs-identifier hs-type">Representable</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679097517"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Control.Monad.Representable.State.html#StateT"><span class="hs-identifier hs-type">StateT</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679097517"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679097518"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679097519"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Data.Functor.Rep.html#Rep"><span class="hs-identifier hs-type">Rep</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679097517"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679097518"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679097519"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Functor.Rep.html#Rep"><span class="hs-identifier hs-type">Rep</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679097517"><span class="hs-identifier hs-type">g</span></a></span><span class="hs-special">)</span></span></span></span><span>
+</span><span id="line-110"></span><span id="runStateT"><span class="annot"><span class="annottext">runStateT :: forall (g :: * -&gt; *) (m :: * -&gt; *) a.
+Representable g =&gt;
+StateT g m a -&gt; Rep g -&gt; m (a, Rep g)
+</span><a href="Control.Monad.Representable.State.html#runStateT"><span class="hs-identifier hs-var hs-var">runStateT</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Representable.State.html#StateT"><span class="hs-identifier hs-type">StateT</span></a></span><span> </span><span id="local-6989586621679097801"><span class="annot"><span class="annottext">g (m (a, Rep g))
+</span><a href="#local-6989586621679097801"><span class="hs-identifier hs-var">m</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">g (m (a, Rep g)) -&gt; Rep g -&gt; m (a, Rep g)
+forall a. g a -&gt; Rep g -&gt; a
+forall (f :: * -&gt; *) a. Representable f =&gt; f a -&gt; Rep f -&gt; a
+</span><a href="Data.Functor.Rep.html#index"><span class="hs-identifier hs-var">index</span></a></span><span> </span><span class="annot"><span class="annottext">g (m (a, Rep g))
+</span><a href="#local-6989586621679097801"><span class="hs-identifier hs-var">m</span></a></span><span>
+</span><span id="line-111"></span><span>
+</span><span id="line-112"></span><span id="local-6989586621679097539"><span id="local-6989586621679097540"><span id="local-6989586621679097541"><span id="local-6989586621679097542"><span id="local-6989586621679097543"><span class="annot"><a href="Control.Monad.Representable.State.html#mapStateT"><span class="hs-identifier hs-type">mapStateT</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Functor</span></span><span> </span><span class="annot"><a href="#local-6989586621679097539"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679097540"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679097541"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Functor.Rep.html#Rep"><span class="hs-identifier hs-type">Rep</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679097539"><span class="hs-identifier hs-type">g</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679097542"><span class="hs-identifier hs-type">n</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679097543"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Functor.Rep.html#Rep"><span class="hs-identifier hs-type">Rep</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679097539"><span class="hs-identifier hs-type">g</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Control.Monad.Representable.State.html#StateT"><span class="hs-identifier hs-type">StateT</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679097539"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679097540"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679097541"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Control.Monad.Representable.State.html#StateT"><span class="hs-identifier hs-type">StateT</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679097539"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679097542"><span class="hs-identifier hs-type">n</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679097543"><span class="hs-identifier hs-type">b</span></a></span></span></span></span></span></span><span>
+</span><span id="line-113"></span><span id="mapStateT"><span class="annot"><span class="annottext">mapStateT :: forall (g :: * -&gt; *) (m :: * -&gt; *) a (n :: * -&gt; *) b.
+Functor g =&gt;
+(m (a, Rep g) -&gt; n (b, Rep g)) -&gt; StateT g m a -&gt; StateT g n b
+</span><a href="Control.Monad.Representable.State.html#mapStateT"><span class="hs-identifier hs-var hs-var">mapStateT</span></a></span></span><span> </span><span id="local-6989586621679097805"><span class="annot"><span class="annottext">m (a, Rep g) -&gt; n (b, Rep g)
+</span><a href="#local-6989586621679097805"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Representable.State.html#StateT"><span class="hs-identifier hs-type">StateT</span></a></span><span> </span><span id="local-6989586621679097806"><span class="annot"><span class="annottext">g (m (a, Rep g))
+</span><a href="#local-6989586621679097806"><span class="hs-identifier hs-var">m</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">g (n (b, Rep g)) -&gt; StateT g n b
+forall (g :: * -&gt; *) (m :: * -&gt; *) a.
+g (m (a, Rep g)) -&gt; StateT g m a
+</span><a href="Control.Monad.Representable.State.html#StateT"><span class="hs-identifier hs-var">StateT</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(m (a, Rep g) -&gt; n (b, Rep g))
+-&gt; g (m (a, Rep g)) -&gt; g (n (b, Rep g))
+forall a b. (a -&gt; b) -&gt; g a -&gt; g b
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="annot"><span class="annottext">m (a, Rep g) -&gt; n (b, Rep g)
+</span><a href="#local-6989586621679097805"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">g (m (a, Rep g))
+</span><a href="#local-6989586621679097806"><span class="hs-identifier hs-var">m</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-114"></span><span>
+</span><span id="line-115"></span><span class="hs-comment">-- | Evaluate a state computation with the given initial state</span><span>
+</span><span id="line-116"></span><span class="hs-comment">-- and return the final value, discarding the final state.</span><span>
+</span><span id="line-117"></span><span class="hs-comment">--</span><span>
+</span><span id="line-118"></span><span class="hs-comment">-- * @'evalStateT' m s = 'liftM' 'fst' ('runStateT' m s)@</span><span>
+</span><span id="line-119"></span><span id="local-6989586621679097571"><span id="local-6989586621679097572"><span id="local-6989586621679097573"><span class="annot"><a href="Control.Monad.Representable.State.html#evalStateT"><span class="hs-identifier hs-type">evalStateT</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Functor.Rep.html#Representable"><span class="hs-identifier hs-type">Representable</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679097571"><span class="hs-identifier hs-type">g</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Monad</span></span><span> </span><span class="annot"><a href="#local-6989586621679097572"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Control.Monad.Representable.State.html#StateT"><span class="hs-identifier hs-type">StateT</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679097571"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679097572"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679097573"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Data.Functor.Rep.html#Rep"><span class="hs-identifier hs-type">Rep</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679097571"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679097572"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679097573"><span class="hs-identifier hs-type">a</span></a></span></span></span></span><span>
+</span><span id="line-120"></span><span id="evalStateT"><span class="annot"><span class="annottext">evalStateT :: forall (g :: * -&gt; *) (m :: * -&gt; *) a.
+(Representable g, Monad m) =&gt;
+StateT g m a -&gt; Rep g -&gt; m a
+</span><a href="Control.Monad.Representable.State.html#evalStateT"><span class="hs-identifier hs-var hs-var">evalStateT</span></a></span></span><span> </span><span id="local-6989586621679097813"><span class="annot"><span class="annottext">StateT g m a
+</span><a href="#local-6989586621679097813"><span class="hs-identifier hs-var">m</span></a></span></span><span> </span><span id="local-6989586621679097814"><span class="annot"><span class="annottext">Rep g
+</span><a href="#local-6989586621679097814"><span class="hs-identifier hs-var">s</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-121"></span><span>    </span><span class="hs-special">(</span><span id="local-6989586621679097815"><span class="annot"><a href="#local-6989586621679097815"><span class="hs-identifier hs-var">a</span></a></span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">StateT g m a -&gt; Rep g -&gt; m (a, Rep g)
+forall (g :: * -&gt; *) (m :: * -&gt; *) a.
+Representable g =&gt;
+StateT g m a -&gt; Rep g -&gt; m (a, Rep g)
+</span><a href="Control.Monad.Representable.State.html#runStateT"><span class="hs-identifier hs-var">runStateT</span></a></span><span> </span><span class="annot"><span class="annottext">StateT g m a
+</span><a href="#local-6989586621679097813"><span class="hs-identifier hs-var">m</span></a></span><span> </span><span class="annot"><span class="annottext">Rep g
+</span><a href="#local-6989586621679097814"><span class="hs-identifier hs-var">s</span></a></span><span>
+</span><span id="line-122"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">return</span></span><span> </span><span class="annot"><a href="#local-6989586621679097815"><span class="hs-identifier hs-type">a</span></a></span><span>
+</span><span id="line-123"></span><span>
+</span><span id="line-124"></span><span class="hs-comment">-- | Evaluate a state computation with the given initial state</span><span>
+</span><span id="line-125"></span><span class="hs-comment">-- and return the final state, discarding the final value.</span><span>
+</span><span id="line-126"></span><span class="hs-comment">--</span><span>
+</span><span id="line-127"></span><span class="hs-comment">-- * @'execStateT' m s = 'liftM' 'snd' ('runStateT' m s)@</span><span>
+</span><span id="line-128"></span><span id="local-6989586621679097579"><span id="local-6989586621679097580"><span id="local-6989586621679097581"><span class="annot"><a href="Control.Monad.Representable.State.html#execStateT"><span class="hs-identifier hs-type">execStateT</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Functor.Rep.html#Representable"><span class="hs-identifier hs-type">Representable</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679097579"><span class="hs-identifier hs-type">g</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Monad</span></span><span> </span><span class="annot"><a href="#local-6989586621679097580"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Control.Monad.Representable.State.html#StateT"><span class="hs-identifier hs-type">StateT</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679097579"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679097580"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679097581"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Data.Functor.Rep.html#Rep"><span class="hs-identifier hs-type">Rep</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679097579"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679097580"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Functor.Rep.html#Rep"><span class="hs-identifier hs-type">Rep</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679097579"><span class="hs-identifier hs-type">g</span></a></span><span class="hs-special">)</span></span></span></span><span>
+</span><span id="line-129"></span><span id="execStateT"><span class="annot"><span class="annottext">execStateT :: forall (g :: * -&gt; *) (m :: * -&gt; *) a.
+(Representable g, Monad m) =&gt;
+StateT g m a -&gt; Rep g -&gt; m (Rep g)
+</span><a href="Control.Monad.Representable.State.html#execStateT"><span class="hs-identifier hs-var hs-var">execStateT</span></a></span></span><span> </span><span id="local-6989586621679097821"><span class="annot"><span class="annottext">StateT g m a
+</span><a href="#local-6989586621679097821"><span class="hs-identifier hs-var">m</span></a></span></span><span> </span><span id="local-6989586621679097822"><span class="annot"><span class="annottext">Rep g
+</span><a href="#local-6989586621679097822"><span class="hs-identifier hs-var">s</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-130"></span><span>    </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">_</span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679097823"><span class="annot"><a href="#local-6989586621679097823"><span class="hs-identifier hs-var">s'</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">StateT g m a -&gt; Rep g -&gt; m (a, Rep g)
+forall (g :: * -&gt; *) (m :: * -&gt; *) a.
+Representable g =&gt;
+StateT g m a -&gt; Rep g -&gt; m (a, Rep g)
+</span><a href="Control.Monad.Representable.State.html#runStateT"><span class="hs-identifier hs-var">runStateT</span></a></span><span> </span><span class="annot"><span class="annottext">StateT g m a
+</span><a href="#local-6989586621679097821"><span class="hs-identifier hs-var">m</span></a></span><span> </span><span class="annot"><span class="annottext">Rep g
+</span><a href="#local-6989586621679097822"><span class="hs-identifier hs-var">s</span></a></span><span>
+</span><span id="line-131"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">return</span></span><span> </span><span class="annot"><a href="#local-6989586621679097823"><span class="hs-identifier hs-type">s'</span></a></span><span>
+</span><span id="line-132"></span><span>
+</span><span id="line-133"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679097589"><span id="local-6989586621679097590"><span id="local-6989586621679097828"><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Functor</span></span><span> </span><span class="annot"><a href="#local-6989586621679097589"><span class="hs-identifier hs-type">g</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Functor</span></span><span> </span><span class="annot"><a href="#local-6989586621679097590"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Functor</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Representable.State.html#StateT"><span class="hs-identifier hs-type">StateT</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679097589"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679097590"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-134"></span><span>  </span><span id="local-6989586621679097834"><span class="annot"><span class="annottext">fmap :: forall a b. (a -&gt; b) -&gt; StateT g m a -&gt; StateT g m b
+</span><span class="hs-identifier hs-var hs-var hs-var">fmap</span></span></span><span> </span><span id="local-6989586621679097835"><span class="annot"><span class="annottext">a -&gt; b
+</span><a href="#local-6989586621679097835"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">g (m (b, Rep g)) -&gt; StateT g m b
+forall (g :: * -&gt; *) (m :: * -&gt; *) a.
+g (m (a, Rep g)) -&gt; StateT g m a
+</span><a href="Control.Monad.Representable.State.html#StateT"><span class="hs-identifier hs-var">StateT</span></a></span><span> </span><span class="annot"><span class="annottext">(g (m (b, Rep g)) -&gt; StateT g m b)
+-&gt; (StateT g m a -&gt; g (m (b, Rep g)))
+-&gt; StateT g m a
+-&gt; StateT g m b
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">(m (a, Rep g) -&gt; m (b, Rep g))
+-&gt; g (m (a, Rep g)) -&gt; g (m (b, Rep g))
+forall a b. (a -&gt; b) -&gt; g a -&gt; g b
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">((a, Rep g) -&gt; (b, Rep g)) -&gt; m (a, Rep g) -&gt; m (b, Rep g)
+forall a b. (a -&gt; b) -&gt; m a -&gt; m b
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span> </span><span class="hs-glyph">~</span><span class="hs-special">(</span><span id="local-6989586621679097836"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679097836"><span class="hs-identifier hs-var">a</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679097837"><span class="annot"><span class="annottext">Rep g
+</span><a href="#local-6989586621679097837"><span class="hs-identifier hs-var">s</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a -&gt; b
+</span><a href="#local-6989586621679097835"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679097836"><span class="hs-identifier hs-var">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Rep g
+</span><a href="#local-6989586621679097837"><span class="hs-identifier hs-var">s</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(g (m (a, Rep g)) -&gt; g (m (b, Rep g)))
+-&gt; (StateT g m a -&gt; g (m (a, Rep g)))
+-&gt; StateT g m a
+-&gt; g (m (b, Rep g))
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">StateT g m a -&gt; g (m (a, Rep g))
+forall (g :: * -&gt; *) (m :: * -&gt; *) a.
+StateT g m a -&gt; g (m (a, Rep g))
+</span><a href="Control.Monad.Representable.State.html#getStateT"><span class="hs-identifier hs-var">getStateT</span></a></span><span>
+</span><span id="line-135"></span><span>
+</span><span id="line-136"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679097610"><span id="local-6989586621679097611"><span id="local-6989586621679097846"><span id="local-6989586621679097850"><span id="local-6989586621679097853"><span class="hs-special">(</span><span class="annot"><a href="Data.Functor.Rep.html#Representable"><span class="hs-identifier hs-type">Representable</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679097610"><span class="hs-identifier hs-type">g</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bind</span></span><span> </span><span class="annot"><a href="#local-6989586621679097611"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Apply</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Representable.State.html#StateT"><span class="hs-identifier hs-type">StateT</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679097610"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679097611"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span></span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-137"></span><span>  </span><span id="local-6989586621679097865"><span class="annot"><span class="annottext">StateT g m (a -&gt; b)
+</span><a href="#local-6989586621679097865"><span class="hs-identifier hs-var">mf</span></a></span></span><span> </span><span id="local-6989586621679097866"><span class="annot"><span class="annottext">&lt;.&gt; :: forall a b. StateT g m (a -&gt; b) -&gt; StateT g m a -&gt; StateT g m b
+</span><a href="#local-6989586621679097866"><span class="hs-operator hs-var hs-var hs-var">&lt;.&gt;</span></a></span></span><span> </span><span id="local-6989586621679097868"><span class="annot"><span class="annottext">StateT g m a
+</span><a href="#local-6989586621679097868"><span class="hs-identifier hs-var">ma</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">StateT g m (a -&gt; b)
+</span><a href="#local-6989586621679097865"><span class="hs-identifier hs-var">mf</span></a></span><span> </span><span class="annot"><span class="annottext">StateT g m (a -&gt; b) -&gt; ((a -&gt; b) -&gt; StateT g m b) -&gt; StateT g m b
+forall a b. StateT g m a -&gt; (a -&gt; StateT g m b) -&gt; StateT g m b
+forall (m :: * -&gt; *) a b. Bind m =&gt; m a -&gt; (a -&gt; m b) -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;-</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679097870"><span class="annot"><span class="annottext">a -&gt; b
+</span><a href="#local-6989586621679097870"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">(a -&gt; b) -&gt; StateT g m a -&gt; StateT g m b
+forall a b. (a -&gt; b) -&gt; StateT g m a -&gt; StateT g m b
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; b
+</span><a href="#local-6989586621679097870"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">StateT g m a
+</span><a href="#local-6989586621679097868"><span class="hs-identifier hs-var">ma</span></a></span><span>
+</span><span id="line-138"></span><span>
+</span><span id="line-139"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679097631"><span id="local-6989586621679097632"><span id="local-6989586621679097880"><span id="local-6989586621679097884"><span id="local-6989586621679097887"><span class="hs-special">(</span><span class="annot"><a href="Data.Functor.Rep.html#Representable"><span class="hs-identifier hs-type">Representable</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679097631"><span class="hs-identifier hs-type">g</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Functor</span></span><span> </span><span class="annot"><a href="#local-6989586621679097632"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Monad</span></span><span> </span><span class="annot"><a href="#local-6989586621679097632"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Applicative</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Representable.State.html#StateT"><span class="hs-identifier hs-type">StateT</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679097631"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679097632"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span></span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-140"></span><span>  </span><span id="local-6989586621679097893"><span class="annot"><span class="annottext">pure :: forall a. a -&gt; StateT g m a
+</span><span class="hs-identifier hs-var hs-var hs-var">pure</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">g (m (a, Rep g)) -&gt; StateT g m a
+forall (g :: * -&gt; *) (m :: * -&gt; *) a.
+g (m (a, Rep g)) -&gt; StateT g m a
+</span><a href="Control.Monad.Representable.State.html#StateT"><span class="hs-identifier hs-var">StateT</span></a></span><span> </span><span class="annot"><span class="annottext">(g (m (a, Rep g)) -&gt; StateT g m a)
+-&gt; (a -&gt; g (m (a, Rep g))) -&gt; a -&gt; StateT g m a
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">((a, Rep g) -&gt; m (a, Rep g)) -&gt; a -&gt; g (m (a, Rep g))
+forall (u :: * -&gt; *) a b.
+Representable u =&gt;
+((a, Rep u) -&gt; b) -&gt; a -&gt; u b
+</span><a href="Control.Monad.Representable.State.html#leftAdjunctRep"><span class="hs-identifier hs-var">leftAdjunctRep</span></a></span><span> </span><span class="annot"><span class="annottext">(a, Rep g) -&gt; m (a, Rep g)
+forall a. a -&gt; m a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span>
+</span><span id="line-141"></span><span>  </span><span id="local-6989586621679097898"><span class="annot"><span class="annottext">StateT g m (a -&gt; b)
+</span><a href="#local-6989586621679097898"><span class="hs-identifier hs-var">mf</span></a></span></span><span> </span><span id="local-6989586621679097899"><span class="annot"><span class="annottext">&lt;*&gt; :: forall a b. StateT g m (a -&gt; b) -&gt; StateT g m a -&gt; StateT g m b
+</span><span class="hs-operator hs-var hs-var hs-var">&lt;*&gt;</span></span></span><span> </span><span id="local-6989586621679097900"><span class="annot"><span class="annottext">StateT g m a
+</span><a href="#local-6989586621679097900"><span class="hs-identifier hs-var">ma</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">StateT g m (a -&gt; b)
+</span><a href="#local-6989586621679097898"><span class="hs-identifier hs-var">mf</span></a></span><span> </span><span class="annot"><span class="annottext">StateT g m (a -&gt; b) -&gt; ((a -&gt; b) -&gt; StateT g m b) -&gt; StateT g m b
+forall a b. StateT g m a -&gt; (a -&gt; StateT g m b) -&gt; StateT g m b
+forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; (a -&gt; m b) -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;=</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679097901"><span class="annot"><span class="annottext">a -&gt; b
+</span><a href="#local-6989586621679097901"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">(a -&gt; b) -&gt; StateT g m a -&gt; StateT g m b
+forall a b. (a -&gt; b) -&gt; StateT g m a -&gt; StateT g m b
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; b
+</span><a href="#local-6989586621679097901"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">StateT g m a
+</span><a href="#local-6989586621679097900"><span class="hs-identifier hs-var">ma</span></a></span><span>
+</span><span id="line-142"></span><span>
+</span><span id="line-143"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679097612"><span id="local-6989586621679097613"><span id="local-6989586621679097908"><span class="hs-special">(</span><span class="annot"><a href="Data.Functor.Rep.html#Representable"><span class="hs-identifier hs-type">Representable</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679097612"><span class="hs-identifier hs-type">g</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bind</span></span><span> </span><span class="annot"><a href="#local-6989586621679097613"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bind</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Representable.State.html#StateT"><span class="hs-identifier hs-type">StateT</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679097612"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679097613"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-144"></span><span>  </span><span class="annot"><a href="Control.Monad.Representable.State.html#StateT"><span class="hs-identifier hs-type">StateT</span></a></span><span> </span><span id="local-6989586621679097918"><span class="annot"><span class="annottext">g (m (a, Rep g))
+</span><a href="#local-6989586621679097918"><span class="hs-identifier hs-var">m</span></a></span></span><span> </span><span id="local-6989586621679097919"><span class="annot"><span class="annottext">&gt;&gt;- :: forall a b. StateT g m a -&gt; (a -&gt; StateT g m b) -&gt; StateT g m b
+</span><span class="hs-operator hs-var hs-var hs-var">&gt;&gt;-</span></span></span><span> </span><span id="local-6989586621679097920"><span class="annot"><span class="annottext">a -&gt; StateT g m b
+</span><a href="#local-6989586621679097920"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">g (m (b, Rep g)) -&gt; StateT g m b
+forall (g :: * -&gt; *) (m :: * -&gt; *) a.
+g (m (a, Rep g)) -&gt; StateT g m a
+</span><a href="Control.Monad.Representable.State.html#StateT"><span class="hs-identifier hs-var">StateT</span></a></span><span> </span><span class="annot"><span class="annottext">(g (m (b, Rep g)) -&gt; StateT g m b)
+-&gt; g (m (b, Rep g)) -&gt; StateT g m b
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">(m (a, Rep ((-&gt;) (Rep g))) -&gt; m (b, Rep g))
+-&gt; g (m (a, Rep ((-&gt;) (Rep g)))) -&gt; g (m (b, Rep g))
+forall a b. (a -&gt; b) -&gt; g a -&gt; g b
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">m (a, Rep ((-&gt;) (Rep g)))
+-&gt; ((a, Rep ((-&gt;) (Rep g))) -&gt; m (b, Rep g)) -&gt; m (b, Rep g)
+forall a b. m a -&gt; (a -&gt; m b) -&gt; m b
+forall (m :: * -&gt; *) a b. Bind m =&gt; m a -&gt; (a -&gt; m b) -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;-</span></span><span> </span><span class="annot"><span class="annottext">(a -&gt; Rep g -&gt; m (b, Rep g))
+-&gt; (a, Rep ((-&gt;) (Rep g))) -&gt; m (b, Rep g)
+forall (u :: * -&gt; *) a b.
+Representable u =&gt;
+(a -&gt; u b) -&gt; (a, Rep u) -&gt; b
+</span><a href="Control.Monad.Representable.State.html#rightAdjunctRep"><span class="hs-identifier hs-var">rightAdjunctRep</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">StateT g m b -&gt; Rep g -&gt; m (b, Rep g)
+forall (g :: * -&gt; *) (m :: * -&gt; *) a.
+Representable g =&gt;
+StateT g m a -&gt; Rep g -&gt; m (a, Rep g)
+</span><a href="Control.Monad.Representable.State.html#runStateT"><span class="hs-identifier hs-var">runStateT</span></a></span><span> </span><span class="annot"><span class="annottext">(StateT g m b -&gt; Rep g -&gt; m (b, Rep g))
+-&gt; (a -&gt; StateT g m b) -&gt; a -&gt; Rep g -&gt; m (b, Rep g)
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; StateT g m b
+</span><a href="#local-6989586621679097920"><span class="hs-identifier hs-var">f</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">g (m (a, Rep g))
+g (m (a, Rep ((-&gt;) (Rep g))))
+</span><a href="#local-6989586621679097918"><span class="hs-identifier hs-var">m</span></a></span><span>
+</span><span id="line-145"></span><span>
+</span><span id="line-146"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679097637"><span id="local-6989586621679097638"><span id="local-6989586621679097929"><span id="local-6989586621679097932"><span class="hs-special">(</span><span class="annot"><a href="Data.Functor.Rep.html#Representable"><span class="hs-identifier hs-type">Representable</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679097637"><span class="hs-identifier hs-type">g</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Monad</span></span><span> </span><span class="annot"><a href="#local-6989586621679097638"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Monad</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Representable.State.html#StateT"><span class="hs-identifier hs-type">StateT</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679097637"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679097638"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-147"></span><span>  </span><span class="annot"><a href="Control.Monad.Representable.State.html#StateT"><span class="hs-identifier hs-type">StateT</span></a></span><span> </span><span id="local-6989586621679097944"><span class="annot"><span class="annottext">g (m (a, Rep g))
+</span><a href="#local-6989586621679097944"><span class="hs-identifier hs-var">m</span></a></span></span><span> </span><span id="local-6989586621679097945"><span class="annot"><span class="annottext">&gt;&gt;= :: forall a b. StateT g m a -&gt; (a -&gt; StateT g m b) -&gt; StateT g m b
+</span><span class="hs-operator hs-var hs-var hs-var">&gt;&gt;=</span></span></span><span> </span><span id="local-6989586621679097946"><span class="annot"><span class="annottext">a -&gt; StateT g m b
+</span><a href="#local-6989586621679097946"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">g (m (b, Rep g)) -&gt; StateT g m b
+forall (g :: * -&gt; *) (m :: * -&gt; *) a.
+g (m (a, Rep g)) -&gt; StateT g m a
+</span><a href="Control.Monad.Representable.State.html#StateT"><span class="hs-identifier hs-var">StateT</span></a></span><span> </span><span class="annot"><span class="annottext">(g (m (b, Rep g)) -&gt; StateT g m b)
+-&gt; g (m (b, Rep g)) -&gt; StateT g m b
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">(m (a, Rep ((-&gt;) (Rep g))) -&gt; m (b, Rep g))
+-&gt; g (m (a, Rep ((-&gt;) (Rep g)))) -&gt; g (m (b, Rep g))
+forall a b. (a -&gt; b) -&gt; g a -&gt; g b
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">m (a, Rep ((-&gt;) (Rep g)))
+-&gt; ((a, Rep ((-&gt;) (Rep g))) -&gt; m (b, Rep g)) -&gt; m (b, Rep g)
+forall a b. m a -&gt; (a -&gt; m b) -&gt; m b
+forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; (a -&gt; m b) -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;=</span></span><span> </span><span class="annot"><span class="annottext">(a -&gt; Rep g -&gt; m (b, Rep g))
+-&gt; (a, Rep ((-&gt;) (Rep g))) -&gt; m (b, Rep g)
+forall (u :: * -&gt; *) a b.
+Representable u =&gt;
+(a -&gt; u b) -&gt; (a, Rep u) -&gt; b
+</span><a href="Control.Monad.Representable.State.html#rightAdjunctRep"><span class="hs-identifier hs-var">rightAdjunctRep</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">StateT g m b -&gt; Rep g -&gt; m (b, Rep g)
+forall (g :: * -&gt; *) (m :: * -&gt; *) a.
+Representable g =&gt;
+StateT g m a -&gt; Rep g -&gt; m (a, Rep g)
+</span><a href="Control.Monad.Representable.State.html#runStateT"><span class="hs-identifier hs-var">runStateT</span></a></span><span> </span><span class="annot"><span class="annottext">(StateT g m b -&gt; Rep g -&gt; m (b, Rep g))
+-&gt; (a -&gt; StateT g m b) -&gt; a -&gt; Rep g -&gt; m (b, Rep g)
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; StateT g m b
+</span><a href="#local-6989586621679097946"><span class="hs-identifier hs-var">f</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">g (m (a, Rep g))
+g (m (a, Rep ((-&gt;) (Rep g))))
+</span><a href="#local-6989586621679097944"><span class="hs-identifier hs-var">m</span></a></span><span>
+</span><span id="line-148"></span><span>
+</span><span id="line-149"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679097668"><span class="annot"><a href="Data.Functor.Rep.html#Representable"><span class="hs-identifier hs-type">Representable</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679097668"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">BindTrans</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Representable.State.html#StateT"><span class="hs-identifier hs-type">StateT</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679097668"><span class="hs-identifier hs-type">f</span></a></span><span class="hs-special">)</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-150"></span><span>  </span><span id="local-6989586621679097959"><span class="annot"><span class="annottext">liftB :: forall (b :: * -&gt; *) a. Bind b =&gt; b a -&gt; StateT f b a
+</span><a href="#local-6989586621679097959"><span class="hs-identifier hs-var hs-var hs-var">liftB</span></a></span></span><span> </span><span id="local-6989586621679097961"><span class="annot"><span class="annottext">b a
+</span><a href="#local-6989586621679097961"><span class="hs-identifier hs-var">m</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Rep f -&gt; b (a, Rep f)) -&gt; StateT f b a
+forall (g :: * -&gt; *) (m :: * -&gt; *) a.
+Representable g =&gt;
+(Rep g -&gt; m (a, Rep g)) -&gt; StateT g m a
+</span><a href="Control.Monad.Representable.State.html#stateT"><span class="hs-identifier hs-var">stateT</span></a></span><span> </span><span class="annot"><span class="annottext">((Rep f -&gt; b (a, Rep f)) -&gt; StateT f b a)
+-&gt; (Rep f -&gt; b (a, Rep f)) -&gt; StateT f b a
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679097962"><span class="annot"><span class="annottext">Rep f
+</span><a href="#local-6989586621679097962"><span class="hs-identifier hs-var">s</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">(a -&gt; (a, Rep f)) -&gt; b a -&gt; b (a, Rep f)
+forall a b. (a -&gt; b) -&gt; b a -&gt; b b
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span id="local-6989586621679097963"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679097963"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679097963"><span class="hs-identifier hs-var">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Rep f
+</span><a href="#local-6989586621679097962"><span class="hs-identifier hs-var">s</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">b a
+</span><a href="#local-6989586621679097961"><span class="hs-identifier hs-var">m</span></a></span><span>
+</span><span id="line-151"></span><span>
+</span><span id="line-152"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679097964"><span class="annot"><a href="Data.Functor.Rep.html#Representable"><span class="hs-identifier hs-type">Representable</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679097964"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">MonadTrans</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Representable.State.html#StateT"><span class="hs-identifier hs-type">StateT</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679097964"><span class="hs-identifier hs-type">f</span></a></span><span class="hs-special">)</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-153"></span><span>  </span><span id="local-6989586621679097973"><span class="annot"><span class="annottext">lift :: forall (m :: * -&gt; *) a. Monad m =&gt; m a -&gt; StateT f m a
+</span><a href="#local-6989586621679097973"><span class="hs-identifier hs-var hs-var hs-var">lift</span></a></span></span><span> </span><span id="local-6989586621679097975"><span class="annot"><span class="annottext">m a
+</span><a href="#local-6989586621679097975"><span class="hs-identifier hs-var">m</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Rep f -&gt; m (a, Rep f)) -&gt; StateT f m a
+forall (g :: * -&gt; *) (m :: * -&gt; *) a.
+Representable g =&gt;
+(Rep g -&gt; m (a, Rep g)) -&gt; StateT g m a
+</span><a href="Control.Monad.Representable.State.html#stateT"><span class="hs-identifier hs-var">stateT</span></a></span><span> </span><span class="annot"><span class="annottext">((Rep f -&gt; m (a, Rep f)) -&gt; StateT f m a)
+-&gt; (Rep f -&gt; m (a, Rep f)) -&gt; StateT f m a
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679097976"><span class="annot"><span class="annottext">Rep f
+</span><a href="#local-6989586621679097976"><span class="hs-identifier hs-var">s</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">(a -&gt; (a, Rep f)) -&gt; m a -&gt; m (a, Rep f)
+forall (m :: * -&gt; *) a1 r. Monad m =&gt; (a1 -&gt; r) -&gt; m a1 -&gt; m r
+</span><span class="hs-identifier hs-var">liftM</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span id="local-6989586621679097977"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679097977"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679097977"><span class="hs-identifier hs-var">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Rep f
+</span><a href="#local-6989586621679097976"><span class="hs-identifier hs-var">s</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">m a
+</span><a href="#local-6989586621679097975"><span class="hs-identifier hs-var">m</span></a></span><span>
+</span><span id="line-154"></span><span>
+</span><span id="line-155"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679097691"><span id="local-6989586621679097692"><span id="local-6989586621679097693"><span class="hs-special">(</span><span class="annot"><a href="Data.Functor.Rep.html#Representable"><span class="hs-identifier hs-type">Representable</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679097691"><span class="hs-identifier hs-type">g</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Monad</span></span><span> </span><span class="annot"><a href="#local-6989586621679097692"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Functor.Rep.html#Rep"><span class="hs-identifier hs-type">Rep</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679097691"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="annot"><span class="hs-operator hs-type">~</span></span><span> </span><span class="annot"><a href="#local-6989586621679097693"><span class="hs-identifier hs-type">s</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">MonadState</span></span><span> </span><span class="annot"><a href="#local-6989586621679097693"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Representable.State.html#StateT"><span class="hs-identifier hs-type">StateT</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679097691"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679097692"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-156"></span><span>  </span><span id="local-6989586621679097991"><span class="annot"><span class="annottext">get :: StateT g m s
+</span><a href="#local-6989586621679097991"><span class="hs-identifier hs-var hs-var hs-var">get</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Rep g -&gt; m (s, Rep g)) -&gt; StateT g m s
+forall (g :: * -&gt; *) (m :: * -&gt; *) a.
+Representable g =&gt;
+(Rep g -&gt; m (a, Rep g)) -&gt; StateT g m a
+</span><a href="Control.Monad.Representable.State.html#stateT"><span class="hs-identifier hs-var">stateT</span></a></span><span> </span><span class="annot"><span class="annottext">((Rep g -&gt; m (s, Rep g)) -&gt; StateT g m s)
+-&gt; (Rep g -&gt; m (s, Rep g)) -&gt; StateT g m s
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679097993"><span class="annot"><span class="annottext">Rep g
+</span><a href="#local-6989586621679097993"><span class="hs-identifier hs-var">s</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">(s, s) -&gt; m (s, s)
+forall a. a -&gt; m a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">s
+Rep g
+</span><a href="#local-6989586621679097993"><span class="hs-identifier hs-var">s</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">s
+Rep g
+</span><a href="#local-6989586621679097993"><span class="hs-identifier hs-var">s</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-157"></span><span>  </span><span id="local-6989586621679097996"><span class="annot"><span class="annottext">put :: s -&gt; StateT g m ()
+</span><a href="#local-6989586621679097996"><span class="hs-identifier hs-var hs-var hs-var">put</span></a></span></span><span> </span><span id="local-6989586621679097998"><span class="annot"><span class="annottext">s
+</span><a href="#local-6989586621679097998"><span class="hs-identifier hs-var">s</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">g (m ((), Rep g)) -&gt; StateT g m ()
+forall (g :: * -&gt; *) (m :: * -&gt; *) a.
+g (m (a, Rep g)) -&gt; StateT g m a
+</span><a href="Control.Monad.Representable.State.html#StateT"><span class="hs-identifier hs-var">StateT</span></a></span><span> </span><span class="annot"><span class="annottext">(g (m ((), Rep g)) -&gt; StateT g m ())
+-&gt; g (m ((), Rep g)) -&gt; StateT g m ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">m ((), Rep g) -&gt; g (m ((), Rep g))
+forall (f :: * -&gt; *) a. Representable f =&gt; a -&gt; f a
+</span><a href="Data.Functor.Rep.html#pureRep"><span class="hs-identifier hs-var">pureRep</span></a></span><span> </span><span class="annot"><span class="annottext">(m ((), Rep g) -&gt; g (m ((), Rep g)))
+-&gt; m ((), Rep g) -&gt; g (m ((), Rep g))
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">((), s) -&gt; m ((), s)
+forall a. a -&gt; m a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">,</span><span class="annot"><span class="annottext">s
+</span><a href="#local-6989586621679097998"><span class="hs-identifier hs-var">s</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-158"></span><span>  </span><span id="local-6989586621679098002"><span class="annot"><span class="annottext">state :: forall a. (s -&gt; (a, s)) -&gt; StateT g m a
+</span><span class="hs-identifier hs-var hs-var hs-var">state</span></span></span><span> </span><span id="local-6989586621679098003"><span class="annot"><span class="annottext">s -&gt; (a, s)
+</span><a href="#local-6989586621679098003"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Rep g -&gt; m (a, Rep g)) -&gt; StateT g m a
+forall (g :: * -&gt; *) (m :: * -&gt; *) a.
+Representable g =&gt;
+(Rep g -&gt; m (a, Rep g)) -&gt; StateT g m a
+</span><a href="Control.Monad.Representable.State.html#stateT"><span class="hs-identifier hs-var">stateT</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(a, s) -&gt; m (a, s)
+forall a. a -&gt; m a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">((a, s) -&gt; m (a, s)) -&gt; (s -&gt; (a, s)) -&gt; s -&gt; m (a, s)
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">s -&gt; (a, s)
+</span><a href="#local-6989586621679098003"><span class="hs-identifier hs-var">f</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-159"></span><span>
+</span><span id="line-160"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679097705"><span id="local-6989586621679097706"><span id="local-6989586621679097707"><span id="local-6989586621679098012"><span class="hs-special">(</span><span class="annot"><a href="Data.Functor.Rep.html#Representable"><span class="hs-identifier hs-type">Representable</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679097705"><span class="hs-identifier hs-type">g</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">MonadReader</span></span><span> </span><span class="annot"><a href="#local-6989586621679097706"><span class="hs-identifier hs-type">e</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679097707"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">MonadReader</span></span><span> </span><span class="annot"><a href="#local-6989586621679097706"><span class="hs-identifier hs-type">e</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Representable.State.html#StateT"><span class="hs-identifier hs-type">StateT</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679097705"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679097707"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-161"></span><span>  </span><span id="local-6989586621679098022"><span class="annot"><span class="annottext">ask :: StateT g m e
+</span><a href="#local-6989586621679098022"><span class="hs-identifier hs-var hs-var hs-var">ask</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">m e -&gt; StateT g m e
+forall (m :: * -&gt; *) a. Monad m =&gt; m a -&gt; StateT g m a
+forall (t :: (* -&gt; *) -&gt; * -&gt; *) (m :: * -&gt; *) a.
+(MonadTrans t, Monad m) =&gt;
+m a -&gt; t m a
+</span><span class="hs-identifier hs-var">lift</span></span><span> </span><span class="annot"><span class="annottext">m e
+forall r (m :: * -&gt; *). MonadReader r m =&gt; m r
+</span><span class="hs-identifier hs-var">ask</span></span><span>
+</span><span id="line-162"></span><span>  </span><span id="local-6989586621679098026"><span class="annot"><span class="annottext">local :: forall a. (e -&gt; e) -&gt; StateT g m a -&gt; StateT g m a
+</span><a href="#local-6989586621679098026"><span class="hs-identifier hs-var hs-var hs-var">local</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(m (a, Rep g) -&gt; m (a, Rep g)) -&gt; StateT g m a -&gt; StateT g m a
+forall (g :: * -&gt; *) (m :: * -&gt; *) a (n :: * -&gt; *) b.
+Functor g =&gt;
+(m (a, Rep g) -&gt; n (b, Rep g)) -&gt; StateT g m a -&gt; StateT g n b
+</span><a href="Control.Monad.Representable.State.html#mapStateT"><span class="hs-identifier hs-var">mapStateT</span></a></span><span> </span><span class="annot"><span class="annottext">((m (a, Rep g) -&gt; m (a, Rep g)) -&gt; StateT g m a -&gt; StateT g m a)
+-&gt; ((e -&gt; e) -&gt; m (a, Rep g) -&gt; m (a, Rep g))
+-&gt; (e -&gt; e)
+-&gt; StateT g m a
+-&gt; StateT g m a
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">(e -&gt; e) -&gt; m (a, Rep g) -&gt; m (a, Rep g)
+forall a. (e -&gt; e) -&gt; m a -&gt; m a
+forall r (m :: * -&gt; *) a. MonadReader r m =&gt; (r -&gt; r) -&gt; m a -&gt; m a
+</span><span class="hs-identifier hs-var">local</span></span><span>
+</span><span id="line-163"></span><span>
+</span><span id="line-164"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679097718"><span id="local-6989586621679097719"><span id="local-6989586621679097720"><span id="local-6989586621679098037"><span class="hs-special">(</span><span class="annot"><a href="Data.Functor.Rep.html#Representable"><span class="hs-identifier hs-type">Representable</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679097718"><span class="hs-identifier hs-type">g</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">MonadWriter</span></span><span> </span><span class="annot"><a href="#local-6989586621679097719"><span class="hs-identifier hs-type">w</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679097720"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">MonadWriter</span></span><span> </span><span class="annot"><a href="#local-6989586621679097719"><span class="hs-identifier hs-type">w</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Representable.State.html#StateT"><span class="hs-identifier hs-type">StateT</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679097718"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679097720"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-165"></span><span>  </span><span id="local-6989586621679098051"><span class="annot"><span class="annottext">tell :: w -&gt; StateT g m ()
+</span><a href="#local-6989586621679098051"><span class="hs-identifier hs-var hs-var hs-var">tell</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">m () -&gt; StateT g m ()
+forall (m :: * -&gt; *) a. Monad m =&gt; m a -&gt; StateT g m a
+forall (t :: (* -&gt; *) -&gt; * -&gt; *) (m :: * -&gt; *) a.
+(MonadTrans t, Monad m) =&gt;
+m a -&gt; t m a
+</span><span class="hs-identifier hs-var">lift</span></span><span> </span><span class="annot"><span class="annottext">(m () -&gt; StateT g m ()) -&gt; (w -&gt; m ()) -&gt; w -&gt; StateT g m ()
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">w -&gt; m ()
+forall w (m :: * -&gt; *). MonadWriter w m =&gt; w -&gt; m ()
+</span><span class="hs-identifier hs-var">tell</span></span><span>
+</span><span id="line-166"></span><span>  </span><span id="local-6989586621679098057"><span class="annot"><span class="annottext">listen :: forall a. StateT g m a -&gt; StateT g m (a, w)
+</span><a href="#local-6989586621679098057"><span class="hs-identifier hs-var hs-var hs-var">listen</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(m (a, Rep g) -&gt; m ((a, w), Rep g))
+-&gt; StateT g m a -&gt; StateT g m (a, w)
+forall (g :: * -&gt; *) (m :: * -&gt; *) a (n :: * -&gt; *) b.
+Functor g =&gt;
+(m (a, Rep g) -&gt; n (b, Rep g)) -&gt; StateT g m a -&gt; StateT g n b
+</span><a href="Control.Monad.Representable.State.html#mapStateT"><span class="hs-identifier hs-var">mapStateT</span></a></span><span> </span><span class="annot"><span class="annottext">((m (a, Rep g) -&gt; m ((a, w), Rep g))
+ -&gt; StateT g m a -&gt; StateT g m (a, w))
+-&gt; (m (a, Rep g) -&gt; m ((a, w), Rep g))
+-&gt; StateT g m a
+-&gt; StateT g m (a, w)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679098059"><span class="annot"><span class="annottext">m (a, Rep g)
+</span><a href="#local-6989586621679098059"><span class="hs-identifier hs-var">ma</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-167"></span><span>     </span><span class="hs-special">(</span><span class="hs-special">(</span><span id="local-6989586621679098060"><span class="annot"><a href="#local-6989586621679098060"><span class="hs-identifier hs-var">a</span></a></span></span><span class="hs-special">,</span><span id="local-6989586621679098061"><span class="annot"><a href="#local-6989586621679098061"><span class="hs-identifier hs-var">s'</span></a></span></span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span id="local-6989586621679098062"><span class="annot"><a href="#local-6989586621679098062"><span class="hs-identifier hs-var">w</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">m (a, Rep g) -&gt; m ((a, Rep g), w)
+forall a. m a -&gt; m (a, w)
+forall w (m :: * -&gt; *) a. MonadWriter w m =&gt; m a -&gt; m (a, w)
+</span><span class="hs-identifier hs-var">listen</span></span><span> </span><span class="annot"><span class="annottext">m (a, Rep g)
+</span><a href="#local-6989586621679098059"><span class="hs-identifier hs-var">ma</span></a></span><span>
+</span><span id="line-168"></span><span>     </span><span class="annot"><span class="hs-identifier hs-type">return</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679098060"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span class="annot"><a href="#local-6989586621679098062"><span class="hs-identifier hs-type">w</span></a></span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679098061"><span class="hs-identifier hs-type">s'</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-169"></span><span>  </span><span id="local-6989586621679098067"><span class="annot"><span class="annottext">pass :: forall a. StateT g m (a, w -&gt; w) -&gt; StateT g m a
+</span><a href="#local-6989586621679098067"><span class="hs-identifier hs-var hs-var hs-var">pass</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(m ((a, w -&gt; w), Rep g) -&gt; m (a, Rep g))
+-&gt; StateT g m (a, w -&gt; w) -&gt; StateT g m a
+forall (g :: * -&gt; *) (m :: * -&gt; *) a (n :: * -&gt; *) b.
+Functor g =&gt;
+(m (a, Rep g) -&gt; n (b, Rep g)) -&gt; StateT g m a -&gt; StateT g n b
+</span><a href="Control.Monad.Representable.State.html#mapStateT"><span class="hs-identifier hs-var">mapStateT</span></a></span><span> </span><span class="annot"><span class="annottext">((m ((a, w -&gt; w), Rep g) -&gt; m (a, Rep g))
+ -&gt; StateT g m (a, w -&gt; w) -&gt; StateT g m a)
+-&gt; (m ((a, w -&gt; w), Rep g) -&gt; m (a, Rep g))
+-&gt; StateT g m (a, w -&gt; w)
+-&gt; StateT g m a
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679098069"><span class="annot"><span class="annottext">m ((a, w -&gt; w), Rep g)
+</span><a href="#local-6989586621679098069"><span class="hs-identifier hs-var">ma</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">m ((a, Rep g), w -&gt; w) -&gt; m (a, Rep g)
+forall a. m (a, w -&gt; w) -&gt; m a
+forall w (m :: * -&gt; *) a. MonadWriter w m =&gt; m (a, w -&gt; w) -&gt; m a
+</span><span class="hs-identifier hs-var">pass</span></span><span> </span><span class="annot"><span class="annottext">(m ((a, Rep g), w -&gt; w) -&gt; m (a, Rep g))
+-&gt; m ((a, Rep g), w -&gt; w) -&gt; m (a, Rep g)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-170"></span><span>    </span><span class="hs-special">(</span><span class="hs-special">(</span><span id="local-6989586621679098070"><span class="annot"><a href="#local-6989586621679098070"><span class="hs-identifier hs-var">a</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679098071"><span class="annot"><a href="#local-6989586621679098071"><span class="hs-identifier hs-var">f</span></a></span></span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span id="local-6989586621679098072"><span class="annot"><a href="#local-6989586621679098072"><span class="hs-identifier hs-var">s'</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">m ((a, w -&gt; w), Rep g)
+</span><a href="#local-6989586621679098069"><span class="hs-identifier hs-var">ma</span></a></span><span>
+</span><span id="line-171"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">return</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679098070"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679098072"><span class="hs-identifier hs-type">s'</span></a></span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679098071"><span class="hs-identifier hs-type">f</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-172"></span><span>
+</span><span id="line-173"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679097729"><span id="local-6989586621679097730"><span class="hs-special">(</span><span class="annot"><a href="Data.Functor.Rep.html#Representable"><span class="hs-identifier hs-type">Representable</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679097729"><span class="hs-identifier hs-type">g</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">MonadCont</span></span><span> </span><span class="annot"><a href="#local-6989586621679097730"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">MonadCont</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Representable.State.html#StateT"><span class="hs-identifier hs-type">StateT</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679097729"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679097730"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-174"></span><span>    </span><span id="local-6989586621679098084"><span class="annot"><span class="annottext">callCC :: forall a b. ((a -&gt; StateT g m b) -&gt; StateT g m a) -&gt; StateT g m a
+</span><a href="#local-6989586621679098084"><span class="hs-identifier hs-var hs-var hs-var">callCC</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">((((a, Rep g) -&gt; m (b, Rep g)) -&gt; m (a, Rep g)) -&gt; m (a, Rep g))
+-&gt; ((a -&gt; StateT g m b) -&gt; StateT g m a) -&gt; StateT g m a
+forall (g :: * -&gt; *) a (m :: * -&gt; *) b.
+Representable g =&gt;
+((((a, Rep g) -&gt; m (b, Rep g)) -&gt; m (a, Rep g)) -&gt; m (a, Rep g))
+-&gt; ((a -&gt; StateT g m b) -&gt; StateT g m a) -&gt; StateT g m a
+</span><a href="Control.Monad.Representable.State.html#liftCallCC%27"><span class="hs-identifier hs-var">liftCallCC'</span></a></span><span> </span><span class="annot"><span class="annottext">(((a, Rep g) -&gt; m (b, Rep g)) -&gt; m (a, Rep g)) -&gt; m (a, Rep g)
+forall a b. ((a -&gt; m b) -&gt; m a) -&gt; m a
+forall (m :: * -&gt; *) a b. MonadCont m =&gt; ((a -&gt; m b) -&gt; m a) -&gt; m a
+</span><span class="hs-identifier hs-var">callCC</span></span><span>
+</span><span id="line-175"></span><span>
+</span><span id="line-176"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679097744"><span id="local-6989586621679097745"><span id="local-6989586621679097746"><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Functor</span></span><span> </span><span class="annot"><a href="#local-6989586621679097744"><span class="hs-identifier hs-type">f</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Functor.Rep.html#Representable"><span class="hs-identifier hs-type">Representable</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679097745"><span class="hs-identifier hs-type">g</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">MonadFree</span></span><span> </span><span class="annot"><a href="#local-6989586621679097744"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679097746"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">MonadFree</span></span><span> </span><span class="annot"><a href="#local-6989586621679097744"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Monad.Representable.State.html#StateT"><span class="hs-identifier hs-type">StateT</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679097745"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679097746"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-177"></span><span>    </span><span id="local-6989586621679098100"><span class="annot"><span class="annottext">wrap :: forall a. f (StateT g m a) -&gt; StateT g m a
+</span><a href="#local-6989586621679098100"><span class="hs-identifier hs-var hs-var hs-var">wrap</span></a></span></span><span> </span><span id="local-6989586621679098102"><span class="annot"><span class="annottext">f (StateT g m a)
+</span><a href="#local-6989586621679098102"><span class="hs-keyword hs-var">as</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Rep g -&gt; m (a, Rep g)) -&gt; StateT g m a
+forall (g :: * -&gt; *) (m :: * -&gt; *) a.
+Representable g =&gt;
+(Rep g -&gt; m (a, Rep g)) -&gt; StateT g m a
+</span><a href="Control.Monad.Representable.State.html#stateT"><span class="hs-identifier hs-var">stateT</span></a></span><span> </span><span class="annot"><span class="annottext">((Rep g -&gt; m (a, Rep g)) -&gt; StateT g m a)
+-&gt; (Rep g -&gt; m (a, Rep g)) -&gt; StateT g m a
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679098103"><span class="annot"><span class="annottext">Rep g
+</span><a href="#local-6989586621679098103"><span class="hs-identifier hs-var">s</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">f (m (a, Rep g)) -&gt; m (a, Rep g)
+forall a. f (m a) -&gt; m a
+forall (f :: * -&gt; *) (m :: * -&gt; *) a.
+MonadFree f m =&gt;
+f (m a) -&gt; m a
+</span><span class="hs-identifier hs-var">wrap</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(StateT g m a -&gt; m (a, Rep g))
+-&gt; f (StateT g m a) -&gt; f (m (a, Rep g))
+forall a b. (a -&gt; b) -&gt; f a -&gt; f b
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">StateT g m a -&gt; Rep g -&gt; m (a, Rep g)
+forall (g :: * -&gt; *) (m :: * -&gt; *) a.
+Representable g =&gt;
+StateT g m a -&gt; Rep g -&gt; m (a, Rep g)
+</span><a href="Control.Monad.Representable.State.html#runStateT"><span class="hs-operator hs-var">`runStateT`</span></a></span><span> </span><span class="annot"><span class="annottext">Rep g
+</span><a href="#local-6989586621679098103"><span class="hs-identifier hs-var">s</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">f (StateT g m a)
+</span><a href="#local-6989586621679098102"><span class="hs-keyword hs-var">as</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-178"></span><span>
+</span><span id="line-179"></span><span id="local-6989586621679097634"><span id="local-6989586621679097635"><span id="local-6989586621679097636"><span class="annot"><a href="Control.Monad.Representable.State.html#leftAdjunctRep"><span class="hs-identifier hs-type">leftAdjunctRep</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Data.Functor.Rep.html#Representable"><span class="hs-identifier hs-type">Representable</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679097634"><span class="hs-identifier hs-type">u</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679097635"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Functor.Rep.html#Rep"><span class="hs-identifier hs-type">Rep</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679097634"><span class="hs-identifier hs-type">u</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679097636"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679097635"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679097634"><span class="hs-identifier hs-type">u</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679097636"><span class="hs-identifier hs-type">b</span></a></span></span></span></span><span>
+</span><span id="line-180"></span><span id="leftAdjunctRep"><span class="annot"><span class="annottext">leftAdjunctRep :: forall (u :: * -&gt; *) a b.
+Representable u =&gt;
+((a, Rep u) -&gt; b) -&gt; a -&gt; u b
+</span><a href="Control.Monad.Representable.State.html#leftAdjunctRep"><span class="hs-identifier hs-var hs-var">leftAdjunctRep</span></a></span></span><span> </span><span id="local-6989586621679098106"><span class="annot"><span class="annottext">(a, Rep u) -&gt; b
+</span><a href="#local-6989586621679098106"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span id="local-6989586621679098107"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679098107"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Rep u -&gt; b) -&gt; u b
+forall a. (Rep u -&gt; a) -&gt; u a
+forall (f :: * -&gt; *) a. Representable f =&gt; (Rep f -&gt; a) -&gt; f a
+</span><a href="Data.Functor.Rep.html#tabulate"><span class="hs-identifier hs-var">tabulate</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span id="local-6989586621679098108"><span class="annot"><span class="annottext">Rep u
+</span><a href="#local-6989586621679098108"><span class="hs-identifier hs-var">s</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">(a, Rep u) -&gt; b
+</span><a href="#local-6989586621679098106"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679098107"><span class="hs-identifier hs-var">a</span></a></span><span class="hs-special">,</span><span class="annot"><span class="annottext">Rep u
+</span><a href="#local-6989586621679098108"><span class="hs-identifier hs-var">s</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-181"></span><span>
+</span><span id="line-182"></span><span id="local-6989586621679097653"><span id="local-6989586621679097654"><span id="local-6989586621679097655"><span class="annot"><a href="Control.Monad.Representable.State.html#rightAdjunctRep"><span class="hs-identifier hs-type">rightAdjunctRep</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Data.Functor.Rep.html#Representable"><span class="hs-identifier hs-type">Representable</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679097653"><span class="hs-identifier hs-type">u</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679097654"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679097653"><span class="hs-identifier hs-type">u</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679097655"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679097654"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Functor.Rep.html#Rep"><span class="hs-identifier hs-type">Rep</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679097653"><span class="hs-identifier hs-type">u</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679097655"><span class="hs-identifier hs-type">b</span></a></span></span></span></span><span>
+</span><span id="line-183"></span><span id="rightAdjunctRep"><span class="annot"><span class="annottext">rightAdjunctRep :: forall (u :: * -&gt; *) a b.
+Representable u =&gt;
+(a -&gt; u b) -&gt; (a, Rep u) -&gt; b
+</span><a href="Control.Monad.Representable.State.html#rightAdjunctRep"><span class="hs-identifier hs-var hs-var">rightAdjunctRep</span></a></span></span><span> </span><span id="local-6989586621679098111"><span class="annot"><span class="annottext">a -&gt; u b
+</span><a href="#local-6989586621679098111"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-glyph">~</span><span class="hs-special">(</span><span id="local-6989586621679098112"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679098112"><span class="hs-identifier hs-var">a</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679098113"><span class="annot"><span class="annottext">Rep u
+</span><a href="#local-6989586621679098113"><span class="hs-identifier hs-var">k</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">a -&gt; u b
+</span><a href="#local-6989586621679098111"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679098112"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="annot"><span class="annottext">u b -&gt; Rep u -&gt; b
+forall a. u a -&gt; Rep u -&gt; a
+forall (f :: * -&gt; *) a. Representable f =&gt; f a -&gt; Rep f -&gt; a
+</span><a href="Data.Functor.Rep.html#index"><span class="hs-operator hs-var">`index`</span></a></span><span> </span><span class="annot"><span class="annottext">Rep u
+</span><a href="#local-6989586621679098113"><span class="hs-identifier hs-var">k</span></a></span><span>
+</span><span id="line-184"></span><span>
+</span><span id="line-185"></span><span class="hs-comment">-- | Uniform lifting of a @callCC@ operation to the new monad.</span><span>
+</span><span id="line-186"></span><span class="hs-comment">-- This version rolls back to the original state on entering the</span><span>
+</span><span id="line-187"></span><span class="hs-comment">-- continuation.</span><span>
+</span><span id="line-188"></span><span id="local-6989586621679098114"><span id="local-6989586621679098115"><span id="local-6989586621679098116"><span id="local-6989586621679098117"><span class="annot"><a href="Control.Monad.Representable.State.html#liftCallCC"><span class="hs-identifier hs-type">liftCallCC</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Data.Functor.Rep.html#Representable"><span class="hs-identifier hs-type">Representable</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679098114"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679098115"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span class="annot"><a href="Data.Functor.Rep.html#Rep"><span class="hs-identifier hs-type">Rep</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679098114"><span class="hs-identifier hs-type">g</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679098116"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679098117"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">,</span><span class="annot"><a href="Data.Functor.Rep.html#Rep"><span class="hs-identifier hs-type">Rep</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679098114"><span class="hs-identifier hs-type">g</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679098116"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679098115"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span class="annot"><a href="Data.Functor.Rep.html#Rep"><span class="hs-identifier hs-type">Rep</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679098114"><span class="hs-identifier hs-type">g</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679098116"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679098115"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span class="annot"><a href="Data.Functor.Rep.html#Rep"><span class="hs-identifier hs-type">Rep</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679098114"><span class="hs-identifier hs-type">g</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-189"></span><span>    </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679098115"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Control.Monad.Representable.State.html#StateT"><span class="hs-identifier hs-type">StateT</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679098114"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679098116"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679098117"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Control.Monad.Representable.State.html#StateT"><span class="hs-identifier hs-type">StateT</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679098114"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679098116"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679098115"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Control.Monad.Representable.State.html#StateT"><span class="hs-identifier hs-type">StateT</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679098114"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679098116"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679098115"><span class="hs-identifier hs-type">a</span></a></span></span></span></span></span><span>
+</span><span id="line-190"></span><span id="liftCallCC"><span class="annot"><span class="annottext">liftCallCC :: forall (g :: * -&gt; *) a (m :: * -&gt; *) b.
+Representable g =&gt;
+((((a, Rep g) -&gt; m (b, Rep g)) -&gt; m (a, Rep g)) -&gt; m (a, Rep g))
+-&gt; ((a -&gt; StateT g m b) -&gt; StateT g m a) -&gt; StateT g m a
+</span><a href="Control.Monad.Representable.State.html#liftCallCC"><span class="hs-identifier hs-var hs-var">liftCallCC</span></a></span></span><span> </span><span id="local-6989586621679098122"><span class="annot"><span class="annottext">(((a, Rep g) -&gt; m (b, Rep g)) -&gt; m (a, Rep g)) -&gt; m (a, Rep g)
+</span><a href="#local-6989586621679098122"><span class="hs-identifier hs-var">callCC'</span></a></span></span><span> </span><span id="local-6989586621679098123"><span class="annot"><span class="annottext">(a -&gt; StateT g m b) -&gt; StateT g m a
+</span><a href="#local-6989586621679098123"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Rep g -&gt; m (a, Rep g)) -&gt; StateT g m a
+forall (g :: * -&gt; *) (m :: * -&gt; *) a.
+Representable g =&gt;
+(Rep g -&gt; m (a, Rep g)) -&gt; StateT g m a
+</span><a href="Control.Monad.Representable.State.html#stateT"><span class="hs-identifier hs-var">stateT</span></a></span><span> </span><span class="annot"><span class="annottext">((Rep g -&gt; m (a, Rep g)) -&gt; StateT g m a)
+-&gt; (Rep g -&gt; m (a, Rep g)) -&gt; StateT g m a
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679098124"><span class="annot"><span class="annottext">Rep g
+</span><a href="#local-6989586621679098124"><span class="hs-identifier hs-var">s</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-191"></span><span>    </span><span class="annot"><span class="annottext">(((a, Rep g) -&gt; m (b, Rep g)) -&gt; m (a, Rep g)) -&gt; m (a, Rep g)
+</span><a href="#local-6989586621679098122"><span class="hs-identifier hs-var">callCC'</span></a></span><span> </span><span class="annot"><span class="annottext">((((a, Rep g) -&gt; m (b, Rep g)) -&gt; m (a, Rep g)) -&gt; m (a, Rep g))
+-&gt; (((a, Rep g) -&gt; m (b, Rep g)) -&gt; m (a, Rep g)) -&gt; m (a, Rep g)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679098125"><span class="annot"><span class="annottext">(a, Rep g) -&gt; m (b, Rep g)
+</span><a href="#local-6989586621679098125"><span class="hs-identifier hs-var">c</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-192"></span><span>    </span><span class="annot"><span class="annottext">StateT g m a -&gt; Rep g -&gt; m (a, Rep g)
+forall (g :: * -&gt; *) (m :: * -&gt; *) a.
+Representable g =&gt;
+StateT g m a -&gt; Rep g -&gt; m (a, Rep g)
+</span><a href="Control.Monad.Representable.State.html#runStateT"><span class="hs-identifier hs-var">runStateT</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(a -&gt; StateT g m b) -&gt; StateT g m a
+</span><a href="#local-6989586621679098123"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span id="local-6989586621679098126"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679098126"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">g (m (b, Rep g)) -&gt; StateT g m b
+forall (g :: * -&gt; *) (m :: * -&gt; *) a.
+g (m (a, Rep g)) -&gt; StateT g m a
+</span><a href="Control.Monad.Representable.State.html#StateT"><span class="hs-identifier hs-var">StateT</span></a></span><span> </span><span class="annot"><span class="annottext">(g (m (b, Rep g)) -&gt; StateT g m b)
+-&gt; g (m (b, Rep g)) -&gt; StateT g m b
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">m (b, Rep g) -&gt; g (m (b, Rep g))
+forall (f :: * -&gt; *) a. Representable f =&gt; a -&gt; f a
+</span><a href="Data.Functor.Rep.html#pureRep"><span class="hs-identifier hs-var">pureRep</span></a></span><span> </span><span class="annot"><span class="annottext">(m (b, Rep g) -&gt; g (m (b, Rep g)))
+-&gt; m (b, Rep g) -&gt; g (m (b, Rep g))
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">(a, Rep g) -&gt; m (b, Rep g)
+</span><a href="#local-6989586621679098125"><span class="hs-identifier hs-var">c</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679098126"><span class="hs-identifier hs-var">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Rep g
+</span><a href="#local-6989586621679098124"><span class="hs-identifier hs-var">s</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Rep g
+</span><a href="#local-6989586621679098124"><span class="hs-identifier hs-var">s</span></a></span><span>
+</span><span id="line-193"></span><span>
+</span><span id="line-194"></span><span class="hs-comment">-- | In-situ lifting of a @callCC@ operation to the new monad.</span><span>
+</span><span id="line-195"></span><span class="hs-comment">-- This version uses the current state on entering the continuation.</span><span>
+</span><span id="line-196"></span><span class="hs-comment">-- It does not satisfy the laws of a monad transformer.</span><span>
+</span><span id="line-197"></span><span id="local-6989586621679097733"><span id="local-6989586621679097734"><span id="local-6989586621679097735"><span id="local-6989586621679097736"><span class="annot"><a href="Control.Monad.Representable.State.html#liftCallCC%27"><span class="hs-identifier hs-type">liftCallCC'</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Data.Functor.Rep.html#Representable"><span class="hs-identifier hs-type">Representable</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679097733"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679097734"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span class="annot"><a href="Data.Functor.Rep.html#Rep"><span class="hs-identifier hs-type">Rep</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679097733"><span class="hs-identifier hs-type">g</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679097735"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679097736"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">,</span><span class="annot"><a href="Data.Functor.Rep.html#Rep"><span class="hs-identifier hs-type">Rep</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679097733"><span class="hs-identifier hs-type">g</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679097735"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679097734"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span class="annot"><a href="Data.Functor.Rep.html#Rep"><span class="hs-identifier hs-type">Rep</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679097733"><span class="hs-identifier hs-type">g</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679097735"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679097734"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span class="annot"><a href="Data.Functor.Rep.html#Rep"><span class="hs-identifier hs-type">Rep</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679097733"><span class="hs-identifier hs-type">g</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-198"></span><span>    </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679097734"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Control.Monad.Representable.State.html#StateT"><span class="hs-identifier hs-type">StateT</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679097733"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679097735"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679097736"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Control.Monad.Representable.State.html#StateT"><span class="hs-identifier hs-type">StateT</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679097733"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679097735"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679097734"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Control.Monad.Representable.State.html#StateT"><span class="hs-identifier hs-type">StateT</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679097733"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679097735"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679097734"><span class="hs-identifier hs-type">a</span></a></span></span></span></span></span><span>
+</span><span id="line-199"></span><span id="liftCallCC%27"><span class="annot"><span class="annottext">liftCallCC' :: forall (g :: * -&gt; *) a (m :: * -&gt; *) b.
+Representable g =&gt;
+((((a, Rep g) -&gt; m (b, Rep g)) -&gt; m (a, Rep g)) -&gt; m (a, Rep g))
+-&gt; ((a -&gt; StateT g m b) -&gt; StateT g m a) -&gt; StateT g m a
+</span><a href="Control.Monad.Representable.State.html#liftCallCC%27"><span class="hs-identifier hs-var hs-var">liftCallCC'</span></a></span></span><span> </span><span id="local-6989586621679098131"><span class="annot"><span class="annottext">(((a, Rep g) -&gt; m (b, Rep g)) -&gt; m (a, Rep g)) -&gt; m (a, Rep g)
+</span><a href="#local-6989586621679098131"><span class="hs-identifier hs-var">callCC'</span></a></span></span><span> </span><span id="local-6989586621679098132"><span class="annot"><span class="annottext">(a -&gt; StateT g m b) -&gt; StateT g m a
+</span><a href="#local-6989586621679098132"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Rep g -&gt; m (a, Rep g)) -&gt; StateT g m a
+forall (g :: * -&gt; *) (m :: * -&gt; *) a.
+Representable g =&gt;
+(Rep g -&gt; m (a, Rep g)) -&gt; StateT g m a
+</span><a href="Control.Monad.Representable.State.html#stateT"><span class="hs-identifier hs-var">stateT</span></a></span><span> </span><span class="annot"><span class="annottext">((Rep g -&gt; m (a, Rep g)) -&gt; StateT g m a)
+-&gt; (Rep g -&gt; m (a, Rep g)) -&gt; StateT g m a
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679098133"><span class="annot"><span class="annottext">Rep g
+</span><a href="#local-6989586621679098133"><span class="hs-identifier hs-var">s</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-200"></span><span>    </span><span class="annot"><span class="annottext">(((a, Rep g) -&gt; m (b, Rep g)) -&gt; m (a, Rep g)) -&gt; m (a, Rep g)
+</span><a href="#local-6989586621679098131"><span class="hs-identifier hs-var">callCC'</span></a></span><span> </span><span class="annot"><span class="annottext">((((a, Rep g) -&gt; m (b, Rep g)) -&gt; m (a, Rep g)) -&gt; m (a, Rep g))
+-&gt; (((a, Rep g) -&gt; m (b, Rep g)) -&gt; m (a, Rep g)) -&gt; m (a, Rep g)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679098134"><span class="annot"><span class="annottext">(a, Rep g) -&gt; m (b, Rep g)
+</span><a href="#local-6989586621679098134"><span class="hs-identifier hs-var">c</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-201"></span><span>    </span><span class="annot"><span class="annottext">StateT g m a -&gt; Rep g -&gt; m (a, Rep g)
+forall (g :: * -&gt; *) (m :: * -&gt; *) a.
+Representable g =&gt;
+StateT g m a -&gt; Rep g -&gt; m (a, Rep g)
+</span><a href="Control.Monad.Representable.State.html#runStateT"><span class="hs-identifier hs-var">runStateT</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(a -&gt; StateT g m b) -&gt; StateT g m a
+</span><a href="#local-6989586621679098132"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span id="local-6989586621679098135"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679098135"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">(Rep g -&gt; m (b, Rep g)) -&gt; StateT g m b
+forall (g :: * -&gt; *) (m :: * -&gt; *) a.
+Representable g =&gt;
+(Rep g -&gt; m (a, Rep g)) -&gt; StateT g m a
+</span><a href="Control.Monad.Representable.State.html#stateT"><span class="hs-identifier hs-var">stateT</span></a></span><span> </span><span class="annot"><span class="annottext">((Rep g -&gt; m (b, Rep g)) -&gt; StateT g m b)
+-&gt; (Rep g -&gt; m (b, Rep g)) -&gt; StateT g m b
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679098136"><span class="annot"><span class="annottext">Rep g
+</span><a href="#local-6989586621679098136"><span class="hs-identifier hs-var">s'</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">(a, Rep g) -&gt; m (b, Rep g)
+</span><a href="#local-6989586621679098134"><span class="hs-identifier hs-var">c</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679098135"><span class="hs-identifier hs-var">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Rep g
+</span><a href="#local-6989586621679098136"><span class="hs-identifier hs-var">s'</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Rep g
+</span><a href="#local-6989586621679098133"><span class="hs-identifier hs-var">s</span></a></span><span>
+</span><span id="line-202"></span><span>
+</span><span id="line-203"></span></pre></body></html>

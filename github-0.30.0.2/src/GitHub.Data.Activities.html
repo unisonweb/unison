@@ -1,0 +1,1464 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span id="local-6989586621679517726"><span id="local-6989586621679517727"><span id="local-6989586621679517728"><span id="local-6989586621679517729"><span id="local-6989586621679517730"><span id="local-6989586621679517731"><span id="local-6989586621679517732"><span id="local-6989586621679517733"><span id="local-6989586621679517734"><span id="local-6989586621679517735"><span id="local-6989586621679517736"><span id="local-6989586621679517737"><span id="local-6989586621679517738"><span id="local-6989586621679517739"><span id="local-6989586621679517740"><span id="local-6989586621679517741"><span id="local-6989586621679517742"><span id="local-6989586621679517743"><span id="local-6989586621679517744"><span id="local-6989586621679517745"><span id="local-6989586621679517746"><span id="local-6989586621679517747"><span id="local-6989586621679517748"><span id="local-6989586621679517749"></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="GitHub.Data.Activities.html"><span class="hs-identifier">GitHub.Data.Activities</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-2"></span><span>
+</span><span id="line-3"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GitHub.Data.Id.html"><span class="hs-identifier">GitHub.Data.Id</span></a></span><span>          </span><span class="hs-special">(</span><span class="annot"><a href="GitHub.Data.Id.html#Id"><span class="hs-identifier">Id</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GitHub.Data.Id.html#mkId"><span class="hs-identifier">mkId</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-4"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GitHub.Data.Repos.html"><span class="hs-identifier">GitHub.Data.Repos</span></a></span><span>       </span><span class="hs-special">(</span><span class="annot"><a href="GitHub.Data.Repos.html#Repo"><span class="hs-identifier">Repo</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GitHub.Data.Repos.html#RepoRef"><span class="hs-identifier">RepoRef</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-5"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GitHub.Data.URL.html"><span class="hs-identifier">GitHub.Data.URL</span></a></span><span>         </span><span class="hs-special">(</span><span class="annot"><a href="GitHub.Data.URL.html#URL"><span class="hs-identifier">URL</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-6"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GitHub.Internal.Prelude.html"><span class="hs-identifier">GitHub.Internal.Prelude</span></a></span><span>
+</span><span id="line-7"></span><span>
+</span><span id="line-8"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Prelude</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-9"></span><span>
+</span><span id="line-10"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Text</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">T</span></span><span>
+</span><span id="line-11"></span><span>
+</span><span id="line-12"></span><span class="hs-keyword">data</span><span> </span><span id="RepoStarred"><span class="annot"><a href="GitHub.Data.Activities.html#RepoStarred"><span class="hs-identifier hs-var">RepoStarred</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="RepoStarred"><span class="annot"><a href="GitHub.Data.Activities.html#RepoStarred"><span class="hs-identifier hs-var">RepoStarred</span></a></span></span><span>
+</span><span id="line-13"></span><span>    </span><span class="hs-special">{</span><span> </span><span id="repoStarredStarredAt"><span class="annot"><span class="annottext">RepoStarred -&gt; UTCTime
+</span><a href="GitHub.Data.Activities.html#repoStarredStarredAt"><span class="hs-identifier hs-var hs-var">repoStarredStarredAt</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">UTCTime</span></span><span>
+</span><span id="line-14"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="repoStarredRepo"><span class="annot"><span class="annottext">RepoStarred -&gt; Repo
+</span><a href="GitHub.Data.Activities.html#repoStarredRepo"><span class="hs-identifier hs-var hs-var">repoStarredRepo</span></a></span></span><span>      </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><a href="GitHub.Data.Repos.html#Repo"><span class="hs-identifier hs-type">Repo</span></a></span><span>
+</span><span id="line-15"></span><span>    </span><span class="hs-special">}</span><span>
+</span><span id="line-16"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679517755"><span id="local-6989586621679517763"><span id="local-6989586621679517767"><span class="annot"><span class="annottext">Int -&gt; RepoStarred -&gt; ShowS
+[RepoStarred] -&gt; ShowS
+RepoStarred -&gt; String
+(Int -&gt; RepoStarred -&gt; ShowS)
+-&gt; (RepoStarred -&gt; String)
+-&gt; ([RepoStarred] -&gt; ShowS)
+-&gt; Show RepoStarred
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; RepoStarred -&gt; ShowS
+showsPrec :: Int -&gt; RepoStarred -&gt; ShowS
+$cshow :: RepoStarred -&gt; String
+show :: RepoStarred -&gt; String
+$cshowList :: [RepoStarred] -&gt; ShowS
+showList :: [RepoStarred] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679517774"><span id="local-6989586621679517780"><span id="local-6989586621679517784"><span id="local-6989586621679517786"><span id="local-6989586621679517788"><span id="local-6989586621679517794"><span id="local-6989586621679517799"><span id="local-6989586621679517802"><span id="local-6989586621679517805"><span id="local-6989586621679517808"><span id="local-6989586621679517811"><span id="local-6989586621679517814"><span id="local-6989586621679517819"><span id="local-6989586621679517824"><span class="annot"><span class="annottext">Typeable RepoStarred
+Typeable RepoStarred =&gt;
+(forall (c :: * -&gt; *).
+ (forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+ -&gt; (forall g. g -&gt; c g) -&gt; RepoStarred -&gt; c RepoStarred)
+-&gt; (forall (c :: * -&gt; *).
+    (forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+    -&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c RepoStarred)
+-&gt; (RepoStarred -&gt; Constr)
+-&gt; (RepoStarred -&gt; DataType)
+-&gt; (forall (t :: * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d. Data d =&gt; c (t d)) -&gt; Maybe (c RepoStarred))
+-&gt; (forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d e. (Data d, Data e) =&gt; c (t d e))
+    -&gt; Maybe (c RepoStarred))
+-&gt; ((forall b. Data b =&gt; b -&gt; b) -&gt; RepoStarred -&gt; RepoStarred)
+-&gt; (forall r r'.
+    (r -&gt; r' -&gt; r)
+    -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; RepoStarred -&gt; r)
+-&gt; (forall r r'.
+    (r' -&gt; r -&gt; r)
+    -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; RepoStarred -&gt; r)
+-&gt; (forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; RepoStarred -&gt; [u])
+-&gt; (forall u.
+    Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; RepoStarred -&gt; u)
+-&gt; (forall (m :: * -&gt; *).
+    Monad m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; RepoStarred -&gt; m RepoStarred)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; RepoStarred -&gt; m RepoStarred)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; RepoStarred -&gt; m RepoStarred)
+-&gt; Data RepoStarred
+RepoStarred -&gt; Constr
+RepoStarred -&gt; DataType
+(forall b. Data b =&gt; b -&gt; b) -&gt; RepoStarred -&gt; RepoStarred
+forall a.
+Typeable a =&gt;
+(forall (c :: * -&gt; *).
+ (forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+ -&gt; (forall g. g -&gt; c g) -&gt; a -&gt; c a)
+-&gt; (forall (c :: * -&gt; *).
+    (forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+    -&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c a)
+-&gt; (a -&gt; Constr)
+-&gt; (a -&gt; DataType)
+-&gt; (forall (t :: * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d. Data d =&gt; c (t d)) -&gt; Maybe (c a))
+-&gt; (forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d e. (Data d, Data e) =&gt; c (t d e)) -&gt; Maybe (c a))
+-&gt; ((forall b. Data b =&gt; b -&gt; b) -&gt; a -&gt; a)
+-&gt; (forall r r'.
+    (r -&gt; r' -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; a -&gt; r)
+-&gt; (forall r r'.
+    (r' -&gt; r -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; a -&gt; r)
+-&gt; (forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; a -&gt; [u])
+-&gt; (forall u. Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; a -&gt; u)
+-&gt; (forall (m :: * -&gt; *).
+    Monad m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; a -&gt; m a)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; a -&gt; m a)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; a -&gt; m a)
+-&gt; Data a
+forall u. Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; RepoStarred -&gt; u
+forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; RepoStarred -&gt; [u]
+forall r r'.
+(r -&gt; r' -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; RepoStarred -&gt; r
+forall r r'.
+(r' -&gt; r -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; RepoStarred -&gt; r
+forall (m :: * -&gt; *).
+Monad m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; RepoStarred -&gt; m RepoStarred
+forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; RepoStarred -&gt; m RepoStarred
+forall (c :: * -&gt; *).
+(forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+-&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c RepoStarred
+forall (c :: * -&gt; *).
+(forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+-&gt; (forall g. g -&gt; c g) -&gt; RepoStarred -&gt; c RepoStarred
+forall (t :: * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d. Data d =&gt; c (t d)) -&gt; Maybe (c RepoStarred)
+forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d e. (Data d, Data e) =&gt; c (t d e))
+-&gt; Maybe (c RepoStarred)
+$cgfoldl :: forall (c :: * -&gt; *).
+(forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+-&gt; (forall g. g -&gt; c g) -&gt; RepoStarred -&gt; c RepoStarred
+gfoldl :: forall (c :: * -&gt; *).
+(forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+-&gt; (forall g. g -&gt; c g) -&gt; RepoStarred -&gt; c RepoStarred
+$cgunfold :: forall (c :: * -&gt; *).
+(forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+-&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c RepoStarred
+gunfold :: forall (c :: * -&gt; *).
+(forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+-&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c RepoStarred
+$ctoConstr :: RepoStarred -&gt; Constr
+toConstr :: RepoStarred -&gt; Constr
+$cdataTypeOf :: RepoStarred -&gt; DataType
+dataTypeOf :: RepoStarred -&gt; DataType
+$cdataCast1 :: forall (t :: * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d. Data d =&gt; c (t d)) -&gt; Maybe (c RepoStarred)
+dataCast1 :: forall (t :: * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d. Data d =&gt; c (t d)) -&gt; Maybe (c RepoStarred)
+$cdataCast2 :: forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d e. (Data d, Data e) =&gt; c (t d e))
+-&gt; Maybe (c RepoStarred)
+dataCast2 :: forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d e. (Data d, Data e) =&gt; c (t d e))
+-&gt; Maybe (c RepoStarred)
+$cgmapT :: (forall b. Data b =&gt; b -&gt; b) -&gt; RepoStarred -&gt; RepoStarred
+gmapT :: (forall b. Data b =&gt; b -&gt; b) -&gt; RepoStarred -&gt; RepoStarred
+$cgmapQl :: forall r r'.
+(r -&gt; r' -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; RepoStarred -&gt; r
+gmapQl :: forall r r'.
+(r -&gt; r' -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; RepoStarred -&gt; r
+$cgmapQr :: forall r r'.
+(r' -&gt; r -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; RepoStarred -&gt; r
+gmapQr :: forall r r'.
+(r' -&gt; r -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; RepoStarred -&gt; r
+$cgmapQ :: forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; RepoStarred -&gt; [u]
+gmapQ :: forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; RepoStarred -&gt; [u]
+$cgmapQi :: forall u. Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; RepoStarred -&gt; u
+gmapQi :: forall u. Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; RepoStarred -&gt; u
+$cgmapM :: forall (m :: * -&gt; *).
+Monad m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; RepoStarred -&gt; m RepoStarred
+gmapM :: forall (m :: * -&gt; *).
+Monad m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; RepoStarred -&gt; m RepoStarred
+$cgmapMp :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; RepoStarred -&gt; m RepoStarred
+gmapMp :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; RepoStarred -&gt; m RepoStarred
+$cgmapMo :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; RepoStarred -&gt; m RepoStarred
+gmapMo :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; RepoStarred -&gt; m RepoStarred
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Data</span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679517834"><span id="local-6989586621679517840"><span class="annot"><span class="annottext">RepoStarred -&gt; RepoStarred -&gt; Bool
+(RepoStarred -&gt; RepoStarred -&gt; Bool)
+-&gt; (RepoStarred -&gt; RepoStarred -&gt; Bool) -&gt; Eq RepoStarred
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: RepoStarred -&gt; RepoStarred -&gt; Bool
+== :: RepoStarred -&gt; RepoStarred -&gt; Bool
+$c/= :: RepoStarred -&gt; RepoStarred -&gt; Bool
+/= :: RepoStarred -&gt; RepoStarred -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679517847"><span id="local-6989586621679517853"><span id="local-6989586621679517857"><span id="local-6989586621679517861"><span id="local-6989586621679517864"><span id="local-6989586621679517867"><span id="local-6989586621679517870"><span class="annot"><span class="annottext">Eq RepoStarred
+Eq RepoStarred =&gt;
+(RepoStarred -&gt; RepoStarred -&gt; Ordering)
+-&gt; (RepoStarred -&gt; RepoStarred -&gt; Bool)
+-&gt; (RepoStarred -&gt; RepoStarred -&gt; Bool)
+-&gt; (RepoStarred -&gt; RepoStarred -&gt; Bool)
+-&gt; (RepoStarred -&gt; RepoStarred -&gt; Bool)
+-&gt; (RepoStarred -&gt; RepoStarred -&gt; RepoStarred)
+-&gt; (RepoStarred -&gt; RepoStarred -&gt; RepoStarred)
+-&gt; Ord RepoStarred
+RepoStarred -&gt; RepoStarred -&gt; Bool
+RepoStarred -&gt; RepoStarred -&gt; Ordering
+RepoStarred -&gt; RepoStarred -&gt; RepoStarred
+forall a.
+Eq a =&gt;
+(a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+$ccompare :: RepoStarred -&gt; RepoStarred -&gt; Ordering
+compare :: RepoStarred -&gt; RepoStarred -&gt; Ordering
+$c&lt; :: RepoStarred -&gt; RepoStarred -&gt; Bool
+&lt; :: RepoStarred -&gt; RepoStarred -&gt; Bool
+$c&lt;= :: RepoStarred -&gt; RepoStarred -&gt; Bool
+&lt;= :: RepoStarred -&gt; RepoStarred -&gt; Bool
+$c&gt; :: RepoStarred -&gt; RepoStarred -&gt; Bool
+&gt; :: RepoStarred -&gt; RepoStarred -&gt; Bool
+$c&gt;= :: RepoStarred -&gt; RepoStarred -&gt; Bool
+&gt;= :: RepoStarred -&gt; RepoStarred -&gt; Bool
+$cmax :: RepoStarred -&gt; RepoStarred -&gt; RepoStarred
+max :: RepoStarred -&gt; RepoStarred -&gt; RepoStarred
+$cmin :: RepoStarred -&gt; RepoStarred -&gt; RepoStarred
+min :: RepoStarred -&gt; RepoStarred -&gt; RepoStarred
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679517878"><span id="local-6989586621679517880"><span class="annot"><span class="annottext">(forall x. RepoStarred -&gt; Rep RepoStarred x)
+-&gt; (forall x. Rep RepoStarred x -&gt; RepoStarred)
+-&gt; Generic RepoStarred
+forall x. Rep RepoStarred x -&gt; RepoStarred
+forall x. RepoStarred -&gt; Rep RepoStarred x
+forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+$cfrom :: forall x. RepoStarred -&gt; Rep RepoStarred x
+from :: forall x. RepoStarred -&gt; Rep RepoStarred x
+$cto :: forall x. Rep RepoStarred x -&gt; RepoStarred
+to :: forall x. Rep RepoStarred x -&gt; RepoStarred
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Generic</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-17"></span><span>
+</span><span id="line-18"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679517886"><span class="annot"><span class="hs-identifier hs-type">NFData</span></span><span> </span><span class="annot"><a href="GitHub.Data.Activities.html#RepoStarred"><span class="hs-identifier hs-type">RepoStarred</span></a></span></span><span>
+</span><span id="line-19"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679517907"><span id="local-6989586621679517914"><span id="local-6989586621679517920"><span class="annot"><span class="hs-identifier hs-type">Binary</span></span><span> </span><span class="annot"><a href="GitHub.Data.Activities.html#RepoStarred"><span class="hs-identifier hs-type">RepoStarred</span></a></span></span></span></span><span>
+</span><span id="line-20"></span><span>
+</span><span id="line-21"></span><span class="hs-comment">-- JSON Instances</span><span>
+</span><span id="line-22"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679517949"><span id="local-6989586621679517953"><span class="annot"><span class="hs-identifier hs-type">FromJSON</span></span><span> </span><span class="annot"><a href="GitHub.Data.Activities.html#RepoStarred"><span class="hs-identifier hs-type">RepoStarred</span></a></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-23"></span><span>    </span><span id="local-6989586621679517967"><span class="annot"><span class="annottext">parseJSON :: Value -&gt; Parser RepoStarred
+</span><a href="#local-6989586621679517967"><span class="hs-identifier hs-var hs-var hs-var">parseJSON</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+-&gt; (Object -&gt; Parser RepoStarred) -&gt; Value -&gt; Parser RepoStarred
+forall a. String -&gt; (Object -&gt; Parser a) -&gt; Value -&gt; Parser a
+</span><span class="hs-identifier hs-var">withObject</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;RepoStarred&quot;</span></span><span> </span><span class="annot"><span class="annottext">((Object -&gt; Parser RepoStarred) -&gt; Value -&gt; Parser RepoStarred)
+-&gt; (Object -&gt; Parser RepoStarred) -&gt; Value -&gt; Parser RepoStarred
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679517970"><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679517970"><span class="hs-identifier hs-var">o</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">UTCTime -&gt; Repo -&gt; RepoStarred
+</span><a href="GitHub.Data.Activities.html#RepoStarred"><span class="hs-identifier hs-var">RepoStarred</span></a></span><span>
+</span><span id="line-24"></span><span>        </span><span class="annot"><span class="annottext">(UTCTime -&gt; Repo -&gt; RepoStarred)
+-&gt; Parser UTCTime -&gt; Parser (Repo -&gt; RepoStarred)
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679517970"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser UTCTime
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">.:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;starred_at&quot;</span></span><span>
+</span><span id="line-25"></span><span>        </span><span class="annot"><span class="annottext">Parser (Repo -&gt; RepoStarred) -&gt; Parser Repo -&gt; Parser RepoStarred
+forall a b. Parser (a -&gt; b) -&gt; Parser a -&gt; Parser b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679517970"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser Repo
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">.:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;repo&quot;</span></span><span>
+</span><span id="line-26"></span><span>
+</span><span id="line-27"></span><span class="hs-keyword">data</span><span> </span><span id="Subject"><span class="annot"><a href="GitHub.Data.Activities.html#Subject"><span class="hs-identifier hs-var">Subject</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="Subject"><span class="annot"><a href="GitHub.Data.Activities.html#Subject"><span class="hs-identifier hs-var">Subject</span></a></span></span><span>
+</span><span id="line-28"></span><span>    </span><span class="hs-special">{</span><span> </span><span id="subjectTitle"><span class="annot"><span class="annottext">Subject -&gt; Text
+</span><a href="GitHub.Data.Activities.html#subjectTitle"><span class="hs-identifier hs-var hs-var">subjectTitle</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span>
+</span><span id="line-29"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="subjectURL"><span class="annot"><span class="annottext">Subject -&gt; Maybe URL
+</span><a href="GitHub.Data.Activities.html#subjectURL"><span class="hs-identifier hs-var hs-var">subjectURL</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="GitHub.Data.URL.html#URL"><span class="hs-identifier hs-type">URL</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-30"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="subjectLatestCommentURL"><span class="annot"><span class="annottext">Subject -&gt; Maybe URL
+</span><a href="GitHub.Data.Activities.html#subjectLatestCommentURL"><span class="hs-identifier hs-var hs-var">subjectLatestCommentURL</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="GitHub.Data.URL.html#URL"><span class="hs-identifier hs-type">URL</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-31"></span><span>    </span><span class="hs-comment">-- https://developer.github.com/v3/activity/notifications/ doesn't indicate</span><span>
+</span><span id="line-32"></span><span>    </span><span class="hs-comment">-- what the possible values for this field are.</span><span>
+</span><span id="line-33"></span><span>    </span><span class="hs-comment">-- TODO: Make an ADT for this.</span><span>
+</span><span id="line-34"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="subjectType"><span class="annot"><span class="annottext">Subject -&gt; Text
+</span><a href="GitHub.Data.Activities.html#subjectType"><span class="hs-identifier hs-var hs-var">subjectType</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span>
+</span><span id="line-35"></span><span>    </span><span class="hs-special">}</span><span>
+</span><span id="line-36"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679517979"><span id="local-6989586621679517989"><span id="local-6989586621679517993"><span class="annot"><span class="annottext">Int -&gt; Subject -&gt; ShowS
+[Subject] -&gt; ShowS
+Subject -&gt; String
+(Int -&gt; Subject -&gt; ShowS)
+-&gt; (Subject -&gt; String) -&gt; ([Subject] -&gt; ShowS) -&gt; Show Subject
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; Subject -&gt; ShowS
+showsPrec :: Int -&gt; Subject -&gt; ShowS
+$cshow :: Subject -&gt; String
+show :: Subject -&gt; String
+$cshowList :: [Subject] -&gt; ShowS
+showList :: [Subject] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679517999"><span id="local-6989586621679518008"><span id="local-6989586621679518015"><span id="local-6989586621679518017"><span id="local-6989586621679518019"><span id="local-6989586621679518025"><span id="local-6989586621679518030"><span id="local-6989586621679518033"><span id="local-6989586621679518036"><span id="local-6989586621679518039"><span id="local-6989586621679518042"><span id="local-6989586621679518045"><span id="local-6989586621679518050"><span id="local-6989586621679518055"><span class="annot"><span class="annottext">Typeable Subject
+Typeable Subject =&gt;
+(forall (c :: * -&gt; *).
+ (forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+ -&gt; (forall g. g -&gt; c g) -&gt; Subject -&gt; c Subject)
+-&gt; (forall (c :: * -&gt; *).
+    (forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+    -&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c Subject)
+-&gt; (Subject -&gt; Constr)
+-&gt; (Subject -&gt; DataType)
+-&gt; (forall (t :: * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d. Data d =&gt; c (t d)) -&gt; Maybe (c Subject))
+-&gt; (forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d e. (Data d, Data e) =&gt; c (t d e)) -&gt; Maybe (c Subject))
+-&gt; ((forall b. Data b =&gt; b -&gt; b) -&gt; Subject -&gt; Subject)
+-&gt; (forall r r'.
+    (r -&gt; r' -&gt; r)
+    -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; Subject -&gt; r)
+-&gt; (forall r r'.
+    (r' -&gt; r -&gt; r)
+    -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; Subject -&gt; r)
+-&gt; (forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; Subject -&gt; [u])
+-&gt; (forall u. Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; Subject -&gt; u)
+-&gt; (forall (m :: * -&gt; *).
+    Monad m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; Subject -&gt; m Subject)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; Subject -&gt; m Subject)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; Subject -&gt; m Subject)
+-&gt; Data Subject
+Subject -&gt; Constr
+Subject -&gt; DataType
+(forall b. Data b =&gt; b -&gt; b) -&gt; Subject -&gt; Subject
+forall a.
+Typeable a =&gt;
+(forall (c :: * -&gt; *).
+ (forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+ -&gt; (forall g. g -&gt; c g) -&gt; a -&gt; c a)
+-&gt; (forall (c :: * -&gt; *).
+    (forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+    -&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c a)
+-&gt; (a -&gt; Constr)
+-&gt; (a -&gt; DataType)
+-&gt; (forall (t :: * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d. Data d =&gt; c (t d)) -&gt; Maybe (c a))
+-&gt; (forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d e. (Data d, Data e) =&gt; c (t d e)) -&gt; Maybe (c a))
+-&gt; ((forall b. Data b =&gt; b -&gt; b) -&gt; a -&gt; a)
+-&gt; (forall r r'.
+    (r -&gt; r' -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; a -&gt; r)
+-&gt; (forall r r'.
+    (r' -&gt; r -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; a -&gt; r)
+-&gt; (forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; a -&gt; [u])
+-&gt; (forall u. Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; a -&gt; u)
+-&gt; (forall (m :: * -&gt; *).
+    Monad m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; a -&gt; m a)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; a -&gt; m a)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; a -&gt; m a)
+-&gt; Data a
+forall u. Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; Subject -&gt; u
+forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; Subject -&gt; [u]
+forall r r'.
+(r -&gt; r' -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; Subject -&gt; r
+forall r r'.
+(r' -&gt; r -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; Subject -&gt; r
+forall (m :: * -&gt; *).
+Monad m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; Subject -&gt; m Subject
+forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; Subject -&gt; m Subject
+forall (c :: * -&gt; *).
+(forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+-&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c Subject
+forall (c :: * -&gt; *).
+(forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+-&gt; (forall g. g -&gt; c g) -&gt; Subject -&gt; c Subject
+forall (t :: * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d. Data d =&gt; c (t d)) -&gt; Maybe (c Subject)
+forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d e. (Data d, Data e) =&gt; c (t d e)) -&gt; Maybe (c Subject)
+$cgfoldl :: forall (c :: * -&gt; *).
+(forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+-&gt; (forall g. g -&gt; c g) -&gt; Subject -&gt; c Subject
+gfoldl :: forall (c :: * -&gt; *).
+(forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+-&gt; (forall g. g -&gt; c g) -&gt; Subject -&gt; c Subject
+$cgunfold :: forall (c :: * -&gt; *).
+(forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+-&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c Subject
+gunfold :: forall (c :: * -&gt; *).
+(forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+-&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c Subject
+$ctoConstr :: Subject -&gt; Constr
+toConstr :: Subject -&gt; Constr
+$cdataTypeOf :: Subject -&gt; DataType
+dataTypeOf :: Subject -&gt; DataType
+$cdataCast1 :: forall (t :: * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d. Data d =&gt; c (t d)) -&gt; Maybe (c Subject)
+dataCast1 :: forall (t :: * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d. Data d =&gt; c (t d)) -&gt; Maybe (c Subject)
+$cdataCast2 :: forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d e. (Data d, Data e) =&gt; c (t d e)) -&gt; Maybe (c Subject)
+dataCast2 :: forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d e. (Data d, Data e) =&gt; c (t d e)) -&gt; Maybe (c Subject)
+$cgmapT :: (forall b. Data b =&gt; b -&gt; b) -&gt; Subject -&gt; Subject
+gmapT :: (forall b. Data b =&gt; b -&gt; b) -&gt; Subject -&gt; Subject
+$cgmapQl :: forall r r'.
+(r -&gt; r' -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; Subject -&gt; r
+gmapQl :: forall r r'.
+(r -&gt; r' -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; Subject -&gt; r
+$cgmapQr :: forall r r'.
+(r' -&gt; r -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; Subject -&gt; r
+gmapQr :: forall r r'.
+(r' -&gt; r -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; Subject -&gt; r
+$cgmapQ :: forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; Subject -&gt; [u]
+gmapQ :: forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; Subject -&gt; [u]
+$cgmapQi :: forall u. Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; Subject -&gt; u
+gmapQi :: forall u. Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; Subject -&gt; u
+$cgmapM :: forall (m :: * -&gt; *).
+Monad m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; Subject -&gt; m Subject
+gmapM :: forall (m :: * -&gt; *).
+Monad m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; Subject -&gt; m Subject
+$cgmapMp :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; Subject -&gt; m Subject
+gmapMp :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; Subject -&gt; m Subject
+$cgmapMo :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; Subject -&gt; m Subject
+gmapMo :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; Subject -&gt; m Subject
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Data</span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679518061"><span id="local-6989586621679518070"><span class="annot"><span class="annottext">Subject -&gt; Subject -&gt; Bool
+(Subject -&gt; Subject -&gt; Bool)
+-&gt; (Subject -&gt; Subject -&gt; Bool) -&gt; Eq Subject
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: Subject -&gt; Subject -&gt; Bool
+== :: Subject -&gt; Subject -&gt; Bool
+$c/= :: Subject -&gt; Subject -&gt; Bool
+/= :: Subject -&gt; Subject -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679518077"><span id="local-6989586621679518086"><span id="local-6989586621679518093"><span id="local-6989586621679518097"><span id="local-6989586621679518100"><span id="local-6989586621679518103"><span id="local-6989586621679518106"><span class="annot"><span class="annottext">Eq Subject
+Eq Subject =&gt;
+(Subject -&gt; Subject -&gt; Ordering)
+-&gt; (Subject -&gt; Subject -&gt; Bool)
+-&gt; (Subject -&gt; Subject -&gt; Bool)
+-&gt; (Subject -&gt; Subject -&gt; Bool)
+-&gt; (Subject -&gt; Subject -&gt; Bool)
+-&gt; (Subject -&gt; Subject -&gt; Subject)
+-&gt; (Subject -&gt; Subject -&gt; Subject)
+-&gt; Ord Subject
+Subject -&gt; Subject -&gt; Bool
+Subject -&gt; Subject -&gt; Ordering
+Subject -&gt; Subject -&gt; Subject
+forall a.
+Eq a =&gt;
+(a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+$ccompare :: Subject -&gt; Subject -&gt; Ordering
+compare :: Subject -&gt; Subject -&gt; Ordering
+$c&lt; :: Subject -&gt; Subject -&gt; Bool
+&lt; :: Subject -&gt; Subject -&gt; Bool
+$c&lt;= :: Subject -&gt; Subject -&gt; Bool
+&lt;= :: Subject -&gt; Subject -&gt; Bool
+$c&gt; :: Subject -&gt; Subject -&gt; Bool
+&gt; :: Subject -&gt; Subject -&gt; Bool
+$c&gt;= :: Subject -&gt; Subject -&gt; Bool
+&gt;= :: Subject -&gt; Subject -&gt; Bool
+$cmax :: Subject -&gt; Subject -&gt; Subject
+max :: Subject -&gt; Subject -&gt; Subject
+$cmin :: Subject -&gt; Subject -&gt; Subject
+min :: Subject -&gt; Subject -&gt; Subject
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679518110"><span id="local-6989586621679518112"><span class="annot"><span class="annottext">(forall x. Subject -&gt; Rep Subject x)
+-&gt; (forall x. Rep Subject x -&gt; Subject) -&gt; Generic Subject
+forall x. Rep Subject x -&gt; Subject
+forall x. Subject -&gt; Rep Subject x
+forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+$cfrom :: forall x. Subject -&gt; Rep Subject x
+from :: forall x. Subject -&gt; Rep Subject x
+$cto :: forall x. Rep Subject x -&gt; Subject
+to :: forall x. Rep Subject x -&gt; Subject
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Generic</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-37"></span><span>
+</span><span id="line-38"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679518115"><span class="annot"><span class="hs-identifier hs-type">NFData</span></span><span> </span><span class="annot"><a href="GitHub.Data.Activities.html#Subject"><span class="hs-identifier hs-type">Subject</span></a></span></span><span>
+</span><span id="line-39"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679518138"><span id="local-6989586621679518145"><span id="local-6989586621679518151"><span class="annot"><span class="hs-identifier hs-type">Binary</span></span><span> </span><span class="annot"><a href="GitHub.Data.Activities.html#Subject"><span class="hs-identifier hs-type">Subject</span></a></span></span></span></span><span>
+</span><span id="line-40"></span><span>
+</span><span id="line-41"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679518184"><span id="local-6989586621679518188"><span class="annot"><span class="hs-identifier hs-type">FromJSON</span></span><span> </span><span class="annot"><a href="GitHub.Data.Activities.html#Subject"><span class="hs-identifier hs-type">Subject</span></a></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-42"></span><span>    </span><span id="local-6989586621679518206"><span class="annot"><span class="annottext">parseJSON :: Value -&gt; Parser Subject
+</span><span class="hs-identifier hs-var hs-var hs-var">parseJSON</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; (Object -&gt; Parser Subject) -&gt; Value -&gt; Parser Subject
+forall a. String -&gt; (Object -&gt; Parser a) -&gt; Value -&gt; Parser a
+</span><span class="hs-identifier hs-var">withObject</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Subject&quot;</span></span><span> </span><span class="annot"><span class="annottext">((Object -&gt; Parser Subject) -&gt; Value -&gt; Parser Subject)
+-&gt; (Object -&gt; Parser Subject) -&gt; Value -&gt; Parser Subject
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679518207"><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679518207"><span class="hs-identifier hs-var">o</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Text -&gt; Maybe URL -&gt; Maybe URL -&gt; Text -&gt; Subject
+</span><a href="GitHub.Data.Activities.html#Subject"><span class="hs-identifier hs-var">Subject</span></a></span><span>
+</span><span id="line-43"></span><span>        </span><span class="annot"><span class="annottext">(Text -&gt; Maybe URL -&gt; Maybe URL -&gt; Text -&gt; Subject)
+-&gt; Parser Text
+-&gt; Parser (Maybe URL -&gt; Maybe URL -&gt; Text -&gt; Subject)
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679518207"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser Text
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">.:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;title&quot;</span></span><span>
+</span><span id="line-44"></span><span>        </span><span class="annot"><span class="annottext">Parser (Maybe URL -&gt; Maybe URL -&gt; Text -&gt; Subject)
+-&gt; Parser (Maybe URL) -&gt; Parser (Maybe URL -&gt; Text -&gt; Subject)
+forall a b. Parser (a -&gt; b) -&gt; Parser a -&gt; Parser b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679518207"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser (Maybe URL)
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">.:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;url&quot;</span></span><span>
+</span><span id="line-45"></span><span>        </span><span class="annot"><span class="annottext">Parser (Maybe URL -&gt; Text -&gt; Subject)
+-&gt; Parser (Maybe URL) -&gt; Parser (Text -&gt; Subject)
+forall a b. Parser (a -&gt; b) -&gt; Parser a -&gt; Parser b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679518207"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser (Maybe URL)
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser (Maybe a)
+</span><span class="hs-operator hs-var">.:?</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;latest_comment_url&quot;</span></span><span>
+</span><span id="line-46"></span><span>        </span><span class="annot"><span class="annottext">Parser (Text -&gt; Subject) -&gt; Parser Text -&gt; Parser Subject
+forall a b. Parser (a -&gt; b) -&gt; Parser a -&gt; Parser b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679518207"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser Text
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">.:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;type&quot;</span></span><span>
+</span><span id="line-47"></span><span>
+</span><span id="line-48"></span><span class="hs-keyword">data</span><span> </span><span id="NotificationReason"><span class="annot"><a href="GitHub.Data.Activities.html#NotificationReason"><span class="hs-identifier hs-var">NotificationReason</span></a></span></span><span>
+</span><span id="line-49"></span><span>    </span><span class="hs-glyph">=</span><span> </span><span id="ApprovalRequestedReason"><span class="annot"><a href="GitHub.Data.Activities.html#ApprovalRequestedReason"><span class="hs-identifier hs-var">ApprovalRequestedReason</span></a></span></span><span>
+</span><span id="line-50"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span id="AssignReason"><span class="annot"><a href="GitHub.Data.Activities.html#AssignReason"><span class="hs-identifier hs-var">AssignReason</span></a></span></span><span>
+</span><span id="line-51"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span id="AuthorReason"><span class="annot"><a href="GitHub.Data.Activities.html#AuthorReason"><span class="hs-identifier hs-var">AuthorReason</span></a></span></span><span>
+</span><span id="line-52"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span id="CommentReason"><span class="annot"><a href="GitHub.Data.Activities.html#CommentReason"><span class="hs-identifier hs-var">CommentReason</span></a></span></span><span>
+</span><span id="line-53"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span id="CiActivityReason"><span class="annot"><a href="GitHub.Data.Activities.html#CiActivityReason"><span class="hs-identifier hs-var">CiActivityReason</span></a></span></span><span>
+</span><span id="line-54"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span id="InvitationReason"><span class="annot"><a href="GitHub.Data.Activities.html#InvitationReason"><span class="hs-identifier hs-var">InvitationReason</span></a></span></span><span>
+</span><span id="line-55"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span id="ManualReason"><span class="annot"><a href="GitHub.Data.Activities.html#ManualReason"><span class="hs-identifier hs-var">ManualReason</span></a></span></span><span>
+</span><span id="line-56"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span id="MemberFeatureRequestedReason"><span class="annot"><a href="GitHub.Data.Activities.html#MemberFeatureRequestedReason"><span class="hs-identifier hs-var">MemberFeatureRequestedReason</span></a></span></span><span>
+</span><span id="line-57"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span id="MentionReason"><span class="annot"><a href="GitHub.Data.Activities.html#MentionReason"><span class="hs-identifier hs-var">MentionReason</span></a></span></span><span>
+</span><span id="line-58"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span id="ReviewRequestedReason"><span class="annot"><a href="GitHub.Data.Activities.html#ReviewRequestedReason"><span class="hs-identifier hs-var">ReviewRequestedReason</span></a></span></span><span>
+</span><span id="line-59"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span id="SecurityAlertReason"><span class="annot"><a href="GitHub.Data.Activities.html#SecurityAlertReason"><span class="hs-identifier hs-var">SecurityAlertReason</span></a></span></span><span>
+</span><span id="line-60"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span id="SecurityAdvisoryCreditReason"><span class="annot"><a href="GitHub.Data.Activities.html#SecurityAdvisoryCreditReason"><span class="hs-identifier hs-var">SecurityAdvisoryCreditReason</span></a></span></span><span>
+</span><span id="line-61"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span id="StateChangeReason"><span class="annot"><a href="GitHub.Data.Activities.html#StateChangeReason"><span class="hs-identifier hs-var">StateChangeReason</span></a></span></span><span>
+</span><span id="line-62"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span id="SubscribedReason"><span class="annot"><a href="GitHub.Data.Activities.html#SubscribedReason"><span class="hs-identifier hs-var">SubscribedReason</span></a></span></span><span>
+</span><span id="line-63"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span id="TeamMentionReason"><span class="annot"><a href="GitHub.Data.Activities.html#TeamMentionReason"><span class="hs-identifier hs-var">TeamMentionReason</span></a></span></span><span>
+</span><span id="line-64"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679518225"><span id="local-6989586621679518227"><span id="local-6989586621679518231"><span class="annot"><span class="annottext">Int -&gt; NotificationReason -&gt; ShowS
+[NotificationReason] -&gt; ShowS
+NotificationReason -&gt; String
+(Int -&gt; NotificationReason -&gt; ShowS)
+-&gt; (NotificationReason -&gt; String)
+-&gt; ([NotificationReason] -&gt; ShowS)
+-&gt; Show NotificationReason
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; NotificationReason -&gt; ShowS
+showsPrec :: Int -&gt; NotificationReason -&gt; ShowS
+$cshow :: NotificationReason -&gt; String
+show :: NotificationReason -&gt; String
+$cshowList :: [NotificationReason] -&gt; ShowS
+showList :: [NotificationReason] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679518236"><span id="local-6989586621679518238"><span id="local-6989586621679518240"><span id="local-6989586621679518242"><span id="local-6989586621679518244"><span id="local-6989586621679518250"><span id="local-6989586621679518255"><span id="local-6989586621679518258"><span id="local-6989586621679518261"><span id="local-6989586621679518264"><span id="local-6989586621679518267"><span id="local-6989586621679518270"><span id="local-6989586621679518275"><span id="local-6989586621679518280"><span class="annot"><span class="annottext">Typeable NotificationReason
+Typeable NotificationReason =&gt;
+(forall (c :: * -&gt; *).
+ (forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+ -&gt; (forall g. g -&gt; c g)
+ -&gt; NotificationReason
+ -&gt; c NotificationReason)
+-&gt; (forall (c :: * -&gt; *).
+    (forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+    -&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c NotificationReason)
+-&gt; (NotificationReason -&gt; Constr)
+-&gt; (NotificationReason -&gt; DataType)
+-&gt; (forall (t :: * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d. Data d =&gt; c (t d)) -&gt; Maybe (c NotificationReason))
+-&gt; (forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d e. (Data d, Data e) =&gt; c (t d e))
+    -&gt; Maybe (c NotificationReason))
+-&gt; ((forall b. Data b =&gt; b -&gt; b)
+    -&gt; NotificationReason -&gt; NotificationReason)
+-&gt; (forall r r'.
+    (r -&gt; r' -&gt; r)
+    -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; NotificationReason -&gt; r)
+-&gt; (forall r r'.
+    (r' -&gt; r -&gt; r)
+    -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; NotificationReason -&gt; r)
+-&gt; (forall u.
+    (forall d. Data d =&gt; d -&gt; u) -&gt; NotificationReason -&gt; [u])
+-&gt; (forall u.
+    Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; NotificationReason -&gt; u)
+-&gt; (forall (m :: * -&gt; *).
+    Monad m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d)
+    -&gt; NotificationReason -&gt; m NotificationReason)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d)
+    -&gt; NotificationReason -&gt; m NotificationReason)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d)
+    -&gt; NotificationReason -&gt; m NotificationReason)
+-&gt; Data NotificationReason
+NotificationReason -&gt; Constr
+NotificationReason -&gt; DataType
+(forall b. Data b =&gt; b -&gt; b)
+-&gt; NotificationReason -&gt; NotificationReason
+forall a.
+Typeable a =&gt;
+(forall (c :: * -&gt; *).
+ (forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+ -&gt; (forall g. g -&gt; c g) -&gt; a -&gt; c a)
+-&gt; (forall (c :: * -&gt; *).
+    (forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+    -&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c a)
+-&gt; (a -&gt; Constr)
+-&gt; (a -&gt; DataType)
+-&gt; (forall (t :: * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d. Data d =&gt; c (t d)) -&gt; Maybe (c a))
+-&gt; (forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d e. (Data d, Data e) =&gt; c (t d e)) -&gt; Maybe (c a))
+-&gt; ((forall b. Data b =&gt; b -&gt; b) -&gt; a -&gt; a)
+-&gt; (forall r r'.
+    (r -&gt; r' -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; a -&gt; r)
+-&gt; (forall r r'.
+    (r' -&gt; r -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; a -&gt; r)
+-&gt; (forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; a -&gt; [u])
+-&gt; (forall u. Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; a -&gt; u)
+-&gt; (forall (m :: * -&gt; *).
+    Monad m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; a -&gt; m a)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; a -&gt; m a)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; a -&gt; m a)
+-&gt; Data a
+forall u.
+Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; NotificationReason -&gt; u
+forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; NotificationReason -&gt; [u]
+forall r r'.
+(r -&gt; r' -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; NotificationReason -&gt; r
+forall r r'.
+(r' -&gt; r -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; NotificationReason -&gt; r
+forall (m :: * -&gt; *).
+Monad m =&gt;
+(forall d. Data d =&gt; d -&gt; m d)
+-&gt; NotificationReason -&gt; m NotificationReason
+forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d)
+-&gt; NotificationReason -&gt; m NotificationReason
+forall (c :: * -&gt; *).
+(forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+-&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c NotificationReason
+forall (c :: * -&gt; *).
+(forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+-&gt; (forall g. g -&gt; c g)
+-&gt; NotificationReason
+-&gt; c NotificationReason
+forall (t :: * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d. Data d =&gt; c (t d)) -&gt; Maybe (c NotificationReason)
+forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d e. (Data d, Data e) =&gt; c (t d e))
+-&gt; Maybe (c NotificationReason)
+$cgfoldl :: forall (c :: * -&gt; *).
+(forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+-&gt; (forall g. g -&gt; c g)
+-&gt; NotificationReason
+-&gt; c NotificationReason
+gfoldl :: forall (c :: * -&gt; *).
+(forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+-&gt; (forall g. g -&gt; c g)
+-&gt; NotificationReason
+-&gt; c NotificationReason
+$cgunfold :: forall (c :: * -&gt; *).
+(forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+-&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c NotificationReason
+gunfold :: forall (c :: * -&gt; *).
+(forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+-&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c NotificationReason
+$ctoConstr :: NotificationReason -&gt; Constr
+toConstr :: NotificationReason -&gt; Constr
+$cdataTypeOf :: NotificationReason -&gt; DataType
+dataTypeOf :: NotificationReason -&gt; DataType
+$cdataCast1 :: forall (t :: * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d. Data d =&gt; c (t d)) -&gt; Maybe (c NotificationReason)
+dataCast1 :: forall (t :: * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d. Data d =&gt; c (t d)) -&gt; Maybe (c NotificationReason)
+$cdataCast2 :: forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d e. (Data d, Data e) =&gt; c (t d e))
+-&gt; Maybe (c NotificationReason)
+dataCast2 :: forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d e. (Data d, Data e) =&gt; c (t d e))
+-&gt; Maybe (c NotificationReason)
+$cgmapT :: (forall b. Data b =&gt; b -&gt; b)
+-&gt; NotificationReason -&gt; NotificationReason
+gmapT :: (forall b. Data b =&gt; b -&gt; b)
+-&gt; NotificationReason -&gt; NotificationReason
+$cgmapQl :: forall r r'.
+(r -&gt; r' -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; NotificationReason -&gt; r
+gmapQl :: forall r r'.
+(r -&gt; r' -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; NotificationReason -&gt; r
+$cgmapQr :: forall r r'.
+(r' -&gt; r -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; NotificationReason -&gt; r
+gmapQr :: forall r r'.
+(r' -&gt; r -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; NotificationReason -&gt; r
+$cgmapQ :: forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; NotificationReason -&gt; [u]
+gmapQ :: forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; NotificationReason -&gt; [u]
+$cgmapQi :: forall u.
+Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; NotificationReason -&gt; u
+gmapQi :: forall u.
+Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; NotificationReason -&gt; u
+$cgmapM :: forall (m :: * -&gt; *).
+Monad m =&gt;
+(forall d. Data d =&gt; d -&gt; m d)
+-&gt; NotificationReason -&gt; m NotificationReason
+gmapM :: forall (m :: * -&gt; *).
+Monad m =&gt;
+(forall d. Data d =&gt; d -&gt; m d)
+-&gt; NotificationReason -&gt; m NotificationReason
+$cgmapMp :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d)
+-&gt; NotificationReason -&gt; m NotificationReason
+gmapMp :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d)
+-&gt; NotificationReason -&gt; m NotificationReason
+$cgmapMo :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d)
+-&gt; NotificationReason -&gt; m NotificationReason
+gmapMo :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d)
+-&gt; NotificationReason -&gt; m NotificationReason
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Data</span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679518285"><span id="local-6989586621679518295"><span id="local-6989586621679518302"><span id="local-6989586621679518315"><span id="local-6989586621679518318"><span id="local-6989586621679518323"><span id="local-6989586621679518329"><span id="local-6989586621679518333"><span class="annot"><span class="annottext">Int -&gt; NotificationReason
+NotificationReason -&gt; Int
+NotificationReason -&gt; [NotificationReason]
+NotificationReason -&gt; NotificationReason
+NotificationReason -&gt; NotificationReason -&gt; [NotificationReason]
+NotificationReason
+-&gt; NotificationReason -&gt; NotificationReason -&gt; [NotificationReason]
+(NotificationReason -&gt; NotificationReason)
+-&gt; (NotificationReason -&gt; NotificationReason)
+-&gt; (Int -&gt; NotificationReason)
+-&gt; (NotificationReason -&gt; Int)
+-&gt; (NotificationReason -&gt; [NotificationReason])
+-&gt; (NotificationReason
+    -&gt; NotificationReason -&gt; [NotificationReason])
+-&gt; (NotificationReason
+    -&gt; NotificationReason -&gt; [NotificationReason])
+-&gt; (NotificationReason
+    -&gt; NotificationReason
+    -&gt; NotificationReason
+    -&gt; [NotificationReason])
+-&gt; Enum NotificationReason
+forall a.
+(a -&gt; a)
+-&gt; (a -&gt; a)
+-&gt; (Int -&gt; a)
+-&gt; (a -&gt; Int)
+-&gt; (a -&gt; [a])
+-&gt; (a -&gt; a -&gt; [a])
+-&gt; (a -&gt; a -&gt; [a])
+-&gt; (a -&gt; a -&gt; a -&gt; [a])
+-&gt; Enum a
+$csucc :: NotificationReason -&gt; NotificationReason
+succ :: NotificationReason -&gt; NotificationReason
+$cpred :: NotificationReason -&gt; NotificationReason
+pred :: NotificationReason -&gt; NotificationReason
+$ctoEnum :: Int -&gt; NotificationReason
+toEnum :: Int -&gt; NotificationReason
+$cfromEnum :: NotificationReason -&gt; Int
+fromEnum :: NotificationReason -&gt; Int
+$cenumFrom :: NotificationReason -&gt; [NotificationReason]
+enumFrom :: NotificationReason -&gt; [NotificationReason]
+$cenumFromThen :: NotificationReason -&gt; NotificationReason -&gt; [NotificationReason]
+enumFromThen :: NotificationReason -&gt; NotificationReason -&gt; [NotificationReason]
+$cenumFromTo :: NotificationReason -&gt; NotificationReason -&gt; [NotificationReason]
+enumFromTo :: NotificationReason -&gt; NotificationReason -&gt; [NotificationReason]
+$cenumFromThenTo :: NotificationReason
+-&gt; NotificationReason -&gt; NotificationReason -&gt; [NotificationReason]
+enumFromThenTo :: NotificationReason
+-&gt; NotificationReason -&gt; NotificationReason -&gt; [NotificationReason]
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Enum</span></span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679518341"><span id="local-6989586621679518343"><span class="annot"><span class="annottext">NotificationReason
+NotificationReason
+-&gt; NotificationReason -&gt; Bounded NotificationReason
+forall a. a -&gt; a -&gt; Bounded a
+$cminBound :: NotificationReason
+minBound :: NotificationReason
+$cmaxBound :: NotificationReason
+maxBound :: NotificationReason
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Bounded</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679518349"><span id="local-6989586621679518353"><span class="annot"><span class="annottext">NotificationReason -&gt; NotificationReason -&gt; Bool
+(NotificationReason -&gt; NotificationReason -&gt; Bool)
+-&gt; (NotificationReason -&gt; NotificationReason -&gt; Bool)
+-&gt; Eq NotificationReason
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: NotificationReason -&gt; NotificationReason -&gt; Bool
+== :: NotificationReason -&gt; NotificationReason -&gt; Bool
+$c/= :: NotificationReason -&gt; NotificationReason -&gt; Bool
+/= :: NotificationReason -&gt; NotificationReason -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679518359"><span id="local-6989586621679518363"><span id="local-6989586621679518367"><span id="local-6989586621679518371"><span id="local-6989586621679518374"><span id="local-6989586621679518377"><span id="local-6989586621679518380"><span class="annot"><span class="annottext">Eq NotificationReason
+Eq NotificationReason =&gt;
+(NotificationReason -&gt; NotificationReason -&gt; Ordering)
+-&gt; (NotificationReason -&gt; NotificationReason -&gt; Bool)
+-&gt; (NotificationReason -&gt; NotificationReason -&gt; Bool)
+-&gt; (NotificationReason -&gt; NotificationReason -&gt; Bool)
+-&gt; (NotificationReason -&gt; NotificationReason -&gt; Bool)
+-&gt; (NotificationReason -&gt; NotificationReason -&gt; NotificationReason)
+-&gt; (NotificationReason -&gt; NotificationReason -&gt; NotificationReason)
+-&gt; Ord NotificationReason
+NotificationReason -&gt; NotificationReason -&gt; Bool
+NotificationReason -&gt; NotificationReason -&gt; Ordering
+NotificationReason -&gt; NotificationReason -&gt; NotificationReason
+forall a.
+Eq a =&gt;
+(a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+$ccompare :: NotificationReason -&gt; NotificationReason -&gt; Ordering
+compare :: NotificationReason -&gt; NotificationReason -&gt; Ordering
+$c&lt; :: NotificationReason -&gt; NotificationReason -&gt; Bool
+&lt; :: NotificationReason -&gt; NotificationReason -&gt; Bool
+$c&lt;= :: NotificationReason -&gt; NotificationReason -&gt; Bool
+&lt;= :: NotificationReason -&gt; NotificationReason -&gt; Bool
+$c&gt; :: NotificationReason -&gt; NotificationReason -&gt; Bool
+&gt; :: NotificationReason -&gt; NotificationReason -&gt; Bool
+$c&gt;= :: NotificationReason -&gt; NotificationReason -&gt; Bool
+&gt;= :: NotificationReason -&gt; NotificationReason -&gt; Bool
+$cmax :: NotificationReason -&gt; NotificationReason -&gt; NotificationReason
+max :: NotificationReason -&gt; NotificationReason -&gt; NotificationReason
+$cmin :: NotificationReason -&gt; NotificationReason -&gt; NotificationReason
+min :: NotificationReason -&gt; NotificationReason -&gt; NotificationReason
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679518383"><span id="local-6989586621679518385"><span class="annot"><span class="annottext">(forall x. NotificationReason -&gt; Rep NotificationReason x)
+-&gt; (forall x. Rep NotificationReason x -&gt; NotificationReason)
+-&gt; Generic NotificationReason
+forall x. Rep NotificationReason x -&gt; NotificationReason
+forall x. NotificationReason -&gt; Rep NotificationReason x
+forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+$cfrom :: forall x. NotificationReason -&gt; Rep NotificationReason x
+from :: forall x. NotificationReason -&gt; Rep NotificationReason x
+$cto :: forall x. Rep NotificationReason x -&gt; NotificationReason
+to :: forall x. Rep NotificationReason x -&gt; NotificationReason
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Generic</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-65"></span><span>
+</span><span id="line-66"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679518388"><span class="annot"><span class="hs-identifier hs-type">NFData</span></span><span> </span><span class="annot"><a href="GitHub.Data.Activities.html#NotificationReason"><span class="hs-identifier hs-type">NotificationReason</span></a></span></span><span>
+</span><span id="line-67"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679518427"><span id="local-6989586621679518434"><span id="local-6989586621679518440"><span class="annot"><span class="hs-identifier hs-type">Binary</span></span><span> </span><span class="annot"><a href="GitHub.Data.Activities.html#NotificationReason"><span class="hs-identifier hs-type">NotificationReason</span></a></span></span></span></span><span>
+</span><span id="line-68"></span><span>
+</span><span id="line-69"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679518570"><span id="local-6989586621679518574"><span class="annot"><span class="hs-identifier hs-type">FromJSON</span></span><span> </span><span class="annot"><a href="GitHub.Data.Activities.html#NotificationReason"><span class="hs-identifier hs-type">NotificationReason</span></a></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-70"></span><span>    </span><span id="local-6989586621679518627"><span class="annot"><span class="annottext">parseJSON :: Value -&gt; Parser NotificationReason
+</span><span class="hs-identifier hs-var hs-var hs-var">parseJSON</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+-&gt; (Text -&gt; Parser NotificationReason)
+-&gt; Value
+-&gt; Parser NotificationReason
+forall a. String -&gt; (Text -&gt; Parser a) -&gt; Value -&gt; Parser a
+</span><span class="hs-identifier hs-var">withText</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;NotificationReason&quot;</span></span><span> </span><span class="annot"><span class="annottext">((Text -&gt; Parser NotificationReason)
+ -&gt; Value -&gt; Parser NotificationReason)
+-&gt; (Text -&gt; Parser NotificationReason)
+-&gt; Value
+-&gt; Parser NotificationReason
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679518629"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679518629"><span class="hs-identifier hs-var">t</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Text -&gt; Text
+</span><span class="hs-identifier hs-var">T.toLower</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679518629"><span class="hs-identifier hs-var">t</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-71"></span><span>      </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;approval_requested&quot;</span></span><span>       </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">NotificationReason -&gt; Parser NotificationReason
+forall a. a -&gt; Parser a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">NotificationReason
+</span><a href="GitHub.Data.Activities.html#ApprovalRequestedReason"><span class="hs-identifier hs-var">ApprovalRequestedReason</span></a></span><span>
+</span><span id="line-72"></span><span>      </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;assign&quot;</span></span><span>                   </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">NotificationReason -&gt; Parser NotificationReason
+forall a. a -&gt; Parser a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">NotificationReason
+</span><a href="GitHub.Data.Activities.html#AssignReason"><span class="hs-identifier hs-var">AssignReason</span></a></span><span>
+</span><span id="line-73"></span><span>      </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;author&quot;</span></span><span>                   </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">NotificationReason -&gt; Parser NotificationReason
+forall a. a -&gt; Parser a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">NotificationReason
+</span><a href="GitHub.Data.Activities.html#AuthorReason"><span class="hs-identifier hs-var">AuthorReason</span></a></span><span>
+</span><span id="line-74"></span><span>      </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;comment&quot;</span></span><span>                  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">NotificationReason -&gt; Parser NotificationReason
+forall a. a -&gt; Parser a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">NotificationReason
+</span><a href="GitHub.Data.Activities.html#CommentReason"><span class="hs-identifier hs-var">CommentReason</span></a></span><span>
+</span><span id="line-75"></span><span>      </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;ci_activity&quot;</span></span><span>              </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">NotificationReason -&gt; Parser NotificationReason
+forall a. a -&gt; Parser a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">NotificationReason
+</span><a href="GitHub.Data.Activities.html#CiActivityReason"><span class="hs-identifier hs-var">CiActivityReason</span></a></span><span>
+</span><span id="line-76"></span><span>      </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;invitation&quot;</span></span><span>               </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">NotificationReason -&gt; Parser NotificationReason
+forall a. a -&gt; Parser a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">NotificationReason
+</span><a href="GitHub.Data.Activities.html#InvitationReason"><span class="hs-identifier hs-var">InvitationReason</span></a></span><span>
+</span><span id="line-77"></span><span>      </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;manual&quot;</span></span><span>                   </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">NotificationReason -&gt; Parser NotificationReason
+forall a. a -&gt; Parser a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">NotificationReason
+</span><a href="GitHub.Data.Activities.html#ManualReason"><span class="hs-identifier hs-var">ManualReason</span></a></span><span>
+</span><span id="line-78"></span><span>      </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;member_feature_requested&quot;</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">NotificationReason -&gt; Parser NotificationReason
+forall a. a -&gt; Parser a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">NotificationReason
+</span><a href="GitHub.Data.Activities.html#MemberFeatureRequestedReason"><span class="hs-identifier hs-var">MemberFeatureRequestedReason</span></a></span><span>
+</span><span id="line-79"></span><span>      </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;mention&quot;</span></span><span>                  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">NotificationReason -&gt; Parser NotificationReason
+forall a. a -&gt; Parser a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">NotificationReason
+</span><a href="GitHub.Data.Activities.html#MentionReason"><span class="hs-identifier hs-var">MentionReason</span></a></span><span>
+</span><span id="line-80"></span><span>      </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;review_requested&quot;</span></span><span>         </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">NotificationReason -&gt; Parser NotificationReason
+forall a. a -&gt; Parser a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">NotificationReason
+</span><a href="GitHub.Data.Activities.html#ReviewRequestedReason"><span class="hs-identifier hs-var">ReviewRequestedReason</span></a></span><span>
+</span><span id="line-81"></span><span>      </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;security_alert&quot;</span></span><span>           </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">NotificationReason -&gt; Parser NotificationReason
+forall a. a -&gt; Parser a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">NotificationReason
+</span><a href="GitHub.Data.Activities.html#SecurityAlertReason"><span class="hs-identifier hs-var">SecurityAlertReason</span></a></span><span>
+</span><span id="line-82"></span><span>      </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;security_advisory_credit&quot;</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">NotificationReason -&gt; Parser NotificationReason
+forall a. a -&gt; Parser a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">NotificationReason
+</span><a href="GitHub.Data.Activities.html#SecurityAdvisoryCreditReason"><span class="hs-identifier hs-var">SecurityAdvisoryCreditReason</span></a></span><span>
+</span><span id="line-83"></span><span>      </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;state_change&quot;</span></span><span>             </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">NotificationReason -&gt; Parser NotificationReason
+forall a. a -&gt; Parser a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">NotificationReason
+</span><a href="GitHub.Data.Activities.html#StateChangeReason"><span class="hs-identifier hs-var">StateChangeReason</span></a></span><span>
+</span><span id="line-84"></span><span>      </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;subscribed&quot;</span></span><span>               </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">NotificationReason -&gt; Parser NotificationReason
+forall a. a -&gt; Parser a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">NotificationReason
+</span><a href="GitHub.Data.Activities.html#SubscribedReason"><span class="hs-identifier hs-var">SubscribedReason</span></a></span><span>
+</span><span id="line-85"></span><span>      </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;team_mention&quot;</span></span><span>             </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">NotificationReason -&gt; Parser NotificationReason
+forall a. a -&gt; Parser a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">NotificationReason
+</span><a href="GitHub.Data.Activities.html#TeamMentionReason"><span class="hs-identifier hs-var">TeamMentionReason</span></a></span><span>
+</span><span id="line-86"></span><span>      </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-identifier">_</span></span><span>                          </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">String -&gt; Parser NotificationReason
+forall a. String -&gt; Parser a
+forall (m :: * -&gt; *) a. MonadFail m =&gt; String -&gt; m a
+</span><span class="hs-identifier hs-var">fail</span></span><span> </span><span class="annot"><span class="annottext">(String -&gt; Parser NotificationReason)
+-&gt; String -&gt; Parser NotificationReason
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Unknown NotificationReason &quot;</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; ShowS
+forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">Text -&gt; String
+forall a. Show a =&gt; a -&gt; String
+</span><span class="hs-identifier hs-var">show</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679518629"><span class="hs-identifier hs-var">t</span></a></span><span>
+</span><span id="line-87"></span><span>
+</span><span id="line-88"></span><span class="hs-keyword">data</span><span> </span><span id="Notification"><span class="annot"><a href="GitHub.Data.Activities.html#Notification"><span class="hs-identifier hs-var">Notification</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="Notification"><span class="annot"><a href="GitHub.Data.Activities.html#Notification"><span class="hs-identifier hs-var">Notification</span></a></span></span><span>
+</span><span id="line-89"></span><span>    </span><span class="hs-comment">-- XXX: The notification id field type IS in fact string. Not sure why gh</span><span>
+</span><span id="line-90"></span><span>    </span><span class="hs-comment">-- chose to do this when all the other ids are Numbers...</span><span>
+</span><span id="line-91"></span><span>    </span><span class="hs-special">{</span><span> </span><span id="notificationId"><span class="annot"><span class="annottext">Notification -&gt; Id Notification
+</span><a href="GitHub.Data.Activities.html#notificationId"><span class="hs-identifier hs-var hs-var">notificationId</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="hs-special">(</span><span class="annot"><a href="GitHub.Data.Id.html#Id"><span class="hs-identifier hs-type">Id</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.Activities.html#Notification"><span class="hs-identifier hs-type">Notification</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-92"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="notificationRepo"><span class="annot"><span class="annottext">Notification -&gt; RepoRef
+</span><a href="GitHub.Data.Activities.html#notificationRepo"><span class="hs-identifier hs-var hs-var">notificationRepo</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><a href="GitHub.Data.Repos.html#RepoRef"><span class="hs-identifier hs-type">RepoRef</span></a></span><span>
+</span><span id="line-93"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="notificationSubject"><span class="annot"><span class="annottext">Notification -&gt; Subject
+</span><a href="GitHub.Data.Activities.html#notificationSubject"><span class="hs-identifier hs-var hs-var">notificationSubject</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><a href="GitHub.Data.Activities.html#Subject"><span class="hs-identifier hs-type">Subject</span></a></span><span>
+</span><span id="line-94"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="notificationReason"><span class="annot"><span class="annottext">Notification -&gt; NotificationReason
+</span><a href="GitHub.Data.Activities.html#notificationReason"><span class="hs-identifier hs-var hs-var">notificationReason</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><a href="GitHub.Data.Activities.html#NotificationReason"><span class="hs-identifier hs-type">NotificationReason</span></a></span><span>
+</span><span id="line-95"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="notificationUnread"><span class="annot"><span class="annottext">Notification -&gt; Bool
+</span><a href="GitHub.Data.Activities.html#notificationUnread"><span class="hs-identifier hs-var hs-var">notificationUnread</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>
+</span><span id="line-96"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="notificationUpdatedAt"><span class="annot"><span class="annottext">Notification -&gt; Maybe UTCTime
+</span><a href="GitHub.Data.Activities.html#notificationUpdatedAt"><span class="hs-identifier hs-var hs-var">notificationUpdatedAt</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">UTCTime</span></span><span class="hs-special">)</span><span>
+</span><span id="line-97"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="notificationLastReadAt"><span class="annot"><span class="annottext">Notification -&gt; Maybe UTCTime
+</span><a href="GitHub.Data.Activities.html#notificationLastReadAt"><span class="hs-identifier hs-var hs-var">notificationLastReadAt</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">UTCTime</span></span><span class="hs-special">)</span><span>
+</span><span id="line-98"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="notificationUrl"><span class="annot"><span class="annottext">Notification -&gt; URL
+</span><a href="GitHub.Data.Activities.html#notificationUrl"><span class="hs-identifier hs-var hs-var">notificationUrl</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><a href="GitHub.Data.URL.html#URL"><span class="hs-identifier hs-type">URL</span></a></span><span>
+</span><span id="line-99"></span><span>    </span><span class="hs-special">}</span><span>
+</span><span id="line-100"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679518642"><span id="local-6989586621679518657"><span id="local-6989586621679518661"><span class="annot"><span class="annottext">Int -&gt; Notification -&gt; ShowS
+[Notification] -&gt; ShowS
+Notification -&gt; String
+(Int -&gt; Notification -&gt; ShowS)
+-&gt; (Notification -&gt; String)
+-&gt; ([Notification] -&gt; ShowS)
+-&gt; Show Notification
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; Notification -&gt; ShowS
+showsPrec :: Int -&gt; Notification -&gt; ShowS
+$cshow :: Notification -&gt; String
+show :: Notification -&gt; String
+$cshowList :: [Notification] -&gt; ShowS
+showList :: [Notification] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679518666"><span id="local-6989586621679518681"><span id="local-6989586621679518693"><span id="local-6989586621679518695"><span id="local-6989586621679518697"><span id="local-6989586621679518703"><span id="local-6989586621679518708"><span id="local-6989586621679518711"><span id="local-6989586621679518714"><span id="local-6989586621679518717"><span id="local-6989586621679518720"><span id="local-6989586621679518723"><span id="local-6989586621679518728"><span id="local-6989586621679518733"><span class="annot"><span class="annottext">Typeable Notification
+Typeable Notification =&gt;
+(forall (c :: * -&gt; *).
+ (forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+ -&gt; (forall g. g -&gt; c g) -&gt; Notification -&gt; c Notification)
+-&gt; (forall (c :: * -&gt; *).
+    (forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+    -&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c Notification)
+-&gt; (Notification -&gt; Constr)
+-&gt; (Notification -&gt; DataType)
+-&gt; (forall (t :: * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d. Data d =&gt; c (t d)) -&gt; Maybe (c Notification))
+-&gt; (forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d e. (Data d, Data e) =&gt; c (t d e))
+    -&gt; Maybe (c Notification))
+-&gt; ((forall b. Data b =&gt; b -&gt; b) -&gt; Notification -&gt; Notification)
+-&gt; (forall r r'.
+    (r -&gt; r' -&gt; r)
+    -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; Notification -&gt; r)
+-&gt; (forall r r'.
+    (r' -&gt; r -&gt; r)
+    -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; Notification -&gt; r)
+-&gt; (forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; Notification -&gt; [u])
+-&gt; (forall u.
+    Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; Notification -&gt; u)
+-&gt; (forall (m :: * -&gt; *).
+    Monad m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; Notification -&gt; m Notification)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; Notification -&gt; m Notification)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; Notification -&gt; m Notification)
+-&gt; Data Notification
+Notification -&gt; Constr
+Notification -&gt; DataType
+(forall b. Data b =&gt; b -&gt; b) -&gt; Notification -&gt; Notification
+forall a.
+Typeable a =&gt;
+(forall (c :: * -&gt; *).
+ (forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+ -&gt; (forall g. g -&gt; c g) -&gt; a -&gt; c a)
+-&gt; (forall (c :: * -&gt; *).
+    (forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+    -&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c a)
+-&gt; (a -&gt; Constr)
+-&gt; (a -&gt; DataType)
+-&gt; (forall (t :: * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d. Data d =&gt; c (t d)) -&gt; Maybe (c a))
+-&gt; (forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d e. (Data d, Data e) =&gt; c (t d e)) -&gt; Maybe (c a))
+-&gt; ((forall b. Data b =&gt; b -&gt; b) -&gt; a -&gt; a)
+-&gt; (forall r r'.
+    (r -&gt; r' -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; a -&gt; r)
+-&gt; (forall r r'.
+    (r' -&gt; r -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; a -&gt; r)
+-&gt; (forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; a -&gt; [u])
+-&gt; (forall u. Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; a -&gt; u)
+-&gt; (forall (m :: * -&gt; *).
+    Monad m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; a -&gt; m a)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; a -&gt; m a)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; a -&gt; m a)
+-&gt; Data a
+forall u. Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; Notification -&gt; u
+forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; Notification -&gt; [u]
+forall r r'.
+(r -&gt; r' -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; Notification -&gt; r
+forall r r'.
+(r' -&gt; r -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; Notification -&gt; r
+forall (m :: * -&gt; *).
+Monad m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; Notification -&gt; m Notification
+forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; Notification -&gt; m Notification
+forall (c :: * -&gt; *).
+(forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+-&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c Notification
+forall (c :: * -&gt; *).
+(forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+-&gt; (forall g. g -&gt; c g) -&gt; Notification -&gt; c Notification
+forall (t :: * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d. Data d =&gt; c (t d)) -&gt; Maybe (c Notification)
+forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d e. (Data d, Data e) =&gt; c (t d e))
+-&gt; Maybe (c Notification)
+$cgfoldl :: forall (c :: * -&gt; *).
+(forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+-&gt; (forall g. g -&gt; c g) -&gt; Notification -&gt; c Notification
+gfoldl :: forall (c :: * -&gt; *).
+(forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+-&gt; (forall g. g -&gt; c g) -&gt; Notification -&gt; c Notification
+$cgunfold :: forall (c :: * -&gt; *).
+(forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+-&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c Notification
+gunfold :: forall (c :: * -&gt; *).
+(forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+-&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c Notification
+$ctoConstr :: Notification -&gt; Constr
+toConstr :: Notification -&gt; Constr
+$cdataTypeOf :: Notification -&gt; DataType
+dataTypeOf :: Notification -&gt; DataType
+$cdataCast1 :: forall (t :: * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d. Data d =&gt; c (t d)) -&gt; Maybe (c Notification)
+dataCast1 :: forall (t :: * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d. Data d =&gt; c (t d)) -&gt; Maybe (c Notification)
+$cdataCast2 :: forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d e. (Data d, Data e) =&gt; c (t d e))
+-&gt; Maybe (c Notification)
+dataCast2 :: forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d e. (Data d, Data e) =&gt; c (t d e))
+-&gt; Maybe (c Notification)
+$cgmapT :: (forall b. Data b =&gt; b -&gt; b) -&gt; Notification -&gt; Notification
+gmapT :: (forall b. Data b =&gt; b -&gt; b) -&gt; Notification -&gt; Notification
+$cgmapQl :: forall r r'.
+(r -&gt; r' -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; Notification -&gt; r
+gmapQl :: forall r r'.
+(r -&gt; r' -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; Notification -&gt; r
+$cgmapQr :: forall r r'.
+(r' -&gt; r -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; Notification -&gt; r
+gmapQr :: forall r r'.
+(r' -&gt; r -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; Notification -&gt; r
+$cgmapQ :: forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; Notification -&gt; [u]
+gmapQ :: forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; Notification -&gt; [u]
+$cgmapQi :: forall u. Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; Notification -&gt; u
+gmapQi :: forall u. Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; Notification -&gt; u
+$cgmapM :: forall (m :: * -&gt; *).
+Monad m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; Notification -&gt; m Notification
+gmapM :: forall (m :: * -&gt; *).
+Monad m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; Notification -&gt; m Notification
+$cgmapMp :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; Notification -&gt; m Notification
+gmapMp :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; Notification -&gt; m Notification
+$cgmapMo :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; Notification -&gt; m Notification
+gmapMo :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; Notification -&gt; m Notification
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Data</span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679518738"><span id="local-6989586621679518752"><span class="annot"><span class="annottext">Notification -&gt; Notification -&gt; Bool
+(Notification -&gt; Notification -&gt; Bool)
+-&gt; (Notification -&gt; Notification -&gt; Bool) -&gt; Eq Notification
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: Notification -&gt; Notification -&gt; Bool
+== :: Notification -&gt; Notification -&gt; Bool
+$c/= :: Notification -&gt; Notification -&gt; Bool
+/= :: Notification -&gt; Notification -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679518758"><span id="local-6989586621679518772"><span id="local-6989586621679518783"><span id="local-6989586621679518787"><span id="local-6989586621679518790"><span id="local-6989586621679518793"><span id="local-6989586621679518796"><span class="annot"><span class="annottext">Eq Notification
+Eq Notification =&gt;
+(Notification -&gt; Notification -&gt; Ordering)
+-&gt; (Notification -&gt; Notification -&gt; Bool)
+-&gt; (Notification -&gt; Notification -&gt; Bool)
+-&gt; (Notification -&gt; Notification -&gt; Bool)
+-&gt; (Notification -&gt; Notification -&gt; Bool)
+-&gt; (Notification -&gt; Notification -&gt; Notification)
+-&gt; (Notification -&gt; Notification -&gt; Notification)
+-&gt; Ord Notification
+Notification -&gt; Notification -&gt; Bool
+Notification -&gt; Notification -&gt; Ordering
+Notification -&gt; Notification -&gt; Notification
+forall a.
+Eq a =&gt;
+(a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+$ccompare :: Notification -&gt; Notification -&gt; Ordering
+compare :: Notification -&gt; Notification -&gt; Ordering
+$c&lt; :: Notification -&gt; Notification -&gt; Bool
+&lt; :: Notification -&gt; Notification -&gt; Bool
+$c&lt;= :: Notification -&gt; Notification -&gt; Bool
+&lt;= :: Notification -&gt; Notification -&gt; Bool
+$c&gt; :: Notification -&gt; Notification -&gt; Bool
+&gt; :: Notification -&gt; Notification -&gt; Bool
+$c&gt;= :: Notification -&gt; Notification -&gt; Bool
+&gt;= :: Notification -&gt; Notification -&gt; Bool
+$cmax :: Notification -&gt; Notification -&gt; Notification
+max :: Notification -&gt; Notification -&gt; Notification
+$cmin :: Notification -&gt; Notification -&gt; Notification
+min :: Notification -&gt; Notification -&gt; Notification
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679518799"><span id="local-6989586621679518801"><span class="annot"><span class="annottext">(forall x. Notification -&gt; Rep Notification x)
+-&gt; (forall x. Rep Notification x -&gt; Notification)
+-&gt; Generic Notification
+forall x. Rep Notification x -&gt; Notification
+forall x. Notification -&gt; Rep Notification x
+forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+$cfrom :: forall x. Notification -&gt; Rep Notification x
+from :: forall x. Notification -&gt; Rep Notification x
+$cto :: forall x. Rep Notification x -&gt; Notification
+to :: forall x. Rep Notification x -&gt; Notification
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Generic</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-101"></span><span>
+</span><span id="line-102"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679518804"><span class="annot"><span class="hs-identifier hs-type">NFData</span></span><span> </span><span class="annot"><a href="GitHub.Data.Activities.html#Notification"><span class="hs-identifier hs-type">Notification</span></a></span></span><span>
+</span><span id="line-103"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679518845"><span id="local-6989586621679518852"><span id="local-6989586621679518858"><span class="annot"><span class="hs-identifier hs-type">Binary</span></span><span> </span><span class="annot"><a href="GitHub.Data.Activities.html#Notification"><span class="hs-identifier hs-type">Notification</span></a></span></span></span></span><span>
+</span><span id="line-104"></span><span>
+</span><span id="line-105"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679518927"><span id="local-6989586621679518931"><span class="annot"><span class="hs-identifier hs-type">FromJSON</span></span><span> </span><span class="annot"><a href="GitHub.Data.Activities.html#Notification"><span class="hs-identifier hs-type">Notification</span></a></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-106"></span><span>    </span><span id="local-6989586621679518968"><span class="annot"><span class="annottext">parseJSON :: Value -&gt; Parser Notification
+</span><span class="hs-identifier hs-var hs-var hs-var">parseJSON</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+-&gt; (Object -&gt; Parser Notification) -&gt; Value -&gt; Parser Notification
+forall a. String -&gt; (Object -&gt; Parser a) -&gt; Value -&gt; Parser a
+</span><span class="hs-identifier hs-var">withObject</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Notification&quot;</span></span><span> </span><span class="annot"><span class="annottext">((Object -&gt; Parser Notification) -&gt; Value -&gt; Parser Notification)
+-&gt; (Object -&gt; Parser Notification) -&gt; Value -&gt; Parser Notification
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679518969"><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679518969"><span class="hs-identifier hs-var">o</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Id Notification
+-&gt; RepoRef
+-&gt; Subject
+-&gt; NotificationReason
+-&gt; Bool
+-&gt; Maybe UTCTime
+-&gt; Maybe UTCTime
+-&gt; URL
+-&gt; Notification
+</span><a href="GitHub.Data.Activities.html#Notification"><span class="hs-identifier hs-var">Notification</span></a></span><span>
+</span><span id="line-107"></span><span>        </span><span class="annot"><span class="annottext">(Id Notification
+ -&gt; RepoRef
+ -&gt; Subject
+ -&gt; NotificationReason
+ -&gt; Bool
+ -&gt; Maybe UTCTime
+ -&gt; Maybe UTCTime
+ -&gt; URL
+ -&gt; Notification)
+-&gt; Parser (Id Notification)
+-&gt; Parser
+     (RepoRef
+      -&gt; Subject
+      -&gt; NotificationReason
+      -&gt; Bool
+      -&gt; Maybe UTCTime
+      -&gt; Maybe UTCTime
+      -&gt; URL
+      -&gt; Notification)
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ZonkAny 0 Notification -&gt; Int -&gt; Id Notification
+forall (proxy :: * -&gt; *) entity. proxy entity -&gt; Int -&gt; Id entity
+</span><a href="GitHub.Data.Id.html#mkId"><span class="hs-identifier hs-var">mkId</span></a></span><span> </span><span class="annot"><span class="annottext">ZonkAny 0 Notification
+forall a. HasCallStack =&gt; a
+</span><span class="hs-identifier hs-var">undefined</span></span><span> </span><span class="annot"><span class="annottext">(Int -&gt; Id Notification)
+-&gt; (String -&gt; Int) -&gt; String -&gt; Id Notification
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; Int
+forall a. Read a =&gt; String -&gt; a
+</span><span class="hs-identifier hs-var">read</span></span><span> </span><span class="annot"><span class="annottext">(String -&gt; Id Notification)
+-&gt; Parser String -&gt; Parser (Id Notification)
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679518969"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser String
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">.:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;id&quot;</span></span><span class="hs-special">)</span><span>
+</span><span id="line-108"></span><span>        </span><span class="annot"><span class="annottext">Parser
+  (RepoRef
+   -&gt; Subject
+   -&gt; NotificationReason
+   -&gt; Bool
+   -&gt; Maybe UTCTime
+   -&gt; Maybe UTCTime
+   -&gt; URL
+   -&gt; Notification)
+-&gt; Parser RepoRef
+-&gt; Parser
+     (Subject
+      -&gt; NotificationReason
+      -&gt; Bool
+      -&gt; Maybe UTCTime
+      -&gt; Maybe UTCTime
+      -&gt; URL
+      -&gt; Notification)
+forall a b. Parser (a -&gt; b) -&gt; Parser a -&gt; Parser b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679518969"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser RepoRef
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">.:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;repository&quot;</span></span><span>
+</span><span id="line-109"></span><span>        </span><span class="annot"><span class="annottext">Parser
+  (Subject
+   -&gt; NotificationReason
+   -&gt; Bool
+   -&gt; Maybe UTCTime
+   -&gt; Maybe UTCTime
+   -&gt; URL
+   -&gt; Notification)
+-&gt; Parser Subject
+-&gt; Parser
+     (NotificationReason
+      -&gt; Bool -&gt; Maybe UTCTime -&gt; Maybe UTCTime -&gt; URL -&gt; Notification)
+forall a b. Parser (a -&gt; b) -&gt; Parser a -&gt; Parser b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679518969"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser Subject
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">.:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;subject&quot;</span></span><span>
+</span><span id="line-110"></span><span>        </span><span class="annot"><span class="annottext">Parser
+  (NotificationReason
+   -&gt; Bool -&gt; Maybe UTCTime -&gt; Maybe UTCTime -&gt; URL -&gt; Notification)
+-&gt; Parser NotificationReason
+-&gt; Parser
+     (Bool -&gt; Maybe UTCTime -&gt; Maybe UTCTime -&gt; URL -&gt; Notification)
+forall a b. Parser (a -&gt; b) -&gt; Parser a -&gt; Parser b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679518969"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser NotificationReason
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">.:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;reason&quot;</span></span><span>
+</span><span id="line-111"></span><span>        </span><span class="annot"><span class="annottext">Parser
+  (Bool -&gt; Maybe UTCTime -&gt; Maybe UTCTime -&gt; URL -&gt; Notification)
+-&gt; Parser Bool
+-&gt; Parser (Maybe UTCTime -&gt; Maybe UTCTime -&gt; URL -&gt; Notification)
+forall a b. Parser (a -&gt; b) -&gt; Parser a -&gt; Parser b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679518969"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser Bool
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">.:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;unread&quot;</span></span><span>
+</span><span id="line-112"></span><span>        </span><span class="annot"><span class="annottext">Parser (Maybe UTCTime -&gt; Maybe UTCTime -&gt; URL -&gt; Notification)
+-&gt; Parser (Maybe UTCTime)
+-&gt; Parser (Maybe UTCTime -&gt; URL -&gt; Notification)
+forall a b. Parser (a -&gt; b) -&gt; Parser a -&gt; Parser b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679518969"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser (Maybe UTCTime)
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">.:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;updated_at&quot;</span></span><span>
+</span><span id="line-113"></span><span>        </span><span class="annot"><span class="annottext">Parser (Maybe UTCTime -&gt; URL -&gt; Notification)
+-&gt; Parser (Maybe UTCTime) -&gt; Parser (URL -&gt; Notification)
+forall a b. Parser (a -&gt; b) -&gt; Parser a -&gt; Parser b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679518969"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser (Maybe UTCTime)
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">.:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;last_read_at&quot;</span></span><span>
+</span><span id="line-114"></span><span>        </span><span class="annot"><span class="annottext">Parser (URL -&gt; Notification) -&gt; Parser URL -&gt; Parser Notification
+forall a b. Parser (a -&gt; b) -&gt; Parser a -&gt; Parser b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679518969"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser URL
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">.:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;url&quot;</span></span><span>
+</span><span id="line-115"></span></pre></body></html>

@@ -1,0 +1,312 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE CPP #-}</span><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# LANGUAGE ScopedTypeVariables #-}</span><span class="hs-cpp">
+
+#include &quot;HsNetDef.h&quot;
+</span><span>
+</span><span id="line-6"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Network.Socket.Shutdown.html"><span class="hs-identifier">Network.Socket.Shutdown</span></a></span><span> </span><span class="hs-special">(</span><span>
+</span><span id="line-7"></span><span>    </span><span class="annot"><a href="Network.Socket.Shutdown.html#ShutdownCmd"><span class="hs-identifier">ShutdownCmd</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-8"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Network.Socket.Shutdown.html#shutdown"><span class="hs-identifier">shutdown</span></a></span><span>
+</span><span id="line-9"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Network.Socket.Shutdown.html#gracefulClose"><span class="hs-identifier">gracefulClose</span></a></span><span>
+</span><span id="line-10"></span><span>  </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-11"></span><span>
+</span><span id="line-12"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Concurrent</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">yield</span></span><span class="hs-special">)</span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Control.Exception</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">E</span></span><span>
+</span><span id="line-14"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Foreign.Marshal.Alloc</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">mallocBytes</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">free</span></span><span class="hs-special">)</span><span>
+</span><span id="line-15"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">System.Timeout</span></span><span class="hs-cpp">
+
+#if !defined(mingw32_HOST_OS)
+</span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Concurrent.STM</span></span><span>
+</span><span id="line-19"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">GHC.Event</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Ev</span></span><span class="hs-cpp">
+#endif
+</span><span>
+</span><span id="line-22"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Network.Socket.Buffer.html"><span class="hs-identifier">Network.Socket.Buffer</span></a></span><span>
+</span><span id="line-23"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Network.Socket.Imports.html"><span class="hs-identifier">Network.Socket.Imports</span></a></span><span>
+</span><span id="line-24"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Network.Socket.Internal.html"><span class="hs-identifier">Network.Socket.Internal</span></a></span><span>
+</span><span id="line-25"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Network.Socket.STM.html"><span class="hs-identifier">Network.Socket.STM</span></a></span><span>
+</span><span id="line-26"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Network.Socket.Types.html"><span class="hs-identifier">Network.Socket.Types</span></a></span><span>
+</span><span id="line-27"></span><span>
+</span><span id="line-28"></span><span class="hs-keyword">data</span><span> </span><span id="ShutdownCmd"><span class="annot"><a href="Network.Socket.Shutdown.html#ShutdownCmd"><span class="hs-identifier hs-var">ShutdownCmd</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="ShutdownReceive"><span class="annot"><a href="Network.Socket.Shutdown.html#ShutdownReceive"><span class="hs-identifier hs-var">ShutdownReceive</span></a></span></span><span>
+</span><span id="line-29"></span><span>                 </span><span class="hs-glyph">|</span><span> </span><span id="ShutdownSend"><span class="annot"><a href="Network.Socket.Shutdown.html#ShutdownSend"><span class="hs-identifier hs-var">ShutdownSend</span></a></span></span><span>
+</span><span id="line-30"></span><span>                 </span><span class="hs-glyph">|</span><span> </span><span id="ShutdownBoth"><span class="annot"><a href="Network.Socket.Shutdown.html#ShutdownBoth"><span class="hs-identifier hs-var">ShutdownBoth</span></a></span></span><span>
+</span><span id="line-31"></span><span>
+</span><span id="line-32"></span><span class="annot"><a href="Network.Socket.Shutdown.html#sdownCmdToInt"><span class="hs-identifier hs-type">sdownCmdToInt</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Network.Socket.Shutdown.html#ShutdownCmd"><span class="hs-identifier hs-type">ShutdownCmd</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">CInt</span></span><span>
+</span><span id="line-33"></span><span id="sdownCmdToInt"><span class="annot"><span class="annottext">sdownCmdToInt :: ShutdownCmd -&gt; CInt
+</span><a href="Network.Socket.Shutdown.html#sdownCmdToInt"><span class="hs-identifier hs-var hs-var">sdownCmdToInt</span></a></span></span><span> </span><span class="annot"><span class="annottext">ShutdownCmd
+</span><a href="Network.Socket.Shutdown.html#ShutdownReceive"><span class="hs-identifier hs-var">ShutdownReceive</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">CInt
+</span><span class="hs-number">0</span></span><span>
+</span><span id="line-34"></span><span class="annot"><a href="Network.Socket.Shutdown.html#sdownCmdToInt"><span class="hs-identifier hs-var">sdownCmdToInt</span></a></span><span> </span><span class="annot"><span class="annottext">ShutdownCmd
+</span><a href="Network.Socket.Shutdown.html#ShutdownSend"><span class="hs-identifier hs-var">ShutdownSend</span></a></span><span>    </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">CInt
+</span><span class="hs-number">1</span></span><span>
+</span><span id="line-35"></span><span class="annot"><a href="Network.Socket.Shutdown.html#sdownCmdToInt"><span class="hs-identifier hs-var">sdownCmdToInt</span></a></span><span> </span><span class="annot"><span class="annottext">ShutdownCmd
+</span><a href="Network.Socket.Shutdown.html#ShutdownBoth"><span class="hs-identifier hs-var">ShutdownBoth</span></a></span><span>    </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">CInt
+</span><span class="hs-number">2</span></span><span>
+</span><span id="line-36"></span><span>
+</span><span id="line-37"></span><span class="hs-comment">-- | Shut down one or both halves of the connection, depending on the</span><span>
+</span><span id="line-38"></span><span class="hs-comment">-- second argument to the function.  If the second argument is</span><span>
+</span><span id="line-39"></span><span class="hs-comment">-- 'ShutdownReceive', further receives are disallowed.  If it is</span><span>
+</span><span id="line-40"></span><span class="hs-comment">-- 'ShutdownSend', further sends are disallowed.  If it is</span><span>
+</span><span id="line-41"></span><span class="hs-comment">-- 'ShutdownBoth', further sends and receives are disallowed.</span><span>
+</span><span id="line-42"></span><span class="annot"><a href="Network.Socket.Shutdown.html#shutdown"><span class="hs-identifier hs-type">shutdown</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Network.Socket.Types.html#Socket"><span class="hs-identifier hs-type">Socket</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Network.Socket.Shutdown.html#ShutdownCmd"><span class="hs-identifier hs-type">ShutdownCmd</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-43"></span><span id="shutdown"><span class="annot"><span class="annottext">shutdown :: Socket -&gt; ShutdownCmd -&gt; IO ()
+</span><a href="Network.Socket.Shutdown.html#shutdown"><span class="hs-identifier hs-var hs-var">shutdown</span></a></span></span><span> </span><span id="local-6989586621679094369"><span class="annot"><span class="annottext">Socket
+</span><a href="#local-6989586621679094369"><span class="hs-identifier hs-var">s</span></a></span></span><span> </span><span id="local-6989586621679094370"><span class="annot"><span class="annottext">ShutdownCmd
+</span><a href="#local-6989586621679094370"><span class="hs-identifier hs-var">stype</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">IO () -&gt; IO ()
+forall (f :: * -&gt; *) a. Functor f =&gt; f a -&gt; f ()
+</span><span class="hs-identifier hs-var">void</span></span><span> </span><span class="annot"><span class="annottext">(IO () -&gt; IO ()) -&gt; IO () -&gt; IO ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Socket -&gt; (CInt -&gt; IO ()) -&gt; IO ()
+forall r. Socket -&gt; (CInt -&gt; IO r) -&gt; IO r
+</span><a href="Network.Socket.Types.html#withFdSocket"><span class="hs-identifier hs-var">withFdSocket</span></a></span><span> </span><span class="annot"><span class="annottext">Socket
+</span><a href="#local-6989586621679094369"><span class="hs-identifier hs-var">s</span></a></span><span> </span><span class="annot"><span class="annottext">((CInt -&gt; IO ()) -&gt; IO ()) -&gt; (CInt -&gt; IO ()) -&gt; IO ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679094373"><span class="annot"><span class="annottext">CInt
+</span><a href="#local-6989586621679094373"><span class="hs-identifier hs-var">fd</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-44"></span><span>  </span><span class="annot"><span class="annottext">String -&gt; IO CInt -&gt; IO ()
+forall a. (Eq a, Num a) =&gt; String -&gt; IO a -&gt; IO ()
+</span><a href="Network.Socket.Internal.html#throwSocketErrorIfMinus1Retry_"><span class="hs-identifier hs-var">throwSocketErrorIfMinus1Retry_</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Network.Socket.shutdown&quot;</span></span><span> </span><span class="annot"><span class="annottext">(IO CInt -&gt; IO ()) -&gt; IO CInt -&gt; IO ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-45"></span><span>    </span><span class="annot"><span class="annottext">CInt -&gt; CInt -&gt; IO CInt
+</span><a href="Network.Socket.Shutdown.html#c_shutdown"><span class="hs-identifier hs-var">c_shutdown</span></a></span><span> </span><span class="annot"><span class="annottext">CInt
+</span><a href="#local-6989586621679094373"><span class="hs-identifier hs-var">fd</span></a></span><span> </span><span class="annot"><span class="annottext">(CInt -&gt; IO CInt) -&gt; CInt -&gt; IO CInt
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">ShutdownCmd -&gt; CInt
+</span><a href="Network.Socket.Shutdown.html#sdownCmdToInt"><span class="hs-identifier hs-var">sdownCmdToInt</span></a></span><span> </span><span class="annot"><span class="annottext">ShutdownCmd
+</span><a href="#local-6989586621679094370"><span class="hs-identifier hs-var">stype</span></a></span><span>
+</span><span id="line-46"></span><span>
+</span><span id="line-47"></span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">CALLCONV</span><span> </span><span class="hs-keyword">unsafe</span><span> </span><span class="hs-string">&quot;shutdown&quot;</span><span>
+</span><span id="line-48"></span><span>  </span><span id="c_shutdown"><span class="annot"><a href="Network.Socket.Shutdown.html#c_shutdown"><span class="hs-identifier hs-var">c_shutdown</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">CInt</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">CInt</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">CInt</span></span><span>
+</span><span id="line-49"></span><span>
+</span><span id="line-50"></span><span class="hs-comment">-- | Closing a socket gracefully.</span><span>
+</span><span id="line-51"></span><span class="hs-comment">--   This sends TCP FIN and check if TCP FIN is received from the peer.</span><span>
+</span><span id="line-52"></span><span class="hs-comment">--   The second argument is time out to receive TCP FIN in millisecond.</span><span>
+</span><span id="line-53"></span><span class="hs-comment">--   In both normal cases and error cases, socket is deallocated finally.</span><span>
+</span><span id="line-54"></span><span class="hs-comment">--</span><span>
+</span><span id="line-55"></span><span class="hs-comment">--   Since: 3.1.1.0</span><span>
+</span><span id="line-56"></span><span class="annot"><a href="Network.Socket.Shutdown.html#gracefulClose"><span class="hs-identifier hs-type">gracefulClose</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Network.Socket.Types.html#Socket"><span class="hs-identifier hs-type">Socket</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-57"></span><span id="gracefulClose"><span class="annot"><span class="annottext">gracefulClose :: Socket -&gt; Int -&gt; IO ()
+</span><a href="Network.Socket.Shutdown.html#gracefulClose"><span class="hs-identifier hs-var hs-var">gracefulClose</span></a></span></span><span> </span><span id="local-6989586621679094376"><span class="annot"><span class="annottext">Socket
+</span><a href="#local-6989586621679094376"><span class="hs-identifier hs-var">s</span></a></span></span><span> </span><span id="local-6989586621679094377"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679094377"><span class="hs-identifier hs-var">tmout0</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">IO ()
+</span><a href="#local-6989586621679094378"><span class="hs-identifier hs-var">sendRecvFIN</span></a></span><span> </span><span class="annot"><span class="annottext">IO () -&gt; IO () -&gt; IO ()
+forall a b. IO a -&gt; IO b -&gt; IO a
+</span><span class="hs-operator hs-var">`E.finally`</span></span><span> </span><span class="annot"><span class="annottext">Socket -&gt; IO ()
+</span><a href="Network.Socket.Types.html#close"><span class="hs-identifier hs-var">close</span></a></span><span> </span><span class="annot"><span class="annottext">Socket
+</span><a href="#local-6989586621679094376"><span class="hs-identifier hs-var">s</span></a></span><span>
+</span><span id="line-58"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-59"></span><span>    </span><span id="local-6989586621679094378"><span class="annot"><span class="annottext">sendRecvFIN :: IO ()
+</span><a href="#local-6989586621679094378"><span class="hs-identifier hs-var hs-var">sendRecvFIN</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-60"></span><span>        </span><span class="hs-comment">-- Sending TCP FIN.</span><span>
+</span><span id="line-61"></span><span>        </span><span id="local-6989586621679094386"><span class="annot"><a href="#local-6989586621679094386"><span class="hs-identifier hs-var">ex</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">IO () -&gt; IO (Either IOException ())
+forall e a. Exception e =&gt; IO a -&gt; IO (Either e a)
+</span><span class="hs-identifier hs-var">E.try</span></span><span> </span><span class="annot"><span class="annottext">(IO () -&gt; IO (Either IOException ()))
+-&gt; IO () -&gt; IO (Either IOException ())
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Socket -&gt; ShutdownCmd -&gt; IO ()
+</span><a href="Network.Socket.Shutdown.html#shutdown"><span class="hs-identifier hs-var">shutdown</span></a></span><span> </span><span class="annot"><span class="annottext">Socket
+</span><a href="#local-6989586621679094376"><span class="hs-identifier hs-var">s</span></a></span><span> </span><span class="annot"><span class="annottext">ShutdownCmd
+</span><a href="Network.Socket.Shutdown.html#ShutdownSend"><span class="hs-identifier hs-var">ShutdownSend</span></a></span><span>
+</span><span id="line-62"></span><span>        </span><span class="hs-keyword">case</span><span> </span><span class="annot"><a href="#local-6989586621679094386"><span class="hs-identifier hs-type">ex</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-63"></span><span>          </span><span class="hs-comment">-- Don't catch asynchronous exceptions</span><span>
+</span><span id="line-64"></span><span>          </span><span class="annot"><span class="hs-identifier hs-type">Left</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">IOException
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">E.IOException</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">() -&gt; IO ()
+forall a. a -&gt; IO a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-65"></span><span>          </span><span class="annot"><span class="hs-identifier hs-type">Right</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-66"></span><span>              </span><span class="hs-comment">-- Giving CPU time to other threads hoping that</span><span>
+</span><span id="line-67"></span><span>              </span><span class="hs-comment">-- FIN arrives meanwhile.</span><span>
+</span><span id="line-68"></span><span>              </span><span class="annot"><span class="annottext">IO ()
+</span><span class="hs-identifier hs-var">yield</span></span><span>
+</span><span id="line-69"></span><span>              </span><span class="hs-comment">-- Waiting TCP FIN.</span><span>
+</span><span id="line-70"></span><span>              </span><span class="annot"><span class="annottext">IO (Ptr Word8)
+-&gt; (Ptr Word8 -&gt; IO ()) -&gt; (Ptr Word8 -&gt; IO ()) -&gt; IO ()
+forall a b c. IO a -&gt; (a -&gt; IO b) -&gt; (a -&gt; IO c) -&gt; IO c
+</span><span class="hs-identifier hs-var">E.bracket</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; IO (Ptr Word8)
+forall a. Int -&gt; IO (Ptr a)
+</span><span class="hs-identifier hs-var">mallocBytes</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="Network.Socket.Shutdown.html#bufSize"><span class="hs-identifier hs-var">bufSize</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Ptr Word8 -&gt; IO ()
+forall a. Ptr a -&gt; IO ()
+</span><span class="hs-identifier hs-var">free</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Socket -&gt; Int -&gt; Ptr Word8 -&gt; IO ()
+</span><a href="Network.Socket.Shutdown.html#recvEOF"><span class="hs-identifier hs-var">recvEOF</span></a></span><span> </span><span class="annot"><span class="annottext">Socket
+</span><a href="#local-6989586621679094376"><span class="hs-identifier hs-var">s</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679094377"><span class="hs-identifier hs-var">tmout0</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-71"></span><span>
+</span><span id="line-72"></span><span class="annot"><a href="Network.Socket.Shutdown.html#recvEOF"><span class="hs-identifier hs-type">recvEOF</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Network.Socket.Types.html#Socket"><span class="hs-identifier hs-type">Socket</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word8</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-cpp">
+#if !defined(mingw32_HOST_OS)
+</span><span id="recvEOF"><span class="annot"><span class="annottext">recvEOF :: Socket -&gt; Int -&gt; Ptr Word8 -&gt; IO ()
+</span><a href="Network.Socket.Shutdown.html#recvEOF"><span class="hs-identifier hs-var hs-var">recvEOF</span></a></span></span><span> </span><span id="local-6989586621679094391"><span class="annot"><span class="annottext">Socket
+</span><a href="#local-6989586621679094391"><span class="hs-identifier hs-var">s</span></a></span></span><span> </span><span id="local-6989586621679094392"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679094392"><span class="hs-identifier hs-var">tmout0</span></a></span></span><span> </span><span id="local-6989586621679094393"><span class="annot"><span class="annottext">Ptr Word8
+</span><a href="#local-6989586621679094393"><span class="hs-identifier hs-var">buf</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-75"></span><span>    </span><span id="local-6989586621679094394"><span class="annot"><a href="#local-6989586621679094394"><span class="hs-identifier hs-var">mevmgr</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">IO (Maybe EventManager)
+</span><span class="hs-identifier hs-var">Ev.getSystemEventManager</span></span><span>
+</span><span id="line-76"></span><span>    </span><span class="hs-keyword">case</span><span> </span><span class="annot"><a href="#local-6989586621679094394"><span class="hs-identifier hs-type">mevmgr</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-77"></span><span>      </span><span class="annot"><span class="annottext">Maybe EventManager
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Socket -&gt; Int -&gt; Ptr Word8 -&gt; IO ()
+</span><a href="Network.Socket.Shutdown.html#recvEOFtimeout"><span class="hs-identifier hs-var">recvEOFtimeout</span></a></span><span> </span><span class="annot"><span class="annottext">Socket
+</span><a href="#local-6989586621679094391"><span class="hs-identifier hs-var">s</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679094392"><span class="hs-identifier hs-var">tmout0</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr Word8
+</span><a href="#local-6989586621679094393"><span class="hs-identifier hs-var">buf</span></a></span><span>
+</span><span id="line-78"></span><span>      </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span class="annot"><span class="annottext">EventManager
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Socket -&gt; Int -&gt; Ptr Word8 -&gt; IO ()
+</span><a href="Network.Socket.Shutdown.html#recvEOFevent"><span class="hs-identifier hs-var">recvEOFevent</span></a></span><span> </span><span class="annot"><span class="annottext">Socket
+</span><a href="#local-6989586621679094391"><span class="hs-identifier hs-var">s</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679094392"><span class="hs-identifier hs-var">tmout0</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr Word8
+</span><a href="#local-6989586621679094393"><span class="hs-identifier hs-var">buf</span></a></span><span class="hs-cpp">
+#else
+</span><span class="hs-identifier">recvEOF</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">recvEOFtimeout</span><span class="hs-cpp">
+#endif
+</span><span>
+</span><span id="line-83"></span><span class="hs-comment">-- Don't use 4092 here. The GHC runtime takes the global lock</span><span>
+</span><span id="line-84"></span><span class="hs-comment">-- if the length is over 3276 bytes in 32bit or 3272 bytes in 64bit.</span><span>
+</span><span id="line-85"></span><span class="annot"><a href="Network.Socket.Shutdown.html#bufSize"><span class="hs-identifier hs-type">bufSize</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>
+</span><span id="line-86"></span><span id="bufSize"><span class="annot"><span class="annottext">bufSize :: Int
+</span><a href="Network.Socket.Shutdown.html#bufSize"><span class="hs-identifier hs-var hs-var">bufSize</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1024</span></span><span>
+</span><span id="line-87"></span><span>
+</span><span id="line-88"></span><span class="annot"><a href="Network.Socket.Shutdown.html#recvEOFtimeout"><span class="hs-identifier hs-type">recvEOFtimeout</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Network.Socket.Types.html#Socket"><span class="hs-identifier hs-type">Socket</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word8</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-89"></span><span id="recvEOFtimeout"><span class="annot"><span class="annottext">recvEOFtimeout :: Socket -&gt; Int -&gt; Ptr Word8 -&gt; IO ()
+</span><a href="Network.Socket.Shutdown.html#recvEOFtimeout"><span class="hs-identifier hs-var hs-var">recvEOFtimeout</span></a></span></span><span> </span><span id="local-6989586621679094398"><span class="annot"><span class="annottext">Socket
+</span><a href="#local-6989586621679094398"><span class="hs-identifier hs-var">s</span></a></span></span><span> </span><span id="local-6989586621679094399"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679094399"><span class="hs-identifier hs-var">tmout0</span></a></span></span><span> </span><span id="local-6989586621679094400"><span class="annot"><span class="annottext">Ptr Word8
+</span><a href="#local-6989586621679094400"><span class="hs-identifier hs-var">buf</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">IO (Maybe Int) -&gt; IO ()
+forall (f :: * -&gt; *) a. Functor f =&gt; f a -&gt; f ()
+</span><span class="hs-identifier hs-var">void</span></span><span> </span><span class="annot"><span class="annottext">(IO (Maybe Int) -&gt; IO ()) -&gt; IO (Maybe Int) -&gt; IO ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; IO Int -&gt; IO (Maybe Int)
+forall a. Int -&gt; IO a -&gt; IO (Maybe a)
+</span><span class="hs-identifier hs-var">timeout</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679094399"><span class="hs-identifier hs-var">tmout0</span></a></span><span> </span><span class="annot"><span class="annottext">(IO Int -&gt; IO (Maybe Int)) -&gt; IO Int -&gt; IO (Maybe Int)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Socket -&gt; Ptr Word8 -&gt; Int -&gt; IO Int
+</span><a href="Network.Socket.Buffer.html#recvBuf"><span class="hs-identifier hs-var">recvBuf</span></a></span><span> </span><span class="annot"><span class="annottext">Socket
+</span><a href="#local-6989586621679094398"><span class="hs-identifier hs-var">s</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr Word8
+</span><a href="#local-6989586621679094400"><span class="hs-identifier hs-var">buf</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="Network.Socket.Shutdown.html#bufSize"><span class="hs-identifier hs-var">bufSize</span></a></span><span class="hs-cpp">
+
+#if !defined(mingw32_HOST_OS)
+</span><span class="hs-keyword">data</span><span> </span><span id="Wait"><span class="annot"><a href="Network.Socket.Shutdown.html#Wait"><span class="hs-identifier hs-var">Wait</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="MoreData"><span class="annot"><a href="Network.Socket.Shutdown.html#MoreData"><span class="hs-identifier hs-var">MoreData</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span id="TimeoutTripped"><span class="annot"><a href="Network.Socket.Shutdown.html#TimeoutTripped"><span class="hs-identifier hs-var">TimeoutTripped</span></a></span></span><span>
+</span><span id="line-93"></span><span>
+</span><span id="line-94"></span><span class="annot"><a href="Network.Socket.Shutdown.html#recvEOFevent"><span class="hs-identifier hs-type">recvEOFevent</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Network.Socket.Types.html#Socket"><span class="hs-identifier hs-type">Socket</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word8</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-95"></span><span id="recvEOFevent"><span class="annot"><span class="annottext">recvEOFevent :: Socket -&gt; Int -&gt; Ptr Word8 -&gt; IO ()
+</span><a href="Network.Socket.Shutdown.html#recvEOFevent"><span class="hs-identifier hs-var hs-var">recvEOFevent</span></a></span></span><span> </span><span id="local-6989586621679094405"><span class="annot"><span class="annottext">Socket
+</span><a href="#local-6989586621679094405"><span class="hs-identifier hs-var">s</span></a></span></span><span> </span><span id="local-6989586621679094406"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679094406"><span class="hs-identifier hs-var">tmout0</span></a></span></span><span> </span><span id="local-6989586621679094407"><span class="annot"><span class="annottext">Ptr Word8
+</span><a href="#local-6989586621679094407"><span class="hs-identifier hs-var">buf</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-96"></span><span>    </span><span id="local-6989586621679094408"><span class="annot"><a href="#local-6989586621679094408"><span class="hs-identifier hs-var">tmmgr</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">IO TimerManager
+</span><span class="hs-identifier hs-var">Ev.getSystemTimerManager</span></span><span>
+</span><span id="line-97"></span><span>    </span><span id="local-6989586621679094410"><span class="annot"><a href="#local-6989586621679094410"><span class="hs-identifier hs-var">tvar</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="hs-identifier hs-type">newTVarIO</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">False</span></span><span>
+</span><span id="line-98"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">E.bracket</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679094412"><span class="hs-identifier hs-type">setupTimeout</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679094408"><span class="hs-identifier hs-type">tmmgr</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679094410"><span class="hs-identifier hs-type">tvar</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679094413"><span class="hs-identifier hs-type">cancelTimeout</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679094408"><span class="hs-identifier hs-type">tmmgr</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="hs-operator hs-type">$</span></span><span> </span><span class="hs-glyph">\</span><span class="annot"><span class="annottext">TimeoutKey
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-99"></span><span>        </span><span class="annot"><span class="annottext">IO (STM (), IO ())
+-&gt; ((STM (), IO ()) -&gt; IO ())
+-&gt; ((STM (), IO ()) -&gt; IO ())
+-&gt; IO ()
+forall a b c. IO a -&gt; (a -&gt; IO b) -&gt; (a -&gt; IO c) -&gt; IO c
+</span><span class="hs-identifier hs-var">E.bracket</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Socket -&gt; IO (STM (), IO ())
+</span><a href="#local-6989586621679094414"><span class="hs-identifier hs-var">setupRead</span></a></span><span> </span><span class="annot"><span class="annottext">Socket
+</span><a href="#local-6989586621679094405"><span class="hs-identifier hs-var">s</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(STM (), IO ()) -&gt; IO ()
+forall {a} {b}. (a, b) -&gt; b
+</span><a href="#local-6989586621679094415"><span class="hs-identifier hs-var">cancelRead</span></a></span><span> </span><span class="annot"><span class="annottext">(((STM (), IO ()) -&gt; IO ()) -&gt; IO ())
+-&gt; ((STM (), IO ()) -&gt; IO ()) -&gt; IO ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span class="hs-special">(</span><span id="local-6989586621679094416"><span class="annot"><span class="annottext">STM ()
+</span><a href="#local-6989586621679094416"><span class="hs-identifier hs-var">rxWait</span></a></span></span><span class="hs-special">,</span><span class="annot"><span class="annottext">IO ()
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-100"></span><span>            </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679094419"><span class="annot"><span class="annottext">toWait :: STM ()
+</span><a href="#local-6989586621679094419"><span class="hs-identifier hs-var hs-var hs-var">toWait</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">TVar Bool -&gt; STM Bool
+forall a. TVar a -&gt; STM a
+</span><span class="hs-identifier hs-var">readTVar</span></span><span> </span><span class="annot"><span class="annottext">TVar Bool
+</span><a href="#local-6989586621679094410"><span class="hs-identifier hs-var">tvar</span></a></span><span> </span><span class="annot"><span class="annottext">STM Bool -&gt; (Bool -&gt; STM ()) -&gt; STM ()
+forall a b. STM a -&gt; (a -&gt; STM b) -&gt; STM b
+forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; (a -&gt; m b) -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;=</span></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; STM ()
+</span><span class="hs-identifier hs-var">check</span></span><span>
+</span><span id="line-101"></span><span>                </span><span id="local-6989586621679094428"><span class="annot"><span class="annottext">wait :: IO Wait
+</span><a href="#local-6989586621679094428"><span class="hs-identifier hs-var hs-var hs-var">wait</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">STM Wait -&gt; IO Wait
+forall a. STM a -&gt; IO a
+</span><span class="hs-identifier hs-var">atomically</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="annottext">STM ()
+</span><a href="#local-6989586621679094419"><span class="hs-identifier hs-var">toWait</span></a></span><span> </span><span class="annot"><span class="annottext">STM () -&gt; STM Wait -&gt; STM Wait
+forall a b. STM a -&gt; STM b -&gt; STM b
+forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; m b -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Wait -&gt; STM Wait
+forall a. a -&gt; STM a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">Wait
+</span><a href="Network.Socket.Shutdown.html#TimeoutTripped"><span class="hs-identifier hs-var">TimeoutTripped</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-102"></span><span>                               </span><span class="annot"><span class="annottext">STM Wait -&gt; STM Wait -&gt; STM Wait
+forall a. STM a -&gt; STM a -&gt; STM a
+forall (f :: * -&gt; *) a. Alternative f =&gt; f a -&gt; f a -&gt; f a
+</span><span class="hs-operator hs-var">&lt;|&gt;</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">STM ()
+</span><a href="#local-6989586621679094416"><span class="hs-identifier hs-var">rxWait</span></a></span><span> </span><span class="annot"><span class="annottext">STM () -&gt; STM Wait -&gt; STM Wait
+forall a b. STM a -&gt; STM b -&gt; STM b
+forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; m b -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Wait -&gt; STM Wait
+forall a. a -&gt; STM a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">Wait
+</span><a href="Network.Socket.Shutdown.html#MoreData"><span class="hs-identifier hs-var">MoreData</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-103"></span><span>            </span><span id="local-6989586621679094431"><span class="annot"><a href="#local-6989586621679094431"><span class="hs-identifier hs-var">waitRes</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">IO Wait
+</span><a href="#local-6989586621679094428"><span class="hs-identifier hs-var">wait</span></a></span><span>
+</span><span id="line-104"></span><span>            </span><span class="hs-keyword">case</span><span> </span><span class="annot"><a href="#local-6989586621679094431"><span class="hs-identifier hs-type">waitRes</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-105"></span><span>              </span><span class="annot"><span class="annottext">Wait
+</span><a href="Network.Socket.Shutdown.html#TimeoutTripped"><span class="hs-identifier hs-var">TimeoutTripped</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">() -&gt; IO ()
+forall a. a -&gt; IO a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-106"></span><span>              </span><span class="hs-comment">-- We don't check the (positive) length.</span><span>
+</span><span id="line-107"></span><span>              </span><span class="hs-comment">-- In normal case, it's 0. That is, only FIN is received.</span><span>
+</span><span id="line-108"></span><span>              </span><span class="hs-comment">-- In error cases, data is available. But there is no</span><span>
+</span><span id="line-109"></span><span>              </span><span class="hs-comment">-- application which can read it. So, let's stop receiving</span><span>
+</span><span id="line-110"></span><span>              </span><span class="hs-comment">-- to prevent attacks.</span><span>
+</span><span id="line-111"></span><span>              </span><span class="annot"><span class="annottext">Wait
+</span><a href="Network.Socket.Shutdown.html#MoreData"><span class="hs-identifier hs-var">MoreData</span></a></span><span>       </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">IO Int -&gt; IO ()
+forall (f :: * -&gt; *) a. Functor f =&gt; f a -&gt; f ()
+</span><span class="hs-identifier hs-var">void</span></span><span> </span><span class="annot"><span class="annottext">(IO Int -&gt; IO ()) -&gt; IO Int -&gt; IO ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Socket -&gt; Ptr Word8 -&gt; Int -&gt; IO Int
+</span><a href="Network.Socket.Buffer.html#recvBufNoWait"><span class="hs-identifier hs-var">recvBufNoWait</span></a></span><span> </span><span class="annot"><span class="annottext">Socket
+</span><a href="#local-6989586621679094405"><span class="hs-identifier hs-var">s</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr Word8
+</span><a href="#local-6989586621679094407"><span class="hs-identifier hs-var">buf</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="Network.Socket.Shutdown.html#bufSize"><span class="hs-identifier hs-var">bufSize</span></a></span><span>
+</span><span id="line-112"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-113"></span><span>    </span><span class="hs-comment">-- millisecond to microsecond</span><span>
+</span><span id="line-114"></span><span>    </span><span id="local-6989586621679094436"><span class="annot"><span class="annottext">tmout :: Int
+</span><a href="#local-6989586621679094436"><span class="hs-identifier hs-var hs-var">tmout</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679094406"><span class="hs-identifier hs-var">tmout0</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">*</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1000</span></span><span>
+</span><span id="line-115"></span><span>    </span><span id="local-6989586621679094412"><span class="annot"><span class="annottext">setupTimeout :: TimerManager -&gt; TVar Bool -&gt; IO TimeoutKey
+</span><a href="#local-6989586621679094412"><span class="hs-identifier hs-var hs-var">setupTimeout</span></a></span></span><span> </span><span id="local-6989586621679094438"><span class="annot"><span class="annottext">TimerManager
+</span><a href="#local-6989586621679094438"><span class="hs-identifier hs-var">tmmgr</span></a></span></span><span> </span><span id="local-6989586621679094439"><span class="annot"><span class="annottext">TVar Bool
+</span><a href="#local-6989586621679094439"><span class="hs-identifier hs-var">tvar</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-116"></span><span>        </span><span class="annot"><span class="annottext">TimerManager -&gt; Int -&gt; IO () -&gt; IO TimeoutKey
+</span><span class="hs-identifier hs-var">Ev.registerTimeout</span></span><span> </span><span class="annot"><span class="annottext">TimerManager
+</span><a href="#local-6989586621679094438"><span class="hs-identifier hs-var">tmmgr</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679094436"><span class="hs-identifier hs-var">tmout</span></a></span><span> </span><span class="annot"><span class="annottext">(IO () -&gt; IO TimeoutKey) -&gt; IO () -&gt; IO TimeoutKey
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">STM () -&gt; IO ()
+forall a. STM a -&gt; IO a
+</span><span class="hs-identifier hs-var">atomically</span></span><span> </span><span class="annot"><span class="annottext">(STM () -&gt; IO ()) -&gt; STM () -&gt; IO ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">TVar Bool -&gt; Bool -&gt; STM ()
+forall a. TVar a -&gt; a -&gt; STM ()
+</span><span class="hs-identifier hs-var">writeTVar</span></span><span> </span><span class="annot"><span class="annottext">TVar Bool
+</span><a href="#local-6989586621679094439"><span class="hs-identifier hs-var">tvar</span></a></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>
+</span><span id="line-117"></span><span>    </span><span id="local-6989586621679094413"><span class="annot"><span class="annottext">cancelTimeout :: TimerManager -&gt; TimeoutKey -&gt; IO ()
+</span><a href="#local-6989586621679094413"><span class="hs-identifier hs-var hs-var">cancelTimeout</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">TimerManager -&gt; TimeoutKey -&gt; IO ()
+</span><span class="hs-identifier hs-var">Ev.unregisterTimeout</span></span><span>
+</span><span id="line-118"></span><span>    </span><span id="local-6989586621679094414"><span class="annot"><span class="annottext">setupRead :: Socket -&gt; IO (STM (), IO ())
+</span><a href="#local-6989586621679094414"><span class="hs-identifier hs-var hs-var">setupRead</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Socket -&gt; IO (STM (), IO ())
+</span><a href="Network.Socket.STM.html#waitAndCancelReadSocketSTM"><span class="hs-identifier hs-var">waitAndCancelReadSocketSTM</span></a></span><span>
+</span><span id="line-119"></span><span>    </span><span id="local-6989586621679094415"><span class="annot"><span class="annottext">cancelRead :: (a, b) -&gt; b
+</span><a href="#local-6989586621679094415"><span class="hs-identifier hs-var hs-var">cancelRead</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a
+</span><span class="hs-identifier">_</span></span><span class="hs-special">,</span><span id="local-6989586621679094444"><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679094444"><span class="hs-identifier hs-var">cancel</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679094444"><span class="hs-identifier hs-var">cancel</span></a></span><span class="hs-cpp">
+#endif
+</span></pre></body></html>

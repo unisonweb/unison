@@ -1,0 +1,586 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE NoImplicitPrelude #-}</span><span>
+</span><span id="line-2"></span><span>
+</span><span id="line-3"></span><span class="hs-comment">-- |</span><span>
+</span><span id="line-4"></span><span class="hs-comment">--    Wuss is a library that lets you easily create secure WebSocket clients over</span><span>
+</span><span id="line-5"></span><span class="hs-comment">--    the WSS protocol. It is a small addition to</span><span>
+</span><span id="line-6"></span><span class="hs-comment">--    &lt;https://hackage.haskell.org/package/websockets the websockets package&gt;</span><span>
+</span><span id="line-7"></span><span class="hs-comment">--    and is adapted from existing solutions by</span><span>
+</span><span id="line-8"></span><span class="hs-comment">--    &lt;https://gist.github.com/jaspervdj/7198388 @jaspervdj&gt;,</span><span>
+</span><span id="line-9"></span><span class="hs-comment">--    &lt;https://gist.github.com/mpickering/f1b7ba3190a4bb5884f3 @mpickering&gt;, and</span><span>
+</span><span id="line-10"></span><span class="hs-comment">--    &lt;https://gist.github.com/elfenlaid/7b5c28065e67e4cf0767 @elfenlaid&gt;.</span><span>
+</span><span id="line-11"></span><span class="hs-comment">--</span><span>
+</span><span id="line-12"></span><span class="hs-comment">--    == Example</span><span>
+</span><span id="line-13"></span><span class="hs-comment">--</span><span>
+</span><span id="line-14"></span><span class="hs-comment">--    &gt; import Wuss</span><span>
+</span><span id="line-15"></span><span class="hs-comment">--    &gt;</span><span>
+</span><span id="line-16"></span><span class="hs-comment">--    &gt; import Control.Concurrent (forkIO)</span><span>
+</span><span id="line-17"></span><span class="hs-comment">--    &gt; import Control.Monad (forever, unless, void)</span><span>
+</span><span id="line-18"></span><span class="hs-comment">--    &gt; import Data.Text (Text, pack)</span><span>
+</span><span id="line-19"></span><span class="hs-comment">--    &gt; import Network.WebSockets (ClientApp, receiveData, sendClose, sendTextData)</span><span>
+</span><span id="line-20"></span><span class="hs-comment">--    &gt;</span><span>
+</span><span id="line-21"></span><span class="hs-comment">--    &gt; main :: IO ()</span><span>
+</span><span id="line-22"></span><span class="hs-comment">--    &gt; main = runSecureClient &quot;echo.websocket.org&quot; 443 &quot;/&quot; ws</span><span>
+</span><span id="line-23"></span><span class="hs-comment">--    &gt;</span><span>
+</span><span id="line-24"></span><span class="hs-comment">--    &gt; ws :: ClientApp ()</span><span>
+</span><span id="line-25"></span><span class="hs-comment">--    &gt; ws connection = do</span><span>
+</span><span id="line-26"></span><span class="hs-comment">--    &gt;     putStrLn &quot;Connected!&quot;</span><span>
+</span><span id="line-27"></span><span class="hs-comment">--    &gt;</span><span>
+</span><span id="line-28"></span><span class="hs-comment">--    &gt;     void . forkIO . forever $ do</span><span>
+</span><span id="line-29"></span><span class="hs-comment">--    &gt;         message &lt;- receiveData connection</span><span>
+</span><span id="line-30"></span><span class="hs-comment">--    &gt;         print (message :: Text)</span><span>
+</span><span id="line-31"></span><span class="hs-comment">--    &gt;</span><span>
+</span><span id="line-32"></span><span class="hs-comment">--    &gt;     let loop = do</span><span>
+</span><span id="line-33"></span><span class="hs-comment">--    &gt;             line &lt;- getLine</span><span>
+</span><span id="line-34"></span><span class="hs-comment">--    &gt;             unless (null line) $ do</span><span>
+</span><span id="line-35"></span><span class="hs-comment">--    &gt;                 sendTextData connection (pack line)</span><span>
+</span><span id="line-36"></span><span class="hs-comment">--    &gt;                 loop</span><span>
+</span><span id="line-37"></span><span class="hs-comment">--    &gt;     loop</span><span>
+</span><span id="line-38"></span><span class="hs-comment">--    &gt;</span><span>
+</span><span id="line-39"></span><span class="hs-comment">--    &gt;     sendClose connection (pack &quot;Bye!&quot;)</span><span>
+</span><span id="line-40"></span><span class="hs-comment">--</span><span>
+</span><span id="line-41"></span><span class="hs-comment">--    == Retry</span><span>
+</span><span id="line-42"></span><span class="hs-comment">--</span><span>
+</span><span id="line-43"></span><span class="hs-comment">--    Note that it is possible for the connection itself or any message to fail and need to be retried.</span><span>
+</span><span id="line-44"></span><span class="hs-comment">--    Fortunately this can be handled by something like &lt;https://hackage.haskell.org/package/retry the retry package&gt;.</span><span>
+</span><span id="line-45"></span><span class="hs-comment">--    See &lt;https://github.com/tfausak/wuss/issues/18#issuecomment-990921703 this comment&gt; for an example.</span><span>
+</span><span id="line-46"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Wuss.html"><span class="hs-identifier">Wuss</span></a></span><span>
+</span><span id="line-47"></span><span>  </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="Wuss.html#runSecureClient"><span class="hs-identifier">runSecureClient</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-48"></span><span>    </span><span class="annot"><a href="Wuss.html#newSecureClientConnection"><span class="hs-identifier">newSecureClientConnection</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-49"></span><span>    </span><span class="annot"><a href="Wuss.html#runSecureClientWith"><span class="hs-identifier">runSecureClientWith</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-50"></span><span>    </span><span class="annot"><a href="Wuss.html#newSecureClientConnectionWith"><span class="hs-identifier">newSecureClientConnectionWith</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-51"></span><span>    </span><span class="annot"><a href="Wuss.html#Config"><span class="hs-identifier">Config</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-52"></span><span>    </span><span class="annot"><a href="Wuss.html#defaultConfig"><span class="hs-identifier">defaultConfig</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-53"></span><span>    </span><span class="annot"><a href="Wuss.html#runSecureClientWithConfig"><span class="hs-identifier">runSecureClientWithConfig</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-54"></span><span>    </span><span class="annot"><a href="Wuss.html#newSecureClientConnectionWithConfig"><span class="hs-identifier">newSecureClientConnectionWithConfig</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-55"></span><span>  </span><span class="hs-special">)</span><span>
+</span><span id="line-56"></span><span class="hs-keyword">where</span><span>
+</span><span id="line-57"></span><span>
+</span><span id="line-58"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Control.Applicative</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Applicative</span></span><span>
+</span><span id="line-59"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Control.Exception</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Exception</span></span><span>
+</span><span id="line-60"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Control.Monad.Catch</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Catch</span></span><span>
+</span><span id="line-61"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Control.Monad.IO.Class</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">MonadIO</span></span><span>
+</span><span id="line-62"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.ByteString</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">StrictBytes</span></span><span>
+</span><span id="line-63"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.ByteString.Lazy</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">LazyBytes</span></span><span>
+</span><span id="line-64"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Default</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Default</span></span><span>
+</span><span id="line-65"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Maybe</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Maybe</span></span><span>
+</span><span id="line-66"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.String</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">String</span></span><span>
+</span><span id="line-67"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Network.Connection</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Connection</span></span><span>
+</span><span id="line-68"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Network.Socket</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Socket</span></span><span>
+</span><span id="line-69"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Network.WebSockets</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">WebSockets</span></span><span>
+</span><span id="line-70"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Network.WebSockets.Stream</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Stream</span></span><span>
+</span><span id="line-71"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">System.IO</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">IO</span></span><span>
+</span><span id="line-72"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">System.IO.Error</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">IO.Error</span></span><span>
+</span><span id="line-73"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Prelude</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-operator">($)</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-operator">(.)</span></span><span class="hs-special">)</span><span>
+</span><span id="line-74"></span><span>
+</span><span id="line-75"></span><span class="hs-comment">-- |</span><span>
+</span><span id="line-76"></span><span class="hs-comment">--    A secure replacement for 'Network.WebSockets.runClient'.</span><span>
+</span><span id="line-77"></span><span class="hs-comment">--</span><span>
+</span><span id="line-78"></span><span class="hs-comment">--    &gt;&gt;&gt; let app _connection = return ()</span><span>
+</span><span id="line-79"></span><span class="hs-comment">--    &gt;&gt;&gt; runSecureClient &quot;echo.websocket.org&quot; 443 &quot;/&quot; app</span><span>
+</span><span id="line-80"></span><span id="local-6989586621679092867"><span id="local-6989586621679092872"><span class="annot"><a href="Wuss.html#runSecureClient"><span class="hs-identifier hs-type">runSecureClient</span></a></span><span> </span><span class="hs-glyph">::</span><span>
+</span><span id="line-81"></span><span>  </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">MonadIO.MonadIO</span></span><span> </span><span class="annot"><a href="#local-6989586621679092867"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span>
+</span><span id="line-82"></span><span>  </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Catch.MonadMask</span></span><span> </span><span class="annot"><a href="#local-6989586621679092867"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span>
+</span><span id="line-83"></span><span>  </span><span class="annot"><span class="hs-comment">-- | Host</span></span><span>
+</span><span id="line-84"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">Socket.HostName</span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-85"></span><span>  </span><span class="annot"><span class="hs-comment">-- | Port</span></span><span>
+</span><span id="line-86"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">Socket.PortNumber</span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-87"></span><span>  </span><span class="annot"><span class="hs-comment">-- | Path</span></span><span>
+</span><span id="line-88"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">String.String</span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-89"></span><span>  </span><span class="annot"><span class="hs-comment">-- | Application</span></span><span>
+</span><span id="line-90"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">WebSockets.ClientApp</span></span><span> </span><span class="annot"><a href="#local-6989586621679092872"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-91"></span><span>  </span><span class="annot"><a href="#local-6989586621679092867"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679092872"><span class="hs-identifier hs-type">a</span></a></span></span></span><span>
+</span><span id="line-92"></span><span id="runSecureClient"><span class="annot"><span class="annottext">runSecureClient :: forall (m :: * -&gt; *) a.
+(MonadIO m, MonadMask m) =&gt;
+HostName -&gt; PortNumber -&gt; HostName -&gt; ClientApp a -&gt; m a
+</span><a href="Wuss.html#runSecureClient"><span class="hs-identifier hs-var hs-var">runSecureClient</span></a></span></span><span> </span><span id="local-6989586621679092945"><span class="annot"><span class="annottext">HostName
+</span><a href="#local-6989586621679092945"><span class="hs-identifier hs-var">host</span></a></span></span><span> </span><span id="local-6989586621679092946"><span class="annot"><span class="annottext">PortNumber
+</span><a href="#local-6989586621679092946"><span class="hs-identifier hs-var">port</span></a></span></span><span> </span><span id="local-6989586621679092947"><span class="annot"><span class="annottext">HostName
+</span><a href="#local-6989586621679092947"><span class="hs-identifier hs-var">path</span></a></span></span><span> </span><span id="local-6989586621679092948"><span class="annot"><span class="annottext">ClientApp a
+</span><a href="#local-6989586621679092948"><span class="hs-identifier hs-var">app</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-93"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679092949"><span class="annot"><span class="annottext">options :: ConnectionOptions
+</span><a href="#local-6989586621679092949"><span class="hs-identifier hs-var hs-var">options</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ConnectionOptions
+</span><span class="hs-identifier hs-var">WebSockets.defaultConnectionOptions</span></span><span>
+</span><span id="line-94"></span><span>  </span><span class="annot"><span class="annottext">HostName
+-&gt; PortNumber
+-&gt; HostName
+-&gt; ConnectionOptions
+-&gt; Headers
+-&gt; ClientApp a
+-&gt; m a
+forall (m :: * -&gt; *) a.
+(MonadIO m, MonadMask m) =&gt;
+HostName
+-&gt; PortNumber
+-&gt; HostName
+-&gt; ConnectionOptions
+-&gt; Headers
+-&gt; ClientApp a
+-&gt; m a
+</span><a href="Wuss.html#runSecureClientWith"><span class="hs-identifier hs-var">runSecureClientWith</span></a></span><span> </span><span class="annot"><span class="annottext">HostName
+</span><a href="#local-6989586621679092945"><span class="hs-identifier hs-var">host</span></a></span><span> </span><span class="annot"><span class="annottext">PortNumber
+</span><a href="#local-6989586621679092946"><span class="hs-identifier hs-var">port</span></a></span><span> </span><span class="annot"><span class="annottext">HostName
+</span><a href="#local-6989586621679092947"><span class="hs-identifier hs-var">path</span></a></span><span> </span><span class="annot"><span class="annottext">ConnectionOptions
+</span><a href="#local-6989586621679092949"><span class="hs-identifier hs-var">options</span></a></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span> </span><span class="annot"><span class="annottext">ClientApp a
+</span><a href="#local-6989586621679092948"><span class="hs-identifier hs-var">app</span></a></span><span>
+</span><span id="line-95"></span><span>
+</span><span id="line-96"></span><span class="hs-comment">-- | Build a new `Connection` from the client's point of view.</span><span>
+</span><span id="line-97"></span><span class="hs-comment">--</span><span>
+</span><span id="line-98"></span><span class="hs-comment">-- /WARNING/: Be sure to run the returned `IO ()` action after you are done</span><span>
+</span><span id="line-99"></span><span class="hs-comment">-- using the `Connection` in order to properly close the communication channel.</span><span>
+</span><span id="line-100"></span><span class="hs-comment">-- `runSecureClient` handles this for you, prefer to use it when possible.</span><span>
+</span><span id="line-101"></span><span id="local-6989586621679092881"><span class="annot"><a href="Wuss.html#newSecureClientConnection"><span class="hs-identifier hs-type">newSecureClientConnection</span></a></span><span> </span><span class="hs-glyph">::</span><span>
+</span><span id="line-102"></span><span>  </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">MonadIO.MonadIO</span></span><span> </span><span class="annot"><a href="#local-6989586621679092881"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span>
+</span><span id="line-103"></span><span>  </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Catch.MonadMask</span></span><span> </span><span class="annot"><a href="#local-6989586621679092881"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span>
+</span><span id="line-104"></span><span>  </span><span class="annot"><span class="hs-comment">-- | Host</span></span><span>
+</span><span id="line-105"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">Socket.HostName</span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-106"></span><span>  </span><span class="annot"><span class="hs-comment">-- | PortNumber</span></span><span>
+</span><span id="line-107"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">Socket.PortNumber</span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-108"></span><span>  </span><span class="annot"><span class="hs-comment">-- | Path</span></span><span>
+</span><span id="line-109"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">String.String</span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-110"></span><span>  </span><span class="annot"><a href="#local-6989586621679092881"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">WebSockets.Connection</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO.IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span></span><span>
+</span><span id="line-111"></span><span id="newSecureClientConnection"><span class="annot"><span class="annottext">newSecureClientConnection :: forall (m :: * -&gt; *).
+(MonadIO m, MonadMask m) =&gt;
+HostName -&gt; PortNumber -&gt; HostName -&gt; m (Connection, IO ())
+</span><a href="Wuss.html#newSecureClientConnection"><span class="hs-identifier hs-var hs-var">newSecureClientConnection</span></a></span></span><span> </span><span id="local-6989586621679092955"><span class="annot"><span class="annottext">HostName
+</span><a href="#local-6989586621679092955"><span class="hs-identifier hs-var">host</span></a></span></span><span> </span><span id="local-6989586621679092956"><span class="annot"><span class="annottext">PortNumber
+</span><a href="#local-6989586621679092956"><span class="hs-identifier hs-var">port</span></a></span></span><span> </span><span id="local-6989586621679092957"><span class="annot"><span class="annottext">HostName
+</span><a href="#local-6989586621679092957"><span class="hs-identifier hs-var">path</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-112"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679092958"><span class="annot"><span class="annottext">options :: ConnectionOptions
+</span><a href="#local-6989586621679092958"><span class="hs-identifier hs-var hs-var">options</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ConnectionOptions
+</span><span class="hs-identifier hs-var">WebSockets.defaultConnectionOptions</span></span><span>
+</span><span id="line-113"></span><span>  </span><span class="annot"><span class="annottext">HostName
+-&gt; PortNumber
+-&gt; HostName
+-&gt; ConnectionOptions
+-&gt; Headers
+-&gt; m (Connection, IO ())
+forall (m :: * -&gt; *).
+(MonadIO m, MonadMask m) =&gt;
+HostName
+-&gt; PortNumber
+-&gt; HostName
+-&gt; ConnectionOptions
+-&gt; Headers
+-&gt; m (Connection, IO ())
+</span><a href="Wuss.html#newSecureClientConnectionWith"><span class="hs-identifier hs-var">newSecureClientConnectionWith</span></a></span><span> </span><span class="annot"><span class="annottext">HostName
+</span><a href="#local-6989586621679092955"><span class="hs-identifier hs-var">host</span></a></span><span> </span><span class="annot"><span class="annottext">PortNumber
+</span><a href="#local-6989586621679092956"><span class="hs-identifier hs-var">port</span></a></span><span> </span><span class="annot"><span class="annottext">HostName
+</span><a href="#local-6989586621679092957"><span class="hs-identifier hs-var">path</span></a></span><span> </span><span class="annot"><span class="annottext">ConnectionOptions
+</span><a href="#local-6989586621679092958"><span class="hs-identifier hs-var">options</span></a></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span>
+</span><span id="line-114"></span><span>
+</span><span id="line-115"></span><span class="hs-comment">-- |</span><span>
+</span><span id="line-116"></span><span class="hs-comment">--    A secure replacement for 'Network.WebSockets.runClientWith'.</span><span>
+</span><span id="line-117"></span><span class="hs-comment">--</span><span>
+</span><span id="line-118"></span><span class="hs-comment">--    &gt;&gt;&gt; let options = defaultConnectionOptions</span><span>
+</span><span id="line-119"></span><span class="hs-comment">--    &gt;&gt;&gt; let headers = []</span><span>
+</span><span id="line-120"></span><span class="hs-comment">--    &gt;&gt;&gt; let app _connection = return ()</span><span>
+</span><span id="line-121"></span><span class="hs-comment">--    &gt;&gt;&gt; runSecureClientWith &quot;echo.websocket.org&quot; 443 &quot;/&quot; options headers app</span><span>
+</span><span id="line-122"></span><span class="hs-comment">--</span><span>
+</span><span id="line-123"></span><span class="hs-comment">--    If you want to run a secure client without certificate validation, use</span><span>
+</span><span id="line-124"></span><span class="hs-comment">--    'Network.WebSockets.runClientWithStream'. For example:</span><span>
+</span><span id="line-125"></span><span class="hs-comment">--</span><span>
+</span><span id="line-126"></span><span class="hs-comment">--    &gt; let host = &quot;echo.websocket.org&quot;</span><span>
+</span><span id="line-127"></span><span class="hs-comment">--    &gt; let port = 443</span><span>
+</span><span id="line-128"></span><span class="hs-comment">--    &gt; let path = &quot;/&quot;</span><span>
+</span><span id="line-129"></span><span class="hs-comment">--    &gt; let options = defaultConnectionOptions</span><span>
+</span><span id="line-130"></span><span class="hs-comment">--    &gt; let headers = []</span><span>
+</span><span id="line-131"></span><span class="hs-comment">--    &gt; let tlsSettings = TLSSettingsSimple</span><span>
+</span><span id="line-132"></span><span class="hs-comment">--    &gt;     -- This is the important setting.</span><span>
+</span><span id="line-133"></span><span class="hs-comment">--    &gt;     { settingDisableCertificateValidation = True</span><span>
+</span><span id="line-134"></span><span class="hs-comment">--    &gt;     , settingDisableSession = False</span><span>
+</span><span id="line-135"></span><span class="hs-comment">--    &gt;     , settingUseServerName = False</span><span>
+</span><span id="line-136"></span><span class="hs-comment">--    &gt;     }</span><span>
+</span><span id="line-137"></span><span class="hs-comment">--    &gt; let connectionParams = ConnectionParams</span><span>
+</span><span id="line-138"></span><span class="hs-comment">--    &gt;     { connectionHostname = host</span><span>
+</span><span id="line-139"></span><span class="hs-comment">--    &gt;     , connectionPort = port</span><span>
+</span><span id="line-140"></span><span class="hs-comment">--    &gt;     , connectionUseSecure = Just tlsSettings</span><span>
+</span><span id="line-141"></span><span class="hs-comment">--    &gt;     , connectionUseSocks = Nothing</span><span>
+</span><span id="line-142"></span><span class="hs-comment">--    &gt;     }</span><span>
+</span><span id="line-143"></span><span class="hs-comment">--    &gt;</span><span>
+</span><span id="line-144"></span><span class="hs-comment">--    &gt; context &lt;- initConnectionContext</span><span>
+</span><span id="line-145"></span><span class="hs-comment">--    &gt; connection &lt;- connectTo context connectionParams</span><span>
+</span><span id="line-146"></span><span class="hs-comment">--    &gt; stream &lt;- makeStream</span><span>
+</span><span id="line-147"></span><span class="hs-comment">--    &gt;     (fmap Just (connectionGetChunk connection))</span><span>
+</span><span id="line-148"></span><span class="hs-comment">--    &gt;     (maybe (return ()) (connectionPut connection . toStrict))</span><span>
+</span><span id="line-149"></span><span class="hs-comment">--    &gt; runClientWithStream stream host path options headers $ \ connection -&gt; do</span><span>
+</span><span id="line-150"></span><span class="hs-comment">--    &gt;     -- Do something with the connection.</span><span>
+</span><span id="line-151"></span><span class="hs-comment">--    &gt;     return ()</span><span>
+</span><span id="line-152"></span><span id="local-6989586621679092878"><span id="local-6989586621679092879"><span class="annot"><a href="Wuss.html#runSecureClientWith"><span class="hs-identifier hs-type">runSecureClientWith</span></a></span><span> </span><span class="hs-glyph">::</span><span>
+</span><span id="line-153"></span><span>  </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">MonadIO.MonadIO</span></span><span> </span><span class="annot"><a href="#local-6989586621679092878"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span>
+</span><span id="line-154"></span><span>  </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Catch.MonadMask</span></span><span> </span><span class="annot"><a href="#local-6989586621679092878"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span>
+</span><span id="line-155"></span><span>  </span><span class="annot"><span class="hs-comment">-- | Host</span></span><span>
+</span><span id="line-156"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">Socket.HostName</span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-157"></span><span>  </span><span class="annot"><span class="hs-comment">-- | Port</span></span><span>
+</span><span id="line-158"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">Socket.PortNumber</span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-159"></span><span>  </span><span class="annot"><span class="hs-comment">-- | Path</span></span><span>
+</span><span id="line-160"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">String.String</span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-161"></span><span>  </span><span class="annot"><span class="hs-comment">-- | Options</span></span><span>
+</span><span id="line-162"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">WebSockets.ConnectionOptions</span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-163"></span><span>  </span><span class="annot"><span class="hs-comment">-- | Headers</span></span><span>
+</span><span id="line-164"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">WebSockets.Headers</span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-165"></span><span>  </span><span class="annot"><span class="hs-comment">-- | Application</span></span><span>
+</span><span id="line-166"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">WebSockets.ClientApp</span></span><span> </span><span class="annot"><a href="#local-6989586621679092879"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-167"></span><span>  </span><span class="annot"><a href="#local-6989586621679092878"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679092879"><span class="hs-identifier hs-type">a</span></a></span></span></span><span>
+</span><span id="line-168"></span><span id="runSecureClientWith"><span class="annot"><span class="annottext">runSecureClientWith :: forall (m :: * -&gt; *) a.
+(MonadIO m, MonadMask m) =&gt;
+HostName
+-&gt; PortNumber
+-&gt; HostName
+-&gt; ConnectionOptions
+-&gt; Headers
+-&gt; ClientApp a
+-&gt; m a
+</span><a href="Wuss.html#runSecureClientWith"><span class="hs-identifier hs-var hs-var">runSecureClientWith</span></a></span></span><span> </span><span id="local-6989586621679092963"><span class="annot"><span class="annottext">HostName
+</span><a href="#local-6989586621679092963"><span class="hs-identifier hs-var">host</span></a></span></span><span> </span><span id="local-6989586621679092964"><span class="annot"><span class="annottext">PortNumber
+</span><a href="#local-6989586621679092964"><span class="hs-identifier hs-var">port</span></a></span></span><span> </span><span id="local-6989586621679092965"><span class="annot"><span class="annottext">HostName
+</span><a href="#local-6989586621679092965"><span class="hs-identifier hs-var">path</span></a></span></span><span> </span><span id="local-6989586621679092966"><span class="annot"><span class="annottext">ConnectionOptions
+</span><a href="#local-6989586621679092966"><span class="hs-identifier hs-var">options</span></a></span></span><span> </span><span id="local-6989586621679092967"><span class="annot"><span class="annottext">Headers
+</span><a href="#local-6989586621679092967"><span class="hs-identifier hs-var">headers</span></a></span></span><span> </span><span id="local-6989586621679092968"><span class="annot"><span class="annottext">ClientApp a
+</span><a href="#local-6989586621679092968"><span class="hs-identifier hs-var">app</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-169"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679092969"><span class="annot"><span class="annottext">config :: Config
+</span><a href="#local-6989586621679092969"><span class="hs-identifier hs-var hs-var">config</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Config
+</span><a href="Wuss.html#defaultConfig"><span class="hs-identifier hs-var">defaultConfig</span></a></span><span>
+</span><span id="line-170"></span><span>  </span><span class="annot"><span class="annottext">HostName
+-&gt; PortNumber
+-&gt; HostName
+-&gt; Config
+-&gt; ConnectionOptions
+-&gt; Headers
+-&gt; ClientApp a
+-&gt; m a
+forall (m :: * -&gt; *) a.
+(MonadIO m, MonadMask m) =&gt;
+HostName
+-&gt; PortNumber
+-&gt; HostName
+-&gt; Config
+-&gt; ConnectionOptions
+-&gt; Headers
+-&gt; ClientApp a
+-&gt; m a
+</span><a href="Wuss.html#runSecureClientWithConfig"><span class="hs-identifier hs-var">runSecureClientWithConfig</span></a></span><span> </span><span class="annot"><span class="annottext">HostName
+</span><a href="#local-6989586621679092963"><span class="hs-identifier hs-var">host</span></a></span><span> </span><span class="annot"><span class="annottext">PortNumber
+</span><a href="#local-6989586621679092964"><span class="hs-identifier hs-var">port</span></a></span><span> </span><span class="annot"><span class="annottext">HostName
+</span><a href="#local-6989586621679092965"><span class="hs-identifier hs-var">path</span></a></span><span> </span><span class="annot"><span class="annottext">Config
+</span><a href="#local-6989586621679092969"><span class="hs-identifier hs-var">config</span></a></span><span> </span><span class="annot"><span class="annottext">ConnectionOptions
+</span><a href="#local-6989586621679092966"><span class="hs-identifier hs-var">options</span></a></span><span> </span><span class="annot"><span class="annottext">Headers
+</span><a href="#local-6989586621679092967"><span class="hs-identifier hs-var">headers</span></a></span><span> </span><span class="annot"><span class="annottext">ClientApp a
+</span><a href="#local-6989586621679092968"><span class="hs-identifier hs-var">app</span></a></span><span>
+</span><span id="line-171"></span><span>
+</span><span id="line-172"></span><span class="hs-comment">-- | Build a new `Connection` from the client's point of view.</span><span>
+</span><span id="line-173"></span><span class="hs-comment">--</span><span>
+</span><span id="line-174"></span><span class="hs-comment">-- /WARNING/: Be sure to run the returned `IO ()` action after you are done</span><span>
+</span><span id="line-175"></span><span class="hs-comment">-- using the `Connection` in order to properly close the communication channel.</span><span>
+</span><span id="line-176"></span><span class="hs-comment">-- `runSecureClientWith` handles this for you, prefer to use it when possible.</span><span>
+</span><span id="line-177"></span><span id="local-6989586621679092884"><span class="annot"><a href="Wuss.html#newSecureClientConnectionWith"><span class="hs-identifier hs-type">newSecureClientConnectionWith</span></a></span><span> </span><span class="hs-glyph">::</span><span>
+</span><span id="line-178"></span><span>  </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">MonadIO.MonadIO</span></span><span> </span><span class="annot"><a href="#local-6989586621679092884"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span>
+</span><span id="line-179"></span><span>  </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Catch.MonadMask</span></span><span> </span><span class="annot"><a href="#local-6989586621679092884"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span>
+</span><span id="line-180"></span><span>  </span><span class="annot"><span class="hs-comment">-- | Host</span></span><span>
+</span><span id="line-181"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">Socket.HostName</span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-182"></span><span>  </span><span class="annot"><span class="hs-comment">-- | PortNumber</span></span><span>
+</span><span id="line-183"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">Socket.PortNumber</span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-184"></span><span>  </span><span class="annot"><span class="hs-comment">-- | Path</span></span><span>
+</span><span id="line-185"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">String.String</span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-186"></span><span>  </span><span class="annot"><span class="hs-comment">-- | Options</span></span><span>
+</span><span id="line-187"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">WebSockets.ConnectionOptions</span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-188"></span><span>  </span><span class="annot"><span class="hs-comment">-- | Headers</span></span><span>
+</span><span id="line-189"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">WebSockets.Headers</span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-190"></span><span>  </span><span class="annot"><a href="#local-6989586621679092884"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">WebSockets.Connection</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO.IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span></span><span>
+</span><span id="line-191"></span><span id="newSecureClientConnectionWith"><span class="annot"><span class="annottext">newSecureClientConnectionWith :: forall (m :: * -&gt; *).
+(MonadIO m, MonadMask m) =&gt;
+HostName
+-&gt; PortNumber
+-&gt; HostName
+-&gt; ConnectionOptions
+-&gt; Headers
+-&gt; m (Connection, IO ())
+</span><a href="Wuss.html#newSecureClientConnectionWith"><span class="hs-identifier hs-var hs-var">newSecureClientConnectionWith</span></a></span></span><span> </span><span id="local-6989586621679092974"><span class="annot"><span class="annottext">HostName
+</span><a href="#local-6989586621679092974"><span class="hs-identifier hs-var">host</span></a></span></span><span> </span><span id="local-6989586621679092975"><span class="annot"><span class="annottext">PortNumber
+</span><a href="#local-6989586621679092975"><span class="hs-identifier hs-var">port</span></a></span></span><span> </span><span id="local-6989586621679092976"><span class="annot"><span class="annottext">HostName
+</span><a href="#local-6989586621679092976"><span class="hs-identifier hs-var">path</span></a></span></span><span> </span><span id="local-6989586621679092977"><span class="annot"><span class="annottext">ConnectionOptions
+</span><a href="#local-6989586621679092977"><span class="hs-identifier hs-var">options</span></a></span></span><span> </span><span id="local-6989586621679092978"><span class="annot"><span class="annottext">Headers
+</span><a href="#local-6989586621679092978"><span class="hs-identifier hs-var">headers</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-192"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679092979"><span class="annot"><span class="annottext">config :: Config
+</span><a href="#local-6989586621679092979"><span class="hs-identifier hs-var hs-var">config</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Config
+</span><a href="Wuss.html#defaultConfig"><span class="hs-identifier hs-var">defaultConfig</span></a></span><span>
+</span><span id="line-193"></span><span>  </span><span class="annot"><span class="annottext">HostName
+-&gt; PortNumber
+-&gt; HostName
+-&gt; Config
+-&gt; ConnectionOptions
+-&gt; Headers
+-&gt; m (Connection, IO ())
+forall (m :: * -&gt; *).
+(MonadIO m, MonadMask m) =&gt;
+HostName
+-&gt; PortNumber
+-&gt; HostName
+-&gt; Config
+-&gt; ConnectionOptions
+-&gt; Headers
+-&gt; m (Connection, IO ())
+</span><a href="Wuss.html#newSecureClientConnectionWithConfig"><span class="hs-identifier hs-var">newSecureClientConnectionWithConfig</span></a></span><span> </span><span class="annot"><span class="annottext">HostName
+</span><a href="#local-6989586621679092974"><span class="hs-identifier hs-var">host</span></a></span><span> </span><span class="annot"><span class="annottext">PortNumber
+</span><a href="#local-6989586621679092975"><span class="hs-identifier hs-var">port</span></a></span><span> </span><span class="annot"><span class="annottext">HostName
+</span><a href="#local-6989586621679092976"><span class="hs-identifier hs-var">path</span></a></span><span> </span><span class="annot"><span class="annottext">Config
+</span><a href="#local-6989586621679092979"><span class="hs-identifier hs-var">config</span></a></span><span> </span><span class="annot"><span class="annottext">ConnectionOptions
+</span><a href="#local-6989586621679092977"><span class="hs-identifier hs-var">options</span></a></span><span> </span><span class="annot"><span class="annottext">Headers
+</span><a href="#local-6989586621679092978"><span class="hs-identifier hs-var">headers</span></a></span><span>
+</span><span id="line-194"></span><span>
+</span><span id="line-195"></span><span class="annot"><span class="hs-comment">-- | Configures a secure WebSocket connection.</span></span><span>
+</span><span id="line-196"></span><span class="hs-keyword">newtype</span><span> </span><span id="Config"><span class="annot"><a href="Wuss.html#Config"><span class="hs-identifier hs-var">Config</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="Config"><span class="annot"><a href="Wuss.html#Config"><span class="hs-identifier hs-var">Config</span></a></span></span><span>
+</span><span id="line-197"></span><span>  </span><span class="hs-special">{</span><span> </span><span class="hs-comment">-- | How to get bytes from the connection. Typically</span><span>
+</span><span id="line-198"></span><span>    </span><span class="hs-comment">-- 'Connection.connectionGetChunk', but could be something else like</span><span>
+</span><span id="line-199"></span><span>    </span><span class="hs-comment">-- 'Connection.connectionGetLine'.</span><span>
+</span><span id="line-200"></span><span>    </span><span id="connectionGet"><span class="annot"><span class="annottext">Config -&gt; Connection -&gt; IO ByteString
+</span><a href="Wuss.html#connectionGet"><span class="hs-identifier hs-var hs-var">connectionGet</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Connection.Connection</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO.IO</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">StrictBytes.ByteString</span></span><span>
+</span><span id="line-201"></span><span>  </span><span class="hs-special">}</span><span>
+</span><span id="line-202"></span><span>
+</span><span id="line-203"></span><span class="annot"><span class="hs-comment">-- | The default 'Config' value used by 'runSecureClientWith'.</span></span><span>
+</span><span id="line-204"></span><span class="annot"><a href="Wuss.html#defaultConfig"><span class="hs-identifier hs-type">defaultConfig</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Wuss.html#Config"><span class="hs-identifier hs-type">Config</span></a></span><span>
+</span><span id="line-205"></span><span id="defaultConfig"><span class="annot"><span class="annottext">defaultConfig :: Config
+</span><a href="Wuss.html#defaultConfig"><span class="hs-identifier hs-var hs-var">defaultConfig</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-206"></span><span>  </span><span class="annot"><a href="Wuss.html#Config"><span class="hs-identifier hs-type">Config</span></a></span><span> </span><span class="hs-special">{</span><span class="annot"><span class="annottext">connectionGet :: Connection -&gt; IO ByteString
+</span><a href="Wuss.html#connectionGet"><span class="hs-identifier hs-var">connectionGet</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Connection -&gt; IO ByteString
+</span><span class="hs-identifier hs-var">Connection.connectionGetChunk</span></span><span class="hs-special">}</span><span>
+</span><span id="line-207"></span><span>
+</span><span id="line-208"></span><span class="annot"><span class="hs-comment">-- | Runs a secure WebSockets client with the given 'Config'.</span></span><span>
+</span><span id="line-209"></span><span id="local-6989586621679092888"><span id="local-6989586621679092889"><span class="annot"><a href="Wuss.html#runSecureClientWithConfig"><span class="hs-identifier hs-type">runSecureClientWithConfig</span></a></span><span> </span><span class="hs-glyph">::</span><span>
+</span><span id="line-210"></span><span>  </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">MonadIO.MonadIO</span></span><span> </span><span class="annot"><a href="#local-6989586621679092888"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span>
+</span><span id="line-211"></span><span>  </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Catch.MonadMask</span></span><span> </span><span class="annot"><a href="#local-6989586621679092888"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span>
+</span><span id="line-212"></span><span>  </span><span class="annot"><span class="hs-comment">-- | Host</span></span><span>
+</span><span id="line-213"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">Socket.HostName</span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-214"></span><span>  </span><span class="annot"><span class="hs-comment">-- | Port</span></span><span>
+</span><span id="line-215"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">Socket.PortNumber</span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-216"></span><span>  </span><span class="annot"><span class="hs-comment">-- | Path</span></span><span>
+</span><span id="line-217"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">String.String</span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-218"></span><span>  </span><span class="annot"><span class="hs-comment">-- | Config</span></span><span>
+</span><span id="line-219"></span><span>  </span><span class="annot"><a href="Wuss.html#Config"><span class="hs-identifier hs-type">Config</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-220"></span><span>  </span><span class="annot"><span class="hs-comment">-- | Options</span></span><span>
+</span><span id="line-221"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">WebSockets.ConnectionOptions</span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-222"></span><span>  </span><span class="annot"><span class="hs-comment">-- | Headers</span></span><span>
+</span><span id="line-223"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">WebSockets.Headers</span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-224"></span><span>  </span><span class="annot"><span class="hs-comment">-- | Application</span></span><span>
+</span><span id="line-225"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">WebSockets.ClientApp</span></span><span> </span><span class="annot"><a href="#local-6989586621679092889"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-226"></span><span>  </span><span class="annot"><a href="#local-6989586621679092888"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679092889"><span class="hs-identifier hs-type">a</span></a></span></span></span><span>
+</span><span id="line-227"></span><span id="runSecureClientWithConfig"><span class="annot"><span class="annottext">runSecureClientWithConfig :: forall (m :: * -&gt; *) a.
+(MonadIO m, MonadMask m) =&gt;
+HostName
+-&gt; PortNumber
+-&gt; HostName
+-&gt; Config
+-&gt; ConnectionOptions
+-&gt; Headers
+-&gt; ClientApp a
+-&gt; m a
+</span><a href="Wuss.html#runSecureClientWithConfig"><span class="hs-identifier hs-var hs-var">runSecureClientWithConfig</span></a></span></span><span> </span><span id="local-6989586621679092993"><span class="annot"><span class="annottext">HostName
+</span><a href="#local-6989586621679092993"><span class="hs-identifier hs-var">host</span></a></span></span><span> </span><span id="local-6989586621679092994"><span class="annot"><span class="annottext">PortNumber
+</span><a href="#local-6989586621679092994"><span class="hs-identifier hs-var">port</span></a></span></span><span> </span><span id="local-6989586621679092995"><span class="annot"><span class="annottext">HostName
+</span><a href="#local-6989586621679092995"><span class="hs-identifier hs-var">path</span></a></span></span><span> </span><span id="local-6989586621679092996"><span class="annot"><span class="annottext">Config
+</span><a href="#local-6989586621679092996"><span class="hs-identifier hs-var">config</span></a></span></span><span> </span><span id="local-6989586621679092997"><span class="annot"><span class="annottext">ConnectionOptions
+</span><a href="#local-6989586621679092997"><span class="hs-identifier hs-var">options</span></a></span></span><span> </span><span id="local-6989586621679092998"><span class="annot"><span class="annottext">Headers
+</span><a href="#local-6989586621679092998"><span class="hs-identifier hs-var">headers</span></a></span></span><span> </span><span id="local-6989586621679092999"><span class="annot"><span class="annottext">ClientApp a
+</span><a href="#local-6989586621679092999"><span class="hs-identifier hs-var">app</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-228"></span><span>  </span><span class="annot"><span class="annottext">m (Connection, IO ())
+-&gt; ((Connection, IO ()) -&gt; m ())
+-&gt; ((Connection, IO ()) -&gt; m a)
+-&gt; m a
+forall (m :: * -&gt; *) a c b.
+(HasCallStack, MonadMask m) =&gt;
+m a -&gt; (a -&gt; m c) -&gt; (a -&gt; m b) -&gt; m b
+</span><span class="hs-identifier hs-var">Catch.bracket</span></span><span>
+</span><span id="line-229"></span><span>    </span><span class="hs-special">(</span><span class="annot"><span class="annottext">HostName
+-&gt; PortNumber
+-&gt; HostName
+-&gt; Config
+-&gt; ConnectionOptions
+-&gt; Headers
+-&gt; m (Connection, IO ())
+forall (m :: * -&gt; *).
+(MonadIO m, MonadMask m) =&gt;
+HostName
+-&gt; PortNumber
+-&gt; HostName
+-&gt; Config
+-&gt; ConnectionOptions
+-&gt; Headers
+-&gt; m (Connection, IO ())
+</span><a href="Wuss.html#newSecureClientConnectionWithConfig"><span class="hs-identifier hs-var">newSecureClientConnectionWithConfig</span></a></span><span> </span><span class="annot"><span class="annottext">HostName
+</span><a href="#local-6989586621679092993"><span class="hs-identifier hs-var">host</span></a></span><span> </span><span class="annot"><span class="annottext">PortNumber
+</span><a href="#local-6989586621679092994"><span class="hs-identifier hs-var">port</span></a></span><span> </span><span class="annot"><span class="annottext">HostName
+</span><a href="#local-6989586621679092995"><span class="hs-identifier hs-var">path</span></a></span><span> </span><span class="annot"><span class="annottext">Config
+</span><a href="#local-6989586621679092996"><span class="hs-identifier hs-var">config</span></a></span><span> </span><span class="annot"><span class="annottext">ConnectionOptions
+</span><a href="#local-6989586621679092997"><span class="hs-identifier hs-var">options</span></a></span><span> </span><span class="annot"><span class="annottext">Headers
+</span><a href="#local-6989586621679092998"><span class="hs-identifier hs-var">headers</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-230"></span><span>    </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span class="hs-special">(</span><span class="annot"><span class="annottext">Connection
+</span><span class="hs-identifier">_</span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679093001"><span class="annot"><span class="annottext">IO ()
+</span><a href="#local-6989586621679093001"><span class="hs-identifier hs-var">close</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">IO () -&gt; m ()
+forall a. IO a -&gt; m a
+forall (m :: * -&gt; *) a. MonadIO m =&gt; IO a -&gt; m a
+</span><span class="hs-identifier hs-var">MonadIO.liftIO</span></span><span> </span><span class="annot"><span class="annottext">IO ()
+</span><a href="#local-6989586621679093001"><span class="hs-identifier hs-var">close</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-231"></span><span>    </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span class="hs-special">(</span><span id="local-6989586621679093003"><span class="annot"><span class="annottext">Connection
+</span><a href="#local-6989586621679093003"><span class="hs-identifier hs-var">conn</span></a></span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">IO ()
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">IO a -&gt; m a
+forall a. IO a -&gt; m a
+forall (m :: * -&gt; *) a. MonadIO m =&gt; IO a -&gt; m a
+</span><span class="hs-identifier hs-var">MonadIO.liftIO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ClientApp a
+</span><a href="#local-6989586621679092999"><span class="hs-identifier hs-var">app</span></a></span><span> </span><span class="annot"><span class="annottext">Connection
+</span><a href="#local-6989586621679093003"><span class="hs-identifier hs-var">conn</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-232"></span><span>
+</span><span id="line-233"></span><span class="hs-comment">-- | Build a new `Connection` from the client's point of view.</span><span>
+</span><span id="line-234"></span><span class="hs-comment">--</span><span>
+</span><span id="line-235"></span><span class="hs-comment">-- /WARNING/: Be sure to run the returned `IO ()` action after you are done</span><span>
+</span><span id="line-236"></span><span class="hs-comment">-- using the `Connection` in order to properly close the communication channel.</span><span>
+</span><span id="line-237"></span><span class="hs-comment">-- `runSecureClientWithConfig` handles this for you, prefer to use it when</span><span>
+</span><span id="line-238"></span><span class="hs-comment">-- possible.</span><span>
+</span><span id="line-239"></span><span id="local-6989586621679092891"><span class="annot"><a href="Wuss.html#newSecureClientConnectionWithConfig"><span class="hs-identifier hs-type">newSecureClientConnectionWithConfig</span></a></span><span> </span><span class="hs-glyph">::</span><span>
+</span><span id="line-240"></span><span>  </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">MonadIO.MonadIO</span></span><span> </span><span class="annot"><a href="#local-6989586621679092891"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span>
+</span><span id="line-241"></span><span>  </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Catch.MonadMask</span></span><span> </span><span class="annot"><a href="#local-6989586621679092891"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span>
+</span><span id="line-242"></span><span>  </span><span class="annot"><span class="hs-comment">-- | Host</span></span><span>
+</span><span id="line-243"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">Socket.HostName</span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-244"></span><span>  </span><span class="annot"><span class="hs-comment">-- | PortNumber</span></span><span>
+</span><span id="line-245"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">Socket.PortNumber</span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-246"></span><span>  </span><span class="annot"><span class="hs-comment">-- | Path</span></span><span>
+</span><span id="line-247"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">String.String</span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-248"></span><span>  </span><span class="annot"><span class="hs-comment">-- | Config</span></span><span>
+</span><span id="line-249"></span><span>  </span><span class="annot"><a href="Wuss.html#Config"><span class="hs-identifier hs-type">Config</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-250"></span><span>  </span><span class="annot"><span class="hs-comment">-- | Options</span></span><span>
+</span><span id="line-251"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">WebSockets.ConnectionOptions</span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-252"></span><span>  </span><span class="annot"><span class="hs-comment">-- | Headers</span></span><span>
+</span><span id="line-253"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">WebSockets.Headers</span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-254"></span><span>  </span><span class="annot"><a href="#local-6989586621679092891"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">WebSockets.Connection</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO.IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span></span><span>
+</span><span id="line-255"></span><span id="newSecureClientConnectionWithConfig"><span class="annot"><span class="annottext">newSecureClientConnectionWithConfig :: forall (m :: * -&gt; *).
+(MonadIO m, MonadMask m) =&gt;
+HostName
+-&gt; PortNumber
+-&gt; HostName
+-&gt; Config
+-&gt; ConnectionOptions
+-&gt; Headers
+-&gt; m (Connection, IO ())
+</span><a href="Wuss.html#newSecureClientConnectionWithConfig"><span class="hs-identifier hs-var hs-var">newSecureClientConnectionWithConfig</span></a></span></span><span> </span><span id="local-6989586621679093019"><span class="annot"><span class="annottext">HostName
+</span><a href="#local-6989586621679093019"><span class="hs-identifier hs-var">host</span></a></span></span><span> </span><span id="local-6989586621679093020"><span class="annot"><span class="annottext">PortNumber
+</span><a href="#local-6989586621679093020"><span class="hs-identifier hs-var">port</span></a></span></span><span> </span><span id="local-6989586621679093021"><span class="annot"><span class="annottext">HostName
+</span><a href="#local-6989586621679093021"><span class="hs-identifier hs-var">path</span></a></span></span><span> </span><span id="local-6989586621679093022"><span class="annot"><span class="annottext">Config
+</span><a href="#local-6989586621679093022"><span class="hs-identifier hs-var">config</span></a></span></span><span> </span><span id="local-6989586621679093023"><span class="annot"><span class="annottext">ConnectionOptions
+</span><a href="#local-6989586621679093023"><span class="hs-identifier hs-var">options</span></a></span></span><span> </span><span id="local-6989586621679093024"><span class="annot"><span class="annottext">Headers
+</span><a href="#local-6989586621679093024"><span class="hs-identifier hs-var">headers</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-256"></span><span>  </span><span id="local-6989586621679093025"><span class="annot"><a href="#local-6989586621679093025"><span class="hs-identifier hs-var">context</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">IO ConnectionContext -&gt; m ConnectionContext
+forall a. IO a -&gt; m a
+forall (m :: * -&gt; *) a. MonadIO m =&gt; IO a -&gt; m a
+</span><span class="hs-identifier hs-var">MonadIO.liftIO</span></span><span> </span><span class="annot"><span class="annottext">IO ConnectionContext
+</span><span class="hs-identifier hs-var">Connection.initConnectionContext</span></span><span>
+</span><span id="line-257"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">Catch.bracketOnError</span></span><span>
+</span><span id="line-258"></span><span>    </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">MonadIO.liftIO</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">$</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Connection.connectTo</span></span><span> </span><span class="annot"><a href="#local-6989586621679093025"><span class="hs-identifier hs-type">context</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Wuss.html#connectionParams"><span class="hs-identifier hs-type">connectionParams</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679093019"><span class="hs-identifier hs-type">host</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679093020"><span class="hs-identifier hs-type">port</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-259"></span><span>    </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">MonadIO.liftIO</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">.</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Connection.connectionClose</span></span><span class="hs-special">)</span><span>
+</span><span id="line-260"></span><span>    </span><span class="hs-special">(</span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679093031"><span class="annot"><span class="annottext">Connection
+</span><a href="#local-6989586621679093031"><span class="hs-identifier hs-var">connection</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">IO (Connection, IO ()) -&gt; m (Connection, IO ())
+forall a. IO a -&gt; m a
+forall (m :: * -&gt; *) a. MonadIO m =&gt; IO a -&gt; m a
+</span><span class="hs-identifier hs-var">MonadIO.liftIO</span></span><span> </span><span class="annot"><span class="annottext">(IO (Connection, IO ()) -&gt; m (Connection, IO ()))
+-&gt; IO (Connection, IO ()) -&gt; m (Connection, IO ())
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-261"></span><span>        </span><span id="local-6989586621679093032"><span class="annot"><a href="#local-6989586621679093032"><span class="hs-identifier hs-var">stream</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span>
+</span><span id="line-262"></span><span>          </span><span class="annot"><span class="annottext">IO (Maybe ByteString) -&gt; (Maybe ByteString -&gt; IO ()) -&gt; IO Stream
+</span><span class="hs-identifier hs-var">Stream.makeStream</span></span><span>
+</span><span id="line-263"></span><span>            </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Config -&gt; Connection -&gt; IO (Maybe ByteString)
+</span><a href="Wuss.html#reader"><span class="hs-identifier hs-var">reader</span></a></span><span> </span><span class="annot"><span class="annottext">Config
+</span><a href="#local-6989586621679093022"><span class="hs-identifier hs-var">config</span></a></span><span> </span><span class="annot"><span class="annottext">Connection
+</span><a href="#local-6989586621679093031"><span class="hs-identifier hs-var">connection</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-264"></span><span>            </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Connection -&gt; Maybe ByteString -&gt; IO ()
+</span><a href="Wuss.html#writer"><span class="hs-identifier hs-var">writer</span></a></span><span> </span><span class="annot"><span class="annottext">Connection
+</span><a href="#local-6989586621679093031"><span class="hs-identifier hs-var">connection</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-265"></span><span>        </span><span id="local-6989586621679093036"><span class="annot"><a href="#local-6989586621679093036"><span class="hs-identifier hs-var">conn</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="hs-identifier hs-type">WebSockets.newClientConnection</span></span><span> </span><span class="annot"><a href="#local-6989586621679093032"><span class="hs-identifier hs-type">stream</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679093019"><span class="hs-identifier hs-type">host</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679093021"><span class="hs-identifier hs-type">path</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679093023"><span class="hs-identifier hs-type">options</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679093024"><span class="hs-identifier hs-type">headers</span></a></span><span>
+</span><span id="line-266"></span><span>        </span><span class="annot"><span class="hs-identifier hs-type">Applicative.pure</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679093036"><span class="hs-identifier hs-type">conn</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Connection.connectionClose</span></span><span> </span><span class="annot"><a href="#local-6989586621679093031"><span class="hs-identifier hs-type">connection</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-267"></span><span>    </span><span class="hs-special">)</span><span>
+</span><span id="line-268"></span><span>
+</span><span id="line-269"></span><span class="annot"><a href="Wuss.html#connectionParams"><span class="hs-identifier hs-type">connectionParams</span></a></span><span> </span><span class="hs-glyph">::</span><span>
+</span><span id="line-270"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">Socket.HostName</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Socket.PortNumber</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Connection.ConnectionParams</span></span><span>
+</span><span id="line-271"></span><span id="connectionParams"><span class="annot"><span class="annottext">connectionParams :: HostName -&gt; PortNumber -&gt; ConnectionParams
+</span><a href="Wuss.html#connectionParams"><span class="hs-identifier hs-var hs-var">connectionParams</span></a></span></span><span> </span><span id="local-6989586621679093038"><span class="annot"><span class="annottext">HostName
+</span><a href="#local-6989586621679093038"><span class="hs-identifier hs-var">host</span></a></span></span><span> </span><span id="local-6989586621679093039"><span class="annot"><span class="annottext">PortNumber
+</span><a href="#local-6989586621679093039"><span class="hs-identifier hs-var">port</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-272"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">Connection.ConnectionParams</span></span><span>
+</span><span id="line-273"></span><span>    </span><span class="hs-special">{</span><span> </span><span class="annot"><span class="annottext">connectionHostname :: HostName
+</span><a href="#local-6989586621679093041"><span class="hs-identifier hs-var">Connection.connectionHostname</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">HostName
+</span><a href="#local-6989586621679093038"><span class="hs-identifier hs-var">host</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-274"></span><span>      </span><span class="annot"><span class="annottext">connectionPort :: PortNumber
+</span><a href="#local-6989586621679093042"><span class="hs-identifier hs-var">Connection.connectionPort</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">PortNumber
+</span><a href="#local-6989586621679093039"><span class="hs-identifier hs-var">port</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-275"></span><span>      </span><span class="annot"><span class="annottext">connectionUseSecure :: Maybe TLSSettings
+</span><a href="#local-6989586621679093043"><span class="hs-identifier hs-var">Connection.connectionUseSecure</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">TLSSettings -&gt; Maybe TLSSettings
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Maybe.Just</span></span><span> </span><span class="annot"><span class="annottext">TLSSettings
+</span><a href="Wuss.html#tlsSettings"><span class="hs-identifier hs-var">tlsSettings</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-276"></span><span>      </span><span class="annot"><span class="annottext">connectionUseSocks :: Maybe ProxySettings
+</span><a href="#local-6989586621679093045"><span class="hs-identifier hs-var">Connection.connectionUseSocks</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Maybe ProxySettings
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Maybe.Nothing</span></span><span>
+</span><span id="line-277"></span><span>    </span><span class="hs-special">}</span><span>
+</span><span id="line-278"></span><span>
+</span><span id="line-279"></span><span class="annot"><a href="Wuss.html#tlsSettings"><span class="hs-identifier hs-type">tlsSettings</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Connection.TLSSettings</span></span><span>
+</span><span id="line-280"></span><span id="tlsSettings"><span class="annot"><span class="annottext">tlsSettings :: TLSSettings
+</span><a href="Wuss.html#tlsSettings"><span class="hs-identifier hs-var hs-var">tlsSettings</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">TLSSettings
+forall a. Default a =&gt; a
+</span><span class="hs-identifier hs-var">Default.def</span></span><span>
+</span><span id="line-281"></span><span>
+</span><span id="line-282"></span><span class="annot"><a href="Wuss.html#reader"><span class="hs-identifier hs-type">reader</span></a></span><span> </span><span class="hs-glyph">::</span><span>
+</span><span id="line-283"></span><span>  </span><span class="annot"><a href="Wuss.html#Config"><span class="hs-identifier hs-type">Config</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-284"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">Connection.Connection</span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-285"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">IO.IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe.Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">StrictBytes.ByteString</span></span><span class="hs-special">)</span><span>
+</span><span id="line-286"></span><span id="reader"><span class="annot"><span class="annottext">reader :: Config -&gt; Connection -&gt; IO (Maybe ByteString)
+</span><a href="Wuss.html#reader"><span class="hs-identifier hs-var hs-var">reader</span></a></span></span><span> </span><span id="local-6989586621679093047"><span class="annot"><span class="annottext">Config
+</span><a href="#local-6989586621679093047"><span class="hs-identifier hs-var">config</span></a></span></span><span> </span><span id="local-6989586621679093048"><span class="annot"><span class="annottext">Connection
+</span><a href="#local-6989586621679093048"><span class="hs-identifier hs-var">connection</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-287"></span><span>  </span><span class="annot"><span class="annottext">IO (Maybe ByteString)
+-&gt; (IOError -&gt; IO (Maybe ByteString)) -&gt; IO (Maybe ByteString)
+forall a. IO a -&gt; (IOError -&gt; IO a) -&gt; IO a
+</span><span class="hs-identifier hs-var">IO.Error.catchIOError</span></span><span>
+</span><span id="line-288"></span><span>    </span><span class="hs-special">(</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-289"></span><span>        </span><span id="local-6989586621679093050"><span class="annot"><a href="#local-6989586621679093050"><span class="hs-identifier hs-var">chunk</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Config -&gt; Connection -&gt; IO ByteString
+</span><a href="Wuss.html#connectionGet"><span class="hs-identifier hs-var">connectionGet</span></a></span><span> </span><span class="annot"><span class="annottext">Config
+</span><a href="#local-6989586621679093047"><span class="hs-identifier hs-var">config</span></a></span><span> </span><span class="annot"><span class="annottext">Connection
+</span><a href="#local-6989586621679093048"><span class="hs-identifier hs-var">connection</span></a></span><span>
+</span><span id="line-290"></span><span>        </span><span class="annot"><span class="hs-identifier hs-type">Applicative.pure</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe.Just</span></span><span> </span><span class="annot"><a href="#local-6989586621679093050"><span class="hs-identifier hs-type">chunk</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-291"></span><span>    </span><span class="hs-special">)</span><span>
+</span><span id="line-292"></span><span>    </span><span class="hs-special">(</span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679093051"><span class="annot"><span class="annottext">IOError
+</span><a href="#local-6989586621679093051"><span class="hs-identifier hs-var">e</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-293"></span><span>        </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">IOError -&gt; Bool
+</span><span class="hs-identifier hs-var">IO.Error.isEOFError</span></span><span> </span><span class="annot"><span class="annottext">IOError
+</span><a href="#local-6989586621679093051"><span class="hs-identifier hs-var">e</span></a></span><span>
+</span><span id="line-294"></span><span>          </span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="annottext">Maybe ByteString -&gt; IO (Maybe ByteString)
+forall a. a -&gt; IO a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">Applicative.pure</span></span><span> </span><span class="annot"><span class="annottext">Maybe ByteString
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Maybe.Nothing</span></span><span>
+</span><span id="line-295"></span><span>          </span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="annottext">IOError -&gt; IO (Maybe ByteString)
+forall e a. (HasCallStack, Exception e) =&gt; e -&gt; IO a
+</span><span class="hs-identifier hs-var">Exception.throwIO</span></span><span> </span><span class="annot"><span class="annottext">IOError
+</span><a href="#local-6989586621679093051"><span class="hs-identifier hs-var">e</span></a></span><span>
+</span><span id="line-296"></span><span>    </span><span class="hs-special">)</span><span>
+</span><span id="line-297"></span><span>
+</span><span id="line-298"></span><span class="annot"><a href="Wuss.html#writer"><span class="hs-identifier hs-type">writer</span></a></span><span> </span><span class="hs-glyph">::</span><span>
+</span><span id="line-299"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">Connection.Connection</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe.Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">LazyBytes.ByteString</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO.IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-300"></span><span id="writer"><span class="annot"><span class="annottext">writer :: Connection -&gt; Maybe ByteString -&gt; IO ()
+</span><a href="Wuss.html#writer"><span class="hs-identifier hs-var hs-var">writer</span></a></span></span><span> </span><span id="local-6989586621679093054"><span class="annot"><span class="annottext">Connection
+</span><a href="#local-6989586621679093054"><span class="hs-identifier hs-var">connection</span></a></span></span><span> </span><span id="local-6989586621679093055"><span class="annot"><span class="annottext">Maybe ByteString
+</span><a href="#local-6989586621679093055"><span class="hs-identifier hs-var">maybeBytes</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-301"></span><span>  </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Maybe ByteString
+</span><a href="#local-6989586621679093055"><span class="hs-identifier hs-var">maybeBytes</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-302"></span><span>    </span><span class="annot"><span class="annottext">Maybe ByteString
+</span><span class="hs-identifier hs-var">Maybe.Nothing</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-303"></span><span>      </span><span class="annot"><span class="annottext">() -&gt; IO ()
+forall a. a -&gt; IO a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">Applicative.pure</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-304"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">Maybe.Just</span></span><span> </span><span id="local-6989586621679093056"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679093056"><span class="hs-identifier hs-var">bytes</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-305"></span><span>      </span><span class="annot"><span class="annottext">Connection -&gt; ByteString -&gt; IO ()
+</span><span class="hs-identifier hs-var">Connection.connectionPut</span></span><span> </span><span class="annot"><span class="annottext">Connection
+</span><a href="#local-6989586621679093054"><span class="hs-identifier hs-var">connection</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ByteString -&gt; ByteString
+</span><span class="hs-identifier hs-var">LazyBytes.toStrict</span></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679093056"><span class="hs-identifier hs-var">bytes</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-306"></span></pre></body></html>

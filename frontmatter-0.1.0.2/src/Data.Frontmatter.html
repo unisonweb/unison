@@ -1,0 +1,111 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE ScopedTypeVariables #-}</span><span>
+</span><span id="line-2"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Data.Frontmatter.html"><span class="hs-identifier">Data.Frontmatter</span></a></span><span>
+</span><span id="line-3"></span><span>    </span><span class="hs-special">(</span><span> </span><span class="annot"><span class="hs-comment">-- * Frontmatter parser</span></span><span>
+</span><span id="line-4"></span><span>      </span><span class="annot"><a href="Data.Frontmatter.Internal.html#frontmatter"><span class="hs-identifier">frontmatter</span></a></span><span>
+</span><span id="line-5"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Yaml.Frontmatter.html#frontmatterYaml"><span class="hs-identifier">frontmatterYaml</span></a></span><span>
+</span><span id="line-6"></span><span>      </span><span class="annot"><span class="hs-comment">-- * Utility functions</span></span><span>
+</span><span id="line-7"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Frontmatter.html#parseFrontmatter"><span class="hs-identifier">parseFrontmatter</span></a></span><span>
+</span><span id="line-8"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Frontmatter.html#parseFrontmatterMaybe"><span class="hs-identifier">parseFrontmatterMaybe</span></a></span><span>
+</span><span id="line-9"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Frontmatter.html#parseFrontmatterEither"><span class="hs-identifier">parseFrontmatterEither</span></a></span><span>
+</span><span id="line-10"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Frontmatter.html#parseYamlFrontmatter"><span class="hs-identifier">parseYamlFrontmatter</span></a></span><span>
+</span><span id="line-11"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Frontmatter.html#parseYamlFrontmatterMaybe"><span class="hs-identifier">parseYamlFrontmatterMaybe</span></a></span><span>
+</span><span id="line-12"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Frontmatter.html#parseYamlFrontmatterEither"><span class="hs-identifier">parseYamlFrontmatterEither</span></a></span><span>
+</span><span id="line-13"></span><span>      </span><span class="annot"><span class="hs-comment">-- * Re-exports</span></span><span>
+</span><span id="line-14"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">parse</span></span><span>
+</span><span id="line-15"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">maybeResult</span></span><span>
+</span><span id="line-16"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">eitherResult</span></span><span>
+</span><span id="line-17"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">Parser</span></span><span>
+</span><span id="line-18"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">Result</span></span><span>
+</span><span id="line-19"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">IResult</span></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-20"></span><span>    </span><span class="hs-special">)</span><span>
+</span><span id="line-21"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-22"></span><span>
+</span><span id="line-23"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.Attoparsec.ByteString</span></span><span>
+</span><span id="line-24"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.ByteString</span></span><span>            </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">ByteString</span></span><span class="hs-special">)</span><span>
+</span><span id="line-25"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><a href="Data.Frontmatter.Internal.html"><span class="hs-identifier">Data.Frontmatter.Internal</span></a></span><span>
+</span><span id="line-26"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.Yaml</span></span><span>                  </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">FromJSON</span></span><span class="hs-special">)</span><span>
+</span><span id="line-27"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><a href="Data.Yaml.Frontmatter.html"><span class="hs-identifier">Data.Yaml.Frontmatter</span></a></span><span>
+</span><span id="line-28"></span><span>
+</span><span id="line-29"></span><span class="hs-comment">-- |</span><span>
+</span><span id="line-30"></span><span class="hs-comment">-- Parse a frontmatter from a 'ByteString' returning a 'Result'. Just extracts</span><span>
+</span><span id="line-31"></span><span class="hs-comment">-- whatever is on the frontmatter; doesn't care what it is.</span><span>
+</span><span id="line-32"></span><span class="annot"><a href="Data.Frontmatter.html#parseFrontmatter"><span class="hs-identifier hs-type">parseFrontmatter</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ByteString</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Result</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">ByteString</span></span><span>
+</span><span id="line-33"></span><span id="parseFrontmatter"><span class="annot"><span class="annottext">parseFrontmatter :: ByteString -&gt; Result ByteString
+</span><a href="Data.Frontmatter.html#parseFrontmatter"><span class="hs-identifier hs-var hs-var">parseFrontmatter</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Parser ByteString -&gt; ByteString -&gt; Result ByteString
+forall a. Parser a -&gt; ByteString -&gt; Result a
+</span><span class="hs-identifier hs-var">parse</span></span><span> </span><span class="annot"><span class="annottext">Parser ByteString
+</span><a href="Data.Frontmatter.Internal.html#frontmatter"><span class="hs-identifier hs-var">frontmatter</span></a></span><span>
+</span><span id="line-34"></span><span>
+</span><span id="line-35"></span><span class="hs-comment">-- |</span><span>
+</span><span id="line-36"></span><span class="hs-comment">-- 'parseFrontmatter' but returning a 'Maybe'</span><span>
+</span><span id="line-37"></span><span class="annot"><a href="Data.Frontmatter.html#parseFrontmatterMaybe"><span class="hs-identifier hs-type">parseFrontmatterMaybe</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ByteString</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">ByteString</span></span><span>
+</span><span id="line-38"></span><span id="parseFrontmatterMaybe"><span class="annot"><span class="annottext">parseFrontmatterMaybe :: ByteString -&gt; Maybe ByteString
+</span><a href="Data.Frontmatter.html#parseFrontmatterMaybe"><span class="hs-identifier hs-var hs-var">parseFrontmatterMaybe</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Result ByteString -&gt; Maybe ByteString
+forall r. Result r -&gt; Maybe r
+</span><span class="hs-identifier hs-var">maybeResult</span></span><span> </span><span class="annot"><span class="annottext">(Result ByteString -&gt; Maybe ByteString)
+-&gt; (ByteString -&gt; Result ByteString)
+-&gt; ByteString
+-&gt; Maybe ByteString
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Parser ByteString -&gt; ByteString -&gt; Result ByteString
+forall a. Parser a -&gt; ByteString -&gt; Result a
+</span><span class="hs-identifier hs-var">parse</span></span><span> </span><span class="annot"><span class="annottext">Parser ByteString
+</span><a href="Data.Frontmatter.Internal.html#frontmatter"><span class="hs-identifier hs-var">frontmatter</span></a></span><span>
+</span><span id="line-39"></span><span>
+</span><span id="line-40"></span><span class="hs-comment">-- |</span><span>
+</span><span id="line-41"></span><span class="hs-comment">-- 'parseFrontmatter' but returning an 'Either'</span><span>
+</span><span id="line-42"></span><span class="annot"><a href="Data.Frontmatter.html#parseFrontmatterEither"><span class="hs-identifier hs-type">parseFrontmatterEither</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ByteString</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Either</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">ByteString</span></span><span>
+</span><span id="line-43"></span><span id="parseFrontmatterEither"><span class="annot"><span class="annottext">parseFrontmatterEither :: ByteString -&gt; Either String ByteString
+</span><a href="Data.Frontmatter.html#parseFrontmatterEither"><span class="hs-identifier hs-var hs-var">parseFrontmatterEither</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Result ByteString -&gt; Either String ByteString
+forall r. Result r -&gt; Either String r
+</span><span class="hs-identifier hs-var">eitherResult</span></span><span> </span><span class="annot"><span class="annottext">(Result ByteString -&gt; Either String ByteString)
+-&gt; (ByteString -&gt; Result ByteString)
+-&gt; ByteString
+-&gt; Either String ByteString
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Parser ByteString -&gt; ByteString -&gt; Result ByteString
+forall a. Parser a -&gt; ByteString -&gt; Result a
+</span><span class="hs-identifier hs-var">parse</span></span><span> </span><span class="annot"><span class="annottext">Parser ByteString
+</span><a href="Data.Frontmatter.Internal.html#frontmatter"><span class="hs-identifier hs-var">frontmatter</span></a></span><span>
+</span><span id="line-44"></span><span>
+</span><span id="line-45"></span><span class="hs-comment">-- |</span><span>
+</span><span id="line-46"></span><span class="hs-comment">-- Parse a frontmatter from a 'ByteString' returning a 'FromJSON a'. Will parse</span><span>
+</span><span id="line-47"></span><span class="hs-comment">-- both JSON and YAML.</span><span>
+</span><span id="line-48"></span><span id="local-6989586621679075538"><span class="annot"><a href="Data.Frontmatter.html#parseYamlFrontmatter"><span class="hs-identifier hs-type">parseYamlFrontmatter</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">FromJSON</span></span><span> </span><span class="annot"><a href="#local-6989586621679075538"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ByteString</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Result</span></span><span> </span><span class="annot"><a href="#local-6989586621679075538"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-49"></span><span id="parseYamlFrontmatter"><span class="annot"><span class="annottext">parseYamlFrontmatter :: forall a. FromJSON a =&gt; ByteString -&gt; Result a
+</span><a href="Data.Frontmatter.html#parseYamlFrontmatter"><span class="hs-identifier hs-var hs-var">parseYamlFrontmatter</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Parser a -&gt; ByteString -&gt; Result a
+forall a. Parser a -&gt; ByteString -&gt; Result a
+</span><span class="hs-identifier hs-var">parse</span></span><span> </span><span class="annot"><span class="annottext">Parser a
+forall a. FromJSON a =&gt; Parser a
+</span><a href="Data.Yaml.Frontmatter.html#frontmatterYaml"><span class="hs-identifier hs-var">frontmatterYaml</span></a></span><span>
+</span><span id="line-50"></span><span>
+</span><span id="line-51"></span><span class="hs-comment">-- |</span><span>
+</span><span id="line-52"></span><span class="hs-comment">-- 'parseYamlFrontmatter' but returning a 'Maybe'</span><span>
+</span><span id="line-53"></span><span id="local-6989586621679075542"><span class="annot"><a href="Data.Frontmatter.html#parseYamlFrontmatterMaybe"><span class="hs-identifier hs-type">parseYamlFrontmatterMaybe</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">FromJSON</span></span><span> </span><span class="annot"><a href="#local-6989586621679075542"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ByteString</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="#local-6989586621679075542"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-54"></span><span id="parseYamlFrontmatterMaybe"><span class="annot"><span class="annottext">parseYamlFrontmatterMaybe :: forall a. FromJSON a =&gt; ByteString -&gt; Maybe a
+</span><a href="Data.Frontmatter.html#parseYamlFrontmatterMaybe"><span class="hs-identifier hs-var hs-var">parseYamlFrontmatterMaybe</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Result a -&gt; Maybe a
+forall r. Result r -&gt; Maybe r
+</span><span class="hs-identifier hs-var">maybeResult</span></span><span> </span><span class="annot"><span class="annottext">(Result a -&gt; Maybe a)
+-&gt; (ByteString -&gt; Result a) -&gt; ByteString -&gt; Maybe a
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Parser a -&gt; ByteString -&gt; Result a
+forall a. Parser a -&gt; ByteString -&gt; Result a
+</span><span class="hs-identifier hs-var">parse</span></span><span> </span><span class="annot"><span class="annottext">Parser a
+forall a. FromJSON a =&gt; Parser a
+</span><a href="Data.Yaml.Frontmatter.html#frontmatterYaml"><span class="hs-identifier hs-var">frontmatterYaml</span></a></span><span>
+</span><span id="line-55"></span><span>
+</span><span id="line-56"></span><span class="hs-comment">-- |</span><span>
+</span><span id="line-57"></span><span class="hs-comment">-- 'parseYamlFrontmatter' but returning an 'Either'</span><span>
+</span><span id="line-58"></span><span id="local-6989586621679075544"><span class="annot"><a href="Data.Frontmatter.html#parseYamlFrontmatterEither"><span class="hs-identifier hs-type">parseYamlFrontmatterEither</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">FromJSON</span></span><span> </span><span class="annot"><a href="#local-6989586621679075544"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ByteString</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Either</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="annot"><a href="#local-6989586621679075544"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-59"></span><span id="parseYamlFrontmatterEither"><span class="annot"><span class="annottext">parseYamlFrontmatterEither :: forall a. FromJSON a =&gt; ByteString -&gt; Either String a
+</span><a href="Data.Frontmatter.html#parseYamlFrontmatterEither"><span class="hs-identifier hs-var hs-var">parseYamlFrontmatterEither</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Result a -&gt; Either String a
+forall r. Result r -&gt; Either String r
+</span><span class="hs-identifier hs-var">eitherResult</span></span><span> </span><span class="annot"><span class="annottext">(Result a -&gt; Either String a)
+-&gt; (ByteString -&gt; Result a) -&gt; ByteString -&gt; Either String a
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Parser a -&gt; ByteString -&gt; Result a
+forall a. Parser a -&gt; ByteString -&gt; Result a
+</span><span class="hs-identifier hs-var">parse</span></span><span> </span><span class="annot"><span class="annottext">Parser a
+forall a. FromJSON a =&gt; Parser a
+</span><a href="Data.Yaml.Frontmatter.html#frontmatterYaml"><span class="hs-identifier hs-var">frontmatterYaml</span></a></span><span>
+</span><span id="line-60"></span></pre></body></html>

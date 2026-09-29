@@ -1,0 +1,96 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE Safe #-}</span><span>
+</span><span id="line-2"></span><span>
+</span><span id="line-3"></span><span class="hs-comment">-- |</span><span>
+</span><span id="line-4"></span><span class="hs-comment">-- Module      :  Foreign.C.String</span><span>
+</span><span id="line-5"></span><span class="hs-comment">-- Copyright   :  (c) The FFI task force 2001</span><span>
+</span><span id="line-6"></span><span class="hs-comment">-- License     :  BSD-style (see the file libraries/base/LICENSE)</span><span>
+</span><span id="line-7"></span><span class="hs-comment">--</span><span>
+</span><span id="line-8"></span><span class="hs-comment">-- Maintainer  :  ffi@haskell.org</span><span>
+</span><span id="line-9"></span><span class="hs-comment">-- Stability   :  provisional</span><span>
+</span><span id="line-10"></span><span class="hs-comment">-- Portability :  portable</span><span>
+</span><span id="line-11"></span><span class="hs-comment">--</span><span>
+</span><span id="line-12"></span><span class="hs-comment">-- Utilities for primitive marshalling of C strings.</span><span>
+</span><span id="line-13"></span><span class="hs-comment">--</span><span>
+</span><span id="line-14"></span><span class="hs-comment">-- The marshalling converts each Haskell character, representing a Unicode</span><span>
+</span><span id="line-15"></span><span class="hs-comment">-- code point, to one or more bytes in a manner that, by default, is</span><span>
+</span><span id="line-16"></span><span class="hs-comment">-- determined by the current locale.  As a consequence, no guarantees</span><span>
+</span><span id="line-17"></span><span class="hs-comment">-- can be made about the relative length of a Haskell string and its</span><span>
+</span><span id="line-18"></span><span class="hs-comment">-- corresponding C string, and therefore all the marshalling routines</span><span>
+</span><span id="line-19"></span><span class="hs-comment">-- include memory allocation.  The translation between Unicode and the</span><span>
+</span><span id="line-20"></span><span class="hs-comment">-- encoding of the current locale may be lossy.</span><span>
+</span><span id="line-21"></span><span class="hs-comment">--</span><span>
+</span><span id="line-22"></span><span>
+</span><span id="line-23"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Foreign.C.String.html"><span class="hs-identifier">Foreign.C.String</span></a></span><span> </span><span class="hs-special">(</span><span>
+</span><span id="line-24"></span><span>  </span><span class="annot"><span class="hs-comment">-- * C strings</span></span><span>
+</span><span id="line-25"></span><span>
+</span><span id="line-26"></span><span>  </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Foreign.C.String.Encoding.html#CString"><span class="hs-identifier">CString</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-27"></span><span>  </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Foreign.C.String.Encoding.html#CStringLen"><span class="hs-identifier">CStringLen</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-28"></span><span>
+</span><span id="line-29"></span><span>  </span><span class="annot"><span class="hs-comment">-- ** Using a locale-dependent encoding</span></span><span>
+</span><span id="line-30"></span><span>
+</span><span id="line-31"></span><span>  </span><span class="hs-comment">-- | These functions are different from their @CAString@ counterparts</span><span>
+</span><span id="line-32"></span><span>  </span><span class="hs-comment">-- in that they will use an encoding determined by the current locale,</span><span>
+</span><span id="line-33"></span><span>  </span><span class="hs-comment">-- rather than always assuming ASCII.</span><span>
+</span><span id="line-34"></span><span>
+</span><span id="line-35"></span><span>  </span><span class="hs-comment">-- conversion of C strings into Haskell strings</span><span>
+</span><span id="line-36"></span><span>  </span><span class="hs-comment">--</span><span>
+</span><span id="line-37"></span><span>  </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Foreign.C.String.html#peekCString"><span class="hs-identifier">peekCString</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-38"></span><span>  </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Foreign.C.String.html#peekCStringLen"><span class="hs-identifier">peekCStringLen</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-39"></span><span>
+</span><span id="line-40"></span><span>  </span><span class="hs-comment">-- conversion of Haskell strings into C strings</span><span>
+</span><span id="line-41"></span><span>  </span><span class="hs-comment">--</span><span>
+</span><span id="line-42"></span><span>  </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Foreign.C.String.html#newCString"><span class="hs-identifier">newCString</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-43"></span><span>  </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Foreign.C.String.html#newCStringLen"><span class="hs-identifier">newCStringLen</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-44"></span><span>
+</span><span id="line-45"></span><span>  </span><span class="hs-comment">-- conversion of Haskell strings into C strings using temporary storage</span><span>
+</span><span id="line-46"></span><span>  </span><span class="hs-comment">--</span><span>
+</span><span id="line-47"></span><span>  </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Foreign.C.String.html#withCString"><span class="hs-identifier">withCString</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-48"></span><span>  </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Foreign.C.String.html#withCStringLen"><span class="hs-identifier">withCStringLen</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-49"></span><span>
+</span><span id="line-50"></span><span>  </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Foreign.C.String.html#charIsRepresentable"><span class="hs-identifier">charIsRepresentable</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-51"></span><span>
+</span><span id="line-52"></span><span>  </span><span class="annot"><span class="hs-comment">-- ** Using 8-bit characters</span></span><span>
+</span><span id="line-53"></span><span>
+</span><span id="line-54"></span><span>  </span><span class="hs-comment">-- | These variants of the above functions are for use with C libraries</span><span>
+</span><span id="line-55"></span><span>  </span><span class="hs-comment">-- that are ignorant of Unicode.  These functions should be used with</span><span>
+</span><span id="line-56"></span><span>  </span><span class="hs-comment">-- care, as a loss of information can occur.</span><span>
+</span><span id="line-57"></span><span>
+</span><span id="line-58"></span><span>  </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Foreign.C.String.html#castCharToCChar"><span class="hs-identifier">castCharToCChar</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-59"></span><span>  </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Foreign.C.String.html#castCCharToChar"><span class="hs-identifier">castCCharToChar</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-60"></span><span>
+</span><span id="line-61"></span><span>  </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Foreign.C.String.html#castCharToCUChar"><span class="hs-identifier">castCharToCUChar</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-62"></span><span>  </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Foreign.C.String.html#castCUCharToChar"><span class="hs-identifier">castCUCharToChar</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-63"></span><span>  </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Foreign.C.String.html#castCharToCSChar"><span class="hs-identifier">castCharToCSChar</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-64"></span><span>  </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Foreign.C.String.html#castCSCharToChar"><span class="hs-identifier">castCSCharToChar</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-65"></span><span>
+</span><span id="line-66"></span><span>  </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Foreign.C.String.html#peekCAString"><span class="hs-identifier">peekCAString</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-67"></span><span>  </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Foreign.C.String.html#peekCAStringLen"><span class="hs-identifier">peekCAStringLen</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-68"></span><span>  </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Foreign.C.String.html#newCAString"><span class="hs-identifier">newCAString</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-69"></span><span>  </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Foreign.C.String.html#newCAStringLen"><span class="hs-identifier">newCAStringLen</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-70"></span><span>  </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Foreign.C.String.html#withCAString"><span class="hs-identifier">withCAString</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-71"></span><span>  </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Foreign.C.String.html#withCAStringLen"><span class="hs-identifier">withCAStringLen</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-72"></span><span>
+</span><span id="line-73"></span><span>  </span><span class="annot"><span class="hs-comment">-- * C wide strings</span></span><span>
+</span><span id="line-74"></span><span>
+</span><span id="line-75"></span><span>  </span><span class="hs-comment">-- | These variants of the above functions are for use with C libraries</span><span>
+</span><span id="line-76"></span><span>  </span><span class="hs-comment">-- that encode Unicode using the C @wchar_t@ type in a system-dependent</span><span>
+</span><span id="line-77"></span><span>  </span><span class="hs-comment">-- way.  The only encodings supported are</span><span>
+</span><span id="line-78"></span><span>  </span><span class="hs-comment">--</span><span>
+</span><span id="line-79"></span><span>  </span><span class="hs-comment">-- * UTF-32 (the C compiler defines @__STDC_ISO_10646__@), or</span><span>
+</span><span id="line-80"></span><span>  </span><span class="hs-comment">--</span><span>
+</span><span id="line-81"></span><span>  </span><span class="hs-comment">-- * UTF-16 (as used on Windows systems).</span><span>
+</span><span id="line-82"></span><span>
+</span><span id="line-83"></span><span>  </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Foreign.C.String.html#CWString"><span class="hs-identifier">CWString</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-84"></span><span>  </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Foreign.C.String.html#CWStringLen"><span class="hs-identifier">CWStringLen</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-85"></span><span>
+</span><span id="line-86"></span><span>  </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Foreign.C.String.html#peekCWString"><span class="hs-identifier">peekCWString</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-87"></span><span>  </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Foreign.C.String.html#peekCWStringLen"><span class="hs-identifier">peekCWStringLen</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-88"></span><span>  </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Foreign.C.String.html#newCWString"><span class="hs-identifier">newCWString</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-89"></span><span>  </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Foreign.C.String.html#newCWStringLen"><span class="hs-identifier">newCWStringLen</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-90"></span><span>  </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Foreign.C.String.html#withCWString"><span class="hs-identifier">withCWString</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-91"></span><span>  </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Foreign.C.String.html#withCWStringLen"><span class="hs-identifier">withCWStringLen</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-92"></span><span>
+</span><span id="line-93"></span><span>  </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-94"></span><span>
+</span><span id="line-95"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Foreign.C.String.html"><span class="hs-identifier">GHC.Internal.Foreign.C.String</span></a></span><span>
+</span><span id="line-96"></span></pre></body></html>

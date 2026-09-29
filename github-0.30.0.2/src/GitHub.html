@@ -1,0 +1,547 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-comment">-- |</span><span>
+</span><span id="line-2"></span><span class="hs-comment">-- This module re-exports all request constructors and data definitions from</span><span>
+</span><span id="line-3"></span><span class="hs-comment">-- this package.</span><span>
+</span><span id="line-4"></span><span class="hs-comment">--</span><span>
+</span><span id="line-5"></span><span class="hs-comment">-- See &quot;GitHub.Request&quot; module for executing 'Request', in short</span><span>
+</span><span id="line-6"></span><span class="hs-comment">-- use @'github' request@, for example</span><span>
+</span><span id="line-7"></span><span class="hs-comment">--</span><span>
+</span><span id="line-8"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-9"></span><span class="hs-comment">-- 'github' 'userInfoForR'</span><span>
+</span><span id="line-10"></span><span class="hs-comment">--   :: 'AuthMethod' am =&gt; am -&gt; 'Name' 'User' -&gt; IO (Either 'Error' 'User')</span><span>
+</span><span id="line-11"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-12"></span><span class="hs-comment">--</span><span>
+</span><span id="line-13"></span><span class="hs-comment">-- The missing endpoints lists show which endpoints we know are missing, there</span><span>
+</span><span id="line-14"></span><span class="hs-comment">-- might be more.</span><span>
+</span><span id="line-15"></span><span>
+</span><span id="line-16"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="GitHub.html"><span class="hs-identifier">GitHub</span></a></span><span> </span><span class="hs-special">(</span><span>
+</span><span id="line-17"></span><span>    </span><span class="annot"><span class="hs-comment">-- * Activity</span></span><span>
+</span><span id="line-18"></span><span>    </span><span class="annot"><span class="hs-comment">-- | See &lt;https://developer.github.com/v3/activity/&gt;</span></span><span>
+</span><span id="line-19"></span><span>
+</span><span id="line-20"></span><span>    </span><span class="annot"><span class="hs-comment">-- ** Events</span></span><span>
+</span><span id="line-21"></span><span>    </span><span class="annot"><span class="hs-comment">-- | See &lt;https://developer.github.com/v3/activity/events/&gt;</span></span><span>
+</span><span id="line-22"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Activity.Events.html#repositoryEventsR"><span class="hs-identifier">repositoryEventsR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-23"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Activity.Events.html#userEventsR"><span class="hs-identifier">userEventsR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-24"></span><span>
+</span><span id="line-25"></span><span>    </span><span class="annot"><span class="hs-comment">-- ** Notifications</span></span><span>
+</span><span id="line-26"></span><span>    </span><span class="annot"><span class="hs-comment">-- | See &lt;https://developer.github.com/v3/activity/notifications/&gt;</span></span><span>
+</span><span id="line-27"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Activity.Notifications.html#getNotificationsR"><span class="hs-identifier">getNotificationsR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-28"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Activity.Notifications.html#markNotificationAsReadR"><span class="hs-identifier">markNotificationAsReadR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-29"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Activity.Notifications.html#markAllNotificationsAsReadR"><span class="hs-identifier">markAllNotificationsAsReadR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-30"></span><span>
+</span><span id="line-31"></span><span>    </span><span class="annot"><span class="hs-comment">-- ** Starring</span></span><span>
+</span><span id="line-32"></span><span>    </span><span class="hs-comment">-- | See &lt;https://developer.github.com/v3/activity/starring/&gt;</span><span>
+</span><span id="line-33"></span><span>    </span><span class="hs-comment">--</span><span>
+</span><span id="line-34"></span><span>    </span><span class="hs-comment">-- Missing endpoints:</span><span>
+</span><span id="line-35"></span><span>    </span><span class="hs-comment">--</span><span>
+</span><span id="line-36"></span><span>    </span><span class="hs-comment">-- * Check if you are starring a repository</span><span>
+</span><span id="line-37"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Activity.Starring.html#stargazersForR"><span class="hs-identifier">stargazersForR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-38"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Activity.Starring.html#reposStarredByR"><span class="hs-identifier">reposStarredByR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-39"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Activity.Starring.html#myStarredR"><span class="hs-identifier">myStarredR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-40"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Activity.Starring.html#myStarredAcceptStarR"><span class="hs-identifier">myStarredAcceptStarR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-41"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Activity.Starring.html#starRepoR"><span class="hs-identifier">starRepoR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-42"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Activity.Starring.html#unstarRepoR"><span class="hs-identifier">unstarRepoR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-43"></span><span>
+</span><span id="line-44"></span><span>    </span><span class="annot"><span class="hs-comment">-- ** Watching</span></span><span>
+</span><span id="line-45"></span><span>    </span><span class="hs-comment">-- | See &lt;https://developer.github.com/v3/activity/&gt;</span><span>
+</span><span id="line-46"></span><span>    </span><span class="hs-comment">--</span><span>
+</span><span id="line-47"></span><span>    </span><span class="hs-comment">-- Missing endpoints:</span><span>
+</span><span id="line-48"></span><span>    </span><span class="hs-comment">--</span><span>
+</span><span id="line-49"></span><span>    </span><span class="hs-comment">-- * Query a Repository Subscription</span><span>
+</span><span id="line-50"></span><span>    </span><span class="hs-comment">-- * Set a Repository Subscription</span><span>
+</span><span id="line-51"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Activity.Watching.html#watchersForR"><span class="hs-identifier">watchersForR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-52"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Activity.Watching.html#reposWatchedByR"><span class="hs-identifier">reposWatchedByR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-53"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Activity.Watching.html#unwatchRepoR"><span class="hs-identifier">unwatchRepoR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-54"></span><span>
+</span><span id="line-55"></span><span>    </span><span class="annot"><span class="hs-comment">-- * Gists</span></span><span>
+</span><span id="line-56"></span><span>    </span><span class="hs-comment">-- | See &lt;https://developer.github.com/v3/gists/&gt;</span><span>
+</span><span id="line-57"></span><span>    </span><span class="hs-comment">--</span><span>
+</span><span id="line-58"></span><span>    </span><span class="hs-comment">-- Missing endpoints:</span><span>
+</span><span id="line-59"></span><span>    </span><span class="hs-comment">--</span><span>
+</span><span id="line-60"></span><span>    </span><span class="hs-comment">-- * Query a specific revision of a gist</span><span>
+</span><span id="line-61"></span><span>    </span><span class="hs-comment">-- * Edit a gist</span><span>
+</span><span id="line-62"></span><span>    </span><span class="hs-comment">-- * List gist commits</span><span>
+</span><span id="line-63"></span><span>    </span><span class="hs-comment">-- * Check if a gist is starred</span><span>
+</span><span id="line-64"></span><span>    </span><span class="hs-comment">-- * Fork a gist</span><span>
+</span><span id="line-65"></span><span>    </span><span class="hs-comment">-- * List gist forks</span><span>
+</span><span id="line-66"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Gists.html#gistsR"><span class="hs-identifier">gistsR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-67"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Gists.html#gistR"><span class="hs-identifier">gistR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-68"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Gists.html#createGistR"><span class="hs-identifier">createGistR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-69"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Gists.html#starGistR"><span class="hs-identifier">starGistR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-70"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Gists.html#unstarGistR"><span class="hs-identifier">unstarGistR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-71"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Gists.html#deleteGistR"><span class="hs-identifier">deleteGistR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-72"></span><span>
+</span><span id="line-73"></span><span>    </span><span class="annot"><span class="hs-comment">-- ** Comments</span></span><span>
+</span><span id="line-74"></span><span>    </span><span class="hs-comment">-- | See &lt;https://developer.github.com/v3/gists/comments/&gt;</span><span>
+</span><span id="line-75"></span><span>    </span><span class="hs-comment">--</span><span>
+</span><span id="line-76"></span><span>    </span><span class="hs-comment">-- Missing endpoints:</span><span>
+</span><span id="line-77"></span><span>    </span><span class="hs-comment">-- * Create a comment</span><span>
+</span><span id="line-78"></span><span>    </span><span class="hs-comment">-- * Edit a comment</span><span>
+</span><span id="line-79"></span><span>    </span><span class="hs-comment">-- * Delete a comment</span><span>
+</span><span id="line-80"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Gists.Comments.html#commentsOnR"><span class="hs-identifier">commentsOnR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-81"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Gists.Comments.html#gistCommentR"><span class="hs-identifier">gistCommentR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-82"></span><span>
+</span><span id="line-83"></span><span>    </span><span class="annot"><span class="hs-comment">-- * Git Data</span></span><span>
+</span><span id="line-84"></span><span>    </span><span class="annot"><span class="hs-comment">-- | See &lt;https://developer.github.com/v3/git/&gt;</span></span><span>
+</span><span id="line-85"></span><span>
+</span><span id="line-86"></span><span>    </span><span class="annot"><span class="hs-comment">-- ** Blobs</span></span><span>
+</span><span id="line-87"></span><span>    </span><span class="annot"><span class="hs-comment">-- | See &lt;https://developer.github.com/v3/git/blobs/&gt;</span></span><span>
+</span><span id="line-88"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.GitData.Blobs.html#blobR"><span class="hs-identifier">blobR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-89"></span><span>
+</span><span id="line-90"></span><span>    </span><span class="annot"><span class="hs-comment">-- ** Commits</span></span><span>
+</span><span id="line-91"></span><span>    </span><span class="annot"><span class="hs-comment">-- | See &lt;https://developer.github.com/v3/git/commits/&gt;</span></span><span>
+</span><span id="line-92"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.GitData.Commits.html#gitCommitR"><span class="hs-identifier">gitCommitR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-93"></span><span>
+</span><span id="line-94"></span><span>    </span><span class="annot"><span class="hs-comment">-- ** References</span></span><span>
+</span><span id="line-95"></span><span>    </span><span class="annot"><span class="hs-comment">-- | See &lt;https://developer.github.com/v3/git/refs/&gt;</span></span><span>
+</span><span id="line-96"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.GitData.References.html#referenceR"><span class="hs-identifier">referenceR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-97"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.GitData.References.html#referencesR"><span class="hs-identifier">referencesR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-98"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.GitData.References.html#createReferenceR"><span class="hs-identifier">createReferenceR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-99"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.GitData.References.html#deleteReferenceR"><span class="hs-identifier">deleteReferenceR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-100"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.GitData.References.html#namespacedReferencesR"><span class="hs-identifier">namespacedReferencesR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-101"></span><span>
+</span><span id="line-102"></span><span>    </span><span class="annot"><span class="hs-comment">-- ** Trees</span></span><span>
+</span><span id="line-103"></span><span>    </span><span class="annot"><span class="hs-comment">-- | See &lt;https://developer.github.com/v3/git/trees/&gt;</span></span><span>
+</span><span id="line-104"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.GitData.Trees.html#treeR"><span class="hs-identifier">treeR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-105"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.GitData.Trees.html#nestedTreeR"><span class="hs-identifier">nestedTreeR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-106"></span><span>
+</span><span id="line-107"></span><span>    </span><span class="annot"><span class="hs-comment">-- * Issues</span></span><span>
+</span><span id="line-108"></span><span>    </span><span class="hs-comment">-- | See &lt;https://developer.github.com/v3/issues/&gt;</span><span>
+</span><span id="line-109"></span><span>    </span><span class="hs-comment">--</span><span>
+</span><span id="line-110"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Issues.html#currentUserIssuesR"><span class="hs-identifier">currentUserIssuesR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-111"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Issues.html#organizationIssuesR"><span class="hs-identifier">organizationIssuesR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-112"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Issues.html#issueR"><span class="hs-identifier">issueR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-113"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Issues.html#issuesForRepoR"><span class="hs-identifier">issuesForRepoR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-114"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Issues.html#createIssueR"><span class="hs-identifier">createIssueR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-115"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Issues.html#editIssueR"><span class="hs-identifier">editIssueR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-116"></span><span>
+</span><span id="line-117"></span><span>    </span><span class="annot"><span class="hs-comment">-- ** Comments</span></span><span>
+</span><span id="line-118"></span><span>    </span><span class="hs-comment">-- | See &lt;https://developer.github.com/v3/issues/comments/&gt;</span><span>
+</span><span id="line-119"></span><span>    </span><span class="hs-comment">--</span><span>
+</span><span id="line-120"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Issues.Comments.html#commentR"><span class="hs-identifier">commentR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-121"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Issues.Comments.html#commentsR"><span class="hs-identifier">commentsR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-122"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Issues.Comments.html#createCommentR"><span class="hs-identifier">createCommentR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-123"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Issues.Comments.html#deleteCommentR"><span class="hs-identifier">deleteCommentR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-124"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Issues.Comments.html#editCommentR"><span class="hs-identifier">editCommentR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-125"></span><span>
+</span><span id="line-126"></span><span>    </span><span class="annot"><span class="hs-comment">-- ** Events</span></span><span>
+</span><span id="line-127"></span><span>    </span><span class="hs-comment">-- | See &lt;https://developer.github.com/v3/issues/events/&gt;</span><span>
+</span><span id="line-128"></span><span>    </span><span class="hs-comment">--</span><span>
+</span><span id="line-129"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Issues.Events.html#eventsForIssueR"><span class="hs-identifier">eventsForIssueR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-130"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Issues.Events.html#eventsForRepoR"><span class="hs-identifier">eventsForRepoR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-131"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Issues.Events.html#eventR"><span class="hs-identifier">eventR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-132"></span><span>
+</span><span id="line-133"></span><span>    </span><span class="annot"><span class="hs-comment">-- ** Labels</span></span><span>
+</span><span id="line-134"></span><span>    </span><span class="hs-comment">-- | See &lt;https://developer.github.com/v3/issues/labels/&gt;</span><span>
+</span><span id="line-135"></span><span>    </span><span class="hs-comment">--</span><span>
+</span><span id="line-136"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Issues.Labels.html#labelsOnRepoR"><span class="hs-identifier">labelsOnRepoR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-137"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Issues.Labels.html#labelR"><span class="hs-identifier">labelR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-138"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Issues.Labels.html#createLabelR"><span class="hs-identifier">createLabelR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-139"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Issues.Labels.html#updateLabelR"><span class="hs-identifier">updateLabelR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-140"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Issues.Labels.html#deleteLabelR"><span class="hs-identifier">deleteLabelR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-141"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Issues.Labels.html#labelsOnIssueR"><span class="hs-identifier">labelsOnIssueR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-142"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Issues.Labels.html#addLabelsToIssueR"><span class="hs-identifier">addLabelsToIssueR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-143"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Issues.Labels.html#removeLabelFromIssueR"><span class="hs-identifier">removeLabelFromIssueR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-144"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Issues.Labels.html#replaceAllLabelsForIssueR"><span class="hs-identifier">replaceAllLabelsForIssueR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-145"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Issues.Labels.html#removeAllLabelsFromIssueR"><span class="hs-identifier">removeAllLabelsFromIssueR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-146"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Issues.Labels.html#labelsOnMilestoneR"><span class="hs-identifier">labelsOnMilestoneR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-147"></span><span>
+</span><span id="line-148"></span><span>    </span><span class="annot"><span class="hs-comment">-- ** Milestone</span></span><span>
+</span><span id="line-149"></span><span>    </span><span class="hs-comment">-- | See &lt;https://developer.github.com/v3/issues/milestones/&gt;</span><span>
+</span><span id="line-150"></span><span>    </span><span class="hs-comment">--</span><span>
+</span><span id="line-151"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Issues.Milestones.html#milestonesR"><span class="hs-identifier">milestonesR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-152"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Issues.Milestones.html#milestoneR"><span class="hs-identifier">milestoneR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-153"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Issues.Milestones.html#createMilestoneR"><span class="hs-identifier">createMilestoneR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-154"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Issues.Milestones.html#updateMilestoneR"><span class="hs-identifier">updateMilestoneR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-155"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Issues.Milestones.html#deleteMilestoneR"><span class="hs-identifier">deleteMilestoneR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-156"></span><span>
+</span><span id="line-157"></span><span>    </span><span class="annot"><span class="hs-comment">-- * Organizations</span></span><span>
+</span><span id="line-158"></span><span>    </span><span class="hs-comment">-- | See &lt;https://developer.github.com/v3/orgs/&gt;</span><span>
+</span><span id="line-159"></span><span>    </span><span class="hs-comment">--</span><span>
+</span><span id="line-160"></span><span>    </span><span class="hs-comment">-- Missing endpoints:</span><span>
+</span><span id="line-161"></span><span>    </span><span class="hs-comment">--</span><span>
+</span><span id="line-162"></span><span>    </span><span class="hs-comment">-- * List your organizations</span><span>
+</span><span id="line-163"></span><span>    </span><span class="hs-comment">-- * List all organizations</span><span>
+</span><span id="line-164"></span><span>    </span><span class="hs-comment">-- * Edit an organization</span><span>
+</span><span id="line-165"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Organizations.html#publicOrganizationsForR"><span class="hs-identifier">publicOrganizationsForR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-166"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Organizations.html#publicOrganizationR"><span class="hs-identifier">publicOrganizationR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-167"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Organizations.html#organizationsR"><span class="hs-identifier">organizationsR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-168"></span><span>    </span><span class="annot"><span class="hs-comment">-- ** Members</span></span><span>
+</span><span id="line-169"></span><span>    </span><span class="hs-comment">-- | See &lt;https://developer.github.com/v3/orgs/members/&gt;</span><span>
+</span><span id="line-170"></span><span>    </span><span class="hs-comment">--</span><span>
+</span><span id="line-171"></span><span>    </span><span class="hs-comment">-- Missing endpoints: All except /Members List/ and /Check Membership/</span><span>
+</span><span id="line-172"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Organizations.Members.html#membersOfR"><span class="hs-identifier">membersOfR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-173"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Organizations.Members.html#membersOfWithR"><span class="hs-identifier">membersOfWithR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-174"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Organizations.Members.html#isMemberOfR"><span class="hs-identifier">isMemberOfR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-175"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Organizations.Members.html#orgInvitationsR"><span class="hs-identifier">orgInvitationsR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-176"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Organizations.Members.html#orgMembershipR"><span class="hs-identifier">orgMembershipR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-177"></span><span>    </span><span class="annot"><span class="hs-comment">-- ** Outside Collaborators</span></span><span>
+</span><span id="line-178"></span><span>    </span><span class="hs-comment">-- | See &lt;https://developer.github.com/v3/orgs/outside_collaborators/&gt;</span><span>
+</span><span id="line-179"></span><span>    </span><span class="hs-comment">--</span><span>
+</span><span id="line-180"></span><span>    </span><span class="hs-comment">-- Missing endpoints: All except /Outside Collaborator List/</span><span>
+</span><span id="line-181"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Organizations.OutsideCollaborators.html#outsideCollaboratorsR"><span class="hs-identifier">outsideCollaboratorsR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-182"></span><span>
+</span><span id="line-183"></span><span>    </span><span class="annot"><span class="hs-comment">-- ** Teams</span></span><span>
+</span><span id="line-184"></span><span>    </span><span class="hs-comment">-- | See &lt;https://developer.github.com/v3/orgs/teams/&gt;</span><span>
+</span><span id="line-185"></span><span>    </span><span class="hs-comment">--</span><span>
+</span><span id="line-186"></span><span>    </span><span class="hs-comment">-- Missing endpoints:</span><span>
+</span><span id="line-187"></span><span>    </span><span class="hs-comment">--</span><span>
+</span><span id="line-188"></span><span>    </span><span class="hs-comment">-- * Query team member (deprecated)</span><span>
+</span><span id="line-189"></span><span>    </span><span class="hs-comment">-- * Add team member (deprecated)</span><span>
+</span><span id="line-190"></span><span>    </span><span class="hs-comment">-- * Remove team member (deprecated)</span><span>
+</span><span id="line-191"></span><span>    </span><span class="hs-comment">-- * Check if a team manages a repository</span><span>
+</span><span id="line-192"></span><span>    </span><span class="hs-comment">-- * Add team repository</span><span>
+</span><span id="line-193"></span><span>    </span><span class="hs-comment">-- * Remove team repository</span><span>
+</span><span id="line-194"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Organizations.Teams.html#teamsOfR"><span class="hs-identifier">teamsOfR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-195"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Organizations.Teams.html#teamInfoForR"><span class="hs-identifier">teamInfoForR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-196"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Organizations.Teams.html#createTeamForR"><span class="hs-identifier">createTeamForR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-197"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Organizations.Teams.html#editTeamR"><span class="hs-identifier">editTeamR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-198"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Organizations.Teams.html#deleteTeamR"><span class="hs-identifier">deleteTeamR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-199"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Organizations.Teams.html#listTeamMembersR"><span class="hs-identifier">listTeamMembersR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-200"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Organizations.Teams.html#listTeamReposR"><span class="hs-identifier">listTeamReposR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-201"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Organizations.Teams.html#teamMembershipInfoForR"><span class="hs-identifier">teamMembershipInfoForR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-202"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Organizations.Teams.html#addTeamMembershipForR"><span class="hs-identifier">addTeamMembershipForR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-203"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Organizations.Teams.html#deleteTeamMembershipForR"><span class="hs-identifier">deleteTeamMembershipForR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-204"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Organizations.Teams.html#listTeamsCurrentR"><span class="hs-identifier">listTeamsCurrentR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-205"></span><span>
+</span><span id="line-206"></span><span>    </span><span class="annot"><span class="hs-comment">-- * Pull Requests</span></span><span>
+</span><span id="line-207"></span><span>    </span><span class="annot"><span class="hs-comment">-- | See &lt;https://developer.github.com/v3/pulls/&gt;</span></span><span>
+</span><span id="line-208"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.PullRequests.html#pullRequestsForR"><span class="hs-identifier">pullRequestsForR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-209"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.PullRequests.html#pullRequestR"><span class="hs-identifier">pullRequestR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-210"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.PullRequests.html#pullRequestPatchR"><span class="hs-identifier">pullRequestPatchR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-211"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.PullRequests.html#pullRequestDiffR"><span class="hs-identifier">pullRequestDiffR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-212"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.PullRequests.html#createPullRequestR"><span class="hs-identifier">createPullRequestR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-213"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.PullRequests.html#updatePullRequestR"><span class="hs-identifier">updatePullRequestR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-214"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.PullRequests.html#pullRequestCommitsR"><span class="hs-identifier">pullRequestCommitsR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-215"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.PullRequests.html#pullRequestFilesR"><span class="hs-identifier">pullRequestFilesR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-216"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.PullRequests.html#isPullRequestMergedR"><span class="hs-identifier">isPullRequestMergedR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-217"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.PullRequests.html#mergePullRequestR"><span class="hs-identifier">mergePullRequestR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-218"></span><span>
+</span><span id="line-219"></span><span>    </span><span class="annot"><span class="hs-comment">-- ** Review comments</span></span><span>
+</span><span id="line-220"></span><span>    </span><span class="hs-comment">-- | See &lt;https://developer.github.com/v3/pulls/comments/&gt;</span><span>
+</span><span id="line-221"></span><span>    </span><span class="hs-comment">--</span><span>
+</span><span id="line-222"></span><span>    </span><span class="hs-comment">-- Missing endpoints:</span><span>
+</span><span id="line-223"></span><span>    </span><span class="hs-comment">--</span><span>
+</span><span id="line-224"></span><span>    </span><span class="hs-comment">-- * List comments in a repository</span><span>
+</span><span id="line-225"></span><span>    </span><span class="hs-comment">-- * Edit a comment</span><span>
+</span><span id="line-226"></span><span>    </span><span class="hs-comment">-- * Delete a comment</span><span>
+</span><span id="line-227"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.PullRequests.Comments.html#pullRequestCommentsR"><span class="hs-identifier">pullRequestCommentsR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-228"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.PullRequests.Comments.html#pullRequestCommentR"><span class="hs-identifier">pullRequestCommentR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-229"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.PullRequests.Comments.html#createPullCommentR"><span class="hs-identifier">createPullCommentR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-230"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.PullRequests.Comments.html#createPullCommentReplyR"><span class="hs-identifier">createPullCommentReplyR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-231"></span><span>
+</span><span id="line-232"></span><span>    </span><span class="annot"><span class="hs-comment">-- ** Pull request reviews</span></span><span>
+</span><span id="line-233"></span><span>    </span><span class="hs-comment">-- | See &lt;https://developer.github.com/v3/pulls/reviews/&gt;</span><span>
+</span><span id="line-234"></span><span>    </span><span class="hs-comment">--</span><span>
+</span><span id="line-235"></span><span>    </span><span class="hs-comment">-- Missing endpoints:</span><span>
+</span><span id="line-236"></span><span>    </span><span class="hs-comment">--</span><span>
+</span><span id="line-237"></span><span>    </span><span class="hs-comment">-- * Delete a pending review</span><span>
+</span><span id="line-238"></span><span>    </span><span class="hs-comment">-- * Create a pull request review</span><span>
+</span><span id="line-239"></span><span>    </span><span class="hs-comment">-- * Submit a pull request review</span><span>
+</span><span id="line-240"></span><span>    </span><span class="hs-comment">-- * Dismiss a pull request review</span><span>
+</span><span id="line-241"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.PullRequests.Reviews.html#pullRequestReviewsR"><span class="hs-identifier">pullRequestReviewsR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-242"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.PullRequests.Reviews.html#pullRequestReviewR"><span class="hs-identifier">pullRequestReviewR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-243"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.PullRequests.Reviews.html#pullRequestReviewCommentsR"><span class="hs-identifier">pullRequestReviewCommentsR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-244"></span><span>
+</span><span id="line-245"></span><span>    </span><span class="annot"><span class="hs-comment">-- * Repositories</span></span><span>
+</span><span id="line-246"></span><span>    </span><span class="hs-comment">-- | See &lt;https://developer.github.com/v3/repos/&gt;</span><span>
+</span><span id="line-247"></span><span>    </span><span class="hs-comment">--</span><span>
+</span><span id="line-248"></span><span>    </span><span class="hs-comment">-- Missing endpoints:</span><span>
+</span><span id="line-249"></span><span>    </span><span class="hs-comment">--</span><span>
+</span><span id="line-250"></span><span>    </span><span class="hs-comment">-- * List all public repositories</span><span>
+</span><span id="line-251"></span><span>    </span><span class="hs-comment">-- * List Teams</span><span>
+</span><span id="line-252"></span><span>    </span><span class="hs-comment">-- * Query Branch</span><span>
+</span><span id="line-253"></span><span>    </span><span class="hs-comment">-- * Enabling and disabling branch protection</span><span>
+</span><span id="line-254"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Repos.html#currentUserReposR"><span class="hs-identifier">currentUserReposR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-255"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Repos.html#userReposR"><span class="hs-identifier">userReposR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-256"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Repos.html#organizationReposR"><span class="hs-identifier">organizationReposR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-257"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Repos.html#repositoryR"><span class="hs-identifier">repositoryR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-258"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Repos.html#contributorsR"><span class="hs-identifier">contributorsR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-259"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Repos.html#languagesForR"><span class="hs-identifier">languagesForR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-260"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Repos.html#tagsForR"><span class="hs-identifier">tagsForR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-261"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Repos.html#branchesForR"><span class="hs-identifier">branchesForR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-262"></span><span>
+</span><span id="line-263"></span><span>    </span><span class="annot"><span class="hs-comment">-- ** Collaborators</span></span><span>
+</span><span id="line-264"></span><span>    </span><span class="annot"><span class="hs-comment">-- | See &lt;https://developer.github.com/v3/repos/collaborators/&gt;</span></span><span>
+</span><span id="line-265"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Repos.Collaborators.html#collaboratorsOnR"><span class="hs-identifier">collaboratorsOnR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-266"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Repos.Collaborators.html#collaboratorPermissionOnR"><span class="hs-identifier">collaboratorPermissionOnR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-267"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Repos.Collaborators.html#isCollaboratorOnR"><span class="hs-identifier">isCollaboratorOnR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-268"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Repos.Collaborators.html#addCollaboratorR"><span class="hs-identifier">addCollaboratorR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-269"></span><span>
+</span><span id="line-270"></span><span>    </span><span class="annot"><span class="hs-comment">-- ** Comments</span></span><span>
+</span><span id="line-271"></span><span>    </span><span class="hs-comment">-- | See &lt;https://developer.github.com/v3/repos/comments/&gt;</span><span>
+</span><span id="line-272"></span><span>    </span><span class="hs-comment">--</span><span>
+</span><span id="line-273"></span><span>    </span><span class="hs-comment">-- Missing endpoints:</span><span>
+</span><span id="line-274"></span><span>    </span><span class="hs-comment">--</span><span>
+</span><span id="line-275"></span><span>    </span><span class="hs-comment">-- * Create a commit comment</span><span>
+</span><span id="line-276"></span><span>    </span><span class="hs-comment">-- * Update a commit comment</span><span>
+</span><span id="line-277"></span><span>    </span><span class="hs-comment">-- * Delete a commit comment</span><span>
+</span><span id="line-278"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Repos.Comments.html#commentsForR"><span class="hs-identifier">commentsForR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-279"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Repos.Comments.html#commitCommentsForR"><span class="hs-identifier">commitCommentsForR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-280"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Repos.Comments.html#commitCommentForR"><span class="hs-identifier">commitCommentForR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-281"></span><span>
+</span><span id="line-282"></span><span>    </span><span class="annot"><span class="hs-comment">-- ** Commits</span></span><span>
+</span><span id="line-283"></span><span>    </span><span class="annot"><span class="hs-comment">-- | See &lt;https://developer.github.com/v3/repos/commits/&gt;</span></span><span>
+</span><span id="line-284"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Repos.Commits.html#commitsForR"><span class="hs-identifier">commitsForR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-285"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Repos.Commits.html#commitsWithOptionsForR"><span class="hs-identifier">commitsWithOptionsForR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-286"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Repos.Commits.html#commitR"><span class="hs-identifier">commitR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-287"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Repos.Commits.html#diffR"><span class="hs-identifier">diffR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-288"></span><span>
+</span><span id="line-289"></span><span>    </span><span class="annot"><span class="hs-comment">-- ** Reactions</span></span><span>
+</span><span id="line-290"></span><span>    </span><span class="annot"><span class="hs-comment">-- | See &lt;https://docs.github.com/en/rest/reactions/reactions?apiVersion=2022-11-28&gt;</span></span><span>
+</span><span id="line-291"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Reactions.html#issueReactionsR"><span class="hs-identifier">issueReactionsR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-292"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Reactions.html#createIssueReactionR"><span class="hs-identifier">createIssueReactionR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-293"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Reactions.html#deleteIssueReactionR"><span class="hs-identifier">deleteIssueReactionR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-294"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Reactions.html#commentReactionsR"><span class="hs-identifier">commentReactionsR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-295"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Reactions.html#createCommentReactionR"><span class="hs-identifier">createCommentReactionR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-296"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Reactions.html#deleteCommentReactionR"><span class="hs-identifier">deleteCommentReactionR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-297"></span><span>
+</span><span id="line-298"></span><span>    </span><span class="annot"><span class="hs-comment">-- ** Contents</span></span><span>
+</span><span id="line-299"></span><span>    </span><span class="annot"><span class="hs-comment">-- | See &lt;https://developer.github.com/v3/repos/contents/&gt;</span></span><span>
+</span><span id="line-300"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Repos.Contents.html#contentsForR"><span class="hs-identifier">contentsForR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-301"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Repos.Contents.html#readmeForR"><span class="hs-identifier">readmeForR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-302"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Repos.Contents.html#archiveForR"><span class="hs-identifier">archiveForR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-303"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Repos.Contents.html#createFileR"><span class="hs-identifier">createFileR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-304"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Repos.Contents.html#updateFileR"><span class="hs-identifier">updateFileR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-305"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Repos.Contents.html#deleteFileR"><span class="hs-identifier">deleteFileR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-306"></span><span>
+</span><span id="line-307"></span><span>    </span><span class="annot"><span class="hs-comment">-- ** Deploy Keys</span></span><span>
+</span><span id="line-308"></span><span>    </span><span class="annot"><span class="hs-comment">-- | See &lt;https://developer.github.com/v3/repos/keys/&gt;</span></span><span>
+</span><span id="line-309"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Repos.DeployKeys.html#deployKeysForR"><span class="hs-identifier">deployKeysForR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-310"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Repos.DeployKeys.html#deployKeyForR"><span class="hs-identifier">deployKeyForR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-311"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Repos.DeployKeys.html#createRepoDeployKeyR"><span class="hs-identifier">createRepoDeployKeyR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-312"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Repos.DeployKeys.html#deleteRepoDeployKeyR"><span class="hs-identifier">deleteRepoDeployKeyR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-313"></span><span>
+</span><span id="line-314"></span><span>    </span><span class="annot"><span class="hs-comment">-- ** Deployments</span></span><span>
+</span><span id="line-315"></span><span>    </span><span class="hs-comment">-- | See &lt;https://developer.github.com/v3/repos/deployments/#deployments&gt;</span><span>
+</span><span id="line-316"></span><span>    </span><span class="hs-comment">--</span><span>
+</span><span id="line-317"></span><span>    </span><span class="hs-comment">-- Missing endpoints:</span><span>
+</span><span id="line-318"></span><span>    </span><span class="hs-comment">-- * Get a single deployment</span><span>
+</span><span id="line-319"></span><span>    </span><span class="hs-comment">-- * Update a deployment</span><span>
+</span><span id="line-320"></span><span>    </span><span class="hs-comment">-- * Get a single deployment status</span><span>
+</span><span id="line-321"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Repos.Deployments.html#deploymentsWithOptionsForR"><span class="hs-identifier">deploymentsWithOptionsForR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-322"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Repos.Deployments.html#createDeploymentR"><span class="hs-identifier">createDeploymentR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-323"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Repos.Deployments.html#deploymentStatusesForR"><span class="hs-identifier">deploymentStatusesForR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-324"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Repos.Deployments.html#createDeploymentStatusR"><span class="hs-identifier">createDeploymentStatusR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-325"></span><span>
+</span><span id="line-326"></span><span>    </span><span class="annot"><span class="hs-comment">-- ** Forks</span></span><span>
+</span><span id="line-327"></span><span>    </span><span class="hs-comment">-- | See &lt;https://developer.github.com/v3/repos/forks/&gt;</span><span>
+</span><span id="line-328"></span><span>    </span><span class="hs-comment">--</span><span>
+</span><span id="line-329"></span><span>    </span><span class="hs-comment">-- Missing endpoints:</span><span>
+</span><span id="line-330"></span><span>    </span><span class="hs-comment">--</span><span>
+</span><span id="line-331"></span><span>    </span><span class="hs-comment">-- * Create a fork</span><span>
+</span><span id="line-332"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Repos.Forks.html#forksForR"><span class="hs-identifier">forksForR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-333"></span><span>
+</span><span id="line-334"></span><span>    </span><span class="annot"><span class="hs-comment">-- ** Statuses</span></span><span>
+</span><span id="line-335"></span><span>    </span><span class="annot"><span class="hs-comment">-- | See &lt;https://developer.github.com/v3/repos/statuses/&gt;</span></span><span>
+</span><span id="line-336"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Repos.Statuses.html#createStatusR"><span class="hs-identifier">createStatusR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-337"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Repos.Statuses.html#statusesForR"><span class="hs-identifier">statusesForR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-338"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Repos.Statuses.html#statusForR"><span class="hs-identifier">statusForR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-339"></span><span>
+</span><span id="line-340"></span><span>    </span><span class="annot"><span class="hs-comment">-- ** Webhooks</span></span><span>
+</span><span id="line-341"></span><span>    </span><span class="annot"><span class="hs-comment">-- | See &lt;https://developer.github.com/v3/repos/hooks/&gt;</span></span><span>
+</span><span id="line-342"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Repos.Webhooks.html#webhooksForR"><span class="hs-identifier">webhooksForR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-343"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Repos.Webhooks.html#webhookForR"><span class="hs-identifier">webhookForR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-344"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Repos.Webhooks.html#createRepoWebhookR"><span class="hs-identifier">createRepoWebhookR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-345"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Repos.Webhooks.html#editRepoWebhookR"><span class="hs-identifier">editRepoWebhookR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-346"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Repos.Webhooks.html#testPushRepoWebhookR"><span class="hs-identifier">testPushRepoWebhookR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-347"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Repos.Webhooks.html#pingRepoWebhookR"><span class="hs-identifier">pingRepoWebhookR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-348"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Repos.Webhooks.html#deleteRepoWebhookR"><span class="hs-identifier">deleteRepoWebhookR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-349"></span><span>
+</span><span id="line-350"></span><span>    </span><span class="annot"><span class="hs-comment">-- * Releases</span></span><span>
+</span><span id="line-351"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Repos.Releases.html#releasesR"><span class="hs-identifier">releasesR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-352"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Repos.Releases.html#releaseR"><span class="hs-identifier">releaseR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-353"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Repos.Releases.html#latestReleaseR"><span class="hs-identifier">latestReleaseR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-354"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Repos.Releases.html#releaseByTagNameR"><span class="hs-identifier">releaseByTagNameR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-355"></span><span>
+</span><span id="line-356"></span><span>    </span><span class="annot"><span class="hs-comment">-- ** Invitations</span></span><span>
+</span><span id="line-357"></span><span>    </span><span class="hs-comment">-- | See &lt;https://developer.github.com/v3/repos/invitations/&gt;</span><span>
+</span><span id="line-358"></span><span>    </span><span class="hs-comment">-- Missing endpoints:</span><span>
+</span><span id="line-359"></span><span>
+</span><span id="line-360"></span><span>    </span><span class="annot"><span class="hs-comment">-- * Delete a repository invitation</span></span><span>
+</span><span id="line-361"></span><span>    </span><span class="annot"><span class="hs-comment">-- * Update a repository invitation</span></span><span>
+</span><span id="line-362"></span><span>    </span><span class="annot"><span class="hs-comment">-- * Decline a repository invitation</span></span><span>
+</span><span id="line-363"></span><span>
+</span><span id="line-364"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Repos.Invitations.html#listInvitationsOnR"><span class="hs-identifier">listInvitationsOnR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-365"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Repos.Invitations.html#acceptInvitationFromR"><span class="hs-identifier">acceptInvitationFromR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-366"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Repos.Invitations.html#listInvitationsForR"><span class="hs-identifier">listInvitationsForR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-367"></span><span>
+</span><span id="line-368"></span><span>
+</span><span id="line-369"></span><span>    </span><span class="annot"><span class="hs-comment">-- * Search</span></span><span>
+</span><span id="line-370"></span><span>    </span><span class="annot"><span class="hs-comment">-- | See &lt;https://developer.github.com/v3/search/&gt;</span></span><span>
+</span><span id="line-371"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Search.html#searchReposR"><span class="hs-identifier">searchReposR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-372"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Search.html#searchCodeR"><span class="hs-identifier">searchCodeR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-373"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Search.html#searchIssuesR"><span class="hs-identifier">searchIssuesR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-374"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Search.html#searchUsersR"><span class="hs-identifier">searchUsersR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-375"></span><span>
+</span><span id="line-376"></span><span>    </span><span class="annot"><span class="hs-comment">-- * Users</span></span><span>
+</span><span id="line-377"></span><span>    </span><span class="hs-comment">-- | See &lt;https://developer.github.com/v3/users/&gt;</span><span>
+</span><span id="line-378"></span><span>    </span><span class="hs-comment">--</span><span>
+</span><span id="line-379"></span><span>    </span><span class="hs-comment">-- Missing endpoints:</span><span>
+</span><span id="line-380"></span><span>    </span><span class="hs-comment">--</span><span>
+</span><span id="line-381"></span><span>    </span><span class="hs-comment">-- * Update the authenticated user</span><span>
+</span><span id="line-382"></span><span>    </span><span class="hs-comment">-- * Query all users</span><span>
+</span><span id="line-383"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Users.html#userInfoForR"><span class="hs-identifier">userInfoForR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-384"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Users.html#ownerInfoForR"><span class="hs-identifier">ownerInfoForR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-385"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Users.html#userInfoCurrentR"><span class="hs-identifier">userInfoCurrentR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-386"></span><span>
+</span><span id="line-387"></span><span>    </span><span class="annot"><span class="hs-comment">-- ** Emails</span></span><span>
+</span><span id="line-388"></span><span>    </span><span class="hs-comment">-- | See &lt;https://developer.github.com/v3/users/emails/&gt;</span><span>
+</span><span id="line-389"></span><span>    </span><span class="hs-comment">--</span><span>
+</span><span id="line-390"></span><span>    </span><span class="hs-comment">-- Missing endpoints:</span><span>
+</span><span id="line-391"></span><span>    </span><span class="hs-comment">--</span><span>
+</span><span id="line-392"></span><span>    </span><span class="hs-comment">-- * Add email address(es)</span><span>
+</span><span id="line-393"></span><span>    </span><span class="hs-comment">-- * Delete email address(es)</span><span>
+</span><span id="line-394"></span><span>    </span><span class="hs-comment">-- * Toggle primary email visibility</span><span>
+</span><span id="line-395"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Users.Emails.html#currentUserEmailsR"><span class="hs-identifier">currentUserEmailsR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-396"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Users.Emails.html#currentUserPublicEmailsR"><span class="hs-identifier">currentUserPublicEmailsR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-397"></span><span>
+</span><span id="line-398"></span><span>    </span><span class="annot"><span class="hs-comment">-- ** Followers</span></span><span>
+</span><span id="line-399"></span><span>    </span><span class="hs-comment">-- | See &lt;https://developer.github.com/v3/users/followers/&gt;</span><span>
+</span><span id="line-400"></span><span>    </span><span class="hs-comment">--</span><span>
+</span><span id="line-401"></span><span>    </span><span class="hs-comment">-- Missing endpoints:</span><span>
+</span><span id="line-402"></span><span>    </span><span class="hs-comment">--</span><span>
+</span><span id="line-403"></span><span>    </span><span class="hs-comment">-- * Check if you are following a user</span><span>
+</span><span id="line-404"></span><span>    </span><span class="hs-comment">-- * Check if one user follows another</span><span>
+</span><span id="line-405"></span><span>    </span><span class="hs-comment">-- * Follow a user</span><span>
+</span><span id="line-406"></span><span>    </span><span class="hs-comment">-- * Unfollow a user</span><span>
+</span><span id="line-407"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Users.Followers.html#usersFollowingR"><span class="hs-identifier">usersFollowingR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-408"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Users.Followers.html#usersFollowedByR"><span class="hs-identifier">usersFollowedByR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-409"></span><span>
+</span><span id="line-410"></span><span>    </span><span class="annot"><span class="hs-comment">-- ** Git SSH Keys</span></span><span>
+</span><span id="line-411"></span><span>    </span><span class="annot"><span class="hs-comment">-- | See &lt;https://developer.github.com/v3/users/keys/&gt;</span></span><span>
+</span><span id="line-412"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Users.PublicSSHKeys.html#publicSSHKeysR"><span class="hs-identifier">publicSSHKeysR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-413"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Users.PublicSSHKeys.html#publicSSHKeysForR"><span class="hs-identifier">publicSSHKeysForR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-414"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Users.PublicSSHKeys.html#publicSSHKeyR"><span class="hs-identifier">publicSSHKeyR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-415"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Users.PublicSSHKeys.html#createUserPublicSSHKeyR"><span class="hs-identifier">createUserPublicSSHKeyR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-416"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Users.PublicSSHKeys.html#deleteUserPublicSSHKeyR"><span class="hs-identifier">deleteUserPublicSSHKeyR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-417"></span><span>
+</span><span id="line-418"></span><span>    </span><span class="annot"><span class="hs-comment">-- ** Rate Limit</span></span><span>
+</span><span id="line-419"></span><span>    </span><span class="annot"><span class="hs-comment">-- | See &lt;https://developer.github.com/v3/rate_limit/&gt;</span></span><span>
+</span><span id="line-420"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.RateLimit.html#rateLimitR"><span class="hs-identifier">rateLimitR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-421"></span><span>
+</span><span id="line-422"></span><span>    </span><span class="annot"><span class="hs-comment">-- ** Actions - artifacts</span></span><span>
+</span><span id="line-423"></span><span>    </span><span class="annot"><span class="hs-comment">-- | See &lt;https://docs.github.com/en/rest/actions/artifacts&gt;</span></span><span>
+</span><span id="line-424"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Actions.Artifacts.html#artifactsForR"><span class="hs-identifier">artifactsForR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-425"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Actions.Artifacts.html#artifactR"><span class="hs-identifier">artifactR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-426"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Actions.Artifacts.html#deleteArtifactR"><span class="hs-identifier">deleteArtifactR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-427"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Actions.Artifacts.html#downloadArtifactR"><span class="hs-identifier">downloadArtifactR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-428"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Actions.Artifacts.html#artifactsForWorkflowRunR"><span class="hs-identifier">artifactsForWorkflowRunR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-429"></span><span>
+</span><span id="line-430"></span><span>    </span><span class="annot"><span class="hs-comment">-- ** Actions - cache</span></span><span>
+</span><span id="line-431"></span><span>    </span><span class="annot"><span class="hs-comment">-- | See &lt;https://docs.github.com/en/rest/actions/cache&gt;</span></span><span>
+</span><span id="line-432"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Actions.Cache.html#cacheUsageOrganizationR"><span class="hs-identifier">cacheUsageOrganizationR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-433"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Actions.Cache.html#cacheUsageByRepositoryR"><span class="hs-identifier">cacheUsageByRepositoryR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-434"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Actions.Cache.html#cacheUsageR"><span class="hs-identifier">cacheUsageR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-435"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Actions.Cache.html#cachesForRepoR"><span class="hs-identifier">cachesForRepoR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-436"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Actions.Cache.html#deleteCacheR"><span class="hs-identifier">deleteCacheR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-437"></span><span>
+</span><span id="line-438"></span><span>    </span><span class="annot"><span class="hs-comment">-- ** Actions - secrets</span></span><span>
+</span><span id="line-439"></span><span>    </span><span class="annot"><span class="hs-comment">-- | See &lt;https://docs.github.com/en/rest/actions/secrets&gt;</span></span><span>
+</span><span id="line-440"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Actions.Secrets.html#organizationSecretsR"><span class="hs-identifier">organizationSecretsR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-441"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Actions.Secrets.html#organizationPublicKeyR"><span class="hs-identifier">organizationPublicKeyR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-442"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Actions.Secrets.html#organizationSecretR"><span class="hs-identifier">organizationSecretR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-443"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Actions.Secrets.html#setOrganizationSecretR"><span class="hs-identifier">setOrganizationSecretR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-444"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Actions.Secrets.html#deleteOrganizationSecretR"><span class="hs-identifier">deleteOrganizationSecretR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-445"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Actions.Secrets.html#organizationSelectedRepositoriesForSecretR"><span class="hs-identifier">organizationSelectedRepositoriesForSecretR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-446"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Actions.Secrets.html#setOrganizationSelectedRepositoriesForSecretR"><span class="hs-identifier">setOrganizationSelectedRepositoriesForSecretR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-447"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Actions.Secrets.html#addOrganizationSelectedRepositoriesForSecretR"><span class="hs-identifier">addOrganizationSelectedRepositoriesForSecretR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-448"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Actions.Secrets.html#removeOrganizationSelectedRepositoriesForSecretR"><span class="hs-identifier">removeOrganizationSelectedRepositoriesForSecretR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-449"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Actions.Secrets.html#repoSecretsR"><span class="hs-identifier">repoSecretsR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-450"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Actions.Secrets.html#repoPublicKeyR"><span class="hs-identifier">repoPublicKeyR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-451"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Actions.Secrets.html#repoSecretR"><span class="hs-identifier">repoSecretR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-452"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Actions.Secrets.html#setRepoSecretR"><span class="hs-identifier">setRepoSecretR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-453"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Actions.Secrets.html#deleteRepoSecretR"><span class="hs-identifier">deleteRepoSecretR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-454"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Actions.Secrets.html#environmentSecretsR"><span class="hs-identifier">environmentSecretsR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-455"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Actions.Secrets.html#environmentPublicKeyR"><span class="hs-identifier">environmentPublicKeyR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-456"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Actions.Secrets.html#environmentSecretR"><span class="hs-identifier">environmentSecretR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-457"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Actions.Secrets.html#setEnvironmentSecretR"><span class="hs-identifier">setEnvironmentSecretR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-458"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Actions.Secrets.html#deleteEnvironmentSecretR"><span class="hs-identifier">deleteEnvironmentSecretR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-459"></span><span>
+</span><span id="line-460"></span><span>    </span><span class="annot"><span class="hs-comment">-- ** Actions - workflow jobs</span></span><span>
+</span><span id="line-461"></span><span>    </span><span class="annot"><span class="hs-comment">-- | See &lt;https://docs.github.com/en/rest/actions/workflow-jobs&gt;</span></span><span>
+</span><span id="line-462"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Actions.WorkflowJobs.html#jobR"><span class="hs-identifier">jobR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-463"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Actions.WorkflowJobs.html#downloadJobLogsR"><span class="hs-identifier">downloadJobLogsR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-464"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Actions.WorkflowJobs.html#jobsForWorkflowRunAttemptR"><span class="hs-identifier">jobsForWorkflowRunAttemptR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-465"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Actions.WorkflowJobs.html#jobsForWorkflowRunR"><span class="hs-identifier">jobsForWorkflowRunR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-466"></span><span>
+</span><span id="line-467"></span><span>    </span><span class="annot"><span class="hs-comment">-- ** Actions - workflow runs</span></span><span>
+</span><span id="line-468"></span><span>    </span><span class="annot"><span class="hs-comment">-- | See &lt;https://docs.github.com/en/rest/actions/workflow-runs&gt;</span></span><span>
+</span><span id="line-469"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Actions.WorkflowRuns.html#reRunJobR"><span class="hs-identifier">reRunJobR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-470"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Actions.WorkflowRuns.html#workflowRunsR"><span class="hs-identifier">workflowRunsR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-471"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Actions.WorkflowRuns.html#workflowRunR"><span class="hs-identifier">workflowRunR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-472"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Actions.WorkflowRuns.html#deleteWorkflowRunR"><span class="hs-identifier">deleteWorkflowRunR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-473"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Actions.WorkflowRuns.html#workflowRunReviewHistoryR"><span class="hs-identifier">workflowRunReviewHistoryR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-474"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Actions.WorkflowRuns.html#approveWorkflowRunR"><span class="hs-identifier">approveWorkflowRunR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-475"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Actions.WorkflowRuns.html#workflowRunAttemptR"><span class="hs-identifier">workflowRunAttemptR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-476"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Actions.WorkflowRuns.html#downloadWorkflowRunAttemptLogsR"><span class="hs-identifier">downloadWorkflowRunAttemptLogsR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-477"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Actions.WorkflowRuns.html#cancelWorkflowRunR"><span class="hs-identifier">cancelWorkflowRunR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-478"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Actions.WorkflowRuns.html#downloadWorkflowRunLogsR"><span class="hs-identifier">downloadWorkflowRunLogsR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-479"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Actions.WorkflowRuns.html#deleteWorkflowRunLogsR"><span class="hs-identifier">deleteWorkflowRunLogsR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-480"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Actions.WorkflowRuns.html#reRunWorkflowR"><span class="hs-identifier">reRunWorkflowR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-481"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Actions.WorkflowRuns.html#reRunFailedJobsR"><span class="hs-identifier">reRunFailedJobsR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-482"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Actions.WorkflowRuns.html#workflowRunsForWorkflowR"><span class="hs-identifier">workflowRunsForWorkflowR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-483"></span><span>
+</span><span id="line-484"></span><span>    </span><span class="annot"><span class="hs-comment">-- ** Actions - workflows</span></span><span>
+</span><span id="line-485"></span><span>    </span><span class="annot"><span class="hs-comment">-- | See &lt;https://docs.github.com/en/rest/actions/workflows&gt;</span></span><span>
+</span><span id="line-486"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Actions.Workflows.html#repositoryWorkflowsR"><span class="hs-identifier">repositoryWorkflowsR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-487"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Actions.Workflows.html#workflowR"><span class="hs-identifier">workflowR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-488"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Actions.Workflows.html#disableWorkflowR"><span class="hs-identifier">disableWorkflowR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-489"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Actions.Workflows.html#triggerWorkflowR"><span class="hs-identifier">triggerWorkflowR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-490"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Actions.Workflows.html#enableWorkflowR"><span class="hs-identifier">enableWorkflowR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-491"></span><span>
+</span><span id="line-492"></span><span>    </span><span class="annot"><span class="hs-comment">-- * Data definitions</span></span><span>
+</span><span id="line-493"></span><span>    </span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="GitHub.Data.html"><span class="hs-identifier">GitHub.Data</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-494"></span><span>    </span><span class="annot"><span class="hs-comment">-- * Request handling</span></span><span>
+</span><span id="line-495"></span><span>    </span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="GitHub.Request.html"><span class="hs-identifier">GitHub.Request</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-496"></span><span>    </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-497"></span><span>
+</span><span id="line-498"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GitHub.Data.html"><span class="hs-identifier">GitHub.Data</span></a></span><span>
+</span><span id="line-499"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GitHub.Endpoints.Actions.Artifacts.html"><span class="hs-identifier">GitHub.Endpoints.Actions.Artifacts</span></a></span><span>
+</span><span id="line-500"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GitHub.Endpoints.Actions.Cache.html"><span class="hs-identifier">GitHub.Endpoints.Actions.Cache</span></a></span><span>
+</span><span id="line-501"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GitHub.Endpoints.Actions.Secrets.html"><span class="hs-identifier">GitHub.Endpoints.Actions.Secrets</span></a></span><span>
+</span><span id="line-502"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GitHub.Endpoints.Actions.WorkflowJobs.html"><span class="hs-identifier">GitHub.Endpoints.Actions.WorkflowJobs</span></a></span><span>
+</span><span id="line-503"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GitHub.Endpoints.Actions.WorkflowRuns.html"><span class="hs-identifier">GitHub.Endpoints.Actions.WorkflowRuns</span></a></span><span>
+</span><span id="line-504"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GitHub.Endpoints.Actions.Workflows.html"><span class="hs-identifier">GitHub.Endpoints.Actions.Workflows</span></a></span><span>
+</span><span id="line-505"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GitHub.Endpoints.Activity.Events.html"><span class="hs-identifier">GitHub.Endpoints.Activity.Events</span></a></span><span>
+</span><span id="line-506"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GitHub.Endpoints.Activity.Notifications.html"><span class="hs-identifier">GitHub.Endpoints.Activity.Notifications</span></a></span><span>
+</span><span id="line-507"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GitHub.Endpoints.Activity.Starring.html"><span class="hs-identifier">GitHub.Endpoints.Activity.Starring</span></a></span><span>
+</span><span id="line-508"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GitHub.Endpoints.Activity.Watching.html"><span class="hs-identifier">GitHub.Endpoints.Activity.Watching</span></a></span><span>
+</span><span id="line-509"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GitHub.Endpoints.Gists.html"><span class="hs-identifier">GitHub.Endpoints.Gists</span></a></span><span>
+</span><span id="line-510"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GitHub.Endpoints.Gists.Comments.html"><span class="hs-identifier">GitHub.Endpoints.Gists.Comments</span></a></span><span>
+</span><span id="line-511"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GitHub.Endpoints.GitData.Blobs.html"><span class="hs-identifier">GitHub.Endpoints.GitData.Blobs</span></a></span><span>
+</span><span id="line-512"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GitHub.Endpoints.GitData.Commits.html"><span class="hs-identifier">GitHub.Endpoints.GitData.Commits</span></a></span><span>
+</span><span id="line-513"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GitHub.Endpoints.GitData.References.html"><span class="hs-identifier">GitHub.Endpoints.GitData.References</span></a></span><span>
+</span><span id="line-514"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GitHub.Endpoints.GitData.Trees.html"><span class="hs-identifier">GitHub.Endpoints.GitData.Trees</span></a></span><span>
+</span><span id="line-515"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GitHub.Endpoints.Issues.html"><span class="hs-identifier">GitHub.Endpoints.Issues</span></a></span><span>
+</span><span id="line-516"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GitHub.Endpoints.Issues.Comments.html"><span class="hs-identifier">GitHub.Endpoints.Issues.Comments</span></a></span><span>
+</span><span id="line-517"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GitHub.Endpoints.Issues.Events.html"><span class="hs-identifier">GitHub.Endpoints.Issues.Events</span></a></span><span>
+</span><span id="line-518"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GitHub.Endpoints.Issues.Labels.html"><span class="hs-identifier">GitHub.Endpoints.Issues.Labels</span></a></span><span>
+</span><span id="line-519"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GitHub.Endpoints.Issues.Milestones.html"><span class="hs-identifier">GitHub.Endpoints.Issues.Milestones</span></a></span><span>
+</span><span id="line-520"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GitHub.Endpoints.Organizations.html"><span class="hs-identifier">GitHub.Endpoints.Organizations</span></a></span><span>
+</span><span id="line-521"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GitHub.Endpoints.Organizations.Members.html"><span class="hs-identifier">GitHub.Endpoints.Organizations.Members</span></a></span><span>
+</span><span id="line-522"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GitHub.Endpoints.Organizations.OutsideCollaborators.html"><span class="hs-identifier">GitHub.Endpoints.Organizations.OutsideCollaborators</span></a></span><span>
+</span><span id="line-523"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GitHub.Endpoints.Organizations.Teams.html"><span class="hs-identifier">GitHub.Endpoints.Organizations.Teams</span></a></span><span>
+</span><span id="line-524"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GitHub.Endpoints.PullRequests.html"><span class="hs-identifier">GitHub.Endpoints.PullRequests</span></a></span><span>
+</span><span id="line-525"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GitHub.Endpoints.PullRequests.Comments.html"><span class="hs-identifier">GitHub.Endpoints.PullRequests.Comments</span></a></span><span>
+</span><span id="line-526"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GitHub.Endpoints.PullRequests.Reviews.html"><span class="hs-identifier">GitHub.Endpoints.PullRequests.Reviews</span></a></span><span>
+</span><span id="line-527"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GitHub.Endpoints.Reactions.html"><span class="hs-identifier">GitHub.Endpoints.Reactions</span></a></span><span>
+</span><span id="line-528"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GitHub.Endpoints.RateLimit.html"><span class="hs-identifier">GitHub.Endpoints.RateLimit</span></a></span><span>
+</span><span id="line-529"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GitHub.Endpoints.Repos.html"><span class="hs-identifier">GitHub.Endpoints.Repos</span></a></span><span>
+</span><span id="line-530"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GitHub.Endpoints.Repos.Collaborators.html"><span class="hs-identifier">GitHub.Endpoints.Repos.Collaborators</span></a></span><span>
+</span><span id="line-531"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GitHub.Endpoints.Repos.Comments.html"><span class="hs-identifier">GitHub.Endpoints.Repos.Comments</span></a></span><span>
+</span><span id="line-532"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GitHub.Endpoints.Repos.Commits.html"><span class="hs-identifier">GitHub.Endpoints.Repos.Commits</span></a></span><span>
+</span><span id="line-533"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GitHub.Endpoints.Repos.Contents.html"><span class="hs-identifier">GitHub.Endpoints.Repos.Contents</span></a></span><span>
+</span><span id="line-534"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GitHub.Endpoints.Repos.DeployKeys.html"><span class="hs-identifier">GitHub.Endpoints.Repos.DeployKeys</span></a></span><span>
+</span><span id="line-535"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GitHub.Endpoints.Repos.Deployments.html"><span class="hs-identifier">GitHub.Endpoints.Repos.Deployments</span></a></span><span>
+</span><span id="line-536"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GitHub.Endpoints.Repos.Forks.html"><span class="hs-identifier">GitHub.Endpoints.Repos.Forks</span></a></span><span>
+</span><span id="line-537"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GitHub.Endpoints.Repos.Invitations.html"><span class="hs-identifier">GitHub.Endpoints.Repos.Invitations</span></a></span><span>
+</span><span id="line-538"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GitHub.Endpoints.Repos.Releases.html"><span class="hs-identifier">GitHub.Endpoints.Repos.Releases</span></a></span><span>
+</span><span id="line-539"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GitHub.Endpoints.Repos.Statuses.html"><span class="hs-identifier">GitHub.Endpoints.Repos.Statuses</span></a></span><span>
+</span><span id="line-540"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GitHub.Endpoints.Repos.Webhooks.html"><span class="hs-identifier">GitHub.Endpoints.Repos.Webhooks</span></a></span><span>
+</span><span id="line-541"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GitHub.Endpoints.Search.html"><span class="hs-identifier">GitHub.Endpoints.Search</span></a></span><span>
+</span><span id="line-542"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GitHub.Endpoints.Users.html"><span class="hs-identifier">GitHub.Endpoints.Users</span></a></span><span>
+</span><span id="line-543"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GitHub.Endpoints.Users.Emails.html"><span class="hs-identifier">GitHub.Endpoints.Users.Emails</span></a></span><span>
+</span><span id="line-544"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GitHub.Endpoints.Users.Followers.html"><span class="hs-identifier">GitHub.Endpoints.Users.Followers</span></a></span><span>
+</span><span id="line-545"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GitHub.Endpoints.Users.PublicSSHKeys.html"><span class="hs-identifier">GitHub.Endpoints.Users.PublicSSHKeys</span></a></span><span>
+</span><span id="line-546"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GitHub.Request.html"><span class="hs-identifier">GitHub.Request</span></a></span><span>
+</span><span id="line-547"></span></pre></body></html>

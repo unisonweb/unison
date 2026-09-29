@@ -1,0 +1,223 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span id="local-6989586621679164752"><span id="local-6989586621679164753"></span></span><span class="hs-pragma">{-# LANGUAGE TypeFamilies #-}</span><span>
+</span><span id="line-2"></span><span class="hs-comment">-----------------------------------------------------------------------------</span><span>
+</span><span id="line-3"></span><span class="hs-comment">-- |</span><span>
+</span><span id="line-4"></span><span class="hs-comment">-- Module     : Algebra.Graph.Labelled.Example.Network</span><span>
+</span><span id="line-5"></span><span class="hs-comment">-- Copyright  : (c) Andrey Mokhov 2016-2022</span><span>
+</span><span id="line-6"></span><span class="hs-comment">-- License    : MIT (see the file LICENSE)</span><span>
+</span><span id="line-7"></span><span class="hs-comment">-- Maintainer : andrey.mokhov@gmail.com</span><span>
+</span><span id="line-8"></span><span class="hs-comment">-- Stability  : experimental</span><span>
+</span><span id="line-9"></span><span class="hs-comment">--</span><span>
+</span><span id="line-10"></span><span class="hs-comment">-- __Alga__ is a library for algebraic construction and manipulation of graphs</span><span>
+</span><span id="line-11"></span><span class="hs-comment">-- in Haskell. See &lt;https://github.com/snowleopard/alga-paper this paper&gt; for the</span><span>
+</span><span id="line-12"></span><span class="hs-comment">-- motivation behind the library, the underlying theory, and implementation details.</span><span>
+</span><span id="line-13"></span><span class="hs-comment">--</span><span>
+</span><span id="line-14"></span><span class="hs-comment">-- This module contains a simple example of using edge-labelled graphs defined</span><span>
+</span><span id="line-15"></span><span class="hs-comment">-- in the module &quot;Algebra.Graph.Labelled&quot; for working with networks, i.e. graphs</span><span>
+</span><span id="line-16"></span><span class="hs-comment">-- whose edges are labelled with distances.</span><span>
+</span><span id="line-17"></span><span class="hs-comment">-----------------------------------------------------------------------------</span><span>
+</span><span id="line-18"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Algebra.Graph.Labelled.Example.Network.html"><span class="hs-identifier">Algebra.Graph.Labelled.Example.Network</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-19"></span><span>
+</span><span id="line-20"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Algebra.Graph.Labelled.html"><span class="hs-identifier">Algebra.Graph.Labelled</span></a></span><span>
+</span><span id="line-21"></span><span>
+</span><span id="line-22"></span><span class="annot"><span class="hs-comment">-- | Our example networks have /cities/ as vertices.</span></span><span>
+</span><span id="line-23"></span><span class="hs-keyword">data</span><span> </span><span id="City"><span class="annot"><a href="Algebra.Graph.Labelled.Example.Network.html#City"><span class="hs-identifier hs-var">City</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="Aberdeen"><span class="annot"><a href="Algebra.Graph.Labelled.Example.Network.html#Aberdeen"><span class="hs-identifier hs-var">Aberdeen</span></a></span></span><span>
+</span><span id="line-24"></span><span>          </span><span class="hs-glyph">|</span><span> </span><span id="Edinburgh"><span class="annot"><a href="Algebra.Graph.Labelled.Example.Network.html#Edinburgh"><span class="hs-identifier hs-var">Edinburgh</span></a></span></span><span>
+</span><span id="line-25"></span><span>          </span><span class="hs-glyph">|</span><span> </span><span id="Glasgow"><span class="annot"><a href="Algebra.Graph.Labelled.Example.Network.html#Glasgow"><span class="hs-identifier hs-var">Glasgow</span></a></span></span><span>
+</span><span id="line-26"></span><span>          </span><span class="hs-glyph">|</span><span> </span><span id="London"><span class="annot"><a href="Algebra.Graph.Labelled.Example.Network.html#London"><span class="hs-identifier hs-var">London</span></a></span></span><span>
+</span><span id="line-27"></span><span>          </span><span class="hs-glyph">|</span><span> </span><span id="Newcastle"><span class="annot"><a href="Algebra.Graph.Labelled.Example.Network.html#Newcastle"><span class="hs-identifier hs-var">Newcastle</span></a></span></span><span>
+</span><span id="line-28"></span><span>          </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679164775"><span id="local-6989586621679164777"><span class="annot"><span class="annottext">City
+City -&gt; City -&gt; Bounded City
+forall a. a -&gt; a -&gt; Bounded a
+$cminBound :: City
+minBound :: City
+$cmaxBound :: City
+maxBound :: City
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Bounded</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679164783"><span id="local-6989586621679164792"><span id="local-6989586621679164799"><span id="local-6989586621679164808"><span id="local-6989586621679164811"><span id="local-6989586621679164816"><span id="local-6989586621679164822"><span id="local-6989586621679164826"><span class="annot"><span class="annottext">Int -&gt; City
+City -&gt; Int
+City -&gt; [City]
+City -&gt; City
+City -&gt; City -&gt; [City]
+City -&gt; City -&gt; City -&gt; [City]
+(City -&gt; City)
+-&gt; (City -&gt; City)
+-&gt; (Int -&gt; City)
+-&gt; (City -&gt; Int)
+-&gt; (City -&gt; [City])
+-&gt; (City -&gt; City -&gt; [City])
+-&gt; (City -&gt; City -&gt; [City])
+-&gt; (City -&gt; City -&gt; City -&gt; [City])
+-&gt; Enum City
+forall a.
+(a -&gt; a)
+-&gt; (a -&gt; a)
+-&gt; (Int -&gt; a)
+-&gt; (a -&gt; Int)
+-&gt; (a -&gt; [a])
+-&gt; (a -&gt; a -&gt; [a])
+-&gt; (a -&gt; a -&gt; [a])
+-&gt; (a -&gt; a -&gt; a -&gt; [a])
+-&gt; Enum a
+$csucc :: City -&gt; City
+succ :: City -&gt; City
+$cpred :: City -&gt; City
+pred :: City -&gt; City
+$ctoEnum :: Int -&gt; City
+toEnum :: Int -&gt; City
+$cfromEnum :: City -&gt; Int
+fromEnum :: City -&gt; Int
+$cenumFrom :: City -&gt; [City]
+enumFrom :: City -&gt; [City]
+$cenumFromThen :: City -&gt; City -&gt; [City]
+enumFromThen :: City -&gt; City -&gt; [City]
+$cenumFromTo :: City -&gt; City -&gt; [City]
+enumFromTo :: City -&gt; City -&gt; [City]
+$cenumFromThenTo :: City -&gt; City -&gt; City -&gt; [City]
+enumFromThenTo :: City -&gt; City -&gt; City -&gt; [City]
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Enum</span></span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679164834"><span id="local-6989586621679164838"><span class="annot"><span class="annottext">City -&gt; City -&gt; Bool
+(City -&gt; City -&gt; Bool) -&gt; (City -&gt; City -&gt; Bool) -&gt; Eq City
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: City -&gt; City -&gt; Bool
+== :: City -&gt; City -&gt; Bool
+$c/= :: City -&gt; City -&gt; Bool
+/= :: City -&gt; City -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679164845"><span id="local-6989586621679164849"><span id="local-6989586621679164853"><span id="local-6989586621679164857"><span id="local-6989586621679164860"><span id="local-6989586621679164863"><span id="local-6989586621679164866"><span class="annot"><span class="annottext">Eq City
+Eq City =&gt;
+(City -&gt; City -&gt; Ordering)
+-&gt; (City -&gt; City -&gt; Bool)
+-&gt; (City -&gt; City -&gt; Bool)
+-&gt; (City -&gt; City -&gt; Bool)
+-&gt; (City -&gt; City -&gt; Bool)
+-&gt; (City -&gt; City -&gt; City)
+-&gt; (City -&gt; City -&gt; City)
+-&gt; Ord City
+City -&gt; City -&gt; Bool
+City -&gt; City -&gt; Ordering
+City -&gt; City -&gt; City
+forall a.
+Eq a =&gt;
+(a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+$ccompare :: City -&gt; City -&gt; Ordering
+compare :: City -&gt; City -&gt; Ordering
+$c&lt; :: City -&gt; City -&gt; Bool
+&lt; :: City -&gt; City -&gt; Bool
+$c&lt;= :: City -&gt; City -&gt; Bool
+&lt;= :: City -&gt; City -&gt; Bool
+$c&gt; :: City -&gt; City -&gt; Bool
+&gt; :: City -&gt; City -&gt; Bool
+$c&gt;= :: City -&gt; City -&gt; Bool
+&gt;= :: City -&gt; City -&gt; Bool
+$cmax :: City -&gt; City -&gt; City
+max :: City -&gt; City -&gt; City
+$cmin :: City -&gt; City -&gt; City
+min :: City -&gt; City -&gt; City
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679164874"><span id="local-6989586621679164876"><span id="local-6989586621679164880"><span class="annot"><span class="annottext">Int -&gt; City -&gt; ShowS
+[City] -&gt; ShowS
+City -&gt; String
+(Int -&gt; City -&gt; ShowS)
+-&gt; (City -&gt; String) -&gt; ([City] -&gt; ShowS) -&gt; Show City
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; City -&gt; ShowS
+showsPrec :: Int -&gt; City -&gt; ShowS
+$cshow :: City -&gt; String
+show :: City -&gt; String
+$cshowList :: [City] -&gt; ShowS
+showList :: [City] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-29"></span><span>
+</span><span id="line-30"></span><span class="annot"><span class="hs-comment">-- | For simplicity we measure /journey times/ in integer number of minutes.</span></span><span>
+</span><span id="line-31"></span><span class="hs-keyword">type</span><span> </span><span id="JourneyTime"><span class="annot"><a href="Algebra.Graph.Labelled.Example.Network.html#JourneyTime"><span class="hs-identifier hs-var">JourneyTime</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>
+</span><span id="line-32"></span><span>
+</span><span id="line-33"></span><span class="hs-comment">-- | A part of the EastCoast train network between 'Aberdeen' and 'London'.</span><span>
+</span><span id="line-34"></span><span class="hs-comment">--</span><span>
+</span><span id="line-35"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-36"></span><span class="hs-comment">-- eastCoast = 'overlays' [ 'Aberdeen'  '-&lt;'&amp;#49;50'&gt;-' 'Edinburgh'</span><span>
+</span><span id="line-37"></span><span class="hs-comment">--                      , 'Edinburgh' '-&lt;' 90'&gt;-' 'Newcastle'</span><span>
+</span><span id="line-38"></span><span class="hs-comment">--                      , 'Newcastle' '-&lt;'&amp;#49;70'&gt;-' 'London' ]</span><span>
+</span><span id="line-39"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-40"></span><span class="annot"><a href="Algebra.Graph.Labelled.Example.Network.html#eastCoast"><span class="hs-identifier hs-type">eastCoast</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Algebra.Graph.Labelled.html#Network"><span class="hs-identifier hs-type">Network</span></a></span><span> </span><span class="annot"><a href="Algebra.Graph.Labelled.Example.Network.html#JourneyTime"><span class="hs-identifier hs-type">JourneyTime</span></a></span><span> </span><span class="annot"><a href="Algebra.Graph.Labelled.Example.Network.html#City"><span class="hs-identifier hs-type">City</span></a></span><span>
+</span><span id="line-41"></span><span id="eastCoast"><span class="annot"><span class="annottext">eastCoast :: Network Int City
+</span><a href="Algebra.Graph.Labelled.Example.Network.html#eastCoast"><span class="hs-identifier hs-var hs-var">eastCoast</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Network Int City] -&gt; Network Int City
+forall e a. Monoid e =&gt; [Graph e a] -&gt; Graph e a
+</span><a href="Algebra.Graph.Labelled.html#overlays"><span class="hs-identifier hs-var">overlays</span></a></span><span> </span><span class="hs-special">[</span><span> </span><span class="annot"><span class="annottext">City
+</span><a href="Algebra.Graph.Labelled.Example.Network.html#Aberdeen"><span class="hs-identifier hs-var">Aberdeen</span></a></span><span>  </span><span class="annot"><span class="annottext">City -&gt; Distance Int -&gt; (City, Distance Int)
+forall a e. a -&gt; e -&gt; (a, e)
+</span><a href="Algebra.Graph.Labelled.html#-%3C"><span class="hs-operator hs-var">-&lt;</span></a></span><span class="annot"><span class="annottext">Distance Int
+</span><span class="hs-number">150</span></span><span class="annot"><span class="annottext">(City, Distance Int) -&gt; City -&gt; Network Int City
+forall a e. (a, e) -&gt; a -&gt; Graph e a
+</span><a href="Algebra.Graph.Labelled.html#%3E-"><span class="hs-operator hs-var">&gt;-</span></a></span><span> </span><span class="annot"><span class="annottext">City
+</span><a href="Algebra.Graph.Labelled.Example.Network.html#Edinburgh"><span class="hs-identifier hs-var">Edinburgh</span></a></span><span>
+</span><span id="line-42"></span><span>                     </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">City
+</span><a href="Algebra.Graph.Labelled.Example.Network.html#Edinburgh"><span class="hs-identifier hs-var">Edinburgh</span></a></span><span> </span><span class="annot"><span class="annottext">City -&gt; Distance Int -&gt; (City, Distance Int)
+forall a e. a -&gt; e -&gt; (a, e)
+</span><a href="Algebra.Graph.Labelled.html#-%3C"><span class="hs-operator hs-var">-&lt;</span></a></span><span> </span><span class="annot"><span class="annottext">Distance Int
+</span><span class="hs-number">90</span></span><span class="annot"><span class="annottext">(City, Distance Int) -&gt; City -&gt; Network Int City
+forall a e. (a, e) -&gt; a -&gt; Graph e a
+</span><a href="Algebra.Graph.Labelled.html#%3E-"><span class="hs-operator hs-var">&gt;-</span></a></span><span> </span><span class="annot"><span class="annottext">City
+</span><a href="Algebra.Graph.Labelled.Example.Network.html#Newcastle"><span class="hs-identifier hs-var">Newcastle</span></a></span><span>
+</span><span id="line-43"></span><span>                     </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">City
+</span><a href="Algebra.Graph.Labelled.Example.Network.html#Newcastle"><span class="hs-identifier hs-var">Newcastle</span></a></span><span> </span><span class="annot"><span class="annottext">City -&gt; Distance Int -&gt; (City, Distance Int)
+forall a e. a -&gt; e -&gt; (a, e)
+</span><a href="Algebra.Graph.Labelled.html#-%3C"><span class="hs-operator hs-var">-&lt;</span></a></span><span class="annot"><span class="annottext">Distance Int
+</span><span class="hs-number">170</span></span><span class="annot"><span class="annottext">(City, Distance Int) -&gt; City -&gt; Network Int City
+forall a e. (a, e) -&gt; a -&gt; Graph e a
+</span><a href="Algebra.Graph.Labelled.html#%3E-"><span class="hs-operator hs-var">&gt;-</span></a></span><span> </span><span class="annot"><span class="annottext">City
+</span><a href="Algebra.Graph.Labelled.Example.Network.html#London"><span class="hs-identifier hs-var">London</span></a></span><span> </span><span class="hs-special">]</span><span>
+</span><span id="line-44"></span><span>
+</span><span id="line-45"></span><span class="hs-comment">-- | A part of the ScotRail train network between 'Aberdeen' and 'Glasgow'.</span><span>
+</span><span id="line-46"></span><span class="hs-comment">--</span><span>
+</span><span id="line-47"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-48"></span><span class="hs-comment">-- scotRail = 'overlays' [ 'Aberdeen'  '-&lt;'&amp;#49;40'&gt;-' 'Edinburgh'</span><span>
+</span><span id="line-49"></span><span class="hs-comment">--                     , 'Edinburgh' '-&lt;' 50'&gt;-' 'Glasgow'</span><span>
+</span><span id="line-50"></span><span class="hs-comment">--                     , 'Edinburgh' '-&lt;' 70'&gt;-' 'Glasgow' ]</span><span>
+</span><span id="line-51"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-52"></span><span class="annot"><a href="Algebra.Graph.Labelled.Example.Network.html#scotRail"><span class="hs-identifier hs-type">scotRail</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Algebra.Graph.Labelled.html#Network"><span class="hs-identifier hs-type">Network</span></a></span><span> </span><span class="annot"><a href="Algebra.Graph.Labelled.Example.Network.html#JourneyTime"><span class="hs-identifier hs-type">JourneyTime</span></a></span><span> </span><span class="annot"><a href="Algebra.Graph.Labelled.Example.Network.html#City"><span class="hs-identifier hs-type">City</span></a></span><span>
+</span><span id="line-53"></span><span id="scotRail"><span class="annot"><span class="annottext">scotRail :: Network Int City
+</span><a href="Algebra.Graph.Labelled.Example.Network.html#scotRail"><span class="hs-identifier hs-var hs-var">scotRail</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Network Int City] -&gt; Network Int City
+forall e a. Monoid e =&gt; [Graph e a] -&gt; Graph e a
+</span><a href="Algebra.Graph.Labelled.html#overlays"><span class="hs-identifier hs-var">overlays</span></a></span><span> </span><span class="hs-special">[</span><span> </span><span class="annot"><span class="annottext">City
+</span><a href="Algebra.Graph.Labelled.Example.Network.html#Aberdeen"><span class="hs-identifier hs-var">Aberdeen</span></a></span><span>  </span><span class="annot"><span class="annottext">City -&gt; Distance Int -&gt; (City, Distance Int)
+forall a e. a -&gt; e -&gt; (a, e)
+</span><a href="Algebra.Graph.Labelled.html#-%3C"><span class="hs-operator hs-var">-&lt;</span></a></span><span class="annot"><span class="annottext">Distance Int
+</span><span class="hs-number">140</span></span><span class="annot"><span class="annottext">(City, Distance Int) -&gt; City -&gt; Network Int City
+forall a e. (a, e) -&gt; a -&gt; Graph e a
+</span><a href="Algebra.Graph.Labelled.html#%3E-"><span class="hs-operator hs-var">&gt;-</span></a></span><span> </span><span class="annot"><span class="annottext">City
+</span><a href="Algebra.Graph.Labelled.Example.Network.html#Edinburgh"><span class="hs-identifier hs-var">Edinburgh</span></a></span><span>
+</span><span id="line-54"></span><span>                    </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">City
+</span><a href="Algebra.Graph.Labelled.Example.Network.html#Edinburgh"><span class="hs-identifier hs-var">Edinburgh</span></a></span><span> </span><span class="annot"><span class="annottext">City -&gt; Distance Int -&gt; (City, Distance Int)
+forall a e. a -&gt; e -&gt; (a, e)
+</span><a href="Algebra.Graph.Labelled.html#-%3C"><span class="hs-operator hs-var">-&lt;</span></a></span><span> </span><span class="annot"><span class="annottext">Distance Int
+</span><span class="hs-number">50</span></span><span class="annot"><span class="annottext">(City, Distance Int) -&gt; City -&gt; Network Int City
+forall a e. (a, e) -&gt; a -&gt; Graph e a
+</span><a href="Algebra.Graph.Labelled.html#%3E-"><span class="hs-operator hs-var">&gt;-</span></a></span><span> </span><span class="annot"><span class="annottext">City
+</span><a href="Algebra.Graph.Labelled.Example.Network.html#Glasgow"><span class="hs-identifier hs-var">Glasgow</span></a></span><span>
+</span><span id="line-55"></span><span>                    </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">City
+</span><a href="Algebra.Graph.Labelled.Example.Network.html#Edinburgh"><span class="hs-identifier hs-var">Edinburgh</span></a></span><span> </span><span class="annot"><span class="annottext">City -&gt; Distance Int -&gt; (City, Distance Int)
+forall a e. a -&gt; e -&gt; (a, e)
+</span><a href="Algebra.Graph.Labelled.html#-%3C"><span class="hs-operator hs-var">-&lt;</span></a></span><span> </span><span class="annot"><span class="annottext">Distance Int
+</span><span class="hs-number">70</span></span><span class="annot"><span class="annottext">(City, Distance Int) -&gt; City -&gt; Network Int City
+forall a e. (a, e) -&gt; a -&gt; Graph e a
+</span><a href="Algebra.Graph.Labelled.html#%3E-"><span class="hs-operator hs-var">&gt;-</span></a></span><span> </span><span class="annot"><span class="annottext">City
+</span><a href="Algebra.Graph.Labelled.Example.Network.html#Glasgow"><span class="hs-identifier hs-var">Glasgow</span></a></span><span> </span><span class="hs-special">]</span><span>
+</span><span id="line-56"></span><span>
+</span><span id="line-57"></span><span class="hs-comment">-- TODO: Add an illustration.</span><span>
+</span><span id="line-58"></span><span class="hs-comment">-- | An example train network.</span><span>
+</span><span id="line-59"></span><span class="hs-comment">--</span><span>
+</span><span id="line-60"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-61"></span><span class="hs-comment">-- network = 'overlay' 'scotRail' 'eastCoast'</span><span>
+</span><span id="line-62"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-63"></span><span class="annot"><a href="Algebra.Graph.Labelled.Example.Network.html#network"><span class="hs-identifier hs-type">network</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Algebra.Graph.Labelled.html#Network"><span class="hs-identifier hs-type">Network</span></a></span><span> </span><span class="annot"><a href="Algebra.Graph.Labelled.Example.Network.html#JourneyTime"><span class="hs-identifier hs-type">JourneyTime</span></a></span><span> </span><span class="annot"><a href="Algebra.Graph.Labelled.Example.Network.html#City"><span class="hs-identifier hs-type">City</span></a></span><span>
+</span><span id="line-64"></span><span id="network"><span class="annot"><span class="annottext">network :: Network Int City
+</span><a href="Algebra.Graph.Labelled.Example.Network.html#network"><span class="hs-identifier hs-var hs-var">network</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Network Int City -&gt; Network Int City -&gt; Network Int City
+forall e a. Monoid e =&gt; Graph e a -&gt; Graph e a -&gt; Graph e a
+</span><a href="Algebra.Graph.Labelled.html#overlay"><span class="hs-identifier hs-var">overlay</span></a></span><span> </span><span class="annot"><span class="annottext">Network Int City
+</span><a href="Algebra.Graph.Labelled.Example.Network.html#scotRail"><span class="hs-identifier hs-var">scotRail</span></a></span><span> </span><span class="annot"><span class="annottext">Network Int City
+</span><a href="Algebra.Graph.Labelled.Example.Network.html#eastCoast"><span class="hs-identifier hs-var">eastCoast</span></a></span><span>
+</span><span id="line-65"></span></pre></body></html>

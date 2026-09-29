@@ -1,0 +1,118 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-comment">-- |</span><span>
+</span><span id="line-2"></span><span class="hs-comment">-- The Github Search API, as described at</span><span>
+</span><span id="line-3"></span><span class="hs-comment">-- &lt;http://developer.github.com/v3/search/&gt;.</span><span>
+</span><span id="line-4"></span><span>
+</span><span id="line-5"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="GitHub.Endpoints.Search.html"><span class="hs-identifier">GitHub.Endpoints.Search</span></a></span><span class="hs-special">(</span><span>
+</span><span id="line-6"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Search.html#searchReposR"><span class="hs-identifier">searchReposR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-7"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Search.html#searchCodeR"><span class="hs-identifier">searchCodeR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-8"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Search.html#searchIssuesR"><span class="hs-identifier">searchIssuesR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-9"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Search.html#searchUsersR"><span class="hs-identifier">searchUsersR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-10"></span><span>    </span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="GitHub.Data.html"><span class="hs-identifier">GitHub.Data</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-11"></span><span>    </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-12"></span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GitHub.Data.html"><span class="hs-identifier">GitHub.Data</span></a></span><span>
+</span><span id="line-14"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GitHub.Internal.Prelude.html"><span class="hs-identifier">GitHub.Internal.Prelude</span></a></span><span>
+</span><span id="line-15"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Prelude</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-16"></span><span>
+</span><span id="line-17"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Text.Encoding</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">TE</span></span><span>
+</span><span id="line-18"></span><span>
+</span><span id="line-19"></span><span class="hs-comment">-- | Search repositories.</span><span>
+</span><span id="line-20"></span><span class="hs-comment">-- See &lt;https://developer.github.com/v3/search/#search-repositories&gt;</span><span>
+</span><span id="line-21"></span><span id="local-6989586621679530907"><span class="annot"><a href="GitHub.Endpoints.Search.html#searchReposR"><span class="hs-identifier hs-type">searchReposR</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Request.html#FetchCount"><span class="hs-identifier hs-type">FetchCount</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Request.html#Request"><span class="hs-identifier hs-type">Request</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679530907"><span class="hs-identifier hs-type">k</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GitHub.Data.Search.html#SearchResult"><span class="hs-identifier hs-type">SearchResult</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.Repos.html#Repo"><span class="hs-identifier hs-type">Repo</span></a></span><span class="hs-special">)</span></span><span>
+</span><span id="line-22"></span><span id="searchReposR"><span class="annot"><span class="annottext">searchReposR :: forall (k :: RW).
+Text -&gt; FetchCount -&gt; Request k (SearchResult Repo)
+</span><a href="GitHub.Endpoints.Search.html#searchReposR"><span class="hs-identifier hs-var hs-var">searchReposR</span></a></span></span><span> </span><span id="local-6989586621679530960"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679530960"><span class="hs-identifier hs-var">searchString</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-23"></span><span>    </span><span class="annot"><span class="annottext">Paths
+-&gt; QueryString
+-&gt; FetchCount
+-&gt; GenRequest 'MtJSON k (SearchResult Repo)
+forall a (t :: * -&gt; *) b (mt :: MediaType (*)) (rw :: RW).
+(a ~ t b, Foldable t, Semigroup a) =&gt;
+Paths -&gt; QueryString -&gt; FetchCount -&gt; GenRequest mt rw a
+</span><a href="GitHub.Data.Request.html#PagedQuery"><span class="hs-identifier hs-var">PagedQuery</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;search&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;repositories&quot;</span></span><span class="hs-special">]</span><span> </span><span class="hs-special">[</span><span class="hs-special">(</span><span class="annot"><span class="annottext">ByteString
+</span><span class="hs-string">&quot;q&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; Maybe ByteString
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">(ByteString -&gt; Maybe ByteString) -&gt; ByteString -&gt; Maybe ByteString
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Text -&gt; ByteString
+</span><span class="hs-identifier hs-var">TE.encodeUtf8</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679530960"><span class="hs-identifier hs-var">searchString</span></a></span><span class="hs-special">)</span><span class="hs-special">]</span><span>
+</span><span id="line-24"></span><span>
+</span><span id="line-25"></span><span class="hs-comment">-- | Search code.</span><span>
+</span><span id="line-26"></span><span class="hs-comment">-- See &lt;https://developer.github.com/v3/search/#search-code&gt;</span><span>
+</span><span id="line-27"></span><span id="local-6989586621679530935"><span class="annot"><a href="GitHub.Endpoints.Search.html#searchCodeR"><span class="hs-identifier hs-type">searchCodeR</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Request.html#FetchCount"><span class="hs-identifier hs-type">FetchCount</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Request.html#Request"><span class="hs-identifier hs-type">Request</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679530935"><span class="hs-identifier hs-type">k</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GitHub.Data.Search.html#SearchResult"><span class="hs-identifier hs-type">SearchResult</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.Search.html#Code"><span class="hs-identifier hs-type">Code</span></a></span><span class="hs-special">)</span></span><span>
+</span><span id="line-28"></span><span id="searchCodeR"><span class="annot"><span class="annottext">searchCodeR :: forall (k :: RW).
+Text -&gt; FetchCount -&gt; Request k (SearchResult Code)
+</span><a href="GitHub.Endpoints.Search.html#searchCodeR"><span class="hs-identifier hs-var hs-var">searchCodeR</span></a></span></span><span> </span><span id="local-6989586621679530970"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679530970"><span class="hs-identifier hs-var">searchString</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-29"></span><span>    </span><span class="annot"><span class="annottext">Paths
+-&gt; QueryString
+-&gt; FetchCount
+-&gt; GenRequest 'MtJSON k (SearchResult Code)
+forall a (t :: * -&gt; *) b (mt :: MediaType (*)) (rw :: RW).
+(a ~ t b, Foldable t, Semigroup a) =&gt;
+Paths -&gt; QueryString -&gt; FetchCount -&gt; GenRequest mt rw a
+</span><a href="GitHub.Data.Request.html#PagedQuery"><span class="hs-identifier hs-var">PagedQuery</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;search&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;code&quot;</span></span><span class="hs-special">]</span><span> </span><span class="hs-special">[</span><span class="hs-special">(</span><span class="annot"><span class="annottext">ByteString
+</span><span class="hs-string">&quot;q&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; Maybe ByteString
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">(ByteString -&gt; Maybe ByteString) -&gt; ByteString -&gt; Maybe ByteString
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Text -&gt; ByteString
+</span><span class="hs-identifier hs-var">TE.encodeUtf8</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679530970"><span class="hs-identifier hs-var">searchString</span></a></span><span class="hs-special">)</span><span class="hs-special">]</span><span>
+</span><span id="line-30"></span><span>
+</span><span id="line-31"></span><span class="hs-comment">-- | Search issues.</span><span>
+</span><span id="line-32"></span><span class="hs-comment">-- See &lt;https://developer.github.com/v3/search/#search-issues&gt;</span><span>
+</span><span id="line-33"></span><span id="local-6989586621679530938"><span class="annot"><a href="GitHub.Endpoints.Search.html#searchIssuesR"><span class="hs-identifier hs-type">searchIssuesR</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Request.html#FetchCount"><span class="hs-identifier hs-type">FetchCount</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Request.html#Request"><span class="hs-identifier hs-type">Request</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679530938"><span class="hs-identifier hs-type">k</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GitHub.Data.Search.html#SearchResult"><span class="hs-identifier hs-type">SearchResult</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.Issues.html#Issue"><span class="hs-identifier hs-type">Issue</span></a></span><span class="hs-special">)</span></span><span>
+</span><span id="line-34"></span><span id="searchIssuesR"><span class="annot"><span class="annottext">searchIssuesR :: forall (k :: RW).
+Text -&gt; FetchCount -&gt; Request k (SearchResult Issue)
+</span><a href="GitHub.Endpoints.Search.html#searchIssuesR"><span class="hs-identifier hs-var hs-var">searchIssuesR</span></a></span></span><span> </span><span id="local-6989586621679530978"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679530978"><span class="hs-identifier hs-var">searchString</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-35"></span><span>    </span><span class="annot"><span class="annottext">Paths
+-&gt; QueryString
+-&gt; FetchCount
+-&gt; GenRequest 'MtJSON k (SearchResult Issue)
+forall a (t :: * -&gt; *) b (mt :: MediaType (*)) (rw :: RW).
+(a ~ t b, Foldable t, Semigroup a) =&gt;
+Paths -&gt; QueryString -&gt; FetchCount -&gt; GenRequest mt rw a
+</span><a href="GitHub.Data.Request.html#PagedQuery"><span class="hs-identifier hs-var">PagedQuery</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;search&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;issues&quot;</span></span><span class="hs-special">]</span><span> </span><span class="hs-special">[</span><span class="hs-special">(</span><span class="annot"><span class="annottext">ByteString
+</span><span class="hs-string">&quot;q&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; Maybe ByteString
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">(ByteString -&gt; Maybe ByteString) -&gt; ByteString -&gt; Maybe ByteString
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Text -&gt; ByteString
+</span><span class="hs-identifier hs-var">TE.encodeUtf8</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679530978"><span class="hs-identifier hs-var">searchString</span></a></span><span class="hs-special">)</span><span class="hs-special">]</span><span>
+</span><span id="line-36"></span><span>
+</span><span id="line-37"></span><span class="hs-comment">-- | Search users.</span><span>
+</span><span id="line-38"></span><span class="hs-comment">-- See &lt;https://developer.github.com/v3/search/#search-code&gt;</span><span>
+</span><span id="line-39"></span><span id="local-6989586621679530941"><span class="annot"><a href="GitHub.Endpoints.Search.html#searchUsersR"><span class="hs-identifier hs-type">searchUsersR</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Request.html#FetchCount"><span class="hs-identifier hs-type">FetchCount</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Request.html#Request"><span class="hs-identifier hs-type">Request</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679530941"><span class="hs-identifier hs-type">k</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GitHub.Data.Search.html#SearchResult"><span class="hs-identifier hs-type">SearchResult</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.Definitions.html#SimpleUser"><span class="hs-identifier hs-type">SimpleUser</span></a></span><span class="hs-special">)</span></span><span>
+</span><span id="line-40"></span><span id="searchUsersR"><span class="annot"><span class="annottext">searchUsersR :: forall (k :: RW).
+Text -&gt; FetchCount -&gt; Request k (SearchResult SimpleUser)
+</span><a href="GitHub.Endpoints.Search.html#searchUsersR"><span class="hs-identifier hs-var hs-var">searchUsersR</span></a></span></span><span> </span><span id="local-6989586621679530986"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679530986"><span class="hs-identifier hs-var">searchString</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-41"></span><span>    </span><span class="annot"><span class="annottext">Paths
+-&gt; QueryString
+-&gt; FetchCount
+-&gt; GenRequest 'MtJSON k (SearchResult SimpleUser)
+forall a (t :: * -&gt; *) b (mt :: MediaType (*)) (rw :: RW).
+(a ~ t b, Foldable t, Semigroup a) =&gt;
+Paths -&gt; QueryString -&gt; FetchCount -&gt; GenRequest mt rw a
+</span><a href="GitHub.Data.Request.html#PagedQuery"><span class="hs-identifier hs-var">PagedQuery</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;search&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;users&quot;</span></span><span class="hs-special">]</span><span> </span><span class="hs-special">[</span><span class="hs-special">(</span><span class="annot"><span class="annottext">ByteString
+</span><span class="hs-string">&quot;q&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; Maybe ByteString
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">(ByteString -&gt; Maybe ByteString) -&gt; ByteString -&gt; Maybe ByteString
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Text -&gt; ByteString
+</span><span class="hs-identifier hs-var">TE.encodeUtf8</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679530986"><span class="hs-identifier hs-var">searchString</span></a></span><span class="hs-special">)</span><span class="hs-special">]</span><span>
+</span><span id="line-42"></span></pre></body></html>

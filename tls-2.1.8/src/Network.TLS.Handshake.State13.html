@@ -1,0 +1,579 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE OverloadedStrings #-}</span><span>
+</span><span id="line-2"></span><span>
+</span><span id="line-3"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Network.TLS.Handshake.State13.html"><span class="hs-identifier">Network.TLS.Handshake.State13</span></a></span><span> </span><span class="hs-special">(</span><span>
+</span><span id="line-4"></span><span>    </span><span class="annot"><a href="Network.TLS.Record.State.html#CryptLevel"><span class="hs-identifier">CryptLevel</span></a></span><span> </span><span class="hs-special">(</span><span>
+</span><span id="line-5"></span><span>        </span><span class="annot"><a href="Network.TLS.Record.State.html#CryptEarlySecret"><span class="hs-identifier">CryptEarlySecret</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-6"></span><span>        </span><span class="annot"><a href="Network.TLS.Record.State.html#CryptHandshakeSecret"><span class="hs-identifier">CryptHandshakeSecret</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-7"></span><span>        </span><span class="annot"><a href="Network.TLS.Record.State.html#CryptApplicationSecret"><span class="hs-identifier">CryptApplicationSecret</span></a></span><span>
+</span><span id="line-8"></span><span>    </span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-9"></span><span>    </span><span class="annot"><a href="Network.TLS.Handshake.State13.html#TrafficSecret"><span class="hs-identifier">TrafficSecret</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-10"></span><span>    </span><span class="annot"><a href="Network.TLS.Handshake.State13.html#getTxRecordState"><span class="hs-identifier">getTxRecordState</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-11"></span><span>    </span><span class="annot"><a href="Network.TLS.Handshake.State13.html#getRxRecordState"><span class="hs-identifier">getRxRecordState</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-12"></span><span>    </span><span class="annot"><a href="Network.TLS.Handshake.State13.html#setTxRecordState"><span class="hs-identifier">setTxRecordState</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-13"></span><span>    </span><span class="annot"><a href="Network.TLS.Handshake.State13.html#setRxRecordState"><span class="hs-identifier">setRxRecordState</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-14"></span><span>    </span><span class="annot"><a href="Network.TLS.Handshake.State13.html#getTxLevel"><span class="hs-identifier">getTxLevel</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-15"></span><span>    </span><span class="annot"><a href="Network.TLS.Handshake.State13.html#getRxLevel"><span class="hs-identifier">getRxLevel</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-16"></span><span>    </span><span class="annot"><a href="Network.TLS.Handshake.State13.html#clearTxRecordState"><span class="hs-identifier">clearTxRecordState</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-17"></span><span>    </span><span class="annot"><a href="Network.TLS.Handshake.State13.html#clearRxRecordState"><span class="hs-identifier">clearRxRecordState</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-18"></span><span>    </span><span class="annot"><a href="Network.TLS.Handshake.State13.html#setHelloParameters13"><span class="hs-identifier">setHelloParameters13</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-19"></span><span>    </span><span class="annot"><a href="Network.TLS.Handshake.State13.html#transcriptHash"><span class="hs-identifier">transcriptHash</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-20"></span><span>    </span><span class="annot"><a href="Network.TLS.Handshake.State13.html#wrapAsMessageHash13"><span class="hs-identifier">wrapAsMessageHash13</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-21"></span><span>    </span><span class="annot"><a href="Network.TLS.Context.Internal.html#PendingRecvAction"><span class="hs-identifier">PendingRecvAction</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-22"></span><span>    </span><span class="annot"><a href="Network.TLS.Handshake.State13.html#setPendingRecvActions"><span class="hs-identifier">setPendingRecvActions</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-23"></span><span>    </span><span class="annot"><a href="Network.TLS.Handshake.State13.html#popPendingRecvAction"><span class="hs-identifier">popPendingRecvAction</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-24"></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-25"></span><span>
+</span><span id="line-26"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Concurrent.MVar</span></span><span>
+</span><span id="line-27"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Monad.State</span></span><span>
+</span><span id="line-28"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.ByteString</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">B</span></span><span>
+</span><span id="line-29"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.IORef</span></span><span>
+</span><span id="line-30"></span><span>
+</span><span id="line-31"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Network.TLS.Cipher.html"><span class="hs-identifier">Network.TLS.Cipher</span></a></span><span>
+</span><span id="line-32"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Network.TLS.Compression.html"><span class="hs-identifier">Network.TLS.Compression</span></a></span><span>
+</span><span id="line-33"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Network.TLS.Context.Internal.html"><span class="hs-identifier">Network.TLS.Context.Internal</span></a></span><span>
+</span><span id="line-34"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Network.TLS.Crypto.html"><span class="hs-identifier">Network.TLS.Crypto</span></a></span><span>
+</span><span id="line-35"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Network.TLS.Handshake.State.html"><span class="hs-identifier">Network.TLS.Handshake.State</span></a></span><span>
+</span><span id="line-36"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Network.TLS.Imports.html"><span class="hs-identifier">Network.TLS.Imports</span></a></span><span>
+</span><span id="line-37"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Network.TLS.KeySchedule.html"><span class="hs-identifier">Network.TLS.KeySchedule</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Network.TLS.KeySchedule.html#hkdfExpandLabel"><span class="hs-identifier">hkdfExpandLabel</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-38"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Network.TLS.Record.State.html"><span class="hs-identifier">Network.TLS.Record.State</span></a></span><span>
+</span><span id="line-39"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Network.TLS.Struct.html"><span class="hs-identifier">Network.TLS.Struct</span></a></span><span>
+</span><span id="line-40"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Network.TLS.Types.html"><span class="hs-identifier">Network.TLS.Types</span></a></span><span>
+</span><span id="line-41"></span><span>
+</span><span id="line-42"></span><span class="annot"><a href="Network.TLS.Handshake.State13.html#getTxRecordState"><span class="hs-identifier hs-type">getTxRecordState</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Network.TLS.Context.Internal.html#Context"><span class="hs-identifier hs-type">Context</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Network.TLS.Crypto.html#Hash"><span class="hs-identifier hs-type">Hash</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Network.TLS.Types.Cipher.html#Cipher"><span class="hs-identifier hs-type">Cipher</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Network.TLS.Record.State.html#CryptLevel"><span class="hs-identifier hs-type">CryptLevel</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ByteString</span></span><span class="hs-special">)</span><span>
+</span><span id="line-43"></span><span id="getTxRecordState"><span class="annot"><span class="annottext">getTxRecordState :: Context -&gt; IO (Hash, Cipher, CryptLevel, ByteString)
+</span><a href="Network.TLS.Handshake.State13.html#getTxRecordState"><span class="hs-identifier hs-var hs-var">getTxRecordState</span></a></span></span><span> </span><span id="local-6989586621679251331"><span class="annot"><span class="annottext">Context
+</span><a href="#local-6989586621679251331"><span class="hs-identifier hs-var">ctx</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Context
+-&gt; (Context -&gt; MVar RecordState)
+-&gt; IO (Hash, Cipher, CryptLevel, ByteString)
+</span><a href="Network.TLS.Handshake.State13.html#getXState"><span class="hs-identifier hs-var">getXState</span></a></span><span> </span><span class="annot"><span class="annottext">Context
+</span><a href="#local-6989586621679251331"><span class="hs-identifier hs-var">ctx</span></a></span><span> </span><span class="annot"><span class="annottext">Context -&gt; MVar RecordState
+</span><a href="Network.TLS.Context.Internal.html#ctxTxRecordState"><span class="hs-identifier hs-var">ctxTxRecordState</span></a></span><span>
+</span><span id="line-44"></span><span>
+</span><span id="line-45"></span><span class="annot"><a href="Network.TLS.Handshake.State13.html#getRxRecordState"><span class="hs-identifier hs-type">getRxRecordState</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Network.TLS.Context.Internal.html#Context"><span class="hs-identifier hs-type">Context</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Network.TLS.Crypto.html#Hash"><span class="hs-identifier hs-type">Hash</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Network.TLS.Types.Cipher.html#Cipher"><span class="hs-identifier hs-type">Cipher</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Network.TLS.Record.State.html#CryptLevel"><span class="hs-identifier hs-type">CryptLevel</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ByteString</span></span><span class="hs-special">)</span><span>
+</span><span id="line-46"></span><span id="getRxRecordState"><span class="annot"><span class="annottext">getRxRecordState :: Context -&gt; IO (Hash, Cipher, CryptLevel, ByteString)
+</span><a href="Network.TLS.Handshake.State13.html#getRxRecordState"><span class="hs-identifier hs-var hs-var">getRxRecordState</span></a></span></span><span> </span><span id="local-6989586621679251334"><span class="annot"><span class="annottext">Context
+</span><a href="#local-6989586621679251334"><span class="hs-identifier hs-var">ctx</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Context
+-&gt; (Context -&gt; MVar RecordState)
+-&gt; IO (Hash, Cipher, CryptLevel, ByteString)
+</span><a href="Network.TLS.Handshake.State13.html#getXState"><span class="hs-identifier hs-var">getXState</span></a></span><span> </span><span class="annot"><span class="annottext">Context
+</span><a href="#local-6989586621679251334"><span class="hs-identifier hs-var">ctx</span></a></span><span> </span><span class="annot"><span class="annottext">Context -&gt; MVar RecordState
+</span><a href="Network.TLS.Context.Internal.html#ctxRxRecordState"><span class="hs-identifier hs-var">ctxRxRecordState</span></a></span><span>
+</span><span id="line-47"></span><span>
+</span><span id="line-48"></span><span class="annot"><a href="Network.TLS.Handshake.State13.html#getXState"><span class="hs-identifier hs-type">getXState</span></a></span><span>
+</span><span id="line-49"></span><span>    </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Network.TLS.Context.Internal.html#Context"><span class="hs-identifier hs-type">Context</span></a></span><span>
+</span><span id="line-50"></span><span>    </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Network.TLS.Context.Internal.html#Context"><span class="hs-identifier hs-type">Context</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">MVar</span></span><span> </span><span class="annot"><a href="Network.TLS.Record.State.html#RecordState"><span class="hs-identifier hs-type">RecordState</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-51"></span><span>    </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Network.TLS.Crypto.html#Hash"><span class="hs-identifier hs-type">Hash</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Network.TLS.Types.Cipher.html#Cipher"><span class="hs-identifier hs-type">Cipher</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Network.TLS.Record.State.html#CryptLevel"><span class="hs-identifier hs-type">CryptLevel</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ByteString</span></span><span class="hs-special">)</span><span>
+</span><span id="line-52"></span><span id="getXState"><span class="annot"><span class="annottext">getXState :: Context
+-&gt; (Context -&gt; MVar RecordState)
+-&gt; IO (Hash, Cipher, CryptLevel, ByteString)
+</span><a href="Network.TLS.Handshake.State13.html#getXState"><span class="hs-identifier hs-var hs-var">getXState</span></a></span></span><span> </span><span id="local-6989586621679251336"><span class="annot"><span class="annottext">Context
+</span><a href="#local-6989586621679251336"><span class="hs-identifier hs-var">ctx</span></a></span></span><span> </span><span id="local-6989586621679251337"><span class="annot"><span class="annottext">Context -&gt; MVar RecordState
+</span><a href="#local-6989586621679251337"><span class="hs-identifier hs-var">func</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-53"></span><span>    </span><span id="local-6989586621679251338"><span class="annot"><a href="#local-6989586621679251338"><span class="hs-identifier hs-var">tx</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">MVar RecordState -&gt; IO RecordState
+forall a. MVar a -&gt; IO a
+</span><span class="hs-identifier hs-var">readMVar</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Context -&gt; MVar RecordState
+</span><a href="#local-6989586621679251337"><span class="hs-identifier hs-var">func</span></a></span><span> </span><span class="annot"><span class="annottext">Context
+</span><a href="#local-6989586621679251336"><span class="hs-identifier hs-var">ctx</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-54"></span><span>    </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679251342"><span class="annot"><a href="#local-6989586621679251342"><span class="hs-identifier hs-var hs-var">usedCipher</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Maybe Cipher -&gt; Cipher
+forall a. HasCallStack =&gt; Maybe a -&gt; a
+</span><span class="hs-identifier hs-var">fromJust</span></span><span> </span><span class="annot"><span class="annottext">(Maybe Cipher -&gt; Cipher) -&gt; Maybe Cipher -&gt; Cipher
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">RecordState -&gt; Maybe Cipher
+</span><a href="Network.TLS.Record.State.html#stCipher"><span class="hs-identifier hs-var">stCipher</span></a></span><span> </span><span class="annot"><span class="annottext">RecordState
+</span><a href="#local-6989586621679251338"><span class="hs-identifier hs-var">tx</span></a></span><span>
+</span><span id="line-55"></span><span>        </span><span id="local-6989586621679251345"><span class="annot"><a href="#local-6989586621679251345"><span class="hs-identifier hs-var hs-var">usedHash</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Cipher -&gt; Hash
+</span><a href="Network.TLS.Types.Cipher.html#cipherHash"><span class="hs-identifier hs-var">cipherHash</span></a></span><span> </span><span class="annot"><span class="annottext">Cipher
+</span><a href="#local-6989586621679251342"><span class="hs-identifier hs-var">usedCipher</span></a></span><span>
+</span><span id="line-56"></span><span>        </span><span id="local-6989586621679251347"><span class="annot"><a href="#local-6989586621679251347"><span class="hs-identifier hs-var hs-var">level</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">RecordState -&gt; CryptLevel
+</span><a href="Network.TLS.Record.State.html#stCryptLevel"><span class="hs-identifier hs-var">stCryptLevel</span></a></span><span> </span><span class="annot"><span class="annottext">RecordState
+</span><a href="#local-6989586621679251338"><span class="hs-identifier hs-var">tx</span></a></span><span>
+</span><span id="line-57"></span><span>        </span><span id="local-6989586621679251349"><span class="annot"><a href="#local-6989586621679251349"><span class="hs-identifier hs-var hs-var">secret</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">CryptState -&gt; ByteString
+</span><a href="Network.TLS.Record.State.html#cstMacSecret"><span class="hs-identifier hs-var">cstMacSecret</span></a></span><span> </span><span class="annot"><span class="annottext">(CryptState -&gt; ByteString) -&gt; CryptState -&gt; ByteString
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">RecordState -&gt; CryptState
+</span><a href="Network.TLS.Record.State.html#stCryptState"><span class="hs-identifier hs-var">stCryptState</span></a></span><span> </span><span class="annot"><span class="annottext">RecordState
+</span><a href="#local-6989586621679251338"><span class="hs-identifier hs-var">tx</span></a></span><span>
+</span><span id="line-58"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">return</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679251345"><span class="hs-identifier hs-type">usedHash</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679251342"><span class="hs-identifier hs-type">usedCipher</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679251347"><span class="hs-identifier hs-type">level</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679251349"><span class="hs-identifier hs-type">secret</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-59"></span><span>
+</span><span id="line-60"></span><span class="hs-comment">-- In the case of QUIC, stCipher is Nothing.</span><span>
+</span><span id="line-61"></span><span class="hs-comment">-- So, fromJust causes an error.</span><span>
+</span><span id="line-62"></span><span class="annot"><a href="Network.TLS.Handshake.State13.html#getTxLevel"><span class="hs-identifier hs-type">getTxLevel</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Network.TLS.Context.Internal.html#Context"><span class="hs-identifier hs-type">Context</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="Network.TLS.Record.State.html#CryptLevel"><span class="hs-identifier hs-type">CryptLevel</span></a></span><span>
+</span><span id="line-63"></span><span id="getTxLevel"><span class="annot"><span class="annottext">getTxLevel :: Context -&gt; IO CryptLevel
+</span><a href="Network.TLS.Handshake.State13.html#getTxLevel"><span class="hs-identifier hs-var hs-var">getTxLevel</span></a></span></span><span> </span><span id="local-6989586621679251352"><span class="annot"><span class="annottext">Context
+</span><a href="#local-6989586621679251352"><span class="hs-identifier hs-var">ctx</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Context -&gt; (Context -&gt; MVar RecordState) -&gt; IO CryptLevel
+</span><a href="Network.TLS.Handshake.State13.html#getXLevel"><span class="hs-identifier hs-var">getXLevel</span></a></span><span> </span><span class="annot"><span class="annottext">Context
+</span><a href="#local-6989586621679251352"><span class="hs-identifier hs-var">ctx</span></a></span><span> </span><span class="annot"><span class="annottext">Context -&gt; MVar RecordState
+</span><a href="Network.TLS.Context.Internal.html#ctxTxRecordState"><span class="hs-identifier hs-var">ctxTxRecordState</span></a></span><span>
+</span><span id="line-64"></span><span>
+</span><span id="line-65"></span><span class="annot"><a href="Network.TLS.Handshake.State13.html#getRxLevel"><span class="hs-identifier hs-type">getRxLevel</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Network.TLS.Context.Internal.html#Context"><span class="hs-identifier hs-type">Context</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="Network.TLS.Record.State.html#CryptLevel"><span class="hs-identifier hs-type">CryptLevel</span></a></span><span>
+</span><span id="line-66"></span><span id="getRxLevel"><span class="annot"><span class="annottext">getRxLevel :: Context -&gt; IO CryptLevel
+</span><a href="Network.TLS.Handshake.State13.html#getRxLevel"><span class="hs-identifier hs-var hs-var">getRxLevel</span></a></span></span><span> </span><span id="local-6989586621679251354"><span class="annot"><span class="annottext">Context
+</span><a href="#local-6989586621679251354"><span class="hs-identifier hs-var">ctx</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Context -&gt; (Context -&gt; MVar RecordState) -&gt; IO CryptLevel
+</span><a href="Network.TLS.Handshake.State13.html#getXLevel"><span class="hs-identifier hs-var">getXLevel</span></a></span><span> </span><span class="annot"><span class="annottext">Context
+</span><a href="#local-6989586621679251354"><span class="hs-identifier hs-var">ctx</span></a></span><span> </span><span class="annot"><span class="annottext">Context -&gt; MVar RecordState
+</span><a href="Network.TLS.Context.Internal.html#ctxRxRecordState"><span class="hs-identifier hs-var">ctxRxRecordState</span></a></span><span>
+</span><span id="line-67"></span><span>
+</span><span id="line-68"></span><span class="annot"><a href="Network.TLS.Handshake.State13.html#getXLevel"><span class="hs-identifier hs-type">getXLevel</span></a></span><span>
+</span><span id="line-69"></span><span>    </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Network.TLS.Context.Internal.html#Context"><span class="hs-identifier hs-type">Context</span></a></span><span>
+</span><span id="line-70"></span><span>    </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Network.TLS.Context.Internal.html#Context"><span class="hs-identifier hs-type">Context</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">MVar</span></span><span> </span><span class="annot"><a href="Network.TLS.Record.State.html#RecordState"><span class="hs-identifier hs-type">RecordState</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-71"></span><span>    </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="Network.TLS.Record.State.html#CryptLevel"><span class="hs-identifier hs-type">CryptLevel</span></a></span><span>
+</span><span id="line-72"></span><span id="getXLevel"><span class="annot"><span class="annottext">getXLevel :: Context -&gt; (Context -&gt; MVar RecordState) -&gt; IO CryptLevel
+</span><a href="Network.TLS.Handshake.State13.html#getXLevel"><span class="hs-identifier hs-var hs-var">getXLevel</span></a></span></span><span> </span><span id="local-6989586621679251355"><span class="annot"><span class="annottext">Context
+</span><a href="#local-6989586621679251355"><span class="hs-identifier hs-var">ctx</span></a></span></span><span> </span><span id="local-6989586621679251356"><span class="annot"><span class="annottext">Context -&gt; MVar RecordState
+</span><a href="#local-6989586621679251356"><span class="hs-identifier hs-var">func</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-73"></span><span>    </span><span id="local-6989586621679251357"><span class="annot"><a href="#local-6989586621679251357"><span class="hs-identifier hs-var">tx</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">MVar RecordState -&gt; IO RecordState
+forall a. MVar a -&gt; IO a
+</span><span class="hs-identifier hs-var">readMVar</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Context -&gt; MVar RecordState
+</span><a href="#local-6989586621679251356"><span class="hs-identifier hs-var">func</span></a></span><span> </span><span class="annot"><span class="annottext">Context
+</span><a href="#local-6989586621679251355"><span class="hs-identifier hs-var">ctx</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-74"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">return</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">$</span></span><span> </span><span class="annot"><a href="Network.TLS.Record.State.html#stCryptLevel"><span class="hs-identifier hs-var">stCryptLevel</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679251357"><span class="hs-identifier hs-type">tx</span></a></span><span>
+</span><span id="line-75"></span><span>
+</span><span id="line-76"></span><span class="hs-keyword">class</span><span> </span><span id="TrafficSecret"><span class="annot"><a href="Network.TLS.Handshake.State13.html#TrafficSecret"><span class="hs-identifier hs-var">TrafficSecret</span></a></span></span><span> </span><span id="local-6989586621679251234"><span class="annot"><a href="#local-6989586621679251234"><span class="hs-identifier hs-type">ty</span></a></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-77"></span><span>    </span><span id="fromTrafficSecret"><span class="annot"><a href="Network.TLS.Handshake.State13.html#fromTrafficSecret"><span class="hs-identifier hs-type">fromTrafficSecret</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="#local-6989586621679251234"><span class="hs-identifier hs-type">ty</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Network.TLS.Record.State.html#CryptLevel"><span class="hs-identifier hs-type">CryptLevel</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ByteString</span></span><span class="hs-special">)</span><span>
+</span><span id="line-78"></span><span>
+</span><span id="line-79"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679251235"><span class="annot"><a href="Network.TLS.Record.State.html#HasCryptLevel"><span class="hs-identifier hs-type">HasCryptLevel</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679251235"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Network.TLS.Handshake.State13.html#TrafficSecret"><span class="hs-identifier hs-type">TrafficSecret</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Network.TLS.Types.Secret.html#AnyTrafficSecret"><span class="hs-identifier hs-type">AnyTrafficSecret</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679251235"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-80"></span><span>    </span><span id="local-6989586621679251364"><span class="annot"><span class="annottext">fromTrafficSecret :: AnyTrafficSecret a -&gt; (CryptLevel, ByteString)
+</span><a href="Network.TLS.Handshake.State13.html#fromTrafficSecret"><span class="hs-identifier hs-var hs-var hs-var">fromTrafficSecret</span></a></span></span><span> </span><span id="local-6989586621679251365"><span class="annot"><span class="annottext">prx :: AnyTrafficSecret a
+</span><a href="#local-6989586621679251365"><span class="hs-identifier hs-var">prx</span></a></span></span><span class="hs-glyph">@</span><span class="hs-special">(</span><span class="annot"><a href="Network.TLS.Types.Secret.html#AnyTrafficSecret"><span class="hs-identifier hs-type">AnyTrafficSecret</span></a></span><span> </span><span id="local-6989586621679251367"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679251367"><span class="hs-identifier hs-var">s</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">AnyTrafficSecret a -&gt; CryptLevel
+forall a (proxy :: * -&gt; *).
+HasCryptLevel a =&gt;
+proxy a -&gt; CryptLevel
+forall (proxy :: * -&gt; *). proxy a -&gt; CryptLevel
+</span><a href="Network.TLS.Record.State.html#getCryptLevel"><span class="hs-identifier hs-var">getCryptLevel</span></a></span><span> </span><span class="annot"><span class="annottext">AnyTrafficSecret a
+</span><a href="#local-6989586621679251365"><span class="hs-identifier hs-var">prx</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679251367"><span class="hs-identifier hs-var">s</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-81"></span><span>
+</span><span id="line-82"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679251240"><span class="annot"><a href="Network.TLS.Record.State.html#HasCryptLevel"><span class="hs-identifier hs-type">HasCryptLevel</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679251240"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Network.TLS.Handshake.State13.html#TrafficSecret"><span class="hs-identifier hs-type">TrafficSecret</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Network.TLS.Types.Secret.html#ClientTrafficSecret"><span class="hs-identifier hs-type">ClientTrafficSecret</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679251240"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-83"></span><span>    </span><span id="local-6989586621679251373"><span class="annot"><span class="annottext">fromTrafficSecret :: ClientTrafficSecret a -&gt; (CryptLevel, ByteString)
+</span><a href="Network.TLS.Handshake.State13.html#fromTrafficSecret"><span class="hs-identifier hs-var hs-var hs-var">fromTrafficSecret</span></a></span></span><span> </span><span id="local-6989586621679251374"><span class="annot"><span class="annottext">prx :: ClientTrafficSecret a
+</span><a href="#local-6989586621679251374"><span class="hs-identifier hs-var">prx</span></a></span></span><span class="hs-glyph">@</span><span class="hs-special">(</span><span class="annot"><a href="Network.TLS.Types.Secret.html#ClientTrafficSecret"><span class="hs-identifier hs-type">ClientTrafficSecret</span></a></span><span> </span><span id="local-6989586621679251376"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679251376"><span class="hs-identifier hs-var">s</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ClientTrafficSecret a -&gt; CryptLevel
+forall a (proxy :: * -&gt; *).
+HasCryptLevel a =&gt;
+proxy a -&gt; CryptLevel
+forall (proxy :: * -&gt; *). proxy a -&gt; CryptLevel
+</span><a href="Network.TLS.Record.State.html#getCryptLevel"><span class="hs-identifier hs-var">getCryptLevel</span></a></span><span> </span><span class="annot"><span class="annottext">ClientTrafficSecret a
+</span><a href="#local-6989586621679251374"><span class="hs-identifier hs-var">prx</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679251376"><span class="hs-identifier hs-var">s</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-84"></span><span>
+</span><span id="line-85"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679251243"><span class="annot"><a href="Network.TLS.Record.State.html#HasCryptLevel"><span class="hs-identifier hs-type">HasCryptLevel</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679251243"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Network.TLS.Handshake.State13.html#TrafficSecret"><span class="hs-identifier hs-type">TrafficSecret</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Network.TLS.Types.Secret.html#ServerTrafficSecret"><span class="hs-identifier hs-type">ServerTrafficSecret</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679251243"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-86"></span><span>    </span><span id="local-6989586621679251381"><span class="annot"><span class="annottext">fromTrafficSecret :: ServerTrafficSecret a -&gt; (CryptLevel, ByteString)
+</span><a href="Network.TLS.Handshake.State13.html#fromTrafficSecret"><span class="hs-identifier hs-var hs-var hs-var">fromTrafficSecret</span></a></span></span><span> </span><span id="local-6989586621679251382"><span class="annot"><span class="annottext">prx :: ServerTrafficSecret a
+</span><a href="#local-6989586621679251382"><span class="hs-identifier hs-var">prx</span></a></span></span><span class="hs-glyph">@</span><span class="hs-special">(</span><span class="annot"><a href="Network.TLS.Types.Secret.html#ServerTrafficSecret"><span class="hs-identifier hs-type">ServerTrafficSecret</span></a></span><span> </span><span id="local-6989586621679251384"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679251384"><span class="hs-identifier hs-var">s</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ServerTrafficSecret a -&gt; CryptLevel
+forall a (proxy :: * -&gt; *).
+HasCryptLevel a =&gt;
+proxy a -&gt; CryptLevel
+forall (proxy :: * -&gt; *). proxy a -&gt; CryptLevel
+</span><a href="Network.TLS.Record.State.html#getCryptLevel"><span class="hs-identifier hs-var">getCryptLevel</span></a></span><span> </span><span class="annot"><span class="annottext">ServerTrafficSecret a
+</span><a href="#local-6989586621679251382"><span class="hs-identifier hs-var">prx</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679251384"><span class="hs-identifier hs-var">s</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-87"></span><span>
+</span><span id="line-88"></span><span id="local-6989586621679251244"><span class="annot"><a href="Network.TLS.Handshake.State13.html#setTxRecordState"><span class="hs-identifier hs-type">setTxRecordState</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Network.TLS.Handshake.State13.html#TrafficSecret"><span class="hs-identifier hs-type">TrafficSecret</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679251244"><span class="hs-identifier hs-type">ty</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Network.TLS.Context.Internal.html#Context"><span class="hs-identifier hs-type">Context</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Network.TLS.Crypto.html#Hash"><span class="hs-identifier hs-type">Hash</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Network.TLS.Types.Cipher.html#Cipher"><span class="hs-identifier hs-type">Cipher</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679251244"><span class="hs-identifier hs-type">ty</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span></span><span>
+</span><span id="line-89"></span><span id="setTxRecordState"><span class="annot"><span class="annottext">setTxRecordState :: forall ty.
+TrafficSecret ty =&gt;
+Context -&gt; Hash -&gt; Cipher -&gt; ty -&gt; IO ()
+</span><a href="Network.TLS.Handshake.State13.html#setTxRecordState"><span class="hs-identifier hs-var hs-var">setTxRecordState</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Context -&gt; MVar RecordState)
+-&gt; BulkDirection -&gt; Context -&gt; Hash -&gt; Cipher -&gt; ty -&gt; IO ()
+forall ty.
+TrafficSecret ty =&gt;
+(Context -&gt; MVar RecordState)
+-&gt; BulkDirection -&gt; Context -&gt; Hash -&gt; Cipher -&gt; ty -&gt; IO ()
+</span><a href="Network.TLS.Handshake.State13.html#setXState"><span class="hs-identifier hs-var">setXState</span></a></span><span> </span><span class="annot"><span class="annottext">Context -&gt; MVar RecordState
+</span><a href="Network.TLS.Context.Internal.html#ctxTxRecordState"><span class="hs-identifier hs-var">ctxTxRecordState</span></a></span><span> </span><span class="annot"><span class="annottext">BulkDirection
+</span><a href="Network.TLS.Types.Cipher.html#BulkEncrypt"><span class="hs-identifier hs-var">BulkEncrypt</span></a></span><span>
+</span><span id="line-90"></span><span>
+</span><span id="line-91"></span><span id="local-6989586621679251389"><span class="annot"><a href="Network.TLS.Handshake.State13.html#setRxRecordState"><span class="hs-identifier hs-type">setRxRecordState</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Network.TLS.Handshake.State13.html#TrafficSecret"><span class="hs-identifier hs-type">TrafficSecret</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679251389"><span class="hs-identifier hs-type">ty</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Network.TLS.Context.Internal.html#Context"><span class="hs-identifier hs-type">Context</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Network.TLS.Crypto.html#Hash"><span class="hs-identifier hs-type">Hash</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Network.TLS.Types.Cipher.html#Cipher"><span class="hs-identifier hs-type">Cipher</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679251389"><span class="hs-identifier hs-type">ty</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span></span><span>
+</span><span id="line-92"></span><span id="setRxRecordState"><span class="annot"><span class="annottext">setRxRecordState :: forall ty.
+TrafficSecret ty =&gt;
+Context -&gt; Hash -&gt; Cipher -&gt; ty -&gt; IO ()
+</span><a href="Network.TLS.Handshake.State13.html#setRxRecordState"><span class="hs-identifier hs-var hs-var">setRxRecordState</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Context -&gt; MVar RecordState)
+-&gt; BulkDirection -&gt; Context -&gt; Hash -&gt; Cipher -&gt; ty -&gt; IO ()
+forall ty.
+TrafficSecret ty =&gt;
+(Context -&gt; MVar RecordState)
+-&gt; BulkDirection -&gt; Context -&gt; Hash -&gt; Cipher -&gt; ty -&gt; IO ()
+</span><a href="Network.TLS.Handshake.State13.html#setXState"><span class="hs-identifier hs-var">setXState</span></a></span><span> </span><span class="annot"><span class="annottext">Context -&gt; MVar RecordState
+</span><a href="Network.TLS.Context.Internal.html#ctxRxRecordState"><span class="hs-identifier hs-var">ctxRxRecordState</span></a></span><span> </span><span class="annot"><span class="annottext">BulkDirection
+</span><a href="Network.TLS.Types.Cipher.html#BulkDecrypt"><span class="hs-identifier hs-var">BulkDecrypt</span></a></span><span>
+</span><span id="line-93"></span><span>
+</span><span id="line-94"></span><span id="local-6989586621679251247"><span class="annot"><a href="Network.TLS.Handshake.State13.html#setXState"><span class="hs-identifier hs-type">setXState</span></a></span><span>
+</span><span id="line-95"></span><span>    </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Network.TLS.Handshake.State13.html#TrafficSecret"><span class="hs-identifier hs-type">TrafficSecret</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679251247"><span class="hs-identifier hs-type">ty</span></a></span><span>
+</span><span id="line-96"></span><span>    </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Network.TLS.Context.Internal.html#Context"><span class="hs-identifier hs-type">Context</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">MVar</span></span><span> </span><span class="annot"><a href="Network.TLS.Record.State.html#RecordState"><span class="hs-identifier hs-type">RecordState</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-97"></span><span>    </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Network.TLS.Types.Cipher.html#BulkDirection"><span class="hs-identifier hs-type">BulkDirection</span></a></span><span>
+</span><span id="line-98"></span><span>    </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Network.TLS.Context.Internal.html#Context"><span class="hs-identifier hs-type">Context</span></a></span><span>
+</span><span id="line-99"></span><span>    </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Network.TLS.Crypto.html#Hash"><span class="hs-identifier hs-type">Hash</span></a></span><span>
+</span><span id="line-100"></span><span>    </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Network.TLS.Types.Cipher.html#Cipher"><span class="hs-identifier hs-type">Cipher</span></a></span><span>
+</span><span id="line-101"></span><span>    </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679251247"><span class="hs-identifier hs-type">ty</span></a></span><span>
+</span><span id="line-102"></span><span>    </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span></span><span>
+</span><span id="line-103"></span><span id="setXState"><span class="annot"><span class="annottext">setXState :: forall ty.
+TrafficSecret ty =&gt;
+(Context -&gt; MVar RecordState)
+-&gt; BulkDirection -&gt; Context -&gt; Hash -&gt; Cipher -&gt; ty -&gt; IO ()
+</span><a href="Network.TLS.Handshake.State13.html#setXState"><span class="hs-identifier hs-var hs-var">setXState</span></a></span></span><span> </span><span id="local-6989586621679251394"><span class="annot"><span class="annottext">Context -&gt; MVar RecordState
+</span><a href="#local-6989586621679251394"><span class="hs-identifier hs-var">func</span></a></span></span><span> </span><span id="local-6989586621679251395"><span class="annot"><span class="annottext">BulkDirection
+</span><a href="#local-6989586621679251395"><span class="hs-identifier hs-var">encOrDec</span></a></span></span><span> </span><span id="local-6989586621679251396"><span class="annot"><span class="annottext">Context
+</span><a href="#local-6989586621679251396"><span class="hs-identifier hs-var">ctx</span></a></span></span><span> </span><span id="local-6989586621679251397"><span class="annot"><span class="annottext">Hash
+</span><a href="#local-6989586621679251397"><span class="hs-identifier hs-var">h</span></a></span></span><span> </span><span id="local-6989586621679251398"><span class="annot"><span class="annottext">Cipher
+</span><a href="#local-6989586621679251398"><span class="hs-identifier hs-var">cipher</span></a></span></span><span> </span><span id="local-6989586621679251399"><span class="annot"><span class="annottext">ty
+</span><a href="#local-6989586621679251399"><span class="hs-identifier hs-var">ts</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-104"></span><span>    </span><span class="hs-keyword">let</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679251401"><span class="annot"><span class="annottext">CryptLevel
+</span><a href="#local-6989586621679251401"><span class="hs-identifier hs-var">lvl</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679251402"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679251402"><span class="hs-identifier hs-var">secret</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ty -&gt; (CryptLevel, ByteString)
+forall ty. TrafficSecret ty =&gt; ty -&gt; (CryptLevel, ByteString)
+</span><a href="Network.TLS.Handshake.State13.html#fromTrafficSecret"><span class="hs-identifier hs-var">fromTrafficSecret</span></a></span><span> </span><span class="annot"><span class="annottext">ty
+</span><a href="#local-6989586621679251399"><span class="hs-identifier hs-var">ts</span></a></span><span>
+</span><span id="line-105"></span><span>     </span><span class="hs-keyword">in</span><span> </span><span class="annot"><span class="annottext">(Context -&gt; MVar RecordState)
+-&gt; BulkDirection
+-&gt; Context
+-&gt; Hash
+-&gt; Cipher
+-&gt; CryptLevel
+-&gt; ByteString
+-&gt; IO ()
+</span><a href="Network.TLS.Handshake.State13.html#setXState%27"><span class="hs-identifier hs-var">setXState'</span></a></span><span> </span><span class="annot"><span class="annottext">Context -&gt; MVar RecordState
+</span><a href="#local-6989586621679251394"><span class="hs-identifier hs-var">func</span></a></span><span> </span><span class="annot"><span class="annottext">BulkDirection
+</span><a href="#local-6989586621679251395"><span class="hs-identifier hs-var">encOrDec</span></a></span><span> </span><span class="annot"><span class="annottext">Context
+</span><a href="#local-6989586621679251396"><span class="hs-identifier hs-var">ctx</span></a></span><span> </span><span class="annot"><span class="annottext">Hash
+</span><a href="#local-6989586621679251397"><span class="hs-identifier hs-var">h</span></a></span><span> </span><span class="annot"><span class="annottext">Cipher
+</span><a href="#local-6989586621679251398"><span class="hs-identifier hs-var">cipher</span></a></span><span> </span><span class="annot"><span class="annottext">CryptLevel
+</span><a href="#local-6989586621679251401"><span class="hs-identifier hs-var">lvl</span></a></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679251402"><span class="hs-identifier hs-var">secret</span></a></span><span>
+</span><span id="line-106"></span><span>
+</span><span id="line-107"></span><span class="annot"><a href="Network.TLS.Handshake.State13.html#setXState%27"><span class="hs-identifier hs-type">setXState'</span></a></span><span>
+</span><span id="line-108"></span><span>    </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Network.TLS.Context.Internal.html#Context"><span class="hs-identifier hs-type">Context</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">MVar</span></span><span> </span><span class="annot"><a href="Network.TLS.Record.State.html#RecordState"><span class="hs-identifier hs-type">RecordState</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-109"></span><span>    </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Network.TLS.Types.Cipher.html#BulkDirection"><span class="hs-identifier hs-type">BulkDirection</span></a></span><span>
+</span><span id="line-110"></span><span>    </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Network.TLS.Context.Internal.html#Context"><span class="hs-identifier hs-type">Context</span></a></span><span>
+</span><span id="line-111"></span><span>    </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Network.TLS.Crypto.html#Hash"><span class="hs-identifier hs-type">Hash</span></a></span><span>
+</span><span id="line-112"></span><span>    </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Network.TLS.Types.Cipher.html#Cipher"><span class="hs-identifier hs-type">Cipher</span></a></span><span>
+</span><span id="line-113"></span><span>    </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Network.TLS.Record.State.html#CryptLevel"><span class="hs-identifier hs-type">CryptLevel</span></a></span><span>
+</span><span id="line-114"></span><span>    </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ByteString</span></span><span>
+</span><span id="line-115"></span><span>    </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-116"></span><span id="setXState%27"><span class="annot"><span class="annottext">setXState' :: (Context -&gt; MVar RecordState)
+-&gt; BulkDirection
+-&gt; Context
+-&gt; Hash
+-&gt; Cipher
+-&gt; CryptLevel
+-&gt; ByteString
+-&gt; IO ()
+</span><a href="Network.TLS.Handshake.State13.html#setXState%27"><span class="hs-identifier hs-var hs-var">setXState'</span></a></span></span><span> </span><span id="local-6989586621679251404"><span class="annot"><span class="annottext">Context -&gt; MVar RecordState
+</span><a href="#local-6989586621679251404"><span class="hs-identifier hs-var">func</span></a></span></span><span> </span><span id="local-6989586621679251405"><span class="annot"><span class="annottext">BulkDirection
+</span><a href="#local-6989586621679251405"><span class="hs-identifier hs-var">encOrDec</span></a></span></span><span> </span><span id="local-6989586621679251406"><span class="annot"><span class="annottext">Context
+</span><a href="#local-6989586621679251406"><span class="hs-identifier hs-var">ctx</span></a></span></span><span> </span><span id="local-6989586621679251407"><span class="annot"><span class="annottext">Hash
+</span><a href="#local-6989586621679251407"><span class="hs-identifier hs-var">h</span></a></span></span><span> </span><span id="local-6989586621679251408"><span class="annot"><span class="annottext">Cipher
+</span><a href="#local-6989586621679251408"><span class="hs-identifier hs-var">cipher</span></a></span></span><span> </span><span id="local-6989586621679251409"><span class="annot"><span class="annottext">CryptLevel
+</span><a href="#local-6989586621679251409"><span class="hs-identifier hs-var">lvl</span></a></span></span><span> </span><span id="local-6989586621679251410"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679251410"><span class="hs-identifier hs-var">secret</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-117"></span><span>    </span><span class="annot"><span class="annottext">MVar RecordState -&gt; (RecordState -&gt; IO RecordState) -&gt; IO ()
+forall a. MVar a -&gt; (a -&gt; IO a) -&gt; IO ()
+</span><span class="hs-identifier hs-var">modifyMVar_</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Context -&gt; MVar RecordState
+</span><a href="#local-6989586621679251404"><span class="hs-identifier hs-var">func</span></a></span><span> </span><span class="annot"><span class="annottext">Context
+</span><a href="#local-6989586621679251406"><span class="hs-identifier hs-var">ctx</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span class="annot"><span class="annottext">RecordState
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">RecordState -&gt; IO RecordState
+forall a. a -&gt; IO a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">RecordState
+</span><a href="#local-6989586621679251412"><span class="hs-identifier hs-var">rt</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-118"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-119"></span><span>    </span><span id="local-6989586621679251413"><span class="annot"><span class="annottext">bulk :: Bulk
+</span><a href="#local-6989586621679251413"><span class="hs-identifier hs-var hs-var">bulk</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Cipher -&gt; Bulk
+</span><a href="Network.TLS.Types.Cipher.html#cipherBulk"><span class="hs-identifier hs-var">cipherBulk</span></a></span><span> </span><span class="annot"><span class="annottext">Cipher
+</span><a href="#local-6989586621679251408"><span class="hs-identifier hs-var">cipher</span></a></span><span>
+</span><span id="line-120"></span><span>    </span><span id="local-6989586621679251415"><span class="annot"><span class="annottext">keySize :: Int
+</span><a href="#local-6989586621679251415"><span class="hs-identifier hs-var hs-var">keySize</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bulk -&gt; Int
+</span><a href="Network.TLS.Types.Cipher.html#bulkKeySize"><span class="hs-identifier hs-var">bulkKeySize</span></a></span><span> </span><span class="annot"><span class="annottext">Bulk
+</span><a href="#local-6989586621679251413"><span class="hs-identifier hs-var">bulk</span></a></span><span>
+</span><span id="line-121"></span><span>    </span><span id="local-6989586621679251422"><span class="annot"><span class="annottext">ivSize :: Int
+</span><a href="#local-6989586621679251422"><span class="hs-identifier hs-var hs-var">ivSize</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Ord a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-identifier hs-var">max</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">8</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Bulk -&gt; Int
+</span><a href="Network.TLS.Types.Cipher.html#bulkIVSize"><span class="hs-identifier hs-var">bulkIVSize</span></a></span><span> </span><span class="annot"><span class="annottext">Bulk
+</span><a href="#local-6989586621679251413"><span class="hs-identifier hs-var">bulk</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Bulk -&gt; Int
+</span><a href="Network.TLS.Types.Cipher.html#bulkExplicitIV"><span class="hs-identifier hs-var">bulkExplicitIV</span></a></span><span> </span><span class="annot"><span class="annottext">Bulk
+</span><a href="#local-6989586621679251413"><span class="hs-identifier hs-var">bulk</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-122"></span><span>    </span><span id="local-6989586621679251430"><span class="annot"><span class="annottext">key :: ByteString
+</span><a href="#local-6989586621679251430"><span class="hs-identifier hs-var hs-var">key</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Hash -&gt; ByteString -&gt; ByteString -&gt; ByteString -&gt; Int -&gt; ByteString
+</span><a href="Network.TLS.KeySchedule.html#hkdfExpandLabel"><span class="hs-identifier hs-var">hkdfExpandLabel</span></a></span><span> </span><span class="annot"><span class="annottext">Hash
+</span><a href="#local-6989586621679251407"><span class="hs-identifier hs-var">h</span></a></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679251410"><span class="hs-identifier hs-var">secret</span></a></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><span class="hs-string">&quot;key&quot;</span></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><span class="hs-string">&quot;&quot;</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679251415"><span class="hs-identifier hs-var">keySize</span></a></span><span>
+</span><span id="line-123"></span><span>    </span><span id="local-6989586621679251433"><span class="annot"><span class="annottext">iv :: ByteString
+</span><a href="#local-6989586621679251433"><span class="hs-identifier hs-var hs-var">iv</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Hash -&gt; ByteString -&gt; ByteString -&gt; ByteString -&gt; Int -&gt; ByteString
+</span><a href="Network.TLS.KeySchedule.html#hkdfExpandLabel"><span class="hs-identifier hs-var">hkdfExpandLabel</span></a></span><span> </span><span class="annot"><span class="annottext">Hash
+</span><a href="#local-6989586621679251407"><span class="hs-identifier hs-var">h</span></a></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679251410"><span class="hs-identifier hs-var">secret</span></a></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><span class="hs-string">&quot;iv&quot;</span></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><span class="hs-string">&quot;&quot;</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679251422"><span class="hs-identifier hs-var">ivSize</span></a></span><span>
+</span><span id="line-124"></span><span>    </span><span id="local-6989586621679251434"><span class="annot"><span class="annottext">cst :: CryptState
+</span><a href="#local-6989586621679251434"><span class="hs-identifier hs-var hs-var">cst</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-125"></span><span>        </span><span class="annot"><a href="Network.TLS.Record.State.html#CryptState"><span class="hs-identifier hs-type">CryptState</span></a></span><span>
+</span><span id="line-126"></span><span>            </span><span class="hs-special">{</span><span> </span><span class="annot"><span class="annottext">cstKey :: BulkState
+</span><a href="#local-6989586621679251436"><span class="hs-identifier hs-var">cstKey</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bulk -&gt; BulkDirection -&gt; ByteString -&gt; BulkState
+</span><a href="Network.TLS.Cipher.html#bulkInit"><span class="hs-identifier hs-var">bulkInit</span></a></span><span> </span><span class="annot"><span class="annottext">Bulk
+</span><a href="#local-6989586621679251413"><span class="hs-identifier hs-var">bulk</span></a></span><span> </span><span class="annot"><span class="annottext">BulkDirection
+</span><a href="#local-6989586621679251405"><span class="hs-identifier hs-var">encOrDec</span></a></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679251430"><span class="hs-identifier hs-var">key</span></a></span><span>
+</span><span id="line-127"></span><span>            </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">cstIV :: ByteString
+</span><a href="#local-6989586621679251438"><span class="hs-identifier hs-var">cstIV</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679251433"><span class="hs-identifier hs-var">iv</span></a></span><span>
+</span><span id="line-128"></span><span>            </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">cstMacSecret :: ByteString
+</span><a href="Network.TLS.Record.State.html#cstMacSecret"><span class="hs-identifier hs-var">cstMacSecret</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679251410"><span class="hs-identifier hs-var">secret</span></a></span><span>
+</span><span id="line-129"></span><span>            </span><span class="hs-special">}</span><span>
+</span><span id="line-130"></span><span>    </span><span id="local-6989586621679251412"><span class="annot"><span class="annottext">rt :: RecordState
+</span><a href="#local-6989586621679251412"><span class="hs-identifier hs-var hs-var">rt</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-131"></span><span>        </span><span class="annot"><a href="Network.TLS.Record.State.html#RecordState"><span class="hs-identifier hs-type">RecordState</span></a></span><span>
+</span><span id="line-132"></span><span>            </span><span class="hs-special">{</span><span> </span><span class="annot"><span class="annottext">stCryptState :: CryptState
+</span><a href="Network.TLS.Record.State.html#stCryptState"><span class="hs-identifier hs-var">stCryptState</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">CryptState
+</span><a href="#local-6989586621679251434"><span class="hs-identifier hs-var">cst</span></a></span><span>
+</span><span id="line-133"></span><span>            </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">stMacState :: MacState
+</span><a href="#local-6989586621679251442"><span class="hs-identifier hs-var">stMacState</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="Network.TLS.Record.State.html#MacState"><span class="hs-identifier hs-type">MacState</span></a></span><span class="hs-special">{</span><span class="annot"><span class="annottext">msSequence :: Word64
+</span><a href="#local-6989586621679251444"><span class="hs-identifier hs-var">msSequence</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word64
+</span><span class="hs-number">0</span></span><span class="hs-special">}</span><span>
+</span><span id="line-134"></span><span>            </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">stCryptLevel :: CryptLevel
+</span><a href="Network.TLS.Record.State.html#stCryptLevel"><span class="hs-identifier hs-var">stCryptLevel</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">CryptLevel
+</span><a href="#local-6989586621679251409"><span class="hs-identifier hs-var">lvl</span></a></span><span>
+</span><span id="line-135"></span><span>            </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">stCipher :: Maybe Cipher
+</span><a href="Network.TLS.Record.State.html#stCipher"><span class="hs-identifier hs-var">stCipher</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Cipher -&gt; Maybe Cipher
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">Cipher
+</span><a href="#local-6989586621679251408"><span class="hs-identifier hs-var">cipher</span></a></span><span>
+</span><span id="line-136"></span><span>            </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">stCompression :: Compression
+</span><a href="#local-6989586621679251445"><span class="hs-identifier hs-var">stCompression</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Compression
+</span><a href="Network.TLS.Compression.html#nullCompression"><span class="hs-identifier hs-var">nullCompression</span></a></span><span>
+</span><span id="line-137"></span><span>            </span><span class="hs-special">}</span><span>
+</span><span id="line-138"></span><span>
+</span><span id="line-139"></span><span class="annot"><a href="Network.TLS.Handshake.State13.html#clearTxRecordState"><span class="hs-identifier hs-type">clearTxRecordState</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Network.TLS.Context.Internal.html#Context"><span class="hs-identifier hs-type">Context</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-140"></span><span id="clearTxRecordState"><span class="annot"><span class="annottext">clearTxRecordState :: Context -&gt; IO ()
+</span><a href="Network.TLS.Handshake.State13.html#clearTxRecordState"><span class="hs-identifier hs-var hs-var">clearTxRecordState</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Context -&gt; MVar RecordState) -&gt; Context -&gt; IO ()
+</span><a href="Network.TLS.Handshake.State13.html#clearXState"><span class="hs-identifier hs-var">clearXState</span></a></span><span> </span><span class="annot"><span class="annottext">Context -&gt; MVar RecordState
+</span><a href="Network.TLS.Context.Internal.html#ctxTxRecordState"><span class="hs-identifier hs-var">ctxTxRecordState</span></a></span><span>
+</span><span id="line-141"></span><span>
+</span><span id="line-142"></span><span class="annot"><a href="Network.TLS.Handshake.State13.html#clearRxRecordState"><span class="hs-identifier hs-type">clearRxRecordState</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Network.TLS.Context.Internal.html#Context"><span class="hs-identifier hs-type">Context</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-143"></span><span id="clearRxRecordState"><span class="annot"><span class="annottext">clearRxRecordState :: Context -&gt; IO ()
+</span><a href="Network.TLS.Handshake.State13.html#clearRxRecordState"><span class="hs-identifier hs-var hs-var">clearRxRecordState</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Context -&gt; MVar RecordState) -&gt; Context -&gt; IO ()
+</span><a href="Network.TLS.Handshake.State13.html#clearXState"><span class="hs-identifier hs-var">clearXState</span></a></span><span> </span><span class="annot"><span class="annottext">Context -&gt; MVar RecordState
+</span><a href="Network.TLS.Context.Internal.html#ctxRxRecordState"><span class="hs-identifier hs-var">ctxRxRecordState</span></a></span><span>
+</span><span id="line-144"></span><span>
+</span><span id="line-145"></span><span class="annot"><a href="Network.TLS.Handshake.State13.html#clearXState"><span class="hs-identifier hs-type">clearXState</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Network.TLS.Context.Internal.html#Context"><span class="hs-identifier hs-type">Context</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">MVar</span></span><span> </span><span class="annot"><a href="Network.TLS.Record.State.html#RecordState"><span class="hs-identifier hs-type">RecordState</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Network.TLS.Context.Internal.html#Context"><span class="hs-identifier hs-type">Context</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-146"></span><span id="clearXState"><span class="annot"><span class="annottext">clearXState :: (Context -&gt; MVar RecordState) -&gt; Context -&gt; IO ()
+</span><a href="Network.TLS.Handshake.State13.html#clearXState"><span class="hs-identifier hs-var hs-var">clearXState</span></a></span></span><span> </span><span id="local-6989586621679251448"><span class="annot"><span class="annottext">Context -&gt; MVar RecordState
+</span><a href="#local-6989586621679251448"><span class="hs-identifier hs-var">func</span></a></span></span><span> </span><span id="local-6989586621679251449"><span class="annot"><span class="annottext">Context
+</span><a href="#local-6989586621679251449"><span class="hs-identifier hs-var">ctx</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-147"></span><span>    </span><span class="annot"><span class="annottext">MVar RecordState -&gt; (RecordState -&gt; IO RecordState) -&gt; IO ()
+forall a. MVar a -&gt; (a -&gt; IO a) -&gt; IO ()
+</span><span class="hs-identifier hs-var">modifyMVar_</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Context -&gt; MVar RecordState
+</span><a href="#local-6989586621679251448"><span class="hs-identifier hs-var">func</span></a></span><span> </span><span class="annot"><span class="annottext">Context
+</span><a href="#local-6989586621679251449"><span class="hs-identifier hs-var">ctx</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span id="local-6989586621679251450"><span class="annot"><span class="annottext">RecordState
+</span><a href="#local-6989586621679251450"><span class="hs-identifier hs-var">rt</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">RecordState -&gt; IO RecordState
+forall a. a -&gt; IO a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">RecordState
+</span><a href="#local-6989586621679251450"><span class="hs-identifier hs-var">rt</span></a></span><span class="hs-special">{</span><span class="annot"><a href="Network.TLS.Record.State.html#stCipher"><span class="hs-identifier hs-var">stCipher</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Nothing</span></span><span class="hs-special">}</span><span class="hs-special">)</span><span>
+</span><span id="line-148"></span><span>
+</span><span id="line-149"></span><span class="annot"><a href="Network.TLS.Handshake.State13.html#setHelloParameters13"><span class="hs-identifier hs-type">setHelloParameters13</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Network.TLS.Types.Cipher.html#Cipher"><span class="hs-identifier hs-type">Cipher</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Network.TLS.Handshake.State.html#HandshakeM"><span class="hs-identifier hs-type">HandshakeM</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Either</span></span><span> </span><span class="annot"><a href="Network.TLS.Error.html#TLSError"><span class="hs-identifier hs-type">TLSError</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-150"></span><span id="setHelloParameters13"><span class="annot"><span class="annottext">setHelloParameters13 :: Cipher -&gt; HandshakeM (Either TLSError ())
+</span><a href="Network.TLS.Handshake.State13.html#setHelloParameters13"><span class="hs-identifier hs-var hs-var">setHelloParameters13</span></a></span></span><span> </span><span id="local-6989586621679251451"><span class="annot"><span class="annottext">Cipher
+</span><a href="#local-6989586621679251451"><span class="hs-identifier hs-var">cipher</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-151"></span><span>    </span><span id="local-6989586621679251452"><span class="annot"><a href="#local-6989586621679251452"><span class="hs-identifier hs-var">hst</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">HandshakeM HandshakeState
+forall s (m :: * -&gt; *). MonadState s m =&gt; m s
+</span><span class="hs-identifier hs-var">get</span></span><span>
+</span><span id="line-152"></span><span>    </span><span class="hs-keyword">case</span><span> </span><span class="annot"><a href="Network.TLS.Handshake.State.html#hstPendingCipher"><span class="hs-identifier hs-var">hstPendingCipher</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679251452"><span class="hs-identifier hs-type">hst</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-153"></span><span>        </span><span class="annot"><span class="annottext">Maybe Cipher
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-154"></span><span>            </span><span class="annot"><span class="annottext">HandshakeState -&gt; HandshakeM ()
+forall s (m :: * -&gt; *). MonadState s m =&gt; s -&gt; m ()
+</span><span class="hs-identifier hs-var">put</span></span><span>
+</span><span id="line-155"></span><span>                </span><span class="annot"><span class="annottext">HandshakeState
+</span><a href="#local-6989586621679251452"><span class="hs-identifier hs-var">hst</span></a></span><span>
+</span><span id="line-156"></span><span>                    </span><span class="hs-special">{</span><span> </span><span class="annot"><a href="Network.TLS.Handshake.State.html#hstPendingCipher"><span class="hs-identifier hs-var">hstPendingCipher</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span class="annot"><a href="#local-6989586621679251451"><span class="hs-identifier hs-type">cipher</span></a></span><span>
+</span><span id="line-157"></span><span>                    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Network.TLS.Handshake.State.html#hstPendingCompression"><span class="hs-identifier hs-var">hstPendingCompression</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="Network.TLS.Compression.html#nullCompression"><span class="hs-identifier hs-type">nullCompression</span></a></span><span>
+</span><span id="line-158"></span><span>                    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Network.TLS.Handshake.State.html#hstHandshakeDigest"><span class="hs-identifier hs-var">hstHandshakeDigest</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="#local-6989586621679251458"><span class="hs-identifier hs-type">updateDigest</span></a></span><span> </span><span class="annot"><span class="hs-operator hs-type">$</span></span><span> </span><span class="annot"><a href="Network.TLS.Handshake.State.html#hstHandshakeDigest"><span class="hs-identifier hs-var">hstHandshakeDigest</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679251452"><span class="hs-identifier hs-type">hst</span></a></span><span>
+</span><span id="line-159"></span><span>                    </span><span class="hs-special">}</span><span>
+</span><span id="line-160"></span><span>            </span><span class="annot"><span class="annottext">Either TLSError () -&gt; HandshakeM (Either TLSError ())
+forall a. a -&gt; HandshakeM a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">(Either TLSError () -&gt; HandshakeM (Either TLSError ()))
+-&gt; Either TLSError () -&gt; HandshakeM (Either TLSError ())
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">() -&gt; Either TLSError ()
+forall a b. b -&gt; Either a b
+</span><span class="hs-identifier hs-var">Right</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-161"></span><span>        </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621679251459"><span class="annot"><span class="annottext">Cipher
+</span><a href="#local-6989586621679251459"><span class="hs-identifier hs-var">oldcipher</span></a></span></span><span>
+</span><span id="line-162"></span><span>            </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Cipher
+</span><a href="#local-6989586621679251451"><span class="hs-identifier hs-var">cipher</span></a></span><span> </span><span class="annot"><span class="annottext">Cipher -&gt; Cipher -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">Cipher
+</span><a href="#local-6989586621679251459"><span class="hs-identifier hs-var">oldcipher</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Either TLSError () -&gt; HandshakeM (Either TLSError ())
+forall a. a -&gt; HandshakeM a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">(Either TLSError () -&gt; HandshakeM (Either TLSError ()))
+-&gt; Either TLSError () -&gt; HandshakeM (Either TLSError ())
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">() -&gt; Either TLSError ()
+forall a b. b -&gt; Either a b
+</span><span class="hs-identifier hs-var">Right</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-163"></span><span>            </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-164"></span><span>                </span><span class="annot"><span class="annottext">Either TLSError () -&gt; HandshakeM (Either TLSError ())
+forall a. a -&gt; HandshakeM a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">(Either TLSError () -&gt; HandshakeM (Either TLSError ()))
+-&gt; Either TLSError () -&gt; HandshakeM (Either TLSError ())
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-165"></span><span>                    </span><span class="annot"><span class="annottext">TLSError -&gt; Either TLSError ()
+forall a b. a -&gt; Either a b
+</span><span class="hs-identifier hs-var">Left</span></span><span> </span><span class="annot"><span class="annottext">(TLSError -&gt; Either TLSError ()) -&gt; TLSError -&gt; Either TLSError ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-166"></span><span>                        </span><span class="annot"><span class="annottext">String -&gt; AlertDescription -&gt; TLSError
+</span><a href="Network.TLS.Error.html#Error_Protocol"><span class="hs-identifier hs-var">Error_Protocol</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;TLS 1.3 cipher changed after hello retry&quot;</span></span><span> </span><span class="annot"><span class="annottext">AlertDescription
+</span><a href="Network.TLS.Error.html#IllegalParameter"><span class="hs-identifier hs-var">IllegalParameter</span></a></span><span>
+</span><span id="line-167"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-168"></span><span>    </span><span id="local-6989586621679251462"><span class="annot"><span class="annottext">hashAlg :: Hash
+</span><a href="#local-6989586621679251462"><span class="hs-identifier hs-var hs-var">hashAlg</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Cipher -&gt; Hash
+</span><a href="Network.TLS.Types.Cipher.html#cipherHash"><span class="hs-identifier hs-var">cipherHash</span></a></span><span> </span><span class="annot"><span class="annottext">Cipher
+</span><a href="#local-6989586621679251451"><span class="hs-identifier hs-var">cipher</span></a></span><span>
+</span><span id="line-169"></span><span>    </span><span id="local-6989586621679251458"><span class="annot"><span class="annottext">updateDigest :: HandshakeDigest -&gt; HandshakeDigest
+</span><a href="#local-6989586621679251458"><span class="hs-identifier hs-var hs-var">updateDigest</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Network.TLS.Handshake.State.html#HandshakeMessages"><span class="hs-identifier hs-type">HandshakeMessages</span></a></span><span> </span><span id="local-6989586621679251468"><span class="annot"><span class="annottext">[ByteString]
+</span><a href="#local-6989586621679251468"><span class="hs-identifier hs-var">bytes</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">HashCtx -&gt; HandshakeDigest
+</span><a href="Network.TLS.Handshake.State.html#HandshakeDigestContext"><span class="hs-identifier hs-var">HandshakeDigestContext</span></a></span><span> </span><span class="annot"><span class="annottext">(HashCtx -&gt; HandshakeDigest) -&gt; HashCtx -&gt; HandshakeDigest
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">(HashCtx -&gt; ByteString -&gt; HashCtx)
+-&gt; HashCtx -&gt; [ByteString] -&gt; HashCtx
+forall b a. (b -&gt; a -&gt; b) -&gt; b -&gt; [a] -&gt; b
+forall (t :: * -&gt; *) b a.
+Foldable t =&gt;
+(b -&gt; a -&gt; b) -&gt; b -&gt; t a -&gt; b
+</span><span class="hs-identifier hs-var">foldl</span></span><span> </span><span class="annot"><span class="annottext">HashCtx -&gt; ByteString -&gt; HashCtx
+</span><a href="Network.TLS.Crypto.html#hashUpdate"><span class="hs-identifier hs-var">hashUpdate</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Hash -&gt; HashCtx
+</span><a href="Network.TLS.Crypto.html#hashInit"><span class="hs-identifier hs-var">hashInit</span></a></span><span> </span><span class="annot"><span class="annottext">Hash
+</span><a href="#local-6989586621679251462"><span class="hs-identifier hs-var">hashAlg</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">([ByteString] -&gt; HashCtx) -&gt; [ByteString] -&gt; HashCtx
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">[ByteString] -&gt; [ByteString]
+forall a. [a] -&gt; [a]
+</span><span class="hs-identifier hs-var">reverse</span></span><span> </span><span class="annot"><span class="annottext">[ByteString]
+</span><a href="#local-6989586621679251468"><span class="hs-identifier hs-var">bytes</span></a></span><span>
+</span><span id="line-170"></span><span>    </span><span class="annot"><a href="#local-6989586621679251458"><span class="hs-identifier hs-var">updateDigest</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Network.TLS.Handshake.State.html#HandshakeDigestContext"><span class="hs-identifier hs-type">HandshakeDigestContext</span></a></span><span> </span><span class="annot"><span class="annottext">HashCtx
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; HandshakeDigest
+forall a. HasCallStack =&gt; String -&gt; a
+</span><span class="hs-identifier hs-var">error</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;cannot initialize digest with another digest&quot;</span></span><span>
+</span><span id="line-171"></span><span>
+</span><span id="line-172"></span><span class="hs-comment">-- When a HelloRetryRequest is sent or received, the existing transcript must be</span><span>
+</span><span id="line-173"></span><span class="hs-comment">-- wrapped in a &quot;message_hash&quot; construct.  See RFC 8446 section 4.4.1.  This</span><span>
+</span><span id="line-174"></span><span class="hs-comment">-- applies to key-schedule computations as well as the ones for PSK binders.</span><span>
+</span><span id="line-175"></span><span class="annot"><a href="Network.TLS.Handshake.State13.html#wrapAsMessageHash13"><span class="hs-identifier hs-type">wrapAsMessageHash13</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Network.TLS.Handshake.State.html#HandshakeM"><span class="hs-identifier hs-type">HandshakeM</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-176"></span><span id="wrapAsMessageHash13"><span class="annot"><span class="annottext">wrapAsMessageHash13 :: HandshakeM ()
+</span><a href="Network.TLS.Handshake.State13.html#wrapAsMessageHash13"><span class="hs-identifier hs-var hs-var">wrapAsMessageHash13</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-177"></span><span>    </span><span id="local-6989586621679251475"><span class="annot"><a href="#local-6989586621679251475"><span class="hs-identifier hs-var">cipher</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">HandshakeM Cipher
+</span><a href="Network.TLS.Handshake.State.html#getPendingCipher"><span class="hs-identifier hs-var">getPendingCipher</span></a></span><span>
+</span><span id="line-178"></span><span>    </span><span class="annot"><a href="Network.TLS.Handshake.State.html#foldHandshakeDigest"><span class="hs-identifier hs-type">foldHandshakeDigest</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Network.TLS.Types.Cipher.html#cipherHash"><span class="hs-identifier hs-var">cipherHash</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679251475"><span class="hs-identifier hs-type">cipher</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><a href="#local-6989586621679251478"><span class="hs-identifier hs-type">foldFunc</span></a></span><span>
+</span><span id="line-179"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-180"></span><span>    </span><span id="local-6989586621679251478"><span class="annot"><span class="annottext">foldFunc :: ByteString -&gt; ByteString
+</span><a href="#local-6989586621679251478"><span class="hs-identifier hs-var hs-var">foldFunc</span></a></span></span><span> </span><span id="local-6989586621679251484"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679251484"><span class="hs-identifier hs-var">dig</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-181"></span><span>        </span><span class="annot"><span class="annottext">[ByteString] -&gt; ByteString
+</span><span class="hs-identifier hs-var">B.concat</span></span><span>
+</span><span id="line-182"></span><span>            </span><span class="hs-special">[</span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><span class="hs-string">&quot;\254\0\0&quot;</span></span><span>
+</span><span id="line-183"></span><span>            </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Word8 -&gt; ByteString
+</span><span class="hs-identifier hs-var">B.singleton</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; Word8
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="annot"><span class="annottext">(Int -&gt; Word8) -&gt; Int -&gt; Word8
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; Int
+</span><span class="hs-identifier hs-var">B.length</span></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679251484"><span class="hs-identifier hs-var">dig</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-184"></span><span>            </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679251484"><span class="hs-identifier hs-var">dig</span></a></span><span>
+</span><span id="line-185"></span><span>            </span><span class="hs-special">]</span><span>
+</span><span id="line-186"></span><span>
+</span><span id="line-187"></span><span id="local-6989586621679251276"><span class="annot"><a href="Network.TLS.Handshake.State13.html#transcriptHash"><span class="hs-identifier hs-type">transcriptHash</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">MonadIO</span></span><span> </span><span class="annot"><a href="#local-6989586621679251276"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Network.TLS.Context.Internal.html#Context"><span class="hs-identifier hs-type">Context</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679251276"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">ByteString</span></span></span><span>
+</span><span id="line-188"></span><span id="transcriptHash"><span class="annot"><span class="annottext">transcriptHash :: forall (m :: * -&gt; *). MonadIO m =&gt; Context -&gt; m ByteString
+</span><a href="Network.TLS.Handshake.State13.html#transcriptHash"><span class="hs-identifier hs-var hs-var">transcriptHash</span></a></span></span><span> </span><span id="local-6989586621679251503"><span class="annot"><span class="annottext">Context
+</span><a href="#local-6989586621679251503"><span class="hs-identifier hs-var">ctx</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-189"></span><span>    </span><span id="local-6989586621679251504"><span class="annot"><a href="#local-6989586621679251504"><span class="hs-identifier hs-var">hst</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Maybe HandshakeState -&gt; HandshakeState
+forall a. HasCallStack =&gt; Maybe a -&gt; a
+</span><span class="hs-identifier hs-var">fromJust</span></span><span> </span><span class="annot"><span class="annottext">(Maybe HandshakeState -&gt; HandshakeState)
+-&gt; m (Maybe HandshakeState) -&gt; m HandshakeState
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">Context -&gt; m (Maybe HandshakeState)
+forall (m :: * -&gt; *).
+MonadIO m =&gt;
+Context -&gt; m (Maybe HandshakeState)
+</span><a href="Network.TLS.Context.Internal.html#getHState"><span class="hs-identifier hs-var">getHState</span></a></span><span> </span><span class="annot"><span class="annottext">Context
+</span><a href="#local-6989586621679251503"><span class="hs-identifier hs-var">ctx</span></a></span><span>
+</span><span id="line-190"></span><span>    </span><span class="hs-keyword">case</span><span> </span><span class="annot"><a href="Network.TLS.Handshake.State.html#hstHandshakeDigest"><span class="hs-identifier hs-var">hstHandshakeDigest</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679251504"><span class="hs-identifier hs-type">hst</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-191"></span><span>        </span><span class="annot"><a href="Network.TLS.Handshake.State.html#HandshakeDigestContext"><span class="hs-identifier hs-type">HandshakeDigestContext</span></a></span><span> </span><span id="local-6989586621679251507"><span class="annot"><span class="annottext">HashCtx
+</span><a href="#local-6989586621679251507"><span class="hs-identifier hs-var">hashCtx</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; m ByteString
+forall a. a -&gt; m a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">(ByteString -&gt; m ByteString) -&gt; ByteString -&gt; m ByteString
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">HashCtx -&gt; ByteString
+</span><a href="Network.TLS.Crypto.html#hashFinal"><span class="hs-identifier hs-var">hashFinal</span></a></span><span> </span><span class="annot"><span class="annottext">HashCtx
+</span><a href="#local-6989586621679251507"><span class="hs-identifier hs-var">hashCtx</span></a></span><span>
+</span><span id="line-192"></span><span>        </span><span class="annot"><a href="Network.TLS.Handshake.State.html#HandshakeMessages"><span class="hs-identifier hs-type">HandshakeMessages</span></a></span><span> </span><span class="annot"><span class="annottext">[ByteString]
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">String -&gt; m ByteString
+forall a. HasCallStack =&gt; String -&gt; a
+</span><span class="hs-identifier hs-var">error</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;un-initialized handshake digest&quot;</span></span><span>
+</span><span id="line-193"></span><span>
+</span><span id="line-194"></span><span class="annot"><a href="Network.TLS.Handshake.State13.html#setPendingRecvActions"><span class="hs-identifier hs-type">setPendingRecvActions</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Network.TLS.Context.Internal.html#Context"><span class="hs-identifier hs-type">Context</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Network.TLS.Context.Internal.html#PendingRecvAction"><span class="hs-identifier hs-type">PendingRecvAction</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-195"></span><span id="setPendingRecvActions"><span class="annot"><span class="annottext">setPendingRecvActions :: Context -&gt; [PendingRecvAction] -&gt; IO ()
+</span><a href="Network.TLS.Handshake.State13.html#setPendingRecvActions"><span class="hs-identifier hs-var hs-var">setPendingRecvActions</span></a></span></span><span> </span><span id="local-6989586621679251509"><span class="annot"><span class="annottext">Context
+</span><a href="#local-6989586621679251509"><span class="hs-identifier hs-var">ctx</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">IORef [PendingRecvAction] -&gt; [PendingRecvAction] -&gt; IO ()
+forall a. IORef a -&gt; a -&gt; IO ()
+</span><span class="hs-identifier hs-var">writeIORef</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Context -&gt; IORef [PendingRecvAction]
+</span><a href="Network.TLS.Context.Internal.html#ctxPendingRecvActions"><span class="hs-identifier hs-var">ctxPendingRecvActions</span></a></span><span> </span><span class="annot"><span class="annottext">Context
+</span><a href="#local-6989586621679251509"><span class="hs-identifier hs-var">ctx</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-196"></span><span>
+</span><span id="line-197"></span><span class="annot"><a href="Network.TLS.Handshake.State13.html#popPendingRecvAction"><span class="hs-identifier hs-type">popPendingRecvAction</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Network.TLS.Context.Internal.html#Context"><span class="hs-identifier hs-type">Context</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="Network.TLS.Context.Internal.html#PendingRecvAction"><span class="hs-identifier hs-type">PendingRecvAction</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-198"></span><span id="popPendingRecvAction"><span class="annot"><span class="annottext">popPendingRecvAction :: Context -&gt; IO (Maybe PendingRecvAction)
+</span><a href="Network.TLS.Handshake.State13.html#popPendingRecvAction"><span class="hs-identifier hs-var hs-var">popPendingRecvAction</span></a></span></span><span> </span><span id="local-6989586621679251512"><span class="annot"><span class="annottext">Context
+</span><a href="#local-6989586621679251512"><span class="hs-identifier hs-var">ctx</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-199"></span><span>    </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679251513"><span class="annot"><span class="annottext">ref :: IORef [PendingRecvAction]
+</span><a href="#local-6989586621679251513"><span class="hs-identifier hs-var hs-var hs-var">ref</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Context -&gt; IORef [PendingRecvAction]
+</span><a href="Network.TLS.Context.Internal.html#ctxPendingRecvActions"><span class="hs-identifier hs-var">ctxPendingRecvActions</span></a></span><span> </span><span class="annot"><span class="annottext">Context
+</span><a href="#local-6989586621679251512"><span class="hs-identifier hs-var">ctx</span></a></span><span>
+</span><span id="line-200"></span><span>    </span><span id="local-6989586621679251514"><span class="annot"><a href="#local-6989586621679251514"><span class="hs-identifier hs-var">actions</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">IORef [PendingRecvAction] -&gt; IO [PendingRecvAction]
+forall a. IORef a -&gt; IO a
+</span><span class="hs-identifier hs-var">readIORef</span></span><span> </span><span class="annot"><span class="annottext">IORef [PendingRecvAction]
+</span><a href="#local-6989586621679251513"><span class="hs-identifier hs-var">ref</span></a></span><span>
+</span><span id="line-201"></span><span>    </span><span class="hs-keyword">case</span><span> </span><span class="annot"><a href="#local-6989586621679251514"><span class="hs-identifier hs-type">actions</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-202"></span><span>        </span><span id="local-6989586621679251516"><span class="annot"><span class="annottext">PendingRecvAction
+</span><a href="#local-6989586621679251516"><span class="hs-identifier hs-var">bs</span></a></span></span><span> </span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span> </span><span id="local-6989586621679251517"><span class="annot"><span class="annottext">[PendingRecvAction]
+</span><a href="#local-6989586621679251517"><span class="hs-identifier hs-var">bss</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">IORef [PendingRecvAction] -&gt; [PendingRecvAction] -&gt; IO ()
+forall a. IORef a -&gt; a -&gt; IO ()
+</span><span class="hs-identifier hs-var">writeIORef</span></span><span> </span><span class="annot"><span class="annottext">IORef [PendingRecvAction]
+</span><a href="#local-6989586621679251513"><span class="hs-identifier hs-var">ref</span></a></span><span> </span><span class="annot"><span class="annottext">[PendingRecvAction]
+</span><a href="#local-6989586621679251517"><span class="hs-identifier hs-var">bss</span></a></span><span> </span><span class="annot"><span class="annottext">IO ()
+-&gt; IO (Maybe PendingRecvAction) -&gt; IO (Maybe PendingRecvAction)
+forall a b. IO a -&gt; IO b -&gt; IO b
+forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; m b -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Maybe PendingRecvAction -&gt; IO (Maybe PendingRecvAction)
+forall a. a -&gt; IO a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">PendingRecvAction -&gt; Maybe PendingRecvAction
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">PendingRecvAction
+</span><a href="#local-6989586621679251516"><span class="hs-identifier hs-var">bs</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-203"></span><span>        </span><span class="hs-special">[</span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Maybe PendingRecvAction -&gt; IO (Maybe PendingRecvAction)
+forall a. a -&gt; IO a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">Maybe PendingRecvAction
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-204"></span></pre></body></html>

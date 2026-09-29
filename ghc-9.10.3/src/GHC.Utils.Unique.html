@@ -1,0 +1,56 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE CPP #-}</span><span>
+</span><span id="line-2"></span><span>
+</span><span id="line-3"></span><span class="hs-comment">{- Work around #23537
+
+On 32 bit systems, GHC's codegen around 64 bit numbers used to be incomplete
+before GHC 9.10. This led to panics mentioning missing cases in iselExpr64.
+Now that GHC uses Word64 for its uniques, these panics have started popping up
+whenever a unique is compared to many other uniques in one function. As a
+workaround we use these two functions which are not inlined, on 32 bit systems
+and if compiled with versions before GHC 9.9, thus preventing the panics.
+-}</span><span>
+</span><span id="line-12"></span><span>
+</span><span id="line-13"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="GHC.Utils.Unique.html"><span class="hs-identifier">GHC.Utils.Unique</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Utils.Unique.html#sameUnique"><span class="hs-identifier">sameUnique</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Utils.Unique.html#anyOfUnique"><span class="hs-identifier">anyOfUnique</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span class="hs-cpp">
+
+#include &quot;MachDeps.h&quot;
+</span><span>
+</span><span id="line-17"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Prelude.Basic.html"><span class="hs-identifier">GHC.Prelude.Basic</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Bool</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">Eq</span></span><span class="hs-special">(</span><span class="annot"><span class="hs-operator">(==)</span></span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">Foldable</span></span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">elem</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-18"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Types.Unique.html"><span class="hs-identifier">GHC.Types.Unique</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Types.Unique.html#Unique"><span class="hs-identifier">Unique</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Types.Unique.html#Uniquable"><span class="hs-identifier">Uniquable</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Types.Unique.html#getUnique"><span class="hs-identifier">getUnique</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-cpp">
+
+
+#if WORD_SIZE_IN_BITS == 32 &amp;&amp; !MIN_VERSION_GLASGOW_HASKELL(9,9,0,0)
+</span><span class="hs-pragma">{-# NOINLINE</span><span> </span><span class="hs-pragma">sameUnique</span><span> </span><span class="hs-pragma">#-}</span><span class="hs-cpp">
+#else
+</span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="GHC.Utils.Unique.html#sameUnique"><span class="hs-pragma hs-type">sameUnique</span></a></span><span> </span><span class="hs-pragma">#-}</span><span class="hs-cpp">
+#endif
+</span><span id="local-6989586621682351640"><span class="annot"><a href="GHC.Utils.Unique.html#sameUnique"><span class="hs-identifier hs-type">sameUnique</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Types.Unique.html#Uniquable"><span class="hs-identifier hs-type">Uniquable</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682351640"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621682351640"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621682351640"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span></span><span>
+</span><span id="line-27"></span><span id="sameUnique"><span class="annot"><span class="annottext">sameUnique :: forall a. Uniquable a =&gt; a -&gt; a -&gt; Bool
+</span><a href="GHC.Utils.Unique.html#sameUnique"><span class="hs-identifier hs-var hs-var">sameUnique</span></a></span></span><span> </span><span id="local-6989586621682351659"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621682351659"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span id="local-6989586621682351660"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621682351660"><span class="hs-identifier hs-var">y</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">a -&gt; Unique
+forall a. Uniquable a =&gt; a -&gt; Unique
+</span><a href="GHC.Types.Unique.html#getUnique"><span class="hs-identifier hs-var">getUnique</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621682351659"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">Unique -&gt; Unique -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; Unique
+forall a. Uniquable a =&gt; a -&gt; Unique
+</span><a href="GHC.Types.Unique.html#getUnique"><span class="hs-identifier hs-var">getUnique</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621682351660"><span class="hs-identifier hs-var">y</span></a></span><span class="hs-cpp">
+
+#if WORD_SIZE_IN_BITS == 32 &amp;&amp; !MIN_VERSION_GLASGOW_HASKELL(9,9,0,0)
+</span><span class="hs-pragma">{-# NOINLINE</span><span> </span><span class="hs-pragma">anyOfUnique</span><span> </span><span class="hs-pragma">#-}</span><span class="hs-cpp">
+#else
+</span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="GHC.Utils.Unique.html#anyOfUnique"><span class="hs-pragma hs-type">anyOfUnique</span></a></span><span> </span><span class="hs-pragma">#-}</span><span class="hs-cpp">
+#endif
+</span><span id="local-6989586621682351646"><span class="annot"><a href="GHC.Utils.Unique.html#anyOfUnique"><span class="hs-identifier hs-type">anyOfUnique</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Types.Unique.html#Uniquable"><span class="hs-identifier hs-type">Uniquable</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682351646"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621682351646"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="GHC.Types.Unique.html#Unique"><span class="hs-identifier hs-type">Unique</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span></span><span>
+</span><span id="line-35"></span><span id="anyOfUnique"><span class="annot"><span class="annottext">anyOfUnique :: forall a. Uniquable a =&gt; a -&gt; [Unique] -&gt; Bool
+</span><a href="GHC.Utils.Unique.html#anyOfUnique"><span class="hs-identifier hs-var hs-var">anyOfUnique</span></a></span></span><span> </span><span id="local-6989586621682351666"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621682351666"><span class="hs-identifier hs-var">tc</span></a></span></span><span> </span><span id="local-6989586621682351667"><span class="annot"><span class="annottext">[Unique]
+</span><a href="#local-6989586621682351667"><span class="hs-identifier hs-var">xs</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">a -&gt; Unique
+forall a. Uniquable a =&gt; a -&gt; Unique
+</span><a href="GHC.Types.Unique.html#getUnique"><span class="hs-identifier hs-var">getUnique</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621682351666"><span class="hs-identifier hs-var">tc</span></a></span><span> </span><span class="annot"><span class="annottext">Unique -&gt; [Unique] -&gt; Bool
+forall a. Eq a =&gt; a -&gt; [a] -&gt; Bool
+forall (t :: * -&gt; *) a. (Foldable t, Eq a) =&gt; a -&gt; t a -&gt; Bool
+</span><span class="hs-operator hs-var">`elem`</span></span><span> </span><span class="annot"><span class="annottext">[Unique]
+</span><a href="#local-6989586621682351667"><span class="hs-identifier hs-var">xs</span></a></span></pre></body></html>

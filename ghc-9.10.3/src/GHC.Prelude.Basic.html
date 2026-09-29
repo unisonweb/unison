@@ -1,0 +1,163 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE CPP #-}</span><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# OPTIONS_HADDOCK not-home #-}</span><span>
+</span><span id="line-3"></span><span class="hs-pragma">{-# OPTIONS_GHC -O2 #-}</span><span> </span><span class="hs-comment">-- See Note [-O2 Prelude]</span><span>
+</span><span id="line-4"></span><span>
+</span><span id="line-5"></span><span class="hs-comment">-- See Note [Proxies for head and tail]</span><span>
+</span><span id="line-6"></span><span class="hs-pragma">{-# OPTIONS_GHC -Wno-unrecognised-warning-flags -Wno-x-partial #-}</span><span>
+</span><span id="line-7"></span><span>
+</span><span id="line-8"></span><span class="hs-comment">-- | Custom minimal GHC &quot;Prelude&quot;</span><span>
+</span><span id="line-9"></span><span class="hs-comment">--</span><span>
+</span><span id="line-10"></span><span class="hs-comment">-- This module serves as a replacement for the &quot;Prelude&quot; module</span><span>
+</span><span id="line-11"></span><span class="hs-comment">-- and abstracts over differences between the bootstrapping</span><span>
+</span><span id="line-12"></span><span class="hs-comment">-- GHC version, and may also provide a common default vocabulary.</span><span>
+</span><span id="line-13"></span><span>
+</span><span id="line-14"></span><span class="hs-comment">-- Every module in GHC</span><span>
+</span><span id="line-15"></span><span class="hs-comment">--   * Is compiled with -XNoImplicitPrelude</span><span>
+</span><span id="line-16"></span><span class="hs-comment">--   * Explicitly imports GHC.Prelude.Basic or GHC.Prelude</span><span>
+</span><span id="line-17"></span><span class="hs-comment">--   * The later provides some functionality with within ghc itself</span><span>
+</span><span id="line-18"></span><span class="hs-comment">--     like pprTrace.</span><span>
+</span><span id="line-19"></span><span>
+</span><span id="line-20"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="GHC.Prelude.Basic.html"><span class="hs-identifier">GHC.Prelude.Basic</span></a></span><span>
+</span><span id="line-21"></span><span>  </span><span class="hs-special">(</span><span class="hs-keyword">module</span><span> </span><span class="annot"><span class="hs-identifier">X</span></span><span>
+</span><span id="line-22"></span><span>  </span><span class="hs-special">,</span><span class="annot"><span class="hs-identifier">Applicative</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-23"></span><span>  </span><span class="hs-special">,</span><span class="hs-keyword">module</span><span> </span><span class="annot"><span class="hs-identifier">Bits</span></span><span>
+</span><span id="line-24"></span><span>  </span><span class="hs-special">,</span><span class="annot"><a href="GHC.Prelude.Basic.html#shiftL"><span class="hs-identifier">shiftL</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Prelude.Basic.html#shiftR"><span class="hs-identifier">shiftR</span></a></span><span>
+</span><span id="line-25"></span><span>  </span><span class="hs-special">,</span><span class="annot"><a href="GHC.Prelude.Basic.html#head"><span class="hs-identifier">head</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Prelude.Basic.html#tail"><span class="hs-identifier">tail</span></a></span><span>
+</span><span id="line-26"></span><span>
+</span><span id="line-27"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Prelude.Basic.html#strictGenericLength"><span class="hs-identifier">strictGenericLength</span></a></span><span>
+</span><span id="line-28"></span><span>  </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-29"></span><span>
+</span><span id="line-30"></span><span>
+</span><span id="line-31"></span><span class="hs-comment">{- Note [-O2 Prelude]
+~~~~~~~~~~~~~~~~~~~~~
+There is some code in GHC that is *always* compiled with -O[2] because
+of it's impact on compile time performance. Some of this code might depend
+on the definitions like shiftL being defined here being performant.
+
+So we always compile this module with -O2. It's (currently) tiny so I
+have little reason to suspect this impacts overall GHC compile times
+negatively.
+
+-}</span><span>
+</span><span id="line-42"></span><span class="hs-comment">-- We export the 'Semigroup' class but w/o the (&lt;&gt;) operator to avoid</span><span>
+</span><span id="line-43"></span><span class="hs-comment">-- clashing with the (Outputable.&lt;&gt;) operator which is heavily used</span><span>
+</span><span id="line-44"></span><span class="hs-comment">-- through GHC's code-base.</span><span>
+</span><span id="line-45"></span><span>
+</span><span id="line-46"></span><span class="hs-comment">{-
+Note [Why do we import Prelude here?]
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+The files ghc-boot-th.cabal, ghc-boot.cabal, ghci.cabal and
+ghc-heap.cabal contain the directive default-extensions:
+NoImplicitPrelude. There are two motivations for this:
+  - Consistency with the compiler directory, which enables
+    NoImplicitPrelude;
+  - Allows loading the above dependent packages with ghc-in-ghci,
+    giving a smoother development experience when adding new
+    extensions.
+-}</span><span>
+</span><span id="line-58"></span><span>
+</span><span id="line-59"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="../../base-4.20.2.0-6654/src/Prelude.html"><span class="hs-identifier">Prelude</span></a></span><span>
+</span><span id="line-60"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.20.2.0-6654/src/Prelude.html"><span class="hs-identifier">Prelude</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">X</span></span><span> </span><span class="hs-keyword">hiding</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-operator">(&lt;&gt;)</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">Applicative</span></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">Foldable</span></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">head</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">tail</span></span><span class="hs-special">)</span><span>
+</span><span id="line-61"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.20.2.0-6654/src/Control.Applicative.html"><span class="hs-identifier">Control.Applicative</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Applicative</span></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-62"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.20.2.0-6654/src/Data.Foldable.html"><span class="hs-identifier">Data.Foldable</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">X</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Foldable</span></span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">elem</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">foldMap</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">foldr</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">foldl</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">foldl'</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">foldr1</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">foldl1</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">maximum</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">minimum</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">product</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">sum</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">null</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">length</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-63"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.20.2.0-6654/src/GHC.Stack.Types.html"><span class="hs-identifier">GHC.Stack.Types</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">HasCallStack</span></span><span class="hs-special">)</span><span class="hs-cpp">
+
+#if MIN_VERSION_base(4,16,0)
+</span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.20.2.0-6654/src/GHC.Bits.html"><span class="hs-identifier">GHC.Bits</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Bits</span></span><span> </span><span class="hs-keyword">hiding</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">shiftL</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">shiftR</span></span><span class="hs-special">)</span><span class="hs-cpp">
+# if defined(DEBUG)
+</span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-identifier">GHC.Bits</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="hs-identifier">Bits</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">shiftL</span><span class="hs-special">,</span><span> </span><span class="hs-identifier">shiftR</span><span class="hs-special">)</span><span class="hs-cpp">
+# endif
+</span><span class="hs-cpp">
+#else
+</span><span class="hs-comment">--base &lt;4.15</span><span>
+</span><span id="line-73"></span><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">Data.Bits</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="hs-identifier">Bits</span><span> </span><span class="hs-keyword">hiding</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">shiftL</span><span class="hs-special">,</span><span> </span><span class="hs-identifier">shiftR</span><span class="hs-special">)</span><span class="hs-cpp">
+# if defined(DEBUG)
+</span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-identifier">Data.Bits</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="hs-identifier">Bits</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">shiftL</span><span class="hs-special">,</span><span> </span><span class="hs-identifier">shiftR</span><span class="hs-special">)</span><span class="hs-cpp">
+# endif
+</span><span class="hs-cpp">#endif
+</span><span>
+</span><span id="line-79"></span><span class="hs-comment">{- Note [Default to unsafe shifts inside GHC]
+   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+The safe shifts can introduce branches which come
+at the cost of performance. We still want the additional
+debugability for debug builds. So we define it as one or the
+other depending on the DEBUG setting.
+
+Why do we then continue on to re-export the rest of Data.Bits?
+If we would not what is likely to happen is:
+* Someone imports Data.Bits, uses xor. Things are fine.
+* They add a shift and get an ambiguous definition error.
+* The are puzzled for a bit.
+* They either:
+  + Remove the import of Data.Bits and get an error because xor is not in scope.
+  + Add the hiding clause to the Data.Bits import for the shifts.
+
+Either is quite annoying. Simply re-exporting all of Data.Bits avoids this
+making for a smoother developer experience. At the cost of having a few more
+names in scope at all time. But that seems like a fair tradeoff.
+
+See also #19618
+-}</span><span>
+</span><span id="line-101"></span><span>
+</span><span id="line-102"></span><span class="hs-comment">-- We always want the Data.Bits method to show up for rules etc.</span><span>
+</span><span id="line-103"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="GHC.Prelude.Basic.html#shiftL"><span class="hs-pragma hs-type">shiftL</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-104"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="GHC.Prelude.Basic.html#shiftR"><span class="hs-pragma hs-type">shiftR</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-105"></span><span id="local-6989586621682320618"><span class="annot"><a href="GHC.Prelude.Basic.html#shiftL"><span class="hs-identifier hs-type">shiftL</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Prelude.Basic.html#shiftR"><span class="hs-identifier hs-type">shiftR</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bits.Bits</span></span><span> </span><span class="annot"><a href="#local-6989586621682320618"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621682320618"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621682320618"><span class="hs-identifier hs-type">a</span></a></span></span><span class="hs-cpp">
+#if defined(DEBUG)
+</span><span class="hs-identifier">shiftL</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">Bits.shiftL</span><span>
+</span><span id="line-108"></span><span class="hs-identifier">shiftR</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">Bits.shiftR</span><span class="hs-cpp">
+#else
+</span><span id="shiftL"><span class="annot"><span class="annottext">shiftL :: forall a. Bits a =&gt; a -&gt; Int -&gt; a
+</span><a href="GHC.Prelude.Basic.html#shiftL"><span class="hs-identifier hs-var hs-var">shiftL</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">a -&gt; Int -&gt; a
+forall a. Bits a =&gt; a -&gt; Int -&gt; a
+</span><span class="hs-identifier hs-var">Bits.unsafeShiftL</span></span><span>
+</span><span id="line-111"></span><span id="shiftR"><span class="annot"><span class="annottext">shiftR :: forall a. Bits a =&gt; a -&gt; Int -&gt; a
+</span><a href="GHC.Prelude.Basic.html#shiftR"><span class="hs-identifier hs-var hs-var">shiftR</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">a -&gt; Int -&gt; a
+forall a. Bits a =&gt; a -&gt; Int -&gt; a
+</span><span class="hs-identifier hs-var">Bits.unsafeShiftR</span></span><span class="hs-cpp">
+#endif
+</span><span>
+</span><span id="line-114"></span><span class="hs-comment">{- Note [Proxies for head and tail]
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Prelude.head and Prelude.tail have recently acquired {-# WARNING in &quot;x-partial&quot; #-},
+but the GHC codebase uses them fairly extensively and insists on building warning-free.
+Thus, instead of adding {-# OPTIONS_GHC -Wno-x-partial #-} to every module which
+employs them, we define warning-less proxies and export them from GHC.Prelude.
+-}</span><span>
+</span><span id="line-121"></span><span>
+</span><span id="line-122"></span><span class="hs-comment">-- See Note [Proxies for head and tail]</span><span>
+</span><span id="line-123"></span><span id="local-6989586621682320623"><span class="annot"><a href="GHC.Prelude.Basic.html#head"><span class="hs-identifier hs-type">head</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">HasCallStack</span></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="#local-6989586621682320623"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621682320623"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-124"></span><span id="head"><span class="annot"><span class="annottext">head :: forall a. HasCallStack =&gt; [a] -&gt; a
+</span><a href="GHC.Prelude.Basic.html#head"><span class="hs-identifier hs-var hs-var">head</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[a] -&gt; a
+forall a. HasCallStack =&gt; [a] -&gt; a
+</span><span class="hs-identifier hs-var">Prelude.head</span></span><span>
+</span><span id="line-125"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="GHC.Prelude.Basic.html#head"><span class="hs-pragma hs-type">head</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-126"></span><span>
+</span><span id="line-127"></span><span class="hs-comment">-- See Note [Proxies for head and tail]</span><span>
+</span><span id="line-128"></span><span id="local-6989586621682320625"><span class="annot"><a href="GHC.Prelude.Basic.html#tail"><span class="hs-identifier hs-type">tail</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">HasCallStack</span></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="#local-6989586621682320625"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="#local-6989586621682320625"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">]</span></span><span>
+</span><span id="line-129"></span><span id="tail"><span class="annot"><span class="annottext">tail :: forall a. HasCallStack =&gt; [a] -&gt; [a]
+</span><a href="GHC.Prelude.Basic.html#tail"><span class="hs-identifier hs-var hs-var">tail</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[a] -&gt; [a]
+forall a. HasCallStack =&gt; [a] -&gt; [a]
+</span><span class="hs-identifier hs-var">Prelude.tail</span></span><span>
+</span><span id="line-130"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="GHC.Prelude.Basic.html#tail"><span class="hs-pragma hs-type">tail</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-131"></span><span>
+</span><span id="line-132"></span><span class="annot"><span class="hs-comment">{- |
+The 'genericLength' function defined in base can't be specialised due to the
+NOINLINE pragma.
+
+It is also not strict in the accumulator, and strictGenericLength is not exported.
+
+See #25706 for why it is important to use a strict, specialised version.
+
+-}</span></span><span>
+</span><span id="line-141"></span><span id="local-6989586621682320627"><span id="local-6989586621682320628"><span class="annot"><a href="GHC.Prelude.Basic.html#strictGenericLength"><span class="hs-identifier hs-type">strictGenericLength</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Num</span></span><span> </span><span class="annot"><a href="#local-6989586621682320627"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="#local-6989586621682320628"><span class="hs-identifier hs-type">x</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621682320627"><span class="hs-identifier hs-type">a</span></a></span></span></span><span>
+</span><span id="line-142"></span><span id="strictGenericLength"><span class="annot"><span class="annottext">strictGenericLength :: forall a x. Num a =&gt; [x] -&gt; a
+</span><a href="GHC.Prelude.Basic.html#strictGenericLength"><span class="hs-identifier hs-var hs-var">strictGenericLength</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; a
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="annot"><span class="annottext">(Int -&gt; a) -&gt; ([x] -&gt; Int) -&gt; [x] -&gt; a
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">[x] -&gt; Int
+forall a. [a] -&gt; Int
+forall (t :: * -&gt; *) a. Foldable t =&gt; t a -&gt; Int
+</span><span class="hs-identifier hs-var">length</span></span><span>
+</span><span id="line-143"></span></pre></body></html>

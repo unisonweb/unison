@@ -1,0 +1,142 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LINE 1 &quot;libraries/ghc-internal/src/GHC/Internal/System/Environment/ExecutablePath.hsc&quot; #-}</span><span>
+</span><span id="line-1"></span><span class="hs-pragma">{-# LANGUAGE Trustworthy #-}</span><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# LANGUAGE CPP #-}</span><span>
+</span><span id="line-3"></span><span>
+</span><span id="line-4"></span><span class="hs-comment">-----------------------------------------------------------------------------</span><span>
+</span><span id="line-5"></span><span class="hs-comment">-- |</span><span>
+</span><span id="line-6"></span><span class="hs-comment">-- Module      :  GHC.Internal.System.Environment.ExecutablePath</span><span>
+</span><span id="line-7"></span><span class="hs-comment">-- Copyright   :  (c) The University of Glasgow 2001</span><span>
+</span><span id="line-8"></span><span class="hs-comment">-- License     :  BSD-style (see the file libraries/base/LICENSE)</span><span>
+</span><span id="line-9"></span><span class="hs-comment">--</span><span>
+</span><span id="line-10"></span><span class="hs-comment">-- Maintainer  :  libraries@haskell.org</span><span>
+</span><span id="line-11"></span><span class="hs-comment">-- Stability   :  provisional</span><span>
+</span><span id="line-12"></span><span class="hs-comment">-- Portability :  portable</span><span>
+</span><span id="line-13"></span><span class="hs-comment">--</span><span>
+</span><span id="line-14"></span><span class="hs-comment">-- Function to retrieve the absolute filepath of the current executable.</span><span>
+</span><span id="line-15"></span><span class="hs-comment">--</span><span>
+</span><span id="line-16"></span><span class="hs-comment">-- @since base-4.6.0.0</span><span>
+</span><span id="line-17"></span><span class="hs-comment">-----------------------------------------------------------------------------</span><span>
+</span><span id="line-18"></span><span>
+</span><span id="line-19"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">GHC.Internal.System.Environment.ExecutablePath</span><span>
+</span><span id="line-20"></span><span>  </span><span class="hs-special">(</span><span> </span><span class="hs-identifier">getExecutablePath</span><span>
+</span><span id="line-21"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="hs-identifier">executablePath</span><span>
+</span><span id="line-22"></span><span>  </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span class="hs-cpp">
+
+#if defined(javascript_HOST_ARCH)
+</span><span>
+</span><span id="line-26"></span><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">GHC.Internal.Base</span><span>
+</span><span id="line-27"></span><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">GHC.Internal.IO</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">FilePath</span><span class="hs-special">)</span><span>
+</span><span id="line-28"></span><span>
+</span><span id="line-29"></span><span class="hs-identifier">getExecutablePath</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">IO</span><span> </span><span class="hs-identifier">FilePath</span><span>
+</span><span id="line-30"></span><span class="hs-identifier">getExecutablePath</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">return</span><span> </span><span class="hs-string">&quot;a.jsexe&quot;</span><span>
+</span><span id="line-31"></span><span>
+</span><span id="line-32"></span><span class="hs-identifier">executablePath</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">Maybe</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">IO</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">Maybe</span><span> </span><span class="hs-identifier">FilePath</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-33"></span><span class="hs-identifier">executablePath</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">Nothing</span><span class="hs-cpp">
+
+#else
+</span><span>
+</span><span id="line-37"></span><span class="hs-comment">-- The imports are purposely kept completely disjoint to prevent edits</span><span>
+</span><span id="line-38"></span><span class="hs-comment">-- to one OS implementation from breaking another.</span><span>
+</span><span id="line-39"></span><span>
+</span><span id="line-40"></span><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">GHC.Internal.Base</span><span>
+</span><span id="line-41"></span><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">GHC.Internal.IO</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">FilePath</span><span class="hs-special">)</span><span>
+</span><span id="line-42"></span><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">GHC.Internal.Real</span><span>
+</span><span id="line-43"></span><span>
+</span><span id="line-44"></span><span class="hs-pragma">{-# LINE 55 &quot;libraries/ghc-internal/src/GHC/Internal/System/Environment/ExecutablePath.hsc&quot; #-}</span><span>
+</span><span id="line-55"></span><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">GHC.Internal.Data.Functor</span><span>
+</span><span id="line-56"></span><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">GHC.Internal.Data.List</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">isSuffixOf</span><span class="hs-special">)</span><span>
+</span><span id="line-57"></span><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">GHC.Internal.Foreign.C.Types</span><span>
+</span><span id="line-58"></span><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">GHC.Internal.Foreign.C.Error</span><span>
+</span><span id="line-59"></span><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">GHC.Internal.Foreign.C.String</span><span>
+</span><span id="line-60"></span><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">GHC.Internal.Foreign.Marshal.Array</span><span>
+</span><span id="line-61"></span><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">GHC.Internal.System.Posix.Internals</span><span>
+</span><span id="line-62"></span><span>
+</span><span id="line-63"></span><span class="hs-pragma">{-# LINE 107 &quot;libraries/ghc-internal/src/GHC/Internal/System/Environment/ExecutablePath.hsc&quot; #-}</span><span>
+</span><span id="line-107"></span><span>
+</span><span id="line-108"></span><span class="hs-comment">-- The exported function is defined outside any if-guard to make sure</span><span>
+</span><span id="line-109"></span><span class="hs-comment">-- every OS implements it with the same type.</span><span>
+</span><span id="line-110"></span><span>
+</span><span id="line-111"></span><span class="hs-comment">-- | Returns the absolute pathname of the current executable,</span><span>
+</span><span id="line-112"></span><span class="hs-comment">-- or @argv[0]@ if the operating system does not provide a reliable</span><span>
+</span><span id="line-113"></span><span class="hs-comment">-- way query the current executable.</span><span>
+</span><span id="line-114"></span><span class="hs-comment">--</span><span>
+</span><span id="line-115"></span><span class="hs-comment">-- Note that for scripts and interactive sessions, this is the path to</span><span>
+</span><span id="line-116"></span><span class="hs-comment">-- the interpreter (e.g. ghci.)</span><span>
+</span><span id="line-117"></span><span class="hs-comment">--</span><span>
+</span><span id="line-118"></span><span class="hs-comment">-- Since base 4.11.0.0, 'getExecutablePath' resolves symlinks on Windows.</span><span>
+</span><span id="line-119"></span><span class="hs-comment">-- If an executable is launched through a symlink, 'getExecutablePath'</span><span>
+</span><span id="line-120"></span><span class="hs-comment">-- returns the absolute path of the original executable.</span><span>
+</span><span id="line-121"></span><span class="hs-comment">--</span><span>
+</span><span id="line-122"></span><span class="hs-comment">-- If the executable has been deleted, behaviour is ill-defined and</span><span>
+</span><span id="line-123"></span><span class="hs-comment">-- varies by operating system.  See 'executablePath' for a more</span><span>
+</span><span id="line-124"></span><span class="hs-comment">-- reliable way to query the current executable.</span><span>
+</span><span id="line-125"></span><span class="hs-comment">--</span><span>
+</span><span id="line-126"></span><span class="hs-comment">-- @since base-4.6.0.0</span><span>
+</span><span id="line-127"></span><span class="hs-identifier">getExecutablePath</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">IO</span><span> </span><span class="hs-identifier">FilePath</span><span>
+</span><span id="line-128"></span><span>
+</span><span id="line-129"></span><span class="hs-comment">-- | Get an action to query the absolute pathname of the current executable.</span><span>
+</span><span id="line-130"></span><span class="hs-comment">--</span><span>
+</span><span id="line-131"></span><span class="hs-comment">-- If the operating system provides a reliable way to determine the current</span><span>
+</span><span id="line-132"></span><span class="hs-comment">-- executable, return the query action, otherwise return @Nothing@.  The action</span><span>
+</span><span id="line-133"></span><span class="hs-comment">-- is defined on FreeBSD, Linux, MacOS, NetBSD, Solaris, and Windows.</span><span>
+</span><span id="line-134"></span><span class="hs-comment">--</span><span>
+</span><span id="line-135"></span><span class="hs-comment">-- Even where the query action is defined, there may be situations where no</span><span>
+</span><span id="line-136"></span><span class="hs-comment">-- result is available, e.g. if the executable file was deleted while the</span><span>
+</span><span id="line-137"></span><span class="hs-comment">-- program is running.  Therefore the result of the query action is a @Maybe</span><span>
+</span><span id="line-138"></span><span class="hs-comment">-- FilePath@.</span><span>
+</span><span id="line-139"></span><span class="hs-comment">--</span><span>
+</span><span id="line-140"></span><span class="hs-comment">-- Note that for scripts and interactive sessions, the result is the path to</span><span>
+</span><span id="line-141"></span><span class="hs-comment">-- the interpreter (e.g. ghci.)</span><span>
+</span><span id="line-142"></span><span class="hs-comment">--</span><span>
+</span><span id="line-143"></span><span class="hs-comment">-- Note also that while most operating systems return @Nothing@ if the</span><span>
+</span><span id="line-144"></span><span class="hs-comment">-- executable file was deleted/unlinked, some (including NetBSD) return the</span><span>
+</span><span id="line-145"></span><span class="hs-comment">-- original path.</span><span>
+</span><span id="line-146"></span><span class="hs-comment">--</span><span>
+</span><span id="line-147"></span><span class="hs-comment">-- @since base-4.17.0.0</span><span>
+</span><span id="line-148"></span><span class="hs-identifier">executablePath</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">Maybe</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">IO</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">Maybe</span><span> </span><span class="hs-identifier">FilePath</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-149"></span><span>
+</span><span id="line-150"></span><span>
+</span><span id="line-151"></span><span class="hs-comment">--------------------------------------------------------------------------------</span><span>
+</span><span id="line-152"></span><span class="hs-comment">-- Mac OS X</span><span>
+</span><span id="line-153"></span><span>
+</span><span id="line-154"></span><span>
+</span><span id="line-155"></span><span class="hs-pragma">{-# LINE 206 &quot;libraries/ghc-internal/src/GHC/Internal/System/Environment/ExecutablePath.hsc&quot; #-}</span><span>
+</span><span id="line-206"></span><span>
+</span><span id="line-207"></span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">ccall</span><span> </span><span class="hs-keyword">unsafe</span><span> </span><span class="hs-string">&quot;readlink&quot;</span><span>
+</span><span id="line-208"></span><span>    </span><span class="hs-identifier">c_readlink</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">CString</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">CString</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">CSize</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">IO</span><span> </span><span class="hs-identifier">CInt</span><span>
+</span><span id="line-209"></span><span>
+</span><span id="line-210"></span><span class="hs-comment">-- | Reads the @FilePath@ pointed to by the symbolic link and returns</span><span>
+</span><span id="line-211"></span><span class="hs-comment">-- it.</span><span>
+</span><span id="line-212"></span><span class="hs-comment">--</span><span>
+</span><span id="line-213"></span><span class="hs-comment">-- See readlink(2)</span><span>
+</span><span id="line-214"></span><span class="hs-identifier">readSymbolicLink</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">FilePath</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">IO</span><span> </span><span class="hs-identifier">FilePath</span><span>
+</span><span id="line-215"></span><span class="hs-identifier">readSymbolicLink</span><span> </span><span class="hs-identifier">file</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-216"></span><span>    </span><span class="hs-identifier">allocaArray0</span><span> </span><span class="hs-number">4096</span><span> </span><span class="hs-operator">$</span><span> </span><span class="hs-glyph">\</span><span class="hs-identifier">buf</span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-217"></span><span>        </span><span class="hs-identifier">withFilePath</span><span> </span><span class="hs-identifier">file</span><span> </span><span class="hs-operator">$</span><span> </span><span class="hs-glyph">\</span><span class="hs-identifier">s</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-218"></span><span>            </span><span class="hs-identifier">len</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="hs-identifier">throwErrnoPathIfMinus1</span><span> </span><span class="hs-string">&quot;readSymbolicLink&quot;</span><span> </span><span class="hs-identifier">file</span><span> </span><span class="hs-operator">$</span><span>
+</span><span id="line-219"></span><span>                   </span><span class="hs-identifier">c_readlink</span><span> </span><span class="hs-identifier">s</span><span> </span><span class="hs-identifier">buf</span><span> </span><span class="hs-number">4096</span><span>
+</span><span id="line-220"></span><span>            </span><span class="hs-identifier">peekFilePathLen</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">buf</span><span class="hs-special">,</span><span class="hs-identifier">fromIntegral</span><span> </span><span class="hs-identifier">len</span><span class="hs-special">)</span><span>
+</span><span id="line-221"></span><span>
+</span><span id="line-222"></span><span>
+</span><span id="line-223"></span><span class="hs-pragma">{-# LINE 223 &quot;libraries/ghc-internal/src/GHC/Internal/System/Environment/ExecutablePath.hsc&quot; #-}</span><span>
+</span><span id="line-223"></span><span class="hs-identifier">getExecutablePath</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">readSymbolicLink</span><span> </span><span class="hs-operator">$</span><span> </span><span class="hs-string">&quot;/proc/self/exe&quot;</span><span>
+</span><span id="line-224"></span><span>
+</span><span id="line-225"></span><span class="hs-identifier">executablePath</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">Just</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">check</span><span> </span><span class="hs-operator">&lt;$&gt;</span><span> </span><span class="hs-identifier">getExecutablePath</span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-226"></span><span>  </span><span class="hs-comment">-- procfs(5): If the pathname has been unlinked, the symbolic link will</span><span>
+</span><span id="line-227"></span><span>  </span><span class="hs-comment">-- contain the string '(deleted)' appended to the original pathname.</span><span>
+</span><span id="line-228"></span><span>  </span><span class="hs-comment">--</span><span>
+</span><span id="line-229"></span><span>  </span><span class="hs-comment">-- See also https://gitlab.haskell.org/ghc/ghc/-/issues/10957</span><span>
+</span><span id="line-230"></span><span>  </span><span class="hs-identifier">check</span><span> </span><span class="hs-identifier">s</span><span> </span><span class="hs-glyph">|</span><span> </span><span class="hs-string">&quot;(deleted)&quot;</span><span> </span><span class="hs-special">`</span><span class="hs-identifier">isSuffixOf</span><span class="hs-special">`</span><span> </span><span class="hs-identifier">s</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">Nothing</span><span>
+</span><span id="line-231"></span><span>          </span><span class="hs-glyph">|</span><span> </span><span class="hs-identifier">otherwise</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">Just</span><span> </span><span class="hs-identifier">s</span><span>
+</span><span id="line-232"></span><span>
+</span><span id="line-233"></span><span>
+</span><span id="line-234"></span><span class="hs-pragma">{-# LINE 244 &quot;libraries/ghc-internal/src/GHC/Internal/System/Environment/ExecutablePath.hsc&quot; #-}</span><span>
+</span><span id="line-244"></span><span>
+</span><span id="line-245"></span><span class="hs-comment">--------------------------------------------------------------------------------</span><span>
+</span><span id="line-246"></span><span class="hs-comment">-- FreeBSD / NetBSD</span><span>
+</span><span id="line-247"></span><span>
+</span><span id="line-248"></span><span>
+</span><span id="line-249"></span><span class="hs-pragma">{-# LINE 426 &quot;libraries/ghc-internal/src/GHC/Internal/System/Environment/ExecutablePath.hsc&quot; #-}</span><span class="hs-cpp">
+
+#endif
+</span></pre></body></html>

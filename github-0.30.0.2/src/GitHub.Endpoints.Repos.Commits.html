@@ -1,0 +1,201 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-comment">-- |</span><span>
+</span><span id="line-2"></span><span class="hs-comment">-- The repo commits API as described on</span><span>
+</span><span id="line-3"></span><span class="hs-comment">-- &lt;http://developer.github.com/v3/repos/commits/&gt;.</span><span>
+</span><span id="line-4"></span><span>
+</span><span id="line-5"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="GitHub.Endpoints.Repos.Commits.html"><span class="hs-identifier">GitHub.Endpoints.Repos.Commits</span></a></span><span> </span><span class="hs-special">(</span><span>
+</span><span id="line-6"></span><span>    </span><span class="annot"><a href="GitHub.Data.GitData.html#CommitQueryOption"><span class="hs-identifier">CommitQueryOption</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-7"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Repos.Commits.html#commitsForR"><span class="hs-identifier">commitsForR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-8"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Repos.Commits.html#commitsWithOptionsForR"><span class="hs-identifier">commitsWithOptionsForR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-9"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Repos.Commits.html#commitR"><span class="hs-identifier">commitR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-10"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Repos.Commits.html#diffR"><span class="hs-identifier">diffR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-11"></span><span>    </span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="GitHub.Data.html"><span class="hs-identifier">GitHub.Data</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-12"></span><span>    </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-13"></span><span>
+</span><span id="line-14"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GitHub.Data.html"><span class="hs-identifier">GitHub.Data</span></a></span><span>
+</span><span id="line-15"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GitHub.Internal.Prelude.html"><span class="hs-identifier">GitHub.Internal.Prelude</span></a></span><span>
+</span><span id="line-16"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Prelude</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-17"></span><span>
+</span><span id="line-18"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.ByteString</span></span><span>    </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">BS</span></span><span>
+</span><span id="line-19"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Text</span></span><span>          </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">T</span></span><span>
+</span><span id="line-20"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Text.Encoding</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">TE</span></span><span>
+</span><span id="line-21"></span><span>
+</span><span id="line-22"></span><span class="annot"><a href="GitHub.Endpoints.Repos.Commits.html#renderCommitQueryOption"><span class="hs-identifier hs-type">renderCommitQueryOption</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GitHub.Data.GitData.html#CommitQueryOption"><span class="hs-identifier hs-type">CommitQueryOption</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">BS.ByteString</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">BS.ByteString</span></span><span class="hs-special">)</span><span>
+</span><span id="line-23"></span><span id="renderCommitQueryOption"><span class="annot"><span class="annottext">renderCommitQueryOption :: CommitQueryOption -&gt; (ByteString, Maybe ByteString)
+</span><a href="GitHub.Endpoints.Repos.Commits.html#renderCommitQueryOption"><span class="hs-identifier hs-var hs-var">renderCommitQueryOption</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GitHub.Data.GitData.html#CommitQuerySha"><span class="hs-identifier hs-type">CommitQuerySha</span></a></span><span> </span><span id="local-6989586621679540426"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679540426"><span class="hs-identifier hs-var">sha</span></a></span></span><span class="hs-special">)</span><span>      </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ByteString
+</span><span class="hs-string">&quot;sha&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; Maybe ByteString
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">(ByteString -&gt; Maybe ByteString) -&gt; ByteString -&gt; Maybe ByteString
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Text -&gt; ByteString
+</span><span class="hs-identifier hs-var">TE.encodeUtf8</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679540426"><span class="hs-identifier hs-var">sha</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-24"></span><span class="annot"><a href="GitHub.Endpoints.Repos.Commits.html#renderCommitQueryOption"><span class="hs-identifier hs-var">renderCommitQueryOption</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GitHub.Data.GitData.html#CommitQueryPath"><span class="hs-identifier hs-type">CommitQueryPath</span></a></span><span> </span><span id="local-6989586621679540429"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679540429"><span class="hs-identifier hs-var">path</span></a></span></span><span class="hs-special">)</span><span>     </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ByteString
+</span><span class="hs-string">&quot;path&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; Maybe ByteString
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">(ByteString -&gt; Maybe ByteString) -&gt; ByteString -&gt; Maybe ByteString
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Text -&gt; ByteString
+</span><span class="hs-identifier hs-var">TE.encodeUtf8</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679540429"><span class="hs-identifier hs-var">path</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-25"></span><span class="annot"><a href="GitHub.Endpoints.Repos.Commits.html#renderCommitQueryOption"><span class="hs-identifier hs-var">renderCommitQueryOption</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GitHub.Data.GitData.html#CommitQueryAuthor"><span class="hs-identifier hs-type">CommitQueryAuthor</span></a></span><span> </span><span id="local-6989586621679540431"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679540431"><span class="hs-identifier hs-var">author</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ByteString
+</span><span class="hs-string">&quot;author&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; Maybe ByteString
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">(ByteString -&gt; Maybe ByteString) -&gt; ByteString -&gt; Maybe ByteString
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Text -&gt; ByteString
+</span><span class="hs-identifier hs-var">TE.encodeUtf8</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679540431"><span class="hs-identifier hs-var">author</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-26"></span><span class="annot"><a href="GitHub.Endpoints.Repos.Commits.html#renderCommitQueryOption"><span class="hs-identifier hs-var">renderCommitQueryOption</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GitHub.Data.GitData.html#CommitQuerySince"><span class="hs-identifier hs-type">CommitQuerySince</span></a></span><span> </span><span id="local-6989586621679540433"><span class="annot"><span class="annottext">UTCTime
+</span><a href="#local-6989586621679540433"><span class="hs-identifier hs-var">date</span></a></span></span><span class="hs-special">)</span><span>    </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ByteString
+</span><span class="hs-string">&quot;since&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; Maybe ByteString
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">(ByteString -&gt; Maybe ByteString) -&gt; ByteString -&gt; Maybe ByteString
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Text -&gt; ByteString
+</span><span class="hs-identifier hs-var">TE.encodeUtf8</span></span><span> </span><span class="annot"><span class="annottext">(Text -&gt; ByteString) -&gt; (String -&gt; Text) -&gt; String -&gt; ByteString
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; Text
+</span><span class="hs-identifier hs-var">T.pack</span></span><span> </span><span class="annot"><span class="annottext">(String -&gt; ByteString) -&gt; String -&gt; ByteString
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">UTCTime -&gt; String
+</span><span class="hs-identifier hs-var">formatISO8601</span></span><span> </span><span class="annot"><span class="annottext">UTCTime
+</span><a href="#local-6989586621679540433"><span class="hs-identifier hs-var">date</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-27"></span><span class="annot"><a href="GitHub.Endpoints.Repos.Commits.html#renderCommitQueryOption"><span class="hs-identifier hs-var">renderCommitQueryOption</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GitHub.Data.GitData.html#CommitQueryUntil"><span class="hs-identifier hs-type">CommitQueryUntil</span></a></span><span> </span><span id="local-6989586621679540438"><span class="annot"><span class="annottext">UTCTime
+</span><a href="#local-6989586621679540438"><span class="hs-identifier hs-var">date</span></a></span></span><span class="hs-special">)</span><span>    </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ByteString
+</span><span class="hs-string">&quot;until&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; Maybe ByteString
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">(ByteString -&gt; Maybe ByteString) -&gt; ByteString -&gt; Maybe ByteString
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Text -&gt; ByteString
+</span><span class="hs-identifier hs-var">TE.encodeUtf8</span></span><span> </span><span class="annot"><span class="annottext">(Text -&gt; ByteString) -&gt; (String -&gt; Text) -&gt; String -&gt; ByteString
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; Text
+</span><span class="hs-identifier hs-var">T.pack</span></span><span> </span><span class="annot"><span class="annottext">(String -&gt; ByteString) -&gt; String -&gt; ByteString
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">UTCTime -&gt; String
+</span><span class="hs-identifier hs-var">formatISO8601</span></span><span> </span><span class="annot"><span class="annottext">UTCTime
+</span><a href="#local-6989586621679540438"><span class="hs-identifier hs-var">date</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-28"></span><span>
+</span><span id="line-29"></span><span class="hs-comment">-- | List commits on a repository.</span><span>
+</span><span id="line-30"></span><span class="hs-comment">-- See &lt;https://developer.github.com/v3/repos/commits/#list-commits-on-a-repository&gt;</span><span>
+</span><span id="line-31"></span><span id="local-6989586621679540389"><span class="annot"><a href="GitHub.Endpoints.Repos.Commits.html#commitsForR"><span class="hs-identifier hs-type">commitsForR</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GitHub.Data.Name.html#Name"><span class="hs-identifier hs-type">Name</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.Definitions.html#Owner"><span class="hs-identifier hs-type">Owner</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Name.html#Name"><span class="hs-identifier hs-type">Name</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.Repos.html#Repo"><span class="hs-identifier hs-type">Repo</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Request.html#FetchCount"><span class="hs-identifier hs-type">FetchCount</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Request.html#Request"><span class="hs-identifier hs-type">Request</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679540389"><span class="hs-identifier hs-type">k</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Vector</span></span><span> </span><span class="annot"><a href="GitHub.Data.GitData.html#Commit"><span class="hs-identifier hs-type">Commit</span></a></span><span class="hs-special">)</span></span><span>
+</span><span id="line-32"></span><span id="commitsForR"><span class="annot"><span class="annottext">commitsForR :: forall (k :: RW).
+Name Owner -&gt; Name Repo -&gt; FetchCount -&gt; Request k (Vector Commit)
+</span><a href="GitHub.Endpoints.Repos.Commits.html#commitsForR"><span class="hs-identifier hs-var hs-var">commitsForR</span></a></span></span><span> </span><span id="local-6989586621679540439"><span class="annot"><span class="annottext">Name Owner
+</span><a href="#local-6989586621679540439"><span class="hs-identifier hs-var">user</span></a></span></span><span> </span><span id="local-6989586621679540440"><span class="annot"><span class="annottext">Name Repo
+</span><a href="#local-6989586621679540440"><span class="hs-identifier hs-var">repo</span></a></span></span><span> </span><span id="local-6989586621679540441"><span class="annot"><span class="annottext">FetchCount
+</span><a href="#local-6989586621679540441"><span class="hs-identifier hs-var">limit</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Name Owner
+-&gt; Name Repo
+-&gt; FetchCount
+-&gt; [CommitQueryOption]
+-&gt; Request k (Vector Commit)
+forall (k :: RW).
+Name Owner
+-&gt; Name Repo
+-&gt; FetchCount
+-&gt; [CommitQueryOption]
+-&gt; Request k (Vector Commit)
+</span><a href="GitHub.Endpoints.Repos.Commits.html#commitsWithOptionsForR"><span class="hs-identifier hs-var">commitsWithOptionsForR</span></a></span><span> </span><span class="annot"><span class="annottext">Name Owner
+</span><a href="#local-6989586621679540439"><span class="hs-identifier hs-var">user</span></a></span><span> </span><span class="annot"><span class="annottext">Name Repo
+</span><a href="#local-6989586621679540440"><span class="hs-identifier hs-var">repo</span></a></span><span> </span><span class="annot"><span class="annottext">FetchCount
+</span><a href="#local-6989586621679540441"><span class="hs-identifier hs-var">limit</span></a></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span>
+</span><span id="line-33"></span><span>
+</span><span id="line-34"></span><span class="hs-comment">-- | List commits on a repository.</span><span>
+</span><span id="line-35"></span><span class="hs-comment">-- See &lt;https://developer.github.com/v3/repos/commits/#list-commits-on-a-repository&gt;</span><span>
+</span><span id="line-36"></span><span id="local-6989586621679540394"><span class="annot"><a href="GitHub.Endpoints.Repos.Commits.html#commitsWithOptionsForR"><span class="hs-identifier hs-type">commitsWithOptionsForR</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GitHub.Data.Name.html#Name"><span class="hs-identifier hs-type">Name</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.Definitions.html#Owner"><span class="hs-identifier hs-type">Owner</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Name.html#Name"><span class="hs-identifier hs-type">Name</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.Repos.html#Repo"><span class="hs-identifier hs-type">Repo</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Request.html#FetchCount"><span class="hs-identifier hs-type">FetchCount</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="GitHub.Data.GitData.html#CommitQueryOption"><span class="hs-identifier hs-type">CommitQueryOption</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Request.html#Request"><span class="hs-identifier hs-type">Request</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679540394"><span class="hs-identifier hs-type">k</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Vector</span></span><span> </span><span class="annot"><a href="GitHub.Data.GitData.html#Commit"><span class="hs-identifier hs-type">Commit</span></a></span><span class="hs-special">)</span></span><span>
+</span><span id="line-37"></span><span id="commitsWithOptionsForR"><span class="annot"><span class="annottext">commitsWithOptionsForR :: forall (k :: RW).
+Name Owner
+-&gt; Name Repo
+-&gt; FetchCount
+-&gt; [CommitQueryOption]
+-&gt; Request k (Vector Commit)
+</span><a href="GitHub.Endpoints.Repos.Commits.html#commitsWithOptionsForR"><span class="hs-identifier hs-var hs-var">commitsWithOptionsForR</span></a></span></span><span> </span><span id="local-6989586621679540450"><span class="annot"><span class="annottext">Name Owner
+</span><a href="#local-6989586621679540450"><span class="hs-identifier hs-var">user</span></a></span></span><span> </span><span id="local-6989586621679540451"><span class="annot"><span class="annottext">Name Repo
+</span><a href="#local-6989586621679540451"><span class="hs-identifier hs-var">repo</span></a></span></span><span> </span><span id="local-6989586621679540452"><span class="annot"><span class="annottext">FetchCount
+</span><a href="#local-6989586621679540452"><span class="hs-identifier hs-var">limit</span></a></span></span><span> </span><span id="local-6989586621679540453"><span class="annot"><span class="annottext">[CommitQueryOption]
+</span><a href="#local-6989586621679540453"><span class="hs-identifier hs-var">opts</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-38"></span><span>    </span><span class="annot"><span class="annottext">Paths -&gt; QueryString -&gt; FetchCount -&gt; Request k (Vector Commit)
+forall a (mt :: RW).
+FromJSON a =&gt;
+Paths -&gt; QueryString -&gt; FetchCount -&gt; Request mt (Vector a)
+</span><a href="GitHub.Data.Request.html#pagedQuery"><span class="hs-identifier hs-var">pagedQuery</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;repos&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Name Owner -&gt; Text
+forall a. IsPathPart a =&gt; a -&gt; Text
+</span><a href="GitHub.Data.Request.html#toPathPart"><span class="hs-identifier hs-var">toPathPart</span></a></span><span> </span><span class="annot"><span class="annottext">Name Owner
+</span><a href="#local-6989586621679540450"><span class="hs-identifier hs-var">user</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Name Repo -&gt; Text
+forall a. IsPathPart a =&gt; a -&gt; Text
+</span><a href="GitHub.Data.Request.html#toPathPart"><span class="hs-identifier hs-var">toPathPart</span></a></span><span> </span><span class="annot"><span class="annottext">Name Repo
+</span><a href="#local-6989586621679540451"><span class="hs-identifier hs-var">repo</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;commits&quot;</span></span><span class="hs-special">]</span><span> </span><span class="annot"><span class="annottext">QueryString
+</span><a href="#local-6989586621679540456"><span class="hs-identifier hs-var">qs</span></a></span><span> </span><span class="annot"><span class="annottext">FetchCount
+</span><a href="#local-6989586621679540452"><span class="hs-identifier hs-var">limit</span></a></span><span>
+</span><span id="line-39"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-40"></span><span>    </span><span id="local-6989586621679540456"><span class="annot"><span class="annottext">qs :: QueryString
+</span><a href="#local-6989586621679540456"><span class="hs-identifier hs-var hs-var">qs</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(CommitQueryOption -&gt; (ByteString, Maybe ByteString))
+-&gt; [CommitQueryOption] -&gt; QueryString
+forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+</span><span class="hs-identifier hs-var">map</span></span><span> </span><span class="annot"><span class="annottext">CommitQueryOption -&gt; (ByteString, Maybe ByteString)
+</span><a href="GitHub.Endpoints.Repos.Commits.html#renderCommitQueryOption"><span class="hs-identifier hs-var">renderCommitQueryOption</span></a></span><span> </span><span class="annot"><span class="annottext">[CommitQueryOption]
+</span><a href="#local-6989586621679540453"><span class="hs-identifier hs-var">opts</span></a></span><span>
+</span><span id="line-41"></span><span>
+</span><span id="line-42"></span><span class="hs-comment">-- | Query a single commit.</span><span>
+</span><span id="line-43"></span><span class="hs-comment">-- See &lt;https://developer.github.com/v3/repos/commits/#get-a-single-commit&gt;</span><span>
+</span><span id="line-44"></span><span id="local-6989586621679540406"><span class="annot"><a href="GitHub.Endpoints.Repos.Commits.html#commitR"><span class="hs-identifier hs-type">commitR</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GitHub.Data.Name.html#Name"><span class="hs-identifier hs-type">Name</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.Definitions.html#Owner"><span class="hs-identifier hs-type">Owner</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Name.html#Name"><span class="hs-identifier hs-type">Name</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.Repos.html#Repo"><span class="hs-identifier hs-type">Repo</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Name.html#Name"><span class="hs-identifier hs-type">Name</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.GitData.html#Commit"><span class="hs-identifier hs-type">Commit</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Request.html#Request"><span class="hs-identifier hs-type">Request</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679540406"><span class="hs-identifier hs-type">k</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.GitData.html#Commit"><span class="hs-identifier hs-type">Commit</span></a></span></span><span>
+</span><span id="line-45"></span><span id="commitR"><span class="annot"><span class="annottext">commitR :: forall (k :: RW).
+Name Owner -&gt; Name Repo -&gt; Name Commit -&gt; Request k Commit
+</span><a href="GitHub.Endpoints.Repos.Commits.html#commitR"><span class="hs-identifier hs-var hs-var">commitR</span></a></span></span><span> </span><span id="local-6989586621679540462"><span class="annot"><span class="annottext">Name Owner
+</span><a href="#local-6989586621679540462"><span class="hs-identifier hs-var">user</span></a></span></span><span> </span><span id="local-6989586621679540463"><span class="annot"><span class="annottext">Name Repo
+</span><a href="#local-6989586621679540463"><span class="hs-identifier hs-var">repo</span></a></span></span><span> </span><span id="local-6989586621679540464"><span class="annot"><span class="annottext">Name Commit
+</span><a href="#local-6989586621679540464"><span class="hs-identifier hs-var">sha</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-46"></span><span>    </span><span class="annot"><span class="annottext">Paths -&gt; QueryString -&gt; Request k Commit
+forall (mt :: RW) a. Paths -&gt; QueryString -&gt; Request mt a
+</span><a href="GitHub.Data.Request.html#query"><span class="hs-identifier hs-var">query</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;repos&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Name Owner -&gt; Text
+forall a. IsPathPart a =&gt; a -&gt; Text
+</span><a href="GitHub.Data.Request.html#toPathPart"><span class="hs-identifier hs-var">toPathPart</span></a></span><span> </span><span class="annot"><span class="annottext">Name Owner
+</span><a href="#local-6989586621679540462"><span class="hs-identifier hs-var">user</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Name Repo -&gt; Text
+forall a. IsPathPart a =&gt; a -&gt; Text
+</span><a href="GitHub.Data.Request.html#toPathPart"><span class="hs-identifier hs-var">toPathPart</span></a></span><span> </span><span class="annot"><span class="annottext">Name Repo
+</span><a href="#local-6989586621679540463"><span class="hs-identifier hs-var">repo</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;commits&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Name Commit -&gt; Text
+forall a. IsPathPart a =&gt; a -&gt; Text
+</span><a href="GitHub.Data.Request.html#toPathPart"><span class="hs-identifier hs-var">toPathPart</span></a></span><span> </span><span class="annot"><span class="annottext">Name Commit
+</span><a href="#local-6989586621679540464"><span class="hs-identifier hs-var">sha</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span>
+</span><span id="line-47"></span><span>
+</span><span id="line-48"></span><span class="hs-comment">-- | Compare two commits.</span><span>
+</span><span id="line-49"></span><span class="hs-comment">-- See &lt;https://developer.github.com/v3/repos/commits/#compare-two-commits&gt;</span><span>
+</span><span id="line-50"></span><span id="local-6989586621679540410"><span class="annot"><a href="GitHub.Endpoints.Repos.Commits.html#diffR"><span class="hs-identifier hs-type">diffR</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GitHub.Data.Name.html#Name"><span class="hs-identifier hs-type">Name</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.Definitions.html#Owner"><span class="hs-identifier hs-type">Owner</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Name.html#Name"><span class="hs-identifier hs-type">Name</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.Repos.html#Repo"><span class="hs-identifier hs-type">Repo</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Name.html#Name"><span class="hs-identifier hs-type">Name</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.GitData.html#Commit"><span class="hs-identifier hs-type">Commit</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Name.html#Name"><span class="hs-identifier hs-type">Name</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.GitData.html#Commit"><span class="hs-identifier hs-type">Commit</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Request.html#Request"><span class="hs-identifier hs-type">Request</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679540410"><span class="hs-identifier hs-type">k</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.GitData.html#Diff"><span class="hs-identifier hs-type">Diff</span></a></span></span><span>
+</span><span id="line-51"></span><span id="diffR"><span class="annot"><span class="annottext">diffR :: forall (k :: RW).
+Name Owner
+-&gt; Name Repo -&gt; Name Commit -&gt; Name Commit -&gt; Request k Diff
+</span><a href="GitHub.Endpoints.Repos.Commits.html#diffR"><span class="hs-identifier hs-var hs-var">diffR</span></a></span></span><span> </span><span id="local-6989586621679540476"><span class="annot"><span class="annottext">Name Owner
+</span><a href="#local-6989586621679540476"><span class="hs-identifier hs-var">user</span></a></span></span><span> </span><span id="local-6989586621679540477"><span class="annot"><span class="annottext">Name Repo
+</span><a href="#local-6989586621679540477"><span class="hs-identifier hs-var">repo</span></a></span></span><span> </span><span id="local-6989586621679540478"><span class="annot"><span class="annottext">Name Commit
+</span><a href="#local-6989586621679540478"><span class="hs-identifier hs-var">base</span></a></span></span><span> </span><span id="local-6989586621679540479"><span class="annot"><span class="annottext">Name Commit
+</span><a href="#local-6989586621679540479"><span class="hs-identifier hs-var">headref</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-52"></span><span>    </span><span class="annot"><span class="annottext">Paths -&gt; QueryString -&gt; Request k Diff
+forall (mt :: RW) a. Paths -&gt; QueryString -&gt; Request mt a
+</span><a href="GitHub.Data.Request.html#query"><span class="hs-identifier hs-var">query</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;repos&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Name Owner -&gt; Text
+forall a. IsPathPart a =&gt; a -&gt; Text
+</span><a href="GitHub.Data.Request.html#toPathPart"><span class="hs-identifier hs-var">toPathPart</span></a></span><span> </span><span class="annot"><span class="annottext">Name Owner
+</span><a href="#local-6989586621679540476"><span class="hs-identifier hs-var">user</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Name Repo -&gt; Text
+forall a. IsPathPart a =&gt; a -&gt; Text
+</span><a href="GitHub.Data.Request.html#toPathPart"><span class="hs-identifier hs-var">toPathPart</span></a></span><span> </span><span class="annot"><span class="annottext">Name Repo
+</span><a href="#local-6989586621679540477"><span class="hs-identifier hs-var">repo</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;compare&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Name Commit -&gt; Text
+forall a. IsPathPart a =&gt; a -&gt; Text
+</span><a href="GitHub.Data.Request.html#toPathPart"><span class="hs-identifier hs-var">toPathPart</span></a></span><span> </span><span class="annot"><span class="annottext">Name Commit
+</span><a href="#local-6989586621679540478"><span class="hs-identifier hs-var">base</span></a></span><span> </span><span class="annot"><span class="annottext">Text -&gt; Text -&gt; Text
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;...&quot;</span></span><span> </span><span class="annot"><span class="annottext">Text -&gt; Text -&gt; Text
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Name Commit -&gt; Text
+forall a. IsPathPart a =&gt; a -&gt; Text
+</span><a href="GitHub.Data.Request.html#toPathPart"><span class="hs-identifier hs-var">toPathPart</span></a></span><span> </span><span class="annot"><span class="annottext">Name Commit
+</span><a href="#local-6989586621679540479"><span class="hs-identifier hs-var">headref</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span>
+</span><span id="line-53"></span></pre></body></html>

@@ -1,0 +1,85 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE Safe #-}</span><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# OPTIONS_HADDOCK not-home #-}</span><span>
+</span><span id="line-3"></span><span>
+</span><span id="line-4"></span><span class="hs-comment">-- |</span><span>
+</span><span id="line-5"></span><span class="hs-comment">-- Module      :  GHC.Real</span><span>
+</span><span id="line-6"></span><span class="hs-comment">-- Copyright   :  (c) The University of Glasgow, 1994-2002</span><span>
+</span><span id="line-7"></span><span class="hs-comment">-- License     :  see libraries/base/LICENSE</span><span>
+</span><span id="line-8"></span><span class="hs-comment">--</span><span>
+</span><span id="line-9"></span><span class="hs-comment">-- Maintainer  :  ghc-devs@haskell.org</span><span>
+</span><span id="line-10"></span><span class="hs-comment">-- Stability   :  internal</span><span>
+</span><span id="line-11"></span><span class="hs-comment">-- Portability :  non-portable (GHC Extensions)</span><span>
+</span><span id="line-12"></span><span class="hs-comment">--</span><span>
+</span><span id="line-13"></span><span class="hs-comment">-- The types 'Ratio' and 'Rational', and the classes 'Real', 'Fractional',</span><span>
+</span><span id="line-14"></span><span class="hs-comment">-- 'Integral', and 'RealFrac'.</span><span>
+</span><span id="line-15"></span><span class="hs-comment">--</span><span>
+</span><span id="line-16"></span><span>
+</span><span id="line-17"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="GHC.Real.html"><span class="hs-identifier">GHC.Real</span></a></span><span>
+</span><span id="line-18"></span><span>    </span><span class="hs-special">(</span><span> </span><span class="annot"><span class="hs-comment">-- * Classes</span></span><span>
+</span><span id="line-19"></span><span>      </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Real.html#Real"><span class="hs-identifier">Real</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-20"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Real.html#Integral"><span class="hs-identifier">Integral</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-21"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Real.html#Fractional"><span class="hs-identifier">Fractional</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-22"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Real.html#RealFrac"><span class="hs-identifier">RealFrac</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-23"></span><span>
+</span><span id="line-24"></span><span>      </span><span class="annot"><span class="hs-comment">-- * Conversion</span></span><span>
+</span><span id="line-25"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Real.html#fromIntegral"><span class="hs-identifier">fromIntegral</span></a></span><span>
+</span><span id="line-26"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Real.html#realToFrac"><span class="hs-identifier">realToFrac</span></a></span><span>
+</span><span id="line-27"></span><span>
+</span><span id="line-28"></span><span>      </span><span class="annot"><span class="hs-comment">-- * Formatting</span></span><span>
+</span><span id="line-29"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Real.html#showSigned"><span class="hs-identifier">showSigned</span></a></span><span>
+</span><span id="line-30"></span><span>
+</span><span id="line-31"></span><span>      </span><span class="annot"><span class="hs-comment">-- * Predicates</span></span><span>
+</span><span id="line-32"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Real.html#even"><span class="hs-identifier">even</span></a></span><span>
+</span><span id="line-33"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Real.html#odd"><span class="hs-identifier">odd</span></a></span><span>
+</span><span id="line-34"></span><span>
+</span><span id="line-35"></span><span>      </span><span class="annot"><span class="hs-comment">-- * Arithmetic</span></span><span>
+</span><span id="line-36"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Real.html#%5E"><span class="hs-operator">(^)</span></a></span><span>
+</span><span id="line-37"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Real.html#%5E%5E"><span class="hs-operator">(^^)</span></a></span><span>
+</span><span id="line-38"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Real.html#gcd"><span class="hs-identifier">gcd</span></a></span><span>
+</span><span id="line-39"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Real.html#lcm"><span class="hs-identifier">lcm</span></a></span><span>
+</span><span id="line-40"></span><span>
+</span><span id="line-41"></span><span>      </span><span class="annot"><span class="hs-comment">-- * 'Ratio'</span></span><span>
+</span><span id="line-42"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Real.html#Ratio"><span class="hs-identifier">Ratio</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-43"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Real.html#Rational"><span class="hs-identifier">Rational</span></a></span><span>
+</span><span id="line-44"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Real.html#infinity"><span class="hs-identifier">infinity</span></a></span><span>
+</span><span id="line-45"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Real.html#notANumber"><span class="hs-identifier">notANumber</span></a></span><span>
+</span><span id="line-46"></span><span>
+</span><span id="line-47"></span><span>      </span><span class="annot"><span class="hs-comment">-- * 'Enum' helpers</span></span><span>
+</span><span id="line-48"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Real.html#numericEnumFrom"><span class="hs-identifier">numericEnumFrom</span></a></span><span>
+</span><span id="line-49"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Real.html#numericEnumFromThen"><span class="hs-identifier">numericEnumFromThen</span></a></span><span>
+</span><span id="line-50"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Real.html#numericEnumFromTo"><span class="hs-identifier">numericEnumFromTo</span></a></span><span>
+</span><span id="line-51"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Real.html#numericEnumFromThenTo"><span class="hs-identifier">numericEnumFromThenTo</span></a></span><span>
+</span><span id="line-52"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Real.html#integralEnumFrom"><span class="hs-identifier">integralEnumFrom</span></a></span><span>
+</span><span id="line-53"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Real.html#integralEnumFromThen"><span class="hs-identifier">integralEnumFromThen</span></a></span><span>
+</span><span id="line-54"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Real.html#integralEnumFromTo"><span class="hs-identifier">integralEnumFromTo</span></a></span><span>
+</span><span id="line-55"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Real.html#integralEnumFromThenTo"><span class="hs-identifier">integralEnumFromThenTo</span></a></span><span>
+</span><span id="line-56"></span><span>
+</span><span id="line-57"></span><span>      </span><span class="annot"><span class="hs-comment">-- ** Construction</span></span><span>
+</span><span id="line-58"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Real.html#%25"><span class="hs-operator">(%)</span></a></span><span>
+</span><span id="line-59"></span><span>
+</span><span id="line-60"></span><span>      </span><span class="annot"><span class="hs-comment">-- ** Projection</span></span><span>
+</span><span id="line-61"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Real.html#numerator"><span class="hs-identifier">numerator</span></a></span><span>
+</span><span id="line-62"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Real.html#denominator"><span class="hs-identifier">denominator</span></a></span><span>
+</span><span id="line-63"></span><span>
+</span><span id="line-64"></span><span>      </span><span class="annot"><span class="hs-comment">-- ** Operations</span></span><span>
+</span><span id="line-65"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Real.html#reduce"><span class="hs-identifier">reduce</span></a></span><span>
+</span><span id="line-66"></span><span>
+</span><span id="line-67"></span><span>      </span><span class="annot"><span class="hs-comment">-- * Internal</span></span><span>
+</span><span id="line-68"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Real.html#ratioPrec"><span class="hs-identifier">ratioPrec</span></a></span><span>
+</span><span id="line-69"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Real.html#ratioPrec1"><span class="hs-identifier">ratioPrec1</span></a></span><span>
+</span><span id="line-70"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Real.html#divZeroError"><span class="hs-identifier">divZeroError</span></a></span><span>
+</span><span id="line-71"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Real.html#ratioZeroDenominatorError"><span class="hs-identifier">ratioZeroDenominatorError</span></a></span><span>
+</span><span id="line-72"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Real.html#overflowError"><span class="hs-identifier">overflowError</span></a></span><span>
+</span><span id="line-73"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Real.html#underflowError"><span class="hs-identifier">underflowError</span></a></span><span>
+</span><span id="line-74"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Real.html#mkRationalBase2"><span class="hs-identifier">mkRationalBase2</span></a></span><span>
+</span><span id="line-75"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Real.html#mkRationalBase10"><span class="hs-identifier">mkRationalBase10</span></a></span><span>
+</span><span id="line-76"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Real.html#FractionalExponentBase"><span class="hs-identifier">FractionalExponentBase</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-77"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Real.html#%5E%25%5E"><span class="hs-operator">(^%^)</span></a></span><span>
+</span><span id="line-78"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Real.html#%5E%5E%25%5E%5E"><span class="hs-operator">(^^%^^)</span></a></span><span>
+</span><span id="line-79"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Real.html#mkRationalWithExponentBase"><span class="hs-identifier">mkRationalWithExponentBase</span></a></span><span>
+</span><span id="line-80"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Real.html#powImpl"><span class="hs-identifier">powImpl</span></a></span><span>
+</span><span id="line-81"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Real.html#powImplAcc"><span class="hs-identifier">powImplAcc</span></a></span><span>
+</span><span id="line-82"></span><span>    </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-83"></span><span>
+</span><span id="line-84"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Real.html"><span class="hs-identifier">GHC.Internal.Real</span></a></span><span>
+</span><span id="line-85"></span></pre></body></html>

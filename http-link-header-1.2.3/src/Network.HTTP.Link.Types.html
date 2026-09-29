@@ -1,0 +1,133 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE UnicodeSyntax, Safe #-}</span><span>
+</span><span id="line-2"></span><span>
+</span><span id="line-3"></span><span class="annot"><span class="hs-comment">-- | The data type definitions for the HTTP Link header.</span></span><span>
+</span><span id="line-4"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Network.HTTP.Link.Types.html"><span class="hs-identifier">Network.HTTP.Link.Types</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-5"></span><span>
+</span><span id="line-6"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.Text</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Text</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">pack</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">unpack</span></span><span class="hs-special">)</span><span>
+</span><span id="line-7"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Network.URI</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">URI</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">parseURIReference</span></span><span class="hs-special">)</span><span>
+</span><span id="line-8"></span><span>
+</span><span id="line-9"></span><span class="annot"><span class="hs-comment">-- | The link attribute key.</span></span><span>
+</span><span id="line-10"></span><span class="hs-keyword">data</span><span> </span><span id="LinkParam"><span class="annot"><a href="Network.HTTP.Link.Types.html#LinkParam"><span class="hs-identifier hs-var">LinkParam</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="Rel"><span class="annot"><a href="Network.HTTP.Link.Types.html#Rel"><span class="hs-identifier hs-var">Rel</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span id="Anchor"><span class="annot"><a href="Network.HTTP.Link.Types.html#Anchor"><span class="hs-identifier hs-var">Anchor</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span id="Rev"><span class="annot"><a href="Network.HTTP.Link.Types.html#Rev"><span class="hs-identifier hs-var">Rev</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span id="Hreflang"><span class="annot"><a href="Network.HTTP.Link.Types.html#Hreflang"><span class="hs-identifier hs-var">Hreflang</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span id="Media"><span class="annot"><a href="Network.HTTP.Link.Types.html#Media"><span class="hs-identifier hs-var">Media</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span id="Title"><span class="annot"><a href="Network.HTTP.Link.Types.html#Title"><span class="hs-identifier hs-var">Title</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span id="Title%27"><span class="annot"><a href="Network.HTTP.Link.Types.html#Title%27"><span class="hs-identifier hs-var">Title'</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span id="ContentType"><span class="annot"><a href="Network.HTTP.Link.Types.html#ContentType"><span class="hs-identifier hs-var">ContentType</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span id="Other"><span class="annot"><a href="Network.HTTP.Link.Types.html#Other"><span class="hs-identifier hs-var">Other</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span>
+</span><span id="line-11"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679071569"><span id="local-6989586621679071576"><span class="annot"><span class="annottext">LinkParam -&gt; LinkParam -&gt; Bool
+(LinkParam -&gt; LinkParam -&gt; Bool)
+-&gt; (LinkParam -&gt; LinkParam -&gt; Bool) -&gt; Eq LinkParam
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: LinkParam -&gt; LinkParam -&gt; Bool
+== :: LinkParam -&gt; LinkParam -&gt; Bool
+$c/= :: LinkParam -&gt; LinkParam -&gt; Bool
+/= :: LinkParam -&gt; LinkParam -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679071581"><span id="local-6989586621679071587"><span id="local-6989586621679071591"><span class="annot"><span class="annottext">Int -&gt; LinkParam -&gt; ShowS
+[LinkParam] -&gt; ShowS
+LinkParam -&gt; String
+(Int -&gt; LinkParam -&gt; ShowS)
+-&gt; (LinkParam -&gt; String)
+-&gt; ([LinkParam] -&gt; ShowS)
+-&gt; Show LinkParam
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; LinkParam -&gt; ShowS
+showsPrec :: Int -&gt; LinkParam -&gt; ShowS
+$cshow :: LinkParam -&gt; String
+show :: LinkParam -&gt; String
+$cshowList :: [LinkParam] -&gt; ShowS
+showList :: [LinkParam] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-12"></span><span>
+</span><span id="line-13"></span><span class="annot"><span class="hs-comment">-- | A single link containing some representation of a URL.</span></span><span>
+</span><span id="line-14"></span><span class="hs-keyword">data</span><span> </span><span id="Link"><span class="annot"><a href="Network.HTTP.Link.Types.html#Link"><span class="hs-identifier hs-var">Link</span></a></span></span><span> </span><span id="local-6989586621679071595"><span class="annot"><a href="#local-6989586621679071595"><span class="hs-identifier hs-type">uri</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="Link"><span class="annot"><a href="Network.HTTP.Link.Types.html#Link"><span class="hs-identifier hs-var">Link</span></a></span></span><span> </span><span class="annot"><a href="#local-6989586621679071595"><span class="hs-identifier hs-type">uri</span></a></span><span> </span><span class="hs-special">[</span><span class="hs-special">(</span><span class="annot"><a href="Network.HTTP.Link.Types.html#LinkParam"><span class="hs-identifier hs-type">LinkParam</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span class="hs-special">)</span><span class="hs-special">]</span><span>
+</span><span id="line-15"></span><span>    </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679071599"><span id="local-6989586621679071605"><span class="annot"><span class="annottext">Link uri -&gt; Link uri -&gt; Bool
+(Link uri -&gt; Link uri -&gt; Bool)
+-&gt; (Link uri -&gt; Link uri -&gt; Bool) -&gt; Eq (Link uri)
+forall uri. Eq uri =&gt; Link uri -&gt; Link uri -&gt; Bool
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: forall uri. Eq uri =&gt; Link uri -&gt; Link uri -&gt; Bool
+== :: Link uri -&gt; Link uri -&gt; Bool
+$c/= :: forall uri. Eq uri =&gt; Link uri -&gt; Link uri -&gt; Bool
+/= :: Link uri -&gt; Link uri -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679071613"><span id="local-6989586621679071620"><span id="local-6989586621679071624"><span class="annot"><span class="annottext">Int -&gt; Link uri -&gt; ShowS
+[Link uri] -&gt; ShowS
+Link uri -&gt; String
+(Int -&gt; Link uri -&gt; ShowS)
+-&gt; (Link uri -&gt; String) -&gt; ([Link uri] -&gt; ShowS) -&gt; Show (Link uri)
+forall uri. Show uri =&gt; Int -&gt; Link uri -&gt; ShowS
+forall uri. Show uri =&gt; [Link uri] -&gt; ShowS
+forall uri. Show uri =&gt; Link uri -&gt; String
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: forall uri. Show uri =&gt; Int -&gt; Link uri -&gt; ShowS
+showsPrec :: Int -&gt; Link uri -&gt; ShowS
+$cshow :: forall uri. Show uri =&gt; Link uri -&gt; String
+show :: Link uri -&gt; String
+$cshowList :: forall uri. Show uri =&gt; [Link uri] -&gt; ShowS
+showList :: [Link uri] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-16"></span><span>
+</span><span id="line-17"></span><span class="hs-comment">-- | Types that can represent URLs.</span><span>
+</span><span id="line-18"></span><span class="hs-comment">--</span><span>
+</span><span id="line-19"></span><span class="hs-comment">-- For example, to parse links containing @Text.URI.URI@ from the</span><span>
+</span><span id="line-20"></span><span class="hs-comment">-- [modern-uri](https://hackage.haskell.org/package/modern-uri-0.3.2.0/docs/Text-URI.html#t:URI)</span><span>
+</span><span id="line-21"></span><span class="hs-comment">-- package, simply define the orphan instance:</span><span>
+</span><span id="line-22"></span><span class="hs-comment">--</span><span>
+</span><span id="line-23"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-24"></span><span class="hs-comment">--    instance IsURI Modern.URI where</span><span>
+</span><span id="line-25"></span><span class="hs-comment">--        uriFromText = left displayException . mkURI</span><span>
+</span><span id="line-26"></span><span class="hs-comment">--        uriToText = render</span><span>
+</span><span id="line-27"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-28"></span><span class="hs-comment">--</span><span>
+</span><span id="line-29"></span><span class="hs-comment">-- @since 1.1.0</span><span>
+</span><span id="line-30"></span><span class="hs-keyword">class</span><span> </span><span id="IsURI"><span class="annot"><a href="Network.HTTP.Link.Types.html#IsURI"><span class="hs-identifier hs-var">IsURI</span></a></span></span><span> </span><span id="local-6989586621679071543"><span class="annot"><a href="#local-6989586621679071543"><span class="hs-identifier hs-type">uri</span></a></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-31"></span><span>    </span><span id="uriFromText"><span class="annot"><a href="Network.HTTP.Link.Types.html#uriFromText"><span class="hs-identifier hs-type">uriFromText</span></a></span></span><span> </span><span class="hs-glyph">&#8759;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span> </span><span class="hs-glyph">&#8594;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Either</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="annot"><a href="#local-6989586621679071543"><span class="hs-identifier hs-type">uri</span></a></span><span>
+</span><span id="line-32"></span><span>    </span><span id="uriToText"><span class="annot"><a href="Network.HTTP.Link.Types.html#uriToText"><span class="hs-identifier hs-type">uriToText</span></a></span></span><span> </span><span class="hs-glyph">&#8759;</span><span> </span><span class="annot"><a href="#local-6989586621679071543"><span class="hs-identifier hs-type">uri</span></a></span><span> </span><span class="hs-glyph">&#8594;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span>
+</span><span id="line-33"></span><span>
+</span><span id="line-34"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="Network.HTTP.Link.Types.html#IsURI"><span class="hs-identifier hs-type">IsURI</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">URI</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-35"></span><span>    </span><span id="local-6989586621679071635"><span class="annot"><span class="annottext">uriFromText :: Text -&gt; Either String URI
+</span><a href="Network.HTTP.Link.Types.html#uriFromText"><span class="hs-identifier hs-var hs-var hs-var">uriFromText</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Either String URI
+-&gt; (URI -&gt; Either String URI) -&gt; Maybe URI -&gt; Either String URI
+forall b a. b -&gt; (a -&gt; b) -&gt; Maybe a -&gt; b
+</span><span class="hs-identifier hs-var">maybe</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String -&gt; Either String URI
+forall a b. a -&gt; Either a b
+</span><span class="hs-identifier hs-var">Left</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;&quot;</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">URI -&gt; Either String URI
+forall a b. b -&gt; Either a b
+</span><span class="hs-identifier hs-var">Right</span></span><span> </span><span class="annot"><span class="annottext">(Maybe URI -&gt; Either String URI)
+-&gt; (Text -&gt; Maybe URI) -&gt; Text -&gt; Either String URI
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; Maybe URI
+</span><span class="hs-identifier hs-var">parseURIReference</span></span><span> </span><span class="annot"><span class="annottext">(String -&gt; Maybe URI) -&gt; (Text -&gt; String) -&gt; Text -&gt; Maybe URI
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Text -&gt; String
+</span><span class="hs-identifier hs-var">unpack</span></span><span>
+</span><span id="line-36"></span><span>    </span><span id="local-6989586621679071640"><span class="annot"><span class="annottext">uriToText :: URI -&gt; Text
+</span><a href="Network.HTTP.Link.Types.html#uriToText"><span class="hs-identifier hs-var hs-var hs-var">uriToText</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; Text
+</span><span class="hs-identifier hs-var">pack</span></span><span> </span><span class="annot"><span class="annottext">(String -&gt; Text) -&gt; (URI -&gt; String) -&gt; URI -&gt; Text
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">URI -&gt; String
+forall a. Show a =&gt; a -&gt; String
+</span><span class="hs-identifier hs-var">show</span></span><span>
+</span><span id="line-37"></span><span>
+</span><span id="line-38"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="Network.HTTP.Link.Types.html#IsURI"><span class="hs-identifier hs-type">IsURI</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-39"></span><span>    </span><span id="local-6989586621679071645"><span class="annot"><span class="annottext">uriFromText :: Text -&gt; Either String Text
+</span><a href="Network.HTTP.Link.Types.html#uriFromText"><span class="hs-identifier hs-var hs-var hs-var">uriFromText</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Text -&gt; Either String Text
+forall a b. b -&gt; Either a b
+</span><span class="hs-identifier hs-var">Right</span></span><span>
+</span><span id="line-40"></span><span>    </span><span id="local-6989586621679071646"><span class="annot"><span class="annottext">uriToText :: Text -&gt; Text
+</span><a href="Network.HTTP.Link.Types.html#uriToText"><span class="hs-identifier hs-var hs-var hs-var">uriToText</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Text -&gt; Text
+forall a. a -&gt; a
+</span><span class="hs-identifier hs-var">id</span></span><span>
+</span><span id="line-41"></span><span>
+</span><span id="line-42"></span><span class="annot"><span class="hs-comment">-- | Extracts the URI from the link.</span></span><span>
+</span><span id="line-43"></span><span id="local-6989586621679071552"><span class="annot"><a href="Network.HTTP.Link.Types.html#href"><span class="hs-identifier hs-type">href</span></a></span><span> </span><span class="hs-glyph">&#8759;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Network.HTTP.Link.Types.html#IsURI"><span class="hs-identifier hs-type">IsURI</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679071552"><span class="hs-identifier hs-type">uri</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">&#8658;</span><span> </span><span class="annot"><a href="Network.HTTP.Link.Types.html#Link"><span class="hs-identifier hs-type">Link</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679071552"><span class="hs-identifier hs-type">uri</span></a></span><span> </span><span class="hs-glyph">&#8594;</span><span> </span><span class="annot"><a href="#local-6989586621679071552"><span class="hs-identifier hs-type">uri</span></a></span></span><span>
+</span><span id="line-44"></span><span id="href"><span class="annot"><span class="annottext">href :: forall uri. IsURI uri =&gt; Link uri -&gt; uri
+</span><a href="Network.HTTP.Link.Types.html#href"><span class="hs-identifier hs-var hs-var">href</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Network.HTTP.Link.Types.html#Link"><span class="hs-identifier hs-type">Link</span></a></span><span> </span><span id="local-6989586621679071650"><span class="annot"><span class="annottext">uri
+</span><a href="#local-6989586621679071650"><span class="hs-identifier hs-var">h</span></a></span></span><span> </span><span class="annot"><span class="annottext">[(LinkParam, Text)]
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">uri
+</span><a href="#local-6989586621679071650"><span class="hs-identifier hs-var">h</span></a></span><span>
+</span><span id="line-45"></span><span>
+</span><span id="line-46"></span><span class="annot"><span class="hs-comment">-- | Extracts the parameters from the link.</span></span><span>
+</span><span id="line-47"></span><span id="local-6989586621679071554"><span class="annot"><a href="Network.HTTP.Link.Types.html#linkParams"><span class="hs-identifier hs-type">linkParams</span></a></span><span> </span><span class="hs-glyph">&#8759;</span><span> </span><span class="annot"><a href="Network.HTTP.Link.Types.html#Link"><span class="hs-identifier hs-type">Link</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679071554"><span class="hs-identifier hs-type">uri</span></a></span><span> </span><span class="hs-glyph">&#8594;</span><span> </span><span class="hs-special">[</span><span class="hs-special">(</span><span class="annot"><a href="Network.HTTP.Link.Types.html#LinkParam"><span class="hs-identifier hs-type">LinkParam</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span class="hs-special">)</span><span class="hs-special">]</span></span><span>
+</span><span id="line-48"></span><span id="linkParams"><span class="annot"><span class="annottext">linkParams :: forall uri. Link uri -&gt; [(LinkParam, Text)]
+</span><a href="Network.HTTP.Link.Types.html#linkParams"><span class="hs-identifier hs-var hs-var">linkParams</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Network.HTTP.Link.Types.html#Link"><span class="hs-identifier hs-type">Link</span></a></span><span> </span><span class="annot"><span class="annottext">uri
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621679071652"><span class="annot"><span class="annottext">[(LinkParam, Text)]
+</span><a href="#local-6989586621679071652"><span class="hs-identifier hs-var">ps</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[(LinkParam, Text)]
+</span><a href="#local-6989586621679071652"><span class="hs-identifier hs-var">ps</span></a></span><span>
+</span><span id="line-49"></span></pre></body></html>

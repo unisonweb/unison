@@ -1,0 +1,50 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE Safe #-}</span><span>
+</span><span id="line-2"></span><span>
+</span><span id="line-3"></span><span class="hs-comment">-- |</span><span>
+</span><span id="line-4"></span><span class="hs-comment">--</span><span>
+</span><span id="line-5"></span><span class="hs-comment">-- Module      :  GHC.IO.Encoding</span><span>
+</span><span id="line-6"></span><span class="hs-comment">-- Copyright   :  (c) The University of Glasgow, 2008-2009</span><span>
+</span><span id="line-7"></span><span class="hs-comment">-- License     :  see libraries/base/LICENSE</span><span>
+</span><span id="line-8"></span><span class="hs-comment">--</span><span>
+</span><span id="line-9"></span><span class="hs-comment">-- Maintainer  :  libraries@haskell.org</span><span>
+</span><span id="line-10"></span><span class="hs-comment">-- Stability   :  internal</span><span>
+</span><span id="line-11"></span><span class="hs-comment">-- Portability :  non-portable</span><span>
+</span><span id="line-12"></span><span class="hs-comment">--</span><span>
+</span><span id="line-13"></span><span class="hs-comment">-- Text codecs for I/O</span><span>
+</span><span id="line-14"></span><span class="hs-comment">--</span><span>
+</span><span id="line-15"></span><span class="hs-comment">-- /The API of this module is unstable and not meant to be consumed by the general public./</span><span>
+</span><span id="line-16"></span><span class="hs-comment">-- If you absolutely must depend on it, make sure to use a tight upper</span><span>
+</span><span id="line-17"></span><span class="hs-comment">-- bound, e.g., @base &lt; 4.X@ rather than @base &lt; 5@, because the interface can</span><span>
+</span><span id="line-18"></span><span class="hs-comment">-- change rapidly without much warning.</span><span>
+</span><span id="line-19"></span><span class="hs-comment">--</span><span>
+</span><span id="line-20"></span><span>
+</span><span id="line-21"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="GHC.IO.Encoding.html"><span class="hs-identifier">GHC.IO.Encoding</span></a></span><span>
+</span><span id="line-22"></span><span>    </span><span class="hs-special">(</span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.IO.Encoding.Types.html#BufferCodec"><span class="hs-identifier">BufferCodec</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-23"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.IO.Encoding.Types.html#TextEncoding"><span class="hs-identifier">TextEncoding</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-24"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.IO.Encoding.Types.html#TextEncoder"><span class="hs-identifier">TextEncoder</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-25"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.IO.Encoding.Types.html#TextDecoder"><span class="hs-identifier">TextDecoder</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-26"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.IO.Encoding.Types.html#CodingProgress"><span class="hs-identifier">CodingProgress</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-27"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.IO.Encoding.html#latin1"><span class="hs-identifier">latin1</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-28"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.IO.Encoding.html#latin1_encode"><span class="hs-identifier">latin1_encode</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-29"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.IO.Encoding.html#latin1_decode"><span class="hs-identifier">latin1_decode</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-30"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.IO.Encoding.html#utf8"><span class="hs-identifier">utf8</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-31"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.IO.Encoding.html#utf8_bom"><span class="hs-identifier">utf8_bom</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-32"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.IO.Encoding.html#utf16"><span class="hs-identifier">utf16</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-33"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.IO.Encoding.html#utf16le"><span class="hs-identifier">utf16le</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-34"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.IO.Encoding.html#utf16be"><span class="hs-identifier">utf16be</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-35"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.IO.Encoding.html#utf32"><span class="hs-identifier">utf32</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-36"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.IO.Encoding.html#utf32le"><span class="hs-identifier">utf32le</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-37"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.IO.Encoding.html#utf32be"><span class="hs-identifier">utf32be</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-38"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.IO.Encoding.html#initLocaleEncoding"><span class="hs-identifier">initLocaleEncoding</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-39"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.IO.Encoding.html#getLocaleEncoding"><span class="hs-identifier">getLocaleEncoding</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-40"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.IO.Encoding.html#getFileSystemEncoding"><span class="hs-identifier">getFileSystemEncoding</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-41"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.IO.Encoding.html#getForeignEncoding"><span class="hs-identifier">getForeignEncoding</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-42"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.IO.Encoding.html#setLocaleEncoding"><span class="hs-identifier">setLocaleEncoding</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-43"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.IO.Encoding.html#setFileSystemEncoding"><span class="hs-identifier">setFileSystemEncoding</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-44"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.IO.Encoding.html#setForeignEncoding"><span class="hs-identifier">setForeignEncoding</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-45"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.IO.Encoding.html#char8"><span class="hs-identifier">char8</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-46"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.IO.Encoding.html#mkTextEncoding"><span class="hs-identifier">mkTextEncoding</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-47"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.IO.Encoding.html#argvEncoding"><span class="hs-identifier">argvEncoding</span></a></span><span>
+</span><span id="line-48"></span><span>     </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-49"></span><span>
+</span><span id="line-50"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.IO.Encoding.html"><span class="hs-identifier">GHC.Internal.IO.Encoding</span></a></span></pre></body></html>

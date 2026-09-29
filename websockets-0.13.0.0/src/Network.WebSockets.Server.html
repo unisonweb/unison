@@ -1,0 +1,309 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-comment">--------------------------------------------------------------------------------</span><span>
+</span><span id="line-2"></span><span class="hs-comment">-- | This provides a simple stand-alone server for 'WebSockets' applications.</span><span>
+</span><span id="line-3"></span><span class="hs-comment">-- Note that in production you want to use a real webserver such as snap or</span><span>
+</span><span id="line-4"></span><span class="hs-comment">-- warp.</span><span>
+</span><span id="line-5"></span><span class="hs-pragma">{-# LANGUAGE OverloadedStrings #-}</span><span>
+</span><span id="line-6"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Network.WebSockets.Server.html"><span class="hs-identifier">Network.WebSockets.Server</span></a></span><span>
+</span><span id="line-7"></span><span>    </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="Network.WebSockets.Server.html#ServerApp"><span class="hs-identifier">ServerApp</span></a></span><span>
+</span><span id="line-8"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Network.WebSockets.Server.html#runServer"><span class="hs-identifier">runServer</span></a></span><span>
+</span><span id="line-9"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Network.WebSockets.Server.html#ServerOptions"><span class="hs-identifier">ServerOptions</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-10"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Network.WebSockets.Server.html#defaultServerOptions"><span class="hs-identifier">defaultServerOptions</span></a></span><span>
+</span><span id="line-11"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Network.WebSockets.Server.html#runServerWithOptions"><span class="hs-identifier">runServerWithOptions</span></a></span><span>
+</span><span id="line-12"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Network.WebSockets.Server.html#runServerWith"><span class="hs-identifier">runServerWith</span></a></span><span>
+</span><span id="line-13"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Network.WebSockets.Server.html#makeListenSocket"><span class="hs-identifier">makeListenSocket</span></a></span><span>
+</span><span id="line-14"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Network.WebSockets.Server.html#makePendingConnection"><span class="hs-identifier">makePendingConnection</span></a></span><span>
+</span><span id="line-15"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Network.WebSockets.Server.html#makePendingConnectionFromStream"><span class="hs-identifier">makePendingConnectionFromStream</span></a></span><span>
+</span><span id="line-16"></span><span>
+</span><span id="line-17"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Network.WebSockets.Connection.PingPong.html#PongTimeout"><span class="hs-identifier">PongTimeout</span></a></span><span>
+</span><span id="line-18"></span><span>    </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-19"></span><span>
+</span><span id="line-20"></span><span>
+</span><span id="line-21"></span><span class="hs-comment">--------------------------------------------------------------------------------</span><span>
+</span><span id="line-22"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Control.Concurrent.Async</span></span><span>      </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Async</span></span><span>
+</span><span id="line-23"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Control.Exception</span></span><span>             </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">bracket</span></span><span class="hs-special">,</span><span>
+</span><span id="line-24"></span><span>                                                </span><span class="annot"><span class="hs-identifier">bracketOnError</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">finally</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">mask_</span></span><span class="hs-special">,</span><span>
+</span><span id="line-25"></span><span>                                                </span><span class="annot"><span class="hs-identifier">throwIO</span></span><span class="hs-special">)</span><span>
+</span><span id="line-26"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Network.Socket</span></span><span>                </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Socket</span></span><span class="hs-special">)</span><span>
+</span><span id="line-27"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Network.Socket</span></span><span>                </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">S</span></span><span>
+</span><span id="line-28"></span><span>
+</span><span id="line-29"></span><span>
+</span><span id="line-30"></span><span class="hs-comment">--------------------------------------------------------------------------------</span><span>
+</span><span id="line-31"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><a href="Network.WebSockets.Connection.html"><span class="hs-identifier">Network.WebSockets.Connection</span></a></span><span>
+</span><span id="line-32"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><a href="Network.WebSockets.Connection.PingPong.html"><span class="hs-identifier">Network.WebSockets.Connection.PingPong</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Network.WebSockets.Connection.PingPong.html#PongTimeout"><span class="hs-identifier">PongTimeout</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-33"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><a href="Network.WebSockets.Http.html"><span class="hs-identifier">Network.WebSockets.Http</span></a></span><span>
+</span><span id="line-34"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Network.WebSockets.Stream.html"><span class="hs-identifier">Network.WebSockets.Stream</span></a></span><span>     </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Stream</span></span><span>
+</span><span id="line-35"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><a href="Network.WebSockets.Types.html"><span class="hs-identifier">Network.WebSockets.Types</span></a></span><span>
+</span><span id="line-36"></span><span>
+</span><span id="line-37"></span><span>
+</span><span id="line-38"></span><span class="hs-comment">--------------------------------------------------------------------------------</span><span>
+</span><span id="line-39"></span><span class="hs-comment">-- | WebSockets application that can be ran by a server. Once this 'IO' action</span><span>
+</span><span id="line-40"></span><span class="hs-comment">-- finishes, the underlying socket is closed automatically.</span><span>
+</span><span id="line-41"></span><span class="hs-keyword">type</span><span> </span><span id="ServerApp"><span class="annot"><a href="Network.WebSockets.Server.html#ServerApp"><span class="hs-identifier hs-var">ServerApp</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="Network.WebSockets.Connection.html#PendingConnection"><span class="hs-identifier hs-type">PendingConnection</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-42"></span><span>
+</span><span id="line-43"></span><span>
+</span><span id="line-44"></span><span class="hs-comment">--------------------------------------------------------------------------------</span><span>
+</span><span id="line-45"></span><span class="hs-comment">-- | Provides a simple server. This function blocks forever.  Note that this</span><span>
+</span><span id="line-46"></span><span class="hs-comment">-- is merely provided for quick-and-dirty or internal applications, but for real</span><span>
+</span><span id="line-47"></span><span class="hs-comment">-- applications, you should use a real server.</span><span>
+</span><span id="line-48"></span><span class="hs-comment">--</span><span>
+</span><span id="line-49"></span><span class="hs-comment">-- For example:</span><span>
+</span><span id="line-50"></span><span class="hs-comment">--</span><span>
+</span><span id="line-51"></span><span class="hs-comment">-- * Performance is reasonable under load, but:</span><span>
+</span><span id="line-52"></span><span class="hs-comment">-- * No protection against DoS attacks is provided.</span><span>
+</span><span id="line-53"></span><span class="hs-comment">-- * No logging is performed.</span><span>
+</span><span id="line-54"></span><span class="hs-comment">-- * ...</span><span>
+</span><span id="line-55"></span><span class="hs-comment">--</span><span>
+</span><span id="line-56"></span><span class="hs-comment">-- Glue for using this package with real servers is provided by:</span><span>
+</span><span id="line-57"></span><span class="hs-comment">--</span><span>
+</span><span id="line-58"></span><span class="hs-comment">-- * &lt;https://hackage.haskell.org/package/wai-websockets&gt;</span><span>
+</span><span id="line-59"></span><span class="hs-comment">--</span><span>
+</span><span id="line-60"></span><span class="hs-comment">-- * &lt;https://hackage.haskell.org/package/websockets-snap&gt;</span><span>
+</span><span id="line-61"></span><span class="annot"><a href="Network.WebSockets.Server.html#runServer"><span class="hs-identifier hs-type">runServer</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span>     </span><span class="annot"><span class="hs-comment">-- ^ Address to bind</span></span><span>
+</span><span id="line-62"></span><span>          </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>        </span><span class="annot"><span class="hs-comment">-- ^ Port to listen on</span></span><span>
+</span><span id="line-63"></span><span>          </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Network.WebSockets.Server.html#ServerApp"><span class="hs-identifier hs-type">ServerApp</span></a></span><span>  </span><span class="annot"><span class="hs-comment">-- ^ Application</span></span><span>
+</span><span id="line-64"></span><span>          </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>      </span><span class="annot"><span class="hs-comment">-- ^ Never returns</span></span><span>
+</span><span id="line-65"></span><span id="runServer"><span class="annot"><span class="annottext">runServer :: String -&gt; Int -&gt; ServerApp -&gt; IO ()
+</span><a href="Network.WebSockets.Server.html#runServer"><span class="hs-identifier hs-var hs-var">runServer</span></a></span></span><span> </span><span id="local-6989586621679091455"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679091455"><span class="hs-identifier hs-var">host</span></a></span></span><span> </span><span id="local-6989586621679091456"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679091456"><span class="hs-identifier hs-var">port</span></a></span></span><span> </span><span id="local-6989586621679091457"><span class="annot"><span class="annottext">ServerApp
+</span><a href="#local-6989586621679091457"><span class="hs-identifier hs-var">app</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; Int -&gt; ConnectionOptions -&gt; ServerApp -&gt; IO ()
+</span><a href="Network.WebSockets.Server.html#runServerWith"><span class="hs-identifier hs-var">runServerWith</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679091455"><span class="hs-identifier hs-var">host</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679091456"><span class="hs-identifier hs-var">port</span></a></span><span> </span><span class="annot"><span class="annottext">ConnectionOptions
+</span><a href="Network.WebSockets.Connection.Options.html#defaultConnectionOptions"><span class="hs-identifier hs-var">defaultConnectionOptions</span></a></span><span> </span><span class="annot"><span class="annottext">ServerApp
+</span><a href="#local-6989586621679091457"><span class="hs-identifier hs-var">app</span></a></span><span>
+</span><span id="line-66"></span><span>
+</span><span id="line-67"></span><span>
+</span><span id="line-68"></span><span class="hs-comment">--------------------------------------------------------------------------------</span><span>
+</span><span id="line-69"></span><span class="annot"><span class="hs-comment">-- | A version of 'runServer' which allows you to customize some options.</span></span><span>
+</span><span id="line-70"></span><span class="annot"><a href="Network.WebSockets.Server.html#runServerWith"><span class="hs-identifier hs-type">runServerWith</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Network.WebSockets.Connection.Options.html#ConnectionOptions"><span class="hs-identifier hs-type">ConnectionOptions</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Network.WebSockets.Server.html#ServerApp"><span class="hs-identifier hs-type">ServerApp</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-71"></span><span id="runServerWith"><span class="annot"><span class="annottext">runServerWith :: String -&gt; Int -&gt; ConnectionOptions -&gt; ServerApp -&gt; IO ()
+</span><a href="Network.WebSockets.Server.html#runServerWith"><span class="hs-identifier hs-var hs-var">runServerWith</span></a></span></span><span> </span><span id="local-6989586621679091459"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679091459"><span class="hs-identifier hs-var">host</span></a></span></span><span> </span><span id="local-6989586621679091460"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679091460"><span class="hs-identifier hs-var">port</span></a></span></span><span> </span><span id="local-6989586621679091461"><span class="annot"><span class="annottext">ConnectionOptions
+</span><a href="#local-6989586621679091461"><span class="hs-identifier hs-var">opts</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ServerOptions -&gt; ServerApp -&gt; IO ()
+forall a. ServerOptions -&gt; ServerApp -&gt; IO a
+</span><a href="Network.WebSockets.Server.html#runServerWithOptions"><span class="hs-identifier hs-var">runServerWithOptions</span></a></span><span> </span><span class="annot"><span class="annottext">ServerOptions
+</span><a href="Network.WebSockets.Server.html#defaultServerOptions"><span class="hs-identifier hs-var">defaultServerOptions</span></a></span><span>
+</span><span id="line-72"></span><span>    </span><span class="hs-special">{</span><span> </span><span class="annot"><a href="Network.WebSockets.Server.html#serverHost"><span class="hs-identifier hs-var">serverHost</span></a></span><span>              </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="#local-6989586621679091459"><span class="hs-identifier hs-type">host</span></a></span><span>
+</span><span id="line-73"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Network.WebSockets.Server.html#serverPort"><span class="hs-identifier hs-var">serverPort</span></a></span><span>              </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="#local-6989586621679091460"><span class="hs-identifier hs-type">port</span></a></span><span>
+</span><span id="line-74"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Network.WebSockets.Server.html#serverConnectionOptions"><span class="hs-identifier hs-var">serverConnectionOptions</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="#local-6989586621679091461"><span class="hs-identifier hs-type">opts</span></a></span><span>
+</span><span id="line-75"></span><span>    </span><span class="hs-special">}</span><span>
+</span><span id="line-76"></span><span class="hs-pragma">{-# DEPRECATED</span><span> </span><span class="hs-pragma">runServerWith</span><span> </span><span class="hs-pragma">&quot;Use 'runServerWithOptions' instead&quot;</span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-77"></span><span>
+</span><span id="line-78"></span><span>
+</span><span id="line-79"></span><span class="hs-comment">--------------------------------------------------------------------------------</span><span>
+</span><span id="line-80"></span><span class="hs-keyword">data</span><span> </span><span id="ServerOptions"><span class="annot"><a href="Network.WebSockets.Server.html#ServerOptions"><span class="hs-identifier hs-var">ServerOptions</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="ServerOptions"><span class="annot"><a href="Network.WebSockets.Server.html#ServerOptions"><span class="hs-identifier hs-var">ServerOptions</span></a></span></span><span>
+</span><span id="line-81"></span><span>    </span><span class="hs-special">{</span><span> </span><span id="serverHost"><span class="annot"><span class="annottext">ServerOptions -&gt; String
+</span><a href="Network.WebSockets.Server.html#serverHost"><span class="hs-identifier hs-var hs-var">serverHost</span></a></span></span><span>              </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span>
+</span><span id="line-82"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="serverPort"><span class="annot"><span class="annottext">ServerOptions -&gt; Int
+</span><a href="Network.WebSockets.Server.html#serverPort"><span class="hs-identifier hs-var hs-var">serverPort</span></a></span></span><span>              </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>
+</span><span id="line-83"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="serverConnectionOptions"><span class="annot"><span class="annottext">ServerOptions -&gt; ConnectionOptions
+</span><a href="Network.WebSockets.Server.html#serverConnectionOptions"><span class="hs-identifier hs-var hs-var">serverConnectionOptions</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Network.WebSockets.Connection.Options.html#ConnectionOptions"><span class="hs-identifier hs-type">ConnectionOptions</span></a></span><span>
+</span><span id="line-84"></span><span>    </span><span class="hs-special">}</span><span>
+</span><span id="line-85"></span><span>
+</span><span id="line-86"></span><span>
+</span><span id="line-87"></span><span class="hs-comment">--------------------------------------------------------------------------------</span><span>
+</span><span id="line-88"></span><span class="annot"><a href="Network.WebSockets.Server.html#defaultServerOptions"><span class="hs-identifier hs-type">defaultServerOptions</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Network.WebSockets.Server.html#ServerOptions"><span class="hs-identifier hs-type">ServerOptions</span></a></span><span>
+</span><span id="line-89"></span><span id="defaultServerOptions"><span class="annot"><span class="annottext">defaultServerOptions :: ServerOptions
+</span><a href="Network.WebSockets.Server.html#defaultServerOptions"><span class="hs-identifier hs-var hs-var">defaultServerOptions</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="Network.WebSockets.Server.html#ServerOptions"><span class="hs-identifier hs-type">ServerOptions</span></a></span><span>
+</span><span id="line-90"></span><span>    </span><span class="hs-special">{</span><span> </span><span class="annot"><span class="annottext">serverHost :: String
+</span><a href="Network.WebSockets.Server.html#serverHost"><span class="hs-identifier hs-var">serverHost</span></a></span><span>              </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;127.0.0.1&quot;</span></span><span>
+</span><span id="line-91"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">serverPort :: Int
+</span><a href="Network.WebSockets.Server.html#serverPort"><span class="hs-identifier hs-var">serverPort</span></a></span><span>              </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">8080</span></span><span>
+</span><span id="line-92"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">serverConnectionOptions :: ConnectionOptions
+</span><a href="Network.WebSockets.Server.html#serverConnectionOptions"><span class="hs-identifier hs-var">serverConnectionOptions</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ConnectionOptions
+</span><a href="Network.WebSockets.Connection.Options.html#defaultConnectionOptions"><span class="hs-identifier hs-var">defaultConnectionOptions</span></a></span><span>
+</span><span id="line-93"></span><span>    </span><span class="hs-special">}</span><span>
+</span><span id="line-94"></span><span>
+</span><span id="line-95"></span><span>
+</span><span id="line-96"></span><span class="hs-comment">--------------------------------------------------------------------------------</span><span>
+</span><span id="line-97"></span><span class="hs-comment">-- | Customizable version of 'runServer'.  Never returns until killed.</span><span>
+</span><span id="line-98"></span><span class="hs-comment">--</span><span>
+</span><span id="line-99"></span><span class="hs-comment">-- Please use the 'defaultServerOptions' combined with record updates to set the</span><span>
+</span><span id="line-100"></span><span class="hs-comment">-- fields you want.  This way your code is unlikely to break on future changes.</span><span>
+</span><span id="line-101"></span><span id="local-6989586621679091382"><span class="annot"><a href="Network.WebSockets.Server.html#runServerWithOptions"><span class="hs-identifier hs-type">runServerWithOptions</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Network.WebSockets.Server.html#ServerOptions"><span class="hs-identifier hs-type">ServerOptions</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Network.WebSockets.Server.html#ServerApp"><span class="hs-identifier hs-type">ServerApp</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="#local-6989586621679091382"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-102"></span><span id="runServerWithOptions"><span class="annot"><span class="annottext">runServerWithOptions :: forall a. ServerOptions -&gt; ServerApp -&gt; IO a
+</span><a href="Network.WebSockets.Server.html#runServerWithOptions"><span class="hs-identifier hs-var hs-var">runServerWithOptions</span></a></span></span><span> </span><span id="local-6989586621679091466"><span class="annot"><span class="annottext">ServerOptions
+</span><a href="#local-6989586621679091466"><span class="hs-identifier hs-var">opts</span></a></span></span><span> </span><span id="local-6989586621679091467"><span class="annot"><span class="annottext">ServerApp
+</span><a href="#local-6989586621679091467"><span class="hs-identifier hs-var">app</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">IO a -&gt; IO a
+forall a. IO a -&gt; IO a
+</span><span class="hs-identifier hs-var">S.withSocketsDo</span></span><span> </span><span class="annot"><span class="annottext">(IO a -&gt; IO a) -&gt; IO a -&gt; IO a
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-103"></span><span>    </span><span class="annot"><span class="annottext">IO Socket -&gt; (Socket -&gt; IO ()) -&gt; (Socket -&gt; IO a) -&gt; IO a
+forall a b c. IO a -&gt; (a -&gt; IO b) -&gt; (a -&gt; IO c) -&gt; IO c
+</span><span class="hs-identifier hs-var">bracket</span></span><span>
+</span><span id="line-104"></span><span>    </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String -&gt; Int -&gt; IO Socket
+</span><a href="Network.WebSockets.Server.html#makeListenSocket"><span class="hs-identifier hs-var">makeListenSocket</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ServerOptions -&gt; String
+</span><a href="Network.WebSockets.Server.html#serverHost"><span class="hs-identifier hs-var">serverHost</span></a></span><span> </span><span class="annot"><span class="annottext">ServerOptions
+</span><a href="#local-6989586621679091466"><span class="hs-identifier hs-var">opts</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ServerOptions -&gt; Int
+</span><a href="Network.WebSockets.Server.html#serverPort"><span class="hs-identifier hs-var">serverPort</span></a></span><span> </span><span class="annot"><span class="annottext">ServerOptions
+</span><a href="#local-6989586621679091466"><span class="hs-identifier hs-var">opts</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-105"></span><span>    </span><span class="annot"><span class="annottext">Socket -&gt; IO ()
+</span><span class="hs-identifier hs-var">S.close</span></span><span>
+</span><span id="line-106"></span><span>    </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span id="local-6989586621679091470"><span class="annot"><span class="annottext">Socket
+</span><a href="#local-6989586621679091470"><span class="hs-identifier hs-var">sock</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-107"></span><span>        </span><span class="hs-keyword">let</span><span>
+</span><span id="line-108"></span><span>            </span><span id="local-6989586621679091472"><span class="annot"><span class="annottext">mainThread :: IO b
+</span><a href="#local-6989586621679091472"><span class="hs-identifier hs-var hs-var">mainThread</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-109"></span><span>                </span><span class="hs-special">(</span><span id="local-6989586621679091473"><span class="annot"><a href="#local-6989586621679091473"><span class="hs-identifier hs-var">conn</span></a></span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Socket -&gt; IO (Socket, SockAddr)
+</span><span class="hs-identifier hs-var">S.accept</span></span><span> </span><span class="annot"><span class="annottext">Socket
+</span><a href="#local-6989586621679091470"><span class="hs-identifier hs-var">sock</span></a></span><span>
+</span><span id="line-110"></span><span>                </span><span class="annot"><span class="hs-identifier hs-type">Async.withAsyncWithUnmask</span></span><span>
+</span><span id="line-111"></span><span>                    </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span id="local-6989586621679091476"><span class="annot"><span class="annottext">forall a. IO a -&gt; IO a
+</span><a href="#local-6989586621679091476"><span class="hs-identifier hs-var">unmask</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">IO () -&gt; IO ()
+forall a. IO a -&gt; IO a
+</span><a href="#local-6989586621679091476"><span class="hs-identifier hs-var">unmask</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Socket -&gt; ConnectionOptions -&gt; ServerApp -&gt; IO ()
+</span><a href="Network.WebSockets.Server.html#runApp"><span class="hs-identifier hs-var">runApp</span></a></span><span> </span><span class="annot"><span class="annottext">Socket
+</span><a href="#local-6989586621679091473"><span class="hs-identifier hs-var">conn</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ServerOptions -&gt; ConnectionOptions
+</span><a href="Network.WebSockets.Server.html#serverConnectionOptions"><span class="hs-identifier hs-var">serverConnectionOptions</span></a></span><span> </span><span class="annot"><span class="annottext">ServerOptions
+</span><a href="#local-6989586621679091466"><span class="hs-identifier hs-var">opts</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">ServerApp
+</span><a href="#local-6989586621679091467"><span class="hs-identifier hs-var">app</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">IO () -&gt; IO () -&gt; IO ()
+forall a b. IO a -&gt; IO b -&gt; IO a
+</span><span class="hs-operator hs-var">`finally`</span></span><span> </span><span class="annot"><span class="annottext">Socket -&gt; IO ()
+</span><span class="hs-identifier hs-var">S.close</span></span><span> </span><span class="annot"><span class="annottext">Socket
+</span><a href="#local-6989586621679091473"><span class="hs-identifier hs-var">conn</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-112"></span><span>                    </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span class="annot"><span class="annottext">Async ()
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">IO b
+</span><a href="#local-6989586621679091472"><span class="hs-identifier hs-var">mainThread</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-113"></span><span>        </span><span class="hs-keyword">in</span><span> </span><span class="annot"><span class="annottext">IO a -&gt; IO a
+forall a. IO a -&gt; IO a
+</span><span class="hs-identifier hs-var">mask_</span></span><span> </span><span class="annot"><span class="annottext">IO a
+forall {b}. IO b
+</span><a href="#local-6989586621679091472"><span class="hs-identifier hs-var">mainThread</span></a></span><span>
+</span><span id="line-114"></span><span>    </span><span class="hs-special">)</span><span>
+</span><span id="line-115"></span><span>
+</span><span id="line-116"></span><span>
+</span><span id="line-117"></span><span class="hs-comment">--------------------------------------------------------------------------------</span><span>
+</span><span id="line-118"></span><span class="hs-comment">-- | Create a standardized socket on which you can listen for incomming</span><span>
+</span><span id="line-119"></span><span class="hs-comment">-- connections. Should only be used for a quick and dirty solution! Should be</span><span>
+</span><span id="line-120"></span><span class="hs-comment">-- preceded by the call 'Network.Socket.withSocketsDo'.</span><span>
+</span><span id="line-121"></span><span class="annot"><a href="Network.WebSockets.Server.html#makeListenSocket"><span class="hs-identifier hs-type">makeListenSocket</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Socket</span></span><span>
+</span><span id="line-122"></span><span id="makeListenSocket"><span class="annot"><span class="annottext">makeListenSocket :: String -&gt; Int -&gt; IO Socket
+</span><a href="Network.WebSockets.Server.html#makeListenSocket"><span class="hs-identifier hs-var hs-var">makeListenSocket</span></a></span></span><span> </span><span id="local-6989586621679091478"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679091478"><span class="hs-identifier hs-var">host</span></a></span></span><span> </span><span id="local-6989586621679091479"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679091479"><span class="hs-identifier hs-var">port</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-123"></span><span>  </span><span id="local-6989586621679091480"><span class="annot"><a href="#local-6989586621679091480"><span class="hs-identifier hs-var">addr</span></a></span></span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span class="annot"><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Maybe AddrInfo -&gt; Maybe String -&gt; Maybe String -&gt; IO [AddrInfo]
+forall (t :: * -&gt; *).
+GetAddrInfo t =&gt;
+Maybe AddrInfo -&gt; Maybe String -&gt; Maybe String -&gt; IO (t AddrInfo)
+</span><span class="hs-identifier hs-var">S.getAddrInfo</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">AddrInfo -&gt; Maybe AddrInfo
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">AddrInfo
+</span><a href="#local-6989586621679091482"><span class="hs-identifier hs-var">hints</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String -&gt; Maybe String
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679091478"><span class="hs-identifier hs-var">host</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String -&gt; Maybe String
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; String
+forall a. Show a =&gt; a -&gt; String
+</span><span class="hs-identifier hs-var">show</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679091479"><span class="hs-identifier hs-var">port</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-124"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">bracketOnError</span></span><span>
+</span><span id="line-125"></span><span>    </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">S.socket</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-var">S.addrFamily</span></span><span> </span><span class="annot"><a href="#local-6989586621679091480"><span class="hs-identifier hs-type">addr</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="hs-identifier hs-type">S.Stream</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">S.defaultProtocol</span></span><span class="hs-special">)</span><span>
+</span><span id="line-126"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">S.close</span></span><span>
+</span><span id="line-127"></span><span>    </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span id="local-6989586621679091488"><span class="annot"><span class="annottext">Socket
+</span><a href="#local-6989586621679091488"><span class="hs-identifier hs-var">sock</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-128"></span><span>        </span><span class="annot"><span class="hs-identifier">_</span></span><span>     </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Socket -&gt; SocketOption -&gt; Int -&gt; IO ()
+</span><span class="hs-identifier hs-var">S.setSocketOption</span></span><span> </span><span class="annot"><span class="annottext">Socket
+</span><a href="#local-6989586621679091488"><span class="hs-identifier hs-var">sock</span></a></span><span> </span><span class="annot"><span class="annottext">SocketOption
+</span><span class="hs-identifier hs-var">S.ReuseAddr</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span>
+</span><span id="line-129"></span><span>        </span><span class="annot"><span class="hs-identifier">_</span></span><span>     </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="hs-identifier hs-type">S.setSocketOption</span></span><span> </span><span class="annot"><a href="#local-6989586621679091488"><span class="hs-identifier hs-type">sock</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">S.NoDelay</span></span><span>   </span><span class="annot"><span class="hs-number">1</span></span><span>
+</span><span id="line-130"></span><span>        </span><span class="annot"><span class="hs-identifier hs-type">S.bind</span></span><span> </span><span class="annot"><a href="#local-6989586621679091488"><span class="hs-identifier hs-type">sock</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-var">S.addrAddress</span></span><span> </span><span class="annot"><a href="#local-6989586621679091480"><span class="hs-identifier hs-type">addr</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-131"></span><span>        </span><span class="annot"><span class="hs-identifier hs-type">S.listen</span></span><span> </span><span class="annot"><a href="#local-6989586621679091488"><span class="hs-identifier hs-type">sock</span></a></span><span> </span><span class="annot"><span class="hs-number">5</span></span><span>
+</span><span id="line-132"></span><span>        </span><span class="annot"><span class="hs-identifier hs-type">return</span></span><span> </span><span class="annot"><a href="#local-6989586621679091488"><span class="hs-identifier hs-type">sock</span></a></span><span>
+</span><span id="line-133"></span><span>        </span><span class="hs-special">)</span><span>
+</span><span id="line-134"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-135"></span><span>    </span><span id="local-6989586621679091482"><span class="annot"><span class="annottext">hints :: AddrInfo
+</span><a href="#local-6989586621679091482"><span class="hs-identifier hs-var hs-var">hints</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">AddrInfo
+</span><span class="hs-identifier hs-var">S.defaultHints</span></span><span> </span><span class="hs-special">{</span><span> </span><span class="annot"><span class="hs-identifier hs-var">S.addrSocketType</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-identifier hs-type">S.Stream</span></span><span> </span><span class="hs-special">}</span><span>
+</span><span id="line-136"></span><span>
+</span><span id="line-137"></span><span>
+</span><span id="line-138"></span><span class="hs-comment">--------------------------------------------------------------------------------</span><span>
+</span><span id="line-139"></span><span class="annot"><a href="Network.WebSockets.Server.html#runApp"><span class="hs-identifier hs-type">runApp</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Socket</span></span><span>
+</span><span id="line-140"></span><span>       </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Network.WebSockets.Connection.Options.html#ConnectionOptions"><span class="hs-identifier hs-type">ConnectionOptions</span></a></span><span>
+</span><span id="line-141"></span><span>       </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Network.WebSockets.Server.html#ServerApp"><span class="hs-identifier hs-type">ServerApp</span></a></span><span>
+</span><span id="line-142"></span><span>       </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-143"></span><span id="runApp"><span class="annot"><span class="annottext">runApp :: Socket -&gt; ConnectionOptions -&gt; ServerApp -&gt; IO ()
+</span><a href="Network.WebSockets.Server.html#runApp"><span class="hs-identifier hs-var hs-var">runApp</span></a></span></span><span> </span><span id="local-6989586621679091497"><span class="annot"><span class="annottext">Socket
+</span><a href="#local-6989586621679091497"><span class="hs-identifier hs-var">socket</span></a></span></span><span> </span><span id="local-6989586621679091498"><span class="annot"><span class="annottext">ConnectionOptions
+</span><a href="#local-6989586621679091498"><span class="hs-identifier hs-var">opts</span></a></span></span><span> </span><span id="local-6989586621679091499"><span class="annot"><span class="annottext">ServerApp
+</span><a href="#local-6989586621679091499"><span class="hs-identifier hs-var">app</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-144"></span><span>    </span><span class="annot"><span class="annottext">IO PendingConnection -&gt; ServerApp -&gt; ServerApp -&gt; IO ()
+forall a b c. IO a -&gt; (a -&gt; IO b) -&gt; (a -&gt; IO c) -&gt; IO c
+</span><span class="hs-identifier hs-var">bracket</span></span><span>
+</span><span id="line-145"></span><span>        </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Socket -&gt; ConnectionOptions -&gt; IO PendingConnection
+</span><a href="Network.WebSockets.Server.html#makePendingConnection"><span class="hs-identifier hs-var">makePendingConnection</span></a></span><span> </span><span class="annot"><span class="annottext">Socket
+</span><a href="#local-6989586621679091497"><span class="hs-identifier hs-var">socket</span></a></span><span> </span><span class="annot"><span class="annottext">ConnectionOptions
+</span><a href="#local-6989586621679091498"><span class="hs-identifier hs-var">opts</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-146"></span><span>        </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Stream -&gt; IO ()
+</span><a href="Network.WebSockets.Stream.html#close"><span class="hs-identifier hs-var">Stream.close</span></a></span><span> </span><span class="annot"><span class="annottext">(Stream -&gt; IO ()) -&gt; (PendingConnection -&gt; Stream) -&gt; ServerApp
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">PendingConnection -&gt; Stream
+</span><a href="Network.WebSockets.Connection.html#pendingStream"><span class="hs-identifier hs-var">pendingStream</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-147"></span><span>        </span><span class="annot"><span class="annottext">ServerApp
+</span><a href="#local-6989586621679091499"><span class="hs-identifier hs-var">app</span></a></span><span>
+</span><span id="line-148"></span><span>
+</span><span id="line-149"></span><span>
+</span><span id="line-150"></span><span class="hs-comment">--------------------------------------------------------------------------------</span><span>
+</span><span id="line-151"></span><span class="hs-comment">-- | Turns a socket, connected to some client, into a 'PendingConnection'. The</span><span>
+</span><span id="line-152"></span><span class="hs-comment">-- 'PendingConnection' should be closed using 'pendingStream' and 'Stream.close' later.</span><span>
+</span><span id="line-153"></span><span class="annot"><a href="Network.WebSockets.Server.html#makePendingConnection"><span class="hs-identifier hs-type">makePendingConnection</span></a></span><span>
+</span><span id="line-154"></span><span>    </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Socket</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Network.WebSockets.Connection.Options.html#ConnectionOptions"><span class="hs-identifier hs-type">ConnectionOptions</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="Network.WebSockets.Connection.html#PendingConnection"><span class="hs-identifier hs-type">PendingConnection</span></a></span><span>
+</span><span id="line-155"></span><span id="makePendingConnection"><span class="annot"><span class="annottext">makePendingConnection :: Socket -&gt; ConnectionOptions -&gt; IO PendingConnection
+</span><a href="Network.WebSockets.Server.html#makePendingConnection"><span class="hs-identifier hs-var hs-var">makePendingConnection</span></a></span></span><span> </span><span id="local-6989586621679091504"><span class="annot"><span class="annottext">Socket
+</span><a href="#local-6989586621679091504"><span class="hs-identifier hs-var">socket</span></a></span></span><span> </span><span id="local-6989586621679091505"><span class="annot"><span class="annottext">ConnectionOptions
+</span><a href="#local-6989586621679091505"><span class="hs-identifier hs-var">opts</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-156"></span><span>    </span><span id="local-6989586621679091506"><span class="annot"><a href="#local-6989586621679091506"><span class="hs-identifier hs-var">stream</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Socket -&gt; IO Stream
+</span><a href="Network.WebSockets.Stream.html#makeSocketStream"><span class="hs-identifier hs-var">Stream.makeSocketStream</span></a></span><span> </span><span class="annot"><span class="annottext">Socket
+</span><a href="#local-6989586621679091504"><span class="hs-identifier hs-var">socket</span></a></span><span>
+</span><span id="line-157"></span><span>    </span><span class="annot"><a href="Network.WebSockets.Server.html#makePendingConnectionFromStream"><span class="hs-identifier hs-type">makePendingConnectionFromStream</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679091506"><span class="hs-identifier hs-type">stream</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679091505"><span class="hs-identifier hs-type">opts</span></a></span><span>
+</span><span id="line-158"></span><span>
+</span><span id="line-159"></span><span>
+</span><span id="line-160"></span><span class="hs-comment">-- | More general version of 'makePendingConnection' for 'Stream.Stream'</span><span>
+</span><span id="line-161"></span><span class="hs-comment">-- instead of a 'Socket'.</span><span>
+</span><span id="line-162"></span><span class="annot"><a href="Network.WebSockets.Server.html#makePendingConnectionFromStream"><span class="hs-identifier hs-type">makePendingConnectionFromStream</span></a></span><span>
+</span><span id="line-163"></span><span>    </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Network.WebSockets.Stream.html#Stream"><span class="hs-identifier hs-type">Stream.Stream</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Network.WebSockets.Connection.Options.html#ConnectionOptions"><span class="hs-identifier hs-type">ConnectionOptions</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="Network.WebSockets.Connection.html#PendingConnection"><span class="hs-identifier hs-type">PendingConnection</span></a></span><span>
+</span><span id="line-164"></span><span id="makePendingConnectionFromStream"><span class="annot"><span class="annottext">makePendingConnectionFromStream :: Stream -&gt; ConnectionOptions -&gt; IO PendingConnection
+</span><a href="Network.WebSockets.Server.html#makePendingConnectionFromStream"><span class="hs-identifier hs-var hs-var">makePendingConnectionFromStream</span></a></span></span><span> </span><span id="local-6989586621679091508"><span class="annot"><span class="annottext">Stream
+</span><a href="#local-6989586621679091508"><span class="hs-identifier hs-var">stream</span></a></span></span><span> </span><span id="local-6989586621679091509"><span class="annot"><span class="annottext">ConnectionOptions
+</span><a href="#local-6989586621679091509"><span class="hs-identifier hs-var">opts</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-165"></span><span>    </span><span class="hs-comment">-- TODO: we probably want to send a 40x if the request is bad?</span><span>
+</span><span id="line-166"></span><span>    </span><span id="local-6989586621679091510"><span class="annot"><a href="#local-6989586621679091510"><span class="hs-identifier hs-var">mbRequest</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Stream -&gt; Parser RequestHead -&gt; IO (Maybe RequestHead)
+forall a. Stream -&gt; Parser a -&gt; IO (Maybe a)
+</span><a href="Network.WebSockets.Stream.html#parse"><span class="hs-identifier hs-var">Stream.parse</span></a></span><span> </span><span class="annot"><span class="annottext">Stream
+</span><a href="#local-6989586621679091508"><span class="hs-identifier hs-var">stream</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Bool -&gt; Parser RequestHead
+</span><a href="Network.WebSockets.Http.html#decodeRequestHead"><span class="hs-identifier hs-var">decodeRequestHead</span></a></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span class="hs-special">)</span><span>
+</span><span id="line-167"></span><span>    </span><span class="hs-keyword">case</span><span> </span><span class="annot"><a href="#local-6989586621679091510"><span class="hs-identifier hs-type">mbRequest</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-168"></span><span>        </span><span class="annot"><span class="annottext">Maybe RequestHead
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>      </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">ConnectionException -&gt; IO PendingConnection
+forall e a. (HasCallStack, Exception e) =&gt; e -&gt; IO a
+</span><span class="hs-identifier hs-var">throwIO</span></span><span> </span><span class="annot"><span class="annottext">ConnectionException
+</span><a href="Network.WebSockets.Types.html#ConnectionClosed"><span class="hs-identifier hs-var">ConnectionClosed</span></a></span><span>
+</span><span id="line-169"></span><span>        </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621679091514"><span class="annot"><span class="annottext">RequestHead
+</span><a href="#local-6989586621679091514"><span class="hs-identifier hs-var">request</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">PendingConnection -&gt; IO PendingConnection
+forall a. a -&gt; IO a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><a href="Network.WebSockets.Connection.html#PendingConnection"><span class="hs-identifier hs-type">PendingConnection</span></a></span><span>
+</span><span id="line-170"></span><span>            </span><span class="hs-special">{</span><span> </span><span class="annot"><span class="annottext">pendingOptions :: ConnectionOptions
+</span><a href="#local-6989586621679091515"><span class="hs-identifier hs-var">pendingOptions</span></a></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ConnectionOptions
+</span><a href="#local-6989586621679091509"><span class="hs-identifier hs-var">opts</span></a></span><span>
+</span><span id="line-171"></span><span>            </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">pendingRequest :: RequestHead
+</span><a href="#local-6989586621679091516"><span class="hs-identifier hs-var">pendingRequest</span></a></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">RequestHead
+</span><a href="#local-6989586621679091514"><span class="hs-identifier hs-var">request</span></a></span><span>
+</span><span id="line-172"></span><span>            </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">pendingOnAccept :: Connection -&gt; IO ()
+</span><a href="#local-6989586621679091517"><span class="hs-identifier hs-var">pendingOnAccept</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span class="annot"><span class="annottext">Connection
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">() -&gt; IO ()
+forall a. a -&gt; IO a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-173"></span><span>            </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">pendingStream :: Stream
+</span><a href="Network.WebSockets.Connection.html#pendingStream"><span class="hs-identifier hs-var">pendingStream</span></a></span><span>   </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Stream
+</span><a href="#local-6989586621679091508"><span class="hs-identifier hs-var">stream</span></a></span><span>
+</span><span id="line-174"></span><span>            </span><span class="hs-special">}</span><span>
+</span><span id="line-175"></span></pre></body></html>

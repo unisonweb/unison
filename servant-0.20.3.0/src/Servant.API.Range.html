@@ -1,0 +1,410 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE GeneralizedNewtypeDeriving #-}</span><span>
+</span><span id="line-2"></span><span>
+</span><span id="line-3"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Servant.API.Range.html"><span class="hs-identifier">Servant.API.Range</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Servant.API.Range.html#Range"><span class="hs-identifier">Range</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Servant.API.Range.html#unRange"><span class="hs-identifier">unRange</span></a></span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Servant.API.Range.html#unsafeRange"><span class="hs-identifier">unsafeRange</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Servant.API.Range.html#mkRange"><span class="hs-identifier">mkRange</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-4"></span><span>
+</span><span id="line-5"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.Aeson</span></span><span>
+</span><span id="line-6"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.Aeson.Types</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">modifyFailure</span></span><span class="hs-special">)</span><span>
+</span><span id="line-7"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.Bifunctor</span></span><span>   </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">first</span></span><span class="hs-special">)</span><span>
+</span><span id="line-8"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.Ix</span></span><span>
+</span><span id="line-9"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.Proxy</span></span><span>       </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Proxy</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Proxy</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-10"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Text</span></span><span>        </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">T</span></span><span>
+</span><span id="line-11"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">GHC.Generics</span></span><span>     </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Generic</span></span><span class="hs-special">)</span><span>
+</span><span id="line-12"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">GHC.TypeLits</span></span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><a href="Servant.API.html"><span class="hs-identifier">Servant.API</span></a></span><span>
+</span><span id="line-14"></span><span>
+</span><span id="line-15"></span><span class="hs-comment">-- | A newtype wrapper around 'Natural' that ensures the value is within a given range.</span><span>
+</span><span id="line-16"></span><span class="hs-comment">--</span><span>
+</span><span id="line-17"></span><span class="hs-comment">-- Example:</span><span>
+</span><span id="line-18"></span><span class="hs-comment">--</span><span>
+</span><span id="line-19"></span><span class="hs-comment">-- &gt;&gt;&gt; :{</span><span>
+</span><span id="line-20"></span><span class="hs-comment">--   let validRange = mkRange 5 :: Maybe (Range 1 10)</span><span>
+</span><span id="line-21"></span><span class="hs-comment">--   in case validRange of</span><span>
+</span><span id="line-22"></span><span class="hs-comment">--        Just r  -&gt; &quot;Valid range: &quot; ++ show (unRange r)</span><span>
+</span><span id="line-23"></span><span class="hs-comment">--        Nothing -&gt; &quot;Invalid range&quot;</span><span>
+</span><span id="line-24"></span><span class="hs-comment">-- :}</span><span>
+</span><span id="line-25"></span><span class="hs-comment">-- &quot;Valid range: 5&quot;</span><span>
+</span><span id="line-26"></span><span class="hs-comment">--</span><span>
+</span><span id="line-27"></span><span class="hs-comment">-- &gt;&gt;&gt; :{</span><span>
+</span><span id="line-28"></span><span class="hs-comment">--   let invalidRange = mkRange 15 :: Maybe (Range 1 10)</span><span>
+</span><span id="line-29"></span><span class="hs-comment">--   in case invalidRange of</span><span>
+</span><span id="line-30"></span><span class="hs-comment">--        Just r  -&gt; &quot;Valid range: &quot; ++ show (unRange r)</span><span>
+</span><span id="line-31"></span><span class="hs-comment">--        Nothing -&gt; &quot;Invalid range&quot;</span><span>
+</span><span id="line-32"></span><span class="hs-comment">-- :}</span><span>
+</span><span id="line-33"></span><span class="hs-comment">-- &quot;Invalid range&quot;</span><span>
+</span><span id="line-34"></span><span class="hs-comment">--</span><span>
+</span><span id="line-35"></span><span class="hs-comment">-- &gt;&gt;&gt; decode &quot;5&quot; :: Maybe (Range 1 10)</span><span>
+</span><span id="line-36"></span><span class="hs-comment">-- Just (MkRange {unRange = 5})</span><span>
+</span><span id="line-37"></span><span class="hs-comment">--</span><span>
+</span><span id="line-38"></span><span class="hs-comment">-- &gt;&gt;&gt; decode &quot;15&quot; :: Maybe (Range 1 10)</span><span>
+</span><span id="line-39"></span><span class="hs-comment">-- Nothing</span><span>
+</span><span id="line-40"></span><span class="hs-keyword">newtype</span><span> </span><span id="Range"><span class="annot"><a href="Servant.API.Range.html#Range"><span class="hs-identifier hs-var">Range</span></a></span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679154272"><span class="annot"><a href="#local-6989586621679154272"><span class="hs-identifier hs-type">min</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Nat</span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679154273"><span class="annot"><a href="#local-6989586621679154273"><span class="hs-identifier hs-type">max</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Nat</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span id="MkRange"><span class="annot"><a href="Servant.API.Range.html#MkRange"><span class="hs-identifier hs-var">MkRange</span></a></span></span><span> </span><span class="hs-special">{</span><span id="unRange"><span class="annot"><span class="annottext">forall (min :: Nat) (max :: Nat). Range min max -&gt; Nat
+</span><a href="Servant.API.Range.html#unRange"><span class="hs-identifier hs-var hs-var">unRange</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Natural</span></span><span class="hs-special">}</span><span>
+</span><span id="line-41"></span><span>    </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">stock</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679154397"><span id="local-6989586621679154401"><span class="annot"><span class="annottext">Range min max -&gt; Range min max -&gt; Bool
+(Range min max -&gt; Range min max -&gt; Bool)
+-&gt; (Range min max -&gt; Range min max -&gt; Bool) -&gt; Eq (Range min max)
+forall (min :: Nat) (max :: Nat).
+Range min max -&gt; Range min max -&gt; Bool
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: forall (min :: Nat) (max :: Nat).
+Range min max -&gt; Range min max -&gt; Bool
+== :: Range min max -&gt; Range min max -&gt; Bool
+$c/= :: forall (min :: Nat) (max :: Nat).
+Range min max -&gt; Range min max -&gt; Bool
+/= :: Range min max -&gt; Range min max -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679154408"><span id="local-6989586621679154412"><span id="local-6989586621679154415"><span id="local-6989586621679154419"><span id="local-6989586621679154422"><span id="local-6989586621679154425"><span id="local-6989586621679154428"><span class="annot"><span class="annottext">Eq (Range min max)
+Eq (Range min max) =&gt;
+(Range min max -&gt; Range min max -&gt; Ordering)
+-&gt; (Range min max -&gt; Range min max -&gt; Bool)
+-&gt; (Range min max -&gt; Range min max -&gt; Bool)
+-&gt; (Range min max -&gt; Range min max -&gt; Bool)
+-&gt; (Range min max -&gt; Range min max -&gt; Bool)
+-&gt; (Range min max -&gt; Range min max -&gt; Range min max)
+-&gt; (Range min max -&gt; Range min max -&gt; Range min max)
+-&gt; Ord (Range min max)
+Range min max -&gt; Range min max -&gt; Bool
+Range min max -&gt; Range min max -&gt; Ordering
+Range min max -&gt; Range min max -&gt; Range min max
+forall (min :: Nat) (max :: Nat). Eq (Range min max)
+forall (min :: Nat) (max :: Nat).
+Range min max -&gt; Range min max -&gt; Bool
+forall (min :: Nat) (max :: Nat).
+Range min max -&gt; Range min max -&gt; Ordering
+forall (min :: Nat) (max :: Nat).
+Range min max -&gt; Range min max -&gt; Range min max
+forall a.
+Eq a =&gt;
+(a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+$ccompare :: forall (min :: Nat) (max :: Nat).
+Range min max -&gt; Range min max -&gt; Ordering
+compare :: Range min max -&gt; Range min max -&gt; Ordering
+$c&lt; :: forall (min :: Nat) (max :: Nat).
+Range min max -&gt; Range min max -&gt; Bool
+&lt; :: Range min max -&gt; Range min max -&gt; Bool
+$c&lt;= :: forall (min :: Nat) (max :: Nat).
+Range min max -&gt; Range min max -&gt; Bool
+&lt;= :: Range min max -&gt; Range min max -&gt; Bool
+$c&gt; :: forall (min :: Nat) (max :: Nat).
+Range min max -&gt; Range min max -&gt; Bool
+&gt; :: Range min max -&gt; Range min max -&gt; Bool
+$c&gt;= :: forall (min :: Nat) (max :: Nat).
+Range min max -&gt; Range min max -&gt; Bool
+&gt;= :: Range min max -&gt; Range min max -&gt; Bool
+$cmax :: forall (min :: Nat) (max :: Nat).
+Range min max -&gt; Range min max -&gt; Range min max
+max :: Range min max -&gt; Range min max -&gt; Range min max
+$cmin :: forall (min :: Nat) (max :: Nat).
+Range min max -&gt; Range min max -&gt; Range min max
+min :: Range min max -&gt; Range min max -&gt; Range min max
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679154436"><span id="local-6989586621679154442"><span id="local-6989586621679154446"><span class="annot"><span class="annottext">Int -&gt; Range min max -&gt; ShowS
+[Range min max] -&gt; ShowS
+Range min max -&gt; String
+(Int -&gt; Range min max -&gt; ShowS)
+-&gt; (Range min max -&gt; String)
+-&gt; ([Range min max] -&gt; ShowS)
+-&gt; Show (Range min max)
+forall (min :: Nat) (max :: Nat). Int -&gt; Range min max -&gt; ShowS
+forall (min :: Nat) (max :: Nat). [Range min max] -&gt; ShowS
+forall (min :: Nat) (max :: Nat). Range min max -&gt; String
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: forall (min :: Nat) (max :: Nat). Int -&gt; Range min max -&gt; ShowS
+showsPrec :: Int -&gt; Range min max -&gt; ShowS
+$cshow :: forall (min :: Nat) (max :: Nat). Range min max -&gt; String
+show :: Range min max -&gt; String
+$cshowList :: forall (min :: Nat) (max :: Nat). [Range min max] -&gt; ShowS
+showList :: [Range min max] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679154451"><span id="local-6989586621679154453"><span class="annot"><span class="annottext">(forall x. Range min max -&gt; Rep (Range min max) x)
+-&gt; (forall x. Rep (Range min max) x -&gt; Range min max)
+-&gt; Generic (Range min max)
+forall (min :: Nat) (max :: Nat) x.
+Rep (Range min max) x -&gt; Range min max
+forall (min :: Nat) (max :: Nat) x.
+Range min max -&gt; Rep (Range min max) x
+forall x. Rep (Range min max) x -&gt; Range min max
+forall x. Range min max -&gt; Rep (Range min max) x
+forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+$cfrom :: forall (min :: Nat) (max :: Nat) x.
+Range min max -&gt; Rep (Range min max) x
+from :: forall x. Range min max -&gt; Rep (Range min max) x
+$cto :: forall (min :: Nat) (max :: Nat) x.
+Rep (Range min max) x -&gt; Range min max
+to :: forall x. Rep (Range min max) x -&gt; Range min max
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Generic</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-42"></span><span>    </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">newtype</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679154461"><span id="local-6989586621679154466"><span id="local-6989586621679154470"><span id="local-6989586621679154474"><span id="local-6989586621679154478"><span id="local-6989586621679154482"><span class="annot"><span class="annottext">Ord (Range min max)
+Ord (Range min max) =&gt;
+((Range min max, Range min max) -&gt; [Range min max])
+-&gt; ((Range min max, Range min max) -&gt; Range min max -&gt; Int)
+-&gt; ((Range min max, Range min max) -&gt; Range min max -&gt; Int)
+-&gt; ((Range min max, Range min max) -&gt; Range min max -&gt; Bool)
+-&gt; ((Range min max, Range min max) -&gt; Int)
+-&gt; ((Range min max, Range min max) -&gt; Int)
+-&gt; Ix (Range min max)
+(Range min max, Range min max) -&gt; Int
+(Range min max, Range min max) -&gt; [Range min max]
+(Range min max, Range min max) -&gt; Range min max -&gt; Bool
+(Range min max, Range min max) -&gt; Range min max -&gt; Int
+forall (min :: Nat) (max :: Nat). Ord (Range min max)
+forall (min :: Nat) (max :: Nat).
+(Range min max, Range min max) -&gt; Int
+forall (min :: Nat) (max :: Nat).
+(Range min max, Range min max) -&gt; [Range min max]
+forall (min :: Nat) (max :: Nat).
+(Range min max, Range min max) -&gt; Range min max -&gt; Bool
+forall (min :: Nat) (max :: Nat).
+(Range min max, Range min max) -&gt; Range min max -&gt; Int
+forall a.
+Ord a =&gt;
+((a, a) -&gt; [a])
+-&gt; ((a, a) -&gt; a -&gt; Int)
+-&gt; ((a, a) -&gt; a -&gt; Int)
+-&gt; ((a, a) -&gt; a -&gt; Bool)
+-&gt; ((a, a) -&gt; Int)
+-&gt; ((a, a) -&gt; Int)
+-&gt; Ix a
+$crange :: forall (min :: Nat) (max :: Nat).
+(Range min max, Range min max) -&gt; [Range min max]
+range :: (Range min max, Range min max) -&gt; [Range min max]
+$cindex :: forall (min :: Nat) (max :: Nat).
+(Range min max, Range min max) -&gt; Range min max -&gt; Int
+index :: (Range min max, Range min max) -&gt; Range min max -&gt; Int
+$cunsafeIndex :: forall (min :: Nat) (max :: Nat).
+(Range min max, Range min max) -&gt; Range min max -&gt; Int
+unsafeIndex :: (Range min max, Range min max) -&gt; Range min max -&gt; Int
+$cinRange :: forall (min :: Nat) (max :: Nat).
+(Range min max, Range min max) -&gt; Range min max -&gt; Bool
+inRange :: (Range min max, Range min max) -&gt; Range min max -&gt; Bool
+$crangeSize :: forall (min :: Nat) (max :: Nat).
+(Range min max, Range min max) -&gt; Int
+rangeSize :: (Range min max, Range min max) -&gt; Int
+$cunsafeRangeSize :: forall (min :: Nat) (max :: Nat).
+(Range min max, Range min max) -&gt; Int
+unsafeRangeSize :: (Range min max, Range min max) -&gt; Int
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ix</span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679154494"><span id="local-6989586621679154499"><span id="local-6989586621679154503"><span id="local-6989586621679154507"><span id="local-6989586621679154511"><span class="annot"><span class="annottext">[Range min max] -&gt; Value
+[Range min max] -&gt; Encoding
+Range min max -&gt; Bool
+Range min max -&gt; Value
+Range min max -&gt; Encoding
+(Range min max -&gt; Value)
+-&gt; (Range min max -&gt; Encoding)
+-&gt; ([Range min max] -&gt; Value)
+-&gt; ([Range min max] -&gt; Encoding)
+-&gt; (Range min max -&gt; Bool)
+-&gt; ToJSON (Range min max)
+forall (min :: Nat) (max :: Nat). [Range min max] -&gt; Value
+forall (min :: Nat) (max :: Nat). [Range min max] -&gt; Encoding
+forall (min :: Nat) (max :: Nat). Range min max -&gt; Bool
+forall (min :: Nat) (max :: Nat). Range min max -&gt; Value
+forall (min :: Nat) (max :: Nat). Range min max -&gt; Encoding
+forall a.
+(a -&gt; Value)
+-&gt; (a -&gt; Encoding)
+-&gt; ([a] -&gt; Value)
+-&gt; ([a] -&gt; Encoding)
+-&gt; (a -&gt; Bool)
+-&gt; ToJSON a
+$ctoJSON :: forall (min :: Nat) (max :: Nat). Range min max -&gt; Value
+toJSON :: Range min max -&gt; Value
+$ctoEncoding :: forall (min :: Nat) (max :: Nat). Range min max -&gt; Encoding
+toEncoding :: Range min max -&gt; Encoding
+$ctoJSONList :: forall (min :: Nat) (max :: Nat). [Range min max] -&gt; Value
+toJSONList :: [Range min max] -&gt; Value
+$ctoEncodingList :: forall (min :: Nat) (max :: Nat). [Range min max] -&gt; Encoding
+toEncodingList :: [Range min max] -&gt; Encoding
+$comitField :: forall (min :: Nat) (max :: Nat). Range min max -&gt; Bool
+omitField :: Range min max -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">ToJSON</span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679154522"><span id="local-6989586621679154527"><span id="local-6989586621679154531"><span id="local-6989586621679154535"><span id="local-6989586621679154539"><span class="annot"><span class="annottext">Range min max -&gt; Text
+Range min max -&gt; ByteString
+Range min max -&gt; Builder
+(Range min max -&gt; Text)
+-&gt; (Range min max -&gt; Builder)
+-&gt; (Range min max -&gt; ByteString)
+-&gt; (Range min max -&gt; Text)
+-&gt; (Range min max -&gt; Builder)
+-&gt; ToHttpApiData (Range min max)
+forall (min :: Nat) (max :: Nat). Range min max -&gt; Text
+forall (min :: Nat) (max :: Nat). Range min max -&gt; ByteString
+forall (min :: Nat) (max :: Nat). Range min max -&gt; Builder
+forall a.
+(a -&gt; Text)
+-&gt; (a -&gt; Builder)
+-&gt; (a -&gt; ByteString)
+-&gt; (a -&gt; Text)
+-&gt; (a -&gt; Builder)
+-&gt; ToHttpApiData a
+$ctoUrlPiece :: forall (min :: Nat) (max :: Nat). Range min max -&gt; Text
+toUrlPiece :: Range min max -&gt; Text
+$ctoEncodedUrlPiece :: forall (min :: Nat) (max :: Nat). Range min max -&gt; Builder
+toEncodedUrlPiece :: Range min max -&gt; Builder
+$ctoHeader :: forall (min :: Nat) (max :: Nat). Range min max -&gt; ByteString
+toHeader :: Range min max -&gt; ByteString
+$ctoQueryParam :: forall (min :: Nat) (max :: Nat). Range min max -&gt; Text
+toQueryParam :: Range min max -&gt; Text
+$ctoEncodedQueryParam :: forall (min :: Nat) (max :: Nat). Range min max -&gt; Builder
+toEncodedQueryParam :: Range min max -&gt; Builder
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">ToHttpApiData</span></span></span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-43"></span><span>
+</span><span id="line-44"></span><span id="local-6989586621679154325"><span id="local-6989586621679154326"><span class="annot"><a href="Servant.API.Range.html#unsafeRange"><span class="hs-identifier hs-type">unsafeRange</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Natural</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Servant.API.Range.html#Range"><span class="hs-identifier hs-type">Range</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679154325"><span class="hs-identifier hs-type">min</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679154326"><span class="hs-identifier hs-type">max</span></a></span></span></span><span>
+</span><span id="line-45"></span><span id="unsafeRange"><span class="annot"><span class="annottext">unsafeRange :: forall (min :: Nat) (max :: Nat). Nat -&gt; Range min max
+</span><a href="Servant.API.Range.html#unsafeRange"><span class="hs-identifier hs-var hs-var">unsafeRange</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Nat -&gt; Range min max
+forall (min :: Nat) (max :: Nat). Nat -&gt; Range min max
+</span><a href="Servant.API.Range.html#MkRange"><span class="hs-identifier hs-var">MkRange</span></a></span><span>
+</span><span id="line-46"></span><span>
+</span><span id="line-47"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679154332"><span id="local-6989586621679154333"><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">KnownNat</span></span><span> </span><span class="annot"><a href="#local-6989586621679154332"><span class="hs-identifier hs-type">min</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">KnownNat</span></span><span> </span><span class="annot"><a href="#local-6989586621679154333"><span class="hs-identifier hs-type">max</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bounded</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Servant.API.Range.html#Range"><span class="hs-identifier hs-type">Range</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679154332"><span class="hs-identifier hs-type">min</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679154333"><span class="hs-identifier hs-type">max</span></a></span><span class="hs-special">)</span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-48"></span><span>    </span><span id="local-6989586621679154558"><span class="annot"><span class="annottext">minBound :: Range min max
+</span><a href="#local-6989586621679154558"><span class="hs-identifier hs-var hs-var hs-var">minBound</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Nat -&gt; Range min max
+forall (min :: Nat) (max :: Nat). Nat -&gt; Range min max
+</span><a href="Servant.API.Range.html#MkRange"><span class="hs-identifier hs-var">MkRange</span></a></span><span> </span><span class="annot"><span class="annottext">(Nat -&gt; Range min max)
+-&gt; (Integer -&gt; Nat) -&gt; Integer -&gt; Range min max
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Integer -&gt; Nat
+forall a. Num a =&gt; Integer -&gt; a
+</span><span class="hs-identifier hs-var">fromInteger</span></span><span> </span><span class="annot"><span class="annottext">(Integer -&gt; Range min max) -&gt; Integer -&gt; Range min max
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Proxy min -&gt; Integer
+forall (n :: Nat) (proxy :: Nat -&gt; Type).
+KnownNat n =&gt;
+proxy n -&gt; Integer
+</span><span class="hs-identifier hs-var">natVal</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall (t :: Nat). Proxy t
+forall {k} (t :: k). Proxy t
+</span><span class="hs-identifier hs-var">Proxy</span></span><span> </span><span class="hs-glyph">@</span><span class="annot"><a href="#local-6989586621679154332"><span class="hs-identifier hs-type">min</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-49"></span><span>    </span><span id="local-6989586621679154564"><span class="annot"><span class="annottext">maxBound :: Range min max
+</span><a href="#local-6989586621679154564"><span class="hs-identifier hs-var hs-var hs-var">maxBound</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Nat -&gt; Range min max
+forall (min :: Nat) (max :: Nat). Nat -&gt; Range min max
+</span><a href="Servant.API.Range.html#MkRange"><span class="hs-identifier hs-var">MkRange</span></a></span><span> </span><span class="annot"><span class="annottext">(Nat -&gt; Range min max)
+-&gt; (Integer -&gt; Nat) -&gt; Integer -&gt; Range min max
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Integer -&gt; Nat
+forall a. Num a =&gt; Integer -&gt; a
+</span><span class="hs-identifier hs-var">fromInteger</span></span><span> </span><span class="annot"><span class="annottext">(Integer -&gt; Range min max) -&gt; Integer -&gt; Range min max
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Proxy max -&gt; Integer
+forall (n :: Nat) (proxy :: Nat -&gt; Type).
+KnownNat n =&gt;
+proxy n -&gt; Integer
+</span><span class="hs-identifier hs-var">natVal</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall (t :: Nat). Proxy t
+forall {k} (t :: k). Proxy t
+</span><span class="hs-identifier hs-var">Proxy</span></span><span> </span><span class="hs-glyph">@</span><span class="annot"><a href="#local-6989586621679154333"><span class="hs-identifier hs-type">max</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-50"></span><span>
+</span><span id="line-51"></span><span class="annot"><a href="Servant.API.Range.html#parseErrorMsg"><span class="hs-identifier hs-type">parseErrorMsg</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-keyword">forall</span><span> </span><span id="local-6989586621679154347"><span class="annot"><a href="#local-6989586621679154347"><span class="hs-identifier hs-type">min</span></a></span></span><span> </span><span id="local-6989586621679154348"><span class="annot"><a href="#local-6989586621679154348"><span class="hs-identifier hs-type">max</span></a></span></span><span class="hs-operator">.</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">KnownNat</span></span><span> </span><span class="annot"><a href="#local-6989586621679154347"><span class="hs-identifier hs-type">min</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">KnownNat</span></span><span> </span><span class="annot"><a href="#local-6989586621679154348"><span class="hs-identifier hs-type">max</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Proxy</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Servant.API.Range.html#Range"><span class="hs-identifier hs-type">Range</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679154347"><span class="hs-identifier hs-type">min</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679154348"><span class="hs-identifier hs-type">max</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span>
+</span><span id="line-52"></span><span id="parseErrorMsg"><span class="annot"><span class="annottext">parseErrorMsg :: forall (min :: Nat) (max :: Nat).
+(KnownNat min, KnownNat max) =&gt;
+Proxy (Range min max) -&gt; String
+</span><a href="Servant.API.Range.html#parseErrorMsg"><span class="hs-identifier hs-var hs-var">parseErrorMsg</span></a></span></span><span> </span><span class="annot"><span class="annottext">Proxy (Range min max)
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-53"></span><span>    </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Expecting a natural number between &quot;</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; ShowS
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Integer -&gt; String
+forall a. Show a =&gt; a -&gt; String
+</span><span class="hs-identifier hs-var">show</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Proxy min -&gt; Integer
+forall (n :: Nat) (proxy :: Nat -&gt; Type).
+KnownNat n =&gt;
+proxy n -&gt; Integer
+</span><span class="hs-identifier hs-var">natVal</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall (t :: Nat). Proxy t
+forall {k} (t :: k). Proxy t
+</span><span class="hs-identifier hs-var">Proxy</span></span><span> </span><span class="hs-glyph">@</span><span class="annot"><a href="#local-6989586621679154347"><span class="hs-identifier hs-type">min</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">String -&gt; ShowS
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot; and &quot;</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; ShowS
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Integer -&gt; String
+forall a. Show a =&gt; a -&gt; String
+</span><span class="hs-identifier hs-var">show</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Proxy max -&gt; Integer
+forall (n :: Nat) (proxy :: Nat -&gt; Type).
+KnownNat n =&gt;
+proxy n -&gt; Integer
+</span><span class="hs-identifier hs-var">natVal</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall (t :: Nat). Proxy t
+forall {k} (t :: k). Proxy t
+</span><span class="hs-identifier hs-var">Proxy</span></span><span> </span><span class="hs-glyph">@</span><span class="annot"><a href="#local-6989586621679154348"><span class="hs-identifier hs-type">max</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">String -&gt; ShowS
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;.&quot;</span></span><span>
+</span><span id="line-54"></span><span>
+</span><span id="line-55"></span><span class="annot"><a href="Servant.API.Range.html#mkRange"><span class="hs-identifier hs-type">mkRange</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-keyword">forall</span><span> </span><span id="local-6989586621679154355"><span class="annot"><a href="#local-6989586621679154355"><span class="hs-identifier hs-type">min</span></a></span></span><span> </span><span id="local-6989586621679154356"><span class="annot"><a href="#local-6989586621679154356"><span class="hs-identifier hs-type">max</span></a></span></span><span class="hs-operator">.</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">KnownNat</span></span><span> </span><span class="annot"><a href="#local-6989586621679154355"><span class="hs-identifier hs-type">min</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">KnownNat</span></span><span> </span><span class="annot"><a href="#local-6989586621679154356"><span class="hs-identifier hs-type">max</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Natural</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Servant.API.Range.html#Range"><span class="hs-identifier hs-type">Range</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679154355"><span class="hs-identifier hs-type">min</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679154356"><span class="hs-identifier hs-type">max</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-56"></span><span id="mkRange"><span class="annot"><span class="annottext">mkRange :: forall (min :: Nat) (max :: Nat).
+(KnownNat min, KnownNat max) =&gt;
+Nat -&gt; Maybe (Range min max)
+</span><a href="Servant.API.Range.html#mkRange"><span class="hs-identifier hs-var hs-var">mkRange</span></a></span></span><span> </span><span id="local-6989586621679154590"><span class="annot"><span class="annottext">Nat
+</span><a href="#local-6989586621679154590"><span class="hs-identifier hs-var">n</span></a></span></span><span>
+</span><span id="line-57"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">(Range min max, Range min max) -&gt; Range min max -&gt; Bool
+forall a. Ix a =&gt; (a, a) -&gt; a -&gt; Bool
+</span><span class="hs-identifier hs-var">inRange</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Range min max
+forall a. Bounded a =&gt; a
+</span><span class="hs-identifier hs-var">minBound</span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Servant.API.Range.html#Range"><span class="hs-identifier hs-type">Range</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679154355"><span class="hs-identifier hs-type">min</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679154356"><span class="hs-identifier hs-type">max</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Range min max
+forall a. Bounded a =&gt; a
+</span><span class="hs-identifier hs-var">maxBound</span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Servant.API.Range.html#Range"><span class="hs-identifier hs-type">Range</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679154355"><span class="hs-identifier hs-type">min</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679154356"><span class="hs-identifier hs-type">max</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Nat -&gt; Range min max
+forall (min :: Nat) (max :: Nat). Nat -&gt; Range min max
+</span><a href="Servant.API.Range.html#MkRange"><span class="hs-identifier hs-var">MkRange</span></a></span><span> </span><span class="annot"><span class="annottext">Nat
+</span><a href="#local-6989586621679154590"><span class="hs-identifier hs-var">n</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Range min max -&gt; Maybe (Range min max)
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Nat -&gt; Range min max
+forall (min :: Nat) (max :: Nat). Nat -&gt; Range min max
+</span><a href="Servant.API.Range.html#MkRange"><span class="hs-identifier hs-var">MkRange</span></a></span><span> </span><span class="annot"><span class="annottext">Nat
+</span><a href="#local-6989586621679154590"><span class="hs-identifier hs-var">n</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-58"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Maybe (Range min max)
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-59"></span><span>
+</span><span id="line-60"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679154364"><span id="local-6989586621679154365"><span id="local-6989586621679154595"><span id="local-6989586621679154599"><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">KnownNat</span></span><span> </span><span class="annot"><a href="#local-6989586621679154364"><span class="hs-identifier hs-type">min</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">KnownNat</span></span><span> </span><span class="annot"><a href="#local-6989586621679154365"><span class="hs-identifier hs-type">max</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">FromJSON</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Servant.API.Range.html#Range"><span class="hs-identifier hs-type">Range</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679154364"><span class="hs-identifier hs-type">min</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679154365"><span class="hs-identifier hs-type">max</span></a></span><span class="hs-special">)</span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-61"></span><span>    </span><span id="local-6989586621679154616"><span class="annot"><span class="annottext">parseJSON :: Value -&gt; Parser (Range min max)
+</span><a href="#local-6989586621679154616"><span class="hs-identifier hs-var hs-var hs-var">parseJSON</span></a></span></span><span> </span><span id="local-6989586621679154618"><span class="annot"><span class="annottext">Value
+</span><a href="#local-6989586621679154618"><span class="hs-identifier hs-var">v</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-62"></span><span>        </span><span id="local-6989586621679154619"><span class="annot"><a href="#local-6989586621679154619"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">ShowS -&gt; Parser Nat -&gt; Parser Nat
+forall a. ShowS -&gt; Parser a -&gt; Parser a
+</span><span class="hs-identifier hs-var">modifyFailure</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String -&gt; ShowS
+forall a b. a -&gt; b -&gt; a
+</span><span class="hs-identifier hs-var">const</span></span><span> </span><span class="annot"><span class="annottext">(String -&gt; ShowS) -&gt; String -&gt; ShowS
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">forall (min :: Nat) (max :: Nat).
+(KnownNat min, KnownNat max) =&gt;
+Proxy (Range min max) -&gt; String
+</span><a href="Servant.API.Range.html#parseErrorMsg"><span class="hs-identifier hs-var">parseErrorMsg</span></a></span><span> </span><span class="hs-glyph">@</span><span class="annot"><a href="#local-6989586621679154364"><span class="hs-identifier hs-type">min</span></a></span><span> </span><span class="hs-glyph">@</span><span class="annot"><a href="#local-6989586621679154365"><span class="hs-identifier hs-type">max</span></a></span><span> </span><span class="annot"><span class="annottext">Proxy (Range min max)
+forall {k} (t :: k). Proxy t
+</span><span class="hs-identifier hs-var">Proxy</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(Parser Nat -&gt; Parser Nat) -&gt; Parser Nat -&gt; Parser Nat
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Value -&gt; Parser Nat
+forall a. FromJSON a =&gt; Value -&gt; Parser a
+</span><span class="hs-identifier hs-var">parseJSON</span></span><span> </span><span class="annot"><span class="annottext">Value
+</span><a href="#local-6989586621679154618"><span class="hs-identifier hs-var">v</span></a></span><span>
+</span><span id="line-63"></span><span>        </span><span class="annot"><span class="hs-identifier hs-type">maybe</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">fail</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">$</span></span><span> </span><span class="annot"><a href="Servant.API.Range.html#parseErrorMsg"><span class="hs-identifier hs-type">parseErrorMsg</span></a></span><span> </span><span class="hs-glyph">@</span><span class="annot"><a href="#local-6989586621679154364"><span class="hs-identifier hs-type">min</span></a></span><span> </span><span class="hs-glyph">@</span><span class="annot"><a href="#local-6989586621679154365"><span class="hs-identifier hs-type">max</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Proxy</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="hs-identifier hs-type">pure</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">$</span></span><span> </span><span class="annot"><a href="Servant.API.Range.html#mkRange"><span class="hs-identifier hs-type">mkRange</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679154619"><span class="hs-identifier hs-type">n</span></a></span><span>
+</span><span id="line-64"></span><span>
+</span><span id="line-65"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679154379"><span id="local-6989586621679154380"><span id="local-6989586621679154625"><span id="local-6989586621679154629"><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">KnownNat</span></span><span> </span><span class="annot"><a href="#local-6989586621679154379"><span class="hs-identifier hs-type">min</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">KnownNat</span></span><span> </span><span class="annot"><a href="#local-6989586621679154380"><span class="hs-identifier hs-type">max</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">FromHttpApiData</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Servant.API.Range.html#Range"><span class="hs-identifier hs-type">Range</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679154379"><span class="hs-identifier hs-type">min</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679154380"><span class="hs-identifier hs-type">max</span></a></span><span class="hs-special">)</span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-66"></span><span>    </span><span id="local-6989586621679154645"><span class="annot"><span class="annottext">parseQueryParam :: Text -&gt; Either Text (Range min max)
+</span><a href="#local-6989586621679154645"><span class="hs-identifier hs-var hs-var hs-var">parseQueryParam</span></a></span></span><span> </span><span id="local-6989586621679154647"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679154647"><span class="hs-identifier hs-var">v</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-67"></span><span>        </span><span id="local-6989586621679154648"><span class="annot"><a href="#local-6989586621679154648"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">(Text -&gt; Text) -&gt; Either Text Nat -&gt; Either Text Nat
+forall a b c. (a -&gt; b) -&gt; Either a c -&gt; Either b c
+forall (p :: Type -&gt; Type -&gt; Type) a b c.
+Bifunctor p =&gt;
+(a -&gt; b) -&gt; p a c -&gt; p b c
+</span><span class="hs-identifier hs-var">first</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Text -&gt; Text -&gt; Text
+forall a b. a -&gt; b -&gt; a
+</span><span class="hs-identifier hs-var">const</span></span><span> </span><span class="annot"><span class="annottext">(Text -&gt; Text -&gt; Text)
+-&gt; (String -&gt; Text) -&gt; String -&gt; Text -&gt; Text
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; Text
+</span><span class="hs-identifier hs-var">T.pack</span></span><span> </span><span class="annot"><span class="annottext">(String -&gt; Text -&gt; Text) -&gt; String -&gt; Text -&gt; Text
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">forall (min :: Nat) (max :: Nat).
+(KnownNat min, KnownNat max) =&gt;
+Proxy (Range min max) -&gt; String
+</span><a href="Servant.API.Range.html#parseErrorMsg"><span class="hs-identifier hs-var">parseErrorMsg</span></a></span><span> </span><span class="hs-glyph">@</span><span class="annot"><a href="#local-6989586621679154379"><span class="hs-identifier hs-type">min</span></a></span><span> </span><span class="hs-glyph">@</span><span class="annot"><a href="#local-6989586621679154380"><span class="hs-identifier hs-type">max</span></a></span><span> </span><span class="annot"><span class="annottext">Proxy (Range min max)
+forall {k} (t :: k). Proxy t
+</span><span class="hs-identifier hs-var">Proxy</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(Either Text Nat -&gt; Either Text Nat)
+-&gt; Either Text Nat -&gt; Either Text Nat
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Text -&gt; Either Text Nat
+forall a. FromHttpApiData a =&gt; Text -&gt; Either Text a
+</span><span class="hs-identifier hs-var">parseQueryParam</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679154647"><span class="hs-identifier hs-var">v</span></a></span><span>
+</span><span id="line-68"></span><span>        </span><span class="annot"><span class="hs-identifier hs-type">maybe</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Left</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">.</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">T.pack</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">$</span></span><span> </span><span class="annot"><a href="Servant.API.Range.html#parseErrorMsg"><span class="hs-identifier hs-type">parseErrorMsg</span></a></span><span> </span><span class="hs-glyph">@</span><span class="annot"><a href="#local-6989586621679154379"><span class="hs-identifier hs-type">min</span></a></span><span> </span><span class="hs-glyph">@</span><span class="annot"><a href="#local-6989586621679154380"><span class="hs-identifier hs-type">max</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Proxy</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Right</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">$</span></span><span> </span><span class="annot"><a href="Servant.API.Range.html#mkRange"><span class="hs-identifier hs-type">mkRange</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679154648"><span class="hs-identifier hs-type">n</span></a></span><span>
+</span><span id="line-69"></span></pre></body></html>

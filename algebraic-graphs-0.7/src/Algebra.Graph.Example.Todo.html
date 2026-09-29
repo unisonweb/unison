@@ -1,0 +1,279 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE OverloadedStrings #-}</span><span>
+</span><span id="line-2"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Algebra.Graph.Example.Todo.html"><span class="hs-identifier">Algebra.Graph.Example.Todo</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Algebra.Graph.Example.Todo.html#Todo"><span class="hs-identifier">Todo</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Algebra.Graph.Example.Todo.html#todo"><span class="hs-identifier">todo</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Algebra.Graph.Example.Todo.html#low"><span class="hs-identifier">low</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Algebra.Graph.Example.Todo.html#high"><span class="hs-identifier">high</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Algebra.Graph.Example.Todo.html#~%2A~"><span class="hs-operator">(~*~)</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Algebra.Graph.Example.Todo.html#%3E%2A%3C"><span class="hs-operator">(&gt;*&lt;)</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Algebra.Graph.Example.Todo.html#priority"><span class="hs-identifier">priority</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-3"></span><span>
+</span><span id="line-4"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Map</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Map</span></span><span class="hs-special">)</span><span>
+</span><span id="line-5"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.String</span></span><span>
+</span><span id="line-6"></span><span>
+</span><span id="line-7"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Algebra.Graph.AdjacencyMap.html"><span class="hs-identifier">Algebra.Graph.AdjacencyMap</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">AM</span></span><span>
+</span><span id="line-8"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Algebra.Graph.AdjacencyMap.Algorithm.html"><span class="hs-identifier">Algebra.Graph.AdjacencyMap.Algorithm</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">AM</span></span><span>
+</span><span id="line-9"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Algebra.Graph.Class.html"><span class="hs-identifier">Algebra.Graph.Class</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">C</span></span><span>
+</span><span id="line-10"></span><span>
+</span><span id="line-11"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Map</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Map</span></span><span>
+</span><span id="line-12"></span><span>
+</span><span id="line-13"></span><span class="hs-keyword">data</span><span> </span><span id="Todo"><span class="annot"><a href="Algebra.Graph.Example.Todo.html#Todo"><span class="hs-identifier hs-var">Todo</span></a></span></span><span> </span><span id="local-6989586621679167913"><span class="annot"><a href="#local-6989586621679167913"><span class="hs-identifier hs-type">a</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="T"><span class="annot"><a href="Algebra.Graph.Example.Todo.html#T"><span class="hs-identifier hs-var">T</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Map</span></span><span> </span><span class="annot"><a href="#local-6989586621679167913"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Algebra.Graph.AdjacencyMap.html#AdjacencyMap"><span class="hs-identifier hs-type">AdjacencyMap</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679167913"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">deriving</span><span> </span><span id="local-6989586621679167967"><span id="local-6989586621679167976"><span id="local-6989586621679167980"><span class="annot"><span class="annottext">Int -&gt; Todo a -&gt; ShowS
+[Todo a] -&gt; ShowS
+Todo a -&gt; String
+(Int -&gt; Todo a -&gt; ShowS)
+-&gt; (Todo a -&gt; String) -&gt; ([Todo a] -&gt; ShowS) -&gt; Show (Todo a)
+forall a. (Show a, Ord a) =&gt; Int -&gt; Todo a -&gt; ShowS
+forall a. (Show a, Ord a) =&gt; [Todo a] -&gt; ShowS
+forall a. (Show a, Ord a) =&gt; Todo a -&gt; String
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: forall a. (Show a, Ord a) =&gt; Int -&gt; Todo a -&gt; ShowS
+showsPrec :: Int -&gt; Todo a -&gt; ShowS
+$cshow :: forall a. (Show a, Ord a) =&gt; Todo a -&gt; String
+show :: Todo a -&gt; String
+$cshowList :: forall a. (Show a, Ord a) =&gt; [Todo a] -&gt; ShowS
+showList :: [Todo a] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span>
+</span><span id="line-14"></span><span>
+</span><span id="line-15"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679167897"><span id="local-6989586621679167988"><span class="annot"><span class="hs-identifier hs-type">Ord</span></span><span> </span><span class="annot"><a href="#local-6989586621679167897"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Eq</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Algebra.Graph.Example.Todo.html#Todo"><span class="hs-identifier hs-type">Todo</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679167897"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-16"></span><span>  </span><span id="local-6989586621679168000"><span class="annot"><span class="annottext">Todo a
+</span><a href="#local-6989586621679168000"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span id="local-6989586621679168001"><span class="annot"><span class="annottext">== :: Todo a -&gt; Todo a -&gt; Bool
+</span><span class="hs-operator hs-var hs-var hs-var">==</span></span></span><span> </span><span id="local-6989586621679168002"><span class="annot"><span class="annottext">Todo a
+</span><a href="#local-6989586621679168002"><span class="hs-identifier hs-var">y</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Todo a -&gt; Maybe [a]
+forall a. Ord a =&gt; Todo a -&gt; Maybe [a]
+</span><a href="Algebra.Graph.Example.Todo.html#todo"><span class="hs-identifier hs-var">todo</span></a></span><span> </span><span class="annot"><span class="annottext">Todo a
+</span><a href="#local-6989586621679168000"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe [a] -&gt; Maybe [a] -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">Todo a -&gt; Maybe [a]
+forall a. Ord a =&gt; Todo a -&gt; Maybe [a]
+</span><a href="Algebra.Graph.Example.Todo.html#todo"><span class="hs-identifier hs-var">todo</span></a></span><span> </span><span class="annot"><span class="annottext">Todo a
+</span><a href="#local-6989586621679168002"><span class="hs-identifier hs-var">y</span></a></span><span>
+</span><span id="line-17"></span><span>
+</span><span id="line-18"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679167903"><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">IsString</span></span><span> </span><span class="annot"><a href="#local-6989586621679167903"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ord</span></span><span> </span><span class="annot"><a href="#local-6989586621679167903"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IsString</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Algebra.Graph.Example.Todo.html#Todo"><span class="hs-identifier hs-type">Todo</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679167903"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-19"></span><span>  </span><span id="local-6989586621679168011"><span class="annot"><span class="annottext">fromString :: String -&gt; Todo a
+</span><span class="hs-identifier hs-var hs-var hs-var">fromString</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">a -&gt; Todo a
+Vertex (Todo a) -&gt; Todo a
+forall g. Graph g =&gt; Vertex g -&gt; g
+</span><a href="Algebra.Graph.Class.html#vertex"><span class="hs-identifier hs-var">C.vertex</span></a></span><span> </span><span class="annot"><span class="annottext">(a -&gt; Todo a) -&gt; (String -&gt; a) -&gt; String -&gt; Todo a
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; a
+forall a. IsString a =&gt; String -&gt; a
+</span><span class="hs-identifier hs-var">fromString</span></span><span>
+</span><span id="line-20"></span><span>
+</span><span id="line-21"></span><span class="hs-comment">-- Lower the priority of items in a given todo list</span><span>
+</span><span id="line-22"></span><span id="local-6989586621679167911"><span class="annot"><a href="Algebra.Graph.Example.Todo.html#low"><span class="hs-identifier hs-type">low</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Algebra.Graph.Example.Todo.html#Todo"><span class="hs-identifier hs-type">Todo</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679167911"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Algebra.Graph.Example.Todo.html#Todo"><span class="hs-identifier hs-type">Todo</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679167911"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-23"></span><span id="low"><span class="annot"><span class="annottext">low :: forall a. Todo a -&gt; Todo a
+</span><a href="Algebra.Graph.Example.Todo.html#low"><span class="hs-identifier hs-var hs-var">low</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Algebra.Graph.Example.Todo.html#T"><span class="hs-identifier hs-type">T</span></a></span><span> </span><span id="local-6989586621679168017"><span class="annot"><span class="annottext">Map a Int
+</span><a href="#local-6989586621679168017"><span class="hs-identifier hs-var">p</span></a></span></span><span> </span><span id="local-6989586621679168018"><span class="annot"><span class="annottext">AdjacencyMap a
+</span><a href="#local-6989586621679168018"><span class="hs-identifier hs-var">g</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Map a Int -&gt; AdjacencyMap a -&gt; Todo a
+forall a. Map a Int -&gt; AdjacencyMap a -&gt; Todo a
+</span><a href="Algebra.Graph.Example.Todo.html#T"><span class="hs-identifier hs-var">T</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(Int -&gt; Int) -&gt; Map a Int -&gt; Map a Int
+forall a b k. (a -&gt; b) -&gt; Map k a -&gt; Map k b
+</span><span class="hs-identifier hs-var">Map.map</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-identifier hs-var">subtract</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Map a Int
+</span><a href="#local-6989586621679168017"><span class="hs-identifier hs-var">p</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">AdjacencyMap a
+</span><a href="#local-6989586621679168018"><span class="hs-identifier hs-var">g</span></a></span><span>
+</span><span id="line-24"></span><span>
+</span><span id="line-25"></span><span class="hs-comment">-- Raise the priority of items in a given todo list</span><span>
+</span><span id="line-26"></span><span id="local-6989586621679168021"><span class="annot"><a href="Algebra.Graph.Example.Todo.html#high"><span class="hs-identifier hs-type">high</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Algebra.Graph.Example.Todo.html#Todo"><span class="hs-identifier hs-type">Todo</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679168021"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Algebra.Graph.Example.Todo.html#Todo"><span class="hs-identifier hs-type">Todo</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679168021"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-27"></span><span id="high"><span class="annot"><span class="annottext">high :: forall a. Todo a -&gt; Todo a
+</span><a href="Algebra.Graph.Example.Todo.html#high"><span class="hs-identifier hs-var hs-var">high</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Algebra.Graph.Example.Todo.html#T"><span class="hs-identifier hs-type">T</span></a></span><span> </span><span id="local-6989586621679168024"><span class="annot"><span class="annottext">Map a Int
+</span><a href="#local-6989586621679168024"><span class="hs-identifier hs-var">p</span></a></span></span><span> </span><span id="local-6989586621679168025"><span class="annot"><span class="annottext">AdjacencyMap a
+</span><a href="#local-6989586621679168025"><span class="hs-identifier hs-var">g</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Map a Int -&gt; AdjacencyMap a -&gt; Todo a
+forall a. Map a Int -&gt; AdjacencyMap a -&gt; Todo a
+</span><a href="Algebra.Graph.Example.Todo.html#T"><span class="hs-identifier hs-var">T</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(Int -&gt; Int) -&gt; Map a Int -&gt; Map a Int
+forall a b k. (a -&gt; b) -&gt; Map k a -&gt; Map k b
+</span><span class="hs-identifier hs-var">Map.map</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Map a Int
+</span><a href="#local-6989586621679168024"><span class="hs-identifier hs-var">p</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">AdjacencyMap a
+</span><a href="#local-6989586621679168025"><span class="hs-identifier hs-var">g</span></a></span><span>
+</span><span id="line-28"></span><span>
+</span><span id="line-29"></span><span class="hs-comment">-- Specify exact priority of items in a given todo list (default 0)</span><span>
+</span><span id="line-30"></span><span id="local-6989586621679167920"><span class="annot"><a href="Algebra.Graph.Example.Todo.html#priority"><span class="hs-identifier hs-type">priority</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Algebra.Graph.Example.Todo.html#Todo"><span class="hs-identifier hs-type">Todo</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679167920"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Algebra.Graph.Example.Todo.html#Todo"><span class="hs-identifier hs-type">Todo</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679167920"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-31"></span><span id="priority"><span class="annot"><span class="annottext">priority :: forall a. Int -&gt; Todo a -&gt; Todo a
+</span><a href="Algebra.Graph.Example.Todo.html#priority"><span class="hs-identifier hs-var hs-var">priority</span></a></span></span><span> </span><span id="local-6989586621679168027"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679168027"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Algebra.Graph.Example.Todo.html#T"><span class="hs-identifier hs-type">T</span></a></span><span> </span><span id="local-6989586621679168028"><span class="annot"><span class="annottext">Map a Int
+</span><a href="#local-6989586621679168028"><span class="hs-identifier hs-var">p</span></a></span></span><span> </span><span id="local-6989586621679168029"><span class="annot"><span class="annottext">AdjacencyMap a
+</span><a href="#local-6989586621679168029"><span class="hs-identifier hs-var">g</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Map a Int -&gt; AdjacencyMap a -&gt; Todo a
+forall a. Map a Int -&gt; AdjacencyMap a -&gt; Todo a
+</span><a href="Algebra.Graph.Example.Todo.html#T"><span class="hs-identifier hs-var">T</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(Int -&gt; Int) -&gt; Map a Int -&gt; Map a Int
+forall a b k. (a -&gt; b) -&gt; Map k a -&gt; Map k b
+</span><span class="hs-identifier hs-var">Map.map</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a b. a -&gt; b -&gt; a
+</span><span class="hs-identifier hs-var">const</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679168027"><span class="hs-identifier hs-var">x</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Map a Int
+</span><a href="#local-6989586621679168028"><span class="hs-identifier hs-var">p</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">AdjacencyMap a
+</span><a href="#local-6989586621679168029"><span class="hs-identifier hs-var">g</span></a></span><span>
+</span><span id="line-32"></span><span>
+</span><span id="line-33"></span><span class="hs-comment">-- Pull the arguments together as close as possible</span><span>
+</span><span id="line-34"></span><span id="local-6989586621679167924"><span class="annot"><a href="Algebra.Graph.Example.Todo.html#~%2A~"><span class="hs-operator hs-type">(~*~)</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ord</span></span><span> </span><span class="annot"><a href="#local-6989586621679167924"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Algebra.Graph.Example.Todo.html#Todo"><span class="hs-identifier hs-type">Todo</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679167924"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Algebra.Graph.Example.Todo.html#Todo"><span class="hs-identifier hs-type">Todo</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679167924"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Algebra.Graph.Example.Todo.html#Todo"><span class="hs-identifier hs-type">Todo</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679167924"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-35"></span><span id="local-6989586621679168033"><span class="annot"><span class="annottext">Todo a
+</span><a href="#local-6989586621679168033"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span id="~%2A~"><span class="annot"><span class="annottext">~*~ :: forall a. Ord a =&gt; Todo a -&gt; Todo a -&gt; Todo a
+</span><a href="Algebra.Graph.Example.Todo.html#~%2A~"><span class="hs-operator hs-var hs-var">~*~</span></a></span></span><span> </span><span id="local-6989586621679168034"><span class="annot"><span class="annottext">Todo a
+</span><a href="#local-6989586621679168034"><span class="hs-identifier hs-var">y</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Todo a -&gt; Todo a
+forall a. Todo a -&gt; Todo a
+</span><a href="Algebra.Graph.Example.Todo.html#low"><span class="hs-identifier hs-var">low</span></a></span><span> </span><span class="annot"><span class="annottext">Todo a
+</span><a href="#local-6989586621679168033"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">Todo a -&gt; Todo a -&gt; Todo a
+forall g. Graph g =&gt; g -&gt; g -&gt; g
+</span><a href="Algebra.Graph.Class.html#connect"><span class="hs-operator hs-var">`C.connect`</span></a></span><span> </span><span class="annot"><span class="annottext">Todo a -&gt; Todo a
+forall a. Todo a -&gt; Todo a
+</span><a href="Algebra.Graph.Example.Todo.html#high"><span class="hs-identifier hs-var">high</span></a></span><span> </span><span class="annot"><span class="annottext">Todo a
+</span><a href="#local-6989586621679168034"><span class="hs-identifier hs-var">y</span></a></span><span>
+</span><span id="line-36"></span><span>
+</span><span id="line-37"></span><span class="hs-comment">-- Repel the arguments as far as possible</span><span>
+</span><span id="line-38"></span><span id="local-6989586621679168036"><span class="annot"><a href="Algebra.Graph.Example.Todo.html#%3E%2A%3C"><span class="hs-operator hs-type">(&gt;*&lt;)</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ord</span></span><span> </span><span class="annot"><a href="#local-6989586621679168036"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Algebra.Graph.Example.Todo.html#Todo"><span class="hs-identifier hs-type">Todo</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679168036"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Algebra.Graph.Example.Todo.html#Todo"><span class="hs-identifier hs-type">Todo</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679168036"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Algebra.Graph.Example.Todo.html#Todo"><span class="hs-identifier hs-type">Todo</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679168036"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-39"></span><span id="local-6989586621679168039"><span class="annot"><span class="annottext">Todo a
+</span><a href="#local-6989586621679168039"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span id="%3E%2A%3C"><span class="annot"><span class="annottext">&gt;*&lt; :: forall a. Ord a =&gt; Todo a -&gt; Todo a -&gt; Todo a
+</span><a href="Algebra.Graph.Example.Todo.html#%3E%2A%3C"><span class="hs-operator hs-var hs-var">&gt;*&lt;</span></a></span></span><span> </span><span id="local-6989586621679168040"><span class="annot"><span class="annottext">Todo a
+</span><a href="#local-6989586621679168040"><span class="hs-identifier hs-var">y</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Todo a -&gt; Todo a
+forall a. Todo a -&gt; Todo a
+</span><a href="Algebra.Graph.Example.Todo.html#high"><span class="hs-identifier hs-var">high</span></a></span><span> </span><span class="annot"><span class="annottext">Todo a
+</span><a href="#local-6989586621679168039"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">Todo a -&gt; Todo a -&gt; Todo a
+forall g. Graph g =&gt; g -&gt; g -&gt; g
+</span><a href="Algebra.Graph.Class.html#connect"><span class="hs-operator hs-var">`C.connect`</span></a></span><span> </span><span class="annot"><span class="annottext">Todo a -&gt; Todo a
+forall a. Todo a -&gt; Todo a
+</span><a href="Algebra.Graph.Example.Todo.html#low"><span class="hs-identifier hs-var">low</span></a></span><span> </span><span class="annot"><span class="annottext">Todo a
+</span><a href="#local-6989586621679168040"><span class="hs-identifier hs-var">y</span></a></span><span>
+</span><span id="line-40"></span><span>
+</span><span id="line-41"></span><span class="annot"><a href="Algebra.Graph.Example.Todo.html#todo"><span class="hs-identifier hs-type">todo</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-keyword">forall</span><span> </span><span id="local-6989586621679167900"><span class="annot"><a href="#local-6989586621679167900"><span class="hs-identifier hs-type">a</span></a></span></span><span class="hs-operator">.</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ord</span></span><span> </span><span class="annot"><a href="#local-6989586621679167900"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Algebra.Graph.Example.Todo.html#Todo"><span class="hs-identifier hs-type">Todo</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679167900"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="hs-special">[</span><span class="annot"><a href="#local-6989586621679167900"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-42"></span><span id="todo"><span class="annot"><span class="annottext">todo :: forall a. Ord a =&gt; Todo a -&gt; Maybe [a]
+</span><a href="Algebra.Graph.Example.Todo.html#todo"><span class="hs-identifier hs-var hs-var">todo</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Algebra.Graph.Example.Todo.html#T"><span class="hs-identifier hs-type">T</span></a></span><span> </span><span id="local-6989586621679168050"><span class="annot"><span class="annottext">Map a Int
+</span><a href="#local-6989586621679168050"><span class="hs-identifier hs-var">p</span></a></span></span><span> </span><span id="local-6989586621679168051"><span class="annot"><span class="annottext">AdjacencyMap a
+</span><a href="#local-6989586621679168051"><span class="hs-identifier hs-var">g</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-43"></span><span>  </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">AdjacencyMap (Int, a) -&gt; Either (Cycle (Int, a)) [(Int, a)]
+forall a. Ord a =&gt; AdjacencyMap a -&gt; Either (Cycle a) [a]
+</span><a href="Algebra.Graph.AdjacencyMap.Algorithm.html#topSort"><span class="hs-identifier hs-var">AM.topSort</span></a></span><span> </span><span class="annot"><span class="annottext">(AdjacencyMap (Int, a) -&gt; Either (Cycle (Int, a)) [(Int, a)])
+-&gt; AdjacencyMap (Int, a) -&gt; Either (Cycle (Int, a)) [(Int, a)]
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">(a -&gt; (Int, a)) -&gt; AdjacencyMap a -&gt; AdjacencyMap (Int, a)
+forall a b.
+(Ord a, Ord b) =&gt;
+(a -&gt; b) -&gt; AdjacencyMap a -&gt; AdjacencyMap b
+</span><a href="Algebra.Graph.AdjacencyMap.html#gmap"><span class="hs-identifier hs-var">gmap</span></a></span><span> </span><span class="annot"><span class="annottext">a -&gt; (Int, a)
+</span><a href="#local-6989586621679168054"><span class="hs-identifier hs-var">prioritise</span></a></span><span> </span><span class="annot"><span class="annottext">AdjacencyMap a
+</span><a href="#local-6989586621679168051"><span class="hs-identifier hs-var">g</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-44"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">Left</span></span><span> </span><span class="annot"><span class="annottext">Cycle (Int, a)
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Maybe [a]
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-45"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">Right</span></span><span> </span><span id="local-6989586621679168055"><span class="annot"><span class="annottext">[(Int, a)]
+</span><a href="#local-6989586621679168055"><span class="hs-identifier hs-var">xs</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">[a] -&gt; Maybe [a]
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">([a] -&gt; Maybe [a]) -&gt; [a] -&gt; Maybe [a]
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">((Int, a) -&gt; a) -&gt; [(Int, a)] -&gt; [a]
+forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+</span><span class="hs-identifier hs-var">map</span></span><span> </span><span class="annot"><span class="annottext">(Int, a) -&gt; a
+forall a b. (a, b) -&gt; b
+</span><span class="hs-identifier hs-var">snd</span></span><span> </span><span class="annot"><span class="annottext">[(Int, a)]
+</span><a href="#local-6989586621679168055"><span class="hs-identifier hs-var">xs</span></a></span><span>
+</span><span id="line-46"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-47"></span><span>    </span><span class="annot"><a href="#local-6989586621679168054"><span class="hs-identifier hs-type">prioritise</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="#local-6989586621679167900"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679167900"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-48"></span><span>    </span><span id="local-6989586621679168054"><span class="annot"><span class="annottext">prioritise :: a -&gt; (Int, a)
+</span><a href="#local-6989586621679168054"><span class="hs-identifier hs-var hs-var">prioritise</span></a></span></span><span> </span><span id="local-6989586621679168057"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679168057"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a
+</span><span class="hs-identifier hs-var">negate</span></span><span> </span><span class="annot"><span class="annottext">(Int -&gt; Int) -&gt; Int -&gt; Int
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; a -&gt; Map a Int -&gt; Int
+forall k a. Ord k =&gt; a -&gt; k -&gt; Map k a -&gt; a
+</span><span class="hs-identifier hs-var">Map.findWithDefault</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679168057"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">Map a Int
+</span><a href="#local-6989586621679168050"><span class="hs-identifier hs-var">p</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679168057"><span class="hs-identifier hs-var">x</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-49"></span><span>
+</span><span id="line-50"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679167946"><span id="local-6989586621679168063"><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">IsString</span></span><span> </span><span class="annot"><a href="#local-6989586621679167946"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ord</span></span><span> </span><span class="annot"><a href="#local-6989586621679167946"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Num</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Algebra.Graph.Example.Todo.html#Todo"><span class="hs-identifier hs-type">Todo</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679167946"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-51"></span><span>  </span><span id="local-6989586621679168077"><span class="annot"><span class="annottext">fromInteger :: Integer -&gt; Todo a
+</span><span class="hs-identifier hs-var hs-var hs-var">fromInteger</span></span></span><span> </span><span id="local-6989586621679168078"><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679168078"><span class="hs-identifier hs-var">i</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; Todo a
+forall a. IsString a =&gt; String -&gt; a
+</span><span class="hs-identifier hs-var">fromString</span></span><span> </span><span class="annot"><span class="annottext">(String -&gt; Todo a) -&gt; String -&gt; Todo a
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Integer -&gt; String
+forall a. Show a =&gt; a -&gt; String
+</span><span class="hs-identifier hs-var">show</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Integer -&gt; Integer
+forall a. Num a =&gt; Integer -&gt; a
+</span><span class="hs-identifier hs-var">fromInteger</span></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679168078"><span class="hs-identifier hs-var">i</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Integer</span></span><span class="hs-special">)</span><span>
+</span><span id="line-52"></span><span>  </span><span id="local-6989586621679168081"><span class="annot"><span class="annottext">+ :: Todo a -&gt; Todo a -&gt; Todo a
+</span><span class="hs-operator hs-var hs-var hs-var">(+)</span></span></span><span>           </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Todo a -&gt; Todo a -&gt; Todo a
+forall g. Graph g =&gt; g -&gt; g -&gt; g
+</span><a href="Algebra.Graph.Class.html#overlay"><span class="hs-identifier hs-var">C.overlay</span></a></span><span>
+</span><span id="line-53"></span><span>  </span><span id="local-6989586621679168084"><span class="annot"><span class="annottext">* :: Todo a -&gt; Todo a -&gt; Todo a
+</span><a href="#local-6989586621679168084"><span class="hs-operator hs-var hs-var hs-var">(*)</span></a></span></span><span>           </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Todo a -&gt; Todo a -&gt; Todo a
+forall g. Graph g =&gt; g -&gt; g -&gt; g
+</span><a href="Algebra.Graph.Class.html#connect"><span class="hs-identifier hs-var">C.connect</span></a></span><span>
+</span><span id="line-54"></span><span>  </span><span id="local-6989586621679168087"><span class="annot"><span class="annottext">signum :: Todo a -&gt; Todo a
+</span><a href="#local-6989586621679168087"><span class="hs-identifier hs-var hs-var hs-var">signum</span></a></span></span><span>        </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Todo a -&gt; Todo a -&gt; Todo a
+forall a b. a -&gt; b -&gt; a
+</span><span class="hs-identifier hs-var">const</span></span><span> </span><span class="annot"><span class="annottext">Todo a
+forall g. Graph g =&gt; g
+</span><a href="Algebra.Graph.Class.html#empty"><span class="hs-identifier hs-var">C.empty</span></a></span><span>
+</span><span id="line-55"></span><span>  </span><span id="local-6989586621679168090"><span class="annot"><span class="annottext">abs :: Todo a -&gt; Todo a
+</span><a href="#local-6989586621679168090"><span class="hs-identifier hs-var hs-var hs-var">abs</span></a></span></span><span>           </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Todo a -&gt; Todo a
+forall a. a -&gt; a
+</span><span class="hs-identifier hs-var">id</span></span><span>
+</span><span id="line-56"></span><span>  </span><span id="local-6989586621679168093"><span class="annot"><span class="annottext">negate :: Todo a -&gt; Todo a
+</span><span class="hs-identifier hs-var hs-var hs-var">negate</span></span></span><span>        </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Todo a -&gt; Todo a
+forall a. a -&gt; a
+</span><span class="hs-identifier hs-var">id</span></span><span>
+</span><span id="line-57"></span><span>
+</span><span id="line-58"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679167905"><span class="annot"><span class="hs-identifier hs-type">Ord</span></span><span> </span><span class="annot"><a href="#local-6989586621679167905"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Algebra.Graph.Class.html#Graph"><span class="hs-identifier hs-type">Graph</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Algebra.Graph.Example.Todo.html#Todo"><span class="hs-identifier hs-type">Todo</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679167905"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-59"></span><span>  </span><span class="hs-keyword">type</span><span> </span><span id="Vertex"><span class="annot"><a href="Algebra.Graph.Class.html#Vertex"><span class="hs-identifier hs-var">Vertex</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Algebra.Graph.Example.Todo.html#Todo"><span class="hs-identifier hs-type">Todo</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679167905"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="#local-6989586621679167905"><span class="hs-identifier hs-type">a</span></a></span><span>
+</span><span id="line-60"></span><span>  </span><span id="local-6989586621679168100"><span class="annot"><span class="annottext">empty :: Todo a
+</span><a href="Algebra.Graph.Class.html#empty"><span class="hs-identifier hs-var hs-var hs-var">empty</span></a></span></span><span>    </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Map a Int -&gt; AdjacencyMap a -&gt; Todo a
+forall a. Map a Int -&gt; AdjacencyMap a -&gt; Todo a
+</span><a href="Algebra.Graph.Example.Todo.html#T"><span class="hs-identifier hs-var">T</span></a></span><span> </span><span class="annot"><span class="annottext">Map a Int
+forall k a. Map k a
+</span><span class="hs-identifier hs-var">Map.empty</span></span><span> </span><span class="annot"><span class="annottext">AdjacencyMap a
+forall a. AdjacencyMap a
+</span><a href="Algebra.Graph.AdjacencyMap.html#empty"><span class="hs-identifier hs-var">AM.empty</span></a></span><span>
+</span><span id="line-61"></span><span>  </span><span id="local-6989586621679168106"><span class="annot"><span class="annottext">vertex :: Vertex (Todo a) -&gt; Todo a
+</span><a href="Algebra.Graph.Class.html#vertex"><span class="hs-identifier hs-var hs-var hs-var">vertex</span></a></span></span><span> </span><span id="local-6989586621679168107"><span class="annot"><span class="annottext">Vertex (Todo a)
+</span><a href="#local-6989586621679168107"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Map a Int -&gt; AdjacencyMap a -&gt; Todo a
+forall a. Map a Int -&gt; AdjacencyMap a -&gt; Todo a
+</span><a href="Algebra.Graph.Example.Todo.html#T"><span class="hs-identifier hs-var">T</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a -&gt; Int -&gt; Map a Int
+forall k a. k -&gt; a -&gt; Map k a
+</span><span class="hs-identifier hs-var">Map.singleton</span></span><span> </span><span class="annot"><span class="annottext">a
+Vertex (Todo a)
+</span><a href="#local-6989586621679168107"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Vertex (AdjacencyMap a) -&gt; AdjacencyMap a
+forall g. Graph g =&gt; Vertex g -&gt; g
+</span><a href="Algebra.Graph.Class.html#vertex"><span class="hs-identifier hs-var">C.vertex</span></a></span><span> </span><span class="annot"><span class="annottext">Vertex (AdjacencyMap a)
+Vertex (Todo a)
+</span><a href="#local-6989586621679168107"><span class="hs-identifier hs-var">x</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-62"></span><span>  </span><span id="local-6989586621679168112"><span class="annot"><span class="annottext">overlay :: Todo a -&gt; Todo a -&gt; Todo a
+</span><a href="Algebra.Graph.Class.html#overlay"><span class="hs-identifier hs-var hs-var hs-var">overlay</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Algebra.Graph.Example.Todo.html#T"><span class="hs-identifier hs-type">T</span></a></span><span> </span><span id="local-6989586621679168113"><span class="annot"><span class="annottext">Map a Int
+</span><a href="#local-6989586621679168113"><span class="hs-identifier hs-var">p1</span></a></span></span><span> </span><span id="local-6989586621679168114"><span class="annot"><span class="annottext">AdjacencyMap a
+</span><a href="#local-6989586621679168114"><span class="hs-identifier hs-var">g1</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Algebra.Graph.Example.Todo.html#T"><span class="hs-identifier hs-type">T</span></a></span><span> </span><span id="local-6989586621679168115"><span class="annot"><span class="annottext">Map a Int
+</span><a href="#local-6989586621679168115"><span class="hs-identifier hs-var">p2</span></a></span></span><span> </span><span id="local-6989586621679168116"><span class="annot"><span class="annottext">AdjacencyMap a
+</span><a href="#local-6989586621679168116"><span class="hs-identifier hs-var">g2</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Map a Int -&gt; AdjacencyMap a -&gt; Todo a
+forall a. Map a Int -&gt; AdjacencyMap a -&gt; Todo a
+</span><a href="Algebra.Graph.Example.Todo.html#T"><span class="hs-identifier hs-var">T</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(Int -&gt; Int -&gt; Int) -&gt; Map a Int -&gt; Map a Int -&gt; Map a Int
+forall k a. Ord k =&gt; (a -&gt; a -&gt; a) -&gt; Map k a -&gt; Map k a -&gt; Map k a
+</span><span class="hs-identifier hs-var">Map.unionWith</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">(+)</span></span><span> </span><span class="annot"><span class="annottext">Map a Int
+</span><a href="#local-6989586621679168113"><span class="hs-identifier hs-var">p1</span></a></span><span> </span><span class="annot"><span class="annottext">Map a Int
+</span><a href="#local-6989586621679168115"><span class="hs-identifier hs-var">p2</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">AdjacencyMap a -&gt; AdjacencyMap a -&gt; AdjacencyMap a
+forall g. Graph g =&gt; g -&gt; g -&gt; g
+</span><a href="Algebra.Graph.Class.html#overlay"><span class="hs-identifier hs-var">C.overlay</span></a></span><span> </span><span class="annot"><span class="annottext">AdjacencyMap a
+</span><a href="#local-6989586621679168114"><span class="hs-identifier hs-var">g1</span></a></span><span> </span><span class="annot"><span class="annottext">AdjacencyMap a
+</span><a href="#local-6989586621679168116"><span class="hs-identifier hs-var">g2</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-63"></span><span>  </span><span id="local-6989586621679168121"><span class="annot"><span class="annottext">connect :: Todo a -&gt; Todo a -&gt; Todo a
+</span><a href="Algebra.Graph.Class.html#connect"><span class="hs-identifier hs-var hs-var hs-var">connect</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Algebra.Graph.Example.Todo.html#T"><span class="hs-identifier hs-type">T</span></a></span><span> </span><span id="local-6989586621679168122"><span class="annot"><span class="annottext">Map a Int
+</span><a href="#local-6989586621679168122"><span class="hs-identifier hs-var">p1</span></a></span></span><span> </span><span id="local-6989586621679168123"><span class="annot"><span class="annottext">AdjacencyMap a
+</span><a href="#local-6989586621679168123"><span class="hs-identifier hs-var">g1</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Algebra.Graph.Example.Todo.html#T"><span class="hs-identifier hs-type">T</span></a></span><span> </span><span id="local-6989586621679168124"><span class="annot"><span class="annottext">Map a Int
+</span><a href="#local-6989586621679168124"><span class="hs-identifier hs-var">p2</span></a></span></span><span> </span><span id="local-6989586621679168125"><span class="annot"><span class="annottext">AdjacencyMap a
+</span><a href="#local-6989586621679168125"><span class="hs-identifier hs-var">g2</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Map a Int -&gt; AdjacencyMap a -&gt; Todo a
+forall a. Map a Int -&gt; AdjacencyMap a -&gt; Todo a
+</span><a href="Algebra.Graph.Example.Todo.html#T"><span class="hs-identifier hs-var">T</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(Int -&gt; Int -&gt; Int) -&gt; Map a Int -&gt; Map a Int -&gt; Map a Int
+forall k a. Ord k =&gt; (a -&gt; a -&gt; a) -&gt; Map k a -&gt; Map k a -&gt; Map k a
+</span><span class="hs-identifier hs-var">Map.unionWith</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">(+)</span></span><span> </span><span class="annot"><span class="annottext">Map a Int
+</span><a href="#local-6989586621679168122"><span class="hs-identifier hs-var">p1</span></a></span><span> </span><span class="annot"><span class="annottext">Map a Int
+</span><a href="#local-6989586621679168124"><span class="hs-identifier hs-var">p2</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">AdjacencyMap a -&gt; AdjacencyMap a -&gt; AdjacencyMap a
+forall g. Graph g =&gt; g -&gt; g -&gt; g
+</span><a href="Algebra.Graph.Class.html#connect"><span class="hs-identifier hs-var">C.connect</span></a></span><span> </span><span class="annot"><span class="annottext">AdjacencyMap a
+</span><a href="#local-6989586621679168123"><span class="hs-identifier hs-var">g1</span></a></span><span> </span><span class="annot"><span class="annottext">AdjacencyMap a
+</span><a href="#local-6989586621679168125"><span class="hs-identifier hs-var">g2</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-64"></span></pre></body></html>

@@ -1,0 +1,186 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-comment">{- ORMOLU_DISABLE -}</span><span>
+</span><span id="line-2"></span><span class="hs-comment">{- HLINT ignore -}</span><span>
+</span><span id="line-3"></span><span class="hs-comment">-- THIS IS A GENERATED FILE, DO NOT EDIT</span><span>
+</span><span id="line-4"></span><span>
+</span><span id="line-5"></span><span class="hs-pragma">{-# OPTIONS_GHC -Wno-unused-imports #-}</span><span>
+</span><span id="line-6"></span><span class="hs-pragma">{-# OPTIONS_GHC -Wno-unused-matches #-}</span><span>
+</span><span id="line-7"></span><span class="hs-pragma">{-# OPTIONS_GHC -Wno-deprecations #-}</span><span>
+</span><span id="line-8"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.ClientSymbolTagOptions.html"><span class="hs-identifier">Language.LSP.Protocol.Internal.Types.ClientSymbolTagOptions</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-9"></span><span>
+</span><span id="line-10"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.DeepSeq</span></span><span>
+</span><span id="line-11"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Hashable</span></span><span>
+</span><span id="line-12"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">GHC.Generics</span></span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Utils.Misc.html"><span class="hs-identifier">Language.LSP.Protocol.Utils.Misc</span></a></span><span>
+</span><span id="line-14"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Prettyprinter</span></span><span>
+</span><span id="line-15"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Aeson</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Aeson</span></span><span>
+</span><span id="line-16"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Data.Row.Aeson.html"><span class="hs-identifier">Data.Row.Aeson</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Aeson</span></span><span>
+</span><span id="line-17"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Data.Row.Hashable.html"><span class="hs-identifier">Data.Row.Hashable</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Hashable</span></span><span>
+</span><span id="line-18"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.SymbolTag.html"><span class="hs-identifier">Language.LSP.Protocol.Internal.Types.SymbolTag</span></a></span><span>
+</span><span id="line-19"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Types.Common.html"><span class="hs-identifier">Language.LSP.Protocol.Types.Common</span></a></span><span>
+</span><span id="line-20"></span><span>
+</span><span id="line-21"></span><span class="annot"><span class="hs-comment">{-|
+@since 3.18.0
+@proposed
+-}</span></span><span>
+</span><span id="line-25"></span><span class="hs-keyword">data</span><span> </span><span id="ClientSymbolTagOptions"><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.ClientSymbolTagOptions.html#ClientSymbolTagOptions"><span class="hs-identifier hs-var">ClientSymbolTagOptions</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="ClientSymbolTagOptions"><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.ClientSymbolTagOptions.html#ClientSymbolTagOptions"><span class="hs-identifier hs-var">ClientSymbolTagOptions</span></a></span></span><span> </span><span>
+</span><span id="line-26"></span><span>  </span><span class="hs-special">{</span><span> </span><span class="annot"><span class="hs-comment">{-|
+  The tags supported by the client.
+  -}</span></span><span>
+</span><span id="line-29"></span><span>  </span><span id="_valueSet"><span class="annot"><span class="annottext">ClientSymbolTagOptions -&gt; [SymbolTag]
+</span><a href="Language.LSP.Protocol.Internal.Types.ClientSymbolTagOptions.html#_valueSet"><span class="hs-identifier hs-var hs-var">_valueSet</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.SymbolTag.html#SymbolTag"><span class="hs-identifier hs-type">Language.LSP.Protocol.Internal.Types.SymbolTag.SymbolTag</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-30"></span><span>  </span><span class="hs-special">}</span><span>
+</span><span id="line-31"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">stock</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621682606857"><span id="local-6989586621682606864"><span id="local-6989586621682606868"><span class="annot"><span class="annottext">Int -&gt; ClientSymbolTagOptions -&gt; ShowS
+[ClientSymbolTagOptions] -&gt; ShowS
+ClientSymbolTagOptions -&gt; String
+(Int -&gt; ClientSymbolTagOptions -&gt; ShowS)
+-&gt; (ClientSymbolTagOptions -&gt; String)
+-&gt; ([ClientSymbolTagOptions] -&gt; ShowS)
+-&gt; Show ClientSymbolTagOptions
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; ClientSymbolTagOptions -&gt; ShowS
+showsPrec :: Int -&gt; ClientSymbolTagOptions -&gt; ShowS
+$cshow :: ClientSymbolTagOptions -&gt; String
+show :: ClientSymbolTagOptions -&gt; String
+$cshowList :: [ClientSymbolTagOptions] -&gt; ShowS
+showList :: [ClientSymbolTagOptions] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682606874"><span id="local-6989586621682606879"><span class="annot"><span class="annottext">ClientSymbolTagOptions -&gt; ClientSymbolTagOptions -&gt; Bool
+(ClientSymbolTagOptions -&gt; ClientSymbolTagOptions -&gt; Bool)
+-&gt; (ClientSymbolTagOptions -&gt; ClientSymbolTagOptions -&gt; Bool)
+-&gt; Eq ClientSymbolTagOptions
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: ClientSymbolTagOptions -&gt; ClientSymbolTagOptions -&gt; Bool
+== :: ClientSymbolTagOptions -&gt; ClientSymbolTagOptions -&gt; Bool
+$c/= :: ClientSymbolTagOptions -&gt; ClientSymbolTagOptions -&gt; Bool
+/= :: ClientSymbolTagOptions -&gt; ClientSymbolTagOptions -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682606887"><span id="local-6989586621682606892"><span id="local-6989586621682606896"><span id="local-6989586621682606900"><span id="local-6989586621682606903"><span id="local-6989586621682606906"><span id="local-6989586621682606909"><span class="annot"><span class="annottext">Eq ClientSymbolTagOptions
+Eq ClientSymbolTagOptions =&gt;
+(ClientSymbolTagOptions -&gt; ClientSymbolTagOptions -&gt; Ordering)
+-&gt; (ClientSymbolTagOptions -&gt; ClientSymbolTagOptions -&gt; Bool)
+-&gt; (ClientSymbolTagOptions -&gt; ClientSymbolTagOptions -&gt; Bool)
+-&gt; (ClientSymbolTagOptions -&gt; ClientSymbolTagOptions -&gt; Bool)
+-&gt; (ClientSymbolTagOptions -&gt; ClientSymbolTagOptions -&gt; Bool)
+-&gt; (ClientSymbolTagOptions
+    -&gt; ClientSymbolTagOptions -&gt; ClientSymbolTagOptions)
+-&gt; (ClientSymbolTagOptions
+    -&gt; ClientSymbolTagOptions -&gt; ClientSymbolTagOptions)
+-&gt; Ord ClientSymbolTagOptions
+ClientSymbolTagOptions -&gt; ClientSymbolTagOptions -&gt; Bool
+ClientSymbolTagOptions -&gt; ClientSymbolTagOptions -&gt; Ordering
+ClientSymbolTagOptions
+-&gt; ClientSymbolTagOptions -&gt; ClientSymbolTagOptions
+forall a.
+Eq a =&gt;
+(a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+$ccompare :: ClientSymbolTagOptions -&gt; ClientSymbolTagOptions -&gt; Ordering
+compare :: ClientSymbolTagOptions -&gt; ClientSymbolTagOptions -&gt; Ordering
+$c&lt; :: ClientSymbolTagOptions -&gt; ClientSymbolTagOptions -&gt; Bool
+&lt; :: ClientSymbolTagOptions -&gt; ClientSymbolTagOptions -&gt; Bool
+$c&lt;= :: ClientSymbolTagOptions -&gt; ClientSymbolTagOptions -&gt; Bool
+&lt;= :: ClientSymbolTagOptions -&gt; ClientSymbolTagOptions -&gt; Bool
+$c&gt; :: ClientSymbolTagOptions -&gt; ClientSymbolTagOptions -&gt; Bool
+&gt; :: ClientSymbolTagOptions -&gt; ClientSymbolTagOptions -&gt; Bool
+$c&gt;= :: ClientSymbolTagOptions -&gt; ClientSymbolTagOptions -&gt; Bool
+&gt;= :: ClientSymbolTagOptions -&gt; ClientSymbolTagOptions -&gt; Bool
+$cmax :: ClientSymbolTagOptions
+-&gt; ClientSymbolTagOptions -&gt; ClientSymbolTagOptions
+max :: ClientSymbolTagOptions
+-&gt; ClientSymbolTagOptions -&gt; ClientSymbolTagOptions
+$cmin :: ClientSymbolTagOptions
+-&gt; ClientSymbolTagOptions -&gt; ClientSymbolTagOptions
+min :: ClientSymbolTagOptions
+-&gt; ClientSymbolTagOptions -&gt; ClientSymbolTagOptions
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682606918"><span id="local-6989586621682606920"><span class="annot"><span class="annottext">(forall x. ClientSymbolTagOptions -&gt; Rep ClientSymbolTagOptions x)
+-&gt; (forall x.
+    Rep ClientSymbolTagOptions x -&gt; ClientSymbolTagOptions)
+-&gt; Generic ClientSymbolTagOptions
+forall x. Rep ClientSymbolTagOptions x -&gt; ClientSymbolTagOptions
+forall x. ClientSymbolTagOptions -&gt; Rep ClientSymbolTagOptions x
+forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+$cfrom :: forall x. ClientSymbolTagOptions -&gt; Rep ClientSymbolTagOptions x
+from :: forall x. ClientSymbolTagOptions -&gt; Rep ClientSymbolTagOptions x
+$cto :: forall x. Rep ClientSymbolTagOptions x -&gt; ClientSymbolTagOptions
+to :: forall x. Rep ClientSymbolTagOptions x -&gt; ClientSymbolTagOptions
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Generic</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-32"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">anyclass</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621682606926"><span class="annot"><span class="annottext">ClientSymbolTagOptions -&gt; ()
+(ClientSymbolTagOptions -&gt; ()) -&gt; NFData ClientSymbolTagOptions
+forall a. (a -&gt; ()) -&gt; NFData a
+$crnf :: ClientSymbolTagOptions -&gt; ()
+rnf :: ClientSymbolTagOptions -&gt; ()
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">NFData</span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682606945"><span id="local-6989586621682606952"><span class="annot"><span class="annottext">Eq ClientSymbolTagOptions
+Eq ClientSymbolTagOptions =&gt;
+(Int -&gt; ClientSymbolTagOptions -&gt; Int)
+-&gt; (ClientSymbolTagOptions -&gt; Int)
+-&gt; Hashable ClientSymbolTagOptions
+Int -&gt; ClientSymbolTagOptions -&gt; Int
+ClientSymbolTagOptions -&gt; Int
+forall a. Eq a =&gt; (Int -&gt; a -&gt; Int) -&gt; (a -&gt; Int) -&gt; Hashable a
+$chashWithSalt :: Int -&gt; ClientSymbolTagOptions -&gt; Int
+hashWithSalt :: Int -&gt; ClientSymbolTagOptions -&gt; Int
+$chash :: ClientSymbolTagOptions -&gt; Int
+hash :: ClientSymbolTagOptions -&gt; Int
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Hashable</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-33"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span id="local-6989586621682606965"><span id="local-6989586621682606971"><span class="annot"><span class="annottext">(forall ann. ClientSymbolTagOptions -&gt; Doc ann)
+-&gt; (forall ann. [ClientSymbolTagOptions] -&gt; Doc ann)
+-&gt; Pretty ClientSymbolTagOptions
+forall ann. [ClientSymbolTagOptions] -&gt; Doc ann
+forall ann. ClientSymbolTagOptions -&gt; Doc ann
+forall a.
+(forall ann. a -&gt; Doc ann)
+-&gt; (forall ann. [a] -&gt; Doc ann) -&gt; Pretty a
+$cpretty :: forall ann. ClientSymbolTagOptions -&gt; Doc ann
+pretty :: forall ann. ClientSymbolTagOptions -&gt; Doc ann
+$cprettyList :: forall ann. [ClientSymbolTagOptions] -&gt; Doc ann
+prettyList :: forall ann. [ClientSymbolTagOptions] -&gt; Doc ann
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Pretty</span></span></span></span><span> </span><span class="hs-keyword">via</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.LSP.Protocol.Utils.Misc.html#ViaJSON"><span class="hs-identifier hs-type">ViaJSON</span></a></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.ClientSymbolTagOptions.html#ClientSymbolTagOptions"><span class="hs-identifier hs-type">ClientSymbolTagOptions</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-34"></span><span>
+</span><span id="line-35"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621682606982"><span id="local-6989586621682606985"><span id="local-6989586621682606988"><span id="local-6989586621682606991"><span class="annot"><span class="hs-identifier hs-type">Aeson.ToJSON</span></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.ClientSymbolTagOptions.html#ClientSymbolTagOptions"><span class="hs-identifier hs-type">ClientSymbolTagOptions</span></a></span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-36"></span><span>  </span><span id="local-6989586621682607006"><span class="annot"><span class="annottext">toJSON :: ClientSymbolTagOptions -&gt; Value
+</span><a href="#local-6989586621682607006"><span class="hs-identifier hs-var hs-var hs-var">toJSON</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.ClientSymbolTagOptions.html#ClientSymbolTagOptions"><span class="hs-identifier hs-type">ClientSymbolTagOptions</span></a></span><span> </span><span id="local-6989586621682607008"><span class="annot"><span class="annottext">[SymbolTag]
+</span><a href="#local-6989586621682607008"><span class="hs-identifier hs-var">arg0</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Pair] -&gt; Value
+</span><span class="hs-identifier hs-var">Aeson.object</span></span><span> </span><span class="annot"><span class="annottext">([Pair] -&gt; Value) -&gt; [Pair] -&gt; Value
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">[[Pair]] -&gt; [Pair]
+forall (t :: * -&gt; *) a. Foldable t =&gt; t [a] -&gt; [a]
+</span><span class="hs-identifier hs-var">concat</span></span><span> </span><span class="annot"><span class="annottext">([[Pair]] -&gt; [Pair]) -&gt; [[Pair]] -&gt; [Pair]
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>  </span><span class="hs-special">[</span><span class="hs-special">[</span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;valueSet&quot;</span></span><span> </span><span class="annot"><span class="annottext">Key -&gt; [SymbolTag] -&gt; Pair
+forall v. ToJSON v =&gt; Key -&gt; v -&gt; Pair
+forall e kv v. (KeyValue e kv, ToJSON v) =&gt; Key -&gt; v -&gt; kv
+</span><span class="hs-operator hs-var">Aeson..=</span></span><span> </span><span class="annot"><span class="annottext">[SymbolTag]
+</span><a href="#local-6989586621682607008"><span class="hs-identifier hs-var">arg0</span></a></span><span class="hs-special">]</span><span class="hs-special">]</span><span>
+</span><span id="line-37"></span><span>
+</span><span id="line-38"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621682607014"><span id="local-6989586621682607018"><span class="annot"><span class="hs-identifier hs-type">Aeson.FromJSON</span></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.ClientSymbolTagOptions.html#ClientSymbolTagOptions"><span class="hs-identifier hs-type">ClientSymbolTagOptions</span></a></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-39"></span><span>  </span><span id="local-6989586621682607028"><span class="annot"><span class="annottext">parseJSON :: Value -&gt; Parser ClientSymbolTagOptions
+</span><a href="#local-6989586621682607028"><span class="hs-identifier hs-var hs-var hs-var">parseJSON</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+-&gt; (Object -&gt; Parser ClientSymbolTagOptions)
+-&gt; Value
+-&gt; Parser ClientSymbolTagOptions
+forall a. String -&gt; (Object -&gt; Parser a) -&gt; Value -&gt; Parser a
+</span><span class="hs-identifier hs-var">Aeson.withObject</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;ClientSymbolTagOptions&quot;</span></span><span> </span><span class="annot"><span class="annottext">((Object -&gt; Parser ClientSymbolTagOptions)
+ -&gt; Value -&gt; Parser ClientSymbolTagOptions)
+-&gt; (Object -&gt; Parser ClientSymbolTagOptions)
+-&gt; Value
+-&gt; Parser ClientSymbolTagOptions
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621682607031"><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621682607031"><span class="hs-identifier hs-var">arg</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">[SymbolTag] -&gt; ClientSymbolTagOptions
+</span><a href="Language.LSP.Protocol.Internal.Types.ClientSymbolTagOptions.html#ClientSymbolTagOptions"><span class="hs-identifier hs-var">ClientSymbolTagOptions</span></a></span><span> </span><span class="annot"><span class="annottext">([SymbolTag] -&gt; ClientSymbolTagOptions)
+-&gt; Parser [SymbolTag] -&gt; Parser ClientSymbolTagOptions
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621682607031"><span class="hs-identifier hs-var">arg</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser [SymbolTag]
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">Aeson..:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;valueSet&quot;</span></span><span>
+</span><span id="line-40"></span></pre></body></html>

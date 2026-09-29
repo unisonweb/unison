@@ -1,0 +1,172 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE ScopedTypeVariables #-}</span><span>
+</span><span id="line-2"></span><span>
+</span><span id="line-3"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Data.Avro.Internal.EncodeRaw.html"><span class="hs-identifier">Data.Avro.Internal.EncodeRaw</span></a></span><span>
+</span><span id="line-4"></span><span>  </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="Data.Avro.Internal.EncodeRaw.html#EncodeRaw"><span class="hs-identifier">EncodeRaw</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-5"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Avro.Internal.EncodeRaw.html#putI"><span class="hs-identifier">putI</span></a></span><span>
+</span><span id="line-6"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Avro.Internal.EncodeRaw.html#long0"><span class="hs-identifier">long0</span></a></span><span>
+</span><span id="line-7"></span><span>  </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-8"></span><span>
+</span><span id="line-9"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Data.Avro.Internal.Zig.html"><span class="hs-identifier">Data.Avro.Internal.Zig</span></a></span><span>
+</span><span id="line-10"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Bits</span></span><span>
+</span><span id="line-11"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.ByteString.Builder</span></span><span>
+</span><span id="line-12"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Int</span></span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Word</span></span><span>
+</span><span id="line-14"></span><span>
+</span><span id="line-15"></span><span class="annot"><a href="Data.Avro.Internal.EncodeRaw.html#putNonNegative"><span class="hs-identifier hs-type">putNonNegative</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-keyword">forall</span><span> </span><span id="local-6989586621679514758"><span class="annot"><a href="#local-6989586621679514758"><span class="hs-identifier hs-type">a</span></a></span></span><span class="hs-operator">.</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">FiniteBits</span></span><span> </span><span class="annot"><a href="#local-6989586621679514758"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Integral</span></span><span> </span><span class="annot"><a href="#local-6989586621679514758"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679514758"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Builder</span></span><span>
+</span><span id="line-16"></span><span id="putNonNegative"><span class="annot"><span class="annottext">putNonNegative :: forall a. (FiniteBits a, Integral a) =&gt; a -&gt; Builder
+</span><a href="Data.Avro.Internal.EncodeRaw.html#putNonNegative"><span class="hs-identifier hs-var hs-var">putNonNegative</span></a></span></span><span> </span><span id="local-6989586621679514824"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679514824"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679514824"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">a -&gt; a -&gt; a
+forall a. Bits a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">.&amp;.</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; a
+forall a. Bits a =&gt; a -&gt; a
+</span><span class="hs-identifier hs-var">complement</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><span class="hs-number">0x7F</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; a -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><span class="hs-number">0</span></span><span>
+</span><span id="line-17"></span><span>  </span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="annottext">Word8 -&gt; Builder
+</span><span class="hs-identifier hs-var">word8</span></span><span> </span><span class="annot"><span class="annottext">(Word8 -&gt; Builder) -&gt; Word8 -&gt; Builder
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; Word8
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679514824"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">a -&gt; a -&gt; a
+forall a. Bits a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">.&amp;.</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><span class="hs-number">0x7f</span></span><span class="hs-special">)</span><span>
+</span><span id="line-18"></span><span>  </span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="annottext">Word8 -&gt; Builder
+</span><span class="hs-identifier hs-var">word8</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">0x80</span></span><span> </span><span class="annot"><span class="annottext">Word8 -&gt; Word8 -&gt; Word8
+forall a. Bits a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">.|.</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a -&gt; Word8
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679514824"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">Word8 -&gt; Word8 -&gt; Word8
+forall a. Bits a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">.&amp;.</span></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">0x7F</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Builder -&gt; Builder -&gt; Builder
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; Builder
+forall a. (FiniteBits a, Integral a) =&gt; a -&gt; Builder
+</span><a href="Data.Avro.Internal.EncodeRaw.html#putNonNegative"><span class="hs-identifier hs-var">putNonNegative</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679514824"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">a -&gt; Int -&gt; a
+forall a. Bits a =&gt; a -&gt; Int -&gt; a
+</span><span class="hs-operator hs-var">`shiftR`</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">7</span></span><span class="hs-special">)</span><span>
+</span><span id="line-19"></span><span>
+</span><span id="line-20"></span><span class="hs-keyword">class</span><span> </span><span id="EncodeRaw"><span class="annot"><a href="Data.Avro.Internal.EncodeRaw.html#EncodeRaw"><span class="hs-identifier hs-var">EncodeRaw</span></a></span></span><span> </span><span id="local-6989586621679514776"><span class="annot"><a href="#local-6989586621679514776"><span class="hs-identifier hs-type">a</span></a></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-21"></span><span>  </span><span id="encodeRaw"><span class="annot"><a href="Data.Avro.Internal.EncodeRaw.html#encodeRaw"><span class="hs-identifier hs-type">encodeRaw</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="#local-6989586621679514776"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Builder</span></span><span>
+</span><span id="line-22"></span><span>
+</span><span id="line-23"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="Data.Avro.Internal.EncodeRaw.html#EncodeRaw"><span class="hs-identifier hs-type">EncodeRaw</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-24"></span><span>  </span><span id="local-6989586621679514838"><span class="annot"><span class="annottext">encodeRaw :: Word -&gt; Builder
+</span><a href="Data.Avro.Internal.EncodeRaw.html#encodeRaw"><span class="hs-identifier hs-var hs-var hs-var">encodeRaw</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word -&gt; Builder
+forall a. (FiniteBits a, Integral a) =&gt; a -&gt; Builder
+</span><a href="Data.Avro.Internal.EncodeRaw.html#putNonNegative"><span class="hs-identifier hs-var">putNonNegative</span></a></span><span>
+</span><span id="line-25"></span><span>  </span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Data.Avro.Internal.EncodeRaw.html#encodeRaw"><span class="hs-pragma hs-type">encodeRaw</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-26"></span><span>
+</span><span id="line-27"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="Data.Avro.Internal.EncodeRaw.html#EncodeRaw"><span class="hs-identifier hs-type">EncodeRaw</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word8</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-28"></span><span>  </span><span id="local-6989586621679514845"><span class="annot"><span class="annottext">encodeRaw :: Word8 -&gt; Builder
+</span><a href="Data.Avro.Internal.EncodeRaw.html#encodeRaw"><span class="hs-identifier hs-var hs-var hs-var">encodeRaw</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word8 -&gt; Builder
+forall a. (FiniteBits a, Integral a) =&gt; a -&gt; Builder
+</span><a href="Data.Avro.Internal.EncodeRaw.html#putNonNegative"><span class="hs-identifier hs-var">putNonNegative</span></a></span><span>
+</span><span id="line-29"></span><span>  </span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Data.Avro.Internal.EncodeRaw.html#encodeRaw"><span class="hs-pragma hs-type">encodeRaw</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-30"></span><span>
+</span><span id="line-31"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="Data.Avro.Internal.EncodeRaw.html#EncodeRaw"><span class="hs-identifier hs-type">EncodeRaw</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word16</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-32"></span><span>  </span><span id="local-6989586621679514852"><span class="annot"><span class="annottext">encodeRaw :: Word16 -&gt; Builder
+</span><a href="Data.Avro.Internal.EncodeRaw.html#encodeRaw"><span class="hs-identifier hs-var hs-var hs-var">encodeRaw</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word16 -&gt; Builder
+forall a. (FiniteBits a, Integral a) =&gt; a -&gt; Builder
+</span><a href="Data.Avro.Internal.EncodeRaw.html#putNonNegative"><span class="hs-identifier hs-var">putNonNegative</span></a></span><span>
+</span><span id="line-33"></span><span>  </span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Data.Avro.Internal.EncodeRaw.html#encodeRaw"><span class="hs-pragma hs-type">encodeRaw</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-34"></span><span>
+</span><span id="line-35"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="Data.Avro.Internal.EncodeRaw.html#EncodeRaw"><span class="hs-identifier hs-type">EncodeRaw</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word32</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-36"></span><span>  </span><span id="local-6989586621679514859"><span class="annot"><span class="annottext">encodeRaw :: Word32 -&gt; Builder
+</span><a href="Data.Avro.Internal.EncodeRaw.html#encodeRaw"><span class="hs-identifier hs-var hs-var hs-var">encodeRaw</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word32 -&gt; Builder
+forall a. (FiniteBits a, Integral a) =&gt; a -&gt; Builder
+</span><a href="Data.Avro.Internal.EncodeRaw.html#putNonNegative"><span class="hs-identifier hs-var">putNonNegative</span></a></span><span>
+</span><span id="line-37"></span><span>  </span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Data.Avro.Internal.EncodeRaw.html#encodeRaw"><span class="hs-pragma hs-type">encodeRaw</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-38"></span><span>
+</span><span id="line-39"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="Data.Avro.Internal.EncodeRaw.html#EncodeRaw"><span class="hs-identifier hs-type">EncodeRaw</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word64</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-40"></span><span>  </span><span id="local-6989586621679514865"><span class="annot"><span class="annottext">encodeRaw :: Word64 -&gt; Builder
+</span><a href="Data.Avro.Internal.EncodeRaw.html#encodeRaw"><span class="hs-identifier hs-var hs-var hs-var">encodeRaw</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word64 -&gt; Builder
+forall a. (FiniteBits a, Integral a) =&gt; a -&gt; Builder
+</span><a href="Data.Avro.Internal.EncodeRaw.html#putNonNegative"><span class="hs-identifier hs-var">putNonNegative</span></a></span><span>
+</span><span id="line-41"></span><span>  </span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Data.Avro.Internal.EncodeRaw.html#encodeRaw"><span class="hs-pragma hs-type">encodeRaw</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-42"></span><span>
+</span><span id="line-43"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="Data.Avro.Internal.EncodeRaw.html#EncodeRaw"><span class="hs-identifier hs-type">EncodeRaw</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-44"></span><span>  </span><span id="local-6989586621679514870"><span class="annot"><span class="annottext">encodeRaw :: Int -&gt; Builder
+</span><a href="Data.Avro.Internal.EncodeRaw.html#encodeRaw"><span class="hs-identifier hs-var hs-var hs-var">encodeRaw</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word -&gt; Builder
+forall a. EncodeRaw a =&gt; a -&gt; Builder
+</span><a href="Data.Avro.Internal.EncodeRaw.html#encodeRaw"><span class="hs-identifier hs-var">encodeRaw</span></a></span><span> </span><span class="annot"><span class="annottext">(Word -&gt; Builder) -&gt; (Int -&gt; Word) -&gt; Int -&gt; Builder
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Word
+Int -&gt; Zigged Int
+forall a. Zig a =&gt; a -&gt; Zigged a
+</span><a href="Data.Avro.Internal.Zig.html#zig"><span class="hs-identifier hs-var">zig</span></a></span><span>
+</span><span id="line-45"></span><span>  </span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Data.Avro.Internal.EncodeRaw.html#encodeRaw"><span class="hs-pragma hs-type">encodeRaw</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-46"></span><span>
+</span><span id="line-47"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="Data.Avro.Internal.EncodeRaw.html#EncodeRaw"><span class="hs-identifier hs-type">EncodeRaw</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int8</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-48"></span><span>  </span><span id="local-6989586621679514878"><span class="annot"><span class="annottext">encodeRaw :: Int8 -&gt; Builder
+</span><a href="Data.Avro.Internal.EncodeRaw.html#encodeRaw"><span class="hs-identifier hs-var hs-var hs-var">encodeRaw</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word8 -&gt; Builder
+forall a. EncodeRaw a =&gt; a -&gt; Builder
+</span><a href="Data.Avro.Internal.EncodeRaw.html#encodeRaw"><span class="hs-identifier hs-var">encodeRaw</span></a></span><span> </span><span class="annot"><span class="annottext">(Word8 -&gt; Builder) -&gt; (Int8 -&gt; Word8) -&gt; Int8 -&gt; Builder
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Int8 -&gt; Word8
+Int8 -&gt; Zigged Int8
+forall a. Zig a =&gt; a -&gt; Zigged a
+</span><a href="Data.Avro.Internal.Zig.html#zig"><span class="hs-identifier hs-var">zig</span></a></span><span>
+</span><span id="line-49"></span><span>  </span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Data.Avro.Internal.EncodeRaw.html#encodeRaw"><span class="hs-pragma hs-type">encodeRaw</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-50"></span><span>
+</span><span id="line-51"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="Data.Avro.Internal.EncodeRaw.html#EncodeRaw"><span class="hs-identifier hs-type">EncodeRaw</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int16</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-52"></span><span>  </span><span id="local-6989586621679514884"><span class="annot"><span class="annottext">encodeRaw :: Int16 -&gt; Builder
+</span><a href="Data.Avro.Internal.EncodeRaw.html#encodeRaw"><span class="hs-identifier hs-var hs-var hs-var">encodeRaw</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word16 -&gt; Builder
+forall a. EncodeRaw a =&gt; a -&gt; Builder
+</span><a href="Data.Avro.Internal.EncodeRaw.html#encodeRaw"><span class="hs-identifier hs-var">encodeRaw</span></a></span><span> </span><span class="annot"><span class="annottext">(Word16 -&gt; Builder) -&gt; (Int16 -&gt; Word16) -&gt; Int16 -&gt; Builder
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Int16 -&gt; Word16
+Int16 -&gt; Zigged Int16
+forall a. Zig a =&gt; a -&gt; Zigged a
+</span><a href="Data.Avro.Internal.Zig.html#zig"><span class="hs-identifier hs-var">zig</span></a></span><span>
+</span><span id="line-53"></span><span>  </span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Data.Avro.Internal.EncodeRaw.html#encodeRaw"><span class="hs-pragma hs-type">encodeRaw</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-54"></span><span>
+</span><span id="line-55"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="Data.Avro.Internal.EncodeRaw.html#EncodeRaw"><span class="hs-identifier hs-type">EncodeRaw</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int32</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-56"></span><span>  </span><span id="local-6989586621679514890"><span class="annot"><span class="annottext">encodeRaw :: Int32 -&gt; Builder
+</span><a href="Data.Avro.Internal.EncodeRaw.html#encodeRaw"><span class="hs-identifier hs-var hs-var hs-var">encodeRaw</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word32 -&gt; Builder
+forall a. EncodeRaw a =&gt; a -&gt; Builder
+</span><a href="Data.Avro.Internal.EncodeRaw.html#encodeRaw"><span class="hs-identifier hs-var">encodeRaw</span></a></span><span> </span><span class="annot"><span class="annottext">(Word32 -&gt; Builder) -&gt; (Int32 -&gt; Word32) -&gt; Int32 -&gt; Builder
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Int32 -&gt; Word32
+Int32 -&gt; Zigged Int32
+forall a. Zig a =&gt; a -&gt; Zigged a
+</span><a href="Data.Avro.Internal.Zig.html#zig"><span class="hs-identifier hs-var">zig</span></a></span><span>
+</span><span id="line-57"></span><span>  </span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Data.Avro.Internal.EncodeRaw.html#encodeRaw"><span class="hs-pragma hs-type">encodeRaw</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-58"></span><span>
+</span><span id="line-59"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="Data.Avro.Internal.EncodeRaw.html#EncodeRaw"><span class="hs-identifier hs-type">EncodeRaw</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int64</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-60"></span><span>  </span><span id="local-6989586621679514896"><span class="annot"><span class="annottext">encodeRaw :: Int64 -&gt; Builder
+</span><a href="Data.Avro.Internal.EncodeRaw.html#encodeRaw"><span class="hs-identifier hs-var hs-var hs-var">encodeRaw</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word64 -&gt; Builder
+forall a. EncodeRaw a =&gt; a -&gt; Builder
+</span><a href="Data.Avro.Internal.EncodeRaw.html#encodeRaw"><span class="hs-identifier hs-var">encodeRaw</span></a></span><span> </span><span class="annot"><span class="annottext">(Word64 -&gt; Builder) -&gt; (Int64 -&gt; Word64) -&gt; Int64 -&gt; Builder
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Int64 -&gt; Word64
+Int64 -&gt; Zigged Int64
+forall a. Zig a =&gt; a -&gt; Zigged a
+</span><a href="Data.Avro.Internal.Zig.html#zig"><span class="hs-identifier hs-var">zig</span></a></span><span>
+</span><span id="line-61"></span><span>  </span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Data.Avro.Internal.EncodeRaw.html#encodeRaw"><span class="hs-pragma hs-type">encodeRaw</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-62"></span><span>
+</span><span id="line-63"></span><span class="hs-comment">-- Put a Haskell Int.</span><span>
+</span><span id="line-64"></span><span class="annot"><a href="Data.Avro.Internal.EncodeRaw.html#putI"><span class="hs-identifier hs-type">putI</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Builder</span></span><span>
+</span><span id="line-65"></span><span id="putI"><span class="annot"><span class="annottext">putI :: Int -&gt; Builder
+</span><a href="Data.Avro.Internal.EncodeRaw.html#putI"><span class="hs-identifier hs-var hs-var">putI</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Builder
+forall a. EncodeRaw a =&gt; a -&gt; Builder
+</span><a href="Data.Avro.Internal.EncodeRaw.html#encodeRaw"><span class="hs-identifier hs-var">encodeRaw</span></a></span><span>
+</span><span id="line-66"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Data.Avro.Internal.EncodeRaw.html#putI"><span class="hs-pragma hs-type">putI</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-67"></span><span>
+</span><span id="line-68"></span><span class="hs-comment">-- Terminating word for array and map types.</span><span>
+</span><span id="line-69"></span><span class="annot"><a href="Data.Avro.Internal.EncodeRaw.html#long0"><span class="hs-identifier hs-type">long0</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Builder</span></span><span>
+</span><span id="line-70"></span><span id="long0"><span class="annot"><span class="annottext">long0 :: Builder
+</span><a href="Data.Avro.Internal.EncodeRaw.html#long0"><span class="hs-identifier hs-var hs-var">long0</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word64 -&gt; Builder
+forall a. EncodeRaw a =&gt; a -&gt; Builder
+</span><a href="Data.Avro.Internal.EncodeRaw.html#encodeRaw"><span class="hs-identifier hs-var">encodeRaw</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Word64
+</span><span class="hs-number">0</span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word64</span></span><span class="hs-special">)</span><span>
+</span><span id="line-71"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Data.Avro.Internal.EncodeRaw.html#long0"><span class="hs-pragma hs-type">long0</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-72"></span></pre></body></html>

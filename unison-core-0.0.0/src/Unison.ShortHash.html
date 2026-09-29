@@ -1,0 +1,571 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE RecordWildCards #-}</span><span>
+</span><span id="line-2"></span><span>
+</span><span id="line-3"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Unison.ShortHash.html"><span class="hs-identifier">Unison.ShortHash</span></a></span><span>
+</span><span id="line-4"></span><span>  </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="Unison.ShortHash.html#ShortHash"><span class="hs-identifier">ShortHash</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-5"></span><span>    </span><span class="annot"><a href="Unison.ShortHash.html#ShortHash1"><span class="hs-identifier">ShortHash1</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-6"></span><span>    </span><span class="annot"><a href="Unison.ShortHash.html#ShortCausalHash"><span class="hs-identifier">ShortCausalHash</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-7"></span><span>    </span><span class="annot"><a href="Unison.ShortHash.html#ShortNamespaceHash"><span class="hs-identifier">ShortNamespaceHash</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-8"></span><span>    </span><span class="annot"><a href="Unison.ShortHash.html#isPrefixOf"><span class="hs-identifier">isPrefixOf</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-9"></span><span>    </span><span class="annot"><a href="Unison.ShortHash.html#shortenTo"><span class="hs-identifier">shortenTo</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-10"></span><span>
+</span><span id="line-11"></span><span>    </span><span class="annot"><span class="hs-comment">-- * String conversions</span></span><span>
+</span><span id="line-12"></span><span>    </span><span class="annot"><a href="Unison.ShortHash.html#fromText"><span class="hs-identifier">fromText</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-13"></span><span>    </span><span class="annot"><a href="Unison.ShortHash.html#toText"><span class="hs-identifier">toText</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-14"></span><span>  </span><span class="hs-special">)</span><span>
+</span><span id="line-15"></span><span class="hs-keyword">where</span><span>
+</span><span id="line-16"></span><span>
+</span><span id="line-17"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Text</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Text</span></span><span>
+</span><span id="line-18"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Unison.OrBuiltin.html"><span class="hs-identifier">Unison.OrBuiltin</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.OrBuiltin.html#OrBuiltin"><span class="hs-identifier">OrBuiltin</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-19"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Prelude</span></span><span>
+</span><span id="line-20"></span><span>
+</span><span id="line-21"></span><span class="hs-comment">-- A ShortHash is used to query the Codebase for anonymous definitions. The prefix should look like base32hex, but is</span><span>
+</span><span id="line-22"></span><span class="hs-comment">-- not decoded here because the prefix doesn't correspond to anything useful - we'll just compare strings against the</span><span>
+</span><span id="line-23"></span><span class="hs-comment">-- codebase later.</span><span>
+</span><span id="line-24"></span><span class="hs-comment">--</span><span>
+</span><span id="line-25"></span><span class="hs-comment">-- ##Text.++</span><span>
+</span><span id="line-26"></span><span class="hs-comment">--   ^^^^^^^</span><span>
+</span><span id="line-27"></span><span class="hs-comment">--   |</span><span>
+</span><span id="line-28"></span><span class="hs-comment">--   builtin</span><span>
+</span><span id="line-29"></span><span class="hs-comment">--</span><span>
+</span><span id="line-30"></span><span class="hs-comment">-- #abc123.1#2</span><span>
+</span><span id="line-31"></span><span class="hs-comment">--  ^^^^^^ ^ ^</span><span>
+</span><span id="line-32"></span><span class="hs-comment">--  |      | |</span><span>
+</span><span id="line-33"></span><span class="hs-comment">--  |      | cid</span><span>
+</span><span id="line-34"></span><span class="hs-comment">--  |      cycle</span><span>
+</span><span id="line-35"></span><span class="hs-comment">--  prefix</span><span>
+</span><span id="line-36"></span><span class="hs-keyword">type</span><span> </span><span id="ShortHash"><span class="annot"><a href="Unison.ShortHash.html#ShortHash"><span class="hs-identifier hs-var">ShortHash</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-37"></span><span>  </span><span class="annot"><a href="Unison.OrBuiltin.html#OrBuiltin"><span class="hs-identifier hs-type">OrBuiltin</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span> </span><span class="annot"><a href="Unison.ShortHash.html#ShortHash1"><span class="hs-identifier hs-type">ShortHash1</span></a></span><span>
+</span><span id="line-38"></span><span>
+</span><span id="line-39"></span><span class="hs-keyword">data</span><span> </span><span id="ShortHash1"><span class="annot"><a href="Unison.ShortHash.html#ShortHash1"><span class="hs-identifier hs-var">ShortHash1</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="ShortHash"><span class="annot"><a href="Unison.ShortHash.html#ShortHash"><span class="hs-identifier hs-var">ShortHash</span></a></span></span><span>
+</span><span id="line-40"></span><span>  </span><span class="hs-special">{</span><span> </span><span id="prefix"><span class="annot"><span class="annottext">ShortHash1 -&gt; Text
+</span><a href="Unison.ShortHash.html#prefix"><span class="hs-identifier hs-var hs-var">prefix</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span class="hs-special">,</span><span>
+</span><span id="line-41"></span><span>    </span><span id="cycle"><span class="annot"><span class="annottext">ShortHash1 -&gt; Maybe Word64
+</span><a href="Unison.ShortHash.html#cycle"><span class="hs-identifier hs-var hs-var">cycle</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word64</span></span><span class="hs-special">,</span><span>
+</span><span id="line-42"></span><span>    </span><span id="cid"><span class="annot"><span class="annottext">ShortHash1 -&gt; Maybe Word64
+</span><a href="Unison.ShortHash.html#cid"><span class="hs-identifier hs-var hs-var">cid</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word64</span></span><span>
+</span><span id="line-43"></span><span>  </span><span class="hs-special">}</span><span>
+</span><span id="line-44"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">stock</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679149669"><span id="local-6989586621679149675"><span class="annot"><span class="annottext">ShortHash1 -&gt; ShortHash1 -&gt; Bool
+(ShortHash1 -&gt; ShortHash1 -&gt; Bool)
+-&gt; (ShortHash1 -&gt; ShortHash1 -&gt; Bool) -&gt; Eq ShortHash1
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: ShortHash1 -&gt; ShortHash1 -&gt; Bool
+== :: ShortHash1 -&gt; ShortHash1 -&gt; Bool
+$c/= :: ShortHash1 -&gt; ShortHash1 -&gt; Bool
+/= :: ShortHash1 -&gt; ShortHash1 -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679149680"><span id="local-6989586621679149682"><span class="annot"><span class="annottext">(forall x. ShortHash1 -&gt; Rep ShortHash1 x)
+-&gt; (forall x. Rep ShortHash1 x -&gt; ShortHash1) -&gt; Generic ShortHash1
+forall x. Rep ShortHash1 x -&gt; ShortHash1
+forall x. ShortHash1 -&gt; Rep ShortHash1 x
+forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+$cfrom :: forall x. ShortHash1 -&gt; Rep ShortHash1 x
+from :: forall x. ShortHash1 -&gt; Rep ShortHash1 x
+$cto :: forall x. Rep ShortHash1 x -&gt; ShortHash1
+to :: forall x. Rep ShortHash1 x -&gt; ShortHash1
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Generic</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679149690"><span id="local-6989586621679149698"><span id="local-6989586621679149704"><span id="local-6989586621679149708"><span id="local-6989586621679149711"><span id="local-6989586621679149714"><span id="local-6989586621679149717"><span class="annot"><span class="annottext">Eq ShortHash1
+Eq ShortHash1 =&gt;
+(ShortHash1 -&gt; ShortHash1 -&gt; Ordering)
+-&gt; (ShortHash1 -&gt; ShortHash1 -&gt; Bool)
+-&gt; (ShortHash1 -&gt; ShortHash1 -&gt; Bool)
+-&gt; (ShortHash1 -&gt; ShortHash1 -&gt; Bool)
+-&gt; (ShortHash1 -&gt; ShortHash1 -&gt; Bool)
+-&gt; (ShortHash1 -&gt; ShortHash1 -&gt; ShortHash1)
+-&gt; (ShortHash1 -&gt; ShortHash1 -&gt; ShortHash1)
+-&gt; Ord ShortHash1
+ShortHash1 -&gt; ShortHash1 -&gt; Bool
+ShortHash1 -&gt; ShortHash1 -&gt; Ordering
+ShortHash1 -&gt; ShortHash1 -&gt; ShortHash1
+forall a.
+Eq a =&gt;
+(a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+$ccompare :: ShortHash1 -&gt; ShortHash1 -&gt; Ordering
+compare :: ShortHash1 -&gt; ShortHash1 -&gt; Ordering
+$c&lt; :: ShortHash1 -&gt; ShortHash1 -&gt; Bool
+&lt; :: ShortHash1 -&gt; ShortHash1 -&gt; Bool
+$c&lt;= :: ShortHash1 -&gt; ShortHash1 -&gt; Bool
+&lt;= :: ShortHash1 -&gt; ShortHash1 -&gt; Bool
+$c&gt; :: ShortHash1 -&gt; ShortHash1 -&gt; Bool
+&gt; :: ShortHash1 -&gt; ShortHash1 -&gt; Bool
+$c&gt;= :: ShortHash1 -&gt; ShortHash1 -&gt; Bool
+&gt;= :: ShortHash1 -&gt; ShortHash1 -&gt; Bool
+$cmax :: ShortHash1 -&gt; ShortHash1 -&gt; ShortHash1
+max :: ShortHash1 -&gt; ShortHash1 -&gt; ShortHash1
+$cmin :: ShortHash1 -&gt; ShortHash1 -&gt; ShortHash1
+min :: ShortHash1 -&gt; ShortHash1 -&gt; ShortHash1
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679149726"><span id="local-6989586621679149735"><span id="local-6989586621679149739"><span class="annot"><span class="annottext">Int -&gt; ShortHash1 -&gt; ShowS
+[ShortHash1] -&gt; ShowS
+ShortHash1 -&gt; String
+(Int -&gt; ShortHash1 -&gt; ShowS)
+-&gt; (ShortHash1 -&gt; String)
+-&gt; ([ShortHash1] -&gt; ShowS)
+-&gt; Show ShortHash1
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; ShortHash1 -&gt; ShowS
+showsPrec :: Int -&gt; ShortHash1 -&gt; ShowS
+$cshow :: ShortHash1 -&gt; String
+show :: ShortHash1 -&gt; String
+$cshowList :: [ShortHash1] -&gt; ShowS
+showList :: [ShortHash1] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-45"></span><span>
+</span><span id="line-46"></span><span class="hs-keyword">newtype</span><span> </span><span id="ShortCausalHash"><span class="annot"><a href="Unison.ShortHash.html#ShortCausalHash"><span class="hs-identifier hs-var">ShortCausalHash</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="ShortCausalHash"><span class="annot"><a href="Unison.ShortHash.html#ShortCausalHash"><span class="hs-identifier hs-var">ShortCausalHash</span></a></span></span><span> </span><span class="hs-special">{</span><span id="shortCausalHashToText"><span class="annot"><span class="annottext">ShortCausalHash -&gt; Text
+</span><a href="Unison.ShortHash.html#shortCausalHashToText"><span class="hs-identifier hs-var hs-var">shortCausalHashToText</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span class="hs-special">}</span><span>
+</span><span id="line-47"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">stock</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679149746"><span id="local-6989586621679149749"><span class="annot"><span class="annottext">ShortCausalHash -&gt; ShortCausalHash -&gt; Bool
+(ShortCausalHash -&gt; ShortCausalHash -&gt; Bool)
+-&gt; (ShortCausalHash -&gt; ShortCausalHash -&gt; Bool)
+-&gt; Eq ShortCausalHash
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: ShortCausalHash -&gt; ShortCausalHash -&gt; Bool
+== :: ShortCausalHash -&gt; ShortCausalHash -&gt; Bool
+$c/= :: ShortCausalHash -&gt; ShortCausalHash -&gt; Bool
+/= :: ShortCausalHash -&gt; ShortCausalHash -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679149755"><span id="local-6989586621679149758"><span id="local-6989586621679149761"><span id="local-6989586621679149765"><span id="local-6989586621679149768"><span id="local-6989586621679149771"><span id="local-6989586621679149774"><span class="annot"><span class="annottext">Eq ShortCausalHash
+Eq ShortCausalHash =&gt;
+(ShortCausalHash -&gt; ShortCausalHash -&gt; Ordering)
+-&gt; (ShortCausalHash -&gt; ShortCausalHash -&gt; Bool)
+-&gt; (ShortCausalHash -&gt; ShortCausalHash -&gt; Bool)
+-&gt; (ShortCausalHash -&gt; ShortCausalHash -&gt; Bool)
+-&gt; (ShortCausalHash -&gt; ShortCausalHash -&gt; Bool)
+-&gt; (ShortCausalHash -&gt; ShortCausalHash -&gt; ShortCausalHash)
+-&gt; (ShortCausalHash -&gt; ShortCausalHash -&gt; ShortCausalHash)
+-&gt; Ord ShortCausalHash
+ShortCausalHash -&gt; ShortCausalHash -&gt; Bool
+ShortCausalHash -&gt; ShortCausalHash -&gt; Ordering
+ShortCausalHash -&gt; ShortCausalHash -&gt; ShortCausalHash
+forall a.
+Eq a =&gt;
+(a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+$ccompare :: ShortCausalHash -&gt; ShortCausalHash -&gt; Ordering
+compare :: ShortCausalHash -&gt; ShortCausalHash -&gt; Ordering
+$c&lt; :: ShortCausalHash -&gt; ShortCausalHash -&gt; Bool
+&lt; :: ShortCausalHash -&gt; ShortCausalHash -&gt; Bool
+$c&lt;= :: ShortCausalHash -&gt; ShortCausalHash -&gt; Bool
+&lt;= :: ShortCausalHash -&gt; ShortCausalHash -&gt; Bool
+$c&gt; :: ShortCausalHash -&gt; ShortCausalHash -&gt; Bool
+&gt; :: ShortCausalHash -&gt; ShortCausalHash -&gt; Bool
+$c&gt;= :: ShortCausalHash -&gt; ShortCausalHash -&gt; Bool
+&gt;= :: ShortCausalHash -&gt; ShortCausalHash -&gt; Bool
+$cmax :: ShortCausalHash -&gt; ShortCausalHash -&gt; ShortCausalHash
+max :: ShortCausalHash -&gt; ShortCausalHash -&gt; ShortCausalHash
+$cmin :: ShortCausalHash -&gt; ShortCausalHash -&gt; ShortCausalHash
+min :: ShortCausalHash -&gt; ShortCausalHash -&gt; ShortCausalHash
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679149777"><span id="local-6989586621679149781"><span id="local-6989586621679149785"><span class="annot"><span class="annottext">Int -&gt; ShortCausalHash -&gt; ShowS
+[ShortCausalHash] -&gt; ShowS
+ShortCausalHash -&gt; String
+(Int -&gt; ShortCausalHash -&gt; ShowS)
+-&gt; (ShortCausalHash -&gt; String)
+-&gt; ([ShortCausalHash] -&gt; ShowS)
+-&gt; Show ShortCausalHash
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; ShortCausalHash -&gt; ShowS
+showsPrec :: Int -&gt; ShortCausalHash -&gt; ShowS
+$cshow :: ShortCausalHash -&gt; String
+show :: ShortCausalHash -&gt; String
+$cshowList :: [ShortCausalHash] -&gt; ShowS
+showList :: [ShortCausalHash] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-48"></span><span>
+</span><span id="line-49"></span><span class="hs-keyword">newtype</span><span> </span><span id="ShortNamespaceHash"><span class="annot"><a href="Unison.ShortHash.html#ShortNamespaceHash"><span class="hs-identifier hs-var">ShortNamespaceHash</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="ShortNamespaceHash"><span class="annot"><a href="Unison.ShortHash.html#ShortNamespaceHash"><span class="hs-identifier hs-var">ShortNamespaceHash</span></a></span></span><span> </span><span class="hs-special">{</span><span id="shortNamespaceHashToText"><span class="annot"><span class="annottext">ShortNamespaceHash -&gt; Text
+</span><a href="Unison.ShortHash.html#shortNamespaceHashToText"><span class="hs-identifier hs-var hs-var">shortNamespaceHashToText</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span class="hs-special">}</span><span>
+</span><span id="line-50"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">stock</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679149790"><span id="local-6989586621679149793"><span class="annot"><span class="annottext">ShortNamespaceHash -&gt; ShortNamespaceHash -&gt; Bool
+(ShortNamespaceHash -&gt; ShortNamespaceHash -&gt; Bool)
+-&gt; (ShortNamespaceHash -&gt; ShortNamespaceHash -&gt; Bool)
+-&gt; Eq ShortNamespaceHash
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: ShortNamespaceHash -&gt; ShortNamespaceHash -&gt; Bool
+== :: ShortNamespaceHash -&gt; ShortNamespaceHash -&gt; Bool
+$c/= :: ShortNamespaceHash -&gt; ShortNamespaceHash -&gt; Bool
+/= :: ShortNamespaceHash -&gt; ShortNamespaceHash -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679149799"><span id="local-6989586621679149802"><span id="local-6989586621679149805"><span id="local-6989586621679149809"><span id="local-6989586621679149812"><span id="local-6989586621679149815"><span id="local-6989586621679149818"><span class="annot"><span class="annottext">Eq ShortNamespaceHash
+Eq ShortNamespaceHash =&gt;
+(ShortNamespaceHash -&gt; ShortNamespaceHash -&gt; Ordering)
+-&gt; (ShortNamespaceHash -&gt; ShortNamespaceHash -&gt; Bool)
+-&gt; (ShortNamespaceHash -&gt; ShortNamespaceHash -&gt; Bool)
+-&gt; (ShortNamespaceHash -&gt; ShortNamespaceHash -&gt; Bool)
+-&gt; (ShortNamespaceHash -&gt; ShortNamespaceHash -&gt; Bool)
+-&gt; (ShortNamespaceHash -&gt; ShortNamespaceHash -&gt; ShortNamespaceHash)
+-&gt; (ShortNamespaceHash -&gt; ShortNamespaceHash -&gt; ShortNamespaceHash)
+-&gt; Ord ShortNamespaceHash
+ShortNamespaceHash -&gt; ShortNamespaceHash -&gt; Bool
+ShortNamespaceHash -&gt; ShortNamespaceHash -&gt; Ordering
+ShortNamespaceHash -&gt; ShortNamespaceHash -&gt; ShortNamespaceHash
+forall a.
+Eq a =&gt;
+(a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+$ccompare :: ShortNamespaceHash -&gt; ShortNamespaceHash -&gt; Ordering
+compare :: ShortNamespaceHash -&gt; ShortNamespaceHash -&gt; Ordering
+$c&lt; :: ShortNamespaceHash -&gt; ShortNamespaceHash -&gt; Bool
+&lt; :: ShortNamespaceHash -&gt; ShortNamespaceHash -&gt; Bool
+$c&lt;= :: ShortNamespaceHash -&gt; ShortNamespaceHash -&gt; Bool
+&lt;= :: ShortNamespaceHash -&gt; ShortNamespaceHash -&gt; Bool
+$c&gt; :: ShortNamespaceHash -&gt; ShortNamespaceHash -&gt; Bool
+&gt; :: ShortNamespaceHash -&gt; ShortNamespaceHash -&gt; Bool
+$c&gt;= :: ShortNamespaceHash -&gt; ShortNamespaceHash -&gt; Bool
+&gt;= :: ShortNamespaceHash -&gt; ShortNamespaceHash -&gt; Bool
+$cmax :: ShortNamespaceHash -&gt; ShortNamespaceHash -&gt; ShortNamespaceHash
+max :: ShortNamespaceHash -&gt; ShortNamespaceHash -&gt; ShortNamespaceHash
+$cmin :: ShortNamespaceHash -&gt; ShortNamespaceHash -&gt; ShortNamespaceHash
+min :: ShortNamespaceHash -&gt; ShortNamespaceHash -&gt; ShortNamespaceHash
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679149821"><span id="local-6989586621679149825"><span id="local-6989586621679149829"><span class="annot"><span class="annottext">Int -&gt; ShortNamespaceHash -&gt; ShowS
+[ShortNamespaceHash] -&gt; ShowS
+ShortNamespaceHash -&gt; String
+(Int -&gt; ShortNamespaceHash -&gt; ShowS)
+-&gt; (ShortNamespaceHash -&gt; String)
+-&gt; ([ShortNamespaceHash] -&gt; ShowS)
+-&gt; Show ShortNamespaceHash
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; ShortNamespaceHash -&gt; ShowS
+showsPrec :: Int -&gt; ShortNamespaceHash -&gt; ShowS
+$cshow :: ShortNamespaceHash -&gt; String
+show :: ShortNamespaceHash -&gt; String
+$cshowList :: [ShortNamespaceHash] -&gt; ShowS
+showList :: [ShortNamespaceHash] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-51"></span><span>
+</span><span id="line-52"></span><span class="hs-comment">-- x `isPrefixOf` y is True iff x might be a shorter version of y</span><span>
+</span><span id="line-53"></span><span class="hs-comment">-- if a constructor id is provided on the right-hand side, the left-hand side</span><span>
+</span><span id="line-54"></span><span class="hs-comment">-- needs to match exactly (as of this commit).</span><span>
+</span><span id="line-55"></span><span class="annot"><a href="Unison.ShortHash.html#isPrefixOf"><span class="hs-identifier hs-type">isPrefixOf</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Unison.ShortHash.html#ShortHash"><span class="hs-identifier hs-type">ShortHash</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.ShortHash.html#ShortHash"><span class="hs-identifier hs-type">ShortHash</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>
+</span><span id="line-56"></span><span class="hs-comment">-- For builtins, we only check if the text is exactly the same,</span><span>
+</span><span id="line-57"></span><span class="hs-comment">-- since e.g. ##Nat.not is not a shorter version of ##Nat.notEquals.</span><span>
+</span><span id="line-58"></span><span class="hs-comment">-- This is so that we can have builtins like e.g. ##Nat and ##Natural</span><span>
+</span><span id="line-59"></span><span class="hs-comment">-- without ##Nat being ambiguous.</span><span>
+</span><span id="line-60"></span><span id="isPrefixOf"><span class="annot"><span class="annottext">isPrefixOf :: ShortHash -&gt; ShortHash -&gt; Bool
+</span><a href="Unison.ShortHash.html#isPrefixOf"><span class="hs-identifier hs-var hs-var">isPrefixOf</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.OrBuiltin.html#Builtin"><span class="hs-identifier hs-type">Builtin</span></a></span><span> </span><span id="local-6989586621679149832"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679149832"><span class="hs-identifier hs-var">t</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.OrBuiltin.html#Builtin"><span class="hs-identifier hs-type">Builtin</span></a></span><span> </span><span id="local-6989586621679149833"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679149833"><span class="hs-identifier hs-var">t2</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679149832"><span class="hs-identifier hs-var">t</span></a></span><span> </span><span class="annot"><span class="annottext">Text -&gt; Text -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679149833"><span class="hs-identifier hs-var">t2</span></a></span><span>
+</span><span id="line-61"></span><span class="annot"><a href="Unison.ShortHash.html#isPrefixOf"><span class="hs-identifier hs-var">isPrefixOf</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.OrBuiltin.html#NotBuiltin"><span class="hs-identifier hs-type">NotBuiltin</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.ShortHash.html#ShortHash"><span class="hs-identifier hs-type">ShortHash</span></a></span><span> </span><span id="local-6989586621679149835"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679149835"><span class="hs-identifier hs-var">h</span></a></span></span><span> </span><span id="local-6989586621679149836"><span class="annot"><span class="annottext">Maybe Word64
+</span><a href="#local-6989586621679149836"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span id="local-6989586621679149837"><span class="annot"><span class="annottext">Maybe Word64
+</span><a href="#local-6989586621679149837"><span class="hs-identifier hs-var">cid</span></a></span></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.OrBuiltin.html#NotBuiltin"><span class="hs-identifier hs-type">NotBuiltin</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.ShortHash.html#ShortHash"><span class="hs-identifier hs-type">ShortHash</span></a></span><span> </span><span id="local-6989586621679149838"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679149838"><span class="hs-identifier hs-var">h2</span></a></span></span><span> </span><span id="local-6989586621679149839"><span class="annot"><span class="annottext">Maybe Word64
+</span><a href="#local-6989586621679149839"><span class="hs-identifier hs-var">n2</span></a></span></span><span> </span><span id="local-6989586621679149840"><span class="annot"><span class="annottext">Maybe Word64
+</span><a href="#local-6989586621679149840"><span class="hs-identifier hs-var">cid2</span></a></span></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-62"></span><span>  </span><span class="annot"><span class="annottext">Text -&gt; Text -&gt; Bool
+</span><span class="hs-identifier hs-var">Text.isPrefixOf</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679149835"><span class="hs-identifier hs-var">h</span></a></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679149838"><span class="hs-identifier hs-var">h2</span></a></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">&amp;&amp;</span></span><span> </span><span class="annot"><span class="annottext">Maybe Word64 -&gt; Maybe Word64 -&gt; Bool
+forall {a}. Eq a =&gt; Maybe a -&gt; Maybe a -&gt; Bool
+</span><a href="#local-6989586621679149843"><span class="hs-identifier hs-var">maybePrefixOf</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe Word64
+</span><a href="#local-6989586621679149836"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe Word64
+</span><a href="#local-6989586621679149839"><span class="hs-identifier hs-var">n2</span></a></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">&amp;&amp;</span></span><span> </span><span class="annot"><span class="annottext">Maybe Word64 -&gt; Maybe Word64 -&gt; Bool
+forall {a}. Eq a =&gt; Maybe a -&gt; Maybe a -&gt; Bool
+</span><a href="#local-6989586621679149843"><span class="hs-identifier hs-var">maybePrefixOf</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe Word64
+</span><a href="#local-6989586621679149837"><span class="hs-identifier hs-var">cid</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe Word64
+</span><a href="#local-6989586621679149840"><span class="hs-identifier hs-var">cid2</span></a></span><span>
+</span><span id="line-63"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-64"></span><span>    </span><span class="annot"><span class="annottext">Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span id="local-6989586621679149843"><span class="annot"><span class="annottext">maybePrefixOf :: Maybe a -&gt; Maybe a -&gt; Bool
+</span><a href="#local-6989586621679149843"><span class="hs-operator hs-var hs-var">`maybePrefixOf`</span></a></span></span><span> </span><span class="annot"><span class="annottext">Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>
+</span><span id="line-65"></span><span>    </span><span class="annot"><span class="annottext">Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="annot"><a href="#local-6989586621679149843"><span class="hs-operator hs-var">`maybePrefixOf`</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span>
+</span><span id="line-66"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><a href="#local-6989586621679149843"><span class="hs-operator hs-var">`maybePrefixOf`</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span>
+</span><span id="line-67"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621679149846"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679149846"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span class="annot"><a href="#local-6989586621679149843"><span class="hs-operator hs-var">`maybePrefixOf`</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621679149847"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679149847"><span class="hs-identifier hs-var">b</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679149846"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="annot"><span class="annottext">a -&gt; a -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679149847"><span class="hs-identifier hs-var">b</span></a></span><span>
+</span><span id="line-68"></span><span class="annot"><a href="Unison.ShortHash.html#isPrefixOf"><span class="hs-identifier hs-var">isPrefixOf</span></a></span><span> </span><span class="annot"><span class="annottext">ShortHash
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">ShortHash
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span>
+</span><span id="line-69"></span><span>
+</span><span id="line-70"></span><span class="annot"><a href="Unison.ShortHash.html#shortenTo"><span class="hs-identifier hs-type">shortenTo</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.ShortHash.html#ShortHash"><span class="hs-identifier hs-type">ShortHash</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.ShortHash.html#ShortHash"><span class="hs-identifier hs-type">ShortHash</span></a></span><span>
+</span><span id="line-71"></span><span id="shortenTo"><span class="annot"><span class="annottext">shortenTo :: Int -&gt; ShortHash -&gt; ShortHash
+</span><a href="Unison.ShortHash.html#shortenTo"><span class="hs-identifier hs-var hs-var">shortenTo</span></a></span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621679149848"><span class="annot"><span class="annottext">b :: ShortHash
+</span><a href="#local-6989586621679149848"><span class="hs-identifier hs-var">b</span></a></span></span><span class="hs-glyph">@</span><span class="hs-special">(</span><span class="annot"><a href="Unison.OrBuiltin.html#Builtin"><span class="hs-identifier hs-type">Builtin</span></a></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ShortHash
+</span><a href="#local-6989586621679149848"><span class="hs-identifier hs-var">b</span></a></span><span>
+</span><span id="line-72"></span><span class="annot"><a href="Unison.ShortHash.html#shortenTo"><span class="hs-identifier hs-var">shortenTo</span></a></span><span> </span><span id="local-6989586621679149849"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679149849"><span class="hs-identifier hs-var">i</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.OrBuiltin.html#NotBuiltin"><span class="hs-identifier hs-type">NotBuiltin</span></a></span><span> </span><span id="local-6989586621679149850"><span class="annot"><span class="annottext">s :: ShortHash1
+</span><a href="#local-6989586621679149850"><span class="hs-identifier hs-var">s</span></a></span></span><span class="hs-glyph">@</span><span class="annot"><a href="Unison.ShortHash.html#ShortHash"><span class="hs-identifier hs-type">ShortHash</span></a></span><span> </span><span class="hs-special">{</span><span id="local-6989586621679149851"><span class="annot"><span class="annottext">Text
+prefix :: ShortHash1 -&gt; Text
+prefix :: Text
+</span><a href="Unison.ShortHash.html#prefix"><span class="hs-identifier hs-var hs-var">prefix</span></a></span></span><span class="hs-special">}</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ShortHash1 -&gt; ShortHash
+forall a b. b -&gt; OrBuiltin a b
+</span><a href="Unison.OrBuiltin.html#NotBuiltin"><span class="hs-identifier hs-var">NotBuiltin</span></a></span><span> </span><span class="annot"><span class="annottext">ShortHash1
+</span><a href="#local-6989586621679149850"><span class="hs-identifier hs-var">s</span></a></span><span> </span><span class="hs-special">{</span><span class="annot"><a href="Unison.ShortHash.html#prefix"><span class="hs-identifier hs-var">prefix</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text.take</span></span><span> </span><span class="annot"><a href="#local-6989586621679149849"><span class="hs-identifier hs-type">i</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679149851"><span class="hs-identifier hs-type">prefix</span></a></span><span class="hs-special">}</span><span>
+</span><span id="line-73"></span><span>
+</span><span id="line-74"></span><span class="hs-comment">-- Parse a string like those described in Referent.fromText:</span><span>
+</span><span id="line-75"></span><span class="hs-comment">-- examples:</span><span>
+</span><span id="line-76"></span><span class="hs-comment">--</span><span>
+</span><span id="line-77"></span><span class="hs-comment">-- builtins don&#8217;t have cycles or cids</span><span>
+</span><span id="line-78"></span><span class="hs-comment">-- &gt;&gt;&gt; fromText &quot;##Text.take&quot;</span><span>
+</span><span id="line-79"></span><span class="hs-comment">-- Just (Builtin &quot;Text.take&quot;)</span><span>
+</span><span id="line-80"></span><span class="hs-comment">--</span><span>
+</span><span id="line-81"></span><span class="hs-comment">-- term ref, no cycle</span><span>
+</span><span id="line-82"></span><span class="hs-comment">-- &gt;&gt;&gt; fromText &quot;#2tWjVAuc7&quot;</span><span>
+</span><span id="line-83"></span><span class="hs-comment">-- Just (ShortHash {prefix = &quot;2tWjVAuc7&quot;, cycle = Nothing, cid = Nothing})</span><span>
+</span><span id="line-84"></span><span class="hs-comment">--</span><span>
+</span><span id="line-85"></span><span class="hs-comment">-- term ref, part of cycle</span><span>
+</span><span id="line-86"></span><span class="hs-comment">-- &gt;&gt;&gt; fromText &quot;#y9ycWkiC1.y9&quot;</span><span>
+</span><span id="line-87"></span><span class="hs-comment">-- Just (ShortHash {prefix = &quot;y9ycWkiC1&quot;, cycle = Just &quot;y9&quot;, cid = Nothing})</span><span>
+</span><span id="line-88"></span><span class="hs-comment">--</span><span>
+</span><span id="line-89"></span><span class="hs-comment">-- constructor</span><span>
+</span><span id="line-90"></span><span class="hs-comment">-- &gt;&gt;&gt; fromText &quot;#cWkiC1x89#1&quot;</span><span>
+</span><span id="line-91"></span><span class="hs-comment">-- Just (ShortHash {prefix = &quot;cWkiC1x89&quot;, cycle = Nothing, cid = Just &quot;1&quot;})</span><span>
+</span><span id="line-92"></span><span class="hs-comment">--</span><span>
+</span><span id="line-93"></span><span class="hs-comment">-- constructor of a type in a cycle</span><span>
+</span><span id="line-94"></span><span class="hs-comment">-- &gt;&gt;&gt; fromText &quot;#DCxrnCAPS.WD#0&quot;</span><span>
+</span><span id="line-95"></span><span class="hs-comment">-- Just (ShortHash {prefix = &quot;DCxrnCAPS&quot;, cycle = Just &quot;WD&quot;, cid = Just &quot;0&quot;})</span><span>
+</span><span id="line-96"></span><span class="hs-comment">--</span><span>
+</span><span id="line-97"></span><span class="hs-comment">-- A constructor ID on a builtin is ignored:</span><span>
+</span><span id="line-98"></span><span class="hs-comment">-- &gt;&gt;&gt; fromText &quot;##FileIO#2&quot;</span><span>
+</span><span id="line-99"></span><span class="hs-comment">-- Just (Builtin &quot;FileIO&quot;)</span><span>
+</span><span id="line-100"></span><span class="hs-comment">--</span><span>
+</span><span id="line-101"></span><span class="hs-comment">-- Anything to the left of the first # is</span><span>
+</span><span id="line-102"></span><span class="hs-comment">-- &gt;&gt;&gt; fromText &quot;foo#abc &quot;</span><span>
+</span><span id="line-103"></span><span class="hs-comment">-- Just (ShortHash {prefix = &quot;abc &quot;, cycle = Nothing, cid = Nothing})</span><span>
+</span><span id="line-104"></span><span class="hs-comment">--</span><span>
+</span><span id="line-105"></span><span class="hs-comment">-- Anything including and following a third # is ignored.</span><span>
+</span><span id="line-106"></span><span class="hs-comment">-- &gt;&gt;&gt; fromText &quot;foo#abc#2#hello&quot;</span><span>
+</span><span id="line-107"></span><span class="hs-comment">-- Just (ShortHash {prefix = &quot;abc&quot;, cycle = Nothing, cid = Just &quot;2&quot;})</span><span>
+</span><span id="line-108"></span><span class="hs-comment">--</span><span>
+</span><span id="line-109"></span><span class="hs-comment">-- Anything after a second . before a second # is ignored.</span><span>
+</span><span id="line-110"></span><span class="hs-comment">-- &gt;&gt;&gt; fromText &quot;foo#abc.1f.x&quot;</span><span>
+</span><span id="line-111"></span><span class="hs-comment">-- Just (ShortHash {prefix = &quot;abc&quot;, cycle = Just &quot;1f&quot;, cid = Nothing})</span><span>
+</span><span id="line-112"></span><span class="annot"><a href="Unison.ShortHash.html#fromText"><span class="hs-identifier hs-type">fromText</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="Unison.ShortHash.html#ShortHash"><span class="hs-identifier hs-type">ShortHash</span></a></span><span>
+</span><span id="line-113"></span><span id="fromText"><span class="annot"><span class="annottext">fromText :: Text -&gt; Maybe ShortHash
+</span><a href="Unison.ShortHash.html#fromText"><span class="hs-identifier hs-var hs-var">fromText</span></a></span></span><span> </span><span id="local-6989586621679149853"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679149853"><span class="hs-identifier hs-var">t</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-114"></span><span>  </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">(Char -&gt; Bool) -&gt; Text -&gt; [Text]
+</span><span class="hs-identifier hs-var">Text.split</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Char -&gt; Char -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">Char
+</span><span class="hs-char">'#'</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679149853"><span class="hs-identifier hs-var">t</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-115"></span><span>    </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Text
+</span><span class="hs-identifier">_</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;&quot;</span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679149855"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679149855"><span class="hs-identifier hs-var">b</span></a></span></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">ShortHash -&gt; Maybe ShortHash
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">(ShortHash -&gt; Maybe ShortHash) -&gt; ShortHash -&gt; Maybe ShortHash
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Text -&gt; ShortHash
+forall a b. a -&gt; OrBuiltin a b
+</span><a href="Unison.OrBuiltin.html#Builtin"><span class="hs-identifier hs-var">Builtin</span></a></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679149855"><span class="hs-identifier hs-var">b</span></a></span><span> </span><span class="hs-comment">-- builtin starts with ##</span><span>
+</span><span id="line-116"></span><span>    </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;&quot;</span></span><span> </span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span> </span><span id="local-6989586621679149856"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679149856"><span class="hs-identifier hs-var">b</span></a></span></span><span> </span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span> </span><span class="annot"><span class="annottext">[Text]
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-117"></span><span>      </span><span class="hs-comment">-- builtin with a CID todo: could be rejected</span><span>
+</span><span id="line-118"></span><span>      </span><span class="annot"><span class="annottext">ShortHash -&gt; Maybe ShortHash
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">(ShortHash -&gt; Maybe ShortHash) -&gt; ShortHash -&gt; Maybe ShortHash
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Text -&gt; ShortHash
+forall a b. a -&gt; OrBuiltin a b
+</span><a href="Unison.OrBuiltin.html#Builtin"><span class="hs-identifier hs-var">Builtin</span></a></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679149856"><span class="hs-identifier hs-var">b</span></a></span><span>
+</span><span id="line-119"></span><span>    </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Text
+</span><span class="hs-identifier">_</span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679149857"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679149857"><span class="hs-identifier hs-var">h0</span></a></span></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-120"></span><span>      </span><span class="hs-special">(</span><span id="local-6989586621679149858"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679149858"><span class="hs-identifier hs-var">h</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679149859"><span class="annot"><span class="annottext">Maybe Word64
+</span><a href="#local-6989586621679149859"><span class="hs-identifier hs-var">cid</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Text -&gt; Maybe (Text, Maybe Word64)
+</span><a href="#local-6989586621679149860"><span class="hs-identifier hs-var">getCycle</span></a></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679149857"><span class="hs-identifier hs-var">h0</span></a></span><span>
+</span><span id="line-121"></span><span>      </span><span class="annot"><span class="annottext">ShortHash -&gt; Maybe ShortHash
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ShortHash1 -&gt; ShortHash
+forall a b. b -&gt; OrBuiltin a b
+</span><a href="Unison.OrBuiltin.html#NotBuiltin"><span class="hs-identifier hs-var">NotBuiltin</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Text -&gt; Maybe Word64 -&gt; Maybe Word64 -&gt; ShortHash1
+</span><a href="Unison.ShortHash.html#ShortHash"><span class="hs-identifier hs-var">ShortHash</span></a></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679149858"><span class="hs-identifier hs-var">h</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe Word64
+</span><a href="#local-6989586621679149859"><span class="hs-identifier hs-var">cid</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe Word64
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-122"></span><span>    </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Text
+</span><span class="hs-identifier">_</span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679149861"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679149861"><span class="hs-identifier hs-var">h0</span></a></span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String -&gt; Maybe Word64
+forall a. Read a =&gt; String -&gt; Maybe a
+</span><span class="hs-identifier hs-var">readMaybe</span></span><span> </span><span class="annot"><span class="annottext">(String -&gt; Maybe Word64)
+-&gt; (Text -&gt; String) -&gt; Text -&gt; Maybe Word64
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Text -&gt; String
+</span><span class="hs-identifier hs-var">Text.unpack</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621679149865"><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679149865"><span class="hs-identifier hs-var">c</span></a></span></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-123"></span><span>      </span><span class="hs-special">(</span><span id="local-6989586621679149866"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679149866"><span class="hs-identifier hs-var">h</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679149867"><span class="annot"><span class="annottext">Maybe Word64
+</span><a href="#local-6989586621679149867"><span class="hs-identifier hs-var">cid</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Text -&gt; Maybe (Text, Maybe Word64)
+</span><a href="#local-6989586621679149860"><span class="hs-identifier hs-var">getCycle</span></a></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679149861"><span class="hs-identifier hs-var">h0</span></a></span><span>
+</span><span id="line-124"></span><span>      </span><span class="annot"><span class="annottext">ShortHash -&gt; Maybe ShortHash
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ShortHash1 -&gt; ShortHash
+forall a b. b -&gt; OrBuiltin a b
+</span><a href="Unison.OrBuiltin.html#NotBuiltin"><span class="hs-identifier hs-var">NotBuiltin</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Text -&gt; Maybe Word64 -&gt; Maybe Word64 -&gt; ShortHash1
+</span><a href="Unison.ShortHash.html#ShortHash"><span class="hs-identifier hs-var">ShortHash</span></a></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679149866"><span class="hs-identifier hs-var">h</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe Word64
+</span><a href="#local-6989586621679149867"><span class="hs-identifier hs-var">cid</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Word64 -&gt; Maybe Word64
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679149865"><span class="hs-identifier hs-var">c</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-125"></span><span>    </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span> </span><span id="local-6989586621679149868"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679149868"><span class="hs-identifier hs-var">h0</span></a></span></span><span> </span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String -&gt; Maybe Word64
+forall a. Read a =&gt; String -&gt; Maybe a
+</span><span class="hs-identifier hs-var">readMaybe</span></span><span> </span><span class="annot"><span class="annottext">(String -&gt; Maybe Word64)
+-&gt; (Text -&gt; String) -&gt; Text -&gt; Maybe Word64
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Text -&gt; String
+</span><span class="hs-identifier hs-var">Text.unpack</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621679149869"><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679149869"><span class="hs-identifier hs-var">c</span></a></span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span> </span><span id="local-6989586621679149870"><span class="annot"><span class="annottext">[Text]
+</span><a href="#local-6989586621679149870"><span class="hs-identifier hs-var">_garbage</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-126"></span><span>      </span><span class="hs-comment">-- CID with more hash after todo: could be rejected</span><span>
+</span><span id="line-127"></span><span>      </span><span class="hs-special">(</span><span id="local-6989586621679149871"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679149871"><span class="hs-identifier hs-var">h</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679149872"><span class="annot"><span class="annottext">Maybe Word64
+</span><a href="#local-6989586621679149872"><span class="hs-identifier hs-var">cid</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Text -&gt; Maybe (Text, Maybe Word64)
+</span><a href="#local-6989586621679149860"><span class="hs-identifier hs-var">getCycle</span></a></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679149868"><span class="hs-identifier hs-var">h0</span></a></span><span>
+</span><span id="line-128"></span><span>      </span><span class="annot"><span class="annottext">ShortHash -&gt; Maybe ShortHash
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ShortHash1 -&gt; ShortHash
+forall a b. b -&gt; OrBuiltin a b
+</span><a href="Unison.OrBuiltin.html#NotBuiltin"><span class="hs-identifier hs-var">NotBuiltin</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Text -&gt; Maybe Word64 -&gt; Maybe Word64 -&gt; ShortHash1
+</span><a href="Unison.ShortHash.html#ShortHash"><span class="hs-identifier hs-var">ShortHash</span></a></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679149871"><span class="hs-identifier hs-var">h</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe Word64
+</span><a href="#local-6989586621679149872"><span class="hs-identifier hs-var">cid</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Word64 -&gt; Maybe Word64
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679149869"><span class="hs-identifier hs-var">c</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-129"></span><span>    </span><span class="annot"><span class="annottext">[Text]
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Maybe ShortHash
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-130"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-131"></span><span>    </span><span class="annot"><a href="#local-6989586621679149860"><span class="hs-identifier hs-type">getCycle</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word64</span></span><span class="hs-special">)</span><span>
+</span><span id="line-132"></span><span>    </span><span id="local-6989586621679149860"><span class="annot"><span class="annottext">getCycle :: Text -&gt; Maybe (Text, Maybe Word64)
+</span><a href="#local-6989586621679149860"><span class="hs-identifier hs-var hs-var">getCycle</span></a></span></span><span> </span><span id="local-6989586621679149873"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679149873"><span class="hs-identifier hs-var">h</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-133"></span><span>      </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">(Char -&gt; Bool) -&gt; Text -&gt; [Text]
+</span><span class="hs-identifier hs-var">Text.split</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Char -&gt; Char -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">Char
+</span><span class="hs-char">'.'</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679149873"><span class="hs-identifier hs-var">h</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-134"></span><span>        </span><span class="hs-special">[</span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">(Text, Maybe Word64) -&gt; Maybe (Text, Maybe Word64)
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Maybe Word64
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span class="hs-special">)</span><span> </span><span class="hs-comment">-- e.g. foo#.1j</span><span>
+</span><span id="line-135"></span><span>        </span><span class="hs-special">[</span><span id="local-6989586621679149874"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679149874"><span class="hs-identifier hs-var">hash</span></a></span></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">(Text, Maybe Word64) -&gt; Maybe (Text, Maybe Word64)
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679149874"><span class="hs-identifier hs-var">hash</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Maybe Word64
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span class="hs-special">)</span><span>
+</span><span id="line-136"></span><span>        </span><span id="local-6989586621679149875"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679149875"><span class="hs-identifier hs-var">hash</span></a></span></span><span> </span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span> </span><span id="local-6989586621679149876"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679149876"><span class="hs-identifier hs-var">suffix</span></a></span></span><span> </span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span> </span><span id="local-6989586621679149877"><span class="annot"><span class="annottext">[Text]
+</span><a href="#local-6989586621679149877"><span class="hs-identifier hs-var">_garbage</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-137"></span><span>          </span><span id="local-6989586621679149878"><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679149878"><span class="hs-identifier hs-var">cid</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">String -&gt; Maybe Word64
+forall a. Read a =&gt; String -&gt; Maybe a
+</span><span class="hs-identifier hs-var">readMaybe</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Text -&gt; String
+</span><span class="hs-identifier hs-var">Text.unpack</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679149876"><span class="hs-identifier hs-var">suffix</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-138"></span><span>          </span><span class="annot"><span class="annottext">(Text, Maybe Word64) -&gt; Maybe (Text, Maybe Word64)
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679149875"><span class="hs-identifier hs-var">hash</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Word64 -&gt; Maybe Word64
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679149878"><span class="hs-identifier hs-var">cid</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-139"></span><span>
+</span><span id="line-140"></span><span class="annot"><a href="Unison.ShortHash.html#toText"><span class="hs-identifier hs-type">toText</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Unison.ShortHash.html#ShortHash"><span class="hs-identifier hs-type">ShortHash</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span>
+</span><span id="line-141"></span><span id="toText"><span class="annot"><span class="annottext">toText :: ShortHash -&gt; Text
+</span><a href="Unison.ShortHash.html#toText"><span class="hs-identifier hs-var hs-var">toText</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-142"></span><span>  </span><span class="annot"><a href="Unison.OrBuiltin.html#Builtin"><span class="hs-identifier hs-type">Builtin</span></a></span><span> </span><span id="local-6989586621679149879"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679149879"><span class="hs-identifier hs-var">b</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;##&quot;</span></span><span> </span><span class="annot"><span class="annottext">Text -&gt; Text -&gt; Text
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679149879"><span class="hs-identifier hs-var">b</span></a></span><span>
+</span><span id="line-143"></span><span>  </span><span class="annot"><a href="Unison.OrBuiltin.html#NotBuiltin"><span class="hs-identifier hs-type">NotBuiltin</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.ShortHash.html#ShortHash"><span class="hs-identifier hs-type">ShortHash</span></a></span><span> </span><span id="local-6989586621679149880"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679149880"><span class="hs-identifier hs-var">p</span></a></span></span><span> </span><span id="local-6989586621679149881"><span class="annot"><span class="annottext">Maybe Word64
+</span><a href="#local-6989586621679149881"><span class="hs-identifier hs-var">i</span></a></span></span><span> </span><span id="local-6989586621679149882"><span class="annot"><span class="annottext">Maybe Word64
+</span><a href="#local-6989586621679149882"><span class="hs-identifier hs-var">cid</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;#&quot;</span></span><span> </span><span class="annot"><span class="annottext">Text -&gt; Text -&gt; Text
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679149880"><span class="hs-identifier hs-var">p</span></a></span><span> </span><span class="annot"><span class="annottext">Text -&gt; Text -&gt; Text
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679149883"><span class="hs-identifier hs-var">i'</span></a></span><span> </span><span class="annot"><span class="annottext">Text -&gt; Text -&gt; Text
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679149884"><span class="hs-identifier hs-var">c'</span></a></span><span>
+</span><span id="line-144"></span><span>    </span><span class="hs-keyword">where</span><span>
+</span><span id="line-145"></span><span>      </span><span class="annot"><a href="#local-6989586621679149883"><span class="hs-identifier hs-type">i'</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679149884"><span class="hs-identifier hs-type">c'</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span>
+</span><span id="line-146"></span><span>      </span><span id="local-6989586621679149883"><span class="annot"><span class="annottext">i' :: Text
+</span><a href="#local-6989586621679149883"><span class="hs-identifier hs-var hs-var">i'</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Text -&gt; (Word64 -&gt; Text) -&gt; Maybe Word64 -&gt; Text
+forall b a. b -&gt; (a -&gt; b) -&gt; Maybe a -&gt; b
+</span><span class="hs-identifier hs-var">maybe</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;&quot;</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;.&quot;</span></span><span> </span><span class="annot"><span class="annottext">Text -&gt; Text -&gt; Text
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(Text -&gt; Text) -&gt; (Word64 -&gt; Text) -&gt; Word64 -&gt; Text
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Word64 -&gt; Text
+forall a. Show a =&gt; a -&gt; Text
+</span><span class="hs-identifier hs-var">tShow</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Maybe Word64
+</span><a href="#local-6989586621679149881"><span class="hs-identifier hs-var">i</span></a></span><span>
+</span><span id="line-147"></span><span>      </span><span id="local-6989586621679149884"><span class="annot"><span class="annottext">c' :: Text
+</span><a href="#local-6989586621679149884"><span class="hs-identifier hs-var hs-var">c'</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Text -&gt; (Word64 -&gt; Text) -&gt; Maybe Word64 -&gt; Text
+forall b a. b -&gt; (a -&gt; b) -&gt; Maybe a -&gt; b
+</span><span class="hs-identifier hs-var">maybe</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;&quot;</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;#&quot;</span></span><span> </span><span class="annot"><span class="annottext">Text -&gt; Text -&gt; Text
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(Text -&gt; Text) -&gt; (Word64 -&gt; Text) -&gt; Word64 -&gt; Text
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Word64 -&gt; Text
+forall a. Show a =&gt; a -&gt; Text
+</span><span class="hs-identifier hs-var">tShow</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Maybe Word64
+</span><a href="#local-6989586621679149882"><span class="hs-identifier hs-var">cid</span></a></span><span>
+</span><span id="line-148"></span></pre></body></html>

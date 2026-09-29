@@ -1,0 +1,39 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE CPP #-}</span><span>
+</span><span id="line-2"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Data.Time.Calendar.OrdinalDate.Compat.html"><span class="hs-identifier">Data.Time.Calendar.OrdinalDate.Compat</span></a></span><span> </span><span class="hs-special">(</span><span>
+</span><span id="line-3"></span><span>    </span><span class="annot"><span class="hs-identifier">Day</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">Year</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">DayOfYear</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">WeekOfYear</span></span><span class="hs-special">,</span><span>
+</span><span id="line-4"></span><span>    </span><span class="annot"><span class="hs-identifier">toOrdinalDate</span></span><span class="hs-special">,</span><span>
+</span><span id="line-5"></span><span>    </span><span class="annot"><span class="hs-identifier">fromOrdinalDate</span></span><span class="hs-special">,</span><span>
+</span><span id="line-6"></span><span>    </span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><span class="hs-identifier">YearDay</span></span><span class="hs-special">,</span><span>
+</span><span id="line-7"></span><span>    </span><span class="annot"><span class="hs-identifier">fromOrdinalDateValid</span></span><span class="hs-special">,</span><span>
+</span><span id="line-8"></span><span>    </span><span class="annot"><span class="hs-identifier">showOrdinalDate</span></span><span class="hs-special">,</span><span>
+</span><span id="line-9"></span><span>    </span><span class="annot"><span class="hs-identifier">isLeapYear</span></span><span class="hs-special">,</span><span>
+</span><span id="line-10"></span><span>    </span><span class="annot"><span class="hs-identifier">mondayStartWeek</span></span><span class="hs-special">,</span><span>
+</span><span id="line-11"></span><span>    </span><span class="annot"><span class="hs-identifier">sundayStartWeek</span></span><span class="hs-special">,</span><span>
+</span><span id="line-12"></span><span>    </span><span class="annot"><span class="hs-identifier">fromMondayStartWeek</span></span><span class="hs-special">,</span><span>
+</span><span id="line-13"></span><span>    </span><span class="annot"><span class="hs-identifier">fromMondayStartWeekValid</span></span><span class="hs-special">,</span><span>
+</span><span id="line-14"></span><span>    </span><span class="annot"><span class="hs-identifier">fromSundayStartWeek</span></span><span class="hs-special">,</span><span>
+</span><span id="line-15"></span><span>    </span><span class="annot"><span class="hs-identifier">fromSundayStartWeekValid</span></span><span class="hs-special">,</span><span>
+</span><span id="line-16"></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-17"></span><span>
+</span><span id="line-18"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Data.Time.Orphans.html"><span class="hs-identifier">Data.Time.Orphans</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-19"></span><span>
+</span><span id="line-20"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Time.Calendar.OrdinalDate</span></span><span> </span><span class="hs-keyword">hiding</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">fromSundayStartWeekValid</span></span><span class="hs-special">)</span><span>
+</span><span id="line-21"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Time.Calendar.OrdinalDate</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">fromSundayStartWeekValid</span></span><span class="hs-special">)</span><span class="hs-cpp">
+
+#if !MIN_VERSION_time(1,11,0)
+</span><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">Data.Time.Calendar</span><span>
+</span><span id="line-25"></span><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">Data.Time.Calendar.Types</span><span class="hs-cpp">
+#endif
+</span><span class="hs-cpp">
+#if !MIN_VERSION_time(1,11,0)
+</span><span>
+</span><span id="line-30"></span><span class="hs-comment">-- | Bidirectional abstract constructor for ISO 8601 Ordinal Date format.</span><span>
+</span><span id="line-31"></span><span class="hs-comment">-- Invalid day numbers will be clipped to the correct range (1 to 365 or 366).</span><span>
+</span><span id="line-32"></span><span class="hs-keyword">pattern</span><span> </span><span class="hs-identifier">YearDay</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">Year</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">DayOfYear</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">Day</span><span>
+</span><span id="line-33"></span><span class="hs-keyword">pattern</span><span> </span><span class="hs-identifier">YearDay</span><span> </span><span class="hs-identifier">y</span><span> </span><span class="hs-identifier">d</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">toOrdinalDate</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">y</span><span class="hs-special">,</span><span class="hs-identifier">d</span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-34"></span><span>    </span><span class="hs-identifier">YearDay</span><span> </span><span class="hs-identifier">y</span><span> </span><span class="hs-identifier">d</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">fromOrdinalDate</span><span> </span><span class="hs-identifier">y</span><span> </span><span class="hs-identifier">d</span><span>
+</span><span id="line-35"></span><span>
+</span><span id="line-36"></span><span class="hs-pragma">{-# COMPLETE</span><span> </span><span class="hs-pragma">YearDay</span><span> </span><span class="hs-pragma">#-}</span><span class="hs-cpp">
+
+#endif
+</span></pre></body></html>

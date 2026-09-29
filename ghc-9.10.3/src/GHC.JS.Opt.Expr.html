@@ -1,0 +1,823 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE ViewPatterns #-}</span><span>
+</span><span id="line-2"></span><span class="hs-comment">-----------------------------------------------------------------------------</span><span>
+</span><span id="line-3"></span><span class="hs-comment">-- |</span><span>
+</span><span id="line-4"></span><span class="hs-comment">-- Module      :  GHC.JS.Opt.Expr</span><span>
+</span><span id="line-5"></span><span class="hs-comment">-- Copyright   :  (c) The University of Glasgow 2001</span><span>
+</span><span id="line-6"></span><span class="hs-comment">-- License     :  BSD-style (see the file LICENSE)</span><span>
+</span><span id="line-7"></span><span class="hs-comment">--</span><span>
+</span><span id="line-8"></span><span class="hs-comment">-- Maintainer  :  Jeffrey Young  &lt;jeffrey.young@iohk.io&gt;</span><span>
+</span><span id="line-9"></span><span class="hs-comment">--                Luite Stegeman &lt;luite.stegeman@iohk.io&gt;</span><span>
+</span><span id="line-10"></span><span class="hs-comment">--                Sylvain Henry  &lt;sylvain.henry@iohk.io&gt;</span><span>
+</span><span id="line-11"></span><span class="hs-comment">--                Josh Meredith  &lt;josh.meredith@iohk.io&gt;</span><span>
+</span><span id="line-12"></span><span class="hs-comment">-- Stability   :  experimental</span><span>
+</span><span id="line-13"></span><span class="hs-comment">--</span><span>
+</span><span id="line-14"></span><span class="hs-comment">--</span><span>
+</span><span id="line-15"></span><span class="hs-comment">--  This module contains a simple expression optimizer that performs constant</span><span>
+</span><span id="line-16"></span><span class="hs-comment">--  folding and some boolean expression optimizations.</span><span>
+</span><span id="line-17"></span><span class="hs-comment">-----------------------------------------------------------------------------</span><span>
+</span><span id="line-18"></span><span>
+</span><span id="line-19"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="GHC.JS.Opt.Expr.html"><span class="hs-identifier">GHC.JS.Opt.Expr</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.JS.Opt.Expr.html#optExprs"><span class="hs-identifier">optExprs</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-20"></span><span>
+</span><span id="line-21"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Prelude.html"><span class="hs-identifier">GHC.Prelude</span></a></span><span> </span><span class="hs-keyword">hiding</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Prelude.Basic.html#shiftL"><span class="hs-identifier">shiftL</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Prelude.Basic.html#shiftR"><span class="hs-identifier">shiftR</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-22"></span><span>
+</span><span id="line-23"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.JS.Syntax.html"><span class="hs-identifier">GHC.JS.Syntax</span></a></span><span>
+</span><span id="line-24"></span><span>
+</span><span id="line-25"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.20.2.0-6654/src/Data.Bifunctor.html"><span class="hs-identifier">Data.Bifunctor</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="../../base-4.20.2.0-6654/src/Data.Bifunctor.html#second"><span class="hs-identifier">second</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-26"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.20.2.0-6654/src/Data.Bits.html"><span class="hs-identifier">Data.Bits</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">shiftL</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">shiftR</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-operator">(.^.)</span></span><span class="hs-special">)</span><span>
+</span><span id="line-27"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.20.2.0-6654/src/Data.Int.html"><span class="hs-identifier">Data.Int</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Int32</span></span><span class="hs-special">)</span><span>
+</span><span id="line-28"></span><span>
+</span><span id="line-29"></span><span class="hs-comment">{-
+  Optimize expressions in a statement.
+
+  This is best done after running the simple optimizer in GHC.JS.Opt.Simple,
+  which eliminates redundant assignments and produces expressions that can be
+  optimized more effectively.
+ -}</span><span>
+</span><span id="line-36"></span><span class="annot"><a href="GHC.JS.Opt.Expr.html#optExprs"><span class="hs-identifier hs-type">optExprs</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.JS.Syntax.html#JStat"><span class="hs-identifier hs-type">JStat</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.JS.Syntax.html#JStat"><span class="hs-identifier hs-type">JStat</span></a></span><span>
+</span><span id="line-37"></span><span id="optExprs"><span class="annot"><span class="annottext">optExprs :: JStat -&gt; JStat
+</span><a href="GHC.JS.Opt.Expr.html#optExprs"><span class="hs-identifier hs-var hs-var">optExprs</span></a></span></span><span> </span><span id="local-6989586621682370119"><span class="annot"><span class="annottext">JStat
+</span><a href="#local-6989586621682370119"><span class="hs-identifier hs-var">s</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">JStat -&gt; JStat
+</span><a href="#local-6989586621682370120"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">JStat
+</span><a href="#local-6989586621682370119"><span class="hs-identifier hs-var">s</span></a></span><span>
+</span><span id="line-38"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-39"></span><span>    </span><span id="local-6989586621682370120"><span class="annot"><span class="annottext">go :: JStat -&gt; JStat
+</span><a href="#local-6989586621682370120"><span class="hs-identifier hs-var hs-var">go</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.JS.Syntax.html#DeclStat"><span class="hs-identifier hs-type">DeclStat</span></a></span><span> </span><span id="local-6989586621682370126"><span class="annot"><span class="annottext">Ident
+</span><a href="#local-6989586621682370126"><span class="hs-identifier hs-var">v</span></a></span></span><span> </span><span id="local-6989586621682370127"><span class="annot"><span class="annottext">Maybe JExpr
+</span><a href="#local-6989586621682370127"><span class="hs-identifier hs-var">mb_e</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Ident -&gt; Maybe JExpr -&gt; JStat
+</span><a href="GHC.JS.Syntax.html#DeclStat"><span class="hs-identifier hs-var">DeclStat</span></a></span><span> </span><span class="annot"><span class="annottext">Ident
+</span><a href="#local-6989586621682370126"><span class="hs-identifier hs-var">v</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(JExpr -&gt; JExpr) -&gt; Maybe JExpr -&gt; Maybe JExpr
+forall a b. (a -&gt; b) -&gt; Maybe a -&gt; Maybe b
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="annot"><span class="annottext">JExpr -&gt; JExpr
+</span><a href="GHC.JS.Opt.Expr.html#opt"><span class="hs-identifier hs-var">opt</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe JExpr
+</span><a href="#local-6989586621682370127"><span class="hs-identifier hs-var">mb_e</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-40"></span><span>    </span><span class="annot"><a href="#local-6989586621682370120"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.JS.Syntax.html#AssignStat"><span class="hs-identifier hs-type">AssignStat</span></a></span><span> </span><span id="local-6989586621682370130"><span class="annot"><span class="annottext">JExpr
+</span><a href="#local-6989586621682370130"><span class="hs-identifier hs-var">lhs</span></a></span></span><span> </span><span id="local-6989586621682370131"><span class="annot"><span class="annottext">AOp
+</span><a href="#local-6989586621682370131"><span class="hs-identifier hs-var">op</span></a></span></span><span> </span><span id="local-6989586621682370132"><span class="annot"><span class="annottext">JExpr
+</span><a href="#local-6989586621682370132"><span class="hs-identifier hs-var">rhs</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">JExpr -&gt; AOp -&gt; JExpr -&gt; JStat
+</span><a href="GHC.JS.Syntax.html#AssignStat"><span class="hs-identifier hs-var">AssignStat</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">JExpr -&gt; JExpr
+</span><a href="GHC.JS.Opt.Expr.html#opt"><span class="hs-identifier hs-var">opt</span></a></span><span> </span><span class="annot"><span class="annottext">JExpr
+</span><a href="#local-6989586621682370130"><span class="hs-identifier hs-var">lhs</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">AOp
+</span><a href="#local-6989586621682370131"><span class="hs-identifier hs-var">op</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">JExpr -&gt; JExpr
+</span><a href="GHC.JS.Opt.Expr.html#opt"><span class="hs-identifier hs-var">opt</span></a></span><span> </span><span class="annot"><span class="annottext">JExpr
+</span><a href="#local-6989586621682370132"><span class="hs-identifier hs-var">rhs</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-41"></span><span>    </span><span class="annot"><a href="#local-6989586621682370120"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.JS.Syntax.html#ReturnStat"><span class="hs-identifier hs-type">ReturnStat</span></a></span><span> </span><span id="local-6989586621682370134"><span class="annot"><span class="annottext">JExpr
+</span><a href="#local-6989586621682370134"><span class="hs-identifier hs-var">e</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">JExpr -&gt; JStat
+</span><a href="GHC.JS.Syntax.html#ReturnStat"><span class="hs-identifier hs-var">ReturnStat</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">JExpr -&gt; JExpr
+</span><a href="GHC.JS.Opt.Expr.html#opt"><span class="hs-identifier hs-var">opt</span></a></span><span> </span><span class="annot"><span class="annottext">JExpr
+</span><a href="#local-6989586621682370134"><span class="hs-identifier hs-var">e</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-42"></span><span>    </span><span class="annot"><a href="#local-6989586621682370120"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.JS.Syntax.html#BlockStat"><span class="hs-identifier hs-type">BlockStat</span></a></span><span> </span><span id="local-6989586621682370136"><span class="annot"><span class="annottext">[JStat]
+</span><a href="#local-6989586621682370136"><span class="hs-identifier hs-var">ss</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[JStat] -&gt; JStat
+</span><a href="GHC.JS.Syntax.html#BlockStat"><span class="hs-identifier hs-var">BlockStat</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(JStat -&gt; JStat) -&gt; [JStat] -&gt; [JStat]
+forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+</span><span class="hs-identifier hs-var">map</span></span><span> </span><span class="annot"><span class="annottext">JStat -&gt; JStat
+</span><a href="#local-6989586621682370120"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">[JStat]
+</span><a href="#local-6989586621682370136"><span class="hs-identifier hs-var">ss</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-43"></span><span>    </span><span class="annot"><a href="#local-6989586621682370120"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.JS.Syntax.html#IfStat"><span class="hs-identifier hs-type">IfStat</span></a></span><span> </span><span id="local-6989586621682370138"><span class="annot"><span class="annottext">JExpr
+</span><a href="#local-6989586621682370138"><span class="hs-identifier hs-var">e</span></a></span></span><span> </span><span id="local-6989586621682370139"><span class="annot"><span class="annottext">JStat
+</span><a href="#local-6989586621682370139"><span class="hs-identifier hs-var">s1</span></a></span></span><span> </span><span id="local-6989586621682370140"><span class="annot"><span class="annottext">JStat
+</span><a href="#local-6989586621682370140"><span class="hs-identifier hs-var">s2</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">JExpr -&gt; JStat -&gt; JStat -&gt; JStat
+</span><a href="GHC.JS.Syntax.html#IfStat"><span class="hs-identifier hs-var">IfStat</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">JExpr -&gt; JExpr
+</span><a href="GHC.JS.Opt.Expr.html#optCond"><span class="hs-identifier hs-var">optCond</span></a></span><span> </span><span class="annot"><span class="annottext">JExpr
+</span><a href="#local-6989586621682370138"><span class="hs-identifier hs-var">e</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">JStat -&gt; JStat
+</span><a href="#local-6989586621682370120"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">JStat
+</span><a href="#local-6989586621682370139"><span class="hs-identifier hs-var">s1</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">JStat -&gt; JStat
+</span><a href="#local-6989586621682370120"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">JStat
+</span><a href="#local-6989586621682370140"><span class="hs-identifier hs-var">s2</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-44"></span><span>    </span><span class="annot"><a href="#local-6989586621682370120"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.JS.Syntax.html#WhileStat"><span class="hs-identifier hs-type">WhileStat</span></a></span><span> </span><span id="local-6989586621682370143"><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621682370143"><span class="hs-identifier hs-var">b</span></a></span></span><span> </span><span id="local-6989586621682370144"><span class="annot"><span class="annottext">JExpr
+</span><a href="#local-6989586621682370144"><span class="hs-identifier hs-var">e</span></a></span></span><span> </span><span id="local-6989586621682370145"><span class="annot"><span class="annottext">JStat
+</span><a href="#local-6989586621682370145"><span class="hs-identifier hs-var">s</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool -&gt; JExpr -&gt; JStat -&gt; JStat
+</span><a href="GHC.JS.Syntax.html#WhileStat"><span class="hs-identifier hs-var">WhileStat</span></a></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621682370143"><span class="hs-identifier hs-var">b</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">JExpr -&gt; JExpr
+</span><a href="GHC.JS.Opt.Expr.html#optCond"><span class="hs-identifier hs-var">optCond</span></a></span><span> </span><span class="annot"><span class="annottext">JExpr
+</span><a href="#local-6989586621682370144"><span class="hs-identifier hs-var">e</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">JStat -&gt; JStat
+</span><a href="#local-6989586621682370120"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">JStat
+</span><a href="#local-6989586621682370145"><span class="hs-identifier hs-var">s</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-45"></span><span>    </span><span class="annot"><a href="#local-6989586621682370120"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.JS.Syntax.html#ForStat"><span class="hs-identifier hs-type">ForStat</span></a></span><span> </span><span id="local-6989586621682370147"><span class="annot"><span class="annottext">JStat
+</span><a href="#local-6989586621682370147"><span class="hs-identifier hs-var">s1</span></a></span></span><span> </span><span id="local-6989586621682370148"><span class="annot"><span class="annottext">JExpr
+</span><a href="#local-6989586621682370148"><span class="hs-identifier hs-var">e</span></a></span></span><span> </span><span id="local-6989586621682370149"><span class="annot"><span class="annottext">JStat
+</span><a href="#local-6989586621682370149"><span class="hs-identifier hs-var">s2</span></a></span></span><span> </span><span id="local-6989586621682370150"><span class="annot"><span class="annottext">JStat
+</span><a href="#local-6989586621682370150"><span class="hs-identifier hs-var">s3</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">JStat -&gt; JExpr -&gt; JStat -&gt; JStat -&gt; JStat
+</span><a href="GHC.JS.Syntax.html#ForStat"><span class="hs-identifier hs-var">ForStat</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">JStat -&gt; JStat
+</span><a href="#local-6989586621682370120"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">JStat
+</span><a href="#local-6989586621682370147"><span class="hs-identifier hs-var">s1</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">JExpr -&gt; JExpr
+</span><a href="GHC.JS.Opt.Expr.html#optCond"><span class="hs-identifier hs-var">optCond</span></a></span><span> </span><span class="annot"><span class="annottext">JExpr
+</span><a href="#local-6989586621682370148"><span class="hs-identifier hs-var">e</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">JStat -&gt; JStat
+</span><a href="#local-6989586621682370120"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">JStat
+</span><a href="#local-6989586621682370149"><span class="hs-identifier hs-var">s2</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">JStat -&gt; JStat
+</span><a href="#local-6989586621682370120"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">JStat
+</span><a href="#local-6989586621682370150"><span class="hs-identifier hs-var">s3</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-46"></span><span>    </span><span class="annot"><a href="#local-6989586621682370120"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.JS.Syntax.html#ForInStat"><span class="hs-identifier hs-type">ForInStat</span></a></span><span> </span><span id="local-6989586621682370152"><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621682370152"><span class="hs-identifier hs-var">b</span></a></span></span><span> </span><span id="local-6989586621682370153"><span class="annot"><span class="annottext">Ident
+</span><a href="#local-6989586621682370153"><span class="hs-identifier hs-var">v</span></a></span></span><span> </span><span id="local-6989586621682370154"><span class="annot"><span class="annottext">JExpr
+</span><a href="#local-6989586621682370154"><span class="hs-identifier hs-var">e</span></a></span></span><span> </span><span id="local-6989586621682370155"><span class="annot"><span class="annottext">JStat
+</span><a href="#local-6989586621682370155"><span class="hs-identifier hs-var">s</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Ident -&gt; JExpr -&gt; JStat -&gt; JStat
+</span><a href="GHC.JS.Syntax.html#ForInStat"><span class="hs-identifier hs-var">ForInStat</span></a></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621682370152"><span class="hs-identifier hs-var">b</span></a></span><span> </span><span class="annot"><span class="annottext">Ident
+</span><a href="#local-6989586621682370153"><span class="hs-identifier hs-var">v</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">JExpr -&gt; JExpr
+</span><a href="GHC.JS.Opt.Expr.html#opt"><span class="hs-identifier hs-var">opt</span></a></span><span> </span><span class="annot"><span class="annottext">JExpr
+</span><a href="#local-6989586621682370154"><span class="hs-identifier hs-var">e</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">JStat -&gt; JStat
+</span><a href="#local-6989586621682370120"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">JStat
+</span><a href="#local-6989586621682370155"><span class="hs-identifier hs-var">s</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-47"></span><span>    </span><span class="annot"><a href="#local-6989586621682370120"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.JS.Syntax.html#SwitchStat"><span class="hs-identifier hs-type">SwitchStat</span></a></span><span> </span><span id="local-6989586621682370157"><span class="annot"><span class="annottext">JExpr
+</span><a href="#local-6989586621682370157"><span class="hs-identifier hs-var">e</span></a></span></span><span> </span><span id="local-6989586621682370158"><span class="annot"><span class="annottext">[(JExpr, JStat)]
+</span><a href="#local-6989586621682370158"><span class="hs-identifier hs-var">cases</span></a></span></span><span> </span><span id="local-6989586621682370159"><span class="annot"><span class="annottext">JStat
+</span><a href="#local-6989586621682370159"><span class="hs-identifier hs-var">s</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">JExpr -&gt; [(JExpr, JStat)] -&gt; JStat -&gt; JStat
+</span><a href="GHC.JS.Syntax.html#SwitchStat"><span class="hs-identifier hs-var">SwitchStat</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">JExpr -&gt; JExpr
+</span><a href="GHC.JS.Opt.Expr.html#opt"><span class="hs-identifier hs-var">opt</span></a></span><span> </span><span class="annot"><span class="annottext">JExpr
+</span><a href="#local-6989586621682370157"><span class="hs-identifier hs-var">e</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-48"></span><span>                                           </span><span class="hs-special">(</span><span class="annot"><span class="annottext">((JExpr, JStat) -&gt; (JExpr, JStat))
+-&gt; [(JExpr, JStat)] -&gt; [(JExpr, JStat)]
+forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+</span><span class="hs-identifier hs-var">map</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(JStat -&gt; JStat) -&gt; (JExpr, JStat) -&gt; (JExpr, JStat)
+forall b c a. (b -&gt; c) -&gt; (a, b) -&gt; (a, c)
+forall (p :: * -&gt; * -&gt; *) b c a.
+Bifunctor p =&gt;
+(b -&gt; c) -&gt; p a b -&gt; p a c
+</span><a href="../../base-4.20.2.0-6654/src/Data.Bifunctor.html#second"><span class="hs-identifier hs-var">second</span></a></span><span> </span><span class="annot"><span class="annottext">JStat -&gt; JStat
+</span><a href="#local-6989586621682370120"><span class="hs-identifier hs-var">go</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">[(JExpr, JStat)]
+</span><a href="#local-6989586621682370158"><span class="hs-identifier hs-var">cases</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-49"></span><span>                                           </span><span class="hs-special">(</span><span class="annot"><span class="annottext">JStat -&gt; JStat
+</span><a href="#local-6989586621682370120"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">JStat
+</span><a href="#local-6989586621682370159"><span class="hs-identifier hs-var">s</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-50"></span><span>    </span><span class="annot"><a href="#local-6989586621682370120"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.JS.Syntax.html#TryStat"><span class="hs-identifier hs-type">TryStat</span></a></span><span> </span><span id="local-6989586621682370161"><span class="annot"><span class="annottext">JStat
+</span><a href="#local-6989586621682370161"><span class="hs-identifier hs-var">s1</span></a></span></span><span> </span><span id="local-6989586621682370162"><span class="annot"><span class="annottext">Ident
+</span><a href="#local-6989586621682370162"><span class="hs-identifier hs-var">v</span></a></span></span><span> </span><span id="local-6989586621682370163"><span class="annot"><span class="annottext">JStat
+</span><a href="#local-6989586621682370163"><span class="hs-identifier hs-var">s2</span></a></span></span><span> </span><span id="local-6989586621682370164"><span class="annot"><span class="annottext">JStat
+</span><a href="#local-6989586621682370164"><span class="hs-identifier hs-var">s3</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">JStat -&gt; Ident -&gt; JStat -&gt; JStat -&gt; JStat
+</span><a href="GHC.JS.Syntax.html#TryStat"><span class="hs-identifier hs-var">TryStat</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">JStat -&gt; JStat
+</span><a href="#local-6989586621682370120"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">JStat
+</span><a href="#local-6989586621682370161"><span class="hs-identifier hs-var">s1</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Ident
+</span><a href="#local-6989586621682370162"><span class="hs-identifier hs-var">v</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">JStat -&gt; JStat
+</span><a href="#local-6989586621682370120"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">JStat
+</span><a href="#local-6989586621682370163"><span class="hs-identifier hs-var">s2</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">JStat -&gt; JStat
+</span><a href="#local-6989586621682370120"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">JStat
+</span><a href="#local-6989586621682370164"><span class="hs-identifier hs-var">s3</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-51"></span><span>    </span><span class="annot"><a href="#local-6989586621682370120"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.JS.Syntax.html#ApplStat"><span class="hs-identifier hs-type">ApplStat</span></a></span><span> </span><span id="local-6989586621682370166"><span class="annot"><span class="annottext">JExpr
+</span><a href="#local-6989586621682370166"><span class="hs-identifier hs-var">e</span></a></span></span><span> </span><span id="local-6989586621682370167"><span class="annot"><span class="annottext">[JExpr]
+</span><a href="#local-6989586621682370167"><span class="hs-identifier hs-var">es</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">JExpr -&gt; [JExpr] -&gt; JStat
+</span><a href="GHC.JS.Syntax.html#ApplStat"><span class="hs-identifier hs-var">ApplStat</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">JExpr -&gt; JExpr
+</span><a href="GHC.JS.Opt.Expr.html#opt"><span class="hs-identifier hs-var">opt</span></a></span><span> </span><span class="annot"><span class="annottext">JExpr
+</span><a href="#local-6989586621682370166"><span class="hs-identifier hs-var">e</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(JExpr -&gt; JExpr) -&gt; [JExpr] -&gt; [JExpr]
+forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+</span><span class="hs-identifier hs-var">map</span></span><span> </span><span class="annot"><span class="annottext">JExpr -&gt; JExpr
+</span><a href="GHC.JS.Opt.Expr.html#opt"><span class="hs-identifier hs-var">opt</span></a></span><span> </span><span class="annot"><span class="annottext">[JExpr]
+</span><a href="#local-6989586621682370167"><span class="hs-identifier hs-var">es</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-52"></span><span>    </span><span class="annot"><a href="#local-6989586621682370120"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.JS.Syntax.html#UOpStat"><span class="hs-identifier hs-type">UOpStat</span></a></span><span> </span><span id="local-6989586621682370169"><span class="annot"><span class="annottext">UOp
+</span><a href="#local-6989586621682370169"><span class="hs-identifier hs-var">op</span></a></span></span><span> </span><span id="local-6989586621682370170"><span class="annot"><span class="annottext">JExpr
+</span><a href="#local-6989586621682370170"><span class="hs-identifier hs-var">e</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">UOp -&gt; JExpr -&gt; JStat
+</span><a href="GHC.JS.Syntax.html#UOpStat"><span class="hs-identifier hs-var">UOpStat</span></a></span><span> </span><span class="annot"><span class="annottext">UOp
+</span><a href="#local-6989586621682370169"><span class="hs-identifier hs-var">op</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">JExpr -&gt; JExpr
+</span><a href="GHC.JS.Opt.Expr.html#opt"><span class="hs-identifier hs-var">opt</span></a></span><span> </span><span class="annot"><span class="annottext">JExpr
+</span><a href="#local-6989586621682370170"><span class="hs-identifier hs-var">e</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-53"></span><span>    </span><span class="annot"><a href="#local-6989586621682370120"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.JS.Syntax.html#LabelStat"><span class="hs-identifier hs-type">LabelStat</span></a></span><span> </span><span id="local-6989586621682370172"><span class="annot"><span class="annottext">JLabel
+</span><a href="#local-6989586621682370172"><span class="hs-identifier hs-var">lbl</span></a></span></span><span> </span><span id="local-6989586621682370173"><span class="annot"><span class="annottext">JStat
+</span><a href="#local-6989586621682370173"><span class="hs-identifier hs-var">s</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">JLabel -&gt; JStat -&gt; JStat
+</span><a href="GHC.JS.Syntax.html#LabelStat"><span class="hs-identifier hs-var">LabelStat</span></a></span><span> </span><span class="annot"><span class="annottext">JLabel
+</span><a href="#local-6989586621682370172"><span class="hs-identifier hs-var">lbl</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">JStat -&gt; JStat
+</span><a href="#local-6989586621682370120"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">JStat
+</span><a href="#local-6989586621682370173"><span class="hs-identifier hs-var">s</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-54"></span><span>    </span><span class="annot"><a href="#local-6989586621682370120"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span id="local-6989586621682370174"><span class="annot"><span class="annottext">s :: JStat
+</span><a href="#local-6989586621682370174"><span class="hs-identifier hs-var">s</span></a></span></span><span class="hs-glyph">@</span><span class="hs-special">(</span><span class="annot"><a href="GHC.JS.Syntax.html#BreakStat"><span class="hs-identifier hs-type">BreakStat</span></a></span><span class="hs-special">{</span><span class="hs-special">}</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">JStat
+</span><a href="#local-6989586621682370174"><span class="hs-identifier hs-var">s</span></a></span><span>
+</span><span id="line-55"></span><span>    </span><span class="annot"><a href="#local-6989586621682370120"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span id="local-6989586621682370176"><span class="annot"><span class="annottext">s :: JStat
+</span><a href="#local-6989586621682370176"><span class="hs-identifier hs-var">s</span></a></span></span><span class="hs-glyph">@</span><span class="hs-special">(</span><span class="annot"><a href="GHC.JS.Syntax.html#ContinueStat"><span class="hs-identifier hs-type">ContinueStat</span></a></span><span class="hs-special">{</span><span class="hs-special">}</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">JStat
+</span><a href="#local-6989586621682370176"><span class="hs-identifier hs-var">s</span></a></span><span>
+</span><span id="line-56"></span><span>    </span><span class="annot"><a href="#local-6989586621682370120"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.JS.Syntax.html#FuncStat"><span class="hs-identifier hs-type">FuncStat</span></a></span><span> </span><span id="local-6989586621682370179"><span class="annot"><span class="annottext">Ident
+</span><a href="#local-6989586621682370179"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span id="local-6989586621682370180"><span class="annot"><span class="annottext">[Ident]
+</span><a href="#local-6989586621682370180"><span class="hs-identifier hs-var">vs</span></a></span></span><span> </span><span id="local-6989586621682370181"><span class="annot"><span class="annottext">JStat
+</span><a href="#local-6989586621682370181"><span class="hs-identifier hs-var">s</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Ident -&gt; [Ident] -&gt; JStat -&gt; JStat
+</span><a href="GHC.JS.Syntax.html#FuncStat"><span class="hs-identifier hs-var">FuncStat</span></a></span><span> </span><span class="annot"><span class="annottext">Ident
+</span><a href="#local-6989586621682370179"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">[Ident]
+</span><a href="#local-6989586621682370180"><span class="hs-identifier hs-var">vs</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">JStat -&gt; JStat
+</span><a href="#local-6989586621682370120"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">JStat
+</span><a href="#local-6989586621682370181"><span class="hs-identifier hs-var">s</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-57"></span><span>
+</span><span id="line-58"></span><span> </span><span class="hs-comment">-- remove double negation if we're using the expression in a loop/if condition</span><span>
+</span><span id="line-59"></span><span class="annot"><a href="GHC.JS.Opt.Expr.html#optCond"><span class="hs-identifier hs-type">optCond</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.JS.Syntax.html#JExpr"><span class="hs-identifier hs-type">JExpr</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.JS.Syntax.html#JExpr"><span class="hs-identifier hs-type">JExpr</span></a></span><span>
+</span><span id="line-60"></span><span id="optCond"><span class="annot"><span class="annottext">optCond :: JExpr -&gt; JExpr
+</span><a href="GHC.JS.Opt.Expr.html#optCond"><span class="hs-identifier hs-var hs-var">optCond</span></a></span></span><span> </span><span id="local-6989586621682370182"><span class="annot"><span class="annottext">JExpr
+</span><a href="#local-6989586621682370182"><span class="hs-identifier hs-var">e</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621682370183"><span class="annot"><span class="annottext">f :: JExpr -&gt; JExpr
+</span><a href="#local-6989586621682370183"><span class="hs-identifier hs-var hs-var">f</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.JS.Syntax.html#UOpExpr"><span class="hs-identifier hs-type">UOpExpr</span></a></span><span> </span><span class="annot"><span class="annottext">UOp
+</span><a href="GHC.JS.Syntax.html#NotOp"><span class="hs-identifier hs-var">NotOp</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.JS.Syntax.html#UOpExpr"><span class="hs-identifier hs-type">UOpExpr</span></a></span><span> </span><span class="annot"><span class="annottext">UOp
+</span><a href="GHC.JS.Syntax.html#NotOp"><span class="hs-identifier hs-var">NotOp</span></a></span><span> </span><span id="local-6989586621682370186"><span class="annot"><span class="annottext">JExpr
+</span><a href="#local-6989586621682370186"><span class="hs-identifier hs-var">e'</span></a></span></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">JExpr -&gt; JExpr
+</span><a href="#local-6989586621682370183"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">JExpr
+</span><a href="#local-6989586621682370186"><span class="hs-identifier hs-var">e'</span></a></span><span>
+</span><span id="line-61"></span><span>                </span><span class="annot"><a href="#local-6989586621682370183"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span id="local-6989586621682370187"><span class="annot"><span class="annottext">JExpr
+</span><a href="#local-6989586621682370187"><span class="hs-identifier hs-var">e'</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">JExpr
+</span><a href="#local-6989586621682370187"><span class="hs-identifier hs-var">e'</span></a></span><span>
+</span><span id="line-62"></span><span>            </span><span class="hs-keyword">in</span><span> </span><span class="annot"><span class="annottext">JExpr -&gt; JExpr
+</span><a href="#local-6989586621682370183"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">JExpr -&gt; JExpr
+</span><a href="GHC.JS.Opt.Expr.html#opt"><span class="hs-identifier hs-var">opt</span></a></span><span> </span><span class="annot"><span class="annottext">JExpr
+</span><a href="#local-6989586621682370182"><span class="hs-identifier hs-var">e</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-63"></span><span>
+</span><span id="line-64"></span><span class="annot"><a href="GHC.JS.Opt.Expr.html#opt"><span class="hs-identifier hs-type">opt</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.JS.Syntax.html#JExpr"><span class="hs-identifier hs-type">JExpr</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.JS.Syntax.html#JExpr"><span class="hs-identifier hs-type">JExpr</span></a></span><span>
+</span><span id="line-65"></span><span id="opt"><span class="annot"><span class="annottext">opt :: JExpr -&gt; JExpr
+</span><a href="GHC.JS.Opt.Expr.html#opt"><span class="hs-identifier hs-var hs-var">opt</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.JS.Syntax.html#ValExpr"><span class="hs-identifier hs-type">ValExpr</span></a></span><span> </span><span id="local-6989586621682370189"><span class="annot"><span class="annottext">JVal
+</span><a href="#local-6989586621682370189"><span class="hs-identifier hs-var">v</span></a></span></span><span class="hs-special">)</span><span>          </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">JVal -&gt; JExpr
+</span><a href="GHC.JS.Syntax.html#ValExpr"><span class="hs-identifier hs-var">ValExpr</span></a></span><span> </span><span class="annot"><span class="annottext">JVal
+</span><a href="#local-6989586621682370189"><span class="hs-identifier hs-var">v</span></a></span><span>
+</span><span id="line-66"></span><span class="annot"><a href="GHC.JS.Opt.Expr.html#opt"><span class="hs-identifier hs-var">opt</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.JS.Syntax.html#SelExpr"><span class="hs-identifier hs-type">SelExpr</span></a></span><span> </span><span id="local-6989586621682370191"><span class="annot"><span class="annottext">JExpr
+</span><a href="#local-6989586621682370191"><span class="hs-identifier hs-var">e</span></a></span></span><span> </span><span id="local-6989586621682370192"><span class="annot"><span class="annottext">Ident
+</span><a href="#local-6989586621682370192"><span class="hs-identifier hs-var">i</span></a></span></span><span class="hs-special">)</span><span>        </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">JExpr -&gt; Ident -&gt; JExpr
+</span><a href="GHC.JS.Syntax.html#SelExpr"><span class="hs-identifier hs-var">SelExpr</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">JExpr -&gt; JExpr
+</span><a href="GHC.JS.Opt.Expr.html#opt"><span class="hs-identifier hs-var">opt</span></a></span><span> </span><span class="annot"><span class="annottext">JExpr
+</span><a href="#local-6989586621682370191"><span class="hs-identifier hs-var">e</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Ident
+</span><a href="#local-6989586621682370192"><span class="hs-identifier hs-var">i</span></a></span><span>
+</span><span id="line-67"></span><span class="annot"><a href="GHC.JS.Opt.Expr.html#opt"><span class="hs-identifier hs-var">opt</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.JS.Syntax.html#IdxExpr"><span class="hs-identifier hs-type">IdxExpr</span></a></span><span> </span><span id="local-6989586621682370194"><span class="annot"><span class="annottext">JExpr
+</span><a href="#local-6989586621682370194"><span class="hs-identifier hs-var">e1</span></a></span></span><span> </span><span id="local-6989586621682370195"><span class="annot"><span class="annottext">JExpr
+</span><a href="#local-6989586621682370195"><span class="hs-identifier hs-var">e2</span></a></span></span><span class="hs-special">)</span><span>      </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">JExpr -&gt; JExpr -&gt; JExpr
+</span><a href="GHC.JS.Syntax.html#IdxExpr"><span class="hs-identifier hs-var">IdxExpr</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">JExpr -&gt; JExpr
+</span><a href="GHC.JS.Opt.Expr.html#opt"><span class="hs-identifier hs-var">opt</span></a></span><span> </span><span class="annot"><span class="annottext">JExpr
+</span><a href="#local-6989586621682370194"><span class="hs-identifier hs-var">e1</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">JExpr -&gt; JExpr
+</span><a href="GHC.JS.Opt.Expr.html#opt"><span class="hs-identifier hs-var">opt</span></a></span><span> </span><span class="annot"><span class="annottext">JExpr
+</span><a href="#local-6989586621682370195"><span class="hs-identifier hs-var">e2</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-68"></span><span class="hs-comment">-- ((c_e ? 1 : 0) === 1)   ==&gt; !!c_e</span><span>
+</span><span id="line-69"></span><span class="hs-comment">-- ((c_e ? 1 : 0) === 0)   ==&gt; !c_e</span><span>
+</span><span id="line-70"></span><span class="annot"><a href="GHC.JS.Opt.Expr.html#opt"><span class="hs-identifier hs-var">opt</span></a></span><span class="hs-special">(</span><span class="annot"><a href="GHC.JS.Syntax.html#InfixExpr"><span class="hs-identifier hs-type">InfixExpr</span></a></span><span> </span><span class="annot"><span class="annottext">Op
+</span><a href="GHC.JS.Syntax.html#StrictEqOp"><span class="hs-identifier hs-var">StrictEqOp</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.JS.Syntax.html#IfExpr"><span class="hs-identifier hs-type">IfExpr</span></a></span><span> </span><span id="local-6989586621682370199"><span class="annot"><span class="annottext">JExpr
+</span><a href="#local-6989586621682370199"><span class="hs-identifier hs-var">c_e</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">JExpr -&gt; JExpr
+</span><a href="GHC.JS.Opt.Expr.html#opt"><span class="hs-identifier hs-var">opt</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span id="local-6989586621682370200"><span class="annot"><span class="annottext">JExpr
+</span><a href="#local-6989586621682370200"><span class="hs-identifier hs-var">t_e</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">JExpr -&gt; JExpr
+</span><a href="GHC.JS.Opt.Expr.html#opt"><span class="hs-identifier hs-var">opt</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span id="local-6989586621682370201"><span class="annot"><span class="annottext">JExpr
+</span><a href="#local-6989586621682370201"><span class="hs-identifier hs-var">f_e</span></a></span></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">JExpr -&gt; JExpr
+</span><a href="GHC.JS.Opt.Expr.html#opt"><span class="hs-identifier hs-var">opt</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span id="local-6989586621682370202"><span class="annot"><span class="annottext">JExpr
+</span><a href="#local-6989586621682370202"><span class="hs-identifier hs-var">e</span></a></span></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-71"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span class="annot"><a href="GHC.JS.Syntax.html#ValExpr"><span class="hs-identifier hs-type">ValExpr</span></a></span><span> </span><span id="local-6989586621682370203"><span class="annot"><span class="annottext">JVal
+</span><a href="#local-6989586621682370203"><span class="hs-identifier hs-var">t_v</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">JExpr
+</span><a href="#local-6989586621682370200"><span class="hs-identifier hs-var">t_e</span></a></span><span>
+</span><span id="line-72"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.JS.Syntax.html#ValExpr"><span class="hs-identifier hs-type">ValExpr</span></a></span><span> </span><span id="local-6989586621682370204"><span class="annot"><span class="annottext">JVal
+</span><a href="#local-6989586621682370204"><span class="hs-identifier hs-var">v</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">JExpr
+</span><a href="#local-6989586621682370202"><span class="hs-identifier hs-var">e</span></a></span><span>
+</span><span id="line-73"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">JVal -&gt; JVal -&gt; Bool
+</span><a href="GHC.JS.Opt.Expr.html#eqVal"><span class="hs-identifier hs-var">eqVal</span></a></span><span> </span><span class="annot"><span class="annottext">JVal
+</span><a href="#local-6989586621682370203"><span class="hs-identifier hs-var">t_v</span></a></span><span> </span><span class="annot"><span class="annottext">JVal
+</span><a href="#local-6989586621682370204"><span class="hs-identifier hs-var">v</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">UOp -&gt; JExpr -&gt; JExpr
+</span><a href="GHC.JS.Syntax.html#UOpExpr"><span class="hs-identifier hs-var">UOpExpr</span></a></span><span> </span><span class="annot"><span class="annottext">UOp
+</span><a href="GHC.JS.Syntax.html#NotOp"><span class="hs-identifier hs-var">NotOp</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">UOp -&gt; JExpr -&gt; JExpr
+</span><a href="GHC.JS.Syntax.html#UOpExpr"><span class="hs-identifier hs-var">UOpExpr</span></a></span><span> </span><span class="annot"><span class="annottext">UOp
+</span><a href="GHC.JS.Syntax.html#NotOp"><span class="hs-identifier hs-var">NotOp</span></a></span><span> </span><span class="annot"><span class="annottext">JExpr
+</span><a href="#local-6989586621682370199"><span class="hs-identifier hs-var">c_e</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-74"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span class="annot"><a href="GHC.JS.Syntax.html#ValExpr"><span class="hs-identifier hs-type">ValExpr</span></a></span><span> </span><span id="local-6989586621682370206"><span class="annot"><span class="annottext">JVal
+</span><a href="#local-6989586621682370206"><span class="hs-identifier hs-var">f_v</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">JExpr
+</span><a href="#local-6989586621682370201"><span class="hs-identifier hs-var">f_e</span></a></span><span>
+</span><span id="line-75"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.JS.Syntax.html#ValExpr"><span class="hs-identifier hs-type">ValExpr</span></a></span><span> </span><span id="local-6989586621682370207"><span class="annot"><span class="annottext">JVal
+</span><a href="#local-6989586621682370207"><span class="hs-identifier hs-var">v</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">JExpr
+</span><a href="#local-6989586621682370202"><span class="hs-identifier hs-var">e</span></a></span><span>
+</span><span id="line-76"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">JVal -&gt; JVal -&gt; Bool
+</span><a href="GHC.JS.Opt.Expr.html#eqVal"><span class="hs-identifier hs-var">eqVal</span></a></span><span> </span><span class="annot"><span class="annottext">JVal
+</span><a href="#local-6989586621682370206"><span class="hs-identifier hs-var">f_v</span></a></span><span> </span><span class="annot"><span class="annottext">JVal
+</span><a href="#local-6989586621682370207"><span class="hs-identifier hs-var">v</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">UOp -&gt; JExpr -&gt; JExpr
+</span><a href="GHC.JS.Syntax.html#UOpExpr"><span class="hs-identifier hs-var">UOpExpr</span></a></span><span> </span><span class="annot"><span class="annottext">UOp
+</span><a href="GHC.JS.Syntax.html#NotOp"><span class="hs-identifier hs-var">NotOp</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">JExpr -&gt; JExpr
+</span><a href="GHC.JS.Opt.Expr.html#opt"><span class="hs-identifier hs-var">opt</span></a></span><span> </span><span class="annot"><span class="annottext">JExpr
+</span><a href="#local-6989586621682370199"><span class="hs-identifier hs-var">c_e</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-77"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Op -&gt; JExpr -&gt; JExpr -&gt; JExpr
+</span><a href="GHC.JS.Syntax.html#InfixExpr"><span class="hs-identifier hs-var">InfixExpr</span></a></span><span> </span><span class="annot"><span class="annottext">Op
+</span><a href="GHC.JS.Syntax.html#StrictEqOp"><span class="hs-identifier hs-var">StrictEqOp</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">JExpr -&gt; JExpr -&gt; JExpr -&gt; JExpr
+</span><a href="GHC.JS.Syntax.html#IfExpr"><span class="hs-identifier hs-var">IfExpr</span></a></span><span> </span><span class="annot"><span class="annottext">JExpr
+</span><a href="#local-6989586621682370199"><span class="hs-identifier hs-var">c_e</span></a></span><span> </span><span class="annot"><span class="annottext">JExpr
+</span><a href="#local-6989586621682370200"><span class="hs-identifier hs-var">t_e</span></a></span><span> </span><span class="annot"><span class="annottext">JExpr
+</span><a href="#local-6989586621682370201"><span class="hs-identifier hs-var">f_e</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">JExpr
+</span><a href="#local-6989586621682370202"><span class="hs-identifier hs-var">e</span></a></span><span>
+</span><span id="line-78"></span><span class="hs-comment">-- (1 === (c_e ? 1 : 0))   ==&gt; !!c_e</span><span>
+</span><span id="line-79"></span><span class="hs-comment">-- (0 === (c_e ? 1 : 0))   ==&gt; !c_e</span><span>
+</span><span id="line-80"></span><span class="annot"><a href="GHC.JS.Opt.Expr.html#opt"><span class="hs-identifier hs-var">opt</span></a></span><span class="hs-special">(</span><span class="annot"><a href="GHC.JS.Syntax.html#InfixExpr"><span class="hs-identifier hs-type">InfixExpr</span></a></span><span> </span><span class="annot"><span class="annottext">Op
+</span><a href="GHC.JS.Syntax.html#StrictEqOp"><span class="hs-identifier hs-var">StrictEqOp</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">JExpr -&gt; JExpr
+</span><a href="GHC.JS.Opt.Expr.html#opt"><span class="hs-identifier hs-var">opt</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span id="local-6989586621682370208"><span class="annot"><span class="annottext">JExpr
+</span><a href="#local-6989586621682370208"><span class="hs-identifier hs-var">e</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.JS.Syntax.html#IfExpr"><span class="hs-identifier hs-type">IfExpr</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">JExpr -&gt; JExpr
+</span><a href="GHC.JS.Opt.Expr.html#opt"><span class="hs-identifier hs-var">opt</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span id="local-6989586621682370209"><span class="annot"><span class="annottext">JExpr
+</span><a href="#local-6989586621682370209"><span class="hs-identifier hs-var">c_e</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">JExpr -&gt; JExpr
+</span><a href="GHC.JS.Opt.Expr.html#opt"><span class="hs-identifier hs-var">opt</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span id="local-6989586621682370210"><span class="annot"><span class="annottext">JExpr
+</span><a href="#local-6989586621682370210"><span class="hs-identifier hs-var">t_e</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">JExpr -&gt; JExpr
+</span><a href="GHC.JS.Opt.Expr.html#opt"><span class="hs-identifier hs-var">opt</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span id="local-6989586621682370211"><span class="annot"><span class="annottext">JExpr
+</span><a href="#local-6989586621682370211"><span class="hs-identifier hs-var">f_e</span></a></span></span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-81"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span class="annot"><a href="GHC.JS.Syntax.html#ValExpr"><span class="hs-identifier hs-type">ValExpr</span></a></span><span> </span><span id="local-6989586621682370212"><span class="annot"><span class="annottext">JVal
+</span><a href="#local-6989586621682370212"><span class="hs-identifier hs-var">t_v</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">JExpr
+</span><a href="#local-6989586621682370210"><span class="hs-identifier hs-var">t_e</span></a></span><span>
+</span><span id="line-82"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.JS.Syntax.html#ValExpr"><span class="hs-identifier hs-type">ValExpr</span></a></span><span> </span><span id="local-6989586621682370213"><span class="annot"><span class="annottext">JVal
+</span><a href="#local-6989586621682370213"><span class="hs-identifier hs-var">v</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">JExpr
+</span><a href="#local-6989586621682370208"><span class="hs-identifier hs-var">e</span></a></span><span>
+</span><span id="line-83"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">JVal -&gt; JVal -&gt; Bool
+</span><a href="GHC.JS.Opt.Expr.html#eqVal"><span class="hs-identifier hs-var">eqVal</span></a></span><span> </span><span class="annot"><span class="annottext">JVal
+</span><a href="#local-6989586621682370212"><span class="hs-identifier hs-var">t_v</span></a></span><span> </span><span class="annot"><span class="annottext">JVal
+</span><a href="#local-6989586621682370213"><span class="hs-identifier hs-var">v</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">UOp -&gt; JExpr -&gt; JExpr
+</span><a href="GHC.JS.Syntax.html#UOpExpr"><span class="hs-identifier hs-var">UOpExpr</span></a></span><span> </span><span class="annot"><span class="annottext">UOp
+</span><a href="GHC.JS.Syntax.html#NotOp"><span class="hs-identifier hs-var">NotOp</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">UOp -&gt; JExpr -&gt; JExpr
+</span><a href="GHC.JS.Syntax.html#UOpExpr"><span class="hs-identifier hs-var">UOpExpr</span></a></span><span> </span><span class="annot"><span class="annottext">UOp
+</span><a href="GHC.JS.Syntax.html#NotOp"><span class="hs-identifier hs-var">NotOp</span></a></span><span> </span><span class="annot"><span class="annottext">JExpr
+</span><a href="#local-6989586621682370209"><span class="hs-identifier hs-var">c_e</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-84"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span class="annot"><a href="GHC.JS.Syntax.html#ValExpr"><span class="hs-identifier hs-type">ValExpr</span></a></span><span> </span><span id="local-6989586621682370214"><span class="annot"><span class="annottext">JVal
+</span><a href="#local-6989586621682370214"><span class="hs-identifier hs-var">f_v</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">JExpr
+</span><a href="#local-6989586621682370211"><span class="hs-identifier hs-var">f_e</span></a></span><span>
+</span><span id="line-85"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.JS.Syntax.html#ValExpr"><span class="hs-identifier hs-type">ValExpr</span></a></span><span> </span><span id="local-6989586621682370215"><span class="annot"><span class="annottext">JVal
+</span><a href="#local-6989586621682370215"><span class="hs-identifier hs-var">v</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">JExpr
+</span><a href="#local-6989586621682370208"><span class="hs-identifier hs-var">e</span></a></span><span>
+</span><span id="line-86"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">JVal -&gt; JVal -&gt; Bool
+</span><a href="GHC.JS.Opt.Expr.html#eqVal"><span class="hs-identifier hs-var">eqVal</span></a></span><span> </span><span class="annot"><span class="annottext">JVal
+</span><a href="#local-6989586621682370214"><span class="hs-identifier hs-var">f_v</span></a></span><span> </span><span class="annot"><span class="annottext">JVal
+</span><a href="#local-6989586621682370215"><span class="hs-identifier hs-var">v</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">UOp -&gt; JExpr -&gt; JExpr
+</span><a href="GHC.JS.Syntax.html#UOpExpr"><span class="hs-identifier hs-var">UOpExpr</span></a></span><span> </span><span class="annot"><span class="annottext">UOp
+</span><a href="GHC.JS.Syntax.html#NotOp"><span class="hs-identifier hs-var">NotOp</span></a></span><span> </span><span class="annot"><span class="annottext">JExpr
+</span><a href="#local-6989586621682370209"><span class="hs-identifier hs-var">c_e</span></a></span><span>
+</span><span id="line-87"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Op -&gt; JExpr -&gt; JExpr -&gt; JExpr
+</span><a href="GHC.JS.Syntax.html#InfixExpr"><span class="hs-identifier hs-var">InfixExpr</span></a></span><span> </span><span class="annot"><span class="annottext">Op
+</span><a href="GHC.JS.Syntax.html#StrictEqOp"><span class="hs-identifier hs-var">StrictEqOp</span></a></span><span> </span><span class="annot"><span class="annottext">JExpr
+</span><a href="#local-6989586621682370208"><span class="hs-identifier hs-var">e</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">JExpr -&gt; JExpr -&gt; JExpr -&gt; JExpr
+</span><a href="GHC.JS.Syntax.html#IfExpr"><span class="hs-identifier hs-var">IfExpr</span></a></span><span> </span><span class="annot"><span class="annottext">JExpr
+</span><a href="#local-6989586621682370209"><span class="hs-identifier hs-var">c_e</span></a></span><span> </span><span class="annot"><span class="annottext">JExpr
+</span><a href="#local-6989586621682370210"><span class="hs-identifier hs-var">t_e</span></a></span><span> </span><span class="annot"><span class="annottext">JExpr
+</span><a href="#local-6989586621682370211"><span class="hs-identifier hs-var">f_e</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-88"></span><span class="annot"><a href="GHC.JS.Opt.Expr.html#opt"><span class="hs-identifier hs-var">opt</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.JS.Syntax.html#InfixExpr"><span class="hs-identifier hs-type">InfixExpr</span></a></span><span> </span><span id="local-6989586621682370216"><span class="annot"><span class="annottext">Op
+</span><a href="#local-6989586621682370216"><span class="hs-identifier hs-var">op</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">JExpr -&gt; JExpr
+</span><a href="GHC.JS.Opt.Expr.html#opt"><span class="hs-identifier hs-var">opt</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span id="local-6989586621682370217"><span class="annot"><span class="annottext">JExpr
+</span><a href="#local-6989586621682370217"><span class="hs-identifier hs-var">e1</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">JExpr -&gt; JExpr
+</span><a href="GHC.JS.Opt.Expr.html#opt"><span class="hs-identifier hs-var">opt</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span id="local-6989586621682370218"><span class="annot"><span class="annottext">JExpr
+</span><a href="#local-6989586621682370218"><span class="hs-identifier hs-var">e2</span></a></span></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-89"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.JS.Syntax.html#ValExpr"><span class="hs-identifier hs-type">ValExpr</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.JS.Syntax.html#JInt"><span class="hs-identifier hs-type">JInt</span></a></span><span> </span><span id="local-6989586621682370220"><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621682370220"><span class="hs-identifier hs-var">n1</span></a></span></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">JExpr
+</span><a href="#local-6989586621682370217"><span class="hs-identifier hs-var">e1</span></a></span><span>
+</span><span id="line-90"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.JS.Syntax.html#ValExpr"><span class="hs-identifier hs-type">ValExpr</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.JS.Syntax.html#JInt"><span class="hs-identifier hs-type">JInt</span></a></span><span> </span><span id="local-6989586621682370221"><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621682370221"><span class="hs-identifier hs-var">n2</span></a></span></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">JExpr
+</span><a href="#local-6989586621682370218"><span class="hs-identifier hs-var">e2</span></a></span><span>
+</span><span id="line-91"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621682370222"><span class="annot"><span class="annottext">JVal
+</span><a href="#local-6989586621682370222"><span class="hs-identifier hs-var">v</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Op -&gt; Integer -&gt; Integer -&gt; Maybe JVal
+</span><a href="GHC.JS.Opt.Expr.html#optInt"><span class="hs-identifier hs-var">optInt</span></a></span><span> </span><span class="annot"><span class="annottext">Op
+</span><a href="#local-6989586621682370216"><span class="hs-identifier hs-var">op</span></a></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621682370220"><span class="hs-identifier hs-var">n1</span></a></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621682370221"><span class="hs-identifier hs-var">n2</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">JVal -&gt; JExpr
+</span><a href="GHC.JS.Syntax.html#ValExpr"><span class="hs-identifier hs-var">ValExpr</span></a></span><span> </span><span class="annot"><span class="annottext">JVal
+</span><a href="#local-6989586621682370222"><span class="hs-identifier hs-var">v</span></a></span><span>
+</span><span id="line-92"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.JS.Syntax.html#ValExpr"><span class="hs-identifier hs-type">ValExpr</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.JS.Syntax.html#JBool"><span class="hs-identifier hs-type">JBool</span></a></span><span> </span><span id="local-6989586621682370225"><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621682370225"><span class="hs-identifier hs-var">b1</span></a></span></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">JExpr
+</span><a href="#local-6989586621682370217"><span class="hs-identifier hs-var">e1</span></a></span><span>
+</span><span id="line-93"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.JS.Syntax.html#ValExpr"><span class="hs-identifier hs-type">ValExpr</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.JS.Syntax.html#JBool"><span class="hs-identifier hs-type">JBool</span></a></span><span> </span><span id="local-6989586621682370226"><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621682370226"><span class="hs-identifier hs-var">b2</span></a></span></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">JExpr
+</span><a href="#local-6989586621682370218"><span class="hs-identifier hs-var">e2</span></a></span><span>
+</span><span id="line-94"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621682370227"><span class="annot"><span class="annottext">JVal
+</span><a href="#local-6989586621682370227"><span class="hs-identifier hs-var">v</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Op -&gt; Bool -&gt; Bool -&gt; Maybe JVal
+</span><a href="GHC.JS.Opt.Expr.html#optBool"><span class="hs-identifier hs-var">optBool</span></a></span><span> </span><span class="annot"><span class="annottext">Op
+</span><a href="#local-6989586621682370216"><span class="hs-identifier hs-var">op</span></a></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621682370225"><span class="hs-identifier hs-var">b1</span></a></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621682370226"><span class="hs-identifier hs-var">b2</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">JVal -&gt; JExpr
+</span><a href="GHC.JS.Syntax.html#ValExpr"><span class="hs-identifier hs-var">ValExpr</span></a></span><span> </span><span class="annot"><span class="annottext">JVal
+</span><a href="#local-6989586621682370227"><span class="hs-identifier hs-var">v</span></a></span><span>
+</span><span id="line-95"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Op -&gt; JExpr -&gt; JExpr -&gt; JExpr
+</span><a href="GHC.JS.Syntax.html#InfixExpr"><span class="hs-identifier hs-var">InfixExpr</span></a></span><span> </span><span class="annot"><span class="annottext">Op
+</span><a href="#local-6989586621682370216"><span class="hs-identifier hs-var">op</span></a></span><span> </span><span class="annot"><span class="annottext">JExpr
+</span><a href="#local-6989586621682370217"><span class="hs-identifier hs-var">e1</span></a></span><span> </span><span class="annot"><span class="annottext">JExpr
+</span><a href="#local-6989586621682370218"><span class="hs-identifier hs-var">e2</span></a></span><span>
+</span><span id="line-96"></span><span class="annot"><a href="GHC.JS.Opt.Expr.html#opt"><span class="hs-identifier hs-var">opt</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.JS.Syntax.html#UOpExpr"><span class="hs-identifier hs-type">UOpExpr</span></a></span><span> </span><span id="local-6989586621682370229"><span class="annot"><span class="annottext">UOp
+</span><a href="#local-6989586621682370229"><span class="hs-identifier hs-var">op</span></a></span></span><span> </span><span id="local-6989586621682370230"><span class="annot"><span class="annottext">JExpr
+</span><a href="#local-6989586621682370230"><span class="hs-identifier hs-var">e</span></a></span></span><span class="hs-special">)</span><span>       </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">UOp -&gt; JExpr -&gt; JExpr
+</span><a href="GHC.JS.Syntax.html#UOpExpr"><span class="hs-identifier hs-var">UOpExpr</span></a></span><span> </span><span class="annot"><span class="annottext">UOp
+</span><a href="#local-6989586621682370229"><span class="hs-identifier hs-var">op</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">JExpr -&gt; JExpr
+</span><a href="GHC.JS.Opt.Expr.html#opt"><span class="hs-identifier hs-var">opt</span></a></span><span> </span><span class="annot"><span class="annottext">JExpr
+</span><a href="#local-6989586621682370230"><span class="hs-identifier hs-var">e</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-97"></span><span class="annot"><a href="GHC.JS.Opt.Expr.html#opt"><span class="hs-identifier hs-var">opt</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.JS.Syntax.html#IfExpr"><span class="hs-identifier hs-type">IfExpr</span></a></span><span> </span><span id="local-6989586621682370231"><span class="annot"><span class="annottext">JExpr
+</span><a href="#local-6989586621682370231"><span class="hs-identifier hs-var">e1</span></a></span></span><span> </span><span id="local-6989586621682370232"><span class="annot"><span class="annottext">JExpr
+</span><a href="#local-6989586621682370232"><span class="hs-identifier hs-var">e2</span></a></span></span><span> </span><span id="local-6989586621682370233"><span class="annot"><span class="annottext">JExpr
+</span><a href="#local-6989586621682370233"><span class="hs-identifier hs-var">e3</span></a></span></span><span class="hs-special">)</span><span>    </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">JExpr -&gt; JExpr -&gt; JExpr -&gt; JExpr
+</span><a href="GHC.JS.Syntax.html#IfExpr"><span class="hs-identifier hs-var">IfExpr</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">JExpr -&gt; JExpr
+</span><a href="GHC.JS.Opt.Expr.html#optCond"><span class="hs-identifier hs-var">optCond</span></a></span><span> </span><span class="annot"><span class="annottext">JExpr
+</span><a href="#local-6989586621682370231"><span class="hs-identifier hs-var">e1</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">JExpr -&gt; JExpr
+</span><a href="GHC.JS.Opt.Expr.html#opt"><span class="hs-identifier hs-var">opt</span></a></span><span> </span><span class="annot"><span class="annottext">JExpr
+</span><a href="#local-6989586621682370232"><span class="hs-identifier hs-var">e2</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">JExpr -&gt; JExpr
+</span><a href="GHC.JS.Opt.Expr.html#opt"><span class="hs-identifier hs-var">opt</span></a></span><span> </span><span class="annot"><span class="annottext">JExpr
+</span><a href="#local-6989586621682370233"><span class="hs-identifier hs-var">e3</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-98"></span><span class="annot"><a href="GHC.JS.Opt.Expr.html#opt"><span class="hs-identifier hs-var">opt</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.JS.Syntax.html#ApplExpr"><span class="hs-identifier hs-type">ApplExpr</span></a></span><span> </span><span id="local-6989586621682370235"><span class="annot"><span class="annottext">JExpr
+</span><a href="#local-6989586621682370235"><span class="hs-identifier hs-var">e</span></a></span></span><span> </span><span id="local-6989586621682370236"><span class="annot"><span class="annottext">[JExpr]
+</span><a href="#local-6989586621682370236"><span class="hs-identifier hs-var">es</span></a></span></span><span class="hs-special">)</span><span>      </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">JExpr -&gt; [JExpr] -&gt; JExpr
+</span><a href="GHC.JS.Syntax.html#ApplExpr"><span class="hs-identifier hs-var">ApplExpr</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">JExpr -&gt; JExpr
+</span><a href="GHC.JS.Opt.Expr.html#opt"><span class="hs-identifier hs-var">opt</span></a></span><span> </span><span class="annot"><span class="annottext">JExpr
+</span><a href="#local-6989586621682370235"><span class="hs-identifier hs-var">e</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(JExpr -&gt; JExpr) -&gt; [JExpr] -&gt; [JExpr]
+forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+</span><span class="hs-identifier hs-var">map</span></span><span> </span><span class="annot"><span class="annottext">JExpr -&gt; JExpr
+</span><a href="GHC.JS.Opt.Expr.html#opt"><span class="hs-identifier hs-var">opt</span></a></span><span> </span><span class="annot"><span class="annottext">[JExpr]
+</span><a href="#local-6989586621682370236"><span class="hs-identifier hs-var">es</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-99"></span><span>
+</span><span id="line-100"></span><span class="hs-comment">{-
+  Optimizations for operations on two known boolean values
+ -}</span><span>
+</span><span id="line-103"></span><span class="annot"><a href="GHC.JS.Opt.Expr.html#optBool"><span class="hs-identifier hs-type">optBool</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.JS.Syntax.html#Op"><span class="hs-identifier hs-type">Op</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="GHC.JS.Syntax.html#JVal"><span class="hs-identifier hs-type">JVal</span></a></span><span>
+</span><span id="line-104"></span><span id="optBool"><span class="annot"><span class="annottext">optBool :: Op -&gt; Bool -&gt; Bool -&gt; Maybe JVal
+</span><a href="GHC.JS.Opt.Expr.html#optBool"><span class="hs-identifier hs-var hs-var">optBool</span></a></span></span><span> </span><span class="annot"><span class="annottext">Op
+</span><a href="GHC.JS.Syntax.html#LAndOp"><span class="hs-identifier hs-var">LAndOp</span></a></span><span> </span><span id="local-6989586621682370238"><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621682370238"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span id="local-6989586621682370239"><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621682370239"><span class="hs-identifier hs-var">y</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">JVal -&gt; Maybe JVal
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Bool -&gt; JVal
+</span><a href="GHC.JS.Syntax.html#JBool"><span class="hs-identifier hs-var">JBool</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621682370238"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">&amp;&amp;</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621682370239"><span class="hs-identifier hs-var">y</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-105"></span><span class="annot"><a href="GHC.JS.Opt.Expr.html#optBool"><span class="hs-identifier hs-var">optBool</span></a></span><span> </span><span class="annot"><span class="annottext">Op
+</span><a href="GHC.JS.Syntax.html#LOrOp"><span class="hs-identifier hs-var">LOrOp</span></a></span><span> </span><span id="local-6989586621682370242"><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621682370242"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span id="local-6989586621682370243"><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621682370243"><span class="hs-identifier hs-var">y</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">JVal -&gt; Maybe JVal
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Bool -&gt; JVal
+</span><a href="GHC.JS.Syntax.html#JBool"><span class="hs-identifier hs-var">JBool</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621682370242"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">||</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621682370243"><span class="hs-identifier hs-var">y</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-106"></span><span class="annot"><a href="GHC.JS.Opt.Expr.html#optBool"><span class="hs-identifier hs-var">optBool</span></a></span><span> </span><span class="annot"><span class="annottext">Op
+</span><a href="GHC.JS.Syntax.html#EqOp"><span class="hs-identifier hs-var">EqOp</span></a></span><span> </span><span id="local-6989586621682370246"><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621682370246"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span id="local-6989586621682370247"><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621682370247"><span class="hs-identifier hs-var">y</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">JVal -&gt; Maybe JVal
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Bool -&gt; JVal
+</span><a href="GHC.JS.Syntax.html#JBool"><span class="hs-identifier hs-var">JBool</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621682370246"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621682370247"><span class="hs-identifier hs-var">y</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-107"></span><span class="annot"><a href="GHC.JS.Opt.Expr.html#optBool"><span class="hs-identifier hs-var">optBool</span></a></span><span> </span><span class="annot"><span class="annottext">Op
+</span><a href="GHC.JS.Syntax.html#StrictEqOp"><span class="hs-identifier hs-var">StrictEqOp</span></a></span><span> </span><span id="local-6989586621682370248"><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621682370248"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span id="local-6989586621682370249"><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621682370249"><span class="hs-identifier hs-var">y</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">JVal -&gt; Maybe JVal
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Bool -&gt; JVal
+</span><a href="GHC.JS.Syntax.html#JBool"><span class="hs-identifier hs-var">JBool</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621682370248"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621682370249"><span class="hs-identifier hs-var">y</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-108"></span><span class="annot"><a href="GHC.JS.Opt.Expr.html#optBool"><span class="hs-identifier hs-var">optBool</span></a></span><span> </span><span class="annot"><span class="annottext">Op
+</span><a href="GHC.JS.Syntax.html#NeqOp"><span class="hs-identifier hs-var">NeqOp</span></a></span><span> </span><span id="local-6989586621682370251"><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621682370251"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span id="local-6989586621682370252"><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621682370252"><span class="hs-identifier hs-var">y</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">JVal -&gt; Maybe JVal
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Bool -&gt; JVal
+</span><a href="GHC.JS.Syntax.html#JBool"><span class="hs-identifier hs-var">JBool</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621682370251"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">/=</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621682370252"><span class="hs-identifier hs-var">y</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-109"></span><span class="annot"><a href="GHC.JS.Opt.Expr.html#optBool"><span class="hs-identifier hs-var">optBool</span></a></span><span> </span><span class="annot"><span class="annottext">Op
+</span><a href="GHC.JS.Syntax.html#StrictNeqOp"><span class="hs-identifier hs-var">StrictNeqOp</span></a></span><span> </span><span id="local-6989586621682370255"><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621682370255"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span id="local-6989586621682370256"><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621682370256"><span class="hs-identifier hs-var">y</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">JVal -&gt; Maybe JVal
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Bool -&gt; JVal
+</span><a href="GHC.JS.Syntax.html#JBool"><span class="hs-identifier hs-var">JBool</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621682370255"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">/=</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621682370256"><span class="hs-identifier hs-var">y</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-110"></span><span class="annot"><a href="GHC.JS.Opt.Expr.html#optBool"><span class="hs-identifier hs-var">optBool</span></a></span><span> </span><span class="annot"><span class="annottext">Op
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Maybe JVal
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-111"></span><span>
+</span><span id="line-112"></span><span class="hs-comment">{-
+  Optimizations for operations on two known integer values
+ -}</span><span>
+</span><span id="line-115"></span><span class="annot"><a href="GHC.JS.Opt.Expr.html#optInt"><span class="hs-identifier hs-type">optInt</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.JS.Syntax.html#Op"><span class="hs-identifier hs-type">Op</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Integer</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Integer</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="GHC.JS.Syntax.html#JVal"><span class="hs-identifier hs-type">JVal</span></a></span><span>
+</span><span id="line-116"></span><span id="optInt"><span class="annot"><span class="annottext">optInt :: Op -&gt; Integer -&gt; Integer -&gt; Maybe JVal
+</span><a href="GHC.JS.Opt.Expr.html#optInt"><span class="hs-identifier hs-var hs-var">optInt</span></a></span></span><span> </span><span class="annot"><span class="annottext">Op
+</span><a href="GHC.JS.Syntax.html#ZRightShiftOp"><span class="hs-identifier hs-var">ZRightShiftOp</span></a></span><span> </span><span id="local-6989586621682370258"><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621682370258"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span id="local-6989586621682370259"><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621682370259"><span class="hs-identifier hs-var">m</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">JVal -&gt; Maybe JVal
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">(JVal -&gt; Maybe JVal) -&gt; JVal -&gt; Maybe JVal
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-117"></span><span>  </span><span class="annot"><span class="annottext">Integer -&gt; JVal
+</span><a href="GHC.JS.Syntax.html#JInt"><span class="hs-identifier hs-var">JInt</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Integer -&gt; Integer
+forall a. Integral a =&gt; a -&gt; Integer
+</span><span class="hs-identifier hs-var">toInteger</span></span><span> </span><span class="annot"><span class="annottext">(Integer -&gt; Integer) -&gt; Integer -&gt; Integer
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621682370258"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">Integer -&gt; Integer -&gt; Integer
+forall a. Bits a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">.&amp;.</span></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><span class="hs-number">0xffffffff</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Integer -&gt; Int -&gt; Integer
+forall a. Bits a =&gt; a -&gt; Int -&gt; a
+</span><span class="hs-operator hs-var">`shiftR`</span></span><span> </span><span class="annot"><span class="annottext">Integer -&gt; Int
+forall a. Num a =&gt; Integer -&gt; a
+</span><span class="hs-identifier hs-var">fromInteger</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621682370259"><span class="hs-identifier hs-var">m</span></a></span><span> </span><span class="annot"><span class="annottext">Integer -&gt; Integer -&gt; Integer
+forall a. Bits a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">.&amp;.</span></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><span class="hs-number">0x1f</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-118"></span><span class="annot"><a href="GHC.JS.Opt.Expr.html#optInt"><span class="hs-identifier hs-var">optInt</span></a></span><span> </span><span class="annot"><span class="annottext">Op
+</span><a href="GHC.JS.Syntax.html#BOrOp"><span class="hs-identifier hs-var">BOrOp</span></a></span><span> </span><span id="local-6989586621682370262"><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621682370262"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span id="local-6989586621682370263"><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621682370263"><span class="hs-identifier hs-var">m</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">JVal -&gt; Maybe JVal
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(Int32 -&gt; Int32 -&gt; Int32) -&gt; Integer -&gt; Integer -&gt; JVal
+</span><a href="GHC.JS.Opt.Expr.html#truncOp"><span class="hs-identifier hs-var">truncOp</span></a></span><span> </span><span class="annot"><span class="annottext">Int32 -&gt; Int32 -&gt; Int32
+forall a. Bits a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">(.|.)</span></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621682370262"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621682370263"><span class="hs-identifier hs-var">m</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-119"></span><span class="annot"><a href="GHC.JS.Opt.Expr.html#optInt"><span class="hs-identifier hs-var">optInt</span></a></span><span> </span><span class="annot"><span class="annottext">Op
+</span><a href="GHC.JS.Syntax.html#BAndOp"><span class="hs-identifier hs-var">BAndOp</span></a></span><span> </span><span id="local-6989586621682370267"><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621682370267"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span id="local-6989586621682370268"><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621682370268"><span class="hs-identifier hs-var">m</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">JVal -&gt; Maybe JVal
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(Int32 -&gt; Int32 -&gt; Int32) -&gt; Integer -&gt; Integer -&gt; JVal
+</span><a href="GHC.JS.Opt.Expr.html#truncOp"><span class="hs-identifier hs-var">truncOp</span></a></span><span> </span><span class="annot"><span class="annottext">Int32 -&gt; Int32 -&gt; Int32
+forall a. Bits a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">(.&amp;.)</span></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621682370267"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621682370268"><span class="hs-identifier hs-var">m</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-120"></span><span class="annot"><a href="GHC.JS.Opt.Expr.html#optInt"><span class="hs-identifier hs-var">optInt</span></a></span><span> </span><span class="annot"><span class="annottext">Op
+</span><a href="GHC.JS.Syntax.html#BXorOp"><span class="hs-identifier hs-var">BXorOp</span></a></span><span> </span><span id="local-6989586621682370270"><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621682370270"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span id="local-6989586621682370271"><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621682370271"><span class="hs-identifier hs-var">m</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">JVal -&gt; Maybe JVal
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(Int32 -&gt; Int32 -&gt; Int32) -&gt; Integer -&gt; Integer -&gt; JVal
+</span><a href="GHC.JS.Opt.Expr.html#truncOp"><span class="hs-identifier hs-var">truncOp</span></a></span><span> </span><span class="annot"><span class="annottext">Int32 -&gt; Int32 -&gt; Int32
+forall a. Bits a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">(.^.)</span></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621682370270"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621682370271"><span class="hs-identifier hs-var">m</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-121"></span><span class="annot"><a href="GHC.JS.Opt.Expr.html#optInt"><span class="hs-identifier hs-var">optInt</span></a></span><span> </span><span class="annot"><span class="annottext">Op
+</span><a href="GHC.JS.Syntax.html#RightShiftOp"><span class="hs-identifier hs-var">RightShiftOp</span></a></span><span> </span><span id="local-6989586621682370273"><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621682370273"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span id="local-6989586621682370274"><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621682370274"><span class="hs-identifier hs-var">m</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">JVal -&gt; Maybe JVal
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(Int32 -&gt; Int -&gt; Int32) -&gt; Integer -&gt; Integer -&gt; JVal
+</span><a href="GHC.JS.Opt.Expr.html#shiftOp"><span class="hs-identifier hs-var">shiftOp</span></a></span><span> </span><span class="annot"><span class="annottext">Int32 -&gt; Int -&gt; Int32
+forall a. Bits a =&gt; a -&gt; Int -&gt; a
+</span><span class="hs-identifier hs-var">shiftR</span></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621682370273"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621682370274"><span class="hs-identifier hs-var">m</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-122"></span><span class="annot"><a href="GHC.JS.Opt.Expr.html#optInt"><span class="hs-identifier hs-var">optInt</span></a></span><span> </span><span class="annot"><span class="annottext">Op
+</span><a href="GHC.JS.Syntax.html#LeftShiftOp"><span class="hs-identifier hs-var">LeftShiftOp</span></a></span><span> </span><span id="local-6989586621682370277"><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621682370277"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span id="local-6989586621682370278"><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621682370278"><span class="hs-identifier hs-var">m</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">JVal -&gt; Maybe JVal
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(Int32 -&gt; Int -&gt; Int32) -&gt; Integer -&gt; Integer -&gt; JVal
+</span><a href="GHC.JS.Opt.Expr.html#shiftOp"><span class="hs-identifier hs-var">shiftOp</span></a></span><span> </span><span class="annot"><span class="annottext">Int32 -&gt; Int -&gt; Int32
+forall a. Bits a =&gt; a -&gt; Int -&gt; a
+</span><span class="hs-identifier hs-var">shiftL</span></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621682370277"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621682370278"><span class="hs-identifier hs-var">m</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-123"></span><span class="annot"><a href="GHC.JS.Opt.Expr.html#optInt"><span class="hs-identifier hs-var">optInt</span></a></span><span> </span><span class="annot"><span class="annottext">Op
+</span><a href="GHC.JS.Syntax.html#AddOp"><span class="hs-identifier hs-var">AddOp</span></a></span><span> </span><span id="local-6989586621682370280"><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621682370280"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span id="local-6989586621682370281"><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621682370281"><span class="hs-identifier hs-var">m</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Integer -&gt; Integer -&gt; Integer) -&gt; Integer -&gt; Integer -&gt; Maybe JVal
+</span><a href="GHC.JS.Opt.Expr.html#smallIntOp"><span class="hs-identifier hs-var">smallIntOp</span></a></span><span> </span><span class="annot"><span class="annottext">Integer -&gt; Integer -&gt; Integer
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">(+)</span></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621682370280"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621682370281"><span class="hs-identifier hs-var">m</span></a></span><span>
+</span><span id="line-124"></span><span class="annot"><a href="GHC.JS.Opt.Expr.html#optInt"><span class="hs-identifier hs-var">optInt</span></a></span><span> </span><span class="annot"><span class="annottext">Op
+</span><a href="GHC.JS.Syntax.html#SubOp"><span class="hs-identifier hs-var">SubOp</span></a></span><span> </span><span id="local-6989586621682370285"><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621682370285"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span id="local-6989586621682370286"><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621682370286"><span class="hs-identifier hs-var">m</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Integer -&gt; Integer -&gt; Integer) -&gt; Integer -&gt; Integer -&gt; Maybe JVal
+</span><a href="GHC.JS.Opt.Expr.html#smallIntOp"><span class="hs-identifier hs-var">smallIntOp</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">-</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621682370285"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621682370286"><span class="hs-identifier hs-var">m</span></a></span><span>
+</span><span id="line-125"></span><span class="annot"><a href="GHC.JS.Opt.Expr.html#optInt"><span class="hs-identifier hs-var">optInt</span></a></span><span> </span><span class="annot"><span class="annottext">Op
+</span><a href="GHC.JS.Syntax.html#MulOp"><span class="hs-identifier hs-var">MulOp</span></a></span><span> </span><span id="local-6989586621682370288"><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621682370288"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span id="local-6989586621682370289"><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621682370289"><span class="hs-identifier hs-var">m</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Integer -&gt; Integer -&gt; Integer) -&gt; Integer -&gt; Integer -&gt; Maybe JVal
+</span><a href="GHC.JS.Opt.Expr.html#smallIntOp"><span class="hs-identifier hs-var">smallIntOp</span></a></span><span> </span><span class="annot"><span class="annottext">Integer -&gt; Integer -&gt; Integer
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">(*)</span></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621682370288"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621682370289"><span class="hs-identifier hs-var">m</span></a></span><span>
+</span><span id="line-126"></span><span class="annot"><a href="GHC.JS.Opt.Expr.html#optInt"><span class="hs-identifier hs-var">optInt</span></a></span><span> </span><span id="local-6989586621682370291"><span class="annot"><span class="annottext">Op
+</span><a href="#local-6989586621682370291"><span class="hs-identifier hs-var">op</span></a></span></span><span> </span><span id="local-6989586621682370292"><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621682370292"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span id="local-6989586621682370293"><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621682370293"><span class="hs-identifier hs-var">m</span></a></span></span><span>
+</span><span id="line-127"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621682370294"><span class="annot"><span class="annottext">Integer -&gt; Integer -&gt; Bool
+</span><a href="#local-6989586621682370294"><span class="hs-identifier hs-var">cmp</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Op -&gt; Maybe (Integer -&gt; Integer -&gt; Bool)
+</span><a href="GHC.JS.Opt.Expr.html#getCmpOp"><span class="hs-identifier hs-var">getCmpOp</span></a></span><span> </span><span class="annot"><span class="annottext">Op
+</span><a href="#local-6989586621682370291"><span class="hs-identifier hs-var">op</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Integer -&gt; Bool
+</span><a href="GHC.JS.Opt.Expr.html#isSmall52"><span class="hs-identifier hs-var">isSmall52</span></a></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621682370292"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">&amp;&amp;</span></span><span> </span><span class="annot"><span class="annottext">Integer -&gt; Bool
+</span><a href="GHC.JS.Opt.Expr.html#isSmall52"><span class="hs-identifier hs-var">isSmall52</span></a></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621682370293"><span class="hs-identifier hs-var">m</span></a></span><span>
+</span><span id="line-128"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">JVal -&gt; Maybe JVal
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Bool -&gt; JVal
+</span><a href="GHC.JS.Syntax.html#JBool"><span class="hs-identifier hs-var">JBool</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Integer -&gt; Integer -&gt; Bool
+</span><a href="#local-6989586621682370294"><span class="hs-identifier hs-var">cmp</span></a></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621682370292"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621682370293"><span class="hs-identifier hs-var">m</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-129"></span><span class="annot"><a href="GHC.JS.Opt.Expr.html#optInt"><span class="hs-identifier hs-var">optInt</span></a></span><span> </span><span class="annot"><span class="annottext">Op
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Maybe JVal
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-130"></span><span>
+</span><span id="line-131"></span><span class="annot"><a href="GHC.JS.Opt.Expr.html#smallIntOp"><span class="hs-identifier hs-type">smallIntOp</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Integer</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Integer</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Integer</span></span><span class="hs-special">)</span><span>
+</span><span id="line-132"></span><span>           </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Integer</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Integer</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="GHC.JS.Syntax.html#JVal"><span class="hs-identifier hs-type">JVal</span></a></span><span>
+</span><span id="line-133"></span><span id="smallIntOp"><span class="annot"><span class="annottext">smallIntOp :: (Integer -&gt; Integer -&gt; Integer) -&gt; Integer -&gt; Integer -&gt; Maybe JVal
+</span><a href="GHC.JS.Opt.Expr.html#smallIntOp"><span class="hs-identifier hs-var hs-var">smallIntOp</span></a></span></span><span> </span><span id="local-6989586621682370297"><span class="annot"><span class="annottext">Integer -&gt; Integer -&gt; Integer
+</span><a href="#local-6989586621682370297"><span class="hs-identifier hs-var">op</span></a></span></span><span> </span><span id="local-6989586621682370298"><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621682370298"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span id="local-6989586621682370299"><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621682370299"><span class="hs-identifier hs-var">m</span></a></span></span><span>
+</span><span id="line-134"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Integer -&gt; Bool
+</span><a href="GHC.JS.Opt.Expr.html#isSmall52"><span class="hs-identifier hs-var">isSmall52</span></a></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621682370298"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">&amp;&amp;</span></span><span> </span><span class="annot"><span class="annottext">Integer -&gt; Bool
+</span><a href="GHC.JS.Opt.Expr.html#isSmall52"><span class="hs-identifier hs-var">isSmall52</span></a></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621682370299"><span class="hs-identifier hs-var">m</span></a></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">&amp;&amp;</span></span><span> </span><span class="annot"><span class="annottext">Integer -&gt; Bool
+</span><a href="GHC.JS.Opt.Expr.html#isSmall52"><span class="hs-identifier hs-var">isSmall52</span></a></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621682370300"><span class="hs-identifier hs-var">r</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">JVal -&gt; Maybe JVal
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Integer -&gt; JVal
+</span><a href="GHC.JS.Syntax.html#JInt"><span class="hs-identifier hs-var">JInt</span></a></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621682370300"><span class="hs-identifier hs-var">r</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-135"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span>                                 </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Maybe JVal
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-136"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-137"></span><span>    </span><span id="local-6989586621682370300"><span class="annot"><span class="annottext">r :: Integer
+</span><a href="#local-6989586621682370300"><span class="hs-identifier hs-var hs-var">r</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Integer -&gt; Integer -&gt; Integer
+</span><a href="#local-6989586621682370297"><span class="hs-identifier hs-var">op</span></a></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621682370298"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621682370299"><span class="hs-identifier hs-var">m</span></a></span><span>
+</span><span id="line-138"></span><span>
+</span><span id="line-139"></span><span class="annot"><a href="GHC.JS.Opt.Expr.html#getCmpOp"><span class="hs-identifier hs-type">getCmpOp</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.JS.Syntax.html#Op"><span class="hs-identifier hs-type">Op</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Integer</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Integer</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span class="hs-special">)</span><span>
+</span><span id="line-140"></span><span id="getCmpOp"><span class="annot"><span class="annottext">getCmpOp :: Op -&gt; Maybe (Integer -&gt; Integer -&gt; Bool)
+</span><a href="GHC.JS.Opt.Expr.html#getCmpOp"><span class="hs-identifier hs-var hs-var">getCmpOp</span></a></span></span><span> </span><span class="annot"><span class="annottext">Op
+</span><a href="GHC.JS.Syntax.html#EqOp"><span class="hs-identifier hs-var">EqOp</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Integer -&gt; Integer -&gt; Bool) -&gt; Maybe (Integer -&gt; Integer -&gt; Bool)
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">Integer -&gt; Integer -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">(==)</span></span><span>
+</span><span id="line-141"></span><span class="annot"><a href="GHC.JS.Opt.Expr.html#getCmpOp"><span class="hs-identifier hs-var">getCmpOp</span></a></span><span> </span><span class="annot"><span class="annottext">Op
+</span><a href="GHC.JS.Syntax.html#StrictEqOp"><span class="hs-identifier hs-var">StrictEqOp</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Integer -&gt; Integer -&gt; Bool) -&gt; Maybe (Integer -&gt; Integer -&gt; Bool)
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">Integer -&gt; Integer -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">(==)</span></span><span>
+</span><span id="line-142"></span><span class="annot"><a href="GHC.JS.Opt.Expr.html#getCmpOp"><span class="hs-identifier hs-var">getCmpOp</span></a></span><span> </span><span class="annot"><span class="annottext">Op
+</span><a href="GHC.JS.Syntax.html#NeqOp"><span class="hs-identifier hs-var">NeqOp</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Integer -&gt; Integer -&gt; Bool) -&gt; Maybe (Integer -&gt; Integer -&gt; Bool)
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">Integer -&gt; Integer -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">(/=)</span></span><span>
+</span><span id="line-143"></span><span class="annot"><a href="GHC.JS.Opt.Expr.html#getCmpOp"><span class="hs-identifier hs-var">getCmpOp</span></a></span><span> </span><span class="annot"><span class="annottext">Op
+</span><a href="GHC.JS.Syntax.html#StrictNeqOp"><span class="hs-identifier hs-var">StrictNeqOp</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Integer -&gt; Integer -&gt; Bool) -&gt; Maybe (Integer -&gt; Integer -&gt; Bool)
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">Integer -&gt; Integer -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">(/=)</span></span><span>
+</span><span id="line-144"></span><span class="annot"><a href="GHC.JS.Opt.Expr.html#getCmpOp"><span class="hs-identifier hs-var">getCmpOp</span></a></span><span> </span><span class="annot"><span class="annottext">Op
+</span><a href="GHC.JS.Syntax.html#GtOp"><span class="hs-identifier hs-var">GtOp</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Integer -&gt; Integer -&gt; Bool) -&gt; Maybe (Integer -&gt; Integer -&gt; Bool)
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">Integer -&gt; Integer -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">(&gt;)</span></span><span>
+</span><span id="line-145"></span><span class="annot"><a href="GHC.JS.Opt.Expr.html#getCmpOp"><span class="hs-identifier hs-var">getCmpOp</span></a></span><span> </span><span class="annot"><span class="annottext">Op
+</span><a href="GHC.JS.Syntax.html#GeOp"><span class="hs-identifier hs-var">GeOp</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Integer -&gt; Integer -&gt; Bool) -&gt; Maybe (Integer -&gt; Integer -&gt; Bool)
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">Integer -&gt; Integer -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">(&gt;=)</span></span><span>
+</span><span id="line-146"></span><span class="annot"><a href="GHC.JS.Opt.Expr.html#getCmpOp"><span class="hs-identifier hs-var">getCmpOp</span></a></span><span> </span><span class="annot"><span class="annottext">Op
+</span><a href="GHC.JS.Syntax.html#LtOp"><span class="hs-identifier hs-var">LtOp</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Integer -&gt; Integer -&gt; Bool) -&gt; Maybe (Integer -&gt; Integer -&gt; Bool)
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">Integer -&gt; Integer -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">(&lt;)</span></span><span>
+</span><span id="line-147"></span><span class="annot"><a href="GHC.JS.Opt.Expr.html#getCmpOp"><span class="hs-identifier hs-var">getCmpOp</span></a></span><span> </span><span class="annot"><span class="annottext">Op
+</span><a href="GHC.JS.Syntax.html#LeOp"><span class="hs-identifier hs-var">LeOp</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Integer -&gt; Integer -&gt; Bool) -&gt; Maybe (Integer -&gt; Integer -&gt; Bool)
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">Integer -&gt; Integer -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">(&lt;=)</span></span><span>
+</span><span id="line-148"></span><span class="annot"><a href="GHC.JS.Opt.Expr.html#getCmpOp"><span class="hs-identifier hs-var">getCmpOp</span></a></span><span> </span><span class="annot"><span class="annottext">Op
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Maybe (Integer -&gt; Integer -&gt; Bool)
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-149"></span><span>
+</span><span id="line-150"></span><span class="annot"><a href="GHC.JS.Opt.Expr.html#shiftOp"><span class="hs-identifier hs-type">shiftOp</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Int32</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int32</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Integer</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Integer</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.JS.Syntax.html#JVal"><span class="hs-identifier hs-type">JVal</span></a></span><span>
+</span><span id="line-151"></span><span id="shiftOp"><span class="annot"><span class="annottext">shiftOp :: (Int32 -&gt; Int -&gt; Int32) -&gt; Integer -&gt; Integer -&gt; JVal
+</span><a href="GHC.JS.Opt.Expr.html#shiftOp"><span class="hs-identifier hs-var hs-var">shiftOp</span></a></span></span><span> </span><span id="local-6989586621682370308"><span class="annot"><span class="annottext">Int32 -&gt; Int -&gt; Int32
+</span><a href="#local-6989586621682370308"><span class="hs-identifier hs-var">op</span></a></span></span><span> </span><span id="local-6989586621682370309"><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621682370309"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span id="local-6989586621682370310"><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621682370310"><span class="hs-identifier hs-var">m</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Integer -&gt; JVal
+</span><a href="GHC.JS.Syntax.html#JInt"><span class="hs-identifier hs-var">JInt</span></a></span><span> </span><span class="annot"><span class="annottext">(Integer -&gt; JVal) -&gt; Integer -&gt; JVal
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Int32 -&gt; Integer
+forall a. Integral a =&gt; a -&gt; Integer
+</span><span class="hs-identifier hs-var">toInteger</span></span><span>
+</span><span id="line-152"></span><span>   </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Integer -&gt; Int32
+forall a. Num a =&gt; Integer -&gt; a
+</span><span class="hs-identifier hs-var">fromInteger</span></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621682370309"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">Int32 -&gt; Int -&gt; Int32
+</span><a href="#local-6989586621682370308"><span class="hs-operator hs-var">`op`</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Integer -&gt; Int
+forall a. Num a =&gt; Integer -&gt; a
+</span><span class="hs-identifier hs-var">fromInteger</span></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621682370310"><span class="hs-identifier hs-var">m</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Bits a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">.&amp;.</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0x1f</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-153"></span><span>
+</span><span id="line-154"></span><span class="hs-comment">{-
+  JavaScript bitwise operations truncate numbers to 32 bit signed integers.
+  Here we do the same when constant folding with this kind of operators.
+ -}</span><span>
+</span><span id="line-158"></span><span class="annot"><a href="GHC.JS.Opt.Expr.html#truncOp"><span class="hs-identifier hs-type">truncOp</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Int32</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int32</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int32</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Integer</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Integer</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.JS.Syntax.html#JVal"><span class="hs-identifier hs-type">JVal</span></a></span><span>
+</span><span id="line-159"></span><span id="truncOp"><span class="annot"><span class="annottext">truncOp :: (Int32 -&gt; Int32 -&gt; Int32) -&gt; Integer -&gt; Integer -&gt; JVal
+</span><a href="GHC.JS.Opt.Expr.html#truncOp"><span class="hs-identifier hs-var hs-var">truncOp</span></a></span></span><span> </span><span id="local-6989586621682370311"><span class="annot"><span class="annottext">Int32 -&gt; Int32 -&gt; Int32
+</span><a href="#local-6989586621682370311"><span class="hs-identifier hs-var">op</span></a></span></span><span> </span><span id="local-6989586621682370312"><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621682370312"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span id="local-6989586621682370313"><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621682370313"><span class="hs-identifier hs-var">m</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Integer -&gt; JVal
+</span><a href="GHC.JS.Syntax.html#JInt"><span class="hs-identifier hs-var">JInt</span></a></span><span> </span><span class="annot"><span class="annottext">(Integer -&gt; JVal) -&gt; Integer -&gt; JVal
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Int32 -&gt; Integer
+forall a. Integral a =&gt; a -&gt; Integer
+</span><span class="hs-identifier hs-var">toInteger</span></span><span>
+</span><span id="line-160"></span><span>   </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Integer -&gt; Int32
+forall a. Num a =&gt; Integer -&gt; a
+</span><span class="hs-identifier hs-var">fromInteger</span></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621682370312"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">Int32 -&gt; Int32 -&gt; Int32
+</span><a href="#local-6989586621682370311"><span class="hs-operator hs-var">`op`</span></a></span><span> </span><span class="annot"><span class="annottext">Integer -&gt; Int32
+forall a. Num a =&gt; Integer -&gt; a
+</span><span class="hs-identifier hs-var">fromInteger</span></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621682370313"><span class="hs-identifier hs-var">m</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-161"></span><span>
+</span><span id="line-162"></span><span class="hs-comment">{-
+  JavaScript numbers are IEEE 754 double precision floats, which have a
+  52-bit mantissa. This returns True if the given integer can definitely
+  be represented without loss of precision in a JavaScript number.
+ -}</span><span>
+</span><span id="line-167"></span><span class="annot"><a href="GHC.JS.Opt.Expr.html#isSmall52"><span class="hs-identifier hs-type">isSmall52</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Integer</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>
+</span><span id="line-168"></span><span id="isSmall52"><span class="annot"><span class="annottext">isSmall52 :: Integer -&gt; Bool
+</span><a href="GHC.JS.Opt.Expr.html#isSmall52"><span class="hs-identifier hs-var hs-var">isSmall52</span></a></span></span><span> </span><span id="local-6989586621682370314"><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621682370314"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621682370314"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">Integer -&gt; Integer -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&gt;=</span></span><span> </span><span class="hs-glyph">-</span><span class="annot"><span class="annottext">Integer
+</span><span class="hs-number">0x10000000000000</span></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">&amp;&amp;</span></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621682370314"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">Integer -&gt; Integer -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&lt;=</span></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><span class="hs-number">0xfffffffffffff</span></span><span>
+</span><span id="line-169"></span><span>
+</span><span id="line-170"></span><span class="hs-comment">{-
+  In JavaScript, e1 === e2 is not always true even if expressions e1 and e2
+  are syntactically equal, examples:
+
+    - NaN !== NaN  (NaN is not equal to itself)
+    - [1] !== [1]  (different arrays allocated)
+    - f() !== f()
+
+  This returns True if the values are definitely equal in JavaScript
+ -}</span><span>
+</span><span id="line-180"></span><span class="annot"><a href="GHC.JS.Opt.Expr.html#eqVal"><span class="hs-identifier hs-type">eqVal</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.JS.Syntax.html#JVal"><span class="hs-identifier hs-type">JVal</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.JS.Syntax.html#JVal"><span class="hs-identifier hs-type">JVal</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>
+</span><span id="line-181"></span><span id="eqVal"><span class="annot"><span class="annottext">eqVal :: JVal -&gt; JVal -&gt; Bool
+</span><a href="GHC.JS.Opt.Expr.html#eqVal"><span class="hs-identifier hs-var hs-var">eqVal</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.JS.Syntax.html#JInt"><span class="hs-identifier hs-type">JInt</span></a></span><span> </span><span id="local-6989586621682370315"><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621682370315"><span class="hs-identifier hs-var">n1</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.JS.Syntax.html#JInt"><span class="hs-identifier hs-type">JInt</span></a></span><span> </span><span id="local-6989586621682370316"><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621682370316"><span class="hs-identifier hs-var">n2</span></a></span></span><span class="hs-special">)</span><span>   </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621682370315"><span class="hs-identifier hs-var">n1</span></a></span><span> </span><span class="annot"><span class="annottext">Integer -&gt; Integer -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621682370316"><span class="hs-identifier hs-var">n2</span></a></span><span>
+</span><span id="line-182"></span><span class="annot"><a href="GHC.JS.Opt.Expr.html#eqVal"><span class="hs-identifier hs-var">eqVal</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.JS.Syntax.html#JStr"><span class="hs-identifier hs-type">JStr</span></a></span><span> </span><span id="local-6989586621682370318"><span class="annot"><span class="annottext">FastString
+</span><a href="#local-6989586621682370318"><span class="hs-identifier hs-var">s1</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.JS.Syntax.html#JStr"><span class="hs-identifier hs-type">JStr</span></a></span><span> </span><span id="local-6989586621682370319"><span class="annot"><span class="annottext">FastString
+</span><a href="#local-6989586621682370319"><span class="hs-identifier hs-var">s2</span></a></span></span><span class="hs-special">)</span><span>   </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">FastString
+</span><a href="#local-6989586621682370318"><span class="hs-identifier hs-var">s1</span></a></span><span> </span><span class="annot"><span class="annottext">FastString -&gt; FastString -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">FastString
+</span><a href="#local-6989586621682370319"><span class="hs-identifier hs-var">s2</span></a></span><span>
+</span><span id="line-183"></span><span class="annot"><a href="GHC.JS.Opt.Expr.html#eqVal"><span class="hs-identifier hs-var">eqVal</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.JS.Syntax.html#JBool"><span class="hs-identifier hs-type">JBool</span></a></span><span> </span><span id="local-6989586621682370320"><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621682370320"><span class="hs-identifier hs-var">b1</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.JS.Syntax.html#JBool"><span class="hs-identifier hs-type">JBool</span></a></span><span> </span><span id="local-6989586621682370321"><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621682370321"><span class="hs-identifier hs-var">b2</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621682370320"><span class="hs-identifier hs-var">b1</span></a></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621682370321"><span class="hs-identifier hs-var">b2</span></a></span><span>
+</span><span id="line-184"></span><span class="annot"><a href="GHC.JS.Opt.Expr.html#eqVal"><span class="hs-identifier hs-var">eqVal</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.JS.Syntax.html#JDouble"><span class="hs-identifier hs-type">JDouble</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Types.SaneDouble.html#SaneDouble"><span class="hs-identifier hs-type">SaneDouble</span></a></span><span> </span><span id="local-6989586621682370324"><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621682370324"><span class="hs-identifier hs-var">d1</span></a></span></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.JS.Syntax.html#JDouble"><span class="hs-identifier hs-type">JDouble</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Types.SaneDouble.html#SaneDouble"><span class="hs-identifier hs-type">SaneDouble</span></a></span><span> </span><span id="local-6989586621682370325"><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621682370325"><span class="hs-identifier hs-var">d2</span></a></span></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-185"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool
+</span><span class="hs-identifier hs-var">not</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Double -&gt; Bool
+forall a. RealFloat a =&gt; a -&gt; Bool
+</span><span class="hs-identifier hs-var">isNaN</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621682370324"><span class="hs-identifier hs-var">d1</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">&amp;&amp;</span></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool
+</span><span class="hs-identifier hs-var">not</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Double -&gt; Bool
+forall a. RealFloat a =&gt; a -&gt; Bool
+</span><span class="hs-identifier hs-var">isNaN</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621682370325"><span class="hs-identifier hs-var">d2</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621682370324"><span class="hs-identifier hs-var">d1</span></a></span><span> </span><span class="annot"><span class="annottext">Double -&gt; Double -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621682370325"><span class="hs-identifier hs-var">d2</span></a></span><span>
+</span><span id="line-186"></span><span class="annot"><a href="GHC.JS.Opt.Expr.html#eqVal"><span class="hs-identifier hs-var">eqVal</span></a></span><span> </span><span class="annot"><span class="annottext">JVal
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">JVal
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span></pre></body></html>

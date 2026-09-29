@@ -1,0 +1,105 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE OverloadedStrings, UnicodeSyntax, Safe, CPP #-}</span><span>
+</span><span id="line-2"></span><span>
+</span><span id="line-3"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Network.HTTP.Link.Writer.html"><span class="hs-identifier">Network.HTTP.Link.Writer</span></a></span><span> </span><span class="hs-special">(</span><span>
+</span><span id="line-4"></span><span>  </span><span class="annot"><a href="Network.HTTP.Link.Writer.html#writeLink"><span class="hs-identifier">writeLink</span></a></span><span>
+</span><span id="line-5"></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Network.HTTP.Link.Writer.html#writeLinkHeader"><span class="hs-identifier">writeLinkHeader</span></a></span><span>
+</span><span id="line-6"></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-7"></span><span>
+</span><span id="line-8"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.Text</span></span><span> </span><span class="hs-keyword">hiding</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">map</span></span><span class="hs-special">)</span><span class="hs-cpp">
+#if !MIN_VERSION_base(4,8,0)
+</span><span class="hs-keyword">import</span><span>           </span><span class="hs-identifier">Data.Monoid</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">mconcat</span><span class="hs-special">)</span><span class="hs-cpp">
+#endif
+</span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Network.URI</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">escapeURIString</span></span><span class="hs-special">)</span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><a href="Network.HTTP.Link.Types.html"><span class="hs-identifier">Network.HTTP.Link.Types</span></a></span><span>
+</span><span id="line-14"></span><span>
+</span><span id="line-15"></span><span class="annot"><a href="Network.HTTP.Link.Writer.html#writeParamKey"><span class="hs-identifier hs-type">writeParamKey</span></a></span><span> </span><span class="hs-glyph">&#8759;</span><span> </span><span class="annot"><a href="Network.HTTP.Link.Types.html#LinkParam"><span class="hs-identifier hs-type">LinkParam</span></a></span><span> </span><span class="hs-glyph">&#8594;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span>
+</span><span id="line-16"></span><span id="writeParamKey"><span class="annot"><span class="annottext">writeParamKey :: LinkParam -&gt; Text
+</span><a href="Network.HTTP.Link.Writer.html#writeParamKey"><span class="hs-identifier hs-var hs-var">writeParamKey</span></a></span></span><span> </span><span class="annot"><span class="annottext">LinkParam
+</span><a href="Network.HTTP.Link.Types.html#Rel"><span class="hs-identifier hs-var">Rel</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;rel&quot;</span></span><span>
+</span><span id="line-17"></span><span class="annot"><a href="Network.HTTP.Link.Writer.html#writeParamKey"><span class="hs-identifier hs-var">writeParamKey</span></a></span><span> </span><span class="annot"><span class="annottext">LinkParam
+</span><a href="Network.HTTP.Link.Types.html#Anchor"><span class="hs-identifier hs-var">Anchor</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;anchor&quot;</span></span><span>
+</span><span id="line-18"></span><span class="annot"><a href="Network.HTTP.Link.Writer.html#writeParamKey"><span class="hs-identifier hs-var">writeParamKey</span></a></span><span> </span><span class="annot"><span class="annottext">LinkParam
+</span><a href="Network.HTTP.Link.Types.html#Rev"><span class="hs-identifier hs-var">Rev</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;rev&quot;</span></span><span>
+</span><span id="line-19"></span><span class="annot"><a href="Network.HTTP.Link.Writer.html#writeParamKey"><span class="hs-identifier hs-var">writeParamKey</span></a></span><span> </span><span class="annot"><span class="annottext">LinkParam
+</span><a href="Network.HTTP.Link.Types.html#Hreflang"><span class="hs-identifier hs-var">Hreflang</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;hreflang&quot;</span></span><span>
+</span><span id="line-20"></span><span class="annot"><a href="Network.HTTP.Link.Writer.html#writeParamKey"><span class="hs-identifier hs-var">writeParamKey</span></a></span><span> </span><span class="annot"><span class="annottext">LinkParam
+</span><a href="Network.HTTP.Link.Types.html#Media"><span class="hs-identifier hs-var">Media</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;media&quot;</span></span><span>
+</span><span id="line-21"></span><span class="annot"><a href="Network.HTTP.Link.Writer.html#writeParamKey"><span class="hs-identifier hs-var">writeParamKey</span></a></span><span> </span><span class="annot"><span class="annottext">LinkParam
+</span><a href="Network.HTTP.Link.Types.html#Title"><span class="hs-identifier hs-var">Title</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;title&quot;</span></span><span>
+</span><span id="line-22"></span><span class="annot"><a href="Network.HTTP.Link.Writer.html#writeParamKey"><span class="hs-identifier hs-var">writeParamKey</span></a></span><span> </span><span class="annot"><span class="annottext">LinkParam
+</span><a href="Network.HTTP.Link.Types.html#Title%27"><span class="hs-identifier hs-var">Title'</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;title*&quot;</span></span><span>
+</span><span id="line-23"></span><span class="annot"><a href="Network.HTTP.Link.Writer.html#writeParamKey"><span class="hs-identifier hs-var">writeParamKey</span></a></span><span> </span><span class="annot"><span class="annottext">LinkParam
+</span><a href="Network.HTTP.Link.Types.html#ContentType"><span class="hs-identifier hs-var">ContentType</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;type&quot;</span></span><span>
+</span><span id="line-24"></span><span class="annot"><a href="Network.HTTP.Link.Writer.html#writeParamKey"><span class="hs-identifier hs-var">writeParamKey</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Network.HTTP.Link.Types.html#Other"><span class="hs-identifier hs-type">Other</span></a></span><span> </span><span id="local-6989586621679071909"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679071909"><span class="hs-identifier hs-var">t</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679071909"><span class="hs-identifier hs-var">t</span></a></span><span>
+</span><span id="line-25"></span><span>
+</span><span id="line-26"></span><span class="annot"><a href="Network.HTTP.Link.Writer.html#writeParam"><span class="hs-identifier hs-type">writeParam</span></a></span><span> </span><span class="hs-glyph">&#8759;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Network.HTTP.Link.Types.html#LinkParam"><span class="hs-identifier hs-type">LinkParam</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">&#8594;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span>
+</span><span id="line-27"></span><span id="writeParam"><span class="annot"><span class="annottext">writeParam :: (LinkParam, Text) -&gt; Text
+</span><a href="Network.HTTP.Link.Writer.html#writeParam"><span class="hs-identifier hs-var hs-var">writeParam</span></a></span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679071911"><span class="annot"><span class="annottext">LinkParam
+</span><a href="#local-6989586621679071911"><span class="hs-identifier hs-var">t</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679071912"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679071912"><span class="hs-identifier hs-var">v</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Text] -&gt; Text
+forall a. Monoid a =&gt; [a] -&gt; a
+</span><span class="hs-identifier hs-var">mconcat</span></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;; &quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">LinkParam -&gt; Text
+</span><a href="Network.HTTP.Link.Writer.html#writeParamKey"><span class="hs-identifier hs-var">writeParamKey</span></a></span><span> </span><span class="annot"><span class="annottext">LinkParam
+</span><a href="#local-6989586621679071911"><span class="hs-identifier hs-var">t</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;=\&quot;&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Text -&gt; Text
+</span><a href="#local-6989586621679071913"><span class="hs-identifier hs-var">escPar</span></a></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679071912"><span class="hs-identifier hs-var">v</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;\&quot;&quot;</span></span><span class="hs-special">]</span><span>
+</span><span id="line-28"></span><span>  </span><span class="hs-keyword">where</span><span> </span><span id="local-6989586621679071913"><span class="annot"><span class="annottext">escPar :: Text -&gt; Text
+</span><a href="#local-6989586621679071913"><span class="hs-identifier hs-var hs-var">escPar</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; Text
+</span><span class="hs-identifier hs-var">pack</span></span><span> </span><span class="annot"><span class="annottext">(String -&gt; Text) -&gt; (Text -&gt; String) -&gt; Text -&gt; Text
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">(Char -&gt; Bool) -&gt; String -&gt; String
+</span><span class="hs-identifier hs-var">escapeURIString</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Char -&gt; Char -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">/=</span></span><span> </span><span class="annot"><span class="annottext">Char
+</span><span class="hs-char">'&quot;'</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(String -&gt; String) -&gt; (Text -&gt; String) -&gt; Text -&gt; String
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Text -&gt; String
+</span><span class="hs-identifier hs-var">unpack</span></span><span>
+</span><span id="line-29"></span><span>        </span><span class="hs-comment">-- maybe URI escaping is not what we should do here? eh, whatever</span><span>
+</span><span id="line-30"></span><span>
+</span><span id="line-31"></span><span id="local-6989586621679071867"><span class="annot"><a href="Network.HTTP.Link.Writer.html#writeLink"><span class="hs-identifier hs-type">writeLink</span></a></span><span> </span><span class="hs-glyph">&#8759;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Network.HTTP.Link.Types.html#IsURI"><span class="hs-identifier hs-type">IsURI</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679071867"><span class="hs-identifier hs-type">uri</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">&#8658;</span><span> </span><span class="annot"><a href="Network.HTTP.Link.Types.html#Link"><span class="hs-identifier hs-type">Link</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679071867"><span class="hs-identifier hs-type">uri</span></a></span><span> </span><span class="hs-glyph">&#8594;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span></span><span>
+</span><span id="line-32"></span><span id="writeLink"><span class="annot"><span class="annottext">writeLink :: forall uri. IsURI uri =&gt; Link uri -&gt; Text
+</span><a href="Network.HTTP.Link.Writer.html#writeLink"><span class="hs-identifier hs-var hs-var">writeLink</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Network.HTTP.Link.Types.html#Link"><span class="hs-identifier hs-type">Link</span></a></span><span> </span><span id="local-6989586621679071926"><span class="annot"><span class="annottext">uri
+</span><a href="#local-6989586621679071926"><span class="hs-identifier hs-var">u</span></a></span></span><span> </span><span id="local-6989586621679071927"><span class="annot"><span class="annottext">[(LinkParam, Text)]
+</span><a href="#local-6989586621679071927"><span class="hs-identifier hs-var">ps</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Text] -&gt; Text
+forall a. Monoid a =&gt; [a] -&gt; a
+</span><span class="hs-identifier hs-var">mconcat</span></span><span> </span><span class="annot"><span class="annottext">([Text] -&gt; Text) -&gt; [Text] -&gt; Text
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;&lt;&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">uri -&gt; Text
+forall uri. IsURI uri =&gt; uri -&gt; Text
+</span><a href="Network.HTTP.Link.Types.html#uriToText"><span class="hs-identifier hs-var">uriToText</span></a></span><span> </span><span class="annot"><span class="annottext">uri
+</span><a href="#local-6989586621679071926"><span class="hs-identifier hs-var">u</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;&gt;&quot;</span></span><span class="hs-special">]</span><span> </span><span class="annot"><span class="annottext">[Text] -&gt; [Text] -&gt; [Text]
+forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">((LinkParam, Text) -&gt; Text) -&gt; [(LinkParam, Text)] -&gt; [Text]
+forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+</span><span class="hs-identifier hs-var">map</span></span><span> </span><span class="annot"><span class="annottext">(LinkParam, Text) -&gt; Text
+</span><a href="Network.HTTP.Link.Writer.html#writeParam"><span class="hs-identifier hs-var">writeParam</span></a></span><span> </span><span class="annot"><span class="annottext">[(LinkParam, Text)]
+</span><a href="#local-6989586621679071927"><span class="hs-identifier hs-var">ps</span></a></span><span>
+</span><span id="line-33"></span><span>
+</span><span id="line-34"></span><span id="local-6989586621679071879"><span class="annot"><a href="Network.HTTP.Link.Writer.html#writeLinkHeader"><span class="hs-identifier hs-type">writeLinkHeader</span></a></span><span> </span><span class="hs-glyph">&#8759;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Network.HTTP.Link.Types.html#IsURI"><span class="hs-identifier hs-type">IsURI</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679071879"><span class="hs-identifier hs-type">uri</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">&#8658;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Network.HTTP.Link.Types.html#Link"><span class="hs-identifier hs-type">Link</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679071879"><span class="hs-identifier hs-type">uri</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">&#8594;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span></span><span>
+</span><span id="line-35"></span><span id="writeLinkHeader"><span class="annot"><span class="annottext">writeLinkHeader :: forall uri. IsURI uri =&gt; [Link uri] -&gt; Text
+</span><a href="Network.HTTP.Link.Writer.html#writeLinkHeader"><span class="hs-identifier hs-var hs-var">writeLinkHeader</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Text -&gt; [Text] -&gt; Text
+</span><span class="hs-identifier hs-var">intercalate</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;, &quot;</span></span><span> </span><span class="annot"><span class="annottext">([Text] -&gt; Text) -&gt; ([Link uri] -&gt; [Text]) -&gt; [Link uri] -&gt; Text
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">(Link uri -&gt; Text) -&gt; [Link uri] -&gt; [Text]
+forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+</span><span class="hs-identifier hs-var">map</span></span><span> </span><span class="annot"><span class="annottext">Link uri -&gt; Text
+forall uri. IsURI uri =&gt; Link uri -&gt; Text
+</span><a href="Network.HTTP.Link.Writer.html#writeLink"><span class="hs-identifier hs-var">writeLink</span></a></span><span>
+</span><span id="line-36"></span></pre></body></html>

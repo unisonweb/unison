@@ -1,0 +1,931 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE LambdaCase #-}</span><span>
+</span><span id="line-2"></span><span class="hs-comment">-----------------------------------------------------------------------------</span><span>
+</span><span id="line-3"></span><span class="hs-comment">-- |</span><span>
+</span><span id="line-4"></span><span class="hs-comment">-- Module     : Algebra.Graph.AdjacencyIntMap.Algorithm</span><span>
+</span><span id="line-5"></span><span class="hs-comment">-- Copyright  : (c) Andrey Mokhov 2016-2022</span><span>
+</span><span id="line-6"></span><span class="hs-comment">-- License    : MIT (see the file LICENSE)</span><span>
+</span><span id="line-7"></span><span class="hs-comment">-- Maintainer : andrey.mokhov@gmail.com</span><span>
+</span><span id="line-8"></span><span class="hs-comment">-- Stability  : unstable</span><span>
+</span><span id="line-9"></span><span class="hs-comment">--</span><span>
+</span><span id="line-10"></span><span class="hs-comment">-- __Alga__ is a library for algebraic construction and manipulation of graphs</span><span>
+</span><span id="line-11"></span><span class="hs-comment">-- in Haskell. See &lt;https://github.com/snowleopard/alga-paper this paper&gt; for the</span><span>
+</span><span id="line-12"></span><span class="hs-comment">-- motivation behind the library, the underlying theory, and implementation details.</span><span>
+</span><span id="line-13"></span><span class="hs-comment">--</span><span>
+</span><span id="line-14"></span><span class="hs-comment">-- This module provides basic graph algorithms, such as /depth-first search/,</span><span>
+</span><span id="line-15"></span><span class="hs-comment">-- implemented for the &quot;Algebra.Graph.AdjacencyIntMap&quot; data type.</span><span>
+</span><span id="line-16"></span><span class="hs-comment">--</span><span>
+</span><span id="line-17"></span><span class="hs-comment">-- Some of the worst-case complexities include the term /min(n,W)/.</span><span>
+</span><span id="line-18"></span><span class="hs-comment">-- Following 'IntSet.IntSet' and 'IntMap.IntMap', the /W/ stands for</span><span>
+</span><span id="line-19"></span><span class="hs-comment">-- word size (usually 32 or 64 bits).</span><span>
+</span><span id="line-20"></span><span class="hs-comment">-----------------------------------------------------------------------------</span><span>
+</span><span id="line-21"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Algebra.Graph.AdjacencyIntMap.Algorithm.html"><span class="hs-identifier">Algebra.Graph.AdjacencyIntMap.Algorithm</span></a></span><span> </span><span class="hs-special">(</span><span>
+</span><span id="line-22"></span><span>    </span><span class="annot"><span class="hs-comment">-- * Algorithms</span></span><span>
+</span><span id="line-23"></span><span>    </span><span class="annot"><a href="Algebra.Graph.AdjacencyIntMap.Algorithm.html#bfsForest"><span class="hs-identifier">bfsForest</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Algebra.Graph.AdjacencyIntMap.Algorithm.html#bfs"><span class="hs-identifier">bfs</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Algebra.Graph.AdjacencyIntMap.Algorithm.html#dfsForest"><span class="hs-identifier">dfsForest</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Algebra.Graph.AdjacencyIntMap.Algorithm.html#dfsForestFrom"><span class="hs-identifier">dfsForestFrom</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Algebra.Graph.AdjacencyIntMap.Algorithm.html#dfs"><span class="hs-identifier">dfs</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Algebra.Graph.AdjacencyIntMap.Algorithm.html#reachable"><span class="hs-identifier">reachable</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-24"></span><span>    </span><span class="annot"><a href="Algebra.Graph.AdjacencyIntMap.Algorithm.html#topSort"><span class="hs-identifier">topSort</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Algebra.Graph.AdjacencyIntMap.Algorithm.html#isAcyclic"><span class="hs-identifier">isAcyclic</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-25"></span><span>
+</span><span id="line-26"></span><span>    </span><span class="annot"><span class="hs-comment">-- * Correctness properties</span></span><span>
+</span><span id="line-27"></span><span>    </span><span class="annot"><a href="Algebra.Graph.AdjacencyIntMap.Algorithm.html#isDfsForestOf"><span class="hs-identifier">isDfsForestOf</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Algebra.Graph.AdjacencyIntMap.Algorithm.html#isTopSortOf"><span class="hs-identifier">isTopSortOf</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-28"></span><span>
+</span><span id="line-29"></span><span>    </span><span class="annot"><span class="hs-comment">-- * Type synonyms</span></span><span>
+</span><span id="line-30"></span><span>    </span><span class="annot"><a href="Algebra.Graph.AdjacencyIntMap.Algorithm.html#Cycle"><span class="hs-identifier">Cycle</span></a></span><span>
+</span><span id="line-31"></span><span>    </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-32"></span><span>
+</span><span id="line-33"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Monad</span></span><span>
+</span><span id="line-34"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Monad.Trans.Cont</span></span><span>
+</span><span id="line-35"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Monad.Trans.State.Strict</span></span><span>
+</span><span id="line-36"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Either</span></span><span>
+</span><span id="line-37"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.List.NonEmpty</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">NonEmpty</span></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-operator">(&lt;|)</span></span><span class="hs-special">)</span><span>
+</span><span id="line-38"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Tree</span></span><span>
+</span><span id="line-39"></span><span>
+</span><span id="line-40"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Algebra.Graph.AdjacencyIntMap.html"><span class="hs-identifier">Algebra.Graph.AdjacencyIntMap</span></a></span><span>
+</span><span id="line-41"></span><span>
+</span><span id="line-42"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.List</span></span><span>          </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">List</span></span><span>
+</span><span id="line-43"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.IntMap.Strict</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">IntMap</span></span><span>
+</span><span id="line-44"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.IntSet</span></span><span>        </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">IntSet</span></span><span>
+</span><span id="line-45"></span><span>
+</span><span id="line-46"></span><span class="hs-comment">-- | Compute the /breadth-first search/ forest of a graph, such that adjacent</span><span>
+</span><span id="line-47"></span><span class="hs-comment">-- vertices are explored in the increasing order. The search is seeded by a list</span><span>
+</span><span id="line-48"></span><span class="hs-comment">-- of vertices that will become the roots of the resulting forest. Duplicates in</span><span>
+</span><span id="line-49"></span><span class="hs-comment">-- the list will have their first occurrence explored and subsequent ones</span><span>
+</span><span id="line-50"></span><span class="hs-comment">-- ignored. The seed vertices that do not belong to the graph are also ignored.</span><span>
+</span><span id="line-51"></span><span class="hs-comment">--</span><span>
+</span><span id="line-52"></span><span class="hs-comment">-- Complexity: /O((L + m) * log n)/ time and /O(n)/ space, where /L/ is the</span><span>
+</span><span id="line-53"></span><span class="hs-comment">-- number of seed vertices.</span><span>
+</span><span id="line-54"></span><span class="hs-comment">--</span><span>
+</span><span id="line-55"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-56"></span><span class="hs-comment">-- 'forest' $ bfsForest ('edge' 1 2) [0]        == 'empty'</span><span>
+</span><span id="line-57"></span><span class="hs-comment">-- 'forest' $ bfsForest ('edge' 1 2) [1]        == 'edge' 1 2</span><span>
+</span><span id="line-58"></span><span class="hs-comment">-- 'forest' $ bfsForest ('edge' 1 2) [2]        == 'vertex' 2</span><span>
+</span><span id="line-59"></span><span class="hs-comment">-- 'forest' $ bfsForest ('edge' 1 2) [0,1,2]    == 'vertices' [1,2]</span><span>
+</span><span id="line-60"></span><span class="hs-comment">-- 'forest' $ bfsForest ('edge' 1 2) [2,1,0]    == 'vertices' [1,2]</span><span>
+</span><span id="line-61"></span><span class="hs-comment">-- 'forest' $ bfsForest ('edge' 1 1) [1]        == 'vertex' 1</span><span>
+</span><span id="line-62"></span><span class="hs-comment">-- 'isSubgraphOf' ('forest' $ bfsForest x vs) x == True</span><span>
+</span><span id="line-63"></span><span class="hs-comment">-- bfsForest x ('vertexList' x)               == 'map' (\\v -&gt; Node v []) ('Data.List.nub' $ 'vertexList' x)</span><span>
+</span><span id="line-64"></span><span class="hs-comment">-- bfsForest x []                           == []</span><span>
+</span><span id="line-65"></span><span class="hs-comment">-- bfsForest 'empty' vs                       == []</span><span>
+</span><span id="line-66"></span><span class="hs-comment">-- bfsForest (3 * (1 + 4) * (1 + 5)) [1,4]  == [ Node { rootLabel = 1</span><span>
+</span><span id="line-67"></span><span class="hs-comment">--                                                    , subForest = [ Node { rootLabel = 5</span><span>
+</span><span id="line-68"></span><span class="hs-comment">--                                                                         , subForest = [] }]}</span><span>
+</span><span id="line-69"></span><span class="hs-comment">--                                             , Node { rootLabel = 4</span><span>
+</span><span id="line-70"></span><span class="hs-comment">--                                                    , subForest = [] }]</span><span>
+</span><span id="line-71"></span><span class="hs-comment">-- 'forest' $ bfsForest ('circuit' [1..5] + 'circuit' [5,4..1]) [3] == 'path' [3,2,1] + 'path' [3,4,5]</span><span>
+</span><span id="line-72"></span><span class="hs-comment">--</span><span>
+</span><span id="line-73"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-74"></span><span class="annot"><a href="Algebra.Graph.AdjacencyIntMap.Algorithm.html#bfsForest"><span class="hs-identifier hs-type">bfsForest</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Algebra.Graph.AdjacencyIntMap.html#AdjacencyIntMap"><span class="hs-identifier hs-type">AdjacencyIntMap</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Forest</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>
+</span><span id="line-75"></span><span id="bfsForest"><span class="annot"><span class="annottext">bfsForest :: AdjacencyIntMap -&gt; [Int] -&gt; Forest Int
+</span><a href="Algebra.Graph.AdjacencyIntMap.Algorithm.html#bfsForest"><span class="hs-identifier hs-var hs-var">bfsForest</span></a></span></span><span> </span><span id="local-6989586621679149948"><span class="annot"><span class="annottext">AdjacencyIntMap
+</span><a href="#local-6989586621679149948"><span class="hs-identifier hs-var">g</span></a></span></span><span> </span><span id="local-6989586621679149949"><span class="annot"><span class="annottext">[Int]
+</span><a href="#local-6989586621679149949"><span class="hs-identifier hs-var">vs</span></a></span></span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">State IntSet (Forest Int) -&gt; IntSet -&gt; Forest Int
+forall s a. State s a -&gt; s -&gt; a
+</span><span class="hs-identifier hs-var">evalState</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[Int] -&gt; State IntSet (Forest Int)
+</span><a href="#local-6989586621679149951"><span class="hs-identifier hs-var">explore</span></a></span><span> </span><span class="hs-special">[</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679149952"><span class="hs-identifier hs-var">v</span></a></span><span> </span><span class="hs-glyph">|</span><span> </span><span id="local-6989586621679149952"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679149952"><span class="hs-identifier hs-var">v</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">[Int]
+</span><a href="#local-6989586621679149949"><span class="hs-identifier hs-var">vs</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Int -&gt; AdjacencyIntMap -&gt; Bool
+</span><a href="Algebra.Graph.AdjacencyIntMap.html#hasVertex"><span class="hs-identifier hs-var">hasVertex</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679149952"><span class="hs-identifier hs-var">v</span></a></span><span> </span><span class="annot"><span class="annottext">AdjacencyIntMap
+</span><a href="#local-6989586621679149948"><span class="hs-identifier hs-var">g</span></a></span><span> </span><span class="hs-special">]</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">IntSet
+</span><span class="hs-identifier hs-var">IntSet.empty</span></span><span>
+</span><span id="line-76"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-77"></span><span>    </span><span id="local-6989586621679149951"><span class="annot"><span class="annottext">explore :: [Int] -&gt; State IntSet (Forest Int)
+</span><a href="#local-6989586621679149951"><span class="hs-identifier hs-var hs-var">explore</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Int -&gt; StateT IntSet Identity Bool)
+-&gt; [Int] -&gt; StateT IntSet Identity [Int]
+forall (m :: * -&gt; *) a.
+Applicative m =&gt;
+(a -&gt; m Bool) -&gt; [a] -&gt; m [a]
+</span><span class="hs-identifier hs-var">filterM</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; StateT IntSet Identity Bool
+forall {m :: * -&gt; *}. Monad m =&gt; Int -&gt; StateT IntSet m Bool
+</span><a href="#local-6989586621679149956"><span class="hs-identifier hs-var">discovered</span></a></span><span> </span><span class="annot"><span class="annottext">([Int] -&gt; StateT IntSet Identity [Int])
+-&gt; ([Int] -&gt; State IntSet (Forest Int))
+-&gt; [Int]
+-&gt; State IntSet (Forest Int)
+forall (m :: * -&gt; *) a b c.
+Monad m =&gt;
+(a -&gt; m b) -&gt; (b -&gt; m c) -&gt; a -&gt; m c
+</span><span class="hs-operator hs-var">&gt;=&gt;</span></span><span> </span><span class="annot"><span class="annottext">(Int -&gt; StateT IntSet Identity (Int, [Int]))
+-&gt; [Int] -&gt; State IntSet (Forest Int)
+forall (m :: * -&gt; *) b a.
+Monad m =&gt;
+(b -&gt; m (a, [b])) -&gt; [b] -&gt; m [Tree a]
+</span><span class="hs-identifier hs-var">unfoldForestM_BF</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; StateT IntSet Identity (Int, [Int])
+</span><a href="#local-6989586621679149959"><span class="hs-identifier hs-var">walk</span></a></span><span>
+</span><span id="line-78"></span><span>    </span><span id="local-6989586621679149959"><span class="annot"><span class="annottext">walk :: Int -&gt; StateT IntSet Identity (Int, [Int])
+</span><a href="#local-6989586621679149959"><span class="hs-identifier hs-var hs-var">walk</span></a></span></span><span> </span><span id="local-6989586621679149960"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679149960"><span class="hs-identifier hs-var">v</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679149960"><span class="hs-identifier hs-var">v</span></a></span><span class="hs-special">,</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">([Int] -&gt; (Int, [Int]))
+-&gt; StateT IntSet Identity [Int]
+-&gt; StateT IntSet Identity (Int, [Int])
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; StateT IntSet Identity [Int]
+</span><a href="#local-6989586621679149962"><span class="hs-identifier hs-var">adjacentM</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679149960"><span class="hs-identifier hs-var">v</span></a></span><span>
+</span><span id="line-79"></span><span>    </span><span id="local-6989586621679149962"><span class="annot"><span class="annottext">adjacentM :: Int -&gt; StateT IntSet Identity [Int]
+</span><a href="#local-6989586621679149962"><span class="hs-identifier hs-var hs-var">adjacentM</span></a></span></span><span> </span><span id="local-6989586621679149963"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679149963"><span class="hs-identifier hs-var">v</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Int -&gt; StateT IntSet Identity Bool)
+-&gt; [Int] -&gt; StateT IntSet Identity [Int]
+forall (m :: * -&gt; *) a.
+Applicative m =&gt;
+(a -&gt; m Bool) -&gt; [a] -&gt; m [a]
+</span><span class="hs-identifier hs-var">filterM</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; StateT IntSet Identity Bool
+forall {m :: * -&gt; *}. Monad m =&gt; Int -&gt; StateT IntSet m Bool
+</span><a href="#local-6989586621679149956"><span class="hs-identifier hs-var">discovered</span></a></span><span> </span><span class="annot"><span class="annottext">([Int] -&gt; StateT IntSet Identity [Int])
+-&gt; [Int] -&gt; StateT IntSet Identity [Int]
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">IntSet -&gt; [Int]
+</span><span class="hs-identifier hs-var">IntSet.toList</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; AdjacencyIntMap -&gt; IntSet
+</span><a href="Algebra.Graph.AdjacencyIntMap.html#postIntSet"><span class="hs-identifier hs-var">postIntSet</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679149963"><span class="hs-identifier hs-var">v</span></a></span><span> </span><span class="annot"><span class="annottext">AdjacencyIntMap
+</span><a href="#local-6989586621679149948"><span class="hs-identifier hs-var">g</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-80"></span><span>    </span><span id="local-6989586621679149956"><span class="annot"><span class="annottext">discovered :: Int -&gt; StateT IntSet m Bool
+</span><a href="#local-6989586621679149956"><span class="hs-identifier hs-var hs-var">discovered</span></a></span></span><span> </span><span id="local-6989586621679149981"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679149981"><span class="hs-identifier hs-var">v</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span> </span><span id="local-6989586621679149982"><span class="annot"><a href="#local-6989586621679149982"><span class="hs-identifier hs-var">new</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">(IntSet -&gt; Bool) -&gt; StateT IntSet m Bool
+forall (m :: * -&gt; *) s a. Monad m =&gt; (s -&gt; a) -&gt; StateT s m a
+</span><span class="hs-identifier hs-var">gets</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Bool -&gt; Bool
+</span><span class="hs-identifier hs-var">not</span></span><span> </span><span class="annot"><span class="annottext">(Bool -&gt; Bool) -&gt; (IntSet -&gt; Bool) -&gt; IntSet -&gt; Bool
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; IntSet -&gt; Bool
+</span><span class="hs-identifier hs-var">IntSet.member</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679149981"><span class="hs-identifier hs-var">v</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-81"></span><span>                      </span><span class="annot"><span class="hs-identifier hs-type">when</span></span><span> </span><span class="annot"><a href="#local-6989586621679149982"><span class="hs-identifier hs-type">new</span></a></span><span> </span><span class="annot"><span class="hs-operator hs-type">$</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">modify'</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">IntSet.insert</span></span><span> </span><span class="annot"><a href="#local-6989586621679149981"><span class="hs-identifier hs-type">v</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-82"></span><span>                      </span><span class="annot"><span class="hs-identifier hs-type">return</span></span><span> </span><span class="annot"><a href="#local-6989586621679149982"><span class="hs-identifier hs-type">new</span></a></span><span>
+</span><span id="line-83"></span><span>
+</span><span id="line-84"></span><span class="hs-comment">-- | A version of 'bfsForest' where the resulting forest is converted to a level</span><span>
+</span><span id="line-85"></span><span class="hs-comment">-- structure. Adjacent vertices are explored in the increasing order. Flattening</span><span>
+</span><span id="line-86"></span><span class="hs-comment">-- the result via @'concat'@ @.@ @'bfs'@ @x@ gives an enumeration of reachable</span><span>
+</span><span id="line-87"></span><span class="hs-comment">-- vertices in the breadth-first search order.</span><span>
+</span><span id="line-88"></span><span class="hs-comment">--</span><span>
+</span><span id="line-89"></span><span class="hs-comment">-- Complexity: /O((L + m) * min(n,W))/ time and /O(n)/ space, where /L/ is the</span><span>
+</span><span id="line-90"></span><span class="hs-comment">-- number of seed vertices.</span><span>
+</span><span id="line-91"></span><span class="hs-comment">--</span><span>
+</span><span id="line-92"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-93"></span><span class="hs-comment">-- bfs ('edge' 1 2) [0]                == []</span><span>
+</span><span id="line-94"></span><span class="hs-comment">-- bfs ('edge' 1 2) [1]                == [[1], [2]]</span><span>
+</span><span id="line-95"></span><span class="hs-comment">-- bfs ('edge' 1 2) [2]                == [[2]]</span><span>
+</span><span id="line-96"></span><span class="hs-comment">-- bfs ('edge' 1 2) [1,2]              == [[1,2]]</span><span>
+</span><span id="line-97"></span><span class="hs-comment">-- bfs ('edge' 1 2) [2,1]              == [[2,1]]</span><span>
+</span><span id="line-98"></span><span class="hs-comment">-- bfs ('edge' 1 1) [1]                == [[1]]</span><span>
+</span><span id="line-99"></span><span class="hs-comment">-- bfs 'empty' vs                      == []</span><span>
+</span><span id="line-100"></span><span class="hs-comment">-- bfs x []                          == []</span><span>
+</span><span id="line-101"></span><span class="hs-comment">-- bfs (1 * 2 + 3 * 4 + 5 * 6) [1,2] == [[1,2]]</span><span>
+</span><span id="line-102"></span><span class="hs-comment">-- bfs (1 * 2 + 3 * 4 + 5 * 6) [1,3] == [[1,3], [2,4]]</span><span>
+</span><span id="line-103"></span><span class="hs-comment">-- bfs (3 * (1 + 4) * (1 + 5)) [3]   == [[3], [1,4,5]]</span><span>
+</span><span id="line-104"></span><span class="hs-comment">--</span><span>
+</span><span id="line-105"></span><span class="hs-comment">-- bfs ('circuit' [1..5] + 'circuit' [5,4..1]) [3]          == [[2], [1,3], [5,4]]</span><span>
+</span><span id="line-106"></span><span class="hs-comment">-- 'concat' $ bfs ('circuit' [1..5] + 'circuit' [5,4..1]) [3] == [3,2,4,1,5]</span><span>
+</span><span id="line-107"></span><span class="hs-comment">-- 'map' 'concat' . 'List.transpose' . 'map' 'levels' . 'bfsForest' x    == bfs x</span><span>
+</span><span id="line-108"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-109"></span><span class="annot"><a href="Algebra.Graph.AdjacencyIntMap.Algorithm.html#bfs"><span class="hs-identifier hs-type">bfs</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Algebra.Graph.AdjacencyIntMap.html#AdjacencyIntMap"><span class="hs-identifier hs-type">AdjacencyIntMap</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">]</span><span class="hs-special">]</span><span>
+</span><span id="line-110"></span><span id="bfs"><span class="annot"><span class="annottext">bfs :: AdjacencyIntMap -&gt; [Int] -&gt; [[Int]]
+</span><a href="Algebra.Graph.AdjacencyIntMap.Algorithm.html#bfs"><span class="hs-identifier hs-var hs-var">bfs</span></a></span></span><span> </span><span id="local-6989586621679149993"><span class="annot"><span class="annottext">AdjacencyIntMap
+</span><a href="#local-6989586621679149993"><span class="hs-identifier hs-var">g</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">([[Int]] -&gt; [Int]) -&gt; [[[Int]]] -&gt; [[Int]]
+forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+</span><span class="hs-identifier hs-var">map</span></span><span> </span><span class="annot"><span class="annottext">[[Int]] -&gt; [Int]
+forall (t :: * -&gt; *) a. Foldable t =&gt; t [a] -&gt; [a]
+</span><span class="hs-identifier hs-var">concat</span></span><span> </span><span class="annot"><span class="annottext">([[[Int]]] -&gt; [[Int]]) -&gt; ([Int] -&gt; [[[Int]]]) -&gt; [Int] -&gt; [[Int]]
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">[[[Int]]] -&gt; [[[Int]]]
+forall a. [[a]] -&gt; [[a]]
+</span><span class="hs-identifier hs-var">List.transpose</span></span><span> </span><span class="annot"><span class="annottext">([[[Int]]] -&gt; [[[Int]]])
+-&gt; ([Int] -&gt; [[[Int]]]) -&gt; [Int] -&gt; [[[Int]]]
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">(Tree Int -&gt; [[Int]]) -&gt; Forest Int -&gt; [[[Int]]]
+forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+</span><span class="hs-identifier hs-var">map</span></span><span> </span><span class="annot"><span class="annottext">Tree Int -&gt; [[Int]]
+forall a. Tree a -&gt; [[a]]
+</span><span class="hs-identifier hs-var">levels</span></span><span> </span><span class="annot"><span class="annottext">(Forest Int -&gt; [[[Int]]])
+-&gt; ([Int] -&gt; Forest Int) -&gt; [Int] -&gt; [[[Int]]]
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">AdjacencyIntMap -&gt; [Int] -&gt; Forest Int
+</span><a href="Algebra.Graph.AdjacencyIntMap.Algorithm.html#bfsForest"><span class="hs-identifier hs-var">bfsForest</span></a></span><span> </span><span class="annot"><span class="annottext">AdjacencyIntMap
+</span><a href="#local-6989586621679149993"><span class="hs-identifier hs-var">g</span></a></span><span>
+</span><span id="line-111"></span><span>
+</span><span id="line-112"></span><span class="annot"><a href="Algebra.Graph.AdjacencyIntMap.Algorithm.html#dfsForestFromImpl"><span class="hs-identifier hs-type">dfsForestFromImpl</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Algebra.Graph.AdjacencyIntMap.html#AdjacencyIntMap"><span class="hs-identifier hs-type">AdjacencyIntMap</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Forest</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>
+</span><span id="line-113"></span><span id="dfsForestFromImpl"><span class="annot"><span class="annottext">dfsForestFromImpl :: AdjacencyIntMap -&gt; [Int] -&gt; Forest Int
+</span><a href="Algebra.Graph.AdjacencyIntMap.Algorithm.html#dfsForestFromImpl"><span class="hs-identifier hs-var hs-var">dfsForestFromImpl</span></a></span></span><span> </span><span id="local-6989586621679149995"><span class="annot"><span class="annottext">AdjacencyIntMap
+</span><a href="#local-6989586621679149995"><span class="hs-identifier hs-var">g</span></a></span></span><span> </span><span id="local-6989586621679149996"><span class="annot"><span class="annottext">[Int]
+</span><a href="#local-6989586621679149996"><span class="hs-identifier hs-var">vs</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">State IntSet (Forest Int) -&gt; IntSet -&gt; Forest Int
+forall s a. State s a -&gt; s -&gt; a
+</span><span class="hs-identifier hs-var">evalState</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[Int] -&gt; State IntSet (Forest Int)
+</span><a href="#local-6989586621679149997"><span class="hs-identifier hs-var">explore</span></a></span><span> </span><span class="annot"><span class="annottext">[Int]
+</span><a href="#local-6989586621679149996"><span class="hs-identifier hs-var">vs</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">IntSet
+</span><span class="hs-identifier hs-var">IntSet.empty</span></span><span>
+</span><span id="line-114"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-115"></span><span>    </span><span id="local-6989586621679149997"><span class="annot"><span class="annottext">explore :: [Int] -&gt; State IntSet (Forest Int)
+</span><a href="#local-6989586621679149997"><span class="hs-identifier hs-var hs-var">explore</span></a></span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679149998"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679149998"><span class="hs-identifier hs-var">v</span></a></span></span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span id="local-6989586621679149999"><span class="annot"><span class="annottext">[Int]
+</span><a href="#local-6989586621679149999"><span class="hs-identifier hs-var">vs</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; StateT IntSet Identity Bool
+forall {m :: * -&gt; *}. Monad m =&gt; Int -&gt; StateT IntSet m Bool
+</span><a href="#local-6989586621679150000"><span class="hs-identifier hs-var">discovered</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679149998"><span class="hs-identifier hs-var">v</span></a></span><span> </span><span class="annot"><span class="annottext">StateT IntSet Identity Bool
+-&gt; (Bool -&gt; State IntSet (Forest Int)) -&gt; State IntSet (Forest Int)
+forall a b.
+StateT IntSet Identity a
+-&gt; (a -&gt; StateT IntSet Identity b) -&gt; StateT IntSet Identity b
+forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; (a -&gt; m b) -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;=</span></span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-116"></span><span>      </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="hs-glyph">:</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(Tree Int -&gt; Forest Int -&gt; Forest Int)
+-&gt; StateT IntSet Identity (Tree Int)
+-&gt; StateT IntSet Identity (Forest Int -&gt; Forest Int)
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; StateT IntSet Identity (Tree Int)
+</span><a href="#local-6989586621679150001"><span class="hs-identifier hs-var">walk</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679149998"><span class="hs-identifier hs-var">v</span></a></span><span> </span><span class="annot"><span class="annottext">StateT IntSet Identity (Forest Int -&gt; Forest Int)
+-&gt; State IntSet (Forest Int) -&gt; State IntSet (Forest Int)
+forall a b.
+StateT IntSet Identity (a -&gt; b)
+-&gt; StateT IntSet Identity a -&gt; StateT IntSet Identity b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">[Int] -&gt; State IntSet (Forest Int)
+</span><a href="#local-6989586621679149997"><span class="hs-identifier hs-var">explore</span></a></span><span> </span><span class="annot"><span class="annottext">[Int]
+</span><a href="#local-6989586621679149999"><span class="hs-identifier hs-var">vs</span></a></span><span>
+</span><span id="line-117"></span><span>      </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">[Int] -&gt; State IntSet (Forest Int)
+</span><a href="#local-6989586621679149997"><span class="hs-identifier hs-var">explore</span></a></span><span> </span><span class="annot"><span class="annottext">[Int]
+</span><a href="#local-6989586621679149999"><span class="hs-identifier hs-var">vs</span></a></span><span>
+</span><span id="line-118"></span><span>    </span><span class="annot"><a href="#local-6989586621679149997"><span class="hs-identifier hs-var">explore</span></a></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Forest Int -&gt; State IntSet (Forest Int)
+forall a. a -&gt; StateT IntSet Identity a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span>
+</span><span id="line-119"></span><span>    </span><span id="local-6989586621679150001"><span class="annot"><span class="annottext">walk :: Int -&gt; StateT IntSet Identity (Tree Int)
+</span><a href="#local-6989586621679150001"><span class="hs-identifier hs-var hs-var">walk</span></a></span></span><span> </span><span id="local-6989586621679150002"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679150002"><span class="hs-identifier hs-var">v</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Forest Int -&gt; Tree Int
+forall a. a -&gt; [Tree a] -&gt; Tree a
+</span><span class="hs-identifier hs-var">Node</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679150002"><span class="hs-identifier hs-var">v</span></a></span><span> </span><span class="annot"><span class="annottext">(Forest Int -&gt; Tree Int)
+-&gt; State IntSet (Forest Int) -&gt; StateT IntSet Identity (Tree Int)
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">[Int] -&gt; State IntSet (Forest Int)
+</span><a href="#local-6989586621679149997"><span class="hs-identifier hs-var">explore</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; [Int]
+</span><a href="#local-6989586621679150004"><span class="hs-identifier hs-var">adjacent</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679150002"><span class="hs-identifier hs-var">v</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-120"></span><span>    </span><span id="local-6989586621679150004"><span class="annot"><span class="annottext">adjacent :: Int -&gt; [Int]
+</span><a href="#local-6989586621679150004"><span class="hs-identifier hs-var hs-var">adjacent</span></a></span></span><span> </span><span id="local-6989586621679150005"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679150005"><span class="hs-identifier hs-var">v</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">IntSet -&gt; [Int]
+</span><span class="hs-identifier hs-var">IntSet.toList</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; AdjacencyIntMap -&gt; IntSet
+</span><a href="Algebra.Graph.AdjacencyIntMap.html#postIntSet"><span class="hs-identifier hs-var">postIntSet</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679150005"><span class="hs-identifier hs-var">v</span></a></span><span> </span><span class="annot"><span class="annottext">AdjacencyIntMap
+</span><a href="#local-6989586621679149995"><span class="hs-identifier hs-var">g</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-121"></span><span>    </span><span id="local-6989586621679150000"><span class="annot"><span class="annottext">discovered :: Int -&gt; StateT IntSet m Bool
+</span><a href="#local-6989586621679150000"><span class="hs-identifier hs-var hs-var">discovered</span></a></span></span><span> </span><span id="local-6989586621679150019"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679150019"><span class="hs-identifier hs-var">v</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span> </span><span id="local-6989586621679150020"><span class="annot"><a href="#local-6989586621679150020"><span class="hs-identifier hs-var">new</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">(IntSet -&gt; Bool) -&gt; StateT IntSet m Bool
+forall (m :: * -&gt; *) s a. Monad m =&gt; (s -&gt; a) -&gt; StateT s m a
+</span><span class="hs-identifier hs-var">gets</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Bool -&gt; Bool
+</span><span class="hs-identifier hs-var">not</span></span><span> </span><span class="annot"><span class="annottext">(Bool -&gt; Bool) -&gt; (IntSet -&gt; Bool) -&gt; IntSet -&gt; Bool
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; IntSet -&gt; Bool
+</span><span class="hs-identifier hs-var">IntSet.member</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679150019"><span class="hs-identifier hs-var">v</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-122"></span><span>                      </span><span class="annot"><span class="hs-identifier hs-type">when</span></span><span> </span><span class="annot"><a href="#local-6989586621679150020"><span class="hs-identifier hs-type">new</span></a></span><span> </span><span class="annot"><span class="hs-operator hs-type">$</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">modify'</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">IntSet.insert</span></span><span> </span><span class="annot"><a href="#local-6989586621679150019"><span class="hs-identifier hs-type">v</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-123"></span><span>                      </span><span class="annot"><span class="hs-identifier hs-type">return</span></span><span> </span><span class="annot"><a href="#local-6989586621679150020"><span class="hs-identifier hs-type">new</span></a></span><span>
+</span><span id="line-124"></span><span>
+</span><span id="line-125"></span><span class="hs-comment">-- | Compute the /depth-first search/ forest of a graph, where adjacent vertices</span><span>
+</span><span id="line-126"></span><span class="hs-comment">-- are explored in the increasing order.</span><span>
+</span><span id="line-127"></span><span class="hs-comment">--</span><span>
+</span><span id="line-128"></span><span class="hs-comment">-- Complexity: /O((n + m) * min(n,W))/ time and /O(n)/ space.</span><span>
+</span><span id="line-129"></span><span class="hs-comment">--</span><span>
+</span><span id="line-130"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-131"></span><span class="hs-comment">-- 'forest' $ dfsForest 'empty'              == 'empty'</span><span>
+</span><span id="line-132"></span><span class="hs-comment">-- 'forest' $ dfsForest ('edge' 1 1)         == 'vertex' 1</span><span>
+</span><span id="line-133"></span><span class="hs-comment">-- 'forest' $ dfsForest ('edge' 1 2)         == 'edge' 1 2</span><span>
+</span><span id="line-134"></span><span class="hs-comment">-- 'forest' $ dfsForest ('edge' 2 1)         == 'vertices' [1,2]</span><span>
+</span><span id="line-135"></span><span class="hs-comment">-- 'isSubgraphOf' ('forest' $ dfsForest x) x == True</span><span>
+</span><span id="line-136"></span><span class="hs-comment">-- 'isDfsForestOf' (dfsForest x) x         == True</span><span>
+</span><span id="line-137"></span><span class="hs-comment">-- dfsForest . 'forest' . dfsForest        == dfsForest</span><span>
+</span><span id="line-138"></span><span class="hs-comment">-- dfsForest ('vertices' vs)               == 'map' (\\v -&gt; Node v []) ('Data.List.nub' $ 'Data.List.sort' vs)</span><span>
+</span><span id="line-139"></span><span class="hs-comment">-- dfsForest $ 3 * (1 + 4) * (1 + 5)     == [ Node { rootLabel = 1</span><span>
+</span><span id="line-140"></span><span class="hs-comment">--                                                 , subForest = [ Node { rootLabel = 5</span><span>
+</span><span id="line-141"></span><span class="hs-comment">--                                                                      , subForest = [] }]}</span><span>
+</span><span id="line-142"></span><span class="hs-comment">--                                          , Node { rootLabel = 3</span><span>
+</span><span id="line-143"></span><span class="hs-comment">--                                                 , subForest = [ Node { rootLabel = 4</span><span>
+</span><span id="line-144"></span><span class="hs-comment">--                                                                      , subForest = [] }]}]</span><span>
+</span><span id="line-145"></span><span class="hs-comment">-- 'forest' (dfsForest $ 'circuit' [1..5] + 'circuit' [5,4..1]) == 'path' [1,2,3,4,5]</span><span>
+</span><span id="line-146"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-147"></span><span class="annot"><a href="Algebra.Graph.AdjacencyIntMap.Algorithm.html#dfsForest"><span class="hs-identifier hs-type">dfsForest</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Algebra.Graph.AdjacencyIntMap.html#AdjacencyIntMap"><span class="hs-identifier hs-type">AdjacencyIntMap</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Forest</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>
+</span><span id="line-148"></span><span id="dfsForest"><span class="annot"><span class="annottext">dfsForest :: AdjacencyIntMap -&gt; Forest Int
+</span><a href="Algebra.Graph.AdjacencyIntMap.Algorithm.html#dfsForest"><span class="hs-identifier hs-var hs-var">dfsForest</span></a></span></span><span> </span><span id="local-6989586621679150021"><span class="annot"><span class="annottext">AdjacencyIntMap
+</span><a href="#local-6989586621679150021"><span class="hs-identifier hs-var">g</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">AdjacencyIntMap -&gt; [Int] -&gt; Forest Int
+</span><a href="Algebra.Graph.AdjacencyIntMap.Algorithm.html#dfsForestFromImpl"><span class="hs-identifier hs-var">dfsForestFromImpl</span></a></span><span> </span><span class="annot"><span class="annottext">AdjacencyIntMap
+</span><a href="#local-6989586621679150021"><span class="hs-identifier hs-var">g</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">AdjacencyIntMap -&gt; [Int]
+</span><a href="Algebra.Graph.AdjacencyIntMap.html#vertexList"><span class="hs-identifier hs-var">vertexList</span></a></span><span> </span><span class="annot"><span class="annottext">AdjacencyIntMap
+</span><a href="#local-6989586621679150021"><span class="hs-identifier hs-var">g</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-149"></span><span>
+</span><span id="line-150"></span><span class="hs-comment">-- | Compute the /depth-first search/ forest of a graph starting from the given</span><span>
+</span><span id="line-151"></span><span class="hs-comment">-- seed vertices, where adjacent vertices are explored in the increasing order.</span><span>
+</span><span id="line-152"></span><span class="hs-comment">-- Note that the resulting forest does not necessarily span the whole graph, as</span><span>
+</span><span id="line-153"></span><span class="hs-comment">-- some vertices may be unreachable. The seed vertices which do not belong to</span><span>
+</span><span id="line-154"></span><span class="hs-comment">-- the graph are ignored.</span><span>
+</span><span id="line-155"></span><span class="hs-comment">--</span><span>
+</span><span id="line-156"></span><span class="hs-comment">-- Complexity: /O((L + m) * log n)/ time and /O(n)/ space, where /L/ is the</span><span>
+</span><span id="line-157"></span><span class="hs-comment">-- number of seed vertices.</span><span>
+</span><span id="line-158"></span><span class="hs-comment">--</span><span>
+</span><span id="line-159"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-160"></span><span class="hs-comment">-- 'forest' $ dfsForestFrom 'empty'      vs             == 'empty'</span><span>
+</span><span id="line-161"></span><span class="hs-comment">-- 'forest' $ dfsForestFrom ('edge' 1 1) [1]            == 'vertex' 1</span><span>
+</span><span id="line-162"></span><span class="hs-comment">-- 'forest' $ dfsForestFrom ('edge' 1 2) [0]            == 'empty'</span><span>
+</span><span id="line-163"></span><span class="hs-comment">-- 'forest' $ dfsForestFrom ('edge' 1 2) [1]            == 'edge' 1 2</span><span>
+</span><span id="line-164"></span><span class="hs-comment">-- 'forest' $ dfsForestFrom ('edge' 1 2) [2]            == 'vertex' 2</span><span>
+</span><span id="line-165"></span><span class="hs-comment">-- 'forest' $ dfsForestFrom ('edge' 1 2) [1,2]          == 'edge' 1 2</span><span>
+</span><span id="line-166"></span><span class="hs-comment">-- 'forest' $ dfsForestFrom ('edge' 1 2) [2,1]          == 'vertices' [1,2]</span><span>
+</span><span id="line-167"></span><span class="hs-comment">-- 'isSubgraphOf' ('forest' $ dfsForestFrom x vs) x     == True</span><span>
+</span><span id="line-168"></span><span class="hs-comment">-- 'isDfsForestOf' (dfsForestFrom x ('vertexList' x)) x == True</span><span>
+</span><span id="line-169"></span><span class="hs-comment">-- dfsForestFrom x ('vertexList' x)                   == 'dfsForest' x</span><span>
+</span><span id="line-170"></span><span class="hs-comment">-- dfsForestFrom x []                               == []</span><span>
+</span><span id="line-171"></span><span class="hs-comment">-- dfsForestFrom (3 * (1 + 4) * (1 + 5)) [1,4]      == [ Node { rootLabel = 1</span><span>
+</span><span id="line-172"></span><span class="hs-comment">--                                                            , subForest = [ Node { rootLabel = 5</span><span>
+</span><span id="line-173"></span><span class="hs-comment">--                                                                                 , subForest = [] }</span><span>
+</span><span id="line-174"></span><span class="hs-comment">--                                                     , Node { rootLabel = 4</span><span>
+</span><span id="line-175"></span><span class="hs-comment">--                                                            , subForest = [] }]</span><span>
+</span><span id="line-176"></span><span class="hs-comment">-- 'forest' $ dfsForestFrom ('circuit' [1..5] + 'circuit' [5,4..1]) [3] == 'path' [3,2,1,5,4]</span><span>
+</span><span id="line-177"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-178"></span><span class="annot"><a href="Algebra.Graph.AdjacencyIntMap.Algorithm.html#dfsForestFrom"><span class="hs-identifier hs-type">dfsForestFrom</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Algebra.Graph.AdjacencyIntMap.html#AdjacencyIntMap"><span class="hs-identifier hs-type">AdjacencyIntMap</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Forest</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>
+</span><span id="line-179"></span><span id="dfsForestFrom"><span class="annot"><span class="annottext">dfsForestFrom :: AdjacencyIntMap -&gt; [Int] -&gt; Forest Int
+</span><a href="Algebra.Graph.AdjacencyIntMap.Algorithm.html#dfsForestFrom"><span class="hs-identifier hs-var hs-var">dfsForestFrom</span></a></span></span><span> </span><span id="local-6989586621679150022"><span class="annot"><span class="annottext">AdjacencyIntMap
+</span><a href="#local-6989586621679150022"><span class="hs-identifier hs-var">g</span></a></span></span><span> </span><span id="local-6989586621679150023"><span class="annot"><span class="annottext">[Int]
+</span><a href="#local-6989586621679150023"><span class="hs-identifier hs-var">vs</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">AdjacencyIntMap -&gt; [Int] -&gt; Forest Int
+</span><a href="Algebra.Graph.AdjacencyIntMap.Algorithm.html#dfsForestFromImpl"><span class="hs-identifier hs-var">dfsForestFromImpl</span></a></span><span> </span><span class="annot"><span class="annottext">AdjacencyIntMap
+</span><a href="#local-6989586621679150022"><span class="hs-identifier hs-var">g</span></a></span><span> </span><span class="hs-special">[</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679150024"><span class="hs-identifier hs-var">v</span></a></span><span> </span><span class="hs-glyph">|</span><span> </span><span id="local-6989586621679150024"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679150024"><span class="hs-identifier hs-var">v</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">[Int]
+</span><a href="#local-6989586621679150023"><span class="hs-identifier hs-var">vs</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Int -&gt; AdjacencyIntMap -&gt; Bool
+</span><a href="Algebra.Graph.AdjacencyIntMap.html#hasVertex"><span class="hs-identifier hs-var">hasVertex</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679150024"><span class="hs-identifier hs-var">v</span></a></span><span> </span><span class="annot"><span class="annottext">AdjacencyIntMap
+</span><a href="#local-6989586621679150022"><span class="hs-identifier hs-var">g</span></a></span><span> </span><span class="hs-special">]</span><span>
+</span><span id="line-180"></span><span>
+</span><span id="line-181"></span><span>
+</span><span id="line-182"></span><span class="hs-comment">-- | Return the list vertices visited by the /depth-first search/ in a graph,</span><span>
+</span><span id="line-183"></span><span class="hs-comment">-- starting from the given seed vertices. Adjacent vertices are explored in the</span><span>
+</span><span id="line-184"></span><span class="hs-comment">-- increasing order.</span><span>
+</span><span id="line-185"></span><span class="hs-comment">--</span><span>
+</span><span id="line-186"></span><span class="hs-comment">-- Complexity: /O((L + m) * log n)/ time and /O(n)/ space, where /L/ is the</span><span>
+</span><span id="line-187"></span><span class="hs-comment">-- number of seed vertices.</span><span>
+</span><span id="line-188"></span><span class="hs-comment">--</span><span>
+</span><span id="line-189"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-190"></span><span class="hs-comment">-- dfs 'empty'      vs    == []</span><span>
+</span><span id="line-191"></span><span class="hs-comment">-- dfs ('edge' 1 1) [1]   == [1]</span><span>
+</span><span id="line-192"></span><span class="hs-comment">-- dfs ('edge' 1 2) [0]   == []</span><span>
+</span><span id="line-193"></span><span class="hs-comment">-- dfs ('edge' 1 2) [1]   == [1,2]</span><span>
+</span><span id="line-194"></span><span class="hs-comment">-- dfs ('edge' 1 2) [2]   == [2]</span><span>
+</span><span id="line-195"></span><span class="hs-comment">-- dfs ('edge' 1 2) [1,2] == [1,2]</span><span>
+</span><span id="line-196"></span><span class="hs-comment">-- dfs ('edge' 1 2) [2,1] == [2,1]</span><span>
+</span><span id="line-197"></span><span class="hs-comment">-- dfs x          []    == []</span><span>
+</span><span id="line-198"></span><span class="hs-comment">--</span><span>
+</span><span id="line-199"></span><span class="hs-comment">-- 'Data.List.and' [ 'hasVertex' v x | v &lt;- dfs x vs ]       == True</span><span>
+</span><span id="line-200"></span><span class="hs-comment">-- dfs (3 * (1 + 4) * (1 + 5)) [1,4]           == [1,5,4]</span><span>
+</span><span id="line-201"></span><span class="hs-comment">-- dfs ('circuit' [1..5] + 'circuit' [5,4..1]) [3] == [3,2,1,5,4]</span><span>
+</span><span id="line-202"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-203"></span><span class="annot"><a href="Algebra.Graph.AdjacencyIntMap.Algorithm.html#dfs"><span class="hs-identifier hs-type">dfs</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Algebra.Graph.AdjacencyIntMap.html#AdjacencyIntMap"><span class="hs-identifier hs-type">AdjacencyIntMap</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">]</span><span>
+</span><span id="line-204"></span><span id="dfs"><span class="annot"><span class="annottext">dfs :: AdjacencyIntMap -&gt; [Int] -&gt; [Int]
+</span><a href="Algebra.Graph.AdjacencyIntMap.Algorithm.html#dfs"><span class="hs-identifier hs-var hs-var">dfs</span></a></span></span><span> </span><span id="local-6989586621679150025"><span class="annot"><span class="annottext">AdjacencyIntMap
+</span><a href="#local-6989586621679150025"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Tree Int -&gt; [Int]) -&gt; Forest Int -&gt; [Int]
+forall (t :: * -&gt; *) a b. Foldable t =&gt; (a -&gt; [b]) -&gt; t a -&gt; [b]
+</span><span class="hs-identifier hs-var">concatMap</span></span><span> </span><span class="annot"><span class="annottext">Tree Int -&gt; [Int]
+forall a. Tree a -&gt; [a]
+</span><span class="hs-identifier hs-var">flatten</span></span><span> </span><span class="annot"><span class="annottext">(Forest Int -&gt; [Int]) -&gt; ([Int] -&gt; Forest Int) -&gt; [Int] -&gt; [Int]
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">AdjacencyIntMap -&gt; [Int] -&gt; Forest Int
+</span><a href="Algebra.Graph.AdjacencyIntMap.Algorithm.html#dfsForestFrom"><span class="hs-identifier hs-var">dfsForestFrom</span></a></span><span> </span><span class="annot"><span class="annottext">AdjacencyIntMap
+</span><a href="#local-6989586621679150025"><span class="hs-identifier hs-var">x</span></a></span><span>
+</span><span id="line-205"></span><span>
+</span><span id="line-206"></span><span class="hs-comment">-- | Return the list of vertices /reachable/ from a source vertex in a graph.</span><span>
+</span><span id="line-207"></span><span class="hs-comment">-- The vertices in the resulting list appear in the /depth-first search order/.</span><span>
+</span><span id="line-208"></span><span class="hs-comment">--</span><span>
+</span><span id="line-209"></span><span class="hs-comment">-- Complexity: /O(m * log n)/ time and /O(n)/ space.</span><span>
+</span><span id="line-210"></span><span class="hs-comment">--</span><span>
+</span><span id="line-211"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-212"></span><span class="hs-comment">-- reachable 'empty'              x == []</span><span>
+</span><span id="line-213"></span><span class="hs-comment">-- reachable ('vertex' 1)         1 == [1]</span><span>
+</span><span id="line-214"></span><span class="hs-comment">-- reachable ('edge' 1 1)         1 == [1]</span><span>
+</span><span id="line-215"></span><span class="hs-comment">-- reachable ('edge' 1 2)         0 == []</span><span>
+</span><span id="line-216"></span><span class="hs-comment">-- reachable ('edge' 1 2)         1 == [1,2]</span><span>
+</span><span id="line-217"></span><span class="hs-comment">-- reachable ('edge' 1 2)         2 == [2]</span><span>
+</span><span id="line-218"></span><span class="hs-comment">-- reachable ('path'    [1..8]  ) 4 == [4..8]</span><span>
+</span><span id="line-219"></span><span class="hs-comment">-- reachable ('circuit' [1..8]  ) 4 == [4..8] ++ [1..3]</span><span>
+</span><span id="line-220"></span><span class="hs-comment">-- reachable ('clique'  [8,7..1]) 8 == [8] ++ [1..7]</span><span>
+</span><span id="line-221"></span><span class="hs-comment">--</span><span>
+</span><span id="line-222"></span><span class="hs-comment">-- 'Data.List.and' [ 'hasVertex' v x | v &lt;- reachable x y ] == True</span><span>
+</span><span id="line-223"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-224"></span><span class="annot"><a href="Algebra.Graph.AdjacencyIntMap.Algorithm.html#reachable"><span class="hs-identifier hs-type">reachable</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Algebra.Graph.AdjacencyIntMap.html#AdjacencyIntMap"><span class="hs-identifier hs-type">AdjacencyIntMap</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">]</span><span>
+</span><span id="line-225"></span><span id="reachable"><span class="annot"><span class="annottext">reachable :: AdjacencyIntMap -&gt; Int -&gt; [Int]
+</span><a href="Algebra.Graph.AdjacencyIntMap.Algorithm.html#reachable"><span class="hs-identifier hs-var hs-var">reachable</span></a></span></span><span> </span><span id="local-6989586621679150029"><span class="annot"><span class="annottext">AdjacencyIntMap
+</span><a href="#local-6989586621679150029"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span id="local-6989586621679150030"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679150030"><span class="hs-identifier hs-var">y</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">AdjacencyIntMap -&gt; [Int] -&gt; [Int]
+</span><a href="Algebra.Graph.AdjacencyIntMap.Algorithm.html#dfs"><span class="hs-identifier hs-var">dfs</span></a></span><span> </span><span class="annot"><span class="annottext">AdjacencyIntMap
+</span><a href="#local-6989586621679150029"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679150030"><span class="hs-identifier hs-var">y</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-226"></span><span>
+</span><span id="line-227"></span><span class="hs-keyword">type</span><span> </span><span id="Cycle"><span class="annot"><a href="Algebra.Graph.AdjacencyIntMap.Algorithm.html#Cycle"><span class="hs-identifier hs-var">Cycle</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-identifier hs-type">NonEmpty</span></span><span>
+</span><span id="line-228"></span><span class="hs-keyword">type</span><span> </span><span id="Result"><span class="annot"><a href="Algebra.Graph.AdjacencyIntMap.Algorithm.html#Result"><span class="hs-identifier hs-var">Result</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Either</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Algebra.Graph.AdjacencyIntMap.Algorithm.html#Cycle"><span class="hs-identifier hs-type">Cycle</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">)</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">]</span><span>
+</span><span id="line-229"></span><span class="hs-keyword">data</span><span> </span><span id="NodeState"><span class="annot"><a href="Algebra.Graph.AdjacencyIntMap.Algorithm.html#NodeState"><span class="hs-identifier hs-var">NodeState</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="Entered"><span class="annot"><a href="Algebra.Graph.AdjacencyIntMap.Algorithm.html#Entered"><span class="hs-identifier hs-var">Entered</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span id="Exited"><span class="annot"><a href="Algebra.Graph.AdjacencyIntMap.Algorithm.html#Exited"><span class="hs-identifier hs-var">Exited</span></a></span></span><span>
+</span><span id="line-230"></span><span class="hs-keyword">data</span><span> </span><span id="S"><span class="annot"><a href="Algebra.Graph.AdjacencyIntMap.Algorithm.html#S"><span class="hs-identifier hs-var">S</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="S"><span class="annot"><a href="Algebra.Graph.AdjacencyIntMap.Algorithm.html#S"><span class="hs-identifier hs-var">S</span></a></span></span><span> </span><span class="hs-special">{</span><span> </span><span id="parent"><span class="annot"><span class="annottext">S -&gt; IntMap Int
+</span><a href="Algebra.Graph.AdjacencyIntMap.Algorithm.html#parent"><span class="hs-identifier hs-var hs-var">parent</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IntMap.IntMap</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>
+</span><span id="line-231"></span><span>           </span><span class="hs-special">,</span><span> </span><span id="entry"><span class="annot"><span class="annottext">S -&gt; IntMap NodeState
+</span><a href="Algebra.Graph.AdjacencyIntMap.Algorithm.html#entry"><span class="hs-identifier hs-var hs-var">entry</span></a></span></span><span>  </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IntMap.IntMap</span></span><span> </span><span class="annot"><a href="Algebra.Graph.AdjacencyIntMap.Algorithm.html#NodeState"><span class="hs-identifier hs-type">NodeState</span></a></span><span>
+</span><span id="line-232"></span><span>           </span><span class="hs-special">,</span><span> </span><span id="order"><span class="annot"><span class="annottext">S -&gt; [Int]
+</span><a href="Algebra.Graph.AdjacencyIntMap.Algorithm.html#order"><span class="hs-identifier hs-var hs-var">order</span></a></span></span><span>  </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">]</span><span> </span><span class="hs-special">}</span><span>
+</span><span id="line-233"></span><span>
+</span><span id="line-234"></span><span class="annot"><a href="Algebra.Graph.AdjacencyIntMap.Algorithm.html#topSortImpl"><span class="hs-identifier hs-type">topSortImpl</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Algebra.Graph.AdjacencyIntMap.html#AdjacencyIntMap"><span class="hs-identifier hs-type">AdjacencyIntMap</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">StateT</span></span><span> </span><span class="annot"><a href="Algebra.Graph.AdjacencyIntMap.Algorithm.html#S"><span class="hs-identifier hs-type">S</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Cont</span></span><span> </span><span class="annot"><a href="Algebra.Graph.AdjacencyIntMap.Algorithm.html#Result"><span class="hs-identifier hs-type">Result</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><a href="Algebra.Graph.AdjacencyIntMap.Algorithm.html#Result"><span class="hs-identifier hs-type">Result</span></a></span><span>
+</span><span id="line-235"></span><span id="topSortImpl"><span class="annot"><span class="annottext">topSortImpl :: AdjacencyIntMap -&gt; StateT S (Cont Result) Result
+</span><a href="Algebra.Graph.AdjacencyIntMap.Algorithm.html#topSortImpl"><span class="hs-identifier hs-var hs-var">topSortImpl</span></a></span></span><span> </span><span id="local-6989586621679150038"><span class="annot"><span class="annottext">AdjacencyIntMap
+</span><a href="#local-6989586621679150038"><span class="hs-identifier hs-var">g</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">CallCC (Cont Result) (Result, S) ((), S)
+-&gt; CallCC (StateT S (Cont Result)) Result ()
+forall (m :: * -&gt; *) a s b.
+CallCC m (a, s) (b, s) -&gt; CallCC (StateT s m) a b
+</span><span class="hs-identifier hs-var">liftCallCC'</span></span><span> </span><span class="annot"><span class="annottext">CallCC (Cont Result) (Result, S) ((), S)
+forall {k} a (r :: k) (m :: k -&gt; *) b.
+((a -&gt; ContT r m b) -&gt; ContT r m a) -&gt; ContT r m a
+</span><span class="hs-identifier hs-var">callCC</span></span><span> </span><span class="annot"><span class="annottext">CallCC (StateT S (Cont Result)) Result ()
+-&gt; CallCC (StateT S (Cont Result)) Result ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679150041"><span class="annot"><span class="annottext">Result -&gt; StateT S (Cont Result) ()
+</span><a href="#local-6989586621679150041"><span class="hs-identifier hs-var">cyclic</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-236"></span><span>  </span><span class="hs-keyword">do</span><span> </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679150042"><span class="annot"><span class="annottext">vertices :: [Int]
+</span><a href="#local-6989586621679150042"><span class="hs-identifier hs-var hs-var hs-var">vertices</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">((Int, IntSet) -&gt; Int) -&gt; [(Int, IntSet)] -&gt; [Int]
+forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+</span><span class="hs-identifier hs-var">map</span></span><span> </span><span class="annot"><span class="annottext">(Int, IntSet) -&gt; Int
+forall a b. (a, b) -&gt; a
+</span><span class="hs-identifier hs-var">fst</span></span><span> </span><span class="annot"><span class="annottext">([(Int, IntSet)] -&gt; [Int]) -&gt; [(Int, IntSet)] -&gt; [Int]
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">IntMap IntSet -&gt; [(Int, IntSet)]
+forall a. IntMap a -&gt; [(Int, a)]
+</span><span class="hs-identifier hs-var">IntMap.toDescList</span></span><span> </span><span class="annot"><span class="annottext">(IntMap IntSet -&gt; [(Int, IntSet)])
+-&gt; IntMap IntSet -&gt; [(Int, IntSet)]
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">AdjacencyIntMap -&gt; IntMap IntSet
+</span><a href="Algebra.Graph.AdjacencyIntMap.html#adjacencyIntMap"><span class="hs-identifier hs-var">adjacencyIntMap</span></a></span><span> </span><span class="annot"><span class="annottext">AdjacencyIntMap
+</span><a href="#local-6989586621679150038"><span class="hs-identifier hs-var">g</span></a></span><span>
+</span><span id="line-237"></span><span>         </span><span id="local-6989586621679150046"><span class="annot"><span class="annottext">adjacent :: Int -&gt; [Int]
+</span><a href="#local-6989586621679150046"><span class="hs-identifier hs-var hs-var hs-var">adjacent</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">IntSet -&gt; [Int]
+</span><span class="hs-identifier hs-var">IntSet.toDescList</span></span><span> </span><span class="annot"><span class="annottext">(IntSet -&gt; [Int]) -&gt; (Int -&gt; IntSet) -&gt; Int -&gt; [Int]
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">(Int -&gt; AdjacencyIntMap -&gt; IntSet)
+-&gt; AdjacencyIntMap -&gt; Int -&gt; IntSet
+forall a b c. (a -&gt; b -&gt; c) -&gt; b -&gt; a -&gt; c
+</span><span class="hs-identifier hs-var">flip</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; AdjacencyIntMap -&gt; IntSet
+</span><a href="Algebra.Graph.AdjacencyIntMap.html#postIntSet"><span class="hs-identifier hs-var">postIntSet</span></a></span><span> </span><span class="annot"><span class="annottext">AdjacencyIntMap
+</span><a href="#local-6989586621679150038"><span class="hs-identifier hs-var">g</span></a></span><span>
+</span><span id="line-238"></span><span>         </span><span id="local-6989586621679150049"><span class="annot"><span class="annottext">dfsRoot :: Int -&gt; StateT S (Cont Result) ()
+</span><a href="#local-6989586621679150049"><span class="hs-identifier hs-var hs-var hs-var">dfsRoot</span></a></span></span><span> </span><span id="local-6989586621679150050"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679150050"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; StateT S (Cont Result) (Maybe NodeState)
+forall {m :: * -&gt; *}.
+Monad m =&gt;
+Int -&gt; StateT S m (Maybe NodeState)
+</span><a href="#local-6989586621679150051"><span class="hs-identifier hs-var">nodeState</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679150050"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">StateT S (Cont Result) (Maybe NodeState)
+-&gt; (Maybe NodeState -&gt; StateT S (Cont Result) ())
+-&gt; StateT S (Cont Result) ()
+forall a b.
+StateT S (Cont Result) a
+-&gt; (a -&gt; StateT S (Cont Result) b) -&gt; StateT S (Cont Result) b
+forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; (a -&gt; m b) -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;=</span></span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-239"></span><span>           </span><span class="annot"><span class="annottext">Maybe NodeState
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Int -&gt; StateT S (Cont Result) ()
+forall {m :: * -&gt; *}. Monad m =&gt; Int -&gt; StateT S m ()
+</span><a href="#local-6989586621679150052"><span class="hs-identifier hs-var">enterRoot</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679150050"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">StateT S (Cont Result) ()
+-&gt; StateT S (Cont Result) () -&gt; StateT S (Cont Result) ()
+forall a b.
+StateT S (Cont Result) a
+-&gt; StateT S (Cont Result) b -&gt; StateT S (Cont Result) b
+forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; m b -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; StateT S (Cont Result) ()
+</span><a href="#local-6989586621679150053"><span class="hs-identifier hs-var">dfs</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679150050"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">StateT S (Cont Result) ()
+-&gt; StateT S (Cont Result) () -&gt; StateT S (Cont Result) ()
+forall a b.
+StateT S (Cont Result) a
+-&gt; StateT S (Cont Result) b -&gt; StateT S (Cont Result) b
+forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; m b -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; StateT S (Cont Result) ()
+forall {m :: * -&gt; *}. Monad m =&gt; Int -&gt; StateT S m ()
+</span><a href="#local-6989586621679150054"><span class="hs-identifier hs-var">exit</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679150050"><span class="hs-identifier hs-var">x</span></a></span><span>
+</span><span id="line-240"></span><span>           </span><span class="annot"><span class="annottext">Maybe NodeState
+</span><span class="hs-identifier">_</span></span><span>       </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">() -&gt; StateT S (Cont Result) ()
+forall a. a -&gt; StateT S (Cont Result) a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-241"></span><span>         </span><span id="local-6989586621679150053"><span class="annot"><span class="annottext">dfs :: Int -&gt; StateT S (Cont Result) ()
+</span><a href="#local-6989586621679150053"><span class="hs-identifier hs-var hs-var hs-var">dfs</span></a></span></span><span> </span><span id="local-6989586621679150055"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679150055"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Int]
+-&gt; (Int -&gt; StateT S (Cont Result) ()) -&gt; StateT S (Cont Result) ()
+forall (t :: * -&gt; *) (m :: * -&gt; *) a b.
+(Foldable t, Monad m) =&gt;
+t a -&gt; (a -&gt; m b) -&gt; m ()
+</span><span class="hs-identifier hs-var">forM_</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; [Int]
+</span><a href="#local-6989586621679150046"><span class="hs-identifier hs-var">adjacent</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679150055"><span class="hs-identifier hs-var">x</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">((Int -&gt; StateT S (Cont Result) ()) -&gt; StateT S (Cont Result) ())
+-&gt; (Int -&gt; StateT S (Cont Result) ()) -&gt; StateT S (Cont Result) ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679150057"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679150057"><span class="hs-identifier hs-var">y</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-242"></span><span>                   </span><span class="annot"><span class="annottext">Int -&gt; StateT S (Cont Result) (Maybe NodeState)
+forall {m :: * -&gt; *}.
+Monad m =&gt;
+Int -&gt; StateT S m (Maybe NodeState)
+</span><a href="#local-6989586621679150051"><span class="hs-identifier hs-var">nodeState</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679150057"><span class="hs-identifier hs-var">y</span></a></span><span> </span><span class="annot"><span class="annottext">StateT S (Cont Result) (Maybe NodeState)
+-&gt; (Maybe NodeState -&gt; StateT S (Cont Result) ())
+-&gt; StateT S (Cont Result) ()
+forall a b.
+StateT S (Cont Result) a
+-&gt; (a -&gt; StateT S (Cont Result) b) -&gt; StateT S (Cont Result) b
+forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; (a -&gt; m b) -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;=</span></span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-243"></span><span>                     </span><span class="annot"><span class="annottext">Maybe NodeState
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>      </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; StateT S (Cont Result) ()
+forall {m :: * -&gt; *}. Monad m =&gt; Int -&gt; Int -&gt; StateT S m ()
+</span><a href="#local-6989586621679150058"><span class="hs-identifier hs-var">enter</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679150055"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679150057"><span class="hs-identifier hs-var">y</span></a></span><span> </span><span class="annot"><span class="annottext">StateT S (Cont Result) ()
+-&gt; StateT S (Cont Result) () -&gt; StateT S (Cont Result) ()
+forall a b.
+StateT S (Cont Result) a
+-&gt; StateT S (Cont Result) b -&gt; StateT S (Cont Result) b
+forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; m b -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; StateT S (Cont Result) ()
+</span><a href="#local-6989586621679150053"><span class="hs-identifier hs-var">dfs</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679150057"><span class="hs-identifier hs-var">y</span></a></span><span> </span><span class="annot"><span class="annottext">StateT S (Cont Result) ()
+-&gt; StateT S (Cont Result) () -&gt; StateT S (Cont Result) ()
+forall a b.
+StateT S (Cont Result) a
+-&gt; StateT S (Cont Result) b -&gt; StateT S (Cont Result) b
+forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; m b -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; StateT S (Cont Result) ()
+forall {m :: * -&gt; *}. Monad m =&gt; Int -&gt; StateT S m ()
+</span><a href="#local-6989586621679150054"><span class="hs-identifier hs-var">exit</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679150057"><span class="hs-identifier hs-var">y</span></a></span><span>
+</span><span id="line-244"></span><span>                     </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span class="annot"><span class="annottext">NodeState
+</span><a href="Algebra.Graph.AdjacencyIntMap.Algorithm.html#Exited"><span class="hs-identifier hs-var">Exited</span></a></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">() -&gt; StateT S (Cont Result) ()
+forall a. a -&gt; StateT S (Cont Result) a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-245"></span><span>                     </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span class="annot"><span class="annottext">NodeState
+</span><a href="Algebra.Graph.AdjacencyIntMap.Algorithm.html#Entered"><span class="hs-identifier hs-var">Entered</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Result -&gt; StateT S (Cont Result) ()
+</span><a href="#local-6989586621679150041"><span class="hs-identifier hs-var">cyclic</span></a></span><span> </span><span class="annot"><span class="annottext">(Result -&gt; StateT S (Cont Result) ())
+-&gt; (IntMap Int -&gt; Result)
+-&gt; IntMap Int
+-&gt; StateT S (Cont Result) ()
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Cycle Int -&gt; Result
+forall a b. a -&gt; Either a b
+</span><span class="hs-identifier hs-var">Left</span></span><span> </span><span class="annot"><span class="annottext">(Cycle Int -&gt; Result)
+-&gt; (IntMap Int -&gt; Cycle Int) -&gt; IntMap Int -&gt; Result
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; IntMap Int -&gt; Cycle Int
+</span><a href="#local-6989586621679150059"><span class="hs-identifier hs-var">retrace</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679150055"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679150057"><span class="hs-identifier hs-var">y</span></a></span><span> </span><span class="annot"><span class="annottext">(IntMap Int -&gt; StateT S (Cont Result) ())
+-&gt; StateT S (Cont Result) (IntMap Int) -&gt; StateT S (Cont Result) ()
+forall (m :: * -&gt; *) a b. Monad m =&gt; (a -&gt; m b) -&gt; m a -&gt; m b
+</span><span class="hs-operator hs-var">=&lt;&lt;</span></span><span> </span><span class="annot"><span class="annottext">(S -&gt; IntMap Int) -&gt; StateT S (Cont Result) (IntMap Int)
+forall (m :: * -&gt; *) s a. Monad m =&gt; (s -&gt; a) -&gt; StateT s m a
+</span><span class="hs-identifier hs-var">gets</span></span><span> </span><span class="annot"><span class="annottext">S -&gt; IntMap Int
+</span><a href="Algebra.Graph.AdjacencyIntMap.Algorithm.html#parent"><span class="hs-identifier hs-var">parent</span></a></span><span>
+</span><span id="line-246"></span><span>     </span><span class="annot"><span class="annottext">[Int]
+-&gt; (Int -&gt; StateT S (Cont Result) ()) -&gt; StateT S (Cont Result) ()
+forall (t :: * -&gt; *) (m :: * -&gt; *) a b.
+(Foldable t, Monad m) =&gt;
+t a -&gt; (a -&gt; m b) -&gt; m ()
+</span><span class="hs-identifier hs-var">forM_</span></span><span> </span><span class="annot"><span class="annottext">[Int]
+</span><a href="#local-6989586621679150042"><span class="hs-identifier hs-var">vertices</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; StateT S (Cont Result) ()
+</span><a href="#local-6989586621679150049"><span class="hs-identifier hs-var">dfsRoot</span></a></span><span>
+</span><span id="line-247"></span><span>     </span><span class="annot"><span class="annottext">[Int] -&gt; Result
+forall a b. b -&gt; Either a b
+</span><span class="hs-identifier hs-var">Right</span></span><span> </span><span class="annot"><span class="annottext">([Int] -&gt; Result)
+-&gt; StateT S (Cont Result) [Int] -&gt; StateT S (Cont Result) Result
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">(S -&gt; [Int]) -&gt; StateT S (Cont Result) [Int]
+forall (m :: * -&gt; *) s a. Monad m =&gt; (s -&gt; a) -&gt; StateT s m a
+</span><span class="hs-identifier hs-var">gets</span></span><span> </span><span class="annot"><span class="annottext">S -&gt; [Int]
+</span><a href="Algebra.Graph.AdjacencyIntMap.Algorithm.html#order"><span class="hs-identifier hs-var">order</span></a></span><span>
+</span><span id="line-248"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-249"></span><span>    </span><span id="local-6989586621679150051"><span class="annot"><span class="annottext">nodeState :: Int -&gt; StateT S m (Maybe NodeState)
+</span><a href="#local-6989586621679150051"><span class="hs-identifier hs-var hs-var">nodeState</span></a></span></span><span> </span><span id="local-6989586621679150067"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679150067"><span class="hs-identifier hs-var">v</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(S -&gt; Maybe NodeState) -&gt; StateT S m (Maybe NodeState)
+forall (m :: * -&gt; *) s a. Monad m =&gt; (s -&gt; a) -&gt; StateT s m a
+</span><span class="hs-identifier hs-var">gets</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; IntMap NodeState -&gt; Maybe NodeState
+forall a. Int -&gt; IntMap a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">IntMap.lookup</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679150067"><span class="hs-identifier hs-var">v</span></a></span><span> </span><span class="annot"><span class="annottext">(IntMap NodeState -&gt; Maybe NodeState)
+-&gt; (S -&gt; IntMap NodeState) -&gt; S -&gt; Maybe NodeState
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">S -&gt; IntMap NodeState
+</span><a href="Algebra.Graph.AdjacencyIntMap.Algorithm.html#entry"><span class="hs-identifier hs-var">entry</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-250"></span><span>    </span><span id="local-6989586621679150058"><span class="annot"><span class="annottext">enter :: Int -&gt; Int -&gt; StateT S m ()
+</span><a href="#local-6989586621679150058"><span class="hs-identifier hs-var hs-var">enter</span></a></span></span><span> </span><span id="local-6989586621679150075"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679150075"><span class="hs-identifier hs-var">u</span></a></span></span><span> </span><span id="local-6989586621679150076"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679150076"><span class="hs-identifier hs-var">v</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(S -&gt; S) -&gt; StateT S m ()
+forall (m :: * -&gt; *) s. Monad m =&gt; (s -&gt; s) -&gt; StateT s m ()
+</span><span class="hs-identifier hs-var">modify'</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span class="hs-special">(</span><span class="annot"><a href="Algebra.Graph.AdjacencyIntMap.Algorithm.html#S"><span class="hs-identifier hs-type">S</span></a></span><span> </span><span id="local-6989586621679150077"><span class="annot"><span class="annottext">IntMap Int
+</span><a href="#local-6989586621679150077"><span class="hs-identifier hs-var">m</span></a></span></span><span> </span><span id="local-6989586621679150078"><span class="annot"><span class="annottext">IntMap NodeState
+</span><a href="#local-6989586621679150078"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span id="local-6989586621679150079"><span class="annot"><span class="annottext">[Int]
+</span><a href="#local-6989586621679150079"><span class="hs-identifier hs-var">vs</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">IntMap Int -&gt; IntMap NodeState -&gt; [Int] -&gt; S
+</span><a href="Algebra.Graph.AdjacencyIntMap.Algorithm.html#S"><span class="hs-identifier hs-var">S</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; IntMap Int -&gt; IntMap Int
+forall a. Int -&gt; a -&gt; IntMap a -&gt; IntMap a
+</span><span class="hs-identifier hs-var">IntMap.insert</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679150076"><span class="hs-identifier hs-var">v</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679150075"><span class="hs-identifier hs-var">u</span></a></span><span> </span><span class="annot"><span class="annottext">IntMap Int
+</span><a href="#local-6989586621679150077"><span class="hs-identifier hs-var">m</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-251"></span><span>                                          </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; NodeState -&gt; IntMap NodeState -&gt; IntMap NodeState
+forall a. Int -&gt; a -&gt; IntMap a -&gt; IntMap a
+</span><span class="hs-identifier hs-var">IntMap.insert</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679150076"><span class="hs-identifier hs-var">v</span></a></span><span> </span><span class="annot"><span class="annottext">NodeState
+</span><a href="Algebra.Graph.AdjacencyIntMap.Algorithm.html#Entered"><span class="hs-identifier hs-var">Entered</span></a></span><span> </span><span class="annot"><span class="annottext">IntMap NodeState
+</span><a href="#local-6989586621679150078"><span class="hs-identifier hs-var">n</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-252"></span><span>                                          </span><span class="annot"><span class="annottext">[Int]
+</span><a href="#local-6989586621679150079"><span class="hs-identifier hs-var">vs</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-253"></span><span>    </span><span id="local-6989586621679150052"><span class="annot"><span class="annottext">enterRoot :: Int -&gt; StateT S m ()
+</span><a href="#local-6989586621679150052"><span class="hs-identifier hs-var hs-var">enterRoot</span></a></span></span><span> </span><span id="local-6989586621679150087"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679150087"><span class="hs-identifier hs-var">v</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(S -&gt; S) -&gt; StateT S m ()
+forall (m :: * -&gt; *) s. Monad m =&gt; (s -&gt; s) -&gt; StateT s m ()
+</span><span class="hs-identifier hs-var">modify'</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span class="hs-special">(</span><span class="annot"><a href="Algebra.Graph.AdjacencyIntMap.Algorithm.html#S"><span class="hs-identifier hs-type">S</span></a></span><span> </span><span id="local-6989586621679150088"><span class="annot"><span class="annottext">IntMap Int
+</span><a href="#local-6989586621679150088"><span class="hs-identifier hs-var">m</span></a></span></span><span> </span><span id="local-6989586621679150089"><span class="annot"><span class="annottext">IntMap NodeState
+</span><a href="#local-6989586621679150089"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span id="local-6989586621679150090"><span class="annot"><span class="annottext">[Int]
+</span><a href="#local-6989586621679150090"><span class="hs-identifier hs-var">vs</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">IntMap Int -&gt; IntMap NodeState -&gt; [Int] -&gt; S
+</span><a href="Algebra.Graph.AdjacencyIntMap.Algorithm.html#S"><span class="hs-identifier hs-var">S</span></a></span><span> </span><span class="annot"><span class="annottext">IntMap Int
+</span><a href="#local-6989586621679150088"><span class="hs-identifier hs-var">m</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; NodeState -&gt; IntMap NodeState -&gt; IntMap NodeState
+forall a. Int -&gt; a -&gt; IntMap a -&gt; IntMap a
+</span><span class="hs-identifier hs-var">IntMap.insert</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679150087"><span class="hs-identifier hs-var">v</span></a></span><span> </span><span class="annot"><span class="annottext">NodeState
+</span><a href="Algebra.Graph.AdjacencyIntMap.Algorithm.html#Entered"><span class="hs-identifier hs-var">Entered</span></a></span><span> </span><span class="annot"><span class="annottext">IntMap NodeState
+</span><a href="#local-6989586621679150089"><span class="hs-identifier hs-var">n</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">[Int]
+</span><a href="#local-6989586621679150090"><span class="hs-identifier hs-var">vs</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-254"></span><span>    </span><span id="local-6989586621679150054"><span class="annot"><span class="annottext">exit :: Int -&gt; StateT S m ()
+</span><a href="#local-6989586621679150054"><span class="hs-identifier hs-var hs-var">exit</span></a></span></span><span> </span><span id="local-6989586621679150099"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679150099"><span class="hs-identifier hs-var">v</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(S -&gt; S) -&gt; StateT S m ()
+forall (m :: * -&gt; *) s. Monad m =&gt; (s -&gt; s) -&gt; StateT s m ()
+</span><span class="hs-identifier hs-var">modify'</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span class="hs-special">(</span><span class="annot"><a href="Algebra.Graph.AdjacencyIntMap.Algorithm.html#S"><span class="hs-identifier hs-type">S</span></a></span><span> </span><span id="local-6989586621679150100"><span class="annot"><span class="annottext">IntMap Int
+</span><a href="#local-6989586621679150100"><span class="hs-identifier hs-var">m</span></a></span></span><span> </span><span id="local-6989586621679150101"><span class="annot"><span class="annottext">IntMap NodeState
+</span><a href="#local-6989586621679150101"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span id="local-6989586621679150102"><span class="annot"><span class="annottext">[Int]
+</span><a href="#local-6989586621679150102"><span class="hs-identifier hs-var">vs</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">IntMap Int -&gt; IntMap NodeState -&gt; [Int] -&gt; S
+</span><a href="Algebra.Graph.AdjacencyIntMap.Algorithm.html#S"><span class="hs-identifier hs-var">S</span></a></span><span> </span><span class="annot"><span class="annottext">IntMap Int
+</span><a href="#local-6989586621679150100"><span class="hs-identifier hs-var">m</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(Maybe NodeState -&gt; Maybe NodeState)
+-&gt; Int -&gt; IntMap NodeState -&gt; IntMap NodeState
+forall a. (Maybe a -&gt; Maybe a) -&gt; Int -&gt; IntMap a -&gt; IntMap a
+</span><span class="hs-identifier hs-var">IntMap.alter</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(NodeState -&gt; NodeState) -&gt; Maybe NodeState -&gt; Maybe NodeState
+forall a b. (a -&gt; b) -&gt; Maybe a -&gt; Maybe b
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="annot"><span class="annottext">NodeState -&gt; NodeState
+</span><a href="#local-6989586621679150104"><span class="hs-identifier hs-var">leave</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679150099"><span class="hs-identifier hs-var">v</span></a></span><span> </span><span class="annot"><span class="annottext">IntMap NodeState
+</span><a href="#local-6989586621679150101"><span class="hs-identifier hs-var">n</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679150099"><span class="hs-identifier hs-var">v</span></a></span><span class="annot"><span class="annottext">Int -&gt; [Int] -&gt; [Int]
+forall a. a -&gt; [a] -&gt; [a]
+</span><span class="hs-glyph hs-var">:</span></span><span class="annot"><span class="annottext">[Int]
+</span><a href="#local-6989586621679150102"><span class="hs-identifier hs-var">vs</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-255"></span><span>      </span><span class="hs-keyword">where</span><span> </span><span id="local-6989586621679150104"><span class="annot"><span class="annottext">leave :: NodeState -&gt; NodeState
+</span><a href="#local-6989586621679150104"><span class="hs-identifier hs-var hs-var">leave</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-256"></span><span>              </span><span class="annot"><span class="annottext">NodeState
+</span><a href="Algebra.Graph.AdjacencyIntMap.Algorithm.html#Entered"><span class="hs-identifier hs-var">Entered</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">NodeState
+</span><a href="Algebra.Graph.AdjacencyIntMap.Algorithm.html#Exited"><span class="hs-identifier hs-var">Exited</span></a></span><span>
+</span><span id="line-257"></span><span>              </span><span class="annot"><span class="annottext">NodeState
+</span><a href="Algebra.Graph.AdjacencyIntMap.Algorithm.html#Exited"><span class="hs-identifier hs-var">Exited</span></a></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; NodeState
+forall a. HasCallStack =&gt; [Char] -&gt; a
+</span><span class="hs-identifier hs-var">error</span></span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><span class="hs-string">&quot;Internal error: dfs search order violated&quot;</span></span><span>
+</span><span id="line-258"></span><span>    </span><span id="local-6989586621679150059"><span class="annot"><span class="annottext">retrace :: Int -&gt; Int -&gt; IntMap Int -&gt; Cycle Int
+</span><a href="#local-6989586621679150059"><span class="hs-identifier hs-var hs-var">retrace</span></a></span></span><span> </span><span id="local-6989586621679150110"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679150110"><span class="hs-identifier hs-var">curr</span></a></span></span><span> </span><span id="local-6989586621679150111"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679150111"><span class="hs-identifier hs-var">head</span></a></span></span><span> </span><span id="local-6989586621679150112"><span class="annot"><span class="annottext">IntMap Int
+</span><a href="#local-6989586621679150112"><span class="hs-identifier hs-var">parent</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Cycle Int -&gt; Cycle Int
+</span><a href="#local-6989586621679150113"><span class="hs-identifier hs-var">aux</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679150110"><span class="hs-identifier hs-var">curr</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; [Int] -&gt; Cycle Int
+forall a. a -&gt; [a] -&gt; NonEmpty a
+</span><span class="hs-operator hs-var">:|</span></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-259"></span><span>      </span><span id="local-6989586621679150113"><span class="annot"><span class="annottext">aux :: Cycle Int -&gt; Cycle Int
+</span><a href="#local-6989586621679150113"><span class="hs-identifier hs-var hs-var">aux</span></a></span></span><span> </span><span id="local-6989586621679150115"><span class="annot"><span class="annottext">xs :: Cycle Int
+</span><a href="#local-6989586621679150115"><span class="hs-identifier hs-var">xs</span></a></span></span><span class="hs-glyph">@</span><span class="hs-special">(</span><span id="local-6989586621679150116"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679150116"><span class="hs-identifier hs-var">curr</span></a></span></span><span> </span><span class="annot"><span class="hs-operator hs-type">:|</span></span><span> </span><span class="annot"><span class="annottext">[Int]
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span>
+</span><span id="line-260"></span><span>        </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679150111"><span class="hs-identifier hs-var">head</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679150116"><span class="hs-identifier hs-var">curr</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Cycle Int
+</span><a href="#local-6989586621679150115"><span class="hs-identifier hs-var">xs</span></a></span><span>
+</span><span id="line-261"></span><span>        </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Cycle Int -&gt; Cycle Int
+</span><a href="#local-6989586621679150113"><span class="hs-identifier hs-var">aux</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">IntMap Int
+</span><a href="#local-6989586621679150112"><span class="hs-identifier hs-var">parent</span></a></span><span> </span><span class="annot"><span class="annottext">IntMap Int -&gt; Int -&gt; Int
+forall a. IntMap a -&gt; Int -&gt; a
+</span><span class="hs-operator hs-var">IntMap.!</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679150116"><span class="hs-identifier hs-var">curr</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Cycle Int -&gt; Cycle Int
+forall a. a -&gt; NonEmpty a -&gt; NonEmpty a
+</span><span class="hs-operator hs-var">&lt;|</span></span><span> </span><span class="annot"><span class="annottext">Cycle Int
+</span><a href="#local-6989586621679150115"><span class="hs-identifier hs-var">xs</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-262"></span><span>
+</span><span id="line-263"></span><span class="hs-comment">-- | Compute a topological sort of a graph or discover a cycle.</span><span>
+</span><span id="line-264"></span><span class="hs-comment">--</span><span>
+</span><span id="line-265"></span><span class="hs-comment">-- Vertices are explored in the decreasing order according to their 'Ord'</span><span>
+</span><span id="line-266"></span><span class="hs-comment">-- instance. This gives the lexicographically smallest topological ordering in</span><span>
+</span><span id="line-267"></span><span class="hs-comment">-- the case of success. In the case of failure, the cycle is characterized by</span><span>
+</span><span id="line-268"></span><span class="hs-comment">-- being the lexicographically smallest up to rotation with respect to</span><span>
+</span><span id="line-269"></span><span class="hs-comment">-- @Ord@ @(Dual@ @Int)@ in the first connected component of the graph containing</span><span>
+</span><span id="line-270"></span><span class="hs-comment">-- a cycle, where the connected components are ordered by their largest vertex</span><span>
+</span><span id="line-271"></span><span class="hs-comment">-- with respect to @Ord a@.</span><span>
+</span><span id="line-272"></span><span class="hs-comment">--</span><span>
+</span><span id="line-273"></span><span class="hs-comment">-- Complexity: /O((n + m) * min(n,W))/ time and /O(n)/ space.</span><span>
+</span><span id="line-274"></span><span class="hs-comment">--</span><span>
+</span><span id="line-275"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-276"></span><span class="hs-comment">-- topSort (1 * 2 + 3 * 1)                    == Right [3,1,2]</span><span>
+</span><span id="line-277"></span><span class="hs-comment">-- topSort ('path' [1..5])                      == Right [1..5]</span><span>
+</span><span id="line-278"></span><span class="hs-comment">-- topSort (3 * (1 * 4 + 2 * 5))              == Right [3,1,2,4,5]</span><span>
+</span><span id="line-279"></span><span class="hs-comment">-- topSort (1 * 2 + 2 * 1)                    == Left (2 ':|' [1])</span><span>
+</span><span id="line-280"></span><span class="hs-comment">-- topSort ('path' [5,4..1] + 'edge' 2 4)         == Left (4 ':|' [3,2])</span><span>
+</span><span id="line-281"></span><span class="hs-comment">-- topSort ('circuit' [1..3])                   == Left (3 ':|' [1,2])</span><span>
+</span><span id="line-282"></span><span class="hs-comment">-- topSort ('circuit' [1..3] + 'circuit' [3,2,1]) == Left (3 ':|' [2])</span><span>
+</span><span id="line-283"></span><span class="hs-comment">-- topSort (1 * 2 + (5 + 2) * 1 + 3 * 4 * 3)  == Left (1 ':|' [2])</span><span>
+</span><span id="line-284"></span><span class="hs-comment">-- fmap ('flip' 'isTopSortOf' x) (topSort x)      /= Right False</span><span>
+</span><span id="line-285"></span><span class="hs-comment">-- topSort . 'vertices'                         == Right . 'nub' . 'sort'</span><span>
+</span><span id="line-286"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-287"></span><span class="annot"><a href="Algebra.Graph.AdjacencyIntMap.Algorithm.html#topSort"><span class="hs-identifier hs-type">topSort</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Algebra.Graph.AdjacencyIntMap.html#AdjacencyIntMap"><span class="hs-identifier hs-type">AdjacencyIntMap</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Either</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Algebra.Graph.AdjacencyIntMap.Algorithm.html#Cycle"><span class="hs-identifier hs-type">Cycle</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">)</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">]</span><span>
+</span><span id="line-288"></span><span id="topSort"><span class="annot"><span class="annottext">topSort :: AdjacencyIntMap -&gt; Result
+</span><a href="Algebra.Graph.AdjacencyIntMap.Algorithm.html#topSort"><span class="hs-identifier hs-var hs-var">topSort</span></a></span></span><span> </span><span id="local-6989586621679150118"><span class="annot"><span class="annottext">AdjacencyIntMap
+</span><a href="#local-6989586621679150118"><span class="hs-identifier hs-var">g</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Cont Result Result -&gt; (Result -&gt; Result) -&gt; Result
+forall r a. Cont r a -&gt; (a -&gt; r) -&gt; r
+</span><span class="hs-identifier hs-var">runCont</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">StateT S (Cont Result) Result -&gt; S -&gt; Cont Result Result
+forall (m :: * -&gt; *) s a. Monad m =&gt; StateT s m a -&gt; s -&gt; m a
+</span><span class="hs-identifier hs-var">evalStateT</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">AdjacencyIntMap -&gt; StateT S (Cont Result) Result
+</span><a href="Algebra.Graph.AdjacencyIntMap.Algorithm.html#topSortImpl"><span class="hs-identifier hs-var">topSortImpl</span></a></span><span> </span><span class="annot"><span class="annottext">AdjacencyIntMap
+</span><a href="#local-6989586621679150118"><span class="hs-identifier hs-var">g</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">S
+</span><a href="#local-6989586621679150121"><span class="hs-identifier hs-var">initialState</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Result -&gt; Result
+forall a. a -&gt; a
+</span><span class="hs-identifier hs-var">id</span></span><span>
+</span><span id="line-289"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-290"></span><span>    </span><span id="local-6989586621679150121"><span class="annot"><span class="annottext">initialState :: S
+</span><a href="#local-6989586621679150121"><span class="hs-identifier hs-var hs-var">initialState</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">IntMap Int -&gt; IntMap NodeState -&gt; [Int] -&gt; S
+</span><a href="Algebra.Graph.AdjacencyIntMap.Algorithm.html#S"><span class="hs-identifier hs-var">S</span></a></span><span> </span><span class="annot"><span class="annottext">IntMap Int
+forall a. IntMap a
+</span><span class="hs-identifier hs-var">IntMap.empty</span></span><span> </span><span class="annot"><span class="annottext">IntMap NodeState
+forall a. IntMap a
+</span><span class="hs-identifier hs-var">IntMap.empty</span></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span>
+</span><span id="line-291"></span><span>
+</span><span id="line-292"></span><span class="hs-comment">-- | Check if a given graph is /acyclic/.</span><span>
+</span><span id="line-293"></span><span class="hs-comment">--</span><span>
+</span><span id="line-294"></span><span class="hs-comment">-- Complexity: /O((n + m) * min(n,W))/ time and /O(n)/ space.</span><span>
+</span><span id="line-295"></span><span class="hs-comment">--</span><span>
+</span><span id="line-296"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-297"></span><span class="hs-comment">-- isAcyclic (1 * 2 + 3 * 1) == True</span><span>
+</span><span id="line-298"></span><span class="hs-comment">-- isAcyclic (1 * 2 + 2 * 1) == False</span><span>
+</span><span id="line-299"></span><span class="hs-comment">-- isAcyclic . 'circuit'       == 'null'</span><span>
+</span><span id="line-300"></span><span class="hs-comment">-- isAcyclic                 == 'isRight' . 'topSort'</span><span>
+</span><span id="line-301"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-302"></span><span class="annot"><a href="Algebra.Graph.AdjacencyIntMap.Algorithm.html#isAcyclic"><span class="hs-identifier hs-type">isAcyclic</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Algebra.Graph.AdjacencyIntMap.html#AdjacencyIntMap"><span class="hs-identifier hs-type">AdjacencyIntMap</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>
+</span><span id="line-303"></span><span id="isAcyclic"><span class="annot"><span class="annottext">isAcyclic :: AdjacencyIntMap -&gt; Bool
+</span><a href="Algebra.Graph.AdjacencyIntMap.Algorithm.html#isAcyclic"><span class="hs-identifier hs-var hs-var">isAcyclic</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Result -&gt; Bool
+forall a b. Either a b -&gt; Bool
+</span><span class="hs-identifier hs-var">isRight</span></span><span> </span><span class="annot"><span class="annottext">(Result -&gt; Bool)
+-&gt; (AdjacencyIntMap -&gt; Result) -&gt; AdjacencyIntMap -&gt; Bool
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">AdjacencyIntMap -&gt; Result
+</span><a href="Algebra.Graph.AdjacencyIntMap.Algorithm.html#topSort"><span class="hs-identifier hs-var">topSort</span></a></span><span>
+</span><span id="line-304"></span><span>
+</span><span id="line-305"></span><span class="hs-comment">-- | Check if a given forest is a correct /depth-first search/ forest of a graph.</span><span>
+</span><span id="line-306"></span><span class="hs-comment">-- The implementation is based on the paper &quot;Depth-First Search and Strong</span><span>
+</span><span id="line-307"></span><span class="hs-comment">-- Connectivity in Coq&quot; by Fran&#231;ois Pottier.</span><span>
+</span><span id="line-308"></span><span class="hs-comment">--</span><span>
+</span><span id="line-309"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-310"></span><span class="hs-comment">-- isDfsForestOf []                              'empty'            == True</span><span>
+</span><span id="line-311"></span><span class="hs-comment">-- isDfsForestOf []                              ('vertex' 1)       == False</span><span>
+</span><span id="line-312"></span><span class="hs-comment">-- isDfsForestOf [Node 1 []]                     ('vertex' 1)       == True</span><span>
+</span><span id="line-313"></span><span class="hs-comment">-- isDfsForestOf [Node 1 []]                     ('vertex' 2)       == False</span><span>
+</span><span id="line-314"></span><span class="hs-comment">-- isDfsForestOf [Node 1 [], Node 1 []]          ('vertex' 1)       == False</span><span>
+</span><span id="line-315"></span><span class="hs-comment">-- isDfsForestOf [Node 1 []]                     ('edge' 1 1)       == True</span><span>
+</span><span id="line-316"></span><span class="hs-comment">-- isDfsForestOf [Node 1 []]                     ('edge' 1 2)       == False</span><span>
+</span><span id="line-317"></span><span class="hs-comment">-- isDfsForestOf [Node 1 [], Node 2 []]          ('edge' 1 2)       == False</span><span>
+</span><span id="line-318"></span><span class="hs-comment">-- isDfsForestOf [Node 2 [], Node 1 []]          ('edge' 1 2)       == True</span><span>
+</span><span id="line-319"></span><span class="hs-comment">-- isDfsForestOf [Node 1 [Node 2 []]]            ('edge' 1 2)       == True</span><span>
+</span><span id="line-320"></span><span class="hs-comment">-- isDfsForestOf [Node 1 [], Node 2 []]          ('vertices' [1,2]) == True</span><span>
+</span><span id="line-321"></span><span class="hs-comment">-- isDfsForestOf [Node 2 [], Node 1 []]          ('vertices' [1,2]) == True</span><span>
+</span><span id="line-322"></span><span class="hs-comment">-- isDfsForestOf [Node 1 [Node 2 []]]            ('vertices' [1,2]) == False</span><span>
+</span><span id="line-323"></span><span class="hs-comment">-- isDfsForestOf [Node 1 [Node 2 [Node 3 []]]]   ('path' [1,2,3])   == True</span><span>
+</span><span id="line-324"></span><span class="hs-comment">-- isDfsForestOf [Node 1 [Node 3 [Node 2 []]]]   ('path' [1,2,3])   == False</span><span>
+</span><span id="line-325"></span><span class="hs-comment">-- isDfsForestOf [Node 3 [], Node 1 [Node 2 []]] ('path' [1,2,3])   == True</span><span>
+</span><span id="line-326"></span><span class="hs-comment">-- isDfsForestOf [Node 2 [Node 3 []], Node 1 []] ('path' [1,2,3])   == True</span><span>
+</span><span id="line-327"></span><span class="hs-comment">-- isDfsForestOf [Node 1 [], Node 2 [Node 3 []]] ('path' [1,2,3])   == False</span><span>
+</span><span id="line-328"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-329"></span><span class="annot"><a href="Algebra.Graph.AdjacencyIntMap.Algorithm.html#isDfsForestOf"><span class="hs-identifier hs-type">isDfsForestOf</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Forest</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Algebra.Graph.AdjacencyIntMap.html#AdjacencyIntMap"><span class="hs-identifier hs-type">AdjacencyIntMap</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>
+</span><span id="line-330"></span><span id="isDfsForestOf"><span class="annot"><span class="annottext">isDfsForestOf :: Forest Int -&gt; AdjacencyIntMap -&gt; Bool
+</span><a href="Algebra.Graph.AdjacencyIntMap.Algorithm.html#isDfsForestOf"><span class="hs-identifier hs-var hs-var">isDfsForestOf</span></a></span></span><span> </span><span id="local-6989586621679150126"><span class="annot"><span class="annottext">Forest Int
+</span><a href="#local-6989586621679150126"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span id="local-6989586621679150127"><span class="annot"><span class="annottext">AdjacencyIntMap
+</span><a href="#local-6989586621679150127"><span class="hs-identifier hs-var">am</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">IntSet -&gt; Forest Int -&gt; Maybe IntSet
+</span><a href="#local-6989586621679150128"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">IntSet
+</span><span class="hs-identifier hs-var">IntSet.empty</span></span><span> </span><span class="annot"><span class="annottext">Forest Int
+</span><a href="#local-6989586621679150126"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-331"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621679150129"><span class="annot"><span class="annottext">IntSet
+</span><a href="#local-6989586621679150129"><span class="hs-identifier hs-var">seen</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">IntSet
+</span><a href="#local-6989586621679150129"><span class="hs-identifier hs-var">seen</span></a></span><span> </span><span class="annot"><span class="annottext">IntSet -&gt; IntSet -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">AdjacencyIntMap -&gt; IntSet
+</span><a href="Algebra.Graph.AdjacencyIntMap.html#vertexIntSet"><span class="hs-identifier hs-var">vertexIntSet</span></a></span><span> </span><span class="annot"><span class="annottext">AdjacencyIntMap
+</span><a href="#local-6989586621679150127"><span class="hs-identifier hs-var">am</span></a></span><span>
+</span><span id="line-332"></span><span>    </span><span class="annot"><span class="annottext">Maybe IntSet
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>   </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span>
+</span><span id="line-333"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-334"></span><span>    </span><span id="local-6989586621679150128"><span class="annot"><span class="annottext">go :: IntSet -&gt; Forest Int -&gt; Maybe IntSet
+</span><a href="#local-6989586621679150128"><span class="hs-identifier hs-var hs-var">go</span></a></span></span><span> </span><span id="local-6989586621679150131"><span class="annot"><span class="annottext">IntSet
+</span><a href="#local-6989586621679150131"><span class="hs-identifier hs-var">seen</span></a></span></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span>     </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">IntSet -&gt; Maybe IntSet
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">IntSet
+</span><a href="#local-6989586621679150131"><span class="hs-identifier hs-var">seen</span></a></span><span>
+</span><span id="line-335"></span><span>    </span><span class="annot"><a href="#local-6989586621679150128"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span id="local-6989586621679150132"><span class="annot"><span class="annottext">IntSet
+</span><a href="#local-6989586621679150132"><span class="hs-identifier hs-var">seen</span></a></span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679150133"><span class="annot"><span class="annottext">Tree Int
+</span><a href="#local-6989586621679150133"><span class="hs-identifier hs-var">t</span></a></span></span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span id="local-6989586621679150134"><span class="annot"><span class="annottext">Forest Int
+</span><a href="#local-6989586621679150134"><span class="hs-identifier hs-var">ts</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-336"></span><span>        </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679150135"><span class="annot"><span class="annottext">root :: Int
+</span><a href="#local-6989586621679150135"><span class="hs-identifier hs-var hs-var hs-var">root</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Tree Int -&gt; Int
+forall a. Tree a -&gt; a
+</span><span class="hs-identifier hs-var">rootLabel</span></span><span> </span><span class="annot"><span class="annottext">Tree Int
+</span><a href="#local-6989586621679150133"><span class="hs-identifier hs-var">t</span></a></span><span>
+</span><span id="line-337"></span><span>        </span><span class="annot"><span class="annottext">Bool -&gt; Maybe ()
+forall (f :: * -&gt; *). Alternative f =&gt; Bool -&gt; f ()
+</span><span class="hs-identifier hs-var">guard</span></span><span> </span><span class="annot"><span class="annottext">(Bool -&gt; Maybe ()) -&gt; Bool -&gt; Maybe ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679150135"><span class="hs-identifier hs-var">root</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; IntSet -&gt; Bool
+</span><span class="hs-operator hs-var">`IntSet.notMember`</span></span><span> </span><span class="annot"><span class="annottext">IntSet
+</span><a href="#local-6989586621679150132"><span class="hs-identifier hs-var">seen</span></a></span><span>
+</span><span id="line-338"></span><span>        </span><span class="annot"><span class="annottext">Bool -&gt; Maybe ()
+forall (f :: * -&gt; *). Alternative f =&gt; Bool -&gt; f ()
+</span><span class="hs-identifier hs-var">guard</span></span><span> </span><span class="annot"><span class="annottext">(Bool -&gt; Maybe ()) -&gt; Bool -&gt; Maybe ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">[Bool] -&gt; Bool
+forall (t :: * -&gt; *). Foldable t =&gt; t Bool -&gt; Bool
+</span><span class="hs-identifier hs-var">and</span></span><span> </span><span class="hs-special">[</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; AdjacencyIntMap -&gt; Bool
+</span><a href="Algebra.Graph.AdjacencyIntMap.html#hasEdge"><span class="hs-identifier hs-var">hasEdge</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679150135"><span class="hs-identifier hs-var">root</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Tree Int -&gt; Int
+forall a. Tree a -&gt; a
+</span><span class="hs-identifier hs-var">rootLabel</span></span><span> </span><span class="annot"><span class="annottext">Tree Int
+</span><a href="#local-6989586621679150140"><span class="hs-identifier hs-var">subTree</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">AdjacencyIntMap
+</span><a href="#local-6989586621679150127"><span class="hs-identifier hs-var">am</span></a></span><span> </span><span class="hs-glyph">|</span><span> </span><span id="local-6989586621679150140"><span class="annot"><span class="annottext">Tree Int
+</span><a href="#local-6989586621679150140"><span class="hs-identifier hs-var">subTree</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Tree Int -&gt; Forest Int
+forall a. Tree a -&gt; [Tree a]
+</span><span class="hs-identifier hs-var">subForest</span></span><span> </span><span class="annot"><span class="annottext">Tree Int
+</span><a href="#local-6989586621679150133"><span class="hs-identifier hs-var">t</span></a></span><span> </span><span class="hs-special">]</span><span>
+</span><span id="line-339"></span><span>        </span><span id="local-6989586621679150142"><span class="annot"><a href="#local-6989586621679150142"><span class="hs-identifier hs-var">newSeen</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">IntSet -&gt; Forest Int -&gt; Maybe IntSet
+</span><a href="#local-6989586621679150128"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; IntSet -&gt; IntSet
+</span><span class="hs-identifier hs-var">IntSet.insert</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679150135"><span class="hs-identifier hs-var">root</span></a></span><span> </span><span class="annot"><span class="annottext">IntSet
+</span><a href="#local-6989586621679150132"><span class="hs-identifier hs-var">seen</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Tree Int -&gt; Forest Int
+forall a. Tree a -&gt; [Tree a]
+</span><span class="hs-identifier hs-var">subForest</span></span><span> </span><span class="annot"><span class="annottext">Tree Int
+</span><a href="#local-6989586621679150133"><span class="hs-identifier hs-var">t</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-340"></span><span>        </span><span class="annot"><span class="hs-identifier hs-type">guard</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">$</span></span><span> </span><span class="annot"><a href="Algebra.Graph.AdjacencyIntMap.html#postIntSet"><span class="hs-identifier hs-type">postIntSet</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679150135"><span class="hs-identifier hs-type">root</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679150127"><span class="hs-identifier hs-type">am</span></a></span><span> </span><span class="annot"><span class="hs-operator hs-type">`IntSet.isSubsetOf`</span></span><span> </span><span class="annot"><a href="#local-6989586621679150142"><span class="hs-identifier hs-type">newSeen</span></a></span><span>
+</span><span id="line-341"></span><span>        </span><span class="annot"><a href="#local-6989586621679150128"><span class="hs-identifier hs-type">go</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679150142"><span class="hs-identifier hs-type">newSeen</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679150134"><span class="hs-identifier hs-type">ts</span></a></span><span>
+</span><span id="line-342"></span><span>
+</span><span id="line-343"></span><span class="hs-comment">-- | Check if a given list of vertices is a correct /topological sort/ of a graph.</span><span>
+</span><span id="line-344"></span><span class="hs-comment">--</span><span>
+</span><span id="line-345"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-346"></span><span class="hs-comment">-- isTopSortOf [3,1,2] (1 * 2 + 3 * 1) == True</span><span>
+</span><span id="line-347"></span><span class="hs-comment">-- isTopSortOf [1,2,3] (1 * 2 + 3 * 1) == False</span><span>
+</span><span id="line-348"></span><span class="hs-comment">-- isTopSortOf []      (1 * 2 + 3 * 1) == False</span><span>
+</span><span id="line-349"></span><span class="hs-comment">-- isTopSortOf []      'empty'           == True</span><span>
+</span><span id="line-350"></span><span class="hs-comment">-- isTopSortOf [x]     ('vertex' x)      == True</span><span>
+</span><span id="line-351"></span><span class="hs-comment">-- isTopSortOf [x]     ('edge' x x)      == False</span><span>
+</span><span id="line-352"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-353"></span><span class="annot"><a href="Algebra.Graph.AdjacencyIntMap.Algorithm.html#isTopSortOf"><span class="hs-identifier hs-type">isTopSortOf</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Algebra.Graph.AdjacencyIntMap.html#AdjacencyIntMap"><span class="hs-identifier hs-type">AdjacencyIntMap</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>
+</span><span id="line-354"></span><span id="isTopSortOf"><span class="annot"><span class="annottext">isTopSortOf :: [Int] -&gt; AdjacencyIntMap -&gt; Bool
+</span><a href="Algebra.Graph.AdjacencyIntMap.Algorithm.html#isTopSortOf"><span class="hs-identifier hs-var hs-var">isTopSortOf</span></a></span></span><span> </span><span id="local-6989586621679150144"><span class="annot"><span class="annottext">[Int]
+</span><a href="#local-6989586621679150144"><span class="hs-identifier hs-var">xs</span></a></span></span><span> </span><span id="local-6989586621679150145"><span class="annot"><span class="annottext">AdjacencyIntMap
+</span><a href="#local-6989586621679150145"><span class="hs-identifier hs-var">m</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">IntSet -&gt; [Int] -&gt; Bool
+</span><a href="#local-6989586621679150146"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">IntSet
+</span><span class="hs-identifier hs-var">IntSet.empty</span></span><span> </span><span class="annot"><span class="annottext">[Int]
+</span><a href="#local-6989586621679150144"><span class="hs-identifier hs-var">xs</span></a></span><span>
+</span><span id="line-355"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-356"></span><span>    </span><span id="local-6989586621679150146"><span class="annot"><span class="annottext">go :: IntSet -&gt; [Int] -&gt; Bool
+</span><a href="#local-6989586621679150146"><span class="hs-identifier hs-var hs-var">go</span></a></span></span><span> </span><span id="local-6989586621679150147"><span class="annot"><span class="annottext">IntSet
+</span><a href="#local-6989586621679150147"><span class="hs-identifier hs-var">seen</span></a></span></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span>     </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">IntSet
+</span><a href="#local-6989586621679150147"><span class="hs-identifier hs-var">seen</span></a></span><span> </span><span class="annot"><span class="annottext">IntSet -&gt; IntSet -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">IntMap IntSet -&gt; IntSet
+forall a. IntMap a -&gt; IntSet
+</span><span class="hs-identifier hs-var">IntMap.keysSet</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">AdjacencyIntMap -&gt; IntMap IntSet
+</span><a href="Algebra.Graph.AdjacencyIntMap.html#adjacencyIntMap"><span class="hs-identifier hs-var">adjacencyIntMap</span></a></span><span> </span><span class="annot"><span class="annottext">AdjacencyIntMap
+</span><a href="#local-6989586621679150145"><span class="hs-identifier hs-var">m</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-357"></span><span>    </span><span class="annot"><a href="#local-6989586621679150146"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span id="local-6989586621679150149"><span class="annot"><span class="annottext">IntSet
+</span><a href="#local-6989586621679150149"><span class="hs-identifier hs-var">seen</span></a></span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679150150"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679150150"><span class="hs-identifier hs-var">v</span></a></span></span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span id="local-6989586621679150151"><span class="annot"><span class="annottext">[Int]
+</span><a href="#local-6989586621679150151"><span class="hs-identifier hs-var">vs</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; AdjacencyIntMap -&gt; IntSet
+</span><a href="Algebra.Graph.AdjacencyIntMap.html#postIntSet"><span class="hs-identifier hs-var">postIntSet</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679150150"><span class="hs-identifier hs-var">v</span></a></span><span> </span><span class="annot"><span class="annottext">AdjacencyIntMap
+</span><a href="#local-6989586621679150145"><span class="hs-identifier hs-var">m</span></a></span><span> </span><span class="annot"><span class="annottext">IntSet -&gt; IntSet -&gt; IntSet
+</span><span class="hs-operator hs-var">`IntSet.intersection`</span></span><span> </span><span class="annot"><span class="annottext">IntSet
+</span><a href="#local-6989586621679150153"><span class="hs-identifier hs-var">newSeen</span></a></span><span> </span><span class="annot"><span class="annottext">IntSet -&gt; IntSet -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">IntSet
+</span><span class="hs-identifier hs-var">IntSet.empty</span></span><span>
+</span><span id="line-358"></span><span>                  </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">&amp;&amp;</span></span><span> </span><span class="annot"><span class="annottext">IntSet -&gt; [Int] -&gt; Bool
+</span><a href="#local-6989586621679150146"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">IntSet
+</span><a href="#local-6989586621679150153"><span class="hs-identifier hs-var">newSeen</span></a></span><span> </span><span class="annot"><span class="annottext">[Int]
+</span><a href="#local-6989586621679150151"><span class="hs-identifier hs-var">vs</span></a></span><span>
+</span><span id="line-359"></span><span>      </span><span class="hs-keyword">where</span><span>
+</span><span id="line-360"></span><span>        </span><span id="local-6989586621679150153"><span class="annot"><span class="annottext">newSeen :: IntSet
+</span><a href="#local-6989586621679150153"><span class="hs-identifier hs-var hs-var">newSeen</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; IntSet -&gt; IntSet
+</span><span class="hs-identifier hs-var">IntSet.insert</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679150150"><span class="hs-identifier hs-var">v</span></a></span><span> </span><span class="annot"><span class="annottext">IntSet
+</span><a href="#local-6989586621679150149"><span class="hs-identifier hs-var">seen</span></a></span><span>
+</span><span id="line-361"></span></pre></body></html>

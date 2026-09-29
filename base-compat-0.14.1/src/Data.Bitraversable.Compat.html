@@ -1,0 +1,103 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE CPP, NoImplicitPrelude #-}</span><span>
+</span><span id="line-2"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Data.Bitraversable.Compat.html"><span class="hs-identifier">Data.Bitraversable.Compat</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-cpp">
+#if MIN_VERSION_base(4,10,0)
+</span><span>  </span><span class="hs-keyword">module</span><span> </span><span class="annot"><span class="hs-identifier">Base</span></span><span>
+</span><span id="line-5"></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Bitraversable.Compat.html#firstA"><span class="hs-identifier">firstA</span></a></span><span>
+</span><span id="line-6"></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Bitraversable.Compat.html#secondA"><span class="hs-identifier">secondA</span></a></span><span class="hs-cpp">
+#endif
+</span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span class="hs-cpp">
+
+#if MIN_VERSION_base(4,10,0)
+</span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Bitraversable</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Base</span></span><span class="hs-cpp">
+
+# if !MIN_VERSION_base(4,21,0)
+</span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Prelude.Compat.html"><span class="hs-identifier">Prelude.Compat</span></a></span><span class="hs-cpp">
+# endif
+</span><span class="hs-cpp">
+# if !MIN_VERSION_base(4,21,0)
+</span><span class="hs-comment">-- | Traverses only over the first argument.</span><span>
+</span><span id="line-19"></span><span class="hs-comment">--</span><span>
+</span><span id="line-20"></span><span class="hs-comment">-- @'firstA' f &#8801; 'bitraverse' f 'pure'@</span><span>
+</span><span id="line-21"></span><span>
+</span><span id="line-22"></span><span class="hs-comment">-- ==== __Examples__</span><span>
+</span><span id="line-23"></span><span class="hs-comment">--</span><span>
+</span><span id="line-24"></span><span class="hs-comment">-- Basic usage:</span><span>
+</span><span id="line-25"></span><span class="hs-comment">--</span><span>
+</span><span id="line-26"></span><span class="hs-comment">-- &gt;&gt;&gt; firstA listToMaybe (Left [])</span><span>
+</span><span id="line-27"></span><span class="hs-comment">-- Nothing</span><span>
+</span><span id="line-28"></span><span class="hs-comment">--</span><span>
+</span><span id="line-29"></span><span class="hs-comment">-- &gt;&gt;&gt; firstA listToMaybe (Left [1, 2, 3])</span><span>
+</span><span id="line-30"></span><span class="hs-comment">-- Just (Left 1)</span><span>
+</span><span id="line-31"></span><span class="hs-comment">--</span><span>
+</span><span id="line-32"></span><span class="hs-comment">-- &gt;&gt;&gt; firstA listToMaybe (Right [4, 5])</span><span>
+</span><span id="line-33"></span><span class="hs-comment">-- Just (Right [4, 5])</span><span>
+</span><span id="line-34"></span><span class="hs-comment">--</span><span>
+</span><span id="line-35"></span><span class="hs-comment">-- &gt;&gt;&gt; firstA listToMaybe ([1, 2, 3], [4, 5])</span><span>
+</span><span id="line-36"></span><span class="hs-comment">-- Just (1,[4, 5])</span><span>
+</span><span id="line-37"></span><span class="hs-comment">--</span><span>
+</span><span id="line-38"></span><span class="hs-comment">-- &gt;&gt;&gt; firstA listToMaybe ([], [4, 5])</span><span>
+</span><span id="line-39"></span><span class="hs-comment">-- Nothing</span><span>
+</span><span id="line-40"></span><span>
+</span><span id="line-41"></span><span class="hs-comment">-- @since 4.21.0.0</span><span>
+</span><span id="line-42"></span><span id="local-6989586621679052851"><span id="local-6989586621679052853"><span id="local-6989586621679052854"><span id="local-6989586621679052855"><span id="local-6989586621679052856"><span class="annot"><a href="Data.Bitraversable.Compat.html#firstA"><span class="hs-identifier hs-type">firstA</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bitraversable</span></span><span> </span><span class="annot"><a href="#local-6989586621679052851"><span class="hs-identifier hs-type">t</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Applicative</span></span><span> </span><span class="annot"><a href="#local-6989586621679052853"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679052854"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679052853"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679052855"><span class="hs-identifier hs-type">c</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679052851"><span class="hs-identifier hs-type">t</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679052854"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679052856"><span class="hs-identifier hs-type">b</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679052853"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679052851"><span class="hs-identifier hs-type">t</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679052855"><span class="hs-identifier hs-type">c</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679052856"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">)</span></span></span></span></span></span><span>
+</span><span id="line-43"></span><span id="firstA"><span class="annot"><span class="annottext">firstA :: forall (t :: * -&gt; * -&gt; *) (f :: * -&gt; *) a c b.
+(Bitraversable t, Applicative f) =&gt;
+(a -&gt; f c) -&gt; t a b -&gt; f (t c b)
+</span><a href="Data.Bitraversable.Compat.html#firstA"><span class="hs-identifier hs-var hs-var">firstA</span></a></span></span><span> </span><span id="local-6989586621679052888"><span class="annot"><span class="annottext">a -&gt; f c
+</span><a href="#local-6989586621679052888"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(a -&gt; f c) -&gt; (b -&gt; f b) -&gt; t a b -&gt; f (t c b)
+forall (f :: * -&gt; *) a c b d.
+Applicative f =&gt;
+(a -&gt; f c) -&gt; (b -&gt; f d) -&gt; t a b -&gt; f (t c d)
+forall (t :: * -&gt; * -&gt; *) (f :: * -&gt; *) a c b d.
+(Bitraversable t, Applicative f) =&gt;
+(a -&gt; f c) -&gt; (b -&gt; f d) -&gt; t a b -&gt; f (t c d)
+</span><span class="hs-identifier hs-var">bitraverse</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; f c
+</span><a href="#local-6989586621679052888"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">b -&gt; f b
+forall a. a -&gt; f a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span>
+</span><span id="line-44"></span><span>
+</span><span id="line-45"></span><span class="hs-comment">-- | Traverses only over the second argument.</span><span>
+</span><span id="line-46"></span><span class="hs-comment">--</span><span>
+</span><span id="line-47"></span><span class="hs-comment">-- @'secondA' f &#8801; 'bitraverse' 'pure' f@</span><span>
+</span><span id="line-48"></span><span class="hs-comment">--</span><span>
+</span><span id="line-49"></span><span class="hs-comment">-- ==== __Examples__</span><span>
+</span><span id="line-50"></span><span class="hs-comment">--</span><span>
+</span><span id="line-51"></span><span class="hs-comment">-- Basic usage:</span><span>
+</span><span id="line-52"></span><span class="hs-comment">--</span><span>
+</span><span id="line-53"></span><span class="hs-comment">-- &gt;&gt;&gt; secondA (find odd) (Left [])</span><span>
+</span><span id="line-54"></span><span class="hs-comment">-- Just (Left [])</span><span>
+</span><span id="line-55"></span><span class="hs-comment">--</span><span>
+</span><span id="line-56"></span><span class="hs-comment">-- &gt;&gt;&gt; secondA (find odd) (Left [1, 2, 3])</span><span>
+</span><span id="line-57"></span><span class="hs-comment">-- Just (Left [1,2,3])</span><span>
+</span><span id="line-58"></span><span class="hs-comment">--</span><span>
+</span><span id="line-59"></span><span class="hs-comment">-- &gt;&gt;&gt; secondA (find odd) (Right [4, 5])</span><span>
+</span><span id="line-60"></span><span class="hs-comment">-- Just (Right 5)</span><span>
+</span><span id="line-61"></span><span class="hs-comment">--</span><span>
+</span><span id="line-62"></span><span class="hs-comment">-- &gt;&gt;&gt; secondA (find odd) ([1, 2, 3], [4, 5])</span><span>
+</span><span id="line-63"></span><span class="hs-comment">-- Just ([1,2,3],5)</span><span>
+</span><span id="line-64"></span><span class="hs-comment">--</span><span>
+</span><span id="line-65"></span><span class="hs-comment">-- &gt;&gt;&gt; secondA (find odd) ([1,2,3], [4])</span><span>
+</span><span id="line-66"></span><span class="hs-comment">-- Nothing</span><span>
+</span><span id="line-67"></span><span class="hs-comment">--</span><span>
+</span><span id="line-68"></span><span class="hs-comment">-- @since 4.21.0.0</span><span>
+</span><span id="line-69"></span><span id="local-6989586621679052870"><span id="local-6989586621679052871"><span id="local-6989586621679052872"><span id="local-6989586621679052873"><span id="local-6989586621679052874"><span class="annot"><a href="Data.Bitraversable.Compat.html#secondA"><span class="hs-identifier hs-type">secondA</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bitraversable</span></span><span> </span><span class="annot"><a href="#local-6989586621679052870"><span class="hs-identifier hs-type">t</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Applicative</span></span><span> </span><span class="annot"><a href="#local-6989586621679052871"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679052872"><span class="hs-identifier hs-type">b</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679052871"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679052873"><span class="hs-identifier hs-type">c</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679052870"><span class="hs-identifier hs-type">t</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679052874"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679052872"><span class="hs-identifier hs-type">b</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679052871"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679052870"><span class="hs-identifier hs-type">t</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679052874"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679052873"><span class="hs-identifier hs-type">c</span></a></span><span class="hs-special">)</span></span></span></span></span></span><span>
+</span><span id="line-70"></span><span id="secondA"><span class="annot"><span class="annottext">secondA :: forall (t :: * -&gt; * -&gt; *) (f :: * -&gt; *) b c a.
+(Bitraversable t, Applicative f) =&gt;
+(b -&gt; f c) -&gt; t a b -&gt; f (t a c)
+</span><a href="Data.Bitraversable.Compat.html#secondA"><span class="hs-identifier hs-var hs-var">secondA</span></a></span></span><span> </span><span id="local-6989586621679052894"><span class="annot"><span class="annottext">b -&gt; f c
+</span><a href="#local-6989586621679052894"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(a -&gt; f a) -&gt; (b -&gt; f c) -&gt; t a b -&gt; f (t a c)
+forall (f :: * -&gt; *) a c b d.
+Applicative f =&gt;
+(a -&gt; f c) -&gt; (b -&gt; f d) -&gt; t a b -&gt; f (t c d)
+forall (t :: * -&gt; * -&gt; *) (f :: * -&gt; *) a c b d.
+(Bitraversable t, Applicative f) =&gt;
+(a -&gt; f c) -&gt; (b -&gt; f d) -&gt; t a b -&gt; f (t c d)
+</span><span class="hs-identifier hs-var">bitraverse</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; f a
+forall a. a -&gt; f a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">b -&gt; f c
+</span><a href="#local-6989586621679052894"><span class="hs-identifier hs-var">f</span></a></span><span class="hs-cpp">
+# endif
+</span><span class="hs-cpp">#endif
+</span></pre></body></html>

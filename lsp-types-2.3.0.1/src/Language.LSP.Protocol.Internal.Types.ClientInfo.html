@@ -1,0 +1,193 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-comment">{- ORMOLU_DISABLE -}</span><span>
+</span><span id="line-2"></span><span class="hs-comment">{- HLINT ignore -}</span><span>
+</span><span id="line-3"></span><span class="hs-comment">-- THIS IS A GENERATED FILE, DO NOT EDIT</span><span>
+</span><span id="line-4"></span><span>
+</span><span id="line-5"></span><span class="hs-pragma">{-# OPTIONS_GHC -Wno-unused-imports #-}</span><span>
+</span><span id="line-6"></span><span class="hs-pragma">{-# OPTIONS_GHC -Wno-unused-matches #-}</span><span>
+</span><span id="line-7"></span><span class="hs-pragma">{-# OPTIONS_GHC -Wno-deprecations #-}</span><span>
+</span><span id="line-8"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.ClientInfo.html"><span class="hs-identifier">Language.LSP.Protocol.Internal.Types.ClientInfo</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-9"></span><span>
+</span><span id="line-10"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.DeepSeq</span></span><span>
+</span><span id="line-11"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Hashable</span></span><span>
+</span><span id="line-12"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">GHC.Generics</span></span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Utils.Misc.html"><span class="hs-identifier">Language.LSP.Protocol.Utils.Misc</span></a></span><span>
+</span><span id="line-14"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Prettyprinter</span></span><span>
+</span><span id="line-15"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Aeson</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Aeson</span></span><span>
+</span><span id="line-16"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Data.Row.Aeson.html"><span class="hs-identifier">Data.Row.Aeson</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Aeson</span></span><span>
+</span><span id="line-17"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Data.Row.Hashable.html"><span class="hs-identifier">Data.Row.Hashable</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Hashable</span></span><span>
+</span><span id="line-18"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Text</span></span><span>
+</span><span id="line-19"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Types.Common.html"><span class="hs-identifier">Language.LSP.Protocol.Types.Common</span></a></span><span>
+</span><span id="line-20"></span><span>
+</span><span id="line-21"></span><span class="annot"><span class="hs-comment">{-|
+Information about the client
+
+@since 3.15.0
+@since 3.18.0 ClientInfo type name added.
+@proposed
+-}</span></span><span>
+</span><span id="line-28"></span><span class="hs-keyword">data</span><span> </span><span id="ClientInfo"><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.ClientInfo.html#ClientInfo"><span class="hs-identifier hs-var">ClientInfo</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="ClientInfo"><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.ClientInfo.html#ClientInfo"><span class="hs-identifier hs-var">ClientInfo</span></a></span></span><span> </span><span>
+</span><span id="line-29"></span><span>  </span><span class="hs-special">{</span><span> </span><span class="annot"><span class="hs-comment">{-|
+  The name of the client as defined by the client.
+  -}</span></span><span>
+</span><span id="line-32"></span><span>  </span><span id="_name"><span class="annot"><span class="annottext">ClientInfo -&gt; Text
+</span><a href="Language.LSP.Protocol.Internal.Types.ClientInfo.html#_name"><span class="hs-identifier hs-var hs-var">_name</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Data.Text.Text</span></span><span>
+</span><span id="line-33"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-comment">{-|
+  The client's version as defined by the client.
+  -}</span></span><span>
+</span><span id="line-36"></span><span>  </span><span id="_version"><span class="annot"><span class="annottext">ClientInfo -&gt; Maybe Text
+</span><a href="Language.LSP.Protocol.Internal.Types.ClientInfo.html#_version"><span class="hs-identifier hs-var hs-var">_version</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Data.Text.Text</span></span><span class="hs-special">)</span><span>
+</span><span id="line-37"></span><span>  </span><span class="hs-special">}</span><span>
+</span><span id="line-38"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">stock</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621682611780"><span id="local-6989586621682611788"><span id="local-6989586621682611792"><span class="annot"><span class="annottext">Int -&gt; ClientInfo -&gt; ShowS
+[ClientInfo] -&gt; ShowS
+ClientInfo -&gt; String
+(Int -&gt; ClientInfo -&gt; ShowS)
+-&gt; (ClientInfo -&gt; String)
+-&gt; ([ClientInfo] -&gt; ShowS)
+-&gt; Show ClientInfo
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; ClientInfo -&gt; ShowS
+showsPrec :: Int -&gt; ClientInfo -&gt; ShowS
+$cshow :: ClientInfo -&gt; String
+show :: ClientInfo -&gt; String
+$cshowList :: [ClientInfo] -&gt; ShowS
+showList :: [ClientInfo] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682611797"><span id="local-6989586621682611803"><span class="annot"><span class="annottext">ClientInfo -&gt; ClientInfo -&gt; Bool
+(ClientInfo -&gt; ClientInfo -&gt; Bool)
+-&gt; (ClientInfo -&gt; ClientInfo -&gt; Bool) -&gt; Eq ClientInfo
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: ClientInfo -&gt; ClientInfo -&gt; Bool
+== :: ClientInfo -&gt; ClientInfo -&gt; Bool
+$c/= :: ClientInfo -&gt; ClientInfo -&gt; Bool
+/= :: ClientInfo -&gt; ClientInfo -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682611810"><span id="local-6989586621682611816"><span id="local-6989586621682611820"><span id="local-6989586621682611824"><span id="local-6989586621682611827"><span id="local-6989586621682611830"><span id="local-6989586621682611833"><span class="annot"><span class="annottext">Eq ClientInfo
+Eq ClientInfo =&gt;
+(ClientInfo -&gt; ClientInfo -&gt; Ordering)
+-&gt; (ClientInfo -&gt; ClientInfo -&gt; Bool)
+-&gt; (ClientInfo -&gt; ClientInfo -&gt; Bool)
+-&gt; (ClientInfo -&gt; ClientInfo -&gt; Bool)
+-&gt; (ClientInfo -&gt; ClientInfo -&gt; Bool)
+-&gt; (ClientInfo -&gt; ClientInfo -&gt; ClientInfo)
+-&gt; (ClientInfo -&gt; ClientInfo -&gt; ClientInfo)
+-&gt; Ord ClientInfo
+ClientInfo -&gt; ClientInfo -&gt; Bool
+ClientInfo -&gt; ClientInfo -&gt; Ordering
+ClientInfo -&gt; ClientInfo -&gt; ClientInfo
+forall a.
+Eq a =&gt;
+(a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+$ccompare :: ClientInfo -&gt; ClientInfo -&gt; Ordering
+compare :: ClientInfo -&gt; ClientInfo -&gt; Ordering
+$c&lt; :: ClientInfo -&gt; ClientInfo -&gt; Bool
+&lt; :: ClientInfo -&gt; ClientInfo -&gt; Bool
+$c&lt;= :: ClientInfo -&gt; ClientInfo -&gt; Bool
+&lt;= :: ClientInfo -&gt; ClientInfo -&gt; Bool
+$c&gt; :: ClientInfo -&gt; ClientInfo -&gt; Bool
+&gt; :: ClientInfo -&gt; ClientInfo -&gt; Bool
+$c&gt;= :: ClientInfo -&gt; ClientInfo -&gt; Bool
+&gt;= :: ClientInfo -&gt; ClientInfo -&gt; Bool
+$cmax :: ClientInfo -&gt; ClientInfo -&gt; ClientInfo
+max :: ClientInfo -&gt; ClientInfo -&gt; ClientInfo
+$cmin :: ClientInfo -&gt; ClientInfo -&gt; ClientInfo
+min :: ClientInfo -&gt; ClientInfo -&gt; ClientInfo
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682611841"><span id="local-6989586621682611843"><span class="annot"><span class="annottext">(forall x. ClientInfo -&gt; Rep ClientInfo x)
+-&gt; (forall x. Rep ClientInfo x -&gt; ClientInfo) -&gt; Generic ClientInfo
+forall x. Rep ClientInfo x -&gt; ClientInfo
+forall x. ClientInfo -&gt; Rep ClientInfo x
+forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+$cfrom :: forall x. ClientInfo -&gt; Rep ClientInfo x
+from :: forall x. ClientInfo -&gt; Rep ClientInfo x
+$cto :: forall x. Rep ClientInfo x -&gt; ClientInfo
+to :: forall x. Rep ClientInfo x -&gt; ClientInfo
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Generic</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-39"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">anyclass</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621682611849"><span class="annot"><span class="annottext">ClientInfo -&gt; ()
+(ClientInfo -&gt; ()) -&gt; NFData ClientInfo
+forall a. (a -&gt; ()) -&gt; NFData a
+$crnf :: ClientInfo -&gt; ()
+rnf :: ClientInfo -&gt; ()
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">NFData</span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682611872"><span id="local-6989586621682611879"><span class="annot"><span class="annottext">Eq ClientInfo
+Eq ClientInfo =&gt;
+(Int -&gt; ClientInfo -&gt; Int)
+-&gt; (ClientInfo -&gt; Int) -&gt; Hashable ClientInfo
+Int -&gt; ClientInfo -&gt; Int
+ClientInfo -&gt; Int
+forall a. Eq a =&gt; (Int -&gt; a -&gt; Int) -&gt; (a -&gt; Int) -&gt; Hashable a
+$chashWithSalt :: Int -&gt; ClientInfo -&gt; Int
+hashWithSalt :: Int -&gt; ClientInfo -&gt; Int
+$chash :: ClientInfo -&gt; Int
+hash :: ClientInfo -&gt; Int
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Hashable</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-40"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span id="local-6989586621682611896"><span id="local-6989586621682611902"><span class="annot"><span class="annottext">(forall ann. ClientInfo -&gt; Doc ann)
+-&gt; (forall ann. [ClientInfo] -&gt; Doc ann) -&gt; Pretty ClientInfo
+forall ann. [ClientInfo] -&gt; Doc ann
+forall ann. ClientInfo -&gt; Doc ann
+forall a.
+(forall ann. a -&gt; Doc ann)
+-&gt; (forall ann. [a] -&gt; Doc ann) -&gt; Pretty a
+$cpretty :: forall ann. ClientInfo -&gt; Doc ann
+pretty :: forall ann. ClientInfo -&gt; Doc ann
+$cprettyList :: forall ann. [ClientInfo] -&gt; Doc ann
+prettyList :: forall ann. [ClientInfo] -&gt; Doc ann
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Pretty</span></span></span></span><span> </span><span class="hs-keyword">via</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.LSP.Protocol.Utils.Misc.html#ViaJSON"><span class="hs-identifier hs-type">ViaJSON</span></a></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.ClientInfo.html#ClientInfo"><span class="hs-identifier hs-type">ClientInfo</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-41"></span><span>
+</span><span id="line-42"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621682611913"><span id="local-6989586621682611916"><span id="local-6989586621682611919"><span id="local-6989586621682611922"><span class="annot"><span class="hs-identifier hs-type">Aeson.ToJSON</span></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.ClientInfo.html#ClientInfo"><span class="hs-identifier hs-type">ClientInfo</span></a></span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-43"></span><span>  </span><span id="local-6989586621682611937"><span class="annot"><span class="annottext">toJSON :: ClientInfo -&gt; Value
+</span><a href="#local-6989586621682611937"><span class="hs-identifier hs-var hs-var hs-var">toJSON</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.ClientInfo.html#ClientInfo"><span class="hs-identifier hs-type">ClientInfo</span></a></span><span> </span><span id="local-6989586621682611939"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621682611939"><span class="hs-identifier hs-var">arg0</span></a></span></span><span> </span><span id="local-6989586621682611940"><span class="annot"><span class="annottext">Maybe Text
+</span><a href="#local-6989586621682611940"><span class="hs-identifier hs-var">arg1</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Pair] -&gt; Value
+</span><span class="hs-identifier hs-var">Aeson.object</span></span><span> </span><span class="annot"><span class="annottext">([Pair] -&gt; Value) -&gt; [Pair] -&gt; Value
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">[[Pair]] -&gt; [Pair]
+forall (t :: * -&gt; *) a. Foldable t =&gt; t [a] -&gt; [a]
+</span><span class="hs-identifier hs-var">concat</span></span><span> </span><span class="annot"><span class="annottext">([[Pair]] -&gt; [Pair]) -&gt; [[Pair]] -&gt; [Pair]
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>  </span><span class="hs-special">[</span><span class="hs-special">[</span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;name&quot;</span></span><span> </span><span class="annot"><span class="annottext">Key -&gt; Text -&gt; Pair
+forall v. ToJSON v =&gt; Key -&gt; v -&gt; Pair
+forall e kv v. (KeyValue e kv, ToJSON v) =&gt; Key -&gt; v -&gt; kv
+</span><span class="hs-operator hs-var">Aeson..=</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621682611939"><span class="hs-identifier hs-var">arg0</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-44"></span><span>    </span><span class="hs-special">,</span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;version&quot;</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; Maybe Text -&gt; [Pair]
+forall e kv v.
+(KeyValue e kv, ToJSON v) =&gt;
+String -&gt; Maybe v -&gt; [kv]
+</span><a href="Language.LSP.Protocol.Types.Common.html#.%3D%3F"><span class="hs-operator hs-var">Language.LSP.Protocol.Types.Common..=?</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe Text
+</span><a href="#local-6989586621682611940"><span class="hs-identifier hs-var">arg1</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-45"></span><span>
+</span><span id="line-46"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621682611947"><span id="local-6989586621682611951"><span class="annot"><span class="hs-identifier hs-type">Aeson.FromJSON</span></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.ClientInfo.html#ClientInfo"><span class="hs-identifier hs-type">ClientInfo</span></a></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-47"></span><span>  </span><span id="local-6989586621682611963"><span class="annot"><span class="annottext">parseJSON :: Value -&gt; Parser ClientInfo
+</span><a href="#local-6989586621682611963"><span class="hs-identifier hs-var hs-var hs-var">parseJSON</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+-&gt; (Object -&gt; Parser ClientInfo) -&gt; Value -&gt; Parser ClientInfo
+forall a. String -&gt; (Object -&gt; Parser a) -&gt; Value -&gt; Parser a
+</span><span class="hs-identifier hs-var">Aeson.withObject</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;ClientInfo&quot;</span></span><span> </span><span class="annot"><span class="annottext">((Object -&gt; Parser ClientInfo) -&gt; Value -&gt; Parser ClientInfo)
+-&gt; (Object -&gt; Parser ClientInfo) -&gt; Value -&gt; Parser ClientInfo
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621682611966"><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621682611966"><span class="hs-identifier hs-var">arg</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Text -&gt; Maybe Text -&gt; ClientInfo
+</span><a href="Language.LSP.Protocol.Internal.Types.ClientInfo.html#ClientInfo"><span class="hs-identifier hs-var">ClientInfo</span></a></span><span> </span><span class="annot"><span class="annottext">(Text -&gt; Maybe Text -&gt; ClientInfo)
+-&gt; Parser Text -&gt; Parser (Maybe Text -&gt; ClientInfo)
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621682611966"><span class="hs-identifier hs-var">arg</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser Text
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">Aeson..:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;name&quot;</span></span><span> </span><span class="annot"><span class="annottext">Parser (Maybe Text -&gt; ClientInfo)
+-&gt; Parser (Maybe Text) -&gt; Parser ClientInfo
+forall a b. Parser (a -&gt; b) -&gt; Parser a -&gt; Parser b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621682611966"><span class="hs-identifier hs-var">arg</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser (Maybe Text)
+forall v. FromJSON v =&gt; Object -&gt; Key -&gt; Parser (Maybe v)
+</span><a href="Language.LSP.Protocol.Types.Common.html#.%3A%21%3F"><span class="hs-operator hs-var">Language.LSP.Protocol.Types.Common..:!?</span></a></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;version&quot;</span></span><span>
+</span><span id="line-48"></span></pre></body></html>

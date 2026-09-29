@@ -1,0 +1,821 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span id="local-6989586621679485619"><span id="local-6989586621679485620"><span id="local-6989586621679485621"><span id="local-6989586621679485622"></span></span></span></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="GitHub.Data.Search.html"><span class="hs-identifier">GitHub.Data.Search</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-2"></span><span>
+</span><span id="line-3"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GitHub.Data.Repos.html"><span class="hs-identifier">GitHub.Data.Repos</span></a></span><span>       </span><span class="hs-special">(</span><span class="annot"><a href="GitHub.Data.Repos.html#CodeSearchRepo"><span class="hs-identifier">CodeSearchRepo</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-4"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GitHub.Data.URL.html"><span class="hs-identifier">GitHub.Data.URL</span></a></span><span>         </span><span class="hs-special">(</span><span class="annot"><a href="GitHub.Data.URL.html#URL"><span class="hs-identifier">URL</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-5"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GitHub.Internal.Prelude.html"><span class="hs-identifier">GitHub.Internal.Prelude</span></a></span><span>
+</span><span id="line-6"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Prelude</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-7"></span><span>
+</span><span id="line-8"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Vector</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">V</span></span><span>
+</span><span id="line-9"></span><span>
+</span><span id="line-10"></span><span class="hs-keyword">data</span><span> </span><span id="SearchResult%27"><span class="annot"><a href="GitHub.Data.Search.html#SearchResult%27"><span class="hs-identifier hs-var">SearchResult'</span></a></span></span><span> </span><span id="local-6989586621679485418"><span class="annot"><a href="#local-6989586621679485418"><span class="hs-identifier hs-type">entities</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="SearchResult"><span class="annot"><a href="GitHub.Data.Search.html#SearchResult"><span class="hs-identifier hs-var">SearchResult</span></a></span></span><span>
+</span><span id="line-11"></span><span>    </span><span class="hs-special">{</span><span> </span><span id="searchResultTotalCount"><span class="annot"><span class="annottext">forall entities. SearchResult' entities -&gt; Int
+</span><a href="GitHub.Data.Search.html#searchResultTotalCount"><span class="hs-identifier hs-var hs-var">searchResultTotalCount</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>
+</span><span id="line-12"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="searchResultResults"><span class="annot"><span class="annottext">forall entities. SearchResult' entities -&gt; entities
+</span><a href="GitHub.Data.Search.html#searchResultResults"><span class="hs-identifier hs-var hs-var">searchResultResults</span></a></span></span><span>    </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><a href="#local-6989586621679485418"><span class="hs-identifier hs-type">entities</span></a></span><span>
+</span><span id="line-13"></span><span>    </span><span class="hs-special">}</span><span>
+</span><span id="line-14"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679485628"><span id="local-6989586621679485635"><span id="local-6989586621679485639"><span class="annot"><span class="annottext">Int -&gt; SearchResult' entities -&gt; ShowS
+[SearchResult' entities] -&gt; ShowS
+SearchResult' entities -&gt; String
+(Int -&gt; SearchResult' entities -&gt; ShowS)
+-&gt; (SearchResult' entities -&gt; String)
+-&gt; ([SearchResult' entities] -&gt; ShowS)
+-&gt; Show (SearchResult' entities)
+forall entities.
+Show entities =&gt;
+Int -&gt; SearchResult' entities -&gt; ShowS
+forall entities. Show entities =&gt; [SearchResult' entities] -&gt; ShowS
+forall entities. Show entities =&gt; SearchResult' entities -&gt; String
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: forall entities.
+Show entities =&gt;
+Int -&gt; SearchResult' entities -&gt; ShowS
+showsPrec :: Int -&gt; SearchResult' entities -&gt; ShowS
+$cshow :: forall entities. Show entities =&gt; SearchResult' entities -&gt; String
+show :: SearchResult' entities -&gt; String
+$cshowList :: forall entities. Show entities =&gt; [SearchResult' entities] -&gt; ShowS
+showList :: [SearchResult' entities] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679485649"><span id="local-6989586621679485654"><span id="local-6989586621679485658"><span id="local-6989586621679485660"><span id="local-6989586621679485662"><span id="local-6989586621679485668"><span id="local-6989586621679485674"><span id="local-6989586621679485677"><span id="local-6989586621679485680"><span id="local-6989586621679485683"><span id="local-6989586621679485686"><span id="local-6989586621679485689"><span id="local-6989586621679485694"><span id="local-6989586621679485699"><span class="annot"><span class="annottext">Typeable (SearchResult' entities)
+Typeable (SearchResult' entities) =&gt;
+(forall (c :: * -&gt; *).
+ (forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+ -&gt; (forall g. g -&gt; c g)
+ -&gt; SearchResult' entities
+ -&gt; c (SearchResult' entities))
+-&gt; (forall (c :: * -&gt; *).
+    (forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+    -&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c (SearchResult' entities))
+-&gt; (SearchResult' entities -&gt; Constr)
+-&gt; (SearchResult' entities -&gt; DataType)
+-&gt; (forall (t :: * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d. Data d =&gt; c (t d))
+    -&gt; Maybe (c (SearchResult' entities)))
+-&gt; (forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d e. (Data d, Data e) =&gt; c (t d e))
+    -&gt; Maybe (c (SearchResult' entities)))
+-&gt; ((forall b. Data b =&gt; b -&gt; b)
+    -&gt; SearchResult' entities -&gt; SearchResult' entities)
+-&gt; (forall r r'.
+    (r -&gt; r' -&gt; r)
+    -&gt; r
+    -&gt; (forall d. Data d =&gt; d -&gt; r')
+    -&gt; SearchResult' entities
+    -&gt; r)
+-&gt; (forall r r'.
+    (r' -&gt; r -&gt; r)
+    -&gt; r
+    -&gt; (forall d. Data d =&gt; d -&gt; r')
+    -&gt; SearchResult' entities
+    -&gt; r)
+-&gt; (forall u.
+    (forall d. Data d =&gt; d -&gt; u) -&gt; SearchResult' entities -&gt; [u])
+-&gt; (forall u.
+    Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; SearchResult' entities -&gt; u)
+-&gt; (forall (m :: * -&gt; *).
+    Monad m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d)
+    -&gt; SearchResult' entities -&gt; m (SearchResult' entities))
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d)
+    -&gt; SearchResult' entities -&gt; m (SearchResult' entities))
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d)
+    -&gt; SearchResult' entities -&gt; m (SearchResult' entities))
+-&gt; Data (SearchResult' entities)
+SearchResult' entities -&gt; Constr
+SearchResult' entities -&gt; DataType
+(forall b. Data b =&gt; b -&gt; b)
+-&gt; SearchResult' entities -&gt; SearchResult' entities
+forall entities. Data entities =&gt; Typeable (SearchResult' entities)
+forall entities. Data entities =&gt; SearchResult' entities -&gt; Constr
+forall entities.
+Data entities =&gt;
+SearchResult' entities -&gt; DataType
+forall entities.
+Data entities =&gt;
+(forall b. Data b =&gt; b -&gt; b)
+-&gt; SearchResult' entities -&gt; SearchResult' entities
+forall entities u.
+Data entities =&gt;
+Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; SearchResult' entities -&gt; u
+forall entities u.
+Data entities =&gt;
+(forall d. Data d =&gt; d -&gt; u) -&gt; SearchResult' entities -&gt; [u]
+forall entities r r'.
+Data entities =&gt;
+(r -&gt; r' -&gt; r)
+-&gt; r
+-&gt; (forall d. Data d =&gt; d -&gt; r')
+-&gt; SearchResult' entities
+-&gt; r
+forall entities r r'.
+Data entities =&gt;
+(r' -&gt; r -&gt; r)
+-&gt; r
+-&gt; (forall d. Data d =&gt; d -&gt; r')
+-&gt; SearchResult' entities
+-&gt; r
+forall entities (m :: * -&gt; *).
+(Data entities, Monad m) =&gt;
+(forall d. Data d =&gt; d -&gt; m d)
+-&gt; SearchResult' entities -&gt; m (SearchResult' entities)
+forall entities (m :: * -&gt; *).
+(Data entities, MonadPlus m) =&gt;
+(forall d. Data d =&gt; d -&gt; m d)
+-&gt; SearchResult' entities -&gt; m (SearchResult' entities)
+forall entities (c :: * -&gt; *).
+Data entities =&gt;
+(forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+-&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c (SearchResult' entities)
+forall entities (c :: * -&gt; *).
+Data entities =&gt;
+(forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+-&gt; (forall g. g -&gt; c g)
+-&gt; SearchResult' entities
+-&gt; c (SearchResult' entities)
+forall entities (t :: * -&gt; *) (c :: * -&gt; *).
+(Data entities, Typeable t) =&gt;
+(forall d. Data d =&gt; c (t d)) -&gt; Maybe (c (SearchResult' entities))
+forall entities (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+(Data entities, Typeable t) =&gt;
+(forall d e. (Data d, Data e) =&gt; c (t d e))
+-&gt; Maybe (c (SearchResult' entities))
+forall a.
+Typeable a =&gt;
+(forall (c :: * -&gt; *).
+ (forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+ -&gt; (forall g. g -&gt; c g) -&gt; a -&gt; c a)
+-&gt; (forall (c :: * -&gt; *).
+    (forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+    -&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c a)
+-&gt; (a -&gt; Constr)
+-&gt; (a -&gt; DataType)
+-&gt; (forall (t :: * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d. Data d =&gt; c (t d)) -&gt; Maybe (c a))
+-&gt; (forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d e. (Data d, Data e) =&gt; c (t d e)) -&gt; Maybe (c a))
+-&gt; ((forall b. Data b =&gt; b -&gt; b) -&gt; a -&gt; a)
+-&gt; (forall r r'.
+    (r -&gt; r' -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; a -&gt; r)
+-&gt; (forall r r'.
+    (r' -&gt; r -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; a -&gt; r)
+-&gt; (forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; a -&gt; [u])
+-&gt; (forall u. Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; a -&gt; u)
+-&gt; (forall (m :: * -&gt; *).
+    Monad m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; a -&gt; m a)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; a -&gt; m a)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; a -&gt; m a)
+-&gt; Data a
+forall u.
+Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; SearchResult' entities -&gt; u
+forall u.
+(forall d. Data d =&gt; d -&gt; u) -&gt; SearchResult' entities -&gt; [u]
+forall r r'.
+(r -&gt; r' -&gt; r)
+-&gt; r
+-&gt; (forall d. Data d =&gt; d -&gt; r')
+-&gt; SearchResult' entities
+-&gt; r
+forall r r'.
+(r' -&gt; r -&gt; r)
+-&gt; r
+-&gt; (forall d. Data d =&gt; d -&gt; r')
+-&gt; SearchResult' entities
+-&gt; r
+forall (m :: * -&gt; *).
+Monad m =&gt;
+(forall d. Data d =&gt; d -&gt; m d)
+-&gt; SearchResult' entities -&gt; m (SearchResult' entities)
+forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d)
+-&gt; SearchResult' entities -&gt; m (SearchResult' entities)
+forall (c :: * -&gt; *).
+(forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+-&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c (SearchResult' entities)
+forall (c :: * -&gt; *).
+(forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+-&gt; (forall g. g -&gt; c g)
+-&gt; SearchResult' entities
+-&gt; c (SearchResult' entities)
+forall (t :: * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d. Data d =&gt; c (t d)) -&gt; Maybe (c (SearchResult' entities))
+forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d e. (Data d, Data e) =&gt; c (t d e))
+-&gt; Maybe (c (SearchResult' entities))
+$cgfoldl :: forall entities (c :: * -&gt; *).
+Data entities =&gt;
+(forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+-&gt; (forall g. g -&gt; c g)
+-&gt; SearchResult' entities
+-&gt; c (SearchResult' entities)
+gfoldl :: forall (c :: * -&gt; *).
+(forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+-&gt; (forall g. g -&gt; c g)
+-&gt; SearchResult' entities
+-&gt; c (SearchResult' entities)
+$cgunfold :: forall entities (c :: * -&gt; *).
+Data entities =&gt;
+(forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+-&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c (SearchResult' entities)
+gunfold :: forall (c :: * -&gt; *).
+(forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+-&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c (SearchResult' entities)
+$ctoConstr :: forall entities. Data entities =&gt; SearchResult' entities -&gt; Constr
+toConstr :: SearchResult' entities -&gt; Constr
+$cdataTypeOf :: forall entities.
+Data entities =&gt;
+SearchResult' entities -&gt; DataType
+dataTypeOf :: SearchResult' entities -&gt; DataType
+$cdataCast1 :: forall entities (t :: * -&gt; *) (c :: * -&gt; *).
+(Data entities, Typeable t) =&gt;
+(forall d. Data d =&gt; c (t d)) -&gt; Maybe (c (SearchResult' entities))
+dataCast1 :: forall (t :: * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d. Data d =&gt; c (t d)) -&gt; Maybe (c (SearchResult' entities))
+$cdataCast2 :: forall entities (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+(Data entities, Typeable t) =&gt;
+(forall d e. (Data d, Data e) =&gt; c (t d e))
+-&gt; Maybe (c (SearchResult' entities))
+dataCast2 :: forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d e. (Data d, Data e) =&gt; c (t d e))
+-&gt; Maybe (c (SearchResult' entities))
+$cgmapT :: forall entities.
+Data entities =&gt;
+(forall b. Data b =&gt; b -&gt; b)
+-&gt; SearchResult' entities -&gt; SearchResult' entities
+gmapT :: (forall b. Data b =&gt; b -&gt; b)
+-&gt; SearchResult' entities -&gt; SearchResult' entities
+$cgmapQl :: forall entities r r'.
+Data entities =&gt;
+(r -&gt; r' -&gt; r)
+-&gt; r
+-&gt; (forall d. Data d =&gt; d -&gt; r')
+-&gt; SearchResult' entities
+-&gt; r
+gmapQl :: forall r r'.
+(r -&gt; r' -&gt; r)
+-&gt; r
+-&gt; (forall d. Data d =&gt; d -&gt; r')
+-&gt; SearchResult' entities
+-&gt; r
+$cgmapQr :: forall entities r r'.
+Data entities =&gt;
+(r' -&gt; r -&gt; r)
+-&gt; r
+-&gt; (forall d. Data d =&gt; d -&gt; r')
+-&gt; SearchResult' entities
+-&gt; r
+gmapQr :: forall r r'.
+(r' -&gt; r -&gt; r)
+-&gt; r
+-&gt; (forall d. Data d =&gt; d -&gt; r')
+-&gt; SearchResult' entities
+-&gt; r
+$cgmapQ :: forall entities u.
+Data entities =&gt;
+(forall d. Data d =&gt; d -&gt; u) -&gt; SearchResult' entities -&gt; [u]
+gmapQ :: forall u.
+(forall d. Data d =&gt; d -&gt; u) -&gt; SearchResult' entities -&gt; [u]
+$cgmapQi :: forall entities u.
+Data entities =&gt;
+Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; SearchResult' entities -&gt; u
+gmapQi :: forall u.
+Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; SearchResult' entities -&gt; u
+$cgmapM :: forall entities (m :: * -&gt; *).
+(Data entities, Monad m) =&gt;
+(forall d. Data d =&gt; d -&gt; m d)
+-&gt; SearchResult' entities -&gt; m (SearchResult' entities)
+gmapM :: forall (m :: * -&gt; *).
+Monad m =&gt;
+(forall d. Data d =&gt; d -&gt; m d)
+-&gt; SearchResult' entities -&gt; m (SearchResult' entities)
+$cgmapMp :: forall entities (m :: * -&gt; *).
+(Data entities, MonadPlus m) =&gt;
+(forall d. Data d =&gt; d -&gt; m d)
+-&gt; SearchResult' entities -&gt; m (SearchResult' entities)
+gmapMp :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d)
+-&gt; SearchResult' entities -&gt; m (SearchResult' entities)
+$cgmapMo :: forall entities (m :: * -&gt; *).
+(Data entities, MonadPlus m) =&gt;
+(forall d. Data d =&gt; d -&gt; m d)
+-&gt; SearchResult' entities -&gt; m (SearchResult' entities)
+gmapMo :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d)
+-&gt; SearchResult' entities -&gt; m (SearchResult' entities)
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Data</span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679485712"><span id="local-6989586621679485717"><span class="annot"><span class="annottext">SearchResult' entities -&gt; SearchResult' entities -&gt; Bool
+(SearchResult' entities -&gt; SearchResult' entities -&gt; Bool)
+-&gt; (SearchResult' entities -&gt; SearchResult' entities -&gt; Bool)
+-&gt; Eq (SearchResult' entities)
+forall entities.
+Eq entities =&gt;
+SearchResult' entities -&gt; SearchResult' entities -&gt; Bool
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: forall entities.
+Eq entities =&gt;
+SearchResult' entities -&gt; SearchResult' entities -&gt; Bool
+== :: SearchResult' entities -&gt; SearchResult' entities -&gt; Bool
+$c/= :: forall entities.
+Eq entities =&gt;
+SearchResult' entities -&gt; SearchResult' entities -&gt; Bool
+/= :: SearchResult' entities -&gt; SearchResult' entities -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679485726"><span id="local-6989586621679485730"><span id="local-6989586621679485734"><span id="local-6989586621679485738"><span id="local-6989586621679485741"><span id="local-6989586621679485744"><span id="local-6989586621679485747"><span class="annot"><span class="annottext">Eq (SearchResult' entities)
+Eq (SearchResult' entities) =&gt;
+(SearchResult' entities -&gt; SearchResult' entities -&gt; Ordering)
+-&gt; (SearchResult' entities -&gt; SearchResult' entities -&gt; Bool)
+-&gt; (SearchResult' entities -&gt; SearchResult' entities -&gt; Bool)
+-&gt; (SearchResult' entities -&gt; SearchResult' entities -&gt; Bool)
+-&gt; (SearchResult' entities -&gt; SearchResult' entities -&gt; Bool)
+-&gt; (SearchResult' entities
+    -&gt; SearchResult' entities -&gt; SearchResult' entities)
+-&gt; (SearchResult' entities
+    -&gt; SearchResult' entities -&gt; SearchResult' entities)
+-&gt; Ord (SearchResult' entities)
+SearchResult' entities -&gt; SearchResult' entities -&gt; Bool
+SearchResult' entities -&gt; SearchResult' entities -&gt; Ordering
+SearchResult' entities
+-&gt; SearchResult' entities -&gt; SearchResult' entities
+forall a.
+Eq a =&gt;
+(a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+forall entities. Ord entities =&gt; Eq (SearchResult' entities)
+forall entities.
+Ord entities =&gt;
+SearchResult' entities -&gt; SearchResult' entities -&gt; Bool
+forall entities.
+Ord entities =&gt;
+SearchResult' entities -&gt; SearchResult' entities -&gt; Ordering
+forall entities.
+Ord entities =&gt;
+SearchResult' entities
+-&gt; SearchResult' entities -&gt; SearchResult' entities
+$ccompare :: forall entities.
+Ord entities =&gt;
+SearchResult' entities -&gt; SearchResult' entities -&gt; Ordering
+compare :: SearchResult' entities -&gt; SearchResult' entities -&gt; Ordering
+$c&lt; :: forall entities.
+Ord entities =&gt;
+SearchResult' entities -&gt; SearchResult' entities -&gt; Bool
+&lt; :: SearchResult' entities -&gt; SearchResult' entities -&gt; Bool
+$c&lt;= :: forall entities.
+Ord entities =&gt;
+SearchResult' entities -&gt; SearchResult' entities -&gt; Bool
+&lt;= :: SearchResult' entities -&gt; SearchResult' entities -&gt; Bool
+$c&gt; :: forall entities.
+Ord entities =&gt;
+SearchResult' entities -&gt; SearchResult' entities -&gt; Bool
+&gt; :: SearchResult' entities -&gt; SearchResult' entities -&gt; Bool
+$c&gt;= :: forall entities.
+Ord entities =&gt;
+SearchResult' entities -&gt; SearchResult' entities -&gt; Bool
+&gt;= :: SearchResult' entities -&gt; SearchResult' entities -&gt; Bool
+$cmax :: forall entities.
+Ord entities =&gt;
+SearchResult' entities
+-&gt; SearchResult' entities -&gt; SearchResult' entities
+max :: SearchResult' entities
+-&gt; SearchResult' entities -&gt; SearchResult' entities
+$cmin :: forall entities.
+Ord entities =&gt;
+SearchResult' entities
+-&gt; SearchResult' entities -&gt; SearchResult' entities
+min :: SearchResult' entities
+-&gt; SearchResult' entities -&gt; SearchResult' entities
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679485756"><span id="local-6989586621679485758"><span class="annot"><span class="annottext">(forall x.
+ SearchResult' entities -&gt; Rep (SearchResult' entities) x)
+-&gt; (forall x.
+    Rep (SearchResult' entities) x -&gt; SearchResult' entities)
+-&gt; Generic (SearchResult' entities)
+forall x. Rep (SearchResult' entities) x -&gt; SearchResult' entities
+forall x. SearchResult' entities -&gt; Rep (SearchResult' entities) x
+forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+forall entities x.
+Rep (SearchResult' entities) x -&gt; SearchResult' entities
+forall entities x.
+SearchResult' entities -&gt; Rep (SearchResult' entities) x
+$cfrom :: forall entities x.
+SearchResult' entities -&gt; Rep (SearchResult' entities) x
+from :: forall x. SearchResult' entities -&gt; Rep (SearchResult' entities) x
+$cto :: forall entities x.
+Rep (SearchResult' entities) x -&gt; SearchResult' entities
+to :: forall x. Rep (SearchResult' entities) x -&gt; SearchResult' entities
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Generic</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-15"></span><span>
+</span><span id="line-16"></span><span class="hs-keyword">type</span><span> </span><span id="SearchResult"><span class="annot"><a href="GitHub.Data.Search.html#SearchResult"><span class="hs-identifier hs-var">SearchResult</span></a></span></span><span> </span><span id="local-6989586621679485764"><span class="annot"><a href="#local-6989586621679485764"><span class="hs-identifier hs-type">entity</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="GitHub.Data.Search.html#SearchResult%27"><span class="hs-identifier hs-type">SearchResult'</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">V.Vector</span></span><span> </span><span class="annot"><a href="#local-6989586621679485764"><span class="hs-identifier hs-type">entity</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-17"></span><span>
+</span><span id="line-18"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679485492"><span id="local-6989586621679485768"><span class="annot"><span class="hs-identifier hs-type">NFData</span></span><span> </span><span class="annot"><a href="#local-6989586621679485492"><span class="hs-identifier hs-type">entities</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">NFData</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GitHub.Data.Search.html#SearchResult%27"><span class="hs-identifier hs-type">SearchResult'</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679485492"><span class="hs-identifier hs-type">entities</span></a></span><span class="hs-special">)</span></span></span><span>
+</span><span id="line-19"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679485514"><span id="local-6989586621679485788"><span id="local-6989586621679485795"><span id="local-6989586621679485801"><span class="annot"><span class="hs-identifier hs-type">Binary</span></span><span> </span><span class="annot"><a href="#local-6989586621679485514"><span class="hs-identifier hs-type">entities</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Binary</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GitHub.Data.Search.html#SearchResult%27"><span class="hs-identifier hs-type">SearchResult'</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679485514"><span class="hs-identifier hs-type">entities</span></a></span><span class="hs-special">)</span></span></span></span></span><span>
+</span><span id="line-20"></span><span>
+</span><span id="line-21"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679485520"><span id="local-6989586621679485829"><span id="local-6989586621679485833"><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Monoid</span></span><span> </span><span class="annot"><a href="#local-6989586621679485520"><span class="hs-identifier hs-type">entities</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">FromJSON</span></span><span> </span><span class="annot"><a href="#local-6989586621679485520"><span class="hs-identifier hs-type">entities</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">FromJSON</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GitHub.Data.Search.html#SearchResult%27"><span class="hs-identifier hs-type">SearchResult'</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679485520"><span class="hs-identifier hs-type">entities</span></a></span><span class="hs-special">)</span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-22"></span><span>    </span><span id="local-6989586621679485847"><span class="annot"><span class="annottext">parseJSON :: Value -&gt; Parser (SearchResult' entities)
+</span><a href="#local-6989586621679485847"><span class="hs-identifier hs-var hs-var hs-var">parseJSON</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+-&gt; (Object -&gt; Parser (SearchResult' entities))
+-&gt; Value
+-&gt; Parser (SearchResult' entities)
+forall a. String -&gt; (Object -&gt; Parser a) -&gt; Value -&gt; Parser a
+</span><span class="hs-identifier hs-var">withObject</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;SearchResult&quot;</span></span><span> </span><span class="annot"><span class="annottext">((Object -&gt; Parser (SearchResult' entities))
+ -&gt; Value -&gt; Parser (SearchResult' entities))
+-&gt; (Object -&gt; Parser (SearchResult' entities))
+-&gt; Value
+-&gt; Parser (SearchResult' entities)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679485850"><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679485850"><span class="hs-identifier hs-var">o</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Int -&gt; entities -&gt; SearchResult' entities
+forall entities. Int -&gt; entities -&gt; SearchResult' entities
+</span><a href="GitHub.Data.Search.html#SearchResult"><span class="hs-identifier hs-var">SearchResult</span></a></span><span>
+</span><span id="line-23"></span><span>        </span><span class="annot"><span class="annottext">(Int -&gt; entities -&gt; SearchResult' entities)
+-&gt; Parser Int -&gt; Parser (entities -&gt; SearchResult' entities)
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679485850"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser Int
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">.:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;total_count&quot;</span></span><span>
+</span><span id="line-24"></span><span>        </span><span class="annot"><span class="annottext">Parser (entities -&gt; SearchResult' entities)
+-&gt; Parser entities -&gt; Parser (SearchResult' entities)
+forall a b. Parser (a -&gt; b) -&gt; Parser a -&gt; Parser b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679485850"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser (Maybe entities)
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser (Maybe a)
+</span><span class="hs-operator hs-var">.:?</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;items&quot;</span></span><span> </span><span class="annot"><span class="annottext">Parser (Maybe entities) -&gt; entities -&gt; Parser entities
+forall a. Parser (Maybe a) -&gt; a -&gt; Parser a
+</span><span class="hs-operator hs-var">.!=</span></span><span> </span><span class="annot"><span class="annottext">entities
+forall a. Monoid a =&gt; a
+</span><span class="hs-identifier hs-var">mempty</span></span><span>
+</span><span id="line-25"></span><span>
+</span><span id="line-26"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679485543"><span id="local-6989586621679485858"><span id="local-6989586621679485862"><span class="annot"><span class="hs-identifier hs-type">Semigroup</span></span><span> </span><span class="annot"><a href="#local-6989586621679485543"><span class="hs-identifier hs-type">res</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Semigroup</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GitHub.Data.Search.html#SearchResult%27"><span class="hs-identifier hs-type">SearchResult'</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679485543"><span class="hs-identifier hs-type">res</span></a></span><span class="hs-special">)</span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-27"></span><span>    </span><span class="hs-special">(</span><span class="annot"><a href="GitHub.Data.Search.html#SearchResult"><span class="hs-identifier hs-type">SearchResult</span></a></span><span> </span><span id="local-6989586621679485869"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679485869"><span class="hs-identifier hs-var">count</span></a></span></span><span> </span><span id="local-6989586621679485870"><span class="annot"><span class="annottext">res
+</span><a href="#local-6989586621679485870"><span class="hs-identifier hs-var">res</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621679485871"><span class="annot"><span class="annottext">&lt;&gt; :: SearchResult' res -&gt; SearchResult' res -&gt; SearchResult' res
+</span><span class="hs-operator hs-var hs-var hs-var">&lt;&gt;</span></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GitHub.Data.Search.html#SearchResult"><span class="hs-identifier hs-type">SearchResult</span></a></span><span> </span><span id="local-6989586621679485872"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679485872"><span class="hs-identifier hs-var">count'</span></a></span></span><span> </span><span id="local-6989586621679485873"><span class="annot"><span class="annottext">res
+</span><a href="#local-6989586621679485873"><span class="hs-identifier hs-var">res'</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; res -&gt; SearchResult' res
+forall entities. Int -&gt; entities -&gt; SearchResult' entities
+</span><a href="GitHub.Data.Search.html#SearchResult"><span class="hs-identifier hs-var">SearchResult</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Ord a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-identifier hs-var">max</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679485869"><span class="hs-identifier hs-var">count</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679485872"><span class="hs-identifier hs-var">count'</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">res
+</span><a href="#local-6989586621679485870"><span class="hs-identifier hs-var">res</span></a></span><span> </span><span class="annot"><span class="annottext">res -&gt; res -&gt; res
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">res
+</span><a href="#local-6989586621679485873"><span class="hs-identifier hs-var">res'</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-28"></span><span>
+</span><span id="line-29"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679485876"><span id="local-6989586621679485883"><span id="local-6989586621679485888"><span id="local-6989586621679485891"><span id="local-6989586621679485894"><span id="local-6989586621679485897"><span id="local-6989586621679485900"><span id="local-6989586621679485903"><span id="local-6989586621679485906"><span id="local-6989586621679485909"><span id="local-6989586621679485912"><span id="local-6989586621679485915"><span id="local-6989586621679485920"><span id="local-6989586621679485925"><span id="local-6989586621679485930"><span id="local-6989586621679485935"><span class="annot"><span class="hs-identifier hs-type">Foldable</span></span><span> </span><span class="annot"><a href="GitHub.Data.Search.html#SearchResult%27"><span class="hs-identifier hs-type">SearchResult'</span></a></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-30"></span><span>    </span><span id="local-6989586621679485941"><span class="annot"><span class="annottext">foldMap :: forall m a. Monoid m =&gt; (a -&gt; m) -&gt; SearchResult' a -&gt; m
+</span><a href="#local-6989586621679485941"><span class="hs-identifier hs-var hs-var hs-var">foldMap</span></a></span></span><span> </span><span id="local-6989586621679485943"><span class="annot"><span class="annottext">a -&gt; m
+</span><a href="#local-6989586621679485943"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GitHub.Data.Search.html#SearchResult"><span class="hs-identifier hs-type">SearchResult</span></a></span><span> </span><span id="local-6989586621679485944"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679485944"><span class="hs-identifier hs-var">_count</span></a></span></span><span> </span><span id="local-6989586621679485945"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679485945"><span class="hs-identifier hs-var">results</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">a -&gt; m
+</span><a href="#local-6989586621679485943"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679485945"><span class="hs-identifier hs-var">results</span></a></span><span>
+</span><span id="line-31"></span><span>
+</span><span id="line-32"></span><span class="hs-keyword">data</span><span> </span><span id="Code"><span class="annot"><a href="GitHub.Data.Search.html#Code"><span class="hs-identifier hs-var">Code</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="Code"><span class="annot"><a href="GitHub.Data.Search.html#Code"><span class="hs-identifier hs-var">Code</span></a></span></span><span>
+</span><span id="line-33"></span><span>    </span><span class="hs-special">{</span><span> </span><span id="codeName"><span class="annot"><span class="annottext">Code -&gt; Text
+</span><a href="GitHub.Data.Search.html#codeName"><span class="hs-identifier hs-var hs-var">codeName</span></a></span></span><span>    </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span>
+</span><span id="line-34"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="codePath"><span class="annot"><span class="annottext">Code -&gt; Text
+</span><a href="GitHub.Data.Search.html#codePath"><span class="hs-identifier hs-var hs-var">codePath</span></a></span></span><span>    </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span>
+</span><span id="line-35"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="codeSha"><span class="annot"><span class="annottext">Code -&gt; Text
+</span><a href="GitHub.Data.Search.html#codeSha"><span class="hs-identifier hs-var hs-var">codeSha</span></a></span></span><span>     </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span>
+</span><span id="line-36"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="codeUrl"><span class="annot"><span class="annottext">Code -&gt; URL
+</span><a href="GitHub.Data.Search.html#codeUrl"><span class="hs-identifier hs-var hs-var">codeUrl</span></a></span></span><span>     </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><a href="GitHub.Data.URL.html#URL"><span class="hs-identifier hs-type">URL</span></a></span><span>
+</span><span id="line-37"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="codeGitUrl"><span class="annot"><span class="annottext">Code -&gt; URL
+</span><a href="GitHub.Data.Search.html#codeGitUrl"><span class="hs-identifier hs-var hs-var">codeGitUrl</span></a></span></span><span>  </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><a href="GitHub.Data.URL.html#URL"><span class="hs-identifier hs-type">URL</span></a></span><span>
+</span><span id="line-38"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="codeHtmlUrl"><span class="annot"><span class="annottext">Code -&gt; URL
+</span><a href="GitHub.Data.Search.html#codeHtmlUrl"><span class="hs-identifier hs-var hs-var">codeHtmlUrl</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><a href="GitHub.Data.URL.html#URL"><span class="hs-identifier hs-type">URL</span></a></span><span>
+</span><span id="line-39"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="codeRepo"><span class="annot"><span class="annottext">Code -&gt; CodeSearchRepo
+</span><a href="GitHub.Data.Search.html#codeRepo"><span class="hs-identifier hs-var hs-var">codeRepo</span></a></span></span><span>    </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><a href="GitHub.Data.Repos.html#CodeSearchRepo"><span class="hs-identifier hs-type">CodeSearchRepo</span></a></span><span>
+</span><span id="line-40"></span><span>    </span><span class="hs-special">}</span><span>
+</span><span id="line-41"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679485955"><span id="local-6989586621679485968"><span id="local-6989586621679485972"><span class="annot"><span class="annottext">Int -&gt; Code -&gt; ShowS
+[Code] -&gt; ShowS
+Code -&gt; String
+(Int -&gt; Code -&gt; ShowS)
+-&gt; (Code -&gt; String) -&gt; ([Code] -&gt; ShowS) -&gt; Show Code
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; Code -&gt; ShowS
+showsPrec :: Int -&gt; Code -&gt; ShowS
+$cshow :: Code -&gt; String
+show :: Code -&gt; String
+$cshowList :: [Code] -&gt; ShowS
+showList :: [Code] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679485977"><span id="local-6989586621679485989"><span id="local-6989586621679485998"><span id="local-6989586621679486000"><span id="local-6989586621679486002"><span id="local-6989586621679486008"><span id="local-6989586621679486013"><span id="local-6989586621679486016"><span id="local-6989586621679486019"><span id="local-6989586621679486022"><span id="local-6989586621679486025"><span id="local-6989586621679486028"><span id="local-6989586621679486033"><span id="local-6989586621679486038"><span class="annot"><span class="annottext">Typeable Code
+Typeable Code =&gt;
+(forall (c :: * -&gt; *).
+ (forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+ -&gt; (forall g. g -&gt; c g) -&gt; Code -&gt; c Code)
+-&gt; (forall (c :: * -&gt; *).
+    (forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+    -&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c Code)
+-&gt; (Code -&gt; Constr)
+-&gt; (Code -&gt; DataType)
+-&gt; (forall (t :: * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d. Data d =&gt; c (t d)) -&gt; Maybe (c Code))
+-&gt; (forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d e. (Data d, Data e) =&gt; c (t d e)) -&gt; Maybe (c Code))
+-&gt; ((forall b. Data b =&gt; b -&gt; b) -&gt; Code -&gt; Code)
+-&gt; (forall r r'.
+    (r -&gt; r' -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; Code -&gt; r)
+-&gt; (forall r r'.
+    (r' -&gt; r -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; Code -&gt; r)
+-&gt; (forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; Code -&gt; [u])
+-&gt; (forall u. Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; Code -&gt; u)
+-&gt; (forall (m :: * -&gt; *).
+    Monad m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; Code -&gt; m Code)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; Code -&gt; m Code)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; Code -&gt; m Code)
+-&gt; Data Code
+Code -&gt; Constr
+Code -&gt; DataType
+(forall b. Data b =&gt; b -&gt; b) -&gt; Code -&gt; Code
+forall a.
+Typeable a =&gt;
+(forall (c :: * -&gt; *).
+ (forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+ -&gt; (forall g. g -&gt; c g) -&gt; a -&gt; c a)
+-&gt; (forall (c :: * -&gt; *).
+    (forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+    -&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c a)
+-&gt; (a -&gt; Constr)
+-&gt; (a -&gt; DataType)
+-&gt; (forall (t :: * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d. Data d =&gt; c (t d)) -&gt; Maybe (c a))
+-&gt; (forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d e. (Data d, Data e) =&gt; c (t d e)) -&gt; Maybe (c a))
+-&gt; ((forall b. Data b =&gt; b -&gt; b) -&gt; a -&gt; a)
+-&gt; (forall r r'.
+    (r -&gt; r' -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; a -&gt; r)
+-&gt; (forall r r'.
+    (r' -&gt; r -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; a -&gt; r)
+-&gt; (forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; a -&gt; [u])
+-&gt; (forall u. Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; a -&gt; u)
+-&gt; (forall (m :: * -&gt; *).
+    Monad m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; a -&gt; m a)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; a -&gt; m a)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; a -&gt; m a)
+-&gt; Data a
+forall u. Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; Code -&gt; u
+forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; Code -&gt; [u]
+forall r r'.
+(r -&gt; r' -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; Code -&gt; r
+forall r r'.
+(r' -&gt; r -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; Code -&gt; r
+forall (m :: * -&gt; *).
+Monad m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; Code -&gt; m Code
+forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; Code -&gt; m Code
+forall (c :: * -&gt; *).
+(forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+-&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c Code
+forall (c :: * -&gt; *).
+(forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+-&gt; (forall g. g -&gt; c g) -&gt; Code -&gt; c Code
+forall (t :: * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d. Data d =&gt; c (t d)) -&gt; Maybe (c Code)
+forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d e. (Data d, Data e) =&gt; c (t d e)) -&gt; Maybe (c Code)
+$cgfoldl :: forall (c :: * -&gt; *).
+(forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+-&gt; (forall g. g -&gt; c g) -&gt; Code -&gt; c Code
+gfoldl :: forall (c :: * -&gt; *).
+(forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+-&gt; (forall g. g -&gt; c g) -&gt; Code -&gt; c Code
+$cgunfold :: forall (c :: * -&gt; *).
+(forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+-&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c Code
+gunfold :: forall (c :: * -&gt; *).
+(forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+-&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c Code
+$ctoConstr :: Code -&gt; Constr
+toConstr :: Code -&gt; Constr
+$cdataTypeOf :: Code -&gt; DataType
+dataTypeOf :: Code -&gt; DataType
+$cdataCast1 :: forall (t :: * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d. Data d =&gt; c (t d)) -&gt; Maybe (c Code)
+dataCast1 :: forall (t :: * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d. Data d =&gt; c (t d)) -&gt; Maybe (c Code)
+$cdataCast2 :: forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d e. (Data d, Data e) =&gt; c (t d e)) -&gt; Maybe (c Code)
+dataCast2 :: forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d e. (Data d, Data e) =&gt; c (t d e)) -&gt; Maybe (c Code)
+$cgmapT :: (forall b. Data b =&gt; b -&gt; b) -&gt; Code -&gt; Code
+gmapT :: (forall b. Data b =&gt; b -&gt; b) -&gt; Code -&gt; Code
+$cgmapQl :: forall r r'.
+(r -&gt; r' -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; Code -&gt; r
+gmapQl :: forall r r'.
+(r -&gt; r' -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; Code -&gt; r
+$cgmapQr :: forall r r'.
+(r' -&gt; r -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; Code -&gt; r
+gmapQr :: forall r r'.
+(r' -&gt; r -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; Code -&gt; r
+$cgmapQ :: forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; Code -&gt; [u]
+gmapQ :: forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; Code -&gt; [u]
+$cgmapQi :: forall u. Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; Code -&gt; u
+gmapQi :: forall u. Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; Code -&gt; u
+$cgmapM :: forall (m :: * -&gt; *).
+Monad m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; Code -&gt; m Code
+gmapM :: forall (m :: * -&gt; *).
+Monad m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; Code -&gt; m Code
+$cgmapMp :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; Code -&gt; m Code
+gmapMp :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; Code -&gt; m Code
+$cgmapMo :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; Code -&gt; m Code
+gmapMo :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; Code -&gt; m Code
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Data</span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679486043"><span id="local-6989586621679486055"><span class="annot"><span class="annottext">Code -&gt; Code -&gt; Bool
+(Code -&gt; Code -&gt; Bool) -&gt; (Code -&gt; Code -&gt; Bool) -&gt; Eq Code
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: Code -&gt; Code -&gt; Bool
+== :: Code -&gt; Code -&gt; Bool
+$c/= :: Code -&gt; Code -&gt; Bool
+/= :: Code -&gt; Code -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679486061"><span id="local-6989586621679486073"><span id="local-6989586621679486082"><span id="local-6989586621679486086"><span id="local-6989586621679486089"><span id="local-6989586621679486092"><span id="local-6989586621679486095"><span class="annot"><span class="annottext">Eq Code
+Eq Code =&gt;
+(Code -&gt; Code -&gt; Ordering)
+-&gt; (Code -&gt; Code -&gt; Bool)
+-&gt; (Code -&gt; Code -&gt; Bool)
+-&gt; (Code -&gt; Code -&gt; Bool)
+-&gt; (Code -&gt; Code -&gt; Bool)
+-&gt; (Code -&gt; Code -&gt; Code)
+-&gt; (Code -&gt; Code -&gt; Code)
+-&gt; Ord Code
+Code -&gt; Code -&gt; Bool
+Code -&gt; Code -&gt; Ordering
+Code -&gt; Code -&gt; Code
+forall a.
+Eq a =&gt;
+(a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+$ccompare :: Code -&gt; Code -&gt; Ordering
+compare :: Code -&gt; Code -&gt; Ordering
+$c&lt; :: Code -&gt; Code -&gt; Bool
+&lt; :: Code -&gt; Code -&gt; Bool
+$c&lt;= :: Code -&gt; Code -&gt; Bool
+&lt;= :: Code -&gt; Code -&gt; Bool
+$c&gt; :: Code -&gt; Code -&gt; Bool
+&gt; :: Code -&gt; Code -&gt; Bool
+$c&gt;= :: Code -&gt; Code -&gt; Bool
+&gt;= :: Code -&gt; Code -&gt; Bool
+$cmax :: Code -&gt; Code -&gt; Code
+max :: Code -&gt; Code -&gt; Code
+$cmin :: Code -&gt; Code -&gt; Code
+min :: Code -&gt; Code -&gt; Code
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679486098"><span id="local-6989586621679486100"><span class="annot"><span class="annottext">(forall x. Code -&gt; Rep Code x)
+-&gt; (forall x. Rep Code x -&gt; Code) -&gt; Generic Code
+forall x. Rep Code x -&gt; Code
+forall x. Code -&gt; Rep Code x
+forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+$cfrom :: forall x. Code -&gt; Rep Code x
+from :: forall x. Code -&gt; Rep Code x
+$cto :: forall x. Rep Code x -&gt; Code
+to :: forall x. Rep Code x -&gt; Code
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Generic</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-42"></span><span>
+</span><span id="line-43"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679486103"><span class="annot"><span class="hs-identifier hs-type">NFData</span></span><span> </span><span class="annot"><a href="GitHub.Data.Search.html#Code"><span class="hs-identifier hs-type">Code</span></a></span></span><span>
+</span><span id="line-44"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679486133"><span id="local-6989586621679486140"><span id="local-6989586621679486146"><span class="annot"><span class="hs-identifier hs-type">Binary</span></span><span> </span><span class="annot"><a href="GitHub.Data.Search.html#Code"><span class="hs-identifier hs-type">Code</span></a></span></span></span></span><span>
+</span><span id="line-45"></span><span>
+</span><span id="line-46"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679486193"><span id="local-6989586621679486197"><span class="annot"><span class="hs-identifier hs-type">FromJSON</span></span><span> </span><span class="annot"><a href="GitHub.Data.Search.html#Code"><span class="hs-identifier hs-type">Code</span></a></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-47"></span><span>    </span><span id="local-6989586621679486223"><span class="annot"><span class="annottext">parseJSON :: Value -&gt; Parser Code
+</span><span class="hs-identifier hs-var hs-var hs-var">parseJSON</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; (Object -&gt; Parser Code) -&gt; Value -&gt; Parser Code
+forall a. String -&gt; (Object -&gt; Parser a) -&gt; Value -&gt; Parser a
+</span><span class="hs-identifier hs-var">withObject</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Code&quot;</span></span><span> </span><span class="annot"><span class="annottext">((Object -&gt; Parser Code) -&gt; Value -&gt; Parser Code)
+-&gt; (Object -&gt; Parser Code) -&gt; Value -&gt; Parser Code
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679486224"><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679486224"><span class="hs-identifier hs-var">o</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Text -&gt; Text -&gt; Text -&gt; URL -&gt; URL -&gt; URL -&gt; CodeSearchRepo -&gt; Code
+</span><a href="GitHub.Data.Search.html#Code"><span class="hs-identifier hs-var">Code</span></a></span><span>
+</span><span id="line-48"></span><span>        </span><span class="annot"><span class="annottext">(Text
+ -&gt; Text -&gt; Text -&gt; URL -&gt; URL -&gt; URL -&gt; CodeSearchRepo -&gt; Code)
+-&gt; Parser Text
+-&gt; Parser
+     (Text -&gt; Text -&gt; URL -&gt; URL -&gt; URL -&gt; CodeSearchRepo -&gt; Code)
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679486224"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser Text
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">.:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;name&quot;</span></span><span>
+</span><span id="line-49"></span><span>        </span><span class="annot"><span class="annottext">Parser
+  (Text -&gt; Text -&gt; URL -&gt; URL -&gt; URL -&gt; CodeSearchRepo -&gt; Code)
+-&gt; Parser Text
+-&gt; Parser (Text -&gt; URL -&gt; URL -&gt; URL -&gt; CodeSearchRepo -&gt; Code)
+forall a b. Parser (a -&gt; b) -&gt; Parser a -&gt; Parser b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679486224"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser Text
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">.:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;path&quot;</span></span><span>
+</span><span id="line-50"></span><span>        </span><span class="annot"><span class="annottext">Parser (Text -&gt; URL -&gt; URL -&gt; URL -&gt; CodeSearchRepo -&gt; Code)
+-&gt; Parser Text
+-&gt; Parser (URL -&gt; URL -&gt; URL -&gt; CodeSearchRepo -&gt; Code)
+forall a b. Parser (a -&gt; b) -&gt; Parser a -&gt; Parser b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679486224"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser Text
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">.:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;sha&quot;</span></span><span>
+</span><span id="line-51"></span><span>        </span><span class="annot"><span class="annottext">Parser (URL -&gt; URL -&gt; URL -&gt; CodeSearchRepo -&gt; Code)
+-&gt; Parser URL -&gt; Parser (URL -&gt; URL -&gt; CodeSearchRepo -&gt; Code)
+forall a b. Parser (a -&gt; b) -&gt; Parser a -&gt; Parser b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679486224"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser URL
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">.:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;url&quot;</span></span><span>
+</span><span id="line-52"></span><span>        </span><span class="annot"><span class="annottext">Parser (URL -&gt; URL -&gt; CodeSearchRepo -&gt; Code)
+-&gt; Parser URL -&gt; Parser (URL -&gt; CodeSearchRepo -&gt; Code)
+forall a b. Parser (a -&gt; b) -&gt; Parser a -&gt; Parser b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679486224"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser URL
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">.:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;git_url&quot;</span></span><span>
+</span><span id="line-53"></span><span>        </span><span class="annot"><span class="annottext">Parser (URL -&gt; CodeSearchRepo -&gt; Code)
+-&gt; Parser URL -&gt; Parser (CodeSearchRepo -&gt; Code)
+forall a b. Parser (a -&gt; b) -&gt; Parser a -&gt; Parser b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679486224"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser URL
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">.:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;html_url&quot;</span></span><span>
+</span><span id="line-54"></span><span>        </span><span class="annot"><span class="annottext">Parser (CodeSearchRepo -&gt; Code)
+-&gt; Parser CodeSearchRepo -&gt; Parser Code
+forall a b. Parser (a -&gt; b) -&gt; Parser a -&gt; Parser b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679486224"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser CodeSearchRepo
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">.:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;repository&quot;</span></span><span>
+</span><span id="line-55"></span></pre></body></html>

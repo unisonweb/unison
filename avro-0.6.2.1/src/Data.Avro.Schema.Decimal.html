@@ -1,0 +1,315 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE DataKinds                  #-}</span><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# LANGUAGE FlexibleContexts           #-}</span><span>
+</span><span id="line-3"></span><span class="hs-pragma">{-# LANGUAGE GeneralizedNewtypeDeriving #-}</span><span>
+</span><span id="line-4"></span><span class="hs-pragma">{-# LANGUAGE PolyKinds                  #-}</span><span>
+</span><span id="line-5"></span><span class="hs-pragma">{-# LANGUAGE ScopedTypeVariables        #-}</span><span>
+</span><span id="line-6"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Data.Avro.Schema.Decimal.html"><span class="hs-identifier">Data.Avro.Schema.Decimal</span></a></span><span>
+</span><span id="line-7"></span><span class="hs-special">(</span><span> </span><span class="annot"><a href="Data.Avro.Schema.Decimal.html#Decimal"><span class="hs-identifier">Decimal</span></a></span><span>
+</span><span id="line-8"></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Avro.Schema.Decimal.html#fromUnderlyingValue"><span class="hs-identifier">fromUnderlyingValue</span></a></span><span>
+</span><span id="line-9"></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Avro.Schema.Decimal.html#underlyingValue"><span class="hs-identifier">underlyingValue</span></a></span><span> </span><span class="hs-special">)</span><span>
+</span><span id="line-10"></span><span class="hs-keyword">where</span><span>
+</span><span id="line-11"></span><span>
+</span><span id="line-12"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.BigDecimal</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">D</span></span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.Proxy</span></span><span>
+</span><span id="line-14"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">GHC.TypeLits</span></span><span>
+</span><span id="line-15"></span><span>
+</span><span id="line-16"></span><span class="hs-keyword">newtype</span><span> </span><span id="Decimal"><span class="annot"><a href="Data.Avro.Schema.Decimal.html#Decimal"><span class="hs-identifier hs-var">Decimal</span></a></span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679514897"><span class="annot"><a href="#local-6989586621679514897"><span class="hs-identifier hs-type">p</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Nat</span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679514898"><span class="annot"><a href="#local-6989586621679514898"><span class="hs-identifier hs-type">s</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Nat</span></span><span class="hs-special">)</span><span>
+</span><span id="line-17"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span id="Decimal"><span class="annot"><a href="Data.Avro.Schema.Decimal.html#Decimal"><span class="hs-identifier hs-var">Decimal</span></a></span></span><span> </span><span class="hs-special">{</span><span> </span><span id="unDecimal"><span class="annot"><span class="annottext">forall (p :: Natural) (s :: Natural). Decimal p s -&gt; BigDecimal
+</span><a href="Data.Avro.Schema.Decimal.html#unDecimal"><span class="hs-identifier hs-var hs-var">unDecimal</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">D.BigDecimal</span></span><span> </span><span class="hs-special">}</span><span>
+</span><span id="line-18"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679514978"><span id="local-6989586621679514983"><span class="annot"><span class="annottext">Decimal p s -&gt; Decimal p s -&gt; Bool
+(Decimal p s -&gt; Decimal p s -&gt; Bool)
+-&gt; (Decimal p s -&gt; Decimal p s -&gt; Bool) -&gt; Eq (Decimal p s)
+forall (p :: Natural) (s :: Natural).
+Decimal p s -&gt; Decimal p s -&gt; Bool
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: forall (p :: Natural) (s :: Natural).
+Decimal p s -&gt; Decimal p s -&gt; Bool
+== :: Decimal p s -&gt; Decimal p s -&gt; Bool
+$c/= :: forall (p :: Natural) (s :: Natural).
+Decimal p s -&gt; Decimal p s -&gt; Bool
+/= :: Decimal p s -&gt; Decimal p s -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679514992"><span id="local-6989586621679514997"><span id="local-6989586621679515001"><span id="local-6989586621679515005"><span id="local-6989586621679515009"><span id="local-6989586621679515013"><span id="local-6989586621679515017"><span class="annot"><span class="annottext">Eq (Decimal p s)
+Eq (Decimal p s) =&gt;
+(Decimal p s -&gt; Decimal p s -&gt; Ordering)
+-&gt; (Decimal p s -&gt; Decimal p s -&gt; Bool)
+-&gt; (Decimal p s -&gt; Decimal p s -&gt; Bool)
+-&gt; (Decimal p s -&gt; Decimal p s -&gt; Bool)
+-&gt; (Decimal p s -&gt; Decimal p s -&gt; Bool)
+-&gt; (Decimal p s -&gt; Decimal p s -&gt; Decimal p s)
+-&gt; (Decimal p s -&gt; Decimal p s -&gt; Decimal p s)
+-&gt; Ord (Decimal p s)
+Decimal p s -&gt; Decimal p s -&gt; Bool
+Decimal p s -&gt; Decimal p s -&gt; Ordering
+Decimal p s -&gt; Decimal p s -&gt; Decimal p s
+forall (p :: Natural) (s :: Natural). Eq (Decimal p s)
+forall (p :: Natural) (s :: Natural).
+Decimal p s -&gt; Decimal p s -&gt; Bool
+forall (p :: Natural) (s :: Natural).
+Decimal p s -&gt; Decimal p s -&gt; Ordering
+forall (p :: Natural) (s :: Natural).
+Decimal p s -&gt; Decimal p s -&gt; Decimal p s
+forall a.
+Eq a =&gt;
+(a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+$ccompare :: forall (p :: Natural) (s :: Natural).
+Decimal p s -&gt; Decimal p s -&gt; Ordering
+compare :: Decimal p s -&gt; Decimal p s -&gt; Ordering
+$c&lt; :: forall (p :: Natural) (s :: Natural).
+Decimal p s -&gt; Decimal p s -&gt; Bool
+&lt; :: Decimal p s -&gt; Decimal p s -&gt; Bool
+$c&lt;= :: forall (p :: Natural) (s :: Natural).
+Decimal p s -&gt; Decimal p s -&gt; Bool
+&lt;= :: Decimal p s -&gt; Decimal p s -&gt; Bool
+$c&gt; :: forall (p :: Natural) (s :: Natural).
+Decimal p s -&gt; Decimal p s -&gt; Bool
+&gt; :: Decimal p s -&gt; Decimal p s -&gt; Bool
+$c&gt;= :: forall (p :: Natural) (s :: Natural).
+Decimal p s -&gt; Decimal p s -&gt; Bool
+&gt;= :: Decimal p s -&gt; Decimal p s -&gt; Bool
+$cmax :: forall (p :: Natural) (s :: Natural).
+Decimal p s -&gt; Decimal p s -&gt; Decimal p s
+max :: Decimal p s -&gt; Decimal p s -&gt; Decimal p s
+$cmin :: forall (p :: Natural) (s :: Natural).
+Decimal p s -&gt; Decimal p s -&gt; Decimal p s
+min :: Decimal p s -&gt; Decimal p s -&gt; Decimal p s
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679515029"><span id="local-6989586621679515035"><span id="local-6989586621679515039"><span class="annot"><span class="annottext">Int -&gt; Decimal p s -&gt; ShowS
+[Decimal p s] -&gt; ShowS
+Decimal p s -&gt; String
+(Int -&gt; Decimal p s -&gt; ShowS)
+-&gt; (Decimal p s -&gt; String)
+-&gt; ([Decimal p s] -&gt; ShowS)
+-&gt; Show (Decimal p s)
+forall (p :: Natural) (s :: Natural). Int -&gt; Decimal p s -&gt; ShowS
+forall (p :: Natural) (s :: Natural). [Decimal p s] -&gt; ShowS
+forall (p :: Natural) (s :: Natural). Decimal p s -&gt; String
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: forall (p :: Natural) (s :: Natural). Int -&gt; Decimal p s -&gt; ShowS
+showsPrec :: Int -&gt; Decimal p s -&gt; ShowS
+$cshow :: forall (p :: Natural) (s :: Natural). Decimal p s -&gt; String
+show :: Decimal p s -&gt; String
+$cshowList :: forall (p :: Natural) (s :: Natural). [Decimal p s] -&gt; ShowS
+showList :: [Decimal p s] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679515044"><span id="local-6989586621679515048"><span id="local-6989586621679515051"><span id="local-6989586621679515061"><span class="annot"><span class="annottext">ReadPrec [Decimal p s]
+ReadPrec (Decimal p s)
+Int -&gt; ReadS (Decimal p s)
+ReadS [Decimal p s]
+(Int -&gt; ReadS (Decimal p s))
+-&gt; ReadS [Decimal p s]
+-&gt; ReadPrec (Decimal p s)
+-&gt; ReadPrec [Decimal p s]
+-&gt; Read (Decimal p s)
+forall (p :: Natural) (s :: Natural). ReadPrec [Decimal p s]
+forall (p :: Natural) (s :: Natural). ReadPrec (Decimal p s)
+forall (p :: Natural) (s :: Natural). Int -&gt; ReadS (Decimal p s)
+forall (p :: Natural) (s :: Natural). ReadS [Decimal p s]
+forall a.
+(Int -&gt; ReadS a)
+-&gt; ReadS [a] -&gt; ReadPrec a -&gt; ReadPrec [a] -&gt; Read a
+$creadsPrec :: forall (p :: Natural) (s :: Natural). Int -&gt; ReadS (Decimal p s)
+readsPrec :: Int -&gt; ReadS (Decimal p s)
+$creadList :: forall (p :: Natural) (s :: Natural). ReadS [Decimal p s]
+readList :: ReadS [Decimal p s]
+$creadPrec :: forall (p :: Natural) (s :: Natural). ReadPrec (Decimal p s)
+readPrec :: ReadPrec (Decimal p s)
+$creadListPrec :: forall (p :: Natural) (s :: Natural). ReadPrec [Decimal p s]
+readListPrec :: ReadPrec [Decimal p s]
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Read</span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679515068"><span id="local-6989586621679515073"><span id="local-6989586621679515077"><span id="local-6989586621679515081"><span id="local-6989586621679515085"><span id="local-6989586621679515089"><span id="local-6989586621679515093"><span class="annot"><span class="annottext">Integer -&gt; Decimal p s
+Decimal p s -&gt; Decimal p s
+Decimal p s -&gt; Decimal p s -&gt; Decimal p s
+(Decimal p s -&gt; Decimal p s -&gt; Decimal p s)
+-&gt; (Decimal p s -&gt; Decimal p s -&gt; Decimal p s)
+-&gt; (Decimal p s -&gt; Decimal p s -&gt; Decimal p s)
+-&gt; (Decimal p s -&gt; Decimal p s)
+-&gt; (Decimal p s -&gt; Decimal p s)
+-&gt; (Decimal p s -&gt; Decimal p s)
+-&gt; (Integer -&gt; Decimal p s)
+-&gt; Num (Decimal p s)
+forall (p :: Natural) (s :: Natural). Integer -&gt; Decimal p s
+forall (p :: Natural) (s :: Natural). Decimal p s -&gt; Decimal p s
+forall (p :: Natural) (s :: Natural).
+Decimal p s -&gt; Decimal p s -&gt; Decimal p s
+forall a.
+(a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a)
+-&gt; (a -&gt; a)
+-&gt; (a -&gt; a)
+-&gt; (Integer -&gt; a)
+-&gt; Num a
+$c+ :: forall (p :: Natural) (s :: Natural).
+Decimal p s -&gt; Decimal p s -&gt; Decimal p s
++ :: Decimal p s -&gt; Decimal p s -&gt; Decimal p s
+$c- :: forall (p :: Natural) (s :: Natural).
+Decimal p s -&gt; Decimal p s -&gt; Decimal p s
+- :: Decimal p s -&gt; Decimal p s -&gt; Decimal p s
+$c* :: forall (p :: Natural) (s :: Natural).
+Decimal p s -&gt; Decimal p s -&gt; Decimal p s
+* :: Decimal p s -&gt; Decimal p s -&gt; Decimal p s
+$cnegate :: forall (p :: Natural) (s :: Natural). Decimal p s -&gt; Decimal p s
+negate :: Decimal p s -&gt; Decimal p s
+$cabs :: forall (p :: Natural) (s :: Natural). Decimal p s -&gt; Decimal p s
+abs :: Decimal p s -&gt; Decimal p s
+$csignum :: forall (p :: Natural) (s :: Natural). Decimal p s -&gt; Decimal p s
+signum :: Decimal p s -&gt; Decimal p s
+$cfromInteger :: forall (p :: Natural) (s :: Natural). Integer -&gt; Decimal p s
+fromInteger :: Integer -&gt; Decimal p s
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Num</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679515105"><span id="local-6989586621679515110"><span id="local-6989586621679515114"><span class="annot"><span class="annottext">Num (Decimal p s)
+Num (Decimal p s) =&gt;
+(Decimal p s -&gt; Decimal p s -&gt; Decimal p s)
+-&gt; (Decimal p s -&gt; Decimal p s)
+-&gt; (Rational -&gt; Decimal p s)
+-&gt; Fractional (Decimal p s)
+Rational -&gt; Decimal p s
+Decimal p s -&gt; Decimal p s
+Decimal p s -&gt; Decimal p s -&gt; Decimal p s
+forall (p :: Natural) (s :: Natural). Num (Decimal p s)
+forall (p :: Natural) (s :: Natural). Rational -&gt; Decimal p s
+forall (p :: Natural) (s :: Natural). Decimal p s -&gt; Decimal p s
+forall (p :: Natural) (s :: Natural).
+Decimal p s -&gt; Decimal p s -&gt; Decimal p s
+forall a.
+Num a =&gt;
+(a -&gt; a -&gt; a) -&gt; (a -&gt; a) -&gt; (Rational -&gt; a) -&gt; Fractional a
+$c/ :: forall (p :: Natural) (s :: Natural).
+Decimal p s -&gt; Decimal p s -&gt; Decimal p s
+/ :: Decimal p s -&gt; Decimal p s -&gt; Decimal p s
+$crecip :: forall (p :: Natural) (s :: Natural). Decimal p s -&gt; Decimal p s
+recip :: Decimal p s -&gt; Decimal p s
+$cfromRational :: forall (p :: Natural) (s :: Natural). Rational -&gt; Decimal p s
+fromRational :: Rational -&gt; Decimal p s
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Fractional</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679515126"><span class="annot"><span class="annottext">Num (Decimal p s)
+Ord (Decimal p s)
+(Num (Decimal p s), Ord (Decimal p s)) =&gt;
+(Decimal p s -&gt; Rational) -&gt; Real (Decimal p s)
+Decimal p s -&gt; Rational
+forall (p :: Natural) (s :: Natural). Num (Decimal p s)
+forall (p :: Natural) (s :: Natural). Ord (Decimal p s)
+forall (p :: Natural) (s :: Natural). Decimal p s -&gt; Rational
+forall a. (Num a, Ord a) =&gt; (a -&gt; Rational) -&gt; Real a
+$ctoRational :: forall (p :: Natural) (s :: Natural). Decimal p s -&gt; Rational
+toRational :: Decimal p s -&gt; Rational
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Real</span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-19"></span><span>
+</span><span id="line-20"></span><span class="annot"><a href="Data.Avro.Schema.Decimal.html#intScale"><span class="hs-identifier hs-type">intScale</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">D.BigDecimal</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Integer</span></span><span>
+</span><span id="line-21"></span><span id="intScale"><span class="annot"><span class="annottext">intScale :: BigDecimal -&gt; Integer
+</span><a href="Data.Avro.Schema.Decimal.html#intScale"><span class="hs-identifier hs-var hs-var">intScale</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Natural -&gt; Integer
+forall a. Integral a =&gt; a -&gt; Integer
+</span><span class="hs-identifier hs-var">toInteger</span></span><span> </span><span class="annot"><span class="annottext">(Natural -&gt; Integer)
+-&gt; (BigDecimal -&gt; Natural) -&gt; BigDecimal -&gt; Integer
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">BigDecimal -&gt; Natural
+</span><span class="hs-identifier hs-var">D.scale</span></span><span>
+</span><span id="line-22"></span><span>
+</span><span id="line-23"></span><span class="annot"><a href="Data.Avro.Schema.Decimal.html#fromUnderlyingValue"><span class="hs-identifier hs-type">fromUnderlyingValue</span></a></span><span>
+</span><span id="line-24"></span><span>  </span><span class="hs-glyph">::</span><span> </span><span class="hs-keyword">forall</span><span> </span><span id="local-6989586621679514949"><span class="annot"><a href="#local-6989586621679514949"><span class="hs-identifier hs-type">p</span></a></span></span><span> </span><span id="local-6989586621679514948"><span class="annot"><a href="#local-6989586621679514948"><span class="hs-identifier hs-type">s</span></a></span></span><span class="hs-operator">.</span><span> </span><span class="annot"><span class="hs-identifier hs-type">KnownNat</span></span><span> </span><span class="annot"><a href="#local-6989586621679514948"><span class="hs-identifier hs-type">s</span></a></span><span>
+</span><span id="line-25"></span><span>  </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Integer</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Data.Avro.Schema.Decimal.html#Decimal"><span class="hs-identifier hs-type">Decimal</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679514949"><span class="hs-identifier hs-type">p</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679514948"><span class="hs-identifier hs-type">s</span></a></span><span>
+</span><span id="line-26"></span><span id="fromUnderlyingValue"><span class="annot"><span class="annottext">fromUnderlyingValue :: forall (p :: Natural) (s :: Natural).
+KnownNat s =&gt;
+Integer -&gt; Decimal p s
+</span><a href="Data.Avro.Schema.Decimal.html#fromUnderlyingValue"><span class="hs-identifier hs-var hs-var">fromUnderlyingValue</span></a></span></span><span> </span><span id="local-6989586621679515141"><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679515141"><span class="hs-identifier hs-var">n</span></a></span></span><span>
+</span><span id="line-27"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">BigDecimal -&gt; Decimal p s
+forall (p :: Natural) (s :: Natural). BigDecimal -&gt; Decimal p s
+</span><a href="Data.Avro.Schema.Decimal.html#Decimal"><span class="hs-identifier hs-var">Decimal</span></a></span><span> </span><span class="annot"><span class="annottext">(BigDecimal -&gt; Decimal p s) -&gt; BigDecimal -&gt; Decimal p s
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Integer -&gt; Natural -&gt; BigDecimal
+</span><span class="hs-identifier hs-var">D.BigDecimal</span></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679515141"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Integer -&gt; Natural
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="annot"><span class="annottext">(Integer -&gt; Natural) -&gt; Integer -&gt; Natural
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Proxy s -&gt; Integer
+forall (n :: Natural) (proxy :: Natural -&gt; *).
+KnownNat n =&gt;
+proxy n -&gt; Integer
+</span><span class="hs-identifier hs-var">natVal</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Proxy s
+forall {k} (t :: k). Proxy t
+</span><span class="hs-identifier hs-var">Proxy</span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Proxy</span></span><span> </span><span class="annot"><a href="#local-6989586621679514948"><span class="hs-identifier hs-type">s</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-28"></span><span>
+</span><span id="line-29"></span><span class="annot"><a href="Data.Avro.Schema.Decimal.html#underlyingValue"><span class="hs-identifier hs-type">underlyingValue</span></a></span><span>
+</span><span id="line-30"></span><span>  </span><span class="hs-glyph">::</span><span> </span><span class="hs-keyword">forall</span><span> </span><span id="local-6989586621679514964"><span class="annot"><a href="#local-6989586621679514964"><span class="hs-identifier hs-type">s</span></a></span></span><span> </span><span id="local-6989586621679514963"><span class="annot"><a href="#local-6989586621679514963"><span class="hs-identifier hs-type">p</span></a></span></span><span class="hs-operator">.</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">KnownNat</span></span><span> </span><span class="annot"><a href="#local-6989586621679514963"><span class="hs-identifier hs-type">p</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">KnownNat</span></span><span> </span><span class="annot"><a href="#local-6989586621679514964"><span class="hs-identifier hs-type">s</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-31"></span><span>  </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Data.Avro.Schema.Decimal.html#Decimal"><span class="hs-identifier hs-type">Decimal</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679514963"><span class="hs-identifier hs-type">p</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679514964"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>
+</span><span id="line-32"></span><span id="underlyingValue"><span class="annot"><span class="annottext">underlyingValue :: forall (s :: Natural) (p :: Natural).
+(KnownNat p, KnownNat s) =&gt;
+Decimal p s -&gt; Maybe Int
+</span><a href="Data.Avro.Schema.Decimal.html#underlyingValue"><span class="hs-identifier hs-var hs-var">underlyingValue</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Avro.Schema.Decimal.html#Decimal"><span class="hs-identifier hs-type">Decimal</span></a></span><span> </span><span id="local-6989586621679515153"><span class="annot"><span class="annottext">BigDecimal
+</span><a href="#local-6989586621679515153"><span class="hs-identifier hs-var">d</span></a></span></span><span class="hs-special">)</span><span>
+</span><span id="line-33"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679515155"><span class="annot"><span class="annottext">ss :: Integer
+</span><a href="#local-6989586621679515155"><span class="hs-identifier hs-var hs-var">ss</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Proxy s -&gt; Integer
+forall (n :: Natural) (proxy :: Natural -&gt; *).
+KnownNat n =&gt;
+proxy n -&gt; Integer
+</span><span class="hs-identifier hs-var">natVal</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Proxy s
+forall {k} (t :: k). Proxy t
+</span><span class="hs-identifier hs-var">Proxy</span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Proxy</span></span><span> </span><span class="annot"><a href="#local-6989586621679514964"><span class="hs-identifier hs-type">s</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-34"></span><span>        </span><span id="local-6989586621679515157"><span class="annot"><span class="annottext">pp :: Integer
+</span><a href="#local-6989586621679515157"><span class="hs-identifier hs-var hs-var">pp</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Proxy p -&gt; Integer
+forall (n :: Natural) (proxy :: Natural -&gt; *).
+KnownNat n =&gt;
+proxy n -&gt; Integer
+</span><span class="hs-identifier hs-var">natVal</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Proxy p
+forall {k} (t :: k). Proxy t
+</span><span class="hs-identifier hs-var">Proxy</span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Proxy</span></span><span> </span><span class="annot"><a href="#local-6989586621679514963"><span class="hs-identifier hs-type">p</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-35"></span><span>        </span><span id="local-6989586621679515170"><span class="annot"><span class="annottext">new :: BigDecimal
+</span><a href="#local-6989586621679515170"><span class="hs-identifier hs-var hs-var">new</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679515155"><span class="hs-identifier hs-var">ss</span></a></span><span> </span><span class="annot"><span class="annottext">Integer -&gt; Integer -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&gt;</span></span><span> </span><span class="annot"><span class="annottext">BigDecimal -&gt; Integer
+</span><a href="Data.Avro.Schema.Decimal.html#intScale"><span class="hs-identifier hs-var">intScale</span></a></span><span> </span><span class="annot"><span class="annottext">BigDecimal
+</span><a href="#local-6989586621679515153"><span class="hs-identifier hs-var">d</span></a></span><span>
+</span><span id="line-36"></span><span>                 </span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="annottext">Integer -&gt; Natural -&gt; BigDecimal
+</span><span class="hs-identifier hs-var">D.BigDecimal</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">BigDecimal -&gt; Integer
+</span><span class="hs-identifier hs-var">D.value</span></span><span> </span><span class="annot"><span class="annottext">BigDecimal
+</span><a href="#local-6989586621679515153"><span class="hs-identifier hs-var">d</span></a></span><span> </span><span class="annot"><span class="annottext">Integer -&gt; Integer -&gt; Integer
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">*</span></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><span class="hs-number">10</span></span><span> </span><span class="annot"><span class="annottext">Integer -&gt; Integer -&gt; Integer
+forall a b. (Num a, Integral b) =&gt; a -&gt; b -&gt; a
+</span><span class="hs-operator hs-var">^</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679515155"><span class="hs-identifier hs-var">ss</span></a></span><span> </span><span class="annot"><span class="annottext">Integer -&gt; Integer -&gt; Integer
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">BigDecimal -&gt; Integer
+</span><a href="Data.Avro.Schema.Decimal.html#intScale"><span class="hs-identifier hs-var">intScale</span></a></span><span> </span><span class="annot"><span class="annottext">BigDecimal
+</span><a href="#local-6989586621679515153"><span class="hs-identifier hs-var">d</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Integer -&gt; Natural
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679515155"><span class="hs-identifier hs-var">ss</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-37"></span><span>                 </span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="annottext">BigDecimal -&gt; RoundingAdvice -&gt; BigDecimal
+</span><span class="hs-identifier hs-var">D.roundBD</span></span><span> </span><span class="annot"><span class="annottext">BigDecimal
+</span><a href="#local-6989586621679515153"><span class="hs-identifier hs-var">d</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Natural -&gt; RoundingAdvice
+</span><span class="hs-identifier hs-var">D.halfUp</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Integer -&gt; Natural
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679515155"><span class="hs-identifier hs-var">ss</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-38"></span><span>    </span><span class="hs-keyword">in</span><span> </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">BigDecimal -&gt; Natural
+</span><span class="hs-identifier hs-var">D.precision</span></span><span> </span><span class="annot"><span class="annottext">BigDecimal
+</span><a href="#local-6989586621679515170"><span class="hs-identifier hs-var">new</span></a></span><span> </span><span class="annot"><span class="annottext">Natural -&gt; Natural -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&gt;</span></span><span> </span><span class="annot"><span class="annottext">Integer -&gt; Natural
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679515157"><span class="hs-identifier hs-var">pp</span></a></span><span>
+</span><span id="line-39"></span><span>          </span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="annottext">Maybe Int
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-40"></span><span>          </span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Maybe Int
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">(Int -&gt; Maybe Int) -&gt; Int -&gt; Maybe Int
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Integer -&gt; Int
+forall a. Num a =&gt; Integer -&gt; a
+</span><span class="hs-identifier hs-var">fromInteger</span></span><span> </span><span class="annot"><span class="annottext">(Integer -&gt; Int) -&gt; Integer -&gt; Int
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">BigDecimal -&gt; Integer
+</span><span class="hs-identifier hs-var">D.value</span></span><span> </span><span class="annot"><span class="annottext">BigDecimal
+</span><a href="#local-6989586621679515170"><span class="hs-identifier hs-var">new</span></a></span><span>
+</span><span id="line-41"></span></pre></body></html>

@@ -1,0 +1,875 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="annot"><span class="hs-comment">-- | Internal types module to house types that would require mutual recursion at the module level if defined separately</span></span><span>
+</span><span id="line-2"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Unison.Merge.Internal.Types.html"><span class="hs-identifier">Unison.Merge.Internal.Types</span></a></span><span>
+</span><span id="line-3"></span><span>  </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="Unison.Merge.Internal.Types.html#GThreeWay"><span class="hs-identifier">GThreeWay</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-4"></span><span>    </span><span class="annot"><a href="Unison.Merge.Internal.Types.html#ThreeWay"><span class="hs-identifier">ThreeWay</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-5"></span><span>    </span><span class="annot"><a href="Unison.Merge.Internal.Types.html#TwoOrThreeWay"><span class="hs-identifier">TwoOrThreeWay</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-6"></span><span>    </span><span class="annot"><a href="Unison.Merge.Internal.Types.html#TwoWay"><span class="hs-identifier">TwoWay</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-7"></span><span>  </span><span class="hs-special">)</span><span>
+</span><span id="line-8"></span><span class="hs-keyword">where</span><span>
+</span><span id="line-9"></span><span>
+</span><span id="line-10"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.DeepSeq</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">NFData</span></span><span class="hs-special">)</span><span>
+</span><span id="line-11"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Semialign</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Semialign</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">Unzip</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">Zip</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">alignWith</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">unzipWith</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">zipWith</span></span><span class="hs-special">)</span><span>
+</span><span id="line-12"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Semigroup.Generic</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">GenericSemigroupMonoid</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.These</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">These</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-14"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Prelude</span></span><span>
+</span><span id="line-15"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Prelude</span></span><span> </span><span class="hs-keyword">hiding</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">zipWith</span></span><span class="hs-special">)</span><span>
+</span><span id="line-16"></span><span>
+</span><span id="line-17"></span><span class="hs-keyword">data</span><span> </span><span id="GThreeWay"><span class="annot"><a href="Unison.Merge.Internal.Types.html#GThreeWay"><span class="hs-identifier hs-var">GThreeWay</span></a></span></span><span> </span><span id="local-6989586621679212420"><span class="annot"><a href="#local-6989586621679212420"><span class="hs-identifier hs-type">a</span></a></span></span><span> </span><span id="local-6989586621679212421"><span class="annot"><a href="#local-6989586621679212421"><span class="hs-identifier hs-type">b</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="GThreeWay"><span class="annot"><a href="Unison.Merge.Internal.Types.html#GThreeWay"><span class="hs-identifier hs-var">GThreeWay</span></a></span></span><span>
+</span><span id="line-18"></span><span>  </span><span class="hs-special">{</span><span> </span><span id="lca"><span class="annot"><span class="annottext">forall a b. GThreeWay a b -&gt; a
+</span><a href="Unison.Merge.Internal.Types.html#lca"><span class="hs-identifier hs-var hs-var">lca</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="#local-6989586621679212420"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-19"></span><span>    </span><span id="alice"><span class="annot"><span class="annottext">forall a b. GThreeWay a b -&gt; b
+</span><a href="Unison.Merge.Internal.Types.html#alice"><span class="hs-identifier hs-var hs-var">alice</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="#local-6989586621679212421"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-20"></span><span>    </span><span id="bob"><span class="annot"><span class="annottext">forall a b. GThreeWay a b -&gt; b
+</span><a href="Unison.Merge.Internal.Types.html#bob"><span class="hs-identifier hs-var hs-var">bob</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="#local-6989586621679212421"><span class="hs-identifier hs-type">b</span></a></span><span>
+</span><span id="line-21"></span><span>  </span><span class="hs-special">}</span><span>
+</span><span id="line-22"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">stock</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679212646"><span id="local-6989586621679212648"><span class="annot"><span class="annottext">(forall x. GThreeWay a b -&gt; Rep (GThreeWay a b) x)
+-&gt; (forall x. Rep (GThreeWay a b) x -&gt; GThreeWay a b)
+-&gt; Generic (GThreeWay a b)
+forall x. Rep (GThreeWay a b) x -&gt; GThreeWay a b
+forall x. GThreeWay a b -&gt; Rep (GThreeWay a b) x
+forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+forall a b x. Rep (GThreeWay a b) x -&gt; GThreeWay a b
+forall a b x. GThreeWay a b -&gt; Rep (GThreeWay a b) x
+$cfrom :: forall a b x. GThreeWay a b -&gt; Rep (GThreeWay a b) x
+from :: forall x. GThreeWay a b -&gt; Rep (GThreeWay a b) x
+$cto :: forall a b x. Rep (GThreeWay a b) x -&gt; GThreeWay a b
+to :: forall x. Rep (GThreeWay a b) x -&gt; GThreeWay a b
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Generic</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-23"></span><span>
+</span><span id="line-24"></span><span class="hs-keyword">data</span><span> </span><span id="ThreeWay"><span class="annot"><a href="Unison.Merge.Internal.Types.html#ThreeWay"><span class="hs-identifier hs-var">ThreeWay</span></a></span></span><span> </span><span id="local-6989586621679212436"><span class="annot"><a href="#local-6989586621679212436"><span class="hs-identifier hs-type">a</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="ThreeWay"><span class="annot"><a href="Unison.Merge.Internal.Types.html#ThreeWay"><span class="hs-identifier hs-var">ThreeWay</span></a></span></span><span>
+</span><span id="line-25"></span><span>  </span><span class="hs-special">{</span><span> </span><span id="lca"><span class="annot"><span class="annottext">forall a. ThreeWay a -&gt; a
+</span><a href="Unison.Merge.Internal.Types.html#lca"><span class="hs-identifier hs-var hs-var">lca</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><a href="#local-6989586621679212436"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-26"></span><span>    </span><span id="alice"><span class="annot"><span class="annottext">forall a. ThreeWay a -&gt; a
+</span><a href="Unison.Merge.Internal.Types.html#alice"><span class="hs-identifier hs-var hs-var">alice</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><a href="#local-6989586621679212436"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-27"></span><span>    </span><span id="bob"><span class="annot"><span class="annottext">forall a. ThreeWay a -&gt; a
+</span><a href="Unison.Merge.Internal.Types.html#bob"><span class="hs-identifier hs-var hs-var">bob</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><a href="#local-6989586621679212436"><span class="hs-identifier hs-type">a</span></a></span><span>
+</span><span id="line-28"></span><span>  </span><span class="hs-special">}</span><span>
+</span><span id="line-29"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">stock</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679212658"><span id="local-6989586621679212664"><span id="local-6989586621679212669"><span id="local-6989586621679212674"><span id="local-6989586621679212676"><span id="local-6989586621679212679"><span id="local-6989586621679212682"><span id="local-6989586621679212685"><span id="local-6989586621679212688"><span id="local-6989586621679212691"><span id="local-6989586621679212694"><span id="local-6989586621679212696"><span id="local-6989586621679212699"><span id="local-6989586621679212704"><span id="local-6989586621679212709"><span id="local-6989586621679212714"><span id="local-6989586621679212719"><span class="annot"><span class="annottext">(forall m. Monoid m =&gt; ThreeWay m -&gt; m)
+-&gt; (forall m a. Monoid m =&gt; (a -&gt; m) -&gt; ThreeWay a -&gt; m)
+-&gt; (forall m a. Monoid m =&gt; (a -&gt; m) -&gt; ThreeWay a -&gt; m)
+-&gt; (forall a b. (a -&gt; b -&gt; b) -&gt; b -&gt; ThreeWay a -&gt; b)
+-&gt; (forall a b. (a -&gt; b -&gt; b) -&gt; b -&gt; ThreeWay a -&gt; b)
+-&gt; (forall b a. (b -&gt; a -&gt; b) -&gt; b -&gt; ThreeWay a -&gt; b)
+-&gt; (forall b a. (b -&gt; a -&gt; b) -&gt; b -&gt; ThreeWay a -&gt; b)
+-&gt; (forall a. (a -&gt; a -&gt; a) -&gt; ThreeWay a -&gt; a)
+-&gt; (forall a. (a -&gt; a -&gt; a) -&gt; ThreeWay a -&gt; a)
+-&gt; (forall a. ThreeWay a -&gt; [a])
+-&gt; (forall a. ThreeWay a -&gt; Bool)
+-&gt; (forall a. ThreeWay a -&gt; Int)
+-&gt; (forall a. Eq a =&gt; a -&gt; ThreeWay a -&gt; Bool)
+-&gt; (forall a. Ord a =&gt; ThreeWay a -&gt; a)
+-&gt; (forall a. Ord a =&gt; ThreeWay a -&gt; a)
+-&gt; (forall a. Num a =&gt; ThreeWay a -&gt; a)
+-&gt; (forall a. Num a =&gt; ThreeWay a -&gt; a)
+-&gt; Foldable ThreeWay
+forall a. Eq a =&gt; a -&gt; ThreeWay a -&gt; Bool
+forall a. Num a =&gt; ThreeWay a -&gt; a
+forall a. Ord a =&gt; ThreeWay a -&gt; a
+forall m. Monoid m =&gt; ThreeWay m -&gt; m
+forall a. ThreeWay a -&gt; Bool
+forall a. ThreeWay a -&gt; Int
+forall a. ThreeWay a -&gt; [a]
+forall a. (a -&gt; a -&gt; a) -&gt; ThreeWay a -&gt; a
+forall m a. Monoid m =&gt; (a -&gt; m) -&gt; ThreeWay a -&gt; m
+forall b a. (b -&gt; a -&gt; b) -&gt; b -&gt; ThreeWay a -&gt; b
+forall a b. (a -&gt; b -&gt; b) -&gt; b -&gt; ThreeWay a -&gt; b
+forall (t :: * -&gt; *).
+(forall m. Monoid m =&gt; t m -&gt; m)
+-&gt; (forall m a. Monoid m =&gt; (a -&gt; m) -&gt; t a -&gt; m)
+-&gt; (forall m a. Monoid m =&gt; (a -&gt; m) -&gt; t a -&gt; m)
+-&gt; (forall a b. (a -&gt; b -&gt; b) -&gt; b -&gt; t a -&gt; b)
+-&gt; (forall a b. (a -&gt; b -&gt; b) -&gt; b -&gt; t a -&gt; b)
+-&gt; (forall b a. (b -&gt; a -&gt; b) -&gt; b -&gt; t a -&gt; b)
+-&gt; (forall b a. (b -&gt; a -&gt; b) -&gt; b -&gt; t a -&gt; b)
+-&gt; (forall a. (a -&gt; a -&gt; a) -&gt; t a -&gt; a)
+-&gt; (forall a. (a -&gt; a -&gt; a) -&gt; t a -&gt; a)
+-&gt; (forall a. t a -&gt; [a])
+-&gt; (forall a. t a -&gt; Bool)
+-&gt; (forall a. t a -&gt; Int)
+-&gt; (forall a. Eq a =&gt; a -&gt; t a -&gt; Bool)
+-&gt; (forall a. Ord a =&gt; t a -&gt; a)
+-&gt; (forall a. Ord a =&gt; t a -&gt; a)
+-&gt; (forall a. Num a =&gt; t a -&gt; a)
+-&gt; (forall a. Num a =&gt; t a -&gt; a)
+-&gt; Foldable t
+$cfold :: forall m. Monoid m =&gt; ThreeWay m -&gt; m
+fold :: forall m. Monoid m =&gt; ThreeWay m -&gt; m
+$cfoldMap :: forall m a. Monoid m =&gt; (a -&gt; m) -&gt; ThreeWay a -&gt; m
+foldMap :: forall m a. Monoid m =&gt; (a -&gt; m) -&gt; ThreeWay a -&gt; m
+$cfoldMap' :: forall m a. Monoid m =&gt; (a -&gt; m) -&gt; ThreeWay a -&gt; m
+foldMap' :: forall m a. Monoid m =&gt; (a -&gt; m) -&gt; ThreeWay a -&gt; m
+$cfoldr :: forall a b. (a -&gt; b -&gt; b) -&gt; b -&gt; ThreeWay a -&gt; b
+foldr :: forall a b. (a -&gt; b -&gt; b) -&gt; b -&gt; ThreeWay a -&gt; b
+$cfoldr' :: forall a b. (a -&gt; b -&gt; b) -&gt; b -&gt; ThreeWay a -&gt; b
+foldr' :: forall a b. (a -&gt; b -&gt; b) -&gt; b -&gt; ThreeWay a -&gt; b
+$cfoldl :: forall b a. (b -&gt; a -&gt; b) -&gt; b -&gt; ThreeWay a -&gt; b
+foldl :: forall b a. (b -&gt; a -&gt; b) -&gt; b -&gt; ThreeWay a -&gt; b
+$cfoldl' :: forall b a. (b -&gt; a -&gt; b) -&gt; b -&gt; ThreeWay a -&gt; b
+foldl' :: forall b a. (b -&gt; a -&gt; b) -&gt; b -&gt; ThreeWay a -&gt; b
+$cfoldr1 :: forall a. (a -&gt; a -&gt; a) -&gt; ThreeWay a -&gt; a
+foldr1 :: forall a. (a -&gt; a -&gt; a) -&gt; ThreeWay a -&gt; a
+$cfoldl1 :: forall a. (a -&gt; a -&gt; a) -&gt; ThreeWay a -&gt; a
+foldl1 :: forall a. (a -&gt; a -&gt; a) -&gt; ThreeWay a -&gt; a
+$ctoList :: forall a. ThreeWay a -&gt; [a]
+toList :: forall a. ThreeWay a -&gt; [a]
+$cnull :: forall a. ThreeWay a -&gt; Bool
+null :: forall a. ThreeWay a -&gt; Bool
+$clength :: forall a. ThreeWay a -&gt; Int
+length :: forall a. ThreeWay a -&gt; Int
+$celem :: forall a. Eq a =&gt; a -&gt; ThreeWay a -&gt; Bool
+elem :: forall a. Eq a =&gt; a -&gt; ThreeWay a -&gt; Bool
+$cmaximum :: forall a. Ord a =&gt; ThreeWay a -&gt; a
+maximum :: forall a. Ord a =&gt; ThreeWay a -&gt; a
+$cminimum :: forall a. Ord a =&gt; ThreeWay a -&gt; a
+minimum :: forall a. Ord a =&gt; ThreeWay a -&gt; a
+$csum :: forall a. Num a =&gt; ThreeWay a -&gt; a
+sum :: forall a. Num a =&gt; ThreeWay a -&gt; a
+$cproduct :: forall a. Num a =&gt; ThreeWay a -&gt; a
+product :: forall a. Num a =&gt; ThreeWay a -&gt; a
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Foldable</span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679212728"><span id="local-6989586621679212730"><span class="annot"><span class="annottext">(forall a b. (a -&gt; b) -&gt; ThreeWay a -&gt; ThreeWay b)
+-&gt; (forall a b. a -&gt; ThreeWay b -&gt; ThreeWay a) -&gt; Functor ThreeWay
+forall a b. a -&gt; ThreeWay b -&gt; ThreeWay a
+forall a b. (a -&gt; b) -&gt; ThreeWay a -&gt; ThreeWay b
+forall (f :: * -&gt; *).
+(forall a b. (a -&gt; b) -&gt; f a -&gt; f b)
+-&gt; (forall a b. a -&gt; f b -&gt; f a) -&gt; Functor f
+$cfmap :: forall a b. (a -&gt; b) -&gt; ThreeWay a -&gt; ThreeWay b
+fmap :: forall a b. (a -&gt; b) -&gt; ThreeWay a -&gt; ThreeWay b
+$c&lt;$ :: forall a b. a -&gt; ThreeWay b -&gt; ThreeWay a
+&lt;$ :: forall a b. a -&gt; ThreeWay b -&gt; ThreeWay a
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Functor</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679212735"><span id="local-6989586621679212737"><span class="annot"><span class="annottext">(forall x. ThreeWay a -&gt; Rep (ThreeWay a) x)
+-&gt; (forall x. Rep (ThreeWay a) x -&gt; ThreeWay a)
+-&gt; Generic (ThreeWay a)
+forall x. Rep (ThreeWay a) x -&gt; ThreeWay a
+forall x. ThreeWay a -&gt; Rep (ThreeWay a) x
+forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+forall a x. Rep (ThreeWay a) x -&gt; ThreeWay a
+forall a x. ThreeWay a -&gt; Rep (ThreeWay a) x
+$cfrom :: forall a x. ThreeWay a -&gt; Rep (ThreeWay a) x
+from :: forall x. ThreeWay a -&gt; Rep (ThreeWay a) x
+$cto :: forall a x. Rep (ThreeWay a) x -&gt; ThreeWay a
+to :: forall x. Rep (ThreeWay a) x -&gt; ThreeWay a
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Generic</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679212744"><span id="local-6989586621679212749"><span id="local-6989586621679212755"><span id="local-6989586621679212760"><span class="annot"><span class="annottext">Functor ThreeWay
+Foldable ThreeWay
+(Functor ThreeWay, Foldable ThreeWay) =&gt;
+(forall (f :: * -&gt; *) a b.
+ Applicative f =&gt;
+ (a -&gt; f b) -&gt; ThreeWay a -&gt; f (ThreeWay b))
+-&gt; (forall (f :: * -&gt; *) a.
+    Applicative f =&gt;
+    ThreeWay (f a) -&gt; f (ThreeWay a))
+-&gt; (forall (m :: * -&gt; *) a b.
+    Monad m =&gt;
+    (a -&gt; m b) -&gt; ThreeWay a -&gt; m (ThreeWay b))
+-&gt; (forall (m :: * -&gt; *) a.
+    Monad m =&gt;
+    ThreeWay (m a) -&gt; m (ThreeWay a))
+-&gt; Traversable ThreeWay
+forall (t :: * -&gt; *).
+(Functor t, Foldable t) =&gt;
+(forall (f :: * -&gt; *) a b.
+ Applicative f =&gt;
+ (a -&gt; f b) -&gt; t a -&gt; f (t b))
+-&gt; (forall (f :: * -&gt; *) a. Applicative f =&gt; t (f a) -&gt; f (t a))
+-&gt; (forall (m :: * -&gt; *) a b.
+    Monad m =&gt;
+    (a -&gt; m b) -&gt; t a -&gt; m (t b))
+-&gt; (forall (m :: * -&gt; *) a. Monad m =&gt; t (m a) -&gt; m (t a))
+-&gt; Traversable t
+forall (m :: * -&gt; *) a. Monad m =&gt; ThreeWay (m a) -&gt; m (ThreeWay a)
+forall (f :: * -&gt; *) a.
+Applicative f =&gt;
+ThreeWay (f a) -&gt; f (ThreeWay a)
+forall (m :: * -&gt; *) a b.
+Monad m =&gt;
+(a -&gt; m b) -&gt; ThreeWay a -&gt; m (ThreeWay b)
+forall (f :: * -&gt; *) a b.
+Applicative f =&gt;
+(a -&gt; f b) -&gt; ThreeWay a -&gt; f (ThreeWay b)
+$ctraverse :: forall (f :: * -&gt; *) a b.
+Applicative f =&gt;
+(a -&gt; f b) -&gt; ThreeWay a -&gt; f (ThreeWay b)
+traverse :: forall (f :: * -&gt; *) a b.
+Applicative f =&gt;
+(a -&gt; f b) -&gt; ThreeWay a -&gt; f (ThreeWay b)
+$csequenceA :: forall (f :: * -&gt; *) a.
+Applicative f =&gt;
+ThreeWay (f a) -&gt; f (ThreeWay a)
+sequenceA :: forall (f :: * -&gt; *) a.
+Applicative f =&gt;
+ThreeWay (f a) -&gt; f (ThreeWay a)
+$cmapM :: forall (m :: * -&gt; *) a b.
+Monad m =&gt;
+(a -&gt; m b) -&gt; ThreeWay a -&gt; m (ThreeWay b)
+mapM :: forall (m :: * -&gt; *) a b.
+Monad m =&gt;
+(a -&gt; m b) -&gt; ThreeWay a -&gt; m (ThreeWay b)
+$csequence :: forall (m :: * -&gt; *) a. Monad m =&gt; ThreeWay (m a) -&gt; m (ThreeWay a)
+sequence :: forall (m :: * -&gt; *) a. Monad m =&gt; ThreeWay (m a) -&gt; m (ThreeWay a)
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Traversable</span></span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-30"></span><span>
+</span><span id="line-31"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679212771"><span id="local-6989586621679212775"><span id="local-6989586621679212778"><span class="annot"><span class="hs-identifier hs-type">Applicative</span></span><span> </span><span class="annot"><a href="Unison.Merge.Internal.Types.html#ThreeWay"><span class="hs-identifier hs-type">ThreeWay</span></a></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-32"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">pure</span></span><span> </span><span class="hs-glyph">::</span><span> </span><span id="local-6989586621679212781"><span class="annot"><a href="#local-6989586621679212781"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.Merge.Internal.Types.html#ThreeWay"><span class="hs-identifier hs-type">ThreeWay</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679212781"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-33"></span><span>  </span><span id="local-6989586621679212782"><span class="annot"><span class="annottext">pure :: forall a. a -&gt; ThreeWay a
+</span><span class="hs-identifier hs-var hs-var hs-var">pure</span></span></span><span> </span><span id="local-6989586621679212783"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679212783"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-34"></span><span>    </span><span class="annot"><span class="annottext">a -&gt; a -&gt; a -&gt; ThreeWay a
+forall a. a -&gt; a -&gt; a -&gt; ThreeWay a
+</span><a href="Unison.Merge.Internal.Types.html#ThreeWay"><span class="hs-identifier hs-var">ThreeWay</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679212783"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679212783"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679212783"><span class="hs-identifier hs-var">x</span></a></span><span>
+</span><span id="line-35"></span><span>
+</span><span id="line-36"></span><span>  </span><span class="annot"><span class="hs-operator hs-type">(&lt;*&gt;)</span></span><span> </span><span class="hs-glyph">::</span><span> </span><span id="local-6989586621679212784"><span id="local-6989586621679212785"><span class="annot"><a href="Unison.Merge.Internal.Types.html#ThreeWay"><span class="hs-identifier hs-type">ThreeWay</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679212784"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679212785"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.Merge.Internal.Types.html#ThreeWay"><span class="hs-identifier hs-type">ThreeWay</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679212784"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.Merge.Internal.Types.html#ThreeWay"><span class="hs-identifier hs-type">ThreeWay</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679212785"><span class="hs-identifier hs-type">b</span></a></span></span></span><span>
+</span><span id="line-37"></span><span>  </span><span class="annot"><a href="Unison.Merge.Internal.Types.html#ThreeWay"><span class="hs-identifier hs-type">ThreeWay</span></a></span><span> </span><span id="local-6989586621679212786"><span class="annot"><span class="annottext">a -&gt; b
+</span><a href="#local-6989586621679212786"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span id="local-6989586621679212787"><span class="annot"><span class="annottext">a -&gt; b
+</span><a href="#local-6989586621679212787"><span class="hs-identifier hs-var">g</span></a></span></span><span> </span><span id="local-6989586621679212788"><span class="annot"><span class="annottext">a -&gt; b
+</span><a href="#local-6989586621679212788"><span class="hs-identifier hs-var">h</span></a></span></span><span> </span><span id="local-6989586621679212789"><span class="annot"><span class="annottext">&lt;*&gt; :: forall a b. ThreeWay (a -&gt; b) -&gt; ThreeWay a -&gt; ThreeWay b
+</span><span class="hs-operator hs-var hs-var hs-var">&lt;*&gt;</span></span></span><span> </span><span class="annot"><a href="Unison.Merge.Internal.Types.html#ThreeWay"><span class="hs-identifier hs-type">ThreeWay</span></a></span><span> </span><span id="local-6989586621679212790"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679212790"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span id="local-6989586621679212791"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679212791"><span class="hs-identifier hs-var">y</span></a></span></span><span> </span><span id="local-6989586621679212792"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679212792"><span class="hs-identifier hs-var">z</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-38"></span><span>    </span><span class="annot"><span class="annottext">b -&gt; b -&gt; b -&gt; ThreeWay b
+forall a. a -&gt; a -&gt; a -&gt; ThreeWay a
+</span><a href="Unison.Merge.Internal.Types.html#ThreeWay"><span class="hs-identifier hs-var">ThreeWay</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a -&gt; b
+</span><a href="#local-6989586621679212786"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679212790"><span class="hs-identifier hs-var">x</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a -&gt; b
+</span><a href="#local-6989586621679212787"><span class="hs-identifier hs-var">g</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679212791"><span class="hs-identifier hs-var">y</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a -&gt; b
+</span><a href="#local-6989586621679212788"><span class="hs-identifier hs-var">h</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679212792"><span class="hs-identifier hs-var">z</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-39"></span><span>
+</span><span id="line-40"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679212796"><span class="annot"><span class="hs-identifier hs-type">Semialign</span></span><span> </span><span class="annot"><a href="Unison.Merge.Internal.Types.html#ThreeWay"><span class="hs-identifier hs-type">ThreeWay</span></a></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-41"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">alignWith</span></span><span> </span><span class="hs-glyph">::</span><span> </span><span id="local-6989586621679212801"><span id="local-6989586621679212802"><span id="local-6989586621679212803"><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">These</span></span><span> </span><span class="annot"><a href="#local-6989586621679212801"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679212802"><span class="hs-identifier hs-type">b</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679212803"><span class="hs-identifier hs-type">c</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.Merge.Internal.Types.html#ThreeWay"><span class="hs-identifier hs-type">ThreeWay</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679212801"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.Merge.Internal.Types.html#ThreeWay"><span class="hs-identifier hs-type">ThreeWay</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679212802"><span class="hs-identifier hs-type">b</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.Merge.Internal.Types.html#ThreeWay"><span class="hs-identifier hs-type">ThreeWay</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679212803"><span class="hs-identifier hs-type">c</span></a></span></span></span></span><span>
+</span><span id="line-42"></span><span>  </span><span id="local-6989586621679212804"><span class="annot"><span class="annottext">alignWith :: forall a b c.
+(These a b -&gt; c) -&gt; ThreeWay a -&gt; ThreeWay b -&gt; ThreeWay c
+</span><span class="hs-identifier hs-var hs-var hs-var">alignWith</span></span></span><span> </span><span id="local-6989586621679212805"><span class="annot"><span class="annottext">These a b -&gt; c
+</span><a href="#local-6989586621679212805"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Merge.Internal.Types.html#ThreeWay"><span class="hs-identifier hs-type">ThreeWay</span></a></span><span> </span><span id="local-6989586621679212806"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679212806"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span id="local-6989586621679212807"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679212807"><span class="hs-identifier hs-var">b</span></a></span></span><span> </span><span id="local-6989586621679212808"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679212808"><span class="hs-identifier hs-var">c</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Merge.Internal.Types.html#ThreeWay"><span class="hs-identifier hs-type">ThreeWay</span></a></span><span> </span><span id="local-6989586621679212809"><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679212809"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span id="local-6989586621679212810"><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679212810"><span class="hs-identifier hs-var">y</span></a></span></span><span> </span><span id="local-6989586621679212811"><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679212811"><span class="hs-identifier hs-var">z</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-43"></span><span>    </span><span class="annot"><span class="annottext">c -&gt; c -&gt; c -&gt; ThreeWay c
+forall a. a -&gt; a -&gt; a -&gt; ThreeWay a
+</span><a href="Unison.Merge.Internal.Types.html#ThreeWay"><span class="hs-identifier hs-var">ThreeWay</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">These a b -&gt; c
+</span><a href="#local-6989586621679212805"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a -&gt; b -&gt; These a b
+forall a b. a -&gt; b -&gt; These a b
+</span><span class="hs-identifier hs-var">These</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679212806"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679212809"><span class="hs-identifier hs-var">x</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">These a b -&gt; c
+</span><a href="#local-6989586621679212805"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a -&gt; b -&gt; These a b
+forall a b. a -&gt; b -&gt; These a b
+</span><span class="hs-identifier hs-var">These</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679212807"><span class="hs-identifier hs-var">b</span></a></span><span> </span><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679212810"><span class="hs-identifier hs-var">y</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">These a b -&gt; c
+</span><a href="#local-6989586621679212805"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a -&gt; b -&gt; These a b
+forall a b. a -&gt; b -&gt; These a b
+</span><span class="hs-identifier hs-var">These</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679212808"><span class="hs-identifier hs-var">c</span></a></span><span> </span><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679212811"><span class="hs-identifier hs-var">z</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-44"></span><span>
+</span><span id="line-45"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679212818"><span class="annot"><span class="hs-identifier hs-type">Unzip</span></span><span> </span><span class="annot"><a href="Unison.Merge.Internal.Types.html#ThreeWay"><span class="hs-identifier hs-type">ThreeWay</span></a></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-46"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">unzipWith</span></span><span> </span><span class="hs-glyph">::</span><span> </span><span id="local-6989586621679212822"><span id="local-6989586621679212823"><span id="local-6989586621679212824"><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679212822"><span class="hs-identifier hs-type">c</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679212823"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679212824"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.Merge.Internal.Types.html#ThreeWay"><span class="hs-identifier hs-type">ThreeWay</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679212822"><span class="hs-identifier hs-type">c</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Merge.Internal.Types.html#ThreeWay"><span class="hs-identifier hs-type">ThreeWay</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679212823"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Unison.Merge.Internal.Types.html#ThreeWay"><span class="hs-identifier hs-type">ThreeWay</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679212824"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">)</span></span></span></span><span>
+</span><span id="line-47"></span><span>  </span><span id="local-6989586621679212825"><span class="annot"><span class="annottext">unzipWith :: forall c a b.
+(c -&gt; (a, b)) -&gt; ThreeWay c -&gt; (ThreeWay a, ThreeWay b)
+</span><span class="hs-identifier hs-var hs-var hs-var">unzipWith</span></span></span><span> </span><span id="local-6989586621679212826"><span class="annot"><span class="annottext">c -&gt; (a, b)
+</span><a href="#local-6989586621679212826"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Merge.Internal.Types.html#ThreeWay"><span class="hs-identifier hs-type">ThreeWay</span></a></span><span> </span><span id="local-6989586621679212827"><span class="annot"><span class="annottext">c
+</span><a href="#local-6989586621679212827"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span id="local-6989586621679212828"><span class="annot"><span class="annottext">c
+</span><a href="#local-6989586621679212828"><span class="hs-identifier hs-var">b</span></a></span></span><span> </span><span id="local-6989586621679212829"><span class="annot"><span class="annottext">c
+</span><a href="#local-6989586621679212829"><span class="hs-identifier hs-var">c</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-48"></span><span>    </span><span class="hs-keyword">let</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679212830"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679212830"><span class="hs-identifier hs-var">i</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679212831"><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679212831"><span class="hs-identifier hs-var">x</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">c -&gt; (a, b)
+</span><a href="#local-6989586621679212826"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">c
+</span><a href="#local-6989586621679212827"><span class="hs-identifier hs-var">a</span></a></span><span>
+</span><span id="line-49"></span><span>        </span><span class="hs-special">(</span><span id="local-6989586621679212832"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679212832"><span class="hs-identifier hs-var">j</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679212833"><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679212833"><span class="hs-identifier hs-var">y</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">c -&gt; (a, b)
+</span><a href="#local-6989586621679212826"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">c
+</span><a href="#local-6989586621679212828"><span class="hs-identifier hs-var">b</span></a></span><span>
+</span><span id="line-50"></span><span>        </span><span class="hs-special">(</span><span id="local-6989586621679212834"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679212834"><span class="hs-identifier hs-var">k</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679212835"><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679212835"><span class="hs-identifier hs-var">z</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">c -&gt; (a, b)
+</span><a href="#local-6989586621679212826"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">c
+</span><a href="#local-6989586621679212829"><span class="hs-identifier hs-var">c</span></a></span><span>
+</span><span id="line-51"></span><span>     </span><span class="hs-keyword">in</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a -&gt; a -&gt; a -&gt; ThreeWay a
+forall a. a -&gt; a -&gt; a -&gt; ThreeWay a
+</span><a href="Unison.Merge.Internal.Types.html#ThreeWay"><span class="hs-identifier hs-var">ThreeWay</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679212830"><span class="hs-identifier hs-var">i</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679212832"><span class="hs-identifier hs-var">j</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679212834"><span class="hs-identifier hs-var">k</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">b -&gt; b -&gt; b -&gt; ThreeWay b
+forall a. a -&gt; a -&gt; a -&gt; ThreeWay a
+</span><a href="Unison.Merge.Internal.Types.html#ThreeWay"><span class="hs-identifier hs-var">ThreeWay</span></a></span><span> </span><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679212831"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679212833"><span class="hs-identifier hs-var">y</span></a></span><span> </span><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679212835"><span class="hs-identifier hs-var">z</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-52"></span><span>
+</span><span id="line-53"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679212839"><span class="annot"><span class="hs-identifier hs-type">Zip</span></span><span> </span><span class="annot"><a href="Unison.Merge.Internal.Types.html#ThreeWay"><span class="hs-identifier hs-type">ThreeWay</span></a></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-54"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">zipWith</span></span><span> </span><span class="hs-glyph">::</span><span> </span><span id="local-6989586621679212843"><span id="local-6989586621679212844"><span id="local-6989586621679212845"><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679212843"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679212844"><span class="hs-identifier hs-type">b</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679212845"><span class="hs-identifier hs-type">c</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.Merge.Internal.Types.html#ThreeWay"><span class="hs-identifier hs-type">ThreeWay</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679212843"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.Merge.Internal.Types.html#ThreeWay"><span class="hs-identifier hs-type">ThreeWay</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679212844"><span class="hs-identifier hs-type">b</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.Merge.Internal.Types.html#ThreeWay"><span class="hs-identifier hs-type">ThreeWay</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679212845"><span class="hs-identifier hs-type">c</span></a></span></span></span></span><span>
+</span><span id="line-55"></span><span>  </span><span id="local-6989586621679212846"><span class="annot"><span class="annottext">zipWith :: forall a b c.
+(a -&gt; b -&gt; c) -&gt; ThreeWay a -&gt; ThreeWay b -&gt; ThreeWay c
+</span><span class="hs-identifier hs-var hs-var hs-var">zipWith</span></span></span><span> </span><span id="local-6989586621679212847"><span class="annot"><span class="annottext">a -&gt; b -&gt; c
+</span><a href="#local-6989586621679212847"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Merge.Internal.Types.html#ThreeWay"><span class="hs-identifier hs-type">ThreeWay</span></a></span><span> </span><span id="local-6989586621679212848"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679212848"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span id="local-6989586621679212849"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679212849"><span class="hs-identifier hs-var">b</span></a></span></span><span> </span><span id="local-6989586621679212850"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679212850"><span class="hs-identifier hs-var">c</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Merge.Internal.Types.html#ThreeWay"><span class="hs-identifier hs-type">ThreeWay</span></a></span><span> </span><span id="local-6989586621679212851"><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679212851"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span id="local-6989586621679212852"><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679212852"><span class="hs-identifier hs-var">y</span></a></span></span><span> </span><span id="local-6989586621679212853"><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679212853"><span class="hs-identifier hs-var">z</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-56"></span><span>    </span><span class="annot"><span class="annottext">c -&gt; c -&gt; c -&gt; ThreeWay c
+forall a. a -&gt; a -&gt; a -&gt; ThreeWay a
+</span><a href="Unison.Merge.Internal.Types.html#ThreeWay"><span class="hs-identifier hs-var">ThreeWay</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a -&gt; b -&gt; c
+</span><a href="#local-6989586621679212847"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679212848"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679212851"><span class="hs-identifier hs-var">x</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a -&gt; b -&gt; c
+</span><a href="#local-6989586621679212847"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679212849"><span class="hs-identifier hs-var">b</span></a></span><span> </span><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679212852"><span class="hs-identifier hs-var">y</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a -&gt; b -&gt; c
+</span><a href="#local-6989586621679212847"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679212850"><span class="hs-identifier hs-var">c</span></a></span><span> </span><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679212853"><span class="hs-identifier hs-var">z</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-57"></span><span>
+</span><span id="line-58"></span><span class="hs-keyword">data</span><span> </span><span id="TwoOrThreeWay"><span class="annot"><a href="Unison.Merge.Internal.Types.html#TwoOrThreeWay"><span class="hs-identifier hs-var">TwoOrThreeWay</span></a></span></span><span> </span><span id="local-6989586621679212533"><span class="annot"><a href="#local-6989586621679212533"><span class="hs-identifier hs-type">a</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="TwoOrThreeWay"><span class="annot"><a href="Unison.Merge.Internal.Types.html#TwoOrThreeWay"><span class="hs-identifier hs-var">TwoOrThreeWay</span></a></span></span><span>
+</span><span id="line-59"></span><span>  </span><span class="hs-special">{</span><span> </span><span id="lca"><span class="annot"><span class="annottext">forall a. TwoOrThreeWay a -&gt; Maybe a
+</span><a href="Unison.Merge.Internal.Types.html#lca"><span class="hs-identifier hs-var hs-var">lca</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="#local-6989586621679212533"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-60"></span><span>    </span><span id="alice"><span class="annot"><span class="annottext">forall a. TwoOrThreeWay a -&gt; a
+</span><a href="Unison.Merge.Internal.Types.html#alice"><span class="hs-identifier hs-var hs-var">alice</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="#local-6989586621679212533"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-61"></span><span>    </span><span id="bob"><span class="annot"><span class="annottext">forall a. TwoOrThreeWay a -&gt; a
+</span><a href="Unison.Merge.Internal.Types.html#bob"><span class="hs-identifier hs-var hs-var">bob</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="#local-6989586621679212533"><span class="hs-identifier hs-type">a</span></a></span><span>
+</span><span id="line-62"></span><span>  </span><span class="hs-special">}</span><span>
+</span><span id="line-63"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">stock</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679212859"><span id="local-6989586621679212865"><span id="local-6989586621679212873"><span id="local-6989586621679212878"><span id="local-6989586621679212881"><span id="local-6989586621679212884"><span id="local-6989586621679212887"><span id="local-6989586621679212890"><span id="local-6989586621679212893"><span id="local-6989586621679212896"><span id="local-6989586621679212899"><span id="local-6989586621679212901"><span id="local-6989586621679212904"><span id="local-6989586621679212909"><span id="local-6989586621679212914"><span id="local-6989586621679212919"><span id="local-6989586621679212924"><span class="annot"><span class="annottext">(forall m. Monoid m =&gt; TwoOrThreeWay m -&gt; m)
+-&gt; (forall m a. Monoid m =&gt; (a -&gt; m) -&gt; TwoOrThreeWay a -&gt; m)
+-&gt; (forall m a. Monoid m =&gt; (a -&gt; m) -&gt; TwoOrThreeWay a -&gt; m)
+-&gt; (forall a b. (a -&gt; b -&gt; b) -&gt; b -&gt; TwoOrThreeWay a -&gt; b)
+-&gt; (forall a b. (a -&gt; b -&gt; b) -&gt; b -&gt; TwoOrThreeWay a -&gt; b)
+-&gt; (forall b a. (b -&gt; a -&gt; b) -&gt; b -&gt; TwoOrThreeWay a -&gt; b)
+-&gt; (forall b a. (b -&gt; a -&gt; b) -&gt; b -&gt; TwoOrThreeWay a -&gt; b)
+-&gt; (forall a. (a -&gt; a -&gt; a) -&gt; TwoOrThreeWay a -&gt; a)
+-&gt; (forall a. (a -&gt; a -&gt; a) -&gt; TwoOrThreeWay a -&gt; a)
+-&gt; (forall a. TwoOrThreeWay a -&gt; [a])
+-&gt; (forall a. TwoOrThreeWay a -&gt; Bool)
+-&gt; (forall a. TwoOrThreeWay a -&gt; Int)
+-&gt; (forall a. Eq a =&gt; a -&gt; TwoOrThreeWay a -&gt; Bool)
+-&gt; (forall a. Ord a =&gt; TwoOrThreeWay a -&gt; a)
+-&gt; (forall a. Ord a =&gt; TwoOrThreeWay a -&gt; a)
+-&gt; (forall a. Num a =&gt; TwoOrThreeWay a -&gt; a)
+-&gt; (forall a. Num a =&gt; TwoOrThreeWay a -&gt; a)
+-&gt; Foldable TwoOrThreeWay
+forall a. Eq a =&gt; a -&gt; TwoOrThreeWay a -&gt; Bool
+forall a. Num a =&gt; TwoOrThreeWay a -&gt; a
+forall a. Ord a =&gt; TwoOrThreeWay a -&gt; a
+forall m. Monoid m =&gt; TwoOrThreeWay m -&gt; m
+forall a. TwoOrThreeWay a -&gt; Bool
+forall a. TwoOrThreeWay a -&gt; Int
+forall a. TwoOrThreeWay a -&gt; [a]
+forall a. (a -&gt; a -&gt; a) -&gt; TwoOrThreeWay a -&gt; a
+forall m a. Monoid m =&gt; (a -&gt; m) -&gt; TwoOrThreeWay a -&gt; m
+forall b a. (b -&gt; a -&gt; b) -&gt; b -&gt; TwoOrThreeWay a -&gt; b
+forall a b. (a -&gt; b -&gt; b) -&gt; b -&gt; TwoOrThreeWay a -&gt; b
+forall (t :: * -&gt; *).
+(forall m. Monoid m =&gt; t m -&gt; m)
+-&gt; (forall m a. Monoid m =&gt; (a -&gt; m) -&gt; t a -&gt; m)
+-&gt; (forall m a. Monoid m =&gt; (a -&gt; m) -&gt; t a -&gt; m)
+-&gt; (forall a b. (a -&gt; b -&gt; b) -&gt; b -&gt; t a -&gt; b)
+-&gt; (forall a b. (a -&gt; b -&gt; b) -&gt; b -&gt; t a -&gt; b)
+-&gt; (forall b a. (b -&gt; a -&gt; b) -&gt; b -&gt; t a -&gt; b)
+-&gt; (forall b a. (b -&gt; a -&gt; b) -&gt; b -&gt; t a -&gt; b)
+-&gt; (forall a. (a -&gt; a -&gt; a) -&gt; t a -&gt; a)
+-&gt; (forall a. (a -&gt; a -&gt; a) -&gt; t a -&gt; a)
+-&gt; (forall a. t a -&gt; [a])
+-&gt; (forall a. t a -&gt; Bool)
+-&gt; (forall a. t a -&gt; Int)
+-&gt; (forall a. Eq a =&gt; a -&gt; t a -&gt; Bool)
+-&gt; (forall a. Ord a =&gt; t a -&gt; a)
+-&gt; (forall a. Ord a =&gt; t a -&gt; a)
+-&gt; (forall a. Num a =&gt; t a -&gt; a)
+-&gt; (forall a. Num a =&gt; t a -&gt; a)
+-&gt; Foldable t
+$cfold :: forall m. Monoid m =&gt; TwoOrThreeWay m -&gt; m
+fold :: forall m. Monoid m =&gt; TwoOrThreeWay m -&gt; m
+$cfoldMap :: forall m a. Monoid m =&gt; (a -&gt; m) -&gt; TwoOrThreeWay a -&gt; m
+foldMap :: forall m a. Monoid m =&gt; (a -&gt; m) -&gt; TwoOrThreeWay a -&gt; m
+$cfoldMap' :: forall m a. Monoid m =&gt; (a -&gt; m) -&gt; TwoOrThreeWay a -&gt; m
+foldMap' :: forall m a. Monoid m =&gt; (a -&gt; m) -&gt; TwoOrThreeWay a -&gt; m
+$cfoldr :: forall a b. (a -&gt; b -&gt; b) -&gt; b -&gt; TwoOrThreeWay a -&gt; b
+foldr :: forall a b. (a -&gt; b -&gt; b) -&gt; b -&gt; TwoOrThreeWay a -&gt; b
+$cfoldr' :: forall a b. (a -&gt; b -&gt; b) -&gt; b -&gt; TwoOrThreeWay a -&gt; b
+foldr' :: forall a b. (a -&gt; b -&gt; b) -&gt; b -&gt; TwoOrThreeWay a -&gt; b
+$cfoldl :: forall b a. (b -&gt; a -&gt; b) -&gt; b -&gt; TwoOrThreeWay a -&gt; b
+foldl :: forall b a. (b -&gt; a -&gt; b) -&gt; b -&gt; TwoOrThreeWay a -&gt; b
+$cfoldl' :: forall b a. (b -&gt; a -&gt; b) -&gt; b -&gt; TwoOrThreeWay a -&gt; b
+foldl' :: forall b a. (b -&gt; a -&gt; b) -&gt; b -&gt; TwoOrThreeWay a -&gt; b
+$cfoldr1 :: forall a. (a -&gt; a -&gt; a) -&gt; TwoOrThreeWay a -&gt; a
+foldr1 :: forall a. (a -&gt; a -&gt; a) -&gt; TwoOrThreeWay a -&gt; a
+$cfoldl1 :: forall a. (a -&gt; a -&gt; a) -&gt; TwoOrThreeWay a -&gt; a
+foldl1 :: forall a. (a -&gt; a -&gt; a) -&gt; TwoOrThreeWay a -&gt; a
+$ctoList :: forall a. TwoOrThreeWay a -&gt; [a]
+toList :: forall a. TwoOrThreeWay a -&gt; [a]
+$cnull :: forall a. TwoOrThreeWay a -&gt; Bool
+null :: forall a. TwoOrThreeWay a -&gt; Bool
+$clength :: forall a. TwoOrThreeWay a -&gt; Int
+length :: forall a. TwoOrThreeWay a -&gt; Int
+$celem :: forall a. Eq a =&gt; a -&gt; TwoOrThreeWay a -&gt; Bool
+elem :: forall a. Eq a =&gt; a -&gt; TwoOrThreeWay a -&gt; Bool
+$cmaximum :: forall a. Ord a =&gt; TwoOrThreeWay a -&gt; a
+maximum :: forall a. Ord a =&gt; TwoOrThreeWay a -&gt; a
+$cminimum :: forall a. Ord a =&gt; TwoOrThreeWay a -&gt; a
+minimum :: forall a. Ord a =&gt; TwoOrThreeWay a -&gt; a
+$csum :: forall a. Num a =&gt; TwoOrThreeWay a -&gt; a
+sum :: forall a. Num a =&gt; TwoOrThreeWay a -&gt; a
+$cproduct :: forall a. Num a =&gt; TwoOrThreeWay a -&gt; a
+product :: forall a. Num a =&gt; TwoOrThreeWay a -&gt; a
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Foldable</span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679212929"><span id="local-6989586621679212933"><span class="annot"><span class="annottext">(forall a b. (a -&gt; b) -&gt; TwoOrThreeWay a -&gt; TwoOrThreeWay b)
+-&gt; (forall a b. a -&gt; TwoOrThreeWay b -&gt; TwoOrThreeWay a)
+-&gt; Functor TwoOrThreeWay
+forall a b. a -&gt; TwoOrThreeWay b -&gt; TwoOrThreeWay a
+forall a b. (a -&gt; b) -&gt; TwoOrThreeWay a -&gt; TwoOrThreeWay b
+forall (f :: * -&gt; *).
+(forall a b. (a -&gt; b) -&gt; f a -&gt; f b)
+-&gt; (forall a b. a -&gt; f b -&gt; f a) -&gt; Functor f
+$cfmap :: forall a b. (a -&gt; b) -&gt; TwoOrThreeWay a -&gt; TwoOrThreeWay b
+fmap :: forall a b. (a -&gt; b) -&gt; TwoOrThreeWay a -&gt; TwoOrThreeWay b
+$c&lt;$ :: forall a b. a -&gt; TwoOrThreeWay b -&gt; TwoOrThreeWay a
+&lt;$ :: forall a b. a -&gt; TwoOrThreeWay b -&gt; TwoOrThreeWay a
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Functor</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679212937"><span id="local-6989586621679212939"><span class="annot"><span class="annottext">(forall x. TwoOrThreeWay a -&gt; Rep (TwoOrThreeWay a) x)
+-&gt; (forall x. Rep (TwoOrThreeWay a) x -&gt; TwoOrThreeWay a)
+-&gt; Generic (TwoOrThreeWay a)
+forall x. Rep (TwoOrThreeWay a) x -&gt; TwoOrThreeWay a
+forall x. TwoOrThreeWay a -&gt; Rep (TwoOrThreeWay a) x
+forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+forall a x. Rep (TwoOrThreeWay a) x -&gt; TwoOrThreeWay a
+forall a x. TwoOrThreeWay a -&gt; Rep (TwoOrThreeWay a) x
+$cfrom :: forall a x. TwoOrThreeWay a -&gt; Rep (TwoOrThreeWay a) x
+from :: forall x. TwoOrThreeWay a -&gt; Rep (TwoOrThreeWay a) x
+$cto :: forall a x. Rep (TwoOrThreeWay a) x -&gt; TwoOrThreeWay a
+to :: forall x. Rep (TwoOrThreeWay a) x -&gt; TwoOrThreeWay a
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Generic</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679212946"><span id="local-6989586621679212954"><span id="local-6989586621679212960"><span id="local-6989586621679212965"><span class="annot"><span class="annottext">Functor TwoOrThreeWay
+Foldable TwoOrThreeWay
+(Functor TwoOrThreeWay, Foldable TwoOrThreeWay) =&gt;
+(forall (f :: * -&gt; *) a b.
+ Applicative f =&gt;
+ (a -&gt; f b) -&gt; TwoOrThreeWay a -&gt; f (TwoOrThreeWay b))
+-&gt; (forall (f :: * -&gt; *) a.
+    Applicative f =&gt;
+    TwoOrThreeWay (f a) -&gt; f (TwoOrThreeWay a))
+-&gt; (forall (m :: * -&gt; *) a b.
+    Monad m =&gt;
+    (a -&gt; m b) -&gt; TwoOrThreeWay a -&gt; m (TwoOrThreeWay b))
+-&gt; (forall (m :: * -&gt; *) a.
+    Monad m =&gt;
+    TwoOrThreeWay (m a) -&gt; m (TwoOrThreeWay a))
+-&gt; Traversable TwoOrThreeWay
+forall (t :: * -&gt; *).
+(Functor t, Foldable t) =&gt;
+(forall (f :: * -&gt; *) a b.
+ Applicative f =&gt;
+ (a -&gt; f b) -&gt; t a -&gt; f (t b))
+-&gt; (forall (f :: * -&gt; *) a. Applicative f =&gt; t (f a) -&gt; f (t a))
+-&gt; (forall (m :: * -&gt; *) a b.
+    Monad m =&gt;
+    (a -&gt; m b) -&gt; t a -&gt; m (t b))
+-&gt; (forall (m :: * -&gt; *) a. Monad m =&gt; t (m a) -&gt; m (t a))
+-&gt; Traversable t
+forall (m :: * -&gt; *) a.
+Monad m =&gt;
+TwoOrThreeWay (m a) -&gt; m (TwoOrThreeWay a)
+forall (f :: * -&gt; *) a.
+Applicative f =&gt;
+TwoOrThreeWay (f a) -&gt; f (TwoOrThreeWay a)
+forall (m :: * -&gt; *) a b.
+Monad m =&gt;
+(a -&gt; m b) -&gt; TwoOrThreeWay a -&gt; m (TwoOrThreeWay b)
+forall (f :: * -&gt; *) a b.
+Applicative f =&gt;
+(a -&gt; f b) -&gt; TwoOrThreeWay a -&gt; f (TwoOrThreeWay b)
+$ctraverse :: forall (f :: * -&gt; *) a b.
+Applicative f =&gt;
+(a -&gt; f b) -&gt; TwoOrThreeWay a -&gt; f (TwoOrThreeWay b)
+traverse :: forall (f :: * -&gt; *) a b.
+Applicative f =&gt;
+(a -&gt; f b) -&gt; TwoOrThreeWay a -&gt; f (TwoOrThreeWay b)
+$csequenceA :: forall (f :: * -&gt; *) a.
+Applicative f =&gt;
+TwoOrThreeWay (f a) -&gt; f (TwoOrThreeWay a)
+sequenceA :: forall (f :: * -&gt; *) a.
+Applicative f =&gt;
+TwoOrThreeWay (f a) -&gt; f (TwoOrThreeWay a)
+$cmapM :: forall (m :: * -&gt; *) a b.
+Monad m =&gt;
+(a -&gt; m b) -&gt; TwoOrThreeWay a -&gt; m (TwoOrThreeWay b)
+mapM :: forall (m :: * -&gt; *) a b.
+Monad m =&gt;
+(a -&gt; m b) -&gt; TwoOrThreeWay a -&gt; m (TwoOrThreeWay b)
+$csequence :: forall (m :: * -&gt; *) a.
+Monad m =&gt;
+TwoOrThreeWay (m a) -&gt; m (TwoOrThreeWay a)
+sequence :: forall (m :: * -&gt; *) a.
+Monad m =&gt;
+TwoOrThreeWay (m a) -&gt; m (TwoOrThreeWay a)
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Traversable</span></span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-64"></span><span>
+</span><span id="line-65"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679212974"><span id="local-6989586621679212978"><span id="local-6989586621679212981"><span class="annot"><span class="hs-identifier hs-type">Applicative</span></span><span> </span><span class="annot"><a href="Unison.Merge.Internal.Types.html#TwoOrThreeWay"><span class="hs-identifier hs-type">TwoOrThreeWay</span></a></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-66"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">pure</span></span><span> </span><span class="hs-glyph">::</span><span> </span><span id="local-6989586621679212983"><span class="annot"><a href="#local-6989586621679212983"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.Merge.Internal.Types.html#TwoOrThreeWay"><span class="hs-identifier hs-type">TwoOrThreeWay</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679212983"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-67"></span><span>  </span><span id="local-6989586621679212984"><span class="annot"><span class="annottext">pure :: forall a. a -&gt; TwoOrThreeWay a
+</span><span class="hs-identifier hs-var hs-var hs-var">pure</span></span></span><span> </span><span id="local-6989586621679212985"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679212985"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-68"></span><span>    </span><span class="annot"><span class="annottext">Maybe a -&gt; a -&gt; a -&gt; TwoOrThreeWay a
+forall a. Maybe a -&gt; a -&gt; a -&gt; TwoOrThreeWay a
+</span><a href="Unison.Merge.Internal.Types.html#TwoOrThreeWay"><span class="hs-identifier hs-var">TwoOrThreeWay</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a -&gt; Maybe a
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679212985"><span class="hs-identifier hs-var">x</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679212985"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679212985"><span class="hs-identifier hs-var">x</span></a></span><span>
+</span><span id="line-69"></span><span>
+</span><span id="line-70"></span><span>  </span><span class="annot"><span class="hs-operator hs-type">(&lt;*&gt;)</span></span><span> </span><span class="hs-glyph">::</span><span> </span><span id="local-6989586621679212986"><span id="local-6989586621679212987"><span class="annot"><a href="Unison.Merge.Internal.Types.html#TwoOrThreeWay"><span class="hs-identifier hs-type">TwoOrThreeWay</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679212986"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679212987"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.Merge.Internal.Types.html#TwoOrThreeWay"><span class="hs-identifier hs-type">TwoOrThreeWay</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679212986"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.Merge.Internal.Types.html#TwoOrThreeWay"><span class="hs-identifier hs-type">TwoOrThreeWay</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679212987"><span class="hs-identifier hs-type">b</span></a></span></span></span><span>
+</span><span id="line-71"></span><span>  </span><span class="annot"><a href="Unison.Merge.Internal.Types.html#TwoOrThreeWay"><span class="hs-identifier hs-type">TwoOrThreeWay</span></a></span><span> </span><span id="local-6989586621679212990"><span class="annot"><span class="annottext">Maybe (a -&gt; b)
+</span><a href="#local-6989586621679212990"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span id="local-6989586621679212991"><span class="annot"><span class="annottext">a -&gt; b
+</span><a href="#local-6989586621679212991"><span class="hs-identifier hs-var">g</span></a></span></span><span> </span><span id="local-6989586621679212992"><span class="annot"><span class="annottext">a -&gt; b
+</span><a href="#local-6989586621679212992"><span class="hs-identifier hs-var">h</span></a></span></span><span> </span><span id="local-6989586621679212993"><span class="annot"><span class="annottext">&lt;*&gt; :: forall a b.
+TwoOrThreeWay (a -&gt; b) -&gt; TwoOrThreeWay a -&gt; TwoOrThreeWay b
+</span><span class="hs-operator hs-var hs-var hs-var">&lt;*&gt;</span></span></span><span> </span><span class="annot"><a href="Unison.Merge.Internal.Types.html#TwoOrThreeWay"><span class="hs-identifier hs-type">TwoOrThreeWay</span></a></span><span> </span><span id="local-6989586621679212994"><span class="annot"><span class="annottext">Maybe a
+</span><a href="#local-6989586621679212994"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span id="local-6989586621679212995"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679212995"><span class="hs-identifier hs-var">y</span></a></span></span><span> </span><span id="local-6989586621679212996"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679212996"><span class="hs-identifier hs-var">z</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-72"></span><span>    </span><span class="annot"><span class="annottext">Maybe b -&gt; b -&gt; b -&gt; TwoOrThreeWay b
+forall a. Maybe a -&gt; a -&gt; a -&gt; TwoOrThreeWay a
+</span><a href="Unison.Merge.Internal.Types.html#TwoOrThreeWay"><span class="hs-identifier hs-var">TwoOrThreeWay</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Maybe (a -&gt; b)
+</span><a href="#local-6989586621679212990"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe (a -&gt; b) -&gt; Maybe a -&gt; Maybe b
+forall a b. Maybe (a -&gt; b) -&gt; Maybe a -&gt; Maybe b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Maybe a
+</span><a href="#local-6989586621679212994"><span class="hs-identifier hs-var">x</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a -&gt; b
+</span><a href="#local-6989586621679212991"><span class="hs-identifier hs-var">g</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679212995"><span class="hs-identifier hs-var">y</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a -&gt; b
+</span><a href="#local-6989586621679212992"><span class="hs-identifier hs-var">h</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679212996"><span class="hs-identifier hs-var">z</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-73"></span><span>
+</span><span id="line-74"></span><span class="hs-keyword">data</span><span> </span><span id="TwoWay"><span class="annot"><a href="Unison.Merge.Internal.Types.html#TwoWay"><span class="hs-identifier hs-var">TwoWay</span></a></span></span><span> </span><span id="local-6989586621679212556"><span class="annot"><a href="#local-6989586621679212556"><span class="hs-identifier hs-type">a</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="TwoWay"><span class="annot"><a href="Unison.Merge.Internal.Types.html#TwoWay"><span class="hs-identifier hs-var">TwoWay</span></a></span></span><span>
+</span><span id="line-75"></span><span>  </span><span class="hs-special">{</span><span> </span><span id="alice"><span class="annot"><span class="annottext">forall a. TwoWay a -&gt; a
+</span><a href="Unison.Merge.Internal.Types.html#alice"><span class="hs-identifier hs-var hs-var">alice</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="#local-6989586621679212556"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-76"></span><span>    </span><span id="bob"><span class="annot"><span class="annottext">forall a. TwoWay a -&gt; a
+</span><a href="Unison.Merge.Internal.Types.html#bob"><span class="hs-identifier hs-var hs-var">bob</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="#local-6989586621679212556"><span class="hs-identifier hs-type">a</span></a></span><span>
+</span><span id="line-77"></span><span>  </span><span class="hs-special">}</span><span>
+</span><span id="line-78"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">stock</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679213001"><span id="local-6989586621679213007"><span id="local-6989586621679213011"><span id="local-6989586621679213016"><span id="local-6989586621679213018"><span id="local-6989586621679213021"><span id="local-6989586621679213024"><span id="local-6989586621679213027"><span id="local-6989586621679213030"><span id="local-6989586621679213033"><span id="local-6989586621679213036"><span id="local-6989586621679213038"><span id="local-6989586621679213041"><span id="local-6989586621679213046"><span id="local-6989586621679213051"><span id="local-6989586621679213056"><span id="local-6989586621679213061"><span class="annot"><span class="annottext">(forall m. Monoid m =&gt; TwoWay m -&gt; m)
+-&gt; (forall m a. Monoid m =&gt; (a -&gt; m) -&gt; TwoWay a -&gt; m)
+-&gt; (forall m a. Monoid m =&gt; (a -&gt; m) -&gt; TwoWay a -&gt; m)
+-&gt; (forall a b. (a -&gt; b -&gt; b) -&gt; b -&gt; TwoWay a -&gt; b)
+-&gt; (forall a b. (a -&gt; b -&gt; b) -&gt; b -&gt; TwoWay a -&gt; b)
+-&gt; (forall b a. (b -&gt; a -&gt; b) -&gt; b -&gt; TwoWay a -&gt; b)
+-&gt; (forall b a. (b -&gt; a -&gt; b) -&gt; b -&gt; TwoWay a -&gt; b)
+-&gt; (forall a. (a -&gt; a -&gt; a) -&gt; TwoWay a -&gt; a)
+-&gt; (forall a. (a -&gt; a -&gt; a) -&gt; TwoWay a -&gt; a)
+-&gt; (forall a. TwoWay a -&gt; [a])
+-&gt; (forall a. TwoWay a -&gt; Bool)
+-&gt; (forall a. TwoWay a -&gt; Int)
+-&gt; (forall a. Eq a =&gt; a -&gt; TwoWay a -&gt; Bool)
+-&gt; (forall a. Ord a =&gt; TwoWay a -&gt; a)
+-&gt; (forall a. Ord a =&gt; TwoWay a -&gt; a)
+-&gt; (forall a. Num a =&gt; TwoWay a -&gt; a)
+-&gt; (forall a. Num a =&gt; TwoWay a -&gt; a)
+-&gt; Foldable TwoWay
+forall a. Eq a =&gt; a -&gt; TwoWay a -&gt; Bool
+forall a. Num a =&gt; TwoWay a -&gt; a
+forall a. Ord a =&gt; TwoWay a -&gt; a
+forall m. Monoid m =&gt; TwoWay m -&gt; m
+forall a. TwoWay a -&gt; Bool
+forall a. TwoWay a -&gt; Int
+forall a. TwoWay a -&gt; [a]
+forall a. (a -&gt; a -&gt; a) -&gt; TwoWay a -&gt; a
+forall m a. Monoid m =&gt; (a -&gt; m) -&gt; TwoWay a -&gt; m
+forall b a. (b -&gt; a -&gt; b) -&gt; b -&gt; TwoWay a -&gt; b
+forall a b. (a -&gt; b -&gt; b) -&gt; b -&gt; TwoWay a -&gt; b
+forall (t :: * -&gt; *).
+(forall m. Monoid m =&gt; t m -&gt; m)
+-&gt; (forall m a. Monoid m =&gt; (a -&gt; m) -&gt; t a -&gt; m)
+-&gt; (forall m a. Monoid m =&gt; (a -&gt; m) -&gt; t a -&gt; m)
+-&gt; (forall a b. (a -&gt; b -&gt; b) -&gt; b -&gt; t a -&gt; b)
+-&gt; (forall a b. (a -&gt; b -&gt; b) -&gt; b -&gt; t a -&gt; b)
+-&gt; (forall b a. (b -&gt; a -&gt; b) -&gt; b -&gt; t a -&gt; b)
+-&gt; (forall b a. (b -&gt; a -&gt; b) -&gt; b -&gt; t a -&gt; b)
+-&gt; (forall a. (a -&gt; a -&gt; a) -&gt; t a -&gt; a)
+-&gt; (forall a. (a -&gt; a -&gt; a) -&gt; t a -&gt; a)
+-&gt; (forall a. t a -&gt; [a])
+-&gt; (forall a. t a -&gt; Bool)
+-&gt; (forall a. t a -&gt; Int)
+-&gt; (forall a. Eq a =&gt; a -&gt; t a -&gt; Bool)
+-&gt; (forall a. Ord a =&gt; t a -&gt; a)
+-&gt; (forall a. Ord a =&gt; t a -&gt; a)
+-&gt; (forall a. Num a =&gt; t a -&gt; a)
+-&gt; (forall a. Num a =&gt; t a -&gt; a)
+-&gt; Foldable t
+$cfold :: forall m. Monoid m =&gt; TwoWay m -&gt; m
+fold :: forall m. Monoid m =&gt; TwoWay m -&gt; m
+$cfoldMap :: forall m a. Monoid m =&gt; (a -&gt; m) -&gt; TwoWay a -&gt; m
+foldMap :: forall m a. Monoid m =&gt; (a -&gt; m) -&gt; TwoWay a -&gt; m
+$cfoldMap' :: forall m a. Monoid m =&gt; (a -&gt; m) -&gt; TwoWay a -&gt; m
+foldMap' :: forall m a. Monoid m =&gt; (a -&gt; m) -&gt; TwoWay a -&gt; m
+$cfoldr :: forall a b. (a -&gt; b -&gt; b) -&gt; b -&gt; TwoWay a -&gt; b
+foldr :: forall a b. (a -&gt; b -&gt; b) -&gt; b -&gt; TwoWay a -&gt; b
+$cfoldr' :: forall a b. (a -&gt; b -&gt; b) -&gt; b -&gt; TwoWay a -&gt; b
+foldr' :: forall a b. (a -&gt; b -&gt; b) -&gt; b -&gt; TwoWay a -&gt; b
+$cfoldl :: forall b a. (b -&gt; a -&gt; b) -&gt; b -&gt; TwoWay a -&gt; b
+foldl :: forall b a. (b -&gt; a -&gt; b) -&gt; b -&gt; TwoWay a -&gt; b
+$cfoldl' :: forall b a. (b -&gt; a -&gt; b) -&gt; b -&gt; TwoWay a -&gt; b
+foldl' :: forall b a. (b -&gt; a -&gt; b) -&gt; b -&gt; TwoWay a -&gt; b
+$cfoldr1 :: forall a. (a -&gt; a -&gt; a) -&gt; TwoWay a -&gt; a
+foldr1 :: forall a. (a -&gt; a -&gt; a) -&gt; TwoWay a -&gt; a
+$cfoldl1 :: forall a. (a -&gt; a -&gt; a) -&gt; TwoWay a -&gt; a
+foldl1 :: forall a. (a -&gt; a -&gt; a) -&gt; TwoWay a -&gt; a
+$ctoList :: forall a. TwoWay a -&gt; [a]
+toList :: forall a. TwoWay a -&gt; [a]
+$cnull :: forall a. TwoWay a -&gt; Bool
+null :: forall a. TwoWay a -&gt; Bool
+$clength :: forall a. TwoWay a -&gt; Int
+length :: forall a. TwoWay a -&gt; Int
+$celem :: forall a. Eq a =&gt; a -&gt; TwoWay a -&gt; Bool
+elem :: forall a. Eq a =&gt; a -&gt; TwoWay a -&gt; Bool
+$cmaximum :: forall a. Ord a =&gt; TwoWay a -&gt; a
+maximum :: forall a. Ord a =&gt; TwoWay a -&gt; a
+$cminimum :: forall a. Ord a =&gt; TwoWay a -&gt; a
+minimum :: forall a. Ord a =&gt; TwoWay a -&gt; a
+$csum :: forall a. Num a =&gt; TwoWay a -&gt; a
+sum :: forall a. Num a =&gt; TwoWay a -&gt; a
+$cproduct :: forall a. Num a =&gt; TwoWay a -&gt; a
+product :: forall a. Num a =&gt; TwoWay a -&gt; a
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Foldable</span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679213066"><span id="local-6989586621679213068"><span class="annot"><span class="annottext">(forall a b. (a -&gt; b) -&gt; TwoWay a -&gt; TwoWay b)
+-&gt; (forall a b. a -&gt; TwoWay b -&gt; TwoWay a) -&gt; Functor TwoWay
+forall a b. a -&gt; TwoWay b -&gt; TwoWay a
+forall a b. (a -&gt; b) -&gt; TwoWay a -&gt; TwoWay b
+forall (f :: * -&gt; *).
+(forall a b. (a -&gt; b) -&gt; f a -&gt; f b)
+-&gt; (forall a b. a -&gt; f b -&gt; f a) -&gt; Functor f
+$cfmap :: forall a b. (a -&gt; b) -&gt; TwoWay a -&gt; TwoWay b
+fmap :: forall a b. (a -&gt; b) -&gt; TwoWay a -&gt; TwoWay b
+$c&lt;$ :: forall a b. a -&gt; TwoWay b -&gt; TwoWay a
+&lt;$ :: forall a b. a -&gt; TwoWay b -&gt; TwoWay a
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Functor</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679213071"><span id="local-6989586621679213073"><span class="annot"><span class="annottext">(forall x. TwoWay a -&gt; Rep (TwoWay a) x)
+-&gt; (forall x. Rep (TwoWay a) x -&gt; TwoWay a) -&gt; Generic (TwoWay a)
+forall x. Rep (TwoWay a) x -&gt; TwoWay a
+forall x. TwoWay a -&gt; Rep (TwoWay a) x
+forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+forall a x. Rep (TwoWay a) x -&gt; TwoWay a
+forall a x. TwoWay a -&gt; Rep (TwoWay a) x
+$cfrom :: forall a x. TwoWay a -&gt; Rep (TwoWay a) x
+from :: forall x. TwoWay a -&gt; Rep (TwoWay a) x
+$cto :: forall a x. Rep (TwoWay a) x -&gt; TwoWay a
+to :: forall x. Rep (TwoWay a) x -&gt; TwoWay a
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Generic</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679213077"><span id="local-6989586621679213083"><span id="local-6989586621679213087"><span class="annot"><span class="annottext">Int -&gt; TwoWay a -&gt; ShowS
+[TwoWay a] -&gt; ShowS
+TwoWay a -&gt; String
+(Int -&gt; TwoWay a -&gt; ShowS)
+-&gt; (TwoWay a -&gt; String) -&gt; ([TwoWay a] -&gt; ShowS) -&gt; Show (TwoWay a)
+forall a. Show a =&gt; Int -&gt; TwoWay a -&gt; ShowS
+forall a. Show a =&gt; [TwoWay a] -&gt; ShowS
+forall a. Show a =&gt; TwoWay a -&gt; String
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: forall a. Show a =&gt; Int -&gt; TwoWay a -&gt; ShowS
+showsPrec :: Int -&gt; TwoWay a -&gt; ShowS
+$cshow :: forall a. Show a =&gt; TwoWay a -&gt; String
+show :: TwoWay a -&gt; String
+$cshowList :: forall a. Show a =&gt; [TwoWay a] -&gt; ShowS
+showList :: [TwoWay a] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679213096"><span id="local-6989586621679213100"><span id="local-6989586621679213106"><span id="local-6989586621679213111"><span class="annot"><span class="annottext">Functor TwoWay
+Foldable TwoWay
+(Functor TwoWay, Foldable TwoWay) =&gt;
+(forall (f :: * -&gt; *) a b.
+ Applicative f =&gt;
+ (a -&gt; f b) -&gt; TwoWay a -&gt; f (TwoWay b))
+-&gt; (forall (f :: * -&gt; *) a.
+    Applicative f =&gt;
+    TwoWay (f a) -&gt; f (TwoWay a))
+-&gt; (forall (m :: * -&gt; *) a b.
+    Monad m =&gt;
+    (a -&gt; m b) -&gt; TwoWay a -&gt; m (TwoWay b))
+-&gt; (forall (m :: * -&gt; *) a.
+    Monad m =&gt;
+    TwoWay (m a) -&gt; m (TwoWay a))
+-&gt; Traversable TwoWay
+forall (t :: * -&gt; *).
+(Functor t, Foldable t) =&gt;
+(forall (f :: * -&gt; *) a b.
+ Applicative f =&gt;
+ (a -&gt; f b) -&gt; t a -&gt; f (t b))
+-&gt; (forall (f :: * -&gt; *) a. Applicative f =&gt; t (f a) -&gt; f (t a))
+-&gt; (forall (m :: * -&gt; *) a b.
+    Monad m =&gt;
+    (a -&gt; m b) -&gt; t a -&gt; m (t b))
+-&gt; (forall (m :: * -&gt; *) a. Monad m =&gt; t (m a) -&gt; m (t a))
+-&gt; Traversable t
+forall (m :: * -&gt; *) a. Monad m =&gt; TwoWay (m a) -&gt; m (TwoWay a)
+forall (f :: * -&gt; *) a.
+Applicative f =&gt;
+TwoWay (f a) -&gt; f (TwoWay a)
+forall (m :: * -&gt; *) a b.
+Monad m =&gt;
+(a -&gt; m b) -&gt; TwoWay a -&gt; m (TwoWay b)
+forall (f :: * -&gt; *) a b.
+Applicative f =&gt;
+(a -&gt; f b) -&gt; TwoWay a -&gt; f (TwoWay b)
+$ctraverse :: forall (f :: * -&gt; *) a b.
+Applicative f =&gt;
+(a -&gt; f b) -&gt; TwoWay a -&gt; f (TwoWay b)
+traverse :: forall (f :: * -&gt; *) a b.
+Applicative f =&gt;
+(a -&gt; f b) -&gt; TwoWay a -&gt; f (TwoWay b)
+$csequenceA :: forall (f :: * -&gt; *) a.
+Applicative f =&gt;
+TwoWay (f a) -&gt; f (TwoWay a)
+sequenceA :: forall (f :: * -&gt; *) a.
+Applicative f =&gt;
+TwoWay (f a) -&gt; f (TwoWay a)
+$cmapM :: forall (m :: * -&gt; *) a b.
+Monad m =&gt;
+(a -&gt; m b) -&gt; TwoWay a -&gt; m (TwoWay b)
+mapM :: forall (m :: * -&gt; *) a b.
+Monad m =&gt;
+(a -&gt; m b) -&gt; TwoWay a -&gt; m (TwoWay b)
+$csequence :: forall (m :: * -&gt; *) a. Monad m =&gt; TwoWay (m a) -&gt; m (TwoWay a)
+sequence :: forall (m :: * -&gt; *) a. Monad m =&gt; TwoWay (m a) -&gt; m (TwoWay a)
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Traversable</span></span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-79"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">anyclass</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679213117"><span class="annot"><span class="annottext">TwoWay a -&gt; ()
+(TwoWay a -&gt; ()) -&gt; NFData (TwoWay a)
+forall a. NFData a =&gt; TwoWay a -&gt; ()
+forall a. (a -&gt; ()) -&gt; NFData a
+$crnf :: forall a. NFData a =&gt; TwoWay a -&gt; ()
+rnf :: TwoWay a -&gt; ()
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">NFData</span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-80"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679213138"><span id="local-6989586621679213145"><span id="local-6989586621679213151"><span class="annot"><span class="annottext">Semigroup (TwoWay a)
+TwoWay a
+Semigroup (TwoWay a) =&gt;
+TwoWay a
+-&gt; (TwoWay a -&gt; TwoWay a -&gt; TwoWay a)
+-&gt; ([TwoWay a] -&gt; TwoWay a)
+-&gt; Monoid (TwoWay a)
+[TwoWay a] -&gt; TwoWay a
+TwoWay a -&gt; TwoWay a -&gt; TwoWay a
+forall a.
+Semigroup a =&gt;
+a -&gt; (a -&gt; a -&gt; a) -&gt; ([a] -&gt; a) -&gt; Monoid a
+forall a. Monoid a =&gt; Semigroup (TwoWay a)
+forall a. Monoid a =&gt; TwoWay a
+forall a. Monoid a =&gt; [TwoWay a] -&gt; TwoWay a
+forall a. Monoid a =&gt; TwoWay a -&gt; TwoWay a -&gt; TwoWay a
+$cmempty :: forall a. Monoid a =&gt; TwoWay a
+mempty :: TwoWay a
+$cmappend :: forall a. Monoid a =&gt; TwoWay a -&gt; TwoWay a -&gt; TwoWay a
+mappend :: TwoWay a -&gt; TwoWay a -&gt; TwoWay a
+$cmconcat :: forall a. Monoid a =&gt; [TwoWay a] -&gt; TwoWay a
+mconcat :: [TwoWay a] -&gt; TwoWay a
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Monoid</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679213182"><span id="local-6989586621679213189"><span id="local-6989586621679213197"><span class="annot"><span class="annottext">NonEmpty (TwoWay a) -&gt; TwoWay a
+TwoWay a -&gt; TwoWay a -&gt; TwoWay a
+(TwoWay a -&gt; TwoWay a -&gt; TwoWay a)
+-&gt; (NonEmpty (TwoWay a) -&gt; TwoWay a)
+-&gt; (forall b. Integral b =&gt; b -&gt; TwoWay a -&gt; TwoWay a)
+-&gt; Semigroup (TwoWay a)
+forall b. Integral b =&gt; b -&gt; TwoWay a -&gt; TwoWay a
+forall a. Semigroup a =&gt; NonEmpty (TwoWay a) -&gt; TwoWay a
+forall a. Semigroup a =&gt; TwoWay a -&gt; TwoWay a -&gt; TwoWay a
+forall a b. (Semigroup a, Integral b) =&gt; b -&gt; TwoWay a -&gt; TwoWay a
+forall a.
+(a -&gt; a -&gt; a)
+-&gt; (NonEmpty a -&gt; a)
+-&gt; (forall b. Integral b =&gt; b -&gt; a -&gt; a)
+-&gt; Semigroup a
+$c&lt;&gt; :: forall a. Semigroup a =&gt; TwoWay a -&gt; TwoWay a -&gt; TwoWay a
+&lt;&gt; :: TwoWay a -&gt; TwoWay a -&gt; TwoWay a
+$csconcat :: forall a. Semigroup a =&gt; NonEmpty (TwoWay a) -&gt; TwoWay a
+sconcat :: NonEmpty (TwoWay a) -&gt; TwoWay a
+$cstimes :: forall a b. (Semigroup a, Integral b) =&gt; b -&gt; TwoWay a -&gt; TwoWay a
+stimes :: forall b. Integral b =&gt; b -&gt; TwoWay a -&gt; TwoWay a
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Semigroup</span></span></span></span></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">via</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">GenericSemigroupMonoid</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Merge.Internal.Types.html#TwoWay"><span class="hs-identifier hs-type">TwoWay</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679212556"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-81"></span><span>
+</span><span id="line-82"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679213233"><span id="local-6989586621679213237"><span id="local-6989586621679213240"><span class="annot"><span class="hs-identifier hs-type">Applicative</span></span><span> </span><span class="annot"><a href="Unison.Merge.Internal.Types.html#TwoWay"><span class="hs-identifier hs-type">TwoWay</span></a></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-83"></span><span>  </span><span id="local-6989586621679213242"><span class="annot"><span class="annottext">pure :: forall a. a -&gt; TwoWay a
+</span><span class="hs-identifier hs-var hs-var hs-var">pure</span></span></span><span> </span><span id="local-6989586621679213243"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679213243"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">a -&gt; a -&gt; TwoWay a
+forall a. a -&gt; a -&gt; TwoWay a
+</span><a href="Unison.Merge.Internal.Types.html#TwoWay"><span class="hs-identifier hs-var">TwoWay</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679213243"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679213243"><span class="hs-identifier hs-var">x</span></a></span><span>
+</span><span id="line-84"></span><span>  </span><span class="annot"><a href="Unison.Merge.Internal.Types.html#TwoWay"><span class="hs-identifier hs-type">TwoWay</span></a></span><span> </span><span id="local-6989586621679213244"><span class="annot"><span class="annottext">a -&gt; b
+</span><a href="#local-6989586621679213244"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span id="local-6989586621679213245"><span class="annot"><span class="annottext">a -&gt; b
+</span><a href="#local-6989586621679213245"><span class="hs-identifier hs-var">g</span></a></span></span><span> </span><span id="local-6989586621679213246"><span class="annot"><span class="annottext">&lt;*&gt; :: forall a b. TwoWay (a -&gt; b) -&gt; TwoWay a -&gt; TwoWay b
+</span><span class="hs-operator hs-var hs-var hs-var">&lt;*&gt;</span></span></span><span> </span><span class="annot"><a href="Unison.Merge.Internal.Types.html#TwoWay"><span class="hs-identifier hs-type">TwoWay</span></a></span><span> </span><span id="local-6989586621679213247"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679213247"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span id="local-6989586621679213248"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679213248"><span class="hs-identifier hs-var">y</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">b -&gt; b -&gt; TwoWay b
+forall a. a -&gt; a -&gt; TwoWay a
+</span><a href="Unison.Merge.Internal.Types.html#TwoWay"><span class="hs-identifier hs-var">TwoWay</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a -&gt; b
+</span><a href="#local-6989586621679213244"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679213247"><span class="hs-identifier hs-var">x</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a -&gt; b
+</span><a href="#local-6989586621679213245"><span class="hs-identifier hs-var">g</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679213248"><span class="hs-identifier hs-var">y</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-85"></span><span>
+</span><span id="line-86"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679213252"><span class="annot"><span class="hs-identifier hs-type">Semialign</span></span><span> </span><span class="annot"><a href="Unison.Merge.Internal.Types.html#TwoWay"><span class="hs-identifier hs-type">TwoWay</span></a></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-87"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">alignWith</span></span><span> </span><span class="hs-glyph">::</span><span> </span><span id="local-6989586621679213256"><span id="local-6989586621679213257"><span id="local-6989586621679213258"><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">These</span></span><span> </span><span class="annot"><a href="#local-6989586621679213256"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679213257"><span class="hs-identifier hs-type">b</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679213258"><span class="hs-identifier hs-type">c</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.Merge.Internal.Types.html#TwoWay"><span class="hs-identifier hs-type">TwoWay</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679213256"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.Merge.Internal.Types.html#TwoWay"><span class="hs-identifier hs-type">TwoWay</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679213257"><span class="hs-identifier hs-type">b</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.Merge.Internal.Types.html#TwoWay"><span class="hs-identifier hs-type">TwoWay</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679213258"><span class="hs-identifier hs-type">c</span></a></span></span></span></span><span>
+</span><span id="line-88"></span><span>  </span><span id="local-6989586621679213261"><span class="annot"><span class="annottext">alignWith :: forall a b c. (These a b -&gt; c) -&gt; TwoWay a -&gt; TwoWay b -&gt; TwoWay c
+</span><span class="hs-identifier hs-var hs-var hs-var">alignWith</span></span></span><span> </span><span id="local-6989586621679213262"><span class="annot"><span class="annottext">These a b -&gt; c
+</span><a href="#local-6989586621679213262"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-89"></span><span>    </span><span class="annot"><span class="annottext">(a -&gt; b -&gt; c) -&gt; TwoWay a -&gt; TwoWay b -&gt; TwoWay c
+forall a b c. (a -&gt; b -&gt; c) -&gt; TwoWay a -&gt; TwoWay b -&gt; TwoWay c
+forall (f :: * -&gt; *) a b c.
+Zip f =&gt;
+(a -&gt; b -&gt; c) -&gt; f a -&gt; f b -&gt; f c
+</span><span class="hs-identifier hs-var">zipWith</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679213263"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679213263"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span id="local-6989586621679213264"><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679213264"><span class="hs-identifier hs-var">y</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">These a b -&gt; c
+</span><a href="#local-6989586621679213262"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a -&gt; b -&gt; These a b
+forall a b. a -&gt; b -&gt; These a b
+</span><span class="hs-identifier hs-var">These</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679213263"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679213264"><span class="hs-identifier hs-var">y</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-90"></span><span>
+</span><span id="line-91"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679213269"><span class="annot"><span class="hs-identifier hs-type">Unzip</span></span><span> </span><span class="annot"><a href="Unison.Merge.Internal.Types.html#TwoWay"><span class="hs-identifier hs-type">TwoWay</span></a></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-92"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">unzipWith</span></span><span> </span><span class="hs-glyph">::</span><span> </span><span id="local-6989586621679213272"><span id="local-6989586621679213273"><span id="local-6989586621679213274"><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679213272"><span class="hs-identifier hs-type">c</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679213273"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679213274"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.Merge.Internal.Types.html#TwoWay"><span class="hs-identifier hs-type">TwoWay</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679213272"><span class="hs-identifier hs-type">c</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Merge.Internal.Types.html#TwoWay"><span class="hs-identifier hs-type">TwoWay</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679213273"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Unison.Merge.Internal.Types.html#TwoWay"><span class="hs-identifier hs-type">TwoWay</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679213274"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">)</span></span></span></span><span>
+</span><span id="line-93"></span><span>  </span><span id="local-6989586621679213275"><span class="annot"><span class="annottext">unzipWith :: forall c a b. (c -&gt; (a, b)) -&gt; TwoWay c -&gt; (TwoWay a, TwoWay b)
+</span><span class="hs-identifier hs-var hs-var hs-var">unzipWith</span></span></span><span> </span><span id="local-6989586621679213276"><span class="annot"><span class="annottext">c -&gt; (a, b)
+</span><a href="#local-6989586621679213276"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Merge.Internal.Types.html#TwoWay"><span class="hs-identifier hs-type">TwoWay</span></a></span><span> </span><span id="local-6989586621679213277"><span class="annot"><span class="annottext">c
+</span><a href="#local-6989586621679213277"><span class="hs-identifier hs-var">cx</span></a></span></span><span> </span><span id="local-6989586621679213278"><span class="annot"><span class="annottext">c
+</span><a href="#local-6989586621679213278"><span class="hs-identifier hs-var">cy</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-94"></span><span>    </span><span class="hs-keyword">let</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679213279"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679213279"><span class="hs-identifier hs-var">ax</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679213280"><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679213280"><span class="hs-identifier hs-var">bx</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">c -&gt; (a, b)
+</span><a href="#local-6989586621679213276"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">c
+</span><a href="#local-6989586621679213277"><span class="hs-identifier hs-var">cx</span></a></span><span>
+</span><span id="line-95"></span><span>        </span><span class="hs-special">(</span><span id="local-6989586621679213281"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679213281"><span class="hs-identifier hs-var">ay</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679213282"><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679213282"><span class="hs-identifier hs-var">by</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">c -&gt; (a, b)
+</span><a href="#local-6989586621679213276"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">c
+</span><a href="#local-6989586621679213278"><span class="hs-identifier hs-var">cy</span></a></span><span>
+</span><span id="line-96"></span><span>     </span><span class="hs-keyword">in</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a -&gt; a -&gt; TwoWay a
+forall a. a -&gt; a -&gt; TwoWay a
+</span><a href="Unison.Merge.Internal.Types.html#TwoWay"><span class="hs-identifier hs-var">TwoWay</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679213279"><span class="hs-identifier hs-var">ax</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679213281"><span class="hs-identifier hs-var">ay</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">b -&gt; b -&gt; TwoWay b
+forall a. a -&gt; a -&gt; TwoWay a
+</span><a href="Unison.Merge.Internal.Types.html#TwoWay"><span class="hs-identifier hs-var">TwoWay</span></a></span><span> </span><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679213280"><span class="hs-identifier hs-var">bx</span></a></span><span> </span><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679213282"><span class="hs-identifier hs-var">by</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-97"></span><span>
+</span><span id="line-98"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679213286"><span class="annot"><span class="hs-identifier hs-type">Zip</span></span><span> </span><span class="annot"><a href="Unison.Merge.Internal.Types.html#TwoWay"><span class="hs-identifier hs-type">TwoWay</span></a></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-99"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">zipWith</span></span><span> </span><span class="hs-glyph">::</span><span> </span><span id="local-6989586621679213289"><span id="local-6989586621679213290"><span id="local-6989586621679213291"><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679213289"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679213290"><span class="hs-identifier hs-type">b</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679213291"><span class="hs-identifier hs-type">c</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.Merge.Internal.Types.html#TwoWay"><span class="hs-identifier hs-type">TwoWay</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679213289"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.Merge.Internal.Types.html#TwoWay"><span class="hs-identifier hs-type">TwoWay</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679213290"><span class="hs-identifier hs-type">b</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.Merge.Internal.Types.html#TwoWay"><span class="hs-identifier hs-type">TwoWay</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679213291"><span class="hs-identifier hs-type">c</span></a></span></span></span></span><span>
+</span><span id="line-100"></span><span>  </span><span id="local-6989586621679213292"><span class="annot"><span class="annottext">zipWith :: forall a b c. (a -&gt; b -&gt; c) -&gt; TwoWay a -&gt; TwoWay b -&gt; TwoWay c
+</span><span class="hs-identifier hs-var hs-var hs-var">zipWith</span></span></span><span> </span><span id="local-6989586621679213293"><span class="annot"><span class="annottext">a -&gt; b -&gt; c
+</span><a href="#local-6989586621679213293"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Merge.Internal.Types.html#TwoWay"><span class="hs-identifier hs-type">TwoWay</span></a></span><span> </span><span id="local-6989586621679213294"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679213294"><span class="hs-identifier hs-var">x1</span></a></span></span><span> </span><span id="local-6989586621679213295"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679213295"><span class="hs-identifier hs-var">x2</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Merge.Internal.Types.html#TwoWay"><span class="hs-identifier hs-type">TwoWay</span></a></span><span> </span><span id="local-6989586621679213296"><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679213296"><span class="hs-identifier hs-var">y1</span></a></span></span><span> </span><span id="local-6989586621679213297"><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679213297"><span class="hs-identifier hs-var">y2</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-101"></span><span>    </span><span class="annot"><span class="annottext">c -&gt; c -&gt; TwoWay c
+forall a. a -&gt; a -&gt; TwoWay a
+</span><a href="Unison.Merge.Internal.Types.html#TwoWay"><span class="hs-identifier hs-var">TwoWay</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a -&gt; b -&gt; c
+</span><a href="#local-6989586621679213293"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679213294"><span class="hs-identifier hs-var">x1</span></a></span><span> </span><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679213296"><span class="hs-identifier hs-var">y1</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a -&gt; b -&gt; c
+</span><a href="#local-6989586621679213293"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679213295"><span class="hs-identifier hs-var">x2</span></a></span><span> </span><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679213297"><span class="hs-identifier hs-var">y2</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-102"></span></pre></body></html>

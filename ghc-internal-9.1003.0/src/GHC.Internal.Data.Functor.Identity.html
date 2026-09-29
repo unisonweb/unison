@@ -1,0 +1,1030 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE DeriveGeneric #-}</span><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# LANGUAGE GeneralizedNewtypeDeriving #-}</span><span>
+</span><span id="line-3"></span><span class="hs-pragma">{-# LANGUAGE NoImplicitPrelude #-}</span><span>
+</span><span id="line-4"></span><span class="hs-pragma">{-# LANGUAGE Trustworthy #-}</span><span>
+</span><span id="line-5"></span><span>
+</span><span id="line-6"></span><span class="hs-comment">-----------------------------------------------------------------------------</span><span>
+</span><span id="line-7"></span><span class="hs-comment">-- |</span><span>
+</span><span id="line-8"></span><span class="hs-comment">-- Module      :  GHC.Internal.Data.Functor.Identity</span><span>
+</span><span id="line-9"></span><span class="hs-comment">-- Copyright   :  (c) Andy Gill 2001,</span><span>
+</span><span id="line-10"></span><span class="hs-comment">--                (c) Oregon Graduate Institute of Science and Technology 2001</span><span>
+</span><span id="line-11"></span><span class="hs-comment">-- License     :  BSD-style (see the file LICENSE)</span><span>
+</span><span id="line-12"></span><span class="hs-comment">--</span><span>
+</span><span id="line-13"></span><span class="hs-comment">-- Maintainer  :  ross@soi.city.ac.uk</span><span>
+</span><span id="line-14"></span><span class="hs-comment">-- Stability   :  stable</span><span>
+</span><span id="line-15"></span><span class="hs-comment">-- Portability :  portable</span><span>
+</span><span id="line-16"></span><span class="hs-comment">--</span><span>
+</span><span id="line-17"></span><span class="hs-comment">-- The identity functor and monad.</span><span>
+</span><span id="line-18"></span><span class="hs-comment">--</span><span>
+</span><span id="line-19"></span><span class="hs-comment">-- This trivial type constructor serves two purposes:</span><span>
+</span><span id="line-20"></span><span class="hs-comment">--</span><span>
+</span><span id="line-21"></span><span class="hs-comment">-- * It can be used with functions parameterized by functor or monad classes.</span><span>
+</span><span id="line-22"></span><span class="hs-comment">--</span><span>
+</span><span id="line-23"></span><span class="hs-comment">-- * It can be used as a base monad to which a series of monad</span><span>
+</span><span id="line-24"></span><span class="hs-comment">--   transformers may be applied to construct a composite monad.</span><span>
+</span><span id="line-25"></span><span class="hs-comment">--   Most monad transformer modules include the special case of</span><span>
+</span><span id="line-26"></span><span class="hs-comment">--   applying the transformer to 'Identity'.  For example, @State s@</span><span>
+</span><span id="line-27"></span><span class="hs-comment">--   is an abbreviation for @StateT s 'Identity'@.</span><span>
+</span><span id="line-28"></span><span class="hs-comment">--</span><span>
+</span><span id="line-29"></span><span class="hs-comment">-- @since base-4.8.0.0</span><span>
+</span><span id="line-30"></span><span class="hs-comment">-----------------------------------------------------------------------------</span><span>
+</span><span id="line-31"></span><span>
+</span><span id="line-32"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="GHC.Internal.Data.Functor.Identity.html"><span class="hs-identifier">GHC.Internal.Data.Functor.Identity</span></a></span><span> </span><span class="hs-special">(</span><span>
+</span><span id="line-33"></span><span>    </span><span class="annot"><a href="GHC.Internal.Data.Functor.Identity.html#Identity"><span class="hs-identifier">Identity</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-34"></span><span>  </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-35"></span><span>
+</span><span id="line-36"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Internal.Control.Monad.Fix.html"><span class="hs-identifier">GHC.Internal.Control.Monad.Fix</span></a></span><span>
+</span><span id="line-37"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Internal.Data.Bits.html"><span class="hs-identifier">GHC.Internal.Data.Bits</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Internal.Bits.html#Bits"><span class="hs-identifier">Bits</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Internal.Bits.html#FiniteBits"><span class="hs-identifier">FiniteBits</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-38"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Internal.Data.Coerce.html"><span class="hs-identifier">GHC.Internal.Data.Coerce</span></a></span><span>
+</span><span id="line-39"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Internal.Data.Foldable.html"><span class="hs-identifier">GHC.Internal.Data.Foldable</span></a></span><span>
+</span><span id="line-40"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Internal.Data.Functor.Utils.html"><span class="hs-identifier">GHC.Internal.Data.Functor.Utils</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Internal.Data.Functor.Utils.html#%23."><span class="hs-operator">(#.)</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-41"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Internal.Foreign.Storable.html"><span class="hs-identifier">GHC.Internal.Foreign.Storable</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Internal.Foreign.Storable.html#Storable"><span class="hs-identifier">Storable</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-42"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Internal.Ix.html"><span class="hs-identifier">GHC.Internal.Ix</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Internal.Ix.html#Ix"><span class="hs-identifier">Ix</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-43"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Internal.Base.html"><span class="hs-identifier">GHC.Internal.Base</span></a></span><span> </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="GHC.Internal.Base.html#Applicative"><span class="hs-identifier">Applicative</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><a href="../../ghc-prim-0.12.0-595c/src/GHC.Classes.html#Eq"><span class="hs-identifier">Eq</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Internal.Base.html#Functor"><span class="hs-identifier">Functor</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Internal.Base.html#Monad"><span class="hs-identifier">Monad</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-44"></span><span>                </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Internal.Base.html#Semigroup"><span class="hs-identifier">Semigroup</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Internal.Base.html#Monoid"><span class="hs-identifier">Monoid</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="../../ghc-prim-0.12.0-595c/src/GHC.Classes.html#Ord"><span class="hs-identifier">Ord</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Internal.Base.html#%24"><span class="hs-operator">($)</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Internal.Base.html#."><span class="hs-operator">(.)</span></a></span><span> </span><span class="hs-special">)</span><span>
+</span><span id="line-45"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Internal.Enum.html"><span class="hs-identifier">GHC.Internal.Enum</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Internal.Enum.html#Bounded"><span class="hs-identifier">Bounded</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Internal.Enum.html#Enum"><span class="hs-identifier">Enum</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-46"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Internal.Float.html"><span class="hs-identifier">GHC.Internal.Float</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Internal.Float.html#Floating"><span class="hs-identifier">Floating</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Internal.Float.html#RealFloat"><span class="hs-identifier">RealFloat</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-47"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Internal.Generics.html"><span class="hs-identifier">GHC.Internal.Generics</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Internal.Generics.html#Generic"><span class="hs-identifier">Generic</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Internal.Generics.html#Generic1"><span class="hs-identifier">Generic1</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-48"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Internal.Num.html"><span class="hs-identifier">GHC.Internal.Num</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Internal.Num.html#Num"><span class="hs-identifier">Num</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-49"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Internal.Read.html"><span class="hs-identifier">GHC.Internal.Read</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Internal.Read.html#Read"><span class="hs-identifier">Read</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Internal.Read.html#lex"><span class="hs-identifier">lex</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Internal.Read.html#readParen"><span class="hs-identifier">readParen</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-50"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Internal.Real.html"><span class="hs-identifier">GHC.Internal.Real</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Internal.Real.html#Fractional"><span class="hs-identifier">Fractional</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Internal.Real.html#Integral"><span class="hs-identifier">Integral</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Internal.Real.html#Real"><span class="hs-identifier">Real</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Internal.Real.html#RealFrac"><span class="hs-identifier">RealFrac</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-51"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Internal.Show.html"><span class="hs-identifier">GHC.Internal.Show</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Internal.Show.html#Show"><span class="hs-identifier">Show</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Internal.Show.html#showParen"><span class="hs-identifier">showParen</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Internal.Show.html#showString"><span class="hs-identifier">showString</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-52"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../ghc-prim-0.12.0-595c/src/GHC.Types.html"><span class="hs-identifier">GHC.Types</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="../../ghc-prim-0.12.0-595c/src/GHC.Types.html#Bool"><span class="hs-identifier">Bool</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-53"></span><span>
+</span><span id="line-54"></span><span class="hs-comment">-- | Identity functor and monad. (a non-strict monad)</span><span>
+</span><span id="line-55"></span><span class="hs-comment">--</span><span>
+</span><span id="line-56"></span><span class="hs-comment">-- ==== __Examples__</span><span>
+</span><span id="line-57"></span><span class="hs-comment">--</span><span>
+</span><span id="line-58"></span><span class="hs-comment">-- &gt;&gt;&gt; fmap (+1) (Identity 0)</span><span>
+</span><span id="line-59"></span><span class="hs-comment">-- Identity 1</span><span>
+</span><span id="line-60"></span><span class="hs-comment">--</span><span>
+</span><span id="line-61"></span><span class="hs-comment">-- &gt;&gt;&gt; Identity [1, 2, 3] &lt;&gt; Identity [4, 5, 6]</span><span>
+</span><span id="line-62"></span><span class="hs-comment">-- Identity [1,2,3,4,5,6]</span><span>
+</span><span id="line-63"></span><span class="hs-comment">--</span><span>
+</span><span id="line-64"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-65"></span><span class="hs-comment">-- &gt;&gt;&gt; do</span><span>
+</span><span id="line-66"></span><span class="hs-comment">--       x &lt;- Identity 10</span><span>
+</span><span id="line-67"></span><span class="hs-comment">--       y &lt;- Identity (x + 5)</span><span>
+</span><span id="line-68"></span><span class="hs-comment">--       pure (x + y)</span><span>
+</span><span id="line-69"></span><span class="hs-comment">-- Identity 25</span><span>
+</span><span id="line-70"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-71"></span><span class="hs-comment">--</span><span>
+</span><span id="line-72"></span><span class="hs-comment">-- @since base-4.8.0.0</span><span>
+</span><span id="line-73"></span><span class="hs-keyword">newtype</span><span> </span><span id="Identity"><span class="annot"><a href="GHC.Internal.Data.Functor.Identity.html#Identity"><span class="hs-identifier hs-var">Identity</span></a></span></span><span> </span><span id="local-6989586621679676190"><span class="annot"><a href="#local-6989586621679676190"><span class="hs-identifier hs-type">a</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="Identity"><span class="annot"><a href="GHC.Internal.Data.Functor.Identity.html#Identity"><span class="hs-identifier hs-var">Identity</span></a></span></span><span> </span><span class="hs-special">{</span><span> </span><span id="runIdentity"><span class="annot"><span class="annottext">forall a. Identity a -&gt; a
+</span><a href="GHC.Internal.Data.Functor.Identity.html#runIdentity"><span class="hs-identifier hs-var hs-var">runIdentity</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="#local-6989586621679676190"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-special">}</span><span>
+</span><span id="line-74"></span><span>    </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span> </span><span id="local-6989586621679676385"><span id="local-6989586621679676389"><span id="local-6989586621679676393"><span id="local-6989586621679676397"><span id="local-6989586621679676401"><span id="local-6989586621679676405"><span id="local-6989586621679676409"><span id="local-6989586621679676413"><span id="local-6989586621679676417"><span id="local-6989586621679676421"><span id="local-6989586621679676425"><span id="local-6989586621679676429"><span id="local-6989586621679676433"><span id="local-6989586621679676437"><span id="local-6989586621679676441"><span id="local-6989586621679676445"><span id="local-6989586621679676449"><span id="local-6989586621679676453"><span id="local-6989586621679676457"><span id="local-6989586621679676461"><span id="local-6989586621679676465"><span id="local-6989586621679676469"><span class="annot"><span class="annottext">Eq (Identity a)
+Identity a
+Eq (Identity a) =&gt;
+(Identity a -&gt; Identity a -&gt; Identity a)
+-&gt; (Identity a -&gt; Identity a -&gt; Identity a)
+-&gt; (Identity a -&gt; Identity a -&gt; Identity a)
+-&gt; (Identity a -&gt; Identity a)
+-&gt; (Identity a -&gt; Int -&gt; Identity a)
+-&gt; (Identity a -&gt; Int -&gt; Identity a)
+-&gt; Identity a
+-&gt; (Int -&gt; Identity a)
+-&gt; (Identity a -&gt; Int -&gt; Identity a)
+-&gt; (Identity a -&gt; Int -&gt; Identity a)
+-&gt; (Identity a -&gt; Int -&gt; Identity a)
+-&gt; (Identity a -&gt; Int -&gt; Bool)
+-&gt; (Identity a -&gt; Maybe Int)
+-&gt; (Identity a -&gt; Int)
+-&gt; (Identity a -&gt; Bool)
+-&gt; (Identity a -&gt; Int -&gt; Identity a)
+-&gt; (Identity a -&gt; Int -&gt; Identity a)
+-&gt; (Identity a -&gt; Int -&gt; Identity a)
+-&gt; (Identity a -&gt; Int -&gt; Identity a)
+-&gt; (Identity a -&gt; Int -&gt; Identity a)
+-&gt; (Identity a -&gt; Int -&gt; Identity a)
+-&gt; (Identity a -&gt; Int)
+-&gt; Bits (Identity a)
+Int -&gt; Identity a
+Identity a -&gt; Bool
+Identity a -&gt; Int
+Identity a -&gt; Maybe Int
+Identity a -&gt; Identity a
+Identity a -&gt; Int -&gt; Bool
+Identity a -&gt; Int -&gt; Identity a
+Identity a -&gt; Identity a -&gt; Identity a
+forall a.
+Eq a =&gt;
+(a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a)
+-&gt; (a -&gt; Int -&gt; a)
+-&gt; (a -&gt; Int -&gt; a)
+-&gt; a
+-&gt; (Int -&gt; a)
+-&gt; (a -&gt; Int -&gt; a)
+-&gt; (a -&gt; Int -&gt; a)
+-&gt; (a -&gt; Int -&gt; a)
+-&gt; (a -&gt; Int -&gt; Bool)
+-&gt; (a -&gt; Maybe Int)
+-&gt; (a -&gt; Int)
+-&gt; (a -&gt; Bool)
+-&gt; (a -&gt; Int -&gt; a)
+-&gt; (a -&gt; Int -&gt; a)
+-&gt; (a -&gt; Int -&gt; a)
+-&gt; (a -&gt; Int -&gt; a)
+-&gt; (a -&gt; Int -&gt; a)
+-&gt; (a -&gt; Int -&gt; a)
+-&gt; (a -&gt; Int)
+-&gt; Bits a
+forall a. Bits a =&gt; Eq (Identity a)
+forall a. Bits a =&gt; Identity a
+forall a. Bits a =&gt; Int -&gt; Identity a
+forall a. Bits a =&gt; Identity a -&gt; Bool
+forall a. Bits a =&gt; Identity a -&gt; Int
+forall a. Bits a =&gt; Identity a -&gt; Maybe Int
+forall a. Bits a =&gt; Identity a -&gt; Identity a
+forall a. Bits a =&gt; Identity a -&gt; Int -&gt; Bool
+forall a. Bits a =&gt; Identity a -&gt; Int -&gt; Identity a
+forall a. Bits a =&gt; Identity a -&gt; Identity a -&gt; Identity a
+$c.&amp;. :: forall a. Bits a =&gt; Identity a -&gt; Identity a -&gt; Identity a
+.&amp;. :: Identity a -&gt; Identity a -&gt; Identity a
+$c.|. :: forall a. Bits a =&gt; Identity a -&gt; Identity a -&gt; Identity a
+.|. :: Identity a -&gt; Identity a -&gt; Identity a
+$cxor :: forall a. Bits a =&gt; Identity a -&gt; Identity a -&gt; Identity a
+xor :: Identity a -&gt; Identity a -&gt; Identity a
+$ccomplement :: forall a. Bits a =&gt; Identity a -&gt; Identity a
+complement :: Identity a -&gt; Identity a
+$cshift :: forall a. Bits a =&gt; Identity a -&gt; Int -&gt; Identity a
+shift :: Identity a -&gt; Int -&gt; Identity a
+$crotate :: forall a. Bits a =&gt; Identity a -&gt; Int -&gt; Identity a
+rotate :: Identity a -&gt; Int -&gt; Identity a
+$czeroBits :: forall a. Bits a =&gt; Identity a
+zeroBits :: Identity a
+$cbit :: forall a. Bits a =&gt; Int -&gt; Identity a
+bit :: Int -&gt; Identity a
+$csetBit :: forall a. Bits a =&gt; Identity a -&gt; Int -&gt; Identity a
+setBit :: Identity a -&gt; Int -&gt; Identity a
+$cclearBit :: forall a. Bits a =&gt; Identity a -&gt; Int -&gt; Identity a
+clearBit :: Identity a -&gt; Int -&gt; Identity a
+$ccomplementBit :: forall a. Bits a =&gt; Identity a -&gt; Int -&gt; Identity a
+complementBit :: Identity a -&gt; Int -&gt; Identity a
+$ctestBit :: forall a. Bits a =&gt; Identity a -&gt; Int -&gt; Bool
+testBit :: Identity a -&gt; Int -&gt; Bool
+$cbitSizeMaybe :: forall a. Bits a =&gt; Identity a -&gt; Maybe Int
+bitSizeMaybe :: Identity a -&gt; Maybe Int
+$cbitSize :: forall a. Bits a =&gt; Identity a -&gt; Int
+bitSize :: Identity a -&gt; Int
+$cisSigned :: forall a. Bits a =&gt; Identity a -&gt; Bool
+isSigned :: Identity a -&gt; Bool
+$cshiftL :: forall a. Bits a =&gt; Identity a -&gt; Int -&gt; Identity a
+shiftL :: Identity a -&gt; Int -&gt; Identity a
+$cunsafeShiftL :: forall a. Bits a =&gt; Identity a -&gt; Int -&gt; Identity a
+unsafeShiftL :: Identity a -&gt; Int -&gt; Identity a
+$cshiftR :: forall a. Bits a =&gt; Identity a -&gt; Int -&gt; Identity a
+shiftR :: Identity a -&gt; Int -&gt; Identity a
+$cunsafeShiftR :: forall a. Bits a =&gt; Identity a -&gt; Int -&gt; Identity a
+unsafeShiftR :: Identity a -&gt; Int -&gt; Identity a
+$crotateL :: forall a. Bits a =&gt; Identity a -&gt; Int -&gt; Identity a
+rotateL :: Identity a -&gt; Int -&gt; Identity a
+$crotateR :: forall a. Bits a =&gt; Identity a -&gt; Int -&gt; Identity a
+rotateR :: Identity a -&gt; Int -&gt; Identity a
+$cpopCount :: forall a. Bits a =&gt; Identity a -&gt; Int
+popCount :: Identity a -&gt; Int
+</span><a href="GHC.Internal.Bits.html#Bits"><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Bits</span></a></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span><span>       </span><span class="annot"><span class="hs-comment">-- ^ @since base-4.9.0.0</span></span><span>
+</span><span id="line-75"></span><span>             </span><span class="hs-special">,</span><span> </span><span id="local-6989586621679676499"><span id="local-6989586621679676503"><span class="annot"><span class="annottext">Identity a
+Identity a -&gt; Identity a -&gt; Bounded (Identity a)
+forall a. a -&gt; a -&gt; Bounded a
+forall a. Bounded a =&gt; Identity a
+$cminBound :: forall a. Bounded a =&gt; Identity a
+minBound :: Identity a
+$cmaxBound :: forall a. Bounded a =&gt; Identity a
+maxBound :: Identity a
+</span><a href="GHC.Internal.Enum.html#Bounded"><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Bounded</span></a></span></span></span><span>    </span><span class="annot"><span class="hs-comment">-- ^ @since base-4.9.0.0</span></span><span>
+</span><span id="line-76"></span><span>             </span><span class="hs-special">,</span><span> </span><span id="local-6989586621679676512"><span id="local-6989586621679676516"><span id="local-6989586621679676520"><span id="local-6989586621679676524"><span id="local-6989586621679676528"><span id="local-6989586621679676532"><span id="local-6989586621679676536"><span id="local-6989586621679676540"><span class="annot"><span class="annottext">Int -&gt; Identity a
+Identity a -&gt; Int
+Identity a -&gt; [Identity a]
+Identity a -&gt; Identity a
+Identity a -&gt; Identity a -&gt; [Identity a]
+Identity a -&gt; Identity a -&gt; Identity a -&gt; [Identity a]
+(Identity a -&gt; Identity a)
+-&gt; (Identity a -&gt; Identity a)
+-&gt; (Int -&gt; Identity a)
+-&gt; (Identity a -&gt; Int)
+-&gt; (Identity a -&gt; [Identity a])
+-&gt; (Identity a -&gt; Identity a -&gt; [Identity a])
+-&gt; (Identity a -&gt; Identity a -&gt; [Identity a])
+-&gt; (Identity a -&gt; Identity a -&gt; Identity a -&gt; [Identity a])
+-&gt; Enum (Identity a)
+forall a. Enum a =&gt; Int -&gt; Identity a
+forall a. Enum a =&gt; Identity a -&gt; Int
+forall a. Enum a =&gt; Identity a -&gt; [Identity a]
+forall a. Enum a =&gt; Identity a -&gt; Identity a
+forall a. Enum a =&gt; Identity a -&gt; Identity a -&gt; [Identity a]
+forall a.
+Enum a =&gt;
+Identity a -&gt; Identity a -&gt; Identity a -&gt; [Identity a]
+forall a.
+(a -&gt; a)
+-&gt; (a -&gt; a)
+-&gt; (Int -&gt; a)
+-&gt; (a -&gt; Int)
+-&gt; (a -&gt; [a])
+-&gt; (a -&gt; a -&gt; [a])
+-&gt; (a -&gt; a -&gt; [a])
+-&gt; (a -&gt; a -&gt; a -&gt; [a])
+-&gt; Enum a
+$csucc :: forall a. Enum a =&gt; Identity a -&gt; Identity a
+succ :: Identity a -&gt; Identity a
+$cpred :: forall a. Enum a =&gt; Identity a -&gt; Identity a
+pred :: Identity a -&gt; Identity a
+$ctoEnum :: forall a. Enum a =&gt; Int -&gt; Identity a
+toEnum :: Int -&gt; Identity a
+$cfromEnum :: forall a. Enum a =&gt; Identity a -&gt; Int
+fromEnum :: Identity a -&gt; Int
+$cenumFrom :: forall a. Enum a =&gt; Identity a -&gt; [Identity a]
+enumFrom :: Identity a -&gt; [Identity a]
+$cenumFromThen :: forall a. Enum a =&gt; Identity a -&gt; Identity a -&gt; [Identity a]
+enumFromThen :: Identity a -&gt; Identity a -&gt; [Identity a]
+$cenumFromTo :: forall a. Enum a =&gt; Identity a -&gt; Identity a -&gt; [Identity a]
+enumFromTo :: Identity a -&gt; Identity a -&gt; [Identity a]
+$cenumFromThenTo :: forall a.
+Enum a =&gt;
+Identity a -&gt; Identity a -&gt; Identity a -&gt; [Identity a]
+enumFromThenTo :: Identity a -&gt; Identity a -&gt; Identity a -&gt; [Identity a]
+</span><a href="GHC.Internal.Enum.html#Enum"><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Enum</span></a></span></span></span></span></span></span></span></span></span><span>       </span><span class="annot"><span class="hs-comment">-- ^ @since base-4.9.0.0</span></span><span>
+</span><span id="line-77"></span><span>             </span><span class="hs-special">,</span><span> </span><span id="local-6989586621679676551"><span id="local-6989586621679676555"><span class="annot"><span class="annottext">Identity a -&gt; Identity a -&gt; Bool
+(Identity a -&gt; Identity a -&gt; Bool)
+-&gt; (Identity a -&gt; Identity a -&gt; Bool) -&gt; Eq (Identity a)
+forall a. Eq a =&gt; Identity a -&gt; Identity a -&gt; Bool
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: forall a. Eq a =&gt; Identity a -&gt; Identity a -&gt; Bool
+== :: Identity a -&gt; Identity a -&gt; Bool
+$c/= :: forall a. Eq a =&gt; Identity a -&gt; Identity a -&gt; Bool
+/= :: Identity a -&gt; Identity a -&gt; Bool
+</span><a href="../../ghc-prim-0.12.0-595c/src/GHC.Classes.html#Eq"><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></a></span></span></span><span>         </span><span class="annot"><span class="hs-comment">-- ^ @since base-4.8.0.0</span></span><span>
+</span><span id="line-78"></span><span>             </span><span class="hs-special">,</span><span> </span><span id="local-6989586621679676565"><span id="local-6989586621679676569"><span id="local-6989586621679676573"><span class="annot"><span class="annottext">Bits (Identity a)
+Bits (Identity a) =&gt;
+(Identity a -&gt; Int)
+-&gt; (Identity a -&gt; Int)
+-&gt; (Identity a -&gt; Int)
+-&gt; FiniteBits (Identity a)
+Identity a -&gt; Int
+forall a. FiniteBits a =&gt; Bits (Identity a)
+forall a. FiniteBits a =&gt; Identity a -&gt; Int
+forall b.
+Bits b =&gt;
+(b -&gt; Int) -&gt; (b -&gt; Int) -&gt; (b -&gt; Int) -&gt; FiniteBits b
+$cfiniteBitSize :: forall a. FiniteBits a =&gt; Identity a -&gt; Int
+finiteBitSize :: Identity a -&gt; Int
+$ccountLeadingZeros :: forall a. FiniteBits a =&gt; Identity a -&gt; Int
+countLeadingZeros :: Identity a -&gt; Int
+$ccountTrailingZeros :: forall a. FiniteBits a =&gt; Identity a -&gt; Int
+countTrailingZeros :: Identity a -&gt; Int
+</span><a href="GHC.Internal.Bits.html#FiniteBits"><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">FiniteBits</span></a></span></span></span></span><span> </span><span class="annot"><span class="hs-comment">-- ^ @since base-4.9.0.0</span></span><span>
+</span><span id="line-79"></span><span>             </span><span class="hs-special">,</span><span> </span><span id="local-6989586621679676588"><span id="local-6989586621679676592"><span id="local-6989586621679676596"><span id="local-6989586621679676600"><span id="local-6989586621679676604"><span id="local-6989586621679676608"><span id="local-6989586621679676612"><span id="local-6989586621679676616"><span id="local-6989586621679676620"><span id="local-6989586621679676624"><span id="local-6989586621679676628"><span id="local-6989586621679676632"><span id="local-6989586621679676636"><span id="local-6989586621679676640"><span id="local-6989586621679676644"><span id="local-6989586621679676648"><span id="local-6989586621679676652"><span id="local-6989586621679676656"><span id="local-6989586621679676660"><span id="local-6989586621679676664"><span id="local-6989586621679676668"><span id="local-6989586621679676672"><span class="annot"><span class="annottext">Fractional (Identity a)
+Identity a
+Fractional (Identity a) =&gt;
+Identity a
+-&gt; (Identity a -&gt; Identity a)
+-&gt; (Identity a -&gt; Identity a)
+-&gt; (Identity a -&gt; Identity a)
+-&gt; (Identity a -&gt; Identity a -&gt; Identity a)
+-&gt; (Identity a -&gt; Identity a -&gt; Identity a)
+-&gt; (Identity a -&gt; Identity a)
+-&gt; (Identity a -&gt; Identity a)
+-&gt; (Identity a -&gt; Identity a)
+-&gt; (Identity a -&gt; Identity a)
+-&gt; (Identity a -&gt; Identity a)
+-&gt; (Identity a -&gt; Identity a)
+-&gt; (Identity a -&gt; Identity a)
+-&gt; (Identity a -&gt; Identity a)
+-&gt; (Identity a -&gt; Identity a)
+-&gt; (Identity a -&gt; Identity a)
+-&gt; (Identity a -&gt; Identity a)
+-&gt; (Identity a -&gt; Identity a)
+-&gt; (Identity a -&gt; Identity a)
+-&gt; (Identity a -&gt; Identity a)
+-&gt; (Identity a -&gt; Identity a)
+-&gt; (Identity a -&gt; Identity a)
+-&gt; Floating (Identity a)
+Identity a -&gt; Identity a
+Identity a -&gt; Identity a -&gt; Identity a
+forall a. Floating a =&gt; Fractional (Identity a)
+forall a. Floating a =&gt; Identity a
+forall a. Floating a =&gt; Identity a -&gt; Identity a
+forall a. Floating a =&gt; Identity a -&gt; Identity a -&gt; Identity a
+forall a.
+Fractional a =&gt;
+a
+-&gt; (a -&gt; a)
+-&gt; (a -&gt; a)
+-&gt; (a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a)
+-&gt; (a -&gt; a)
+-&gt; (a -&gt; a)
+-&gt; (a -&gt; a)
+-&gt; (a -&gt; a)
+-&gt; (a -&gt; a)
+-&gt; (a -&gt; a)
+-&gt; (a -&gt; a)
+-&gt; (a -&gt; a)
+-&gt; (a -&gt; a)
+-&gt; (a -&gt; a)
+-&gt; (a -&gt; a)
+-&gt; (a -&gt; a)
+-&gt; (a -&gt; a)
+-&gt; (a -&gt; a)
+-&gt; (a -&gt; a)
+-&gt; Floating a
+$cpi :: forall a. Floating a =&gt; Identity a
+pi :: Identity a
+$cexp :: forall a. Floating a =&gt; Identity a -&gt; Identity a
+exp :: Identity a -&gt; Identity a
+$clog :: forall a. Floating a =&gt; Identity a -&gt; Identity a
+log :: Identity a -&gt; Identity a
+$csqrt :: forall a. Floating a =&gt; Identity a -&gt; Identity a
+sqrt :: Identity a -&gt; Identity a
+$c** :: forall a. Floating a =&gt; Identity a -&gt; Identity a -&gt; Identity a
+** :: Identity a -&gt; Identity a -&gt; Identity a
+$clogBase :: forall a. Floating a =&gt; Identity a -&gt; Identity a -&gt; Identity a
+logBase :: Identity a -&gt; Identity a -&gt; Identity a
+$csin :: forall a. Floating a =&gt; Identity a -&gt; Identity a
+sin :: Identity a -&gt; Identity a
+$ccos :: forall a. Floating a =&gt; Identity a -&gt; Identity a
+cos :: Identity a -&gt; Identity a
+$ctan :: forall a. Floating a =&gt; Identity a -&gt; Identity a
+tan :: Identity a -&gt; Identity a
+$casin :: forall a. Floating a =&gt; Identity a -&gt; Identity a
+asin :: Identity a -&gt; Identity a
+$cacos :: forall a. Floating a =&gt; Identity a -&gt; Identity a
+acos :: Identity a -&gt; Identity a
+$catan :: forall a. Floating a =&gt; Identity a -&gt; Identity a
+atan :: Identity a -&gt; Identity a
+$csinh :: forall a. Floating a =&gt; Identity a -&gt; Identity a
+sinh :: Identity a -&gt; Identity a
+$ccosh :: forall a. Floating a =&gt; Identity a -&gt; Identity a
+cosh :: Identity a -&gt; Identity a
+$ctanh :: forall a. Floating a =&gt; Identity a -&gt; Identity a
+tanh :: Identity a -&gt; Identity a
+$casinh :: forall a. Floating a =&gt; Identity a -&gt; Identity a
+asinh :: Identity a -&gt; Identity a
+$cacosh :: forall a. Floating a =&gt; Identity a -&gt; Identity a
+acosh :: Identity a -&gt; Identity a
+$catanh :: forall a. Floating a =&gt; Identity a -&gt; Identity a
+atanh :: Identity a -&gt; Identity a
+$clog1p :: forall a. Floating a =&gt; Identity a -&gt; Identity a
+log1p :: Identity a -&gt; Identity a
+$cexpm1 :: forall a. Floating a =&gt; Identity a -&gt; Identity a
+expm1 :: Identity a -&gt; Identity a
+$clog1pexp :: forall a. Floating a =&gt; Identity a -&gt; Identity a
+log1pexp :: Identity a -&gt; Identity a
+$clog1mexp :: forall a. Floating a =&gt; Identity a -&gt; Identity a
+log1mexp :: Identity a -&gt; Identity a
+</span><a href="GHC.Internal.Float.html#Floating"><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Floating</span></a></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span><span>   </span><span class="annot"><span class="hs-comment">-- ^ @since base-4.9.0.0</span></span><span>
+</span><span id="line-80"></span><span>             </span><span class="hs-special">,</span><span> </span><span id="local-6989586621679676706"><span id="local-6989586621679676710"><span id="local-6989586621679676714"><span class="annot"><span class="annottext">Num (Identity a)
+Num (Identity a) =&gt;
+(Identity a -&gt; Identity a -&gt; Identity a)
+-&gt; (Identity a -&gt; Identity a)
+-&gt; (Rational -&gt; Identity a)
+-&gt; Fractional (Identity a)
+Rational -&gt; Identity a
+Identity a -&gt; Identity a
+Identity a -&gt; Identity a -&gt; Identity a
+forall a. Fractional a =&gt; Num (Identity a)
+forall a. Fractional a =&gt; Rational -&gt; Identity a
+forall a. Fractional a =&gt; Identity a -&gt; Identity a
+forall a. Fractional a =&gt; Identity a -&gt; Identity a -&gt; Identity a
+forall a.
+Num a =&gt;
+(a -&gt; a -&gt; a) -&gt; (a -&gt; a) -&gt; (Rational -&gt; a) -&gt; Fractional a
+$c/ :: forall a. Fractional a =&gt; Identity a -&gt; Identity a -&gt; Identity a
+/ :: Identity a -&gt; Identity a -&gt; Identity a
+$crecip :: forall a. Fractional a =&gt; Identity a -&gt; Identity a
+recip :: Identity a -&gt; Identity a
+$cfromRational :: forall a. Fractional a =&gt; Rational -&gt; Identity a
+fromRational :: Rational -&gt; Identity a
+</span><a href="GHC.Internal.Real.html#Fractional"><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Fractional</span></a></span></span></span></span><span> </span><span class="annot"><span class="hs-comment">-- ^ @since base-4.9.0.0</span></span><span>
+</span><span id="line-81"></span><span>             </span><span class="hs-special">,</span><span> </span><span id="local-6989586621679676722"><span id="local-6989586621679676724"><span class="annot"><span class="annottext">(forall x. Identity a -&gt; Rep (Identity a) x)
+-&gt; (forall x. Rep (Identity a) x -&gt; Identity a)
+-&gt; Generic (Identity a)
+forall x. Rep (Identity a) x -&gt; Identity a
+forall x. Identity a -&gt; Rep (Identity a) x
+forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+forall a x. Rep (Identity a) x -&gt; Identity a
+forall a x. Identity a -&gt; Rep (Identity a) x
+$cfrom :: forall a x. Identity a -&gt; Rep (Identity a) x
+from :: forall x. Identity a -&gt; Rep (Identity a) x
+$cto :: forall a x. Rep (Identity a) x -&gt; Identity a
+to :: forall x. Rep (Identity a) x -&gt; Identity a
+</span><a href="GHC.Internal.Generics.html#Generic"><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Generic</span></a></span></span></span><span>    </span><span class="annot"><span class="hs-comment">-- ^ @since base-4.8.0.0</span></span><span>
+</span><span id="line-82"></span><span>             </span><span class="hs-special">,</span><span> </span><span id="local-6989586621679676730"><span id="local-6989586621679676732"><span class="annot"><span class="annottext">(forall a. Identity a -&gt; Rep1 Identity a)
+-&gt; (forall a. Rep1 Identity a -&gt; Identity a) -&gt; Generic1 Identity
+forall a. Rep1 Identity a -&gt; Identity a
+forall a. Identity a -&gt; Rep1 Identity a
+forall k (f :: k -&gt; *).
+(forall (a :: k). f a -&gt; Rep1 f a)
+-&gt; (forall (a :: k). Rep1 f a -&gt; f a) -&gt; Generic1 f
+$cfrom1 :: forall a. Identity a -&gt; Rep1 Identity a
+from1 :: forall a. Identity a -&gt; Rep1 Identity a
+$cto1 :: forall a. Rep1 Identity a -&gt; Identity a
+to1 :: forall a. Rep1 Identity a -&gt; Identity a
+</span><a href="GHC.Internal.Generics.html#Generic1"><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Generic1</span></a></span></span></span><span>   </span><span class="annot"><span class="hs-comment">-- ^ @since base-4.8.0.0</span></span><span>
+</span><span id="line-83"></span><span>             </span><span class="hs-special">,</span><span> </span><span id="local-6989586621679676746"><span id="local-6989586621679676750"><span id="local-6989586621679676754"><span id="local-6989586621679676758"><span id="local-6989586621679676762"><span id="local-6989586621679676766"><span id="local-6989586621679676770"><span class="annot"><span class="annottext">Enum (Identity a)
+Real (Identity a)
+(Real (Identity a), Enum (Identity a)) =&gt;
+(Identity a -&gt; Identity a -&gt; Identity a)
+-&gt; (Identity a -&gt; Identity a -&gt; Identity a)
+-&gt; (Identity a -&gt; Identity a -&gt; Identity a)
+-&gt; (Identity a -&gt; Identity a -&gt; Identity a)
+-&gt; (Identity a -&gt; Identity a -&gt; (Identity a, Identity a))
+-&gt; (Identity a -&gt; Identity a -&gt; (Identity a, Identity a))
+-&gt; (Identity a -&gt; Integer)
+-&gt; Integral (Identity a)
+Identity a -&gt; Integer
+Identity a -&gt; Identity a -&gt; (Identity a, Identity a)
+Identity a -&gt; Identity a -&gt; Identity a
+forall a. Integral a =&gt; Enum (Identity a)
+forall a. Integral a =&gt; Real (Identity a)
+forall a. Integral a =&gt; Identity a -&gt; Integer
+forall a.
+Integral a =&gt;
+Identity a -&gt; Identity a -&gt; (Identity a, Identity a)
+forall a. Integral a =&gt; Identity a -&gt; Identity a -&gt; Identity a
+forall a.
+(Real a, Enum a) =&gt;
+(a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; (a, a))
+-&gt; (a -&gt; a -&gt; (a, a))
+-&gt; (a -&gt; Integer)
+-&gt; Integral a
+$cquot :: forall a. Integral a =&gt; Identity a -&gt; Identity a -&gt; Identity a
+quot :: Identity a -&gt; Identity a -&gt; Identity a
+$crem :: forall a. Integral a =&gt; Identity a -&gt; Identity a -&gt; Identity a
+rem :: Identity a -&gt; Identity a -&gt; Identity a
+$cdiv :: forall a. Integral a =&gt; Identity a -&gt; Identity a -&gt; Identity a
+div :: Identity a -&gt; Identity a -&gt; Identity a
+$cmod :: forall a. Integral a =&gt; Identity a -&gt; Identity a -&gt; Identity a
+mod :: Identity a -&gt; Identity a -&gt; Identity a
+$cquotRem :: forall a.
+Integral a =&gt;
+Identity a -&gt; Identity a -&gt; (Identity a, Identity a)
+quotRem :: Identity a -&gt; Identity a -&gt; (Identity a, Identity a)
+$cdivMod :: forall a.
+Integral a =&gt;
+Identity a -&gt; Identity a -&gt; (Identity a, Identity a)
+divMod :: Identity a -&gt; Identity a -&gt; (Identity a, Identity a)
+$ctoInteger :: forall a. Integral a =&gt; Identity a -&gt; Integer
+toInteger :: Identity a -&gt; Integer
+</span><a href="GHC.Internal.Real.html#Integral"><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Integral</span></a></span></span></span></span></span></span></span></span><span>   </span><span class="annot"><span class="hs-comment">-- ^ @since base-4.9.0.0</span></span><span>
+</span><span id="line-84"></span><span>             </span><span class="hs-special">,</span><span> </span><span id="local-6989586621679676789"><span id="local-6989586621679676793"><span id="local-6989586621679676797"><span id="local-6989586621679676801"><span id="local-6989586621679676805"><span id="local-6989586621679676809"><span class="annot"><span class="annottext">Ord (Identity a)
+Ord (Identity a) =&gt;
+((Identity a, Identity a) -&gt; [Identity a])
+-&gt; ((Identity a, Identity a) -&gt; Identity a -&gt; Int)
+-&gt; ((Identity a, Identity a) -&gt; Identity a -&gt; Int)
+-&gt; ((Identity a, Identity a) -&gt; Identity a -&gt; Bool)
+-&gt; ((Identity a, Identity a) -&gt; Int)
+-&gt; ((Identity a, Identity a) -&gt; Int)
+-&gt; Ix (Identity a)
+(Identity a, Identity a) -&gt; Int
+(Identity a, Identity a) -&gt; [Identity a]
+(Identity a, Identity a) -&gt; Identity a -&gt; Bool
+(Identity a, Identity a) -&gt; Identity a -&gt; Int
+forall a.
+Ord a =&gt;
+((a, a) -&gt; [a])
+-&gt; ((a, a) -&gt; a -&gt; Int)
+-&gt; ((a, a) -&gt; a -&gt; Int)
+-&gt; ((a, a) -&gt; a -&gt; Bool)
+-&gt; ((a, a) -&gt; Int)
+-&gt; ((a, a) -&gt; Int)
+-&gt; Ix a
+forall a. Ix a =&gt; Ord (Identity a)
+forall a. Ix a =&gt; (Identity a, Identity a) -&gt; Int
+forall a. Ix a =&gt; (Identity a, Identity a) -&gt; [Identity a]
+forall a. Ix a =&gt; (Identity a, Identity a) -&gt; Identity a -&gt; Bool
+forall a. Ix a =&gt; (Identity a, Identity a) -&gt; Identity a -&gt; Int
+$crange :: forall a. Ix a =&gt; (Identity a, Identity a) -&gt; [Identity a]
+range :: (Identity a, Identity a) -&gt; [Identity a]
+$cindex :: forall a. Ix a =&gt; (Identity a, Identity a) -&gt; Identity a -&gt; Int
+index :: (Identity a, Identity a) -&gt; Identity a -&gt; Int
+$cunsafeIndex :: forall a. Ix a =&gt; (Identity a, Identity a) -&gt; Identity a -&gt; Int
+unsafeIndex :: (Identity a, Identity a) -&gt; Identity a -&gt; Int
+$cinRange :: forall a. Ix a =&gt; (Identity a, Identity a) -&gt; Identity a -&gt; Bool
+inRange :: (Identity a, Identity a) -&gt; Identity a -&gt; Bool
+$crangeSize :: forall a. Ix a =&gt; (Identity a, Identity a) -&gt; Int
+rangeSize :: (Identity a, Identity a) -&gt; Int
+$cunsafeRangeSize :: forall a. Ix a =&gt; (Identity a, Identity a) -&gt; Int
+unsafeRangeSize :: (Identity a, Identity a) -&gt; Int
+</span><a href="GHC.Internal.Ix.html#Ix"><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ix</span></a></span></span></span></span></span></span></span><span>         </span><span class="annot"><span class="hs-comment">-- ^ @since base-4.9.0.0</span></span><span>
+</span><span id="line-85"></span><span>             </span><span class="hs-special">,</span><span> </span><span id="local-6989586621679676823"><span id="local-6989586621679676827"><span id="local-6989586621679676833"><span class="annot"><span class="annottext">NonEmpty (Identity a) -&gt; Identity a
+Identity a -&gt; Identity a -&gt; Identity a
+(Identity a -&gt; Identity a -&gt; Identity a)
+-&gt; (NonEmpty (Identity a) -&gt; Identity a)
+-&gt; (forall b. Integral b =&gt; b -&gt; Identity a -&gt; Identity a)
+-&gt; Semigroup (Identity a)
+forall b. Integral b =&gt; b -&gt; Identity a -&gt; Identity a
+forall a. Semigroup a =&gt; NonEmpty (Identity a) -&gt; Identity a
+forall a. Semigroup a =&gt; Identity a -&gt; Identity a -&gt; Identity a
+forall a b.
+(Semigroup a, Integral b) =&gt;
+b -&gt; Identity a -&gt; Identity a
+forall a.
+(a -&gt; a -&gt; a)
+-&gt; (NonEmpty a -&gt; a)
+-&gt; (forall b. Integral b =&gt; b -&gt; a -&gt; a)
+-&gt; Semigroup a
+$c&lt;&gt; :: forall a. Semigroup a =&gt; Identity a -&gt; Identity a -&gt; Identity a
+&lt;&gt; :: Identity a -&gt; Identity a -&gt; Identity a
+$csconcat :: forall a. Semigroup a =&gt; NonEmpty (Identity a) -&gt; Identity a
+sconcat :: NonEmpty (Identity a) -&gt; Identity a
+$cstimes :: forall a b.
+(Semigroup a, Integral b) =&gt;
+b -&gt; Identity a -&gt; Identity a
+stimes :: forall b. Integral b =&gt; b -&gt; Identity a -&gt; Identity a
+</span><a href="GHC.Internal.Base.html#Semigroup"><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Semigroup</span></a></span></span></span></span><span>  </span><span class="annot"><span class="hs-comment">-- ^ @since base-4.9.0.0</span></span><span>
+</span><span id="line-86"></span><span>             </span><span class="hs-special">,</span><span> </span><span id="local-6989586621679676847"><span id="local-6989586621679676851"><span id="local-6989586621679676855"><span class="annot"><span class="annottext">Semigroup (Identity a)
+Identity a
+Semigroup (Identity a) =&gt;
+Identity a
+-&gt; (Identity a -&gt; Identity a -&gt; Identity a)
+-&gt; ([Identity a] -&gt; Identity a)
+-&gt; Monoid (Identity a)
+[Identity a] -&gt; Identity a
+Identity a -&gt; Identity a -&gt; Identity a
+forall a.
+Semigroup a =&gt;
+a -&gt; (a -&gt; a -&gt; a) -&gt; ([a] -&gt; a) -&gt; Monoid a
+forall a. Monoid a =&gt; Semigroup (Identity a)
+forall a. Monoid a =&gt; Identity a
+forall a. Monoid a =&gt; [Identity a] -&gt; Identity a
+forall a. Monoid a =&gt; Identity a -&gt; Identity a -&gt; Identity a
+$cmempty :: forall a. Monoid a =&gt; Identity a
+mempty :: Identity a
+$cmappend :: forall a. Monoid a =&gt; Identity a -&gt; Identity a -&gt; Identity a
+mappend :: Identity a -&gt; Identity a -&gt; Identity a
+$cmconcat :: forall a. Monoid a =&gt; [Identity a] -&gt; Identity a
+mconcat :: [Identity a] -&gt; Identity a
+</span><a href="GHC.Internal.Base.html#Monoid"><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Monoid</span></a></span></span></span></span><span>     </span><span class="annot"><span class="hs-comment">-- ^ @since base-4.9.0.0</span></span><span>
+</span><span id="line-87"></span><span>             </span><span class="hs-special">,</span><span> </span><span id="local-6989586621679676863"><span id="local-6989586621679676867"><span id="local-6989586621679676871"><span id="local-6989586621679676875"><span id="local-6989586621679676879"><span id="local-6989586621679676883"><span id="local-6989586621679676887"><span class="annot"><span class="annottext">Integer -&gt; Identity a
+Identity a -&gt; Identity a
+Identity a -&gt; Identity a -&gt; Identity a
+(Identity a -&gt; Identity a -&gt; Identity a)
+-&gt; (Identity a -&gt; Identity a -&gt; Identity a)
+-&gt; (Identity a -&gt; Identity a -&gt; Identity a)
+-&gt; (Identity a -&gt; Identity a)
+-&gt; (Identity a -&gt; Identity a)
+-&gt; (Identity a -&gt; Identity a)
+-&gt; (Integer -&gt; Identity a)
+-&gt; Num (Identity a)
+forall a. Num a =&gt; Integer -&gt; Identity a
+forall a. Num a =&gt; Identity a -&gt; Identity a
+forall a. Num a =&gt; Identity a -&gt; Identity a -&gt; Identity a
+forall a.
+(a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a)
+-&gt; (a -&gt; a)
+-&gt; (a -&gt; a)
+-&gt; (Integer -&gt; a)
+-&gt; Num a
+$c+ :: forall a. Num a =&gt; Identity a -&gt; Identity a -&gt; Identity a
++ :: Identity a -&gt; Identity a -&gt; Identity a
+$c- :: forall a. Num a =&gt; Identity a -&gt; Identity a -&gt; Identity a
+- :: Identity a -&gt; Identity a -&gt; Identity a
+$c* :: forall a. Num a =&gt; Identity a -&gt; Identity a -&gt; Identity a
+* :: Identity a -&gt; Identity a -&gt; Identity a
+$cnegate :: forall a. Num a =&gt; Identity a -&gt; Identity a
+negate :: Identity a -&gt; Identity a
+$cabs :: forall a. Num a =&gt; Identity a -&gt; Identity a
+abs :: Identity a -&gt; Identity a
+$csignum :: forall a. Num a =&gt; Identity a -&gt; Identity a
+signum :: Identity a -&gt; Identity a
+$cfromInteger :: forall a. Num a =&gt; Integer -&gt; Identity a
+fromInteger :: Integer -&gt; Identity a
+</span><a href="GHC.Internal.Num.html#Num"><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Num</span></a></span></span></span></span></span></span></span></span><span>        </span><span class="annot"><span class="hs-comment">-- ^ @since base-4.9.0.0</span></span><span>
+</span><span id="line-88"></span><span>             </span><span class="hs-special">,</span><span> </span><span id="local-6989586621679676900"><span id="local-6989586621679676904"><span id="local-6989586621679676908"><span id="local-6989586621679676912"><span id="local-6989586621679676916"><span id="local-6989586621679676920"><span id="local-6989586621679676924"><span class="annot"><span class="annottext">Eq (Identity a)
+Eq (Identity a) =&gt;
+(Identity a -&gt; Identity a -&gt; Ordering)
+-&gt; (Identity a -&gt; Identity a -&gt; Bool)
+-&gt; (Identity a -&gt; Identity a -&gt; Bool)
+-&gt; (Identity a -&gt; Identity a -&gt; Bool)
+-&gt; (Identity a -&gt; Identity a -&gt; Bool)
+-&gt; (Identity a -&gt; Identity a -&gt; Identity a)
+-&gt; (Identity a -&gt; Identity a -&gt; Identity a)
+-&gt; Ord (Identity a)
+Identity a -&gt; Identity a -&gt; Bool
+Identity a -&gt; Identity a -&gt; Ordering
+Identity a -&gt; Identity a -&gt; Identity a
+forall a.
+Eq a =&gt;
+(a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+forall a. Ord a =&gt; Eq (Identity a)
+forall a. Ord a =&gt; Identity a -&gt; Identity a -&gt; Bool
+forall a. Ord a =&gt; Identity a -&gt; Identity a -&gt; Ordering
+forall a. Ord a =&gt; Identity a -&gt; Identity a -&gt; Identity a
+$ccompare :: forall a. Ord a =&gt; Identity a -&gt; Identity a -&gt; Ordering
+compare :: Identity a -&gt; Identity a -&gt; Ordering
+$c&lt; :: forall a. Ord a =&gt; Identity a -&gt; Identity a -&gt; Bool
+&lt; :: Identity a -&gt; Identity a -&gt; Bool
+$c&lt;= :: forall a. Ord a =&gt; Identity a -&gt; Identity a -&gt; Bool
+&lt;= :: Identity a -&gt; Identity a -&gt; Bool
+$c&gt; :: forall a. Ord a =&gt; Identity a -&gt; Identity a -&gt; Bool
+&gt; :: Identity a -&gt; Identity a -&gt; Bool
+$c&gt;= :: forall a. Ord a =&gt; Identity a -&gt; Identity a -&gt; Bool
+&gt;= :: Identity a -&gt; Identity a -&gt; Bool
+$cmax :: forall a. Ord a =&gt; Identity a -&gt; Identity a -&gt; Identity a
+max :: Identity a -&gt; Identity a -&gt; Identity a
+$cmin :: forall a. Ord a =&gt; Identity a -&gt; Identity a -&gt; Identity a
+min :: Identity a -&gt; Identity a -&gt; Identity a
+</span><a href="../../ghc-prim-0.12.0-595c/src/GHC.Classes.html#Ord"><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></a></span></span></span></span></span></span></span></span><span>        </span><span class="annot"><span class="hs-comment">-- ^ @since base-4.8.0.0</span></span><span>
+</span><span id="line-89"></span><span>             </span><span class="hs-special">,</span><span> </span><span id="local-6989586621679676943"><span class="annot"><span class="annottext">Num (Identity a)
+Ord (Identity a)
+(Num (Identity a), Ord (Identity a)) =&gt;
+(Identity a -&gt; Rational) -&gt; Real (Identity a)
+Identity a -&gt; Rational
+forall a. (Num a, Ord a) =&gt; (a -&gt; Rational) -&gt; Real a
+forall a. Real a =&gt; Num (Identity a)
+forall a. Real a =&gt; Ord (Identity a)
+forall a. Real a =&gt; Identity a -&gt; Rational
+$ctoRational :: forall a. Real a =&gt; Identity a -&gt; Rational
+toRational :: Identity a -&gt; Rational
+</span><a href="GHC.Internal.Real.html#Real"><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Real</span></a></span></span><span>       </span><span class="annot"><span class="hs-comment">-- ^ @since base-4.9.0.0</span></span><span>
+</span><span id="line-90"></span><span>             </span><span class="hs-special">,</span><span> </span><span id="local-6989586621679676959"><span id="local-6989586621679676967"><span id="local-6989586621679676975"><span id="local-6989586621679676983"><span id="local-6989586621679676991"><span class="annot"><span class="annottext">Fractional (Identity a)
+Real (Identity a)
+(Real (Identity a), Fractional (Identity a)) =&gt;
+(forall b. Integral b =&gt; Identity a -&gt; (b, Identity a))
+-&gt; (forall b. Integral b =&gt; Identity a -&gt; b)
+-&gt; (forall b. Integral b =&gt; Identity a -&gt; b)
+-&gt; (forall b. Integral b =&gt; Identity a -&gt; b)
+-&gt; (forall b. Integral b =&gt; Identity a -&gt; b)
+-&gt; RealFrac (Identity a)
+forall b. Integral b =&gt; Identity a -&gt; b
+forall b. Integral b =&gt; Identity a -&gt; (b, Identity a)
+forall a.
+(Real a, Fractional a) =&gt;
+(forall b. Integral b =&gt; a -&gt; (b, a))
+-&gt; (forall b. Integral b =&gt; a -&gt; b)
+-&gt; (forall b. Integral b =&gt; a -&gt; b)
+-&gt; (forall b. Integral b =&gt; a -&gt; b)
+-&gt; (forall b. Integral b =&gt; a -&gt; b)
+-&gt; RealFrac a
+forall a. RealFrac a =&gt; Fractional (Identity a)
+forall a. RealFrac a =&gt; Real (Identity a)
+forall a b. (RealFrac a, Integral b) =&gt; Identity a -&gt; b
+forall a b.
+(RealFrac a, Integral b) =&gt;
+Identity a -&gt; (b, Identity a)
+$cproperFraction :: forall a b.
+(RealFrac a, Integral b) =&gt;
+Identity a -&gt; (b, Identity a)
+properFraction :: forall b. Integral b =&gt; Identity a -&gt; (b, Identity a)
+$ctruncate :: forall a b. (RealFrac a, Integral b) =&gt; Identity a -&gt; b
+truncate :: forall b. Integral b =&gt; Identity a -&gt; b
+$cround :: forall a b. (RealFrac a, Integral b) =&gt; Identity a -&gt; b
+round :: forall b. Integral b =&gt; Identity a -&gt; b
+$cceiling :: forall a b. (RealFrac a, Integral b) =&gt; Identity a -&gt; b
+ceiling :: forall b. Integral b =&gt; Identity a -&gt; b
+$cfloor :: forall a b. (RealFrac a, Integral b) =&gt; Identity a -&gt; b
+floor :: forall b. Integral b =&gt; Identity a -&gt; b
+</span><a href="GHC.Internal.Real.html#RealFrac"><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">RealFrac</span></a></span></span></span></span></span></span><span>   </span><span class="annot"><span class="hs-comment">-- ^ @since base-4.9.0.0</span></span><span>
+</span><span id="line-91"></span><span>             </span><span class="hs-special">,</span><span> </span><span id="local-6989586621679677013"><span id="local-6989586621679677017"><span id="local-6989586621679677021"><span id="local-6989586621679677025"><span id="local-6989586621679677029"><span id="local-6989586621679677033"><span id="local-6989586621679677037"><span id="local-6989586621679677041"><span id="local-6989586621679677045"><span id="local-6989586621679677049"><span id="local-6989586621679677053"><span id="local-6989586621679677057"><span id="local-6989586621679677061"><span id="local-6989586621679677065"><span class="annot"><span class="annottext">Floating (Identity a)
+RealFrac (Identity a)
+(RealFrac (Identity a), Floating (Identity a)) =&gt;
+(Identity a -&gt; Integer)
+-&gt; (Identity a -&gt; Int)
+-&gt; (Identity a -&gt; (Int, Int))
+-&gt; (Identity a -&gt; (Integer, Int))
+-&gt; (Integer -&gt; Int -&gt; Identity a)
+-&gt; (Identity a -&gt; Int)
+-&gt; (Identity a -&gt; Identity a)
+-&gt; (Int -&gt; Identity a -&gt; Identity a)
+-&gt; (Identity a -&gt; Bool)
+-&gt; (Identity a -&gt; Bool)
+-&gt; (Identity a -&gt; Bool)
+-&gt; (Identity a -&gt; Bool)
+-&gt; (Identity a -&gt; Bool)
+-&gt; (Identity a -&gt; Identity a -&gt; Identity a)
+-&gt; RealFloat (Identity a)
+Int -&gt; Identity a -&gt; Identity a
+Integer -&gt; Int -&gt; Identity a
+Identity a -&gt; Bool
+Identity a -&gt; Int
+Identity a -&gt; Integer
+Identity a -&gt; (Int, Int)
+Identity a -&gt; (Integer, Int)
+Identity a -&gt; Identity a
+Identity a -&gt; Identity a -&gt; Identity a
+forall a. RealFloat a =&gt; Floating (Identity a)
+forall a. RealFloat a =&gt; RealFrac (Identity a)
+forall a. RealFloat a =&gt; Int -&gt; Identity a -&gt; Identity a
+forall a. RealFloat a =&gt; Integer -&gt; Int -&gt; Identity a
+forall a. RealFloat a =&gt; Identity a -&gt; Bool
+forall a. RealFloat a =&gt; Identity a -&gt; Int
+forall a. RealFloat a =&gt; Identity a -&gt; Integer
+forall a. RealFloat a =&gt; Identity a -&gt; (Int, Int)
+forall a. RealFloat a =&gt; Identity a -&gt; (Integer, Int)
+forall a. RealFloat a =&gt; Identity a -&gt; Identity a
+forall a. RealFloat a =&gt; Identity a -&gt; Identity a -&gt; Identity a
+forall a.
+(RealFrac a, Floating a) =&gt;
+(a -&gt; Integer)
+-&gt; (a -&gt; Int)
+-&gt; (a -&gt; (Int, Int))
+-&gt; (a -&gt; (Integer, Int))
+-&gt; (Integer -&gt; Int -&gt; a)
+-&gt; (a -&gt; Int)
+-&gt; (a -&gt; a)
+-&gt; (Int -&gt; a -&gt; a)
+-&gt; (a -&gt; Bool)
+-&gt; (a -&gt; Bool)
+-&gt; (a -&gt; Bool)
+-&gt; (a -&gt; Bool)
+-&gt; (a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; RealFloat a
+$cfloatRadix :: forall a. RealFloat a =&gt; Identity a -&gt; Integer
+floatRadix :: Identity a -&gt; Integer
+$cfloatDigits :: forall a. RealFloat a =&gt; Identity a -&gt; Int
+floatDigits :: Identity a -&gt; Int
+$cfloatRange :: forall a. RealFloat a =&gt; Identity a -&gt; (Int, Int)
+floatRange :: Identity a -&gt; (Int, Int)
+$cdecodeFloat :: forall a. RealFloat a =&gt; Identity a -&gt; (Integer, Int)
+decodeFloat :: Identity a -&gt; (Integer, Int)
+$cencodeFloat :: forall a. RealFloat a =&gt; Integer -&gt; Int -&gt; Identity a
+encodeFloat :: Integer -&gt; Int -&gt; Identity a
+$cexponent :: forall a. RealFloat a =&gt; Identity a -&gt; Int
+exponent :: Identity a -&gt; Int
+$csignificand :: forall a. RealFloat a =&gt; Identity a -&gt; Identity a
+significand :: Identity a -&gt; Identity a
+$cscaleFloat :: forall a. RealFloat a =&gt; Int -&gt; Identity a -&gt; Identity a
+scaleFloat :: Int -&gt; Identity a -&gt; Identity a
+$cisNaN :: forall a. RealFloat a =&gt; Identity a -&gt; Bool
+isNaN :: Identity a -&gt; Bool
+$cisInfinite :: forall a. RealFloat a =&gt; Identity a -&gt; Bool
+isInfinite :: Identity a -&gt; Bool
+$cisDenormalized :: forall a. RealFloat a =&gt; Identity a -&gt; Bool
+isDenormalized :: Identity a -&gt; Bool
+$cisNegativeZero :: forall a. RealFloat a =&gt; Identity a -&gt; Bool
+isNegativeZero :: Identity a -&gt; Bool
+$cisIEEE :: forall a. RealFloat a =&gt; Identity a -&gt; Bool
+isIEEE :: Identity a -&gt; Bool
+$catan2 :: forall a. RealFloat a =&gt; Identity a -&gt; Identity a -&gt; Identity a
+atan2 :: Identity a -&gt; Identity a -&gt; Identity a
+</span><a href="GHC.Internal.Float.html#RealFloat"><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">RealFloat</span></a></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span><span>  </span><span class="annot"><span class="hs-comment">-- ^ @since base-4.9.0.0</span></span><span>
+</span><span id="line-92"></span><span>             </span><span class="hs-special">,</span><span> </span><span id="local-6989586621679677088"><span id="local-6989586621679677092"><span id="local-6989586621679677096"><span id="local-6989586621679677100"><span id="local-6989586621679677104"><span id="local-6989586621679677108"><span id="local-6989586621679677112"><span id="local-6989586621679677116"><span class="annot"><span class="annottext">Ptr (Identity a) -&gt; IO (Identity a)
+Ptr (Identity a) -&gt; Int -&gt; IO (Identity a)
+Ptr (Identity a) -&gt; Int -&gt; Identity a -&gt; IO ()
+Ptr (Identity a) -&gt; Identity a -&gt; IO ()
+Identity a -&gt; Int
+(Identity a -&gt; Int)
+-&gt; (Identity a -&gt; Int)
+-&gt; (Ptr (Identity a) -&gt; Int -&gt; IO (Identity a))
+-&gt; (Ptr (Identity a) -&gt; Int -&gt; Identity a -&gt; IO ())
+-&gt; (forall b. Ptr b -&gt; Int -&gt; IO (Identity a))
+-&gt; (forall b. Ptr b -&gt; Int -&gt; Identity a -&gt; IO ())
+-&gt; (Ptr (Identity a) -&gt; IO (Identity a))
+-&gt; (Ptr (Identity a) -&gt; Identity a -&gt; IO ())
+-&gt; Storable (Identity a)
+forall b. Ptr b -&gt; Int -&gt; IO (Identity a)
+forall b. Ptr b -&gt; Int -&gt; Identity a -&gt; IO ()
+forall a. Storable a =&gt; Ptr (Identity a) -&gt; IO (Identity a)
+forall a. Storable a =&gt; Ptr (Identity a) -&gt; Int -&gt; IO (Identity a)
+forall a.
+Storable a =&gt;
+Ptr (Identity a) -&gt; Int -&gt; Identity a -&gt; IO ()
+forall a. Storable a =&gt; Ptr (Identity a) -&gt; Identity a -&gt; IO ()
+forall a. Storable a =&gt; Identity a -&gt; Int
+forall a b. Storable a =&gt; Ptr b -&gt; Int -&gt; IO (Identity a)
+forall a b. Storable a =&gt; Ptr b -&gt; Int -&gt; Identity a -&gt; IO ()
+forall a.
+(a -&gt; Int)
+-&gt; (a -&gt; Int)
+-&gt; (Ptr a -&gt; Int -&gt; IO a)
+-&gt; (Ptr a -&gt; Int -&gt; a -&gt; IO ())
+-&gt; (forall b. Ptr b -&gt; Int -&gt; IO a)
+-&gt; (forall b. Ptr b -&gt; Int -&gt; a -&gt; IO ())
+-&gt; (Ptr a -&gt; IO a)
+-&gt; (Ptr a -&gt; a -&gt; IO ())
+-&gt; Storable a
+$csizeOf :: forall a. Storable a =&gt; Identity a -&gt; Int
+sizeOf :: Identity a -&gt; Int
+$calignment :: forall a. Storable a =&gt; Identity a -&gt; Int
+alignment :: Identity a -&gt; Int
+$cpeekElemOff :: forall a. Storable a =&gt; Ptr (Identity a) -&gt; Int -&gt; IO (Identity a)
+peekElemOff :: Ptr (Identity a) -&gt; Int -&gt; IO (Identity a)
+$cpokeElemOff :: forall a.
+Storable a =&gt;
+Ptr (Identity a) -&gt; Int -&gt; Identity a -&gt; IO ()
+pokeElemOff :: Ptr (Identity a) -&gt; Int -&gt; Identity a -&gt; IO ()
+$cpeekByteOff :: forall a b. Storable a =&gt; Ptr b -&gt; Int -&gt; IO (Identity a)
+peekByteOff :: forall b. Ptr b -&gt; Int -&gt; IO (Identity a)
+$cpokeByteOff :: forall a b. Storable a =&gt; Ptr b -&gt; Int -&gt; Identity a -&gt; IO ()
+pokeByteOff :: forall b. Ptr b -&gt; Int -&gt; Identity a -&gt; IO ()
+$cpeek :: forall a. Storable a =&gt; Ptr (Identity a) -&gt; IO (Identity a)
+peek :: Ptr (Identity a) -&gt; IO (Identity a)
+$cpoke :: forall a. Storable a =&gt; Ptr (Identity a) -&gt; Identity a -&gt; IO ()
+poke :: Ptr (Identity a) -&gt; Identity a -&gt; IO ()
+</span><a href="GHC.Internal.Foreign.Storable.html#Storable"><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Storable</span></a></span></span></span></span></span></span></span></span></span><span>   </span><span class="annot"><span class="hs-comment">-- ^ @since base-4.9.0.0</span></span><span>
+</span><span id="line-93"></span><span>             </span><span class="hs-special">)</span><span>
+</span><span id="line-94"></span><span>
+</span><span id="line-95"></span><span class="hs-comment">-- | This instance would be equivalent to the derived instances of the</span><span>
+</span><span id="line-96"></span><span class="hs-comment">-- 'Identity' newtype if the 'runIdentity' field were removed</span><span>
+</span><span id="line-97"></span><span class="hs-comment">--</span><span>
+</span><span id="line-98"></span><span class="hs-comment">-- @since base-4.8.0.0</span><span>
+</span><span id="line-99"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679676282"><span id="local-6989586621679677132"><span id="local-6989586621679677136"><span id="local-6989586621679677139"><span class="hs-special">(</span><span class="annot"><a href="GHC.Internal.Read.html#Read"><span class="hs-identifier hs-type">Read</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679676282"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="GHC.Internal.Read.html#Read"><span class="hs-identifier hs-type">Read</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Internal.Data.Functor.Identity.html#Identity"><span class="hs-identifier hs-type">Identity</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679676282"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-100"></span><span>    </span><span id="local-6989586621679677147"><span class="annot"><span class="annottext">readsPrec :: Int -&gt; ReadS (Identity a)
+</span><a href="#local-6989586621679677147"><span class="hs-identifier hs-var hs-var hs-var">readsPrec</span></a></span></span><span> </span><span id="local-6989586621679677149"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679677149"><span class="hs-identifier hs-var">d</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool -&gt; ReadS (Identity a) -&gt; ReadS (Identity a)
+forall a. Bool -&gt; ReadS a -&gt; ReadS a
+</span><a href="GHC.Internal.Read.html#readParen"><span class="hs-identifier hs-var">readParen</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679677149"><span class="hs-identifier hs-var">d</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><a href="../../ghc-prim-0.12.0-595c/src/GHC.Classes.html#%3E"><span class="hs-operator hs-var">&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">10</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(ReadS (Identity a) -&gt; ReadS (Identity a))
+-&gt; ReadS (Identity a) -&gt; ReadS (Identity a)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="GHC.Internal.Base.html#%24"><span class="hs-operator hs-var">$</span></a></span><span> </span><span class="hs-glyph">\</span><span> </span><span id="local-6989586621679677150"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679677150"><span class="hs-identifier hs-var">r</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-101"></span><span>        </span><span class="hs-special">[</span><span class="hs-special">(</span><span class="annot"><span class="annottext">a -&gt; Identity a
+forall a. a -&gt; Identity a
+</span><a href="GHC.Internal.Data.Functor.Identity.html#Identity"><span class="hs-identifier hs-var">Identity</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679677151"><span class="hs-identifier hs-var">x</span></a></span><span class="hs-special">,</span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679677152"><span class="hs-identifier hs-var">t</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">|</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Identity&quot;</span></span><span class="hs-special">,</span><span id="local-6989586621679677153"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679677153"><span class="hs-identifier hs-var">s</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">ReadS String
+</span><a href="GHC.Internal.Read.html#lex"><span class="hs-identifier hs-var">lex</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679677150"><span class="hs-identifier hs-var">r</span></a></span><span class="hs-special">,</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679677151"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679677151"><span class="hs-identifier hs-var">x</span></a></span></span><span class="hs-special">,</span><span id="local-6989586621679677152"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679677152"><span class="hs-identifier hs-var">t</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Int -&gt; ReadS a
+forall a. Read a =&gt; Int -&gt; ReadS a
+</span><a href="GHC.Internal.Read.html#readsPrec"><span class="hs-identifier hs-var">readsPrec</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">11</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679677153"><span class="hs-identifier hs-var">s</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-102"></span><span>
+</span><span id="line-103"></span><span class="hs-comment">-- | This instance would be equivalent to the derived instances of the</span><span>
+</span><span id="line-104"></span><span class="hs-comment">-- 'Identity' newtype if the 'runIdentity' field were removed</span><span>
+</span><span id="line-105"></span><span class="hs-comment">--</span><span>
+</span><span id="line-106"></span><span class="hs-comment">-- @since base-4.8.0.0</span><span>
+</span><span id="line-107"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679676291"><span id="local-6989586621679677157"><span id="local-6989586621679677161"><span class="hs-special">(</span><span class="annot"><a href="GHC.Internal.Show.html#Show"><span class="hs-identifier hs-type">Show</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679676291"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="GHC.Internal.Show.html#Show"><span class="hs-identifier hs-type">Show</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Internal.Data.Functor.Identity.html#Identity"><span class="hs-identifier hs-type">Identity</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679676291"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-108"></span><span>    </span><span id="local-6989586621679677167"><span class="annot"><span class="annottext">showsPrec :: Int -&gt; Identity a -&gt; ShowS
+</span><a href="#local-6989586621679677167"><span class="hs-identifier hs-var hs-var hs-var">showsPrec</span></a></span></span><span> </span><span id="local-6989586621679677169"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679677169"><span class="hs-identifier hs-var">d</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Internal.Data.Functor.Identity.html#Identity"><span class="hs-identifier hs-type">Identity</span></a></span><span> </span><span id="local-6989586621679677170"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679677170"><span class="hs-identifier hs-var">x</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool -&gt; ShowS -&gt; ShowS
+</span><a href="GHC.Internal.Show.html#showParen"><span class="hs-identifier hs-var">showParen</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679677169"><span class="hs-identifier hs-var">d</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><a href="../../ghc-prim-0.12.0-595c/src/GHC.Classes.html#%3E"><span class="hs-operator hs-var">&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">10</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(ShowS -&gt; ShowS) -&gt; ShowS -&gt; ShowS
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="GHC.Internal.Base.html#%24"><span class="hs-operator hs-var">$</span></a></span><span>
+</span><span id="line-109"></span><span>        </span><span class="annot"><span class="annottext">String -&gt; ShowS
+</span><a href="GHC.Internal.Show.html#showString"><span class="hs-identifier hs-var">showString</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Identity &quot;</span></span><span> </span><span class="annot"><span class="annottext">ShowS -&gt; ShowS -&gt; ShowS
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><a href="GHC.Internal.Base.html#."><span class="hs-operator hs-var">.</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; a -&gt; ShowS
+forall a. Show a =&gt; Int -&gt; a -&gt; ShowS
+</span><a href="GHC.Internal.Show.html#showsPrec"><span class="hs-identifier hs-var">showsPrec</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">11</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679677170"><span class="hs-identifier hs-var">x</span></a></span><span>
+</span><span id="line-110"></span><span>
+</span><span id="line-111"></span><span class="hs-comment">-- ---------------------------------------------------------------------------</span><span>
+</span><span id="line-112"></span><span class="hs-comment">-- Identity instances for Functor and Monad</span><span>
+</span><span id="line-113"></span><span>
+</span><span id="line-114"></span><span class="annot"><span class="hs-comment">-- | @since base-4.8.0.0</span></span><span>
+</span><span id="line-115"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679677172"><span id="local-6989586621679677179"><span class="annot"><a href="GHC.Internal.Data.Foldable.html#Foldable"><span class="hs-identifier hs-type">Foldable</span></a></span><span> </span><span class="annot"><a href="GHC.Internal.Data.Functor.Identity.html#Identity"><span class="hs-identifier hs-type">Identity</span></a></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-116"></span><span>    </span><span id="local-6989586621679677200"><span class="annot"><span class="annottext">foldMap :: forall m a. Monoid m =&gt; (a -&gt; m) -&gt; Identity a -&gt; m
+</span><a href="#local-6989586621679677200"><span class="hs-identifier hs-var hs-var hs-var">foldMap</span></a></span></span><span>                </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(a -&gt; m) -&gt; Identity a -&gt; m
+forall a b. Coercible a b =&gt; a -&gt; b
+</span><a href="../../ghc-prim-0.12.0-595c/src/GHC.Prim.html#coerce"><span class="hs-identifier hs-var">coerce</span></a></span><span>
+</span><span id="line-117"></span><span>
+</span><span id="line-118"></span><span>    </span><span id="local-6989586621679677205"><span class="annot"><span class="annottext">elem :: forall a. Eq a =&gt; a -&gt; Identity a -&gt; Bool
+</span><a href="#local-6989586621679677205"><span class="hs-identifier hs-var hs-var hs-var">elem</span></a></span></span><span>                   </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(a -&gt; Bool) -&gt; (Identity a -&gt; a) -&gt; Identity a -&gt; Bool
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><a href="GHC.Internal.Base.html#."><span class="hs-operator hs-var">.</span></a></span><span> </span><span class="annot"><span class="annottext">Identity a -&gt; a
+forall a. Identity a -&gt; a
+</span><a href="GHC.Internal.Data.Functor.Identity.html#runIdentity"><span class="hs-identifier hs-var">runIdentity</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">((a -&gt; Bool) -&gt; Identity a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool) -&gt; a -&gt; Identity a -&gt; Bool
+forall b c a. Coercible b c =&gt; (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><a href="GHC.Internal.Data.Functor.Utils.html#%23."><span class="hs-operator hs-var">#.</span></a></span><span> </span><span class="annot"><span class="annottext">a -&gt; a -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><a href="../../ghc-prim-0.12.0-595c/src/GHC.Classes.html#%3D%3D"><span class="hs-operator hs-var">(==)</span></a></span><span>
+</span><span id="line-119"></span><span>    </span><span id="local-6989586621679677208"><span class="annot"><span class="annottext">foldl :: forall b a. (b -&gt; a -&gt; b) -&gt; b -&gt; Identity a -&gt; b
+</span><a href="#local-6989586621679677208"><span class="hs-identifier hs-var hs-var hs-var">foldl</span></a></span></span><span>                  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(b -&gt; a -&gt; b) -&gt; b -&gt; Identity a -&gt; b
+forall a b. Coercible a b =&gt; a -&gt; b
+</span><a href="../../ghc-prim-0.12.0-595c/src/GHC.Prim.html#coerce"><span class="hs-identifier hs-var">coerce</span></a></span><span>
+</span><span id="line-120"></span><span>    </span><span id="local-6989586621679677211"><span class="annot"><span class="annottext">foldl' :: forall b a. (b -&gt; a -&gt; b) -&gt; b -&gt; Identity a -&gt; b
+</span><a href="#local-6989586621679677211"><span class="hs-identifier hs-var hs-var hs-var">foldl'</span></a></span></span><span>                 </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(b -&gt; a -&gt; b) -&gt; b -&gt; Identity a -&gt; b
+forall a b. Coercible a b =&gt; a -&gt; b
+</span><a href="../../ghc-prim-0.12.0-595c/src/GHC.Prim.html#coerce"><span class="hs-identifier hs-var">coerce</span></a></span><span>
+</span><span id="line-121"></span><span>    </span><span id="local-6989586621679677213"><span class="annot"><span class="annottext">foldl1 :: forall a. (a -&gt; a -&gt; a) -&gt; Identity a -&gt; a
+</span><a href="#local-6989586621679677213"><span class="hs-identifier hs-var hs-var hs-var">foldl1</span></a></span></span><span> </span><span class="annot"><span class="annottext">a -&gt; a -&gt; a
+</span><span class="hs-identifier">_</span></span><span>               </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Identity a -&gt; a
+forall a. Identity a -&gt; a
+</span><a href="GHC.Internal.Data.Functor.Identity.html#runIdentity"><span class="hs-identifier hs-var">runIdentity</span></a></span><span>
+</span><span id="line-122"></span><span>    </span><span id="local-6989586621679677215"><span class="annot"><span class="annottext">foldr :: forall a b. (a -&gt; b -&gt; b) -&gt; b -&gt; Identity a -&gt; b
+</span><a href="#local-6989586621679677215"><span class="hs-identifier hs-var hs-var hs-var">foldr</span></a></span></span><span> </span><span id="local-6989586621679677217"><span class="annot"><span class="annottext">a -&gt; b -&gt; b
+</span><a href="#local-6989586621679677217"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span id="local-6989586621679677218"><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679677218"><span class="hs-identifier hs-var">z</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Internal.Data.Functor.Identity.html#Identity"><span class="hs-identifier hs-type">Identity</span></a></span><span> </span><span id="local-6989586621679677219"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679677219"><span class="hs-identifier hs-var">x</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">a -&gt; b -&gt; b
+</span><a href="#local-6989586621679677217"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679677219"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679677218"><span class="hs-identifier hs-var">z</span></a></span><span>
+</span><span id="line-123"></span><span>    </span><span id="local-6989586621679677221"><span class="annot"><span class="annottext">foldr' :: forall a b. (a -&gt; b -&gt; b) -&gt; b -&gt; Identity a -&gt; b
+</span><a href="#local-6989586621679677221"><span class="hs-identifier hs-var hs-var hs-var">foldr'</span></a></span></span><span>                 </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(a -&gt; b -&gt; b) -&gt; b -&gt; Identity a -&gt; b
+forall a b. (a -&gt; b -&gt; b) -&gt; b -&gt; Identity a -&gt; b
+forall (t :: * -&gt; *) a b.
+Foldable t =&gt;
+(a -&gt; b -&gt; b) -&gt; b -&gt; t a -&gt; b
+</span><a href="GHC.Internal.Data.Foldable.html#foldr"><span class="hs-identifier hs-var">foldr</span></a></span><span>
+</span><span id="line-124"></span><span>    </span><span id="local-6989586621679677223"><span class="annot"><span class="annottext">foldr1 :: forall a. (a -&gt; a -&gt; a) -&gt; Identity a -&gt; a
+</span><a href="#local-6989586621679677223"><span class="hs-identifier hs-var hs-var hs-var">foldr1</span></a></span></span><span> </span><span class="annot"><span class="annottext">a -&gt; a -&gt; a
+</span><span class="hs-identifier">_</span></span><span>               </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Identity a -&gt; a
+forall a. Identity a -&gt; a
+</span><a href="GHC.Internal.Data.Functor.Identity.html#runIdentity"><span class="hs-identifier hs-var">runIdentity</span></a></span><span>
+</span><span id="line-125"></span><span>    </span><span id="local-6989586621679677225"><span class="annot"><span class="annottext">length :: forall a. Identity a -&gt; Int
+</span><a href="#local-6989586621679677225"><span class="hs-identifier hs-var hs-var hs-var">length</span></a></span></span><span> </span><span class="annot"><span class="annottext">Identity a
+</span><span class="hs-identifier">_</span></span><span>               </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span>
+</span><span id="line-126"></span><span>    </span><span id="local-6989586621679677228"><span class="annot"><span class="annottext">maximum :: forall a. Ord a =&gt; Identity a -&gt; a
+</span><a href="#local-6989586621679677228"><span class="hs-identifier hs-var hs-var hs-var">maximum</span></a></span></span><span>                </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Identity a -&gt; a
+forall a. Identity a -&gt; a
+</span><a href="GHC.Internal.Data.Functor.Identity.html#runIdentity"><span class="hs-identifier hs-var">runIdentity</span></a></span><span>
+</span><span id="line-127"></span><span>    </span><span id="local-6989586621679677231"><span class="annot"><span class="annottext">minimum :: forall a. Ord a =&gt; Identity a -&gt; a
+</span><a href="#local-6989586621679677231"><span class="hs-identifier hs-var hs-var hs-var">minimum</span></a></span></span><span>                </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Identity a -&gt; a
+forall a. Identity a -&gt; a
+</span><a href="GHC.Internal.Data.Functor.Identity.html#runIdentity"><span class="hs-identifier hs-var">runIdentity</span></a></span><span>
+</span><span id="line-128"></span><span>    </span><span id="local-6989586621679677233"><span class="annot"><span class="annottext">null :: forall a. Identity a -&gt; Bool
+</span><a href="#local-6989586621679677233"><span class="hs-identifier hs-var hs-var hs-var">null</span></a></span></span><span> </span><span class="annot"><span class="annottext">Identity a
+</span><span class="hs-identifier">_</span></span><span>                 </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="../../ghc-prim-0.12.0-595c/src/GHC.Types.html#False"><span class="hs-identifier hs-var">False</span></a></span><span>
+</span><span id="line-129"></span><span>    </span><span id="local-6989586621679677236"><span class="annot"><span class="annottext">product :: forall a. Num a =&gt; Identity a -&gt; a
+</span><a href="#local-6989586621679677236"><span class="hs-identifier hs-var hs-var hs-var">product</span></a></span></span><span>                </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Identity a -&gt; a
+forall a. Identity a -&gt; a
+</span><a href="GHC.Internal.Data.Functor.Identity.html#runIdentity"><span class="hs-identifier hs-var">runIdentity</span></a></span><span>
+</span><span id="line-130"></span><span>    </span><span id="local-6989586621679677239"><span class="annot"><span class="annottext">sum :: forall a. Num a =&gt; Identity a -&gt; a
+</span><a href="#local-6989586621679677239"><span class="hs-identifier hs-var hs-var hs-var">sum</span></a></span></span><span>                    </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Identity a -&gt; a
+forall a. Identity a -&gt; a
+</span><a href="GHC.Internal.Data.Functor.Identity.html#runIdentity"><span class="hs-identifier hs-var">runIdentity</span></a></span><span>
+</span><span id="line-131"></span><span>    </span><span id="local-6989586621679677241"><span class="annot"><span class="annottext">toList :: forall a. Identity a -&gt; [a]
+</span><a href="#local-6989586621679677241"><span class="hs-identifier hs-var hs-var hs-var">toList</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Internal.Data.Functor.Identity.html#Identity"><span class="hs-identifier hs-type">Identity</span></a></span><span> </span><span id="local-6989586621679677243"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679677243"><span class="hs-identifier hs-var">x</span></a></span></span><span class="hs-special">)</span><span>    </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679677243"><span class="hs-identifier hs-var">x</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-132"></span><span>
+</span><span id="line-133"></span><span class="annot"><span class="hs-comment">-- | @since base-4.8.0.0</span></span><span>
+</span><span id="line-134"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679677246"><span class="annot"><a href="GHC.Internal.Base.html#Functor"><span class="hs-identifier hs-type">Functor</span></a></span><span> </span><span class="annot"><a href="GHC.Internal.Data.Functor.Identity.html#Identity"><span class="hs-identifier hs-type">Identity</span></a></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-135"></span><span>    </span><span id="local-6989586621679677251"><span class="annot"><span class="annottext">fmap :: forall a b. (a -&gt; b) -&gt; Identity a -&gt; Identity b
+</span><a href="GHC.Internal.Base.html#fmap"><span class="hs-identifier hs-var hs-var hs-var">fmap</span></a></span></span><span>     </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(a -&gt; b) -&gt; Identity a -&gt; Identity b
+forall a b. Coercible a b =&gt; a -&gt; b
+</span><a href="../../ghc-prim-0.12.0-595c/src/GHC.Prim.html#coerce"><span class="hs-identifier hs-var">coerce</span></a></span><span>
+</span><span id="line-136"></span><span>
+</span><span id="line-137"></span><span class="annot"><span class="hs-comment">-- | @since base-4.8.0.0</span></span><span>
+</span><span id="line-138"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679677258"><span id="local-6989586621679677262"><span class="annot"><a href="GHC.Internal.Base.html#Applicative"><span class="hs-identifier hs-type">Applicative</span></a></span><span> </span><span class="annot"><a href="GHC.Internal.Data.Functor.Identity.html#Identity"><span class="hs-identifier hs-type">Identity</span></a></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-139"></span><span>    </span><span id="local-6989586621679677265"><span class="annot"><span class="annottext">pure :: forall a. a -&gt; Identity a
+</span><a href="GHC.Internal.Base.html#pure"><span class="hs-identifier hs-var hs-var hs-var">pure</span></a></span></span><span>     </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">a -&gt; Identity a
+forall a. a -&gt; Identity a
+</span><a href="GHC.Internal.Data.Functor.Identity.html#Identity"><span class="hs-identifier hs-var">Identity</span></a></span><span>
+</span><span id="line-140"></span><span>    </span><span id="local-6989586621679677267"><span class="annot"><span class="annottext">&lt;*&gt; :: forall a b. Identity (a -&gt; b) -&gt; Identity a -&gt; Identity b
+</span><a href="GHC.Internal.Base.html#%3C%2A%3E"><span class="hs-operator hs-var hs-var hs-var">(&lt;*&gt;)</span></a></span></span><span>    </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Identity (a -&gt; b) -&gt; Identity a -&gt; Identity b
+forall a b. Coercible a b =&gt; a -&gt; b
+</span><a href="../../ghc-prim-0.12.0-595c/src/GHC.Prim.html#coerce"><span class="hs-identifier hs-var">coerce</span></a></span><span>
+</span><span id="line-141"></span><span>    </span><span id="local-6989586621679677269"><span class="annot"><span class="annottext">liftA2 :: forall a b c.
+(a -&gt; b -&gt; c) -&gt; Identity a -&gt; Identity b -&gt; Identity c
+</span><a href="#local-6989586621679677269"><span class="hs-identifier hs-var hs-var hs-var">liftA2</span></a></span></span><span>   </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(a -&gt; b -&gt; c) -&gt; Identity a -&gt; Identity b -&gt; Identity c
+forall a b. Coercible a b =&gt; a -&gt; b
+</span><a href="../../ghc-prim-0.12.0-595c/src/GHC.Prim.html#coerce"><span class="hs-identifier hs-var">coerce</span></a></span><span>
+</span><span id="line-142"></span><span>
+</span><span id="line-143"></span><span class="annot"><span class="hs-comment">-- | @since base-4.8.0.0</span></span><span>
+</span><span id="line-144"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679677275"><span id="local-6989586621679677279"><span class="annot"><a href="GHC.Internal.Base.html#Monad"><span class="hs-identifier hs-type">Monad</span></a></span><span> </span><span class="annot"><a href="GHC.Internal.Data.Functor.Identity.html#Identity"><span class="hs-identifier hs-type">Identity</span></a></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-145"></span><span>    </span><span id="local-6989586621679677282"><span class="annot"><span class="annottext">Identity a
+</span><a href="#local-6989586621679677282"><span class="hs-identifier hs-var">m</span></a></span></span><span> </span><span id="local-6989586621679677283"><span class="annot"><span class="annottext">&gt;&gt;= :: forall a b. Identity a -&gt; (a -&gt; Identity b) -&gt; Identity b
+</span><a href="GHC.Internal.Base.html#%3E%3E%3D"><span class="hs-operator hs-var hs-var hs-var">&gt;&gt;=</span></a></span></span><span> </span><span id="local-6989586621679677284"><span class="annot"><span class="annottext">a -&gt; Identity b
+</span><a href="#local-6989586621679677284"><span class="hs-identifier hs-var">k</span></a></span></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">a -&gt; Identity b
+</span><a href="#local-6989586621679677284"><span class="hs-identifier hs-var">k</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Identity a -&gt; a
+forall a. Identity a -&gt; a
+</span><a href="GHC.Internal.Data.Functor.Identity.html#runIdentity"><span class="hs-identifier hs-var">runIdentity</span></a></span><span> </span><span class="annot"><span class="annottext">Identity a
+</span><a href="#local-6989586621679677282"><span class="hs-identifier hs-var">m</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-146"></span><span>
+</span><span id="line-147"></span><span class="annot"><span class="hs-comment">-- | @since base-4.8.0.0</span></span><span>
+</span><span id="line-148"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="GHC.Internal.Control.Monad.Fix.html#MonadFix"><span class="hs-identifier hs-type">MonadFix</span></a></span><span> </span><span class="annot"><a href="GHC.Internal.Data.Functor.Identity.html#Identity"><span class="hs-identifier hs-type">Identity</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-149"></span><span>    </span><span id="local-6989586621679677290"><span class="annot"><span class="annottext">mfix :: forall a. (a -&gt; Identity a) -&gt; Identity a
+</span><a href="GHC.Internal.Control.Monad.Fix.html#mfix"><span class="hs-identifier hs-var hs-var hs-var">mfix</span></a></span></span><span> </span><span id="local-6989586621679677291"><span class="annot"><span class="annottext">a -&gt; Identity a
+</span><a href="#local-6989586621679677291"><span class="hs-identifier hs-var">f</span></a></span></span><span>   </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">a -&gt; Identity a
+forall a. a -&gt; Identity a
+</span><a href="GHC.Internal.Data.Functor.Identity.html#Identity"><span class="hs-identifier hs-var">Identity</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(a -&gt; a) -&gt; a
+forall a. (a -&gt; a) -&gt; a
+</span><a href="GHC.Internal.Data.Function.html#fix"><span class="hs-identifier hs-var">fix</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Identity a -&gt; a
+forall a. Identity a -&gt; a
+</span><a href="GHC.Internal.Data.Functor.Identity.html#runIdentity"><span class="hs-identifier hs-var">runIdentity</span></a></span><span> </span><span class="annot"><span class="annottext">(Identity a -&gt; a) -&gt; (a -&gt; Identity a) -&gt; a -&gt; a
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><a href="GHC.Internal.Base.html#."><span class="hs-operator hs-var">.</span></a></span><span> </span><span class="annot"><span class="annottext">a -&gt; Identity a
+</span><a href="#local-6989586621679677291"><span class="hs-identifier hs-var">f</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-150"></span></pre></body></html>

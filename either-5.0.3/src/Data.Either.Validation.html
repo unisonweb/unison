@@ -1,0 +1,667 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE CPP #-}</span><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# LANGUAGE Rank2Types #-}</span><span>
+</span><span id="line-3"></span><span>
+</span><span id="line-4"></span><span class="hs-comment">-----------------------------------------------------------------------------</span><span>
+</span><span id="line-5"></span><span class="hs-comment">-- |</span><span>
+</span><span id="line-6"></span><span class="hs-comment">-- Module      :  Data.Either.Validation</span><span>
+</span><span id="line-7"></span><span class="hs-comment">-- Copyright   :  (c) 2014 Chris Allen, Edward Kmett</span><span>
+</span><span id="line-8"></span><span class="hs-comment">-- License     :  BSD-style</span><span>
+</span><span id="line-9"></span><span class="hs-comment">--</span><span>
+</span><span id="line-10"></span><span class="hs-comment">-- Maintainer  :  ekmett@gmail.com</span><span>
+</span><span id="line-11"></span><span class="hs-comment">-- Stability   :  provisional</span><span>
+</span><span id="line-12"></span><span class="hs-comment">-- Portability :  portable</span><span>
+</span><span id="line-13"></span><span class="hs-comment">--</span><span>
+</span><span id="line-14"></span><span class="hs-comment">-- Monoidal 'Validation' sibling to 'Either'.</span><span>
+</span><span id="line-15"></span><span class="hs-comment">--</span><span>
+</span><span id="line-16"></span><span class="hs-comment">-----------------------------------------------------------------------------</span><span>
+</span><span id="line-17"></span><span>
+</span><span id="line-18"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Data.Either.Validation.html"><span class="hs-identifier">Data.Either.Validation</span></a></span><span>
+</span><span id="line-19"></span><span>  </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="Data.Either.Validation.html#Validation"><span class="hs-identifier">Validation</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-20"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Either.Validation.html#_Success"><span class="hs-identifier">_Success</span></a></span><span>
+</span><span id="line-21"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Either.Validation.html#_Failure"><span class="hs-identifier">_Failure</span></a></span><span>
+</span><span id="line-22"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Either.Validation.html#eitherToValidation"><span class="hs-identifier">eitherToValidation</span></a></span><span>
+</span><span id="line-23"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Either.Validation.html#validationToEither"><span class="hs-identifier">validationToEither</span></a></span><span>
+</span><span id="line-24"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Either.Validation.html#_Validation"><span class="hs-identifier">_Validation</span></a></span><span>
+</span><span id="line-25"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Either.Validation.html#vap"><span class="hs-identifier">vap</span></a></span><span>
+</span><span id="line-26"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Either.Validation.html#ealt"><span class="hs-identifier">ealt</span></a></span><span>
+</span><span id="line-27"></span><span>  </span><span class="hs-comment">-- combinators that leak less, but require monoid constraints</span><span>
+</span><span id="line-28"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Either.Validation.html#vapm"><span class="hs-identifier">vapm</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Either.Validation.html#apm"><span class="hs-identifier">apm</span></a></span><span>
+</span><span id="line-29"></span><span>  </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-30"></span><span>
+</span><span id="line-31"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Applicative</span></span><span>
+</span><span id="line-32"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Bifoldable</span></span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Bifoldable</span></span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">bifoldr</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-33"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Bifunctor</span></span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Bifunctor</span></span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">bimap</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-34"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Bitraversable</span></span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Bitraversable</span></span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">bitraverse</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-35"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Foldable</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Foldable</span></span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">foldr</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-36"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Functor.Alt</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Alt</span></span><span class="hs-special">(</span><span class="annot"><span class="hs-operator">(&lt;!&gt;)</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-37"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Functor.Apply</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Apply</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-operator">(&lt;.&gt;)</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-38"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Profunctor</span></span><span>
+</span><span id="line-39"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Prelude</span></span><span> </span><span class="hs-keyword">hiding</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">foldr</span></span><span class="hs-special">)</span><span class="hs-cpp">
+
+#if !(MIN_VERSION_base(4,11,0))
+</span><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">Data.Semigroup</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">Semigroup</span><span class="hs-special">(</span><span class="hs-special">(</span><span class="hs-operator">&lt;&gt;</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-cpp">
+#endif
+</span><span>
+</span><span id="line-45"></span><span class="annot"><span class="hs-comment">-- | 'Validation' is 'Either' with a Left that is a 'Monoid'</span></span><span>
+</span><span id="line-46"></span><span class="hs-keyword">data</span><span> </span><span id="Validation"><span class="annot"><a href="Data.Either.Validation.html#Validation"><span class="hs-identifier hs-var">Validation</span></a></span></span><span> </span><span id="local-6989586621679071890"><span class="annot"><a href="#local-6989586621679071890"><span class="hs-identifier hs-type">e</span></a></span></span><span> </span><span id="local-6989586621679071891"><span class="annot"><a href="#local-6989586621679071891"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-47"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span id="Failure"><span class="annot"><a href="Data.Either.Validation.html#Failure"><span class="hs-identifier hs-var">Failure</span></a></span></span><span> </span><span class="annot"><a href="#local-6989586621679071890"><span class="hs-identifier hs-type">e</span></a></span><span>
+</span><span id="line-48"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="Success"><span class="annot"><a href="Data.Either.Validation.html#Success"><span class="hs-identifier hs-var">Success</span></a></span></span><span> </span><span class="annot"><a href="#local-6989586621679071891"><span class="hs-identifier hs-type">a</span></a></span><span>
+</span><span id="line-49"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679072171"><span id="local-6989586621679072178"><span class="annot"><span class="annottext">Validation e a -&gt; Validation e a -&gt; Bool
+(Validation e a -&gt; Validation e a -&gt; Bool)
+-&gt; (Validation e a -&gt; Validation e a -&gt; Bool)
+-&gt; Eq (Validation e a)
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+forall e a.
+(Eq e, Eq a) =&gt;
+Validation e a -&gt; Validation e a -&gt; Bool
+$c== :: forall e a.
+(Eq e, Eq a) =&gt;
+Validation e a -&gt; Validation e a -&gt; Bool
+== :: Validation e a -&gt; Validation e a -&gt; Bool
+$c/= :: forall e a.
+(Eq e, Eq a) =&gt;
+Validation e a -&gt; Validation e a -&gt; Bool
+/= :: Validation e a -&gt; Validation e a -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679072189"><span id="local-6989586621679072193"><span id="local-6989586621679072197"><span id="local-6989586621679072201"><span id="local-6989586621679072204"><span id="local-6989586621679072207"><span id="local-6989586621679072210"><span class="annot"><span class="annottext">Eq (Validation e a)
+Eq (Validation e a) =&gt;
+(Validation e a -&gt; Validation e a -&gt; Ordering)
+-&gt; (Validation e a -&gt; Validation e a -&gt; Bool)
+-&gt; (Validation e a -&gt; Validation e a -&gt; Bool)
+-&gt; (Validation e a -&gt; Validation e a -&gt; Bool)
+-&gt; (Validation e a -&gt; Validation e a -&gt; Bool)
+-&gt; (Validation e a -&gt; Validation e a -&gt; Validation e a)
+-&gt; (Validation e a -&gt; Validation e a -&gt; Validation e a)
+-&gt; Ord (Validation e a)
+Validation e a -&gt; Validation e a -&gt; Bool
+Validation e a -&gt; Validation e a -&gt; Ordering
+Validation e a -&gt; Validation e a -&gt; Validation e a
+forall a.
+Eq a =&gt;
+(a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+forall e a. (Ord e, Ord a) =&gt; Eq (Validation e a)
+forall e a.
+(Ord e, Ord a) =&gt;
+Validation e a -&gt; Validation e a -&gt; Bool
+forall e a.
+(Ord e, Ord a) =&gt;
+Validation e a -&gt; Validation e a -&gt; Ordering
+forall e a.
+(Ord e, Ord a) =&gt;
+Validation e a -&gt; Validation e a -&gt; Validation e a
+$ccompare :: forall e a.
+(Ord e, Ord a) =&gt;
+Validation e a -&gt; Validation e a -&gt; Ordering
+compare :: Validation e a -&gt; Validation e a -&gt; Ordering
+$c&lt; :: forall e a.
+(Ord e, Ord a) =&gt;
+Validation e a -&gt; Validation e a -&gt; Bool
+&lt; :: Validation e a -&gt; Validation e a -&gt; Bool
+$c&lt;= :: forall e a.
+(Ord e, Ord a) =&gt;
+Validation e a -&gt; Validation e a -&gt; Bool
+&lt;= :: Validation e a -&gt; Validation e a -&gt; Bool
+$c&gt; :: forall e a.
+(Ord e, Ord a) =&gt;
+Validation e a -&gt; Validation e a -&gt; Bool
+&gt; :: Validation e a -&gt; Validation e a -&gt; Bool
+$c&gt;= :: forall e a.
+(Ord e, Ord a) =&gt;
+Validation e a -&gt; Validation e a -&gt; Bool
+&gt;= :: Validation e a -&gt; Validation e a -&gt; Bool
+$cmax :: forall e a.
+(Ord e, Ord a) =&gt;
+Validation e a -&gt; Validation e a -&gt; Validation e a
+max :: Validation e a -&gt; Validation e a -&gt; Validation e a
+$cmin :: forall e a.
+(Ord e, Ord a) =&gt;
+Validation e a -&gt; Validation e a -&gt; Validation e a
+min :: Validation e a -&gt; Validation e a -&gt; Validation e a
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679072221"><span id="local-6989586621679072228"><span id="local-6989586621679072232"><span class="annot"><span class="annottext">Int -&gt; Validation e a -&gt; ShowS
+[Validation e a] -&gt; ShowS
+Validation e a -&gt; String
+(Int -&gt; Validation e a -&gt; ShowS)
+-&gt; (Validation e a -&gt; String)
+-&gt; ([Validation e a] -&gt; ShowS)
+-&gt; Show (Validation e a)
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+forall e a. (Show e, Show a) =&gt; Int -&gt; Validation e a -&gt; ShowS
+forall e a. (Show e, Show a) =&gt; [Validation e a] -&gt; ShowS
+forall e a. (Show e, Show a) =&gt; Validation e a -&gt; String
+$cshowsPrec :: forall e a. (Show e, Show a) =&gt; Int -&gt; Validation e a -&gt; ShowS
+showsPrec :: Int -&gt; Validation e a -&gt; ShowS
+$cshow :: forall e a. (Show e, Show a) =&gt; Validation e a -&gt; String
+show :: Validation e a -&gt; String
+$cshowList :: forall e a. (Show e, Show a) =&gt; [Validation e a] -&gt; ShowS
+showList :: [Validation e a] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-50"></span><span>
+</span><span id="line-51"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679071887"><span id="local-6989586621679072238"><span class="annot"><span class="hs-identifier hs-type">Functor</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Either.Validation.html#Validation"><span class="hs-identifier hs-type">Validation</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679071887"><span class="hs-identifier hs-type">e</span></a></span><span class="hs-special">)</span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-52"></span><span>   </span><span id="local-6989586621679072242"><span class="annot"><span class="annottext">fmap :: forall a b. (a -&gt; b) -&gt; Validation e a -&gt; Validation e b
+</span><span class="hs-identifier hs-var hs-var hs-var">fmap</span></span></span><span> </span><span class="annot"><span class="annottext">a -&gt; b
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Either.Validation.html#Failure"><span class="hs-identifier hs-type">Failure</span></a></span><span> </span><span id="local-6989586621679072243"><span class="annot"><span class="annottext">e
+</span><a href="#local-6989586621679072243"><span class="hs-identifier hs-var">e</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">e -&gt; Validation e b
+forall e a. e -&gt; Validation e a
+</span><a href="Data.Either.Validation.html#Failure"><span class="hs-identifier hs-var">Failure</span></a></span><span> </span><span class="annot"><span class="annottext">e
+</span><a href="#local-6989586621679072243"><span class="hs-identifier hs-var">e</span></a></span><span>
+</span><span id="line-53"></span><span>   </span><span class="annot"><span class="hs-identifier hs-var">fmap</span></span><span> </span><span id="local-6989586621679072244"><span class="annot"><span class="annottext">a -&gt; b
+</span><a href="#local-6989586621679072244"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Either.Validation.html#Success"><span class="hs-identifier hs-type">Success</span></a></span><span> </span><span id="local-6989586621679072245"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679072245"><span class="hs-identifier hs-var">a</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">b -&gt; Validation e b
+forall e a. a -&gt; Validation e a
+</span><a href="Data.Either.Validation.html#Success"><span class="hs-identifier hs-var">Success</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a -&gt; b
+</span><a href="#local-6989586621679072244"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679072245"><span class="hs-identifier hs-var">a</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-54"></span><span>
+</span><span id="line-55"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679071904"><span id="local-6989586621679072251"><span id="local-6989586621679072255"><span id="local-6989586621679072258"><span class="annot"><span class="hs-identifier hs-type">Semigroup</span></span><span> </span><span class="annot"><a href="#local-6989586621679071904"><span class="hs-identifier hs-type">e</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Apply</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Either.Validation.html#Validation"><span class="hs-identifier hs-type">Validation</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679071904"><span class="hs-identifier hs-type">e</span></a></span><span class="hs-special">)</span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-56"></span><span>  </span><span class="annot"><a href="Data.Either.Validation.html#Failure"><span class="hs-identifier hs-type">Failure</span></a></span><span> </span><span id="local-6989586621679072262"><span class="annot"><span class="annottext">e
+</span><a href="#local-6989586621679072262"><span class="hs-identifier hs-var">e1</span></a></span></span><span> </span><span id="local-6989586621679072263"><span class="annot"><span class="annottext">&lt;.&gt; :: forall a b.
+Validation e (a -&gt; b) -&gt; Validation e a -&gt; Validation e b
+</span><span class="hs-operator hs-var hs-var hs-var">&lt;.&gt;</span></span></span><span> </span><span id="local-6989586621679072264"><span class="annot"><span class="annottext">Validation e a
+</span><a href="#local-6989586621679072264"><span class="hs-identifier hs-var">b</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">e -&gt; Validation e b
+forall e a. e -&gt; Validation e a
+</span><a href="Data.Either.Validation.html#Failure"><span class="hs-identifier hs-var">Failure</span></a></span><span> </span><span class="annot"><span class="annottext">(e -&gt; Validation e b) -&gt; e -&gt; Validation e b
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Validation e a
+</span><a href="#local-6989586621679072264"><span class="hs-identifier hs-var">b</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-57"></span><span>    </span><span class="annot"><a href="Data.Either.Validation.html#Failure"><span class="hs-identifier hs-type">Failure</span></a></span><span> </span><span id="local-6989586621679072265"><span class="annot"><span class="annottext">e
+</span><a href="#local-6989586621679072265"><span class="hs-identifier hs-var">e2</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">e
+</span><a href="#local-6989586621679072262"><span class="hs-identifier hs-var">e1</span></a></span><span> </span><span class="annot"><span class="annottext">e -&gt; e -&gt; e
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">e
+</span><a href="#local-6989586621679072265"><span class="hs-identifier hs-var">e2</span></a></span><span>
+</span><span id="line-58"></span><span>    </span><span class="annot"><a href="Data.Either.Validation.html#Success"><span class="hs-identifier hs-type">Success</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><span class="hs-identifier">_</span></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">e
+</span><a href="#local-6989586621679072262"><span class="hs-identifier hs-var">e1</span></a></span><span>
+</span><span id="line-59"></span><span>  </span><span class="annot"><a href="Data.Either.Validation.html#Success"><span class="hs-identifier hs-type">Success</span></a></span><span> </span><span class="annot"><span class="annottext">a -&gt; b
+</span><span class="hs-identifier">_</span></span><span>  </span><span class="annot"><span class="hs-operator hs-var">&lt;.&gt;</span></span><span> </span><span class="annot"><a href="Data.Either.Validation.html#Failure"><span class="hs-identifier hs-type">Failure</span></a></span><span> </span><span id="local-6989586621679072266"><span class="annot"><span class="annottext">e
+</span><a href="#local-6989586621679072266"><span class="hs-identifier hs-var">e</span></a></span></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">e -&gt; Validation e b
+forall e a. e -&gt; Validation e a
+</span><a href="Data.Either.Validation.html#Failure"><span class="hs-identifier hs-var">Failure</span></a></span><span>  </span><span class="annot"><span class="annottext">e
+</span><a href="#local-6989586621679072266"><span class="hs-identifier hs-var">e</span></a></span><span>
+</span><span id="line-60"></span><span>  </span><span class="annot"><a href="Data.Either.Validation.html#Success"><span class="hs-identifier hs-type">Success</span></a></span><span> </span><span id="local-6989586621679072267"><span class="annot"><span class="annottext">a -&gt; b
+</span><a href="#local-6989586621679072267"><span class="hs-identifier hs-var">f</span></a></span></span><span>  </span><span class="annot"><span class="hs-operator hs-var">&lt;.&gt;</span></span><span> </span><span class="annot"><a href="Data.Either.Validation.html#Success"><span class="hs-identifier hs-type">Success</span></a></span><span> </span><span id="local-6989586621679072268"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679072268"><span class="hs-identifier hs-var">x</span></a></span></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">b -&gt; Validation e b
+forall e a. a -&gt; Validation e a
+</span><a href="Data.Either.Validation.html#Success"><span class="hs-identifier hs-var">Success</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a -&gt; b
+</span><a href="#local-6989586621679072267"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679072268"><span class="hs-identifier hs-var">x</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-61"></span><span>
+</span><span id="line-62"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679071924"><span id="local-6989586621679072275"><span id="local-6989586621679072279"><span id="local-6989586621679072282"><span class="annot"><span class="hs-identifier hs-type">Semigroup</span></span><span> </span><span class="annot"><a href="#local-6989586621679071924"><span class="hs-identifier hs-type">e</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Applicative</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Either.Validation.html#Validation"><span class="hs-identifier hs-type">Validation</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679071924"><span class="hs-identifier hs-type">e</span></a></span><span class="hs-special">)</span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-63"></span><span>  </span><span id="local-6989586621679072285"><span class="annot"><span class="annottext">pure :: forall a. a -&gt; Validation e a
+</span><span class="hs-identifier hs-var hs-var hs-var">pure</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">a -&gt; Validation e a
+forall e a. a -&gt; Validation e a
+</span><a href="Data.Either.Validation.html#Success"><span class="hs-identifier hs-var">Success</span></a></span><span>
+</span><span id="line-64"></span><span>  </span><span id="local-6989586621679072287"><span class="annot"><span class="annottext">&lt;*&gt; :: forall a b.
+Validation e (a -&gt; b) -&gt; Validation e a -&gt; Validation e b
+</span><span class="hs-operator hs-var hs-var hs-var">(&lt;*&gt;)</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Validation e (a -&gt; b) -&gt; Validation e a -&gt; Validation e b
+forall a b.
+Validation e (a -&gt; b) -&gt; Validation e a -&gt; Validation e b
+forall (f :: * -&gt; *) a b. Apply f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">(&lt;.&gt;)</span></span><span>
+</span><span id="line-65"></span><span>
+</span><span id="line-66"></span><span class="annot"><span class="hs-comment">-- | For two errors, this instance reports both of them.</span></span><span>
+</span><span id="line-67"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679071933"><span id="local-6989586621679072293"><span id="local-6989586621679072299"><span class="annot"><span class="hs-identifier hs-type">Semigroup</span></span><span> </span><span class="annot"><a href="#local-6989586621679071933"><span class="hs-identifier hs-type">e</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Alt</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Either.Validation.html#Validation"><span class="hs-identifier hs-type">Validation</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679071933"><span class="hs-identifier hs-type">e</span></a></span><span class="hs-special">)</span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-68"></span><span>  </span><span id="local-6989586621679072305"><span class="annot"><span class="annottext">s :: Validation e a
+</span><a href="#local-6989586621679072305"><span class="hs-identifier hs-var">s</span></a></span></span><span class="hs-glyph">@</span><span class="annot"><a href="Data.Either.Validation.html#Success"><span class="hs-identifier hs-type">Success</span></a></span><span class="hs-special">{</span><span class="hs-special">}</span><span> </span><span id="local-6989586621679072306"><span class="annot"><span class="annottext">&lt;!&gt; :: forall a. Validation e a -&gt; Validation e a -&gt; Validation e a
+</span><span class="hs-operator hs-var hs-var hs-var">&lt;!&gt;</span></span></span><span> </span><span class="annot"><span class="annottext">Validation e a
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Validation e a
+</span><a href="#local-6989586621679072305"><span class="hs-identifier hs-var">s</span></a></span><span>
+</span><span id="line-69"></span><span>  </span><span class="annot"><span class="annottext">Validation e a
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="hs-operator hs-var">&lt;!&gt;</span></span><span> </span><span id="local-6989586621679072307"><span class="annot"><span class="annottext">s :: Validation e a
+</span><a href="#local-6989586621679072307"><span class="hs-identifier hs-var">s</span></a></span></span><span class="hs-glyph">@</span><span class="annot"><a href="Data.Either.Validation.html#Success"><span class="hs-identifier hs-type">Success</span></a></span><span class="hs-special">{</span><span class="hs-special">}</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Validation e a
+</span><a href="#local-6989586621679072307"><span class="hs-identifier hs-var">s</span></a></span><span>
+</span><span id="line-70"></span><span>  </span><span class="annot"><a href="Data.Either.Validation.html#Failure"><span class="hs-identifier hs-type">Failure</span></a></span><span> </span><span id="local-6989586621679072308"><span class="annot"><span class="annottext">e
+</span><a href="#local-6989586621679072308"><span class="hs-identifier hs-var">m</span></a></span></span><span> </span><span class="annot"><span class="hs-operator hs-var">&lt;!&gt;</span></span><span> </span><span class="annot"><a href="Data.Either.Validation.html#Failure"><span class="hs-identifier hs-type">Failure</span></a></span><span> </span><span id="local-6989586621679072309"><span class="annot"><span class="annottext">e
+</span><a href="#local-6989586621679072309"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">e -&gt; Validation e a
+forall e a. e -&gt; Validation e a
+</span><a href="Data.Either.Validation.html#Failure"><span class="hs-identifier hs-var">Failure</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">e
+</span><a href="#local-6989586621679072308"><span class="hs-identifier hs-var">m</span></a></span><span> </span><span class="annot"><span class="annottext">e -&gt; e -&gt; e
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">e
+</span><a href="#local-6989586621679072309"><span class="hs-identifier hs-var">n</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-71"></span><span>
+</span><span id="line-72"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679071941"><span id="local-6989586621679072317"><span id="local-6989586621679072321"><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Semigroup</span></span><span> </span><span class="annot"><a href="#local-6989586621679071941"><span class="hs-identifier hs-type">e</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Monoid</span></span><span> </span><span class="annot"><a href="#local-6989586621679071941"><span class="hs-identifier hs-type">e</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Alternative</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Either.Validation.html#Validation"><span class="hs-identifier hs-type">Validation</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679071941"><span class="hs-identifier hs-type">e</span></a></span><span class="hs-special">)</span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-73"></span><span>  </span><span id="local-6989586621679072325"><span class="annot"><span class="annottext">empty :: forall a. Validation e a
+</span><a href="#local-6989586621679072325"><span class="hs-identifier hs-var hs-var hs-var">empty</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">e -&gt; Validation e a
+forall e a. e -&gt; Validation e a
+</span><a href="Data.Either.Validation.html#Failure"><span class="hs-identifier hs-var">Failure</span></a></span><span> </span><span class="annot"><span class="annottext">e
+forall a. Monoid a =&gt; a
+</span><span class="hs-identifier hs-var">mempty</span></span><span>
+</span><span id="line-74"></span><span>  </span><span id="local-6989586621679072328"><span class="annot"><span class="annottext">&lt;|&gt; :: forall a. Validation e a -&gt; Validation e a -&gt; Validation e a
+</span><a href="#local-6989586621679072328"><span class="hs-operator hs-var hs-var hs-var">(&lt;|&gt;)</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Validation e a -&gt; Validation e a -&gt; Validation e a
+forall a. Validation e a -&gt; Validation e a -&gt; Validation e a
+forall (f :: * -&gt; *) a. Alt f =&gt; f a -&gt; f a -&gt; f a
+</span><span class="hs-operator hs-var">(&lt;!&gt;)</span></span><span>
+</span><span id="line-75"></span><span>
+</span><span id="line-76"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679071969"><span id="local-6989586621679072331"><span id="local-6989586621679072337"><span id="local-6989586621679072342"><span id="local-6989586621679072348"><span id="local-6989586621679072351"><span id="local-6989586621679072354"><span id="local-6989586621679072357"><span id="local-6989586621679072360"><span id="local-6989586621679072363"><span id="local-6989586621679072366"><span id="local-6989586621679072369"><span id="local-6989586621679072372"><span id="local-6989586621679072377"><span id="local-6989586621679072382"><span id="local-6989586621679072387"><span id="local-6989586621679072392"><span class="annot"><span class="hs-identifier hs-type">Foldable</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Either.Validation.html#Validation"><span class="hs-identifier hs-type">Validation</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679071969"><span class="hs-identifier hs-type">e</span></a></span><span class="hs-special">)</span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-77"></span><span>  </span><span id="local-6989586621679072397"><span class="annot"><span class="annottext">foldr :: forall a b. (a -&gt; b -&gt; b) -&gt; b -&gt; Validation e a -&gt; b
+</span><span class="hs-identifier hs-var hs-var hs-var">foldr</span></span></span><span> </span><span id="local-6989586621679072398"><span class="annot"><span class="annottext">a -&gt; b -&gt; b
+</span><a href="#local-6989586621679072398"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span id="local-6989586621679072399"><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679072399"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Either.Validation.html#Success"><span class="hs-identifier hs-type">Success</span></a></span><span> </span><span id="local-6989586621679072400"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679072400"><span class="hs-identifier hs-var">a</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">a -&gt; b -&gt; b
+</span><a href="#local-6989586621679072398"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679072400"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679072399"><span class="hs-identifier hs-var">x</span></a></span><span>
+</span><span id="line-78"></span><span>  </span><span class="annot"><span class="hs-identifier hs-var">foldr</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; b -&gt; b
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621679072401"><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679072401"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Either.Validation.html#Failure"><span class="hs-identifier hs-type">Failure</span></a></span><span> </span><span class="annot"><span class="annottext">e
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679072401"><span class="hs-identifier hs-var">x</span></a></span><span>
+</span><span id="line-79"></span><span>
+</span><span id="line-80"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679071987"><span id="local-6989586621679072408"><span id="local-6989586621679072414"><span id="local-6989586621679072419"><span class="annot"><span class="hs-identifier hs-type">Traversable</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Either.Validation.html#Validation"><span class="hs-identifier hs-type">Validation</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679071987"><span class="hs-identifier hs-type">e</span></a></span><span class="hs-special">)</span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-81"></span><span>  </span><span id="local-6989586621679072429"><span class="annot"><span class="annottext">traverse :: forall (f :: * -&gt; *) a b.
+Applicative f =&gt;
+(a -&gt; f b) -&gt; Validation e a -&gt; f (Validation e b)
+</span><a href="#local-6989586621679072429"><span class="hs-identifier hs-var hs-var hs-var">traverse</span></a></span></span><span> </span><span id="local-6989586621679072431"><span class="annot"><span class="annottext">a -&gt; f b
+</span><a href="#local-6989586621679072431"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Either.Validation.html#Success"><span class="hs-identifier hs-type">Success</span></a></span><span> </span><span id="local-6989586621679072432"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679072432"><span class="hs-identifier hs-var">a</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">b -&gt; Validation e b
+forall e a. a -&gt; Validation e a
+</span><a href="Data.Either.Validation.html#Success"><span class="hs-identifier hs-var">Success</span></a></span><span> </span><span class="annot"><span class="annottext">(b -&gt; Validation e b) -&gt; f b -&gt; f (Validation e b)
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; f b
+</span><a href="#local-6989586621679072431"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679072432"><span class="hs-identifier hs-var">a</span></a></span><span>
+</span><span id="line-82"></span><span>  </span><span class="annot"><span class="hs-identifier hs-var">traverse</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; f b
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Either.Validation.html#Failure"><span class="hs-identifier hs-type">Failure</span></a></span><span> </span><span id="local-6989586621679072434"><span class="annot"><span class="annottext">e
+</span><a href="#local-6989586621679072434"><span class="hs-identifier hs-var">e</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Validation e b -&gt; f (Validation e b)
+forall a. a -&gt; f a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">e -&gt; Validation e b
+forall e a. e -&gt; Validation e a
+</span><a href="Data.Either.Validation.html#Failure"><span class="hs-identifier hs-var">Failure</span></a></span><span> </span><span class="annot"><span class="annottext">e
+</span><a href="#local-6989586621679072434"><span class="hs-identifier hs-var">e</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-83"></span><span>
+</span><span id="line-84"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679072439"><span id="local-6989586621679072443"><span class="annot"><span class="hs-identifier hs-type">Bifunctor</span></span><span> </span><span class="annot"><a href="Data.Either.Validation.html#Validation"><span class="hs-identifier hs-type">Validation</span></a></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-85"></span><span>  </span><span id="local-6989586621679072446"><span class="annot"><span class="annottext">bimap :: forall a b c d.
+(a -&gt; b) -&gt; (c -&gt; d) -&gt; Validation a c -&gt; Validation b d
+</span><span class="hs-identifier hs-var hs-var hs-var">bimap</span></span></span><span> </span><span id="local-6989586621679072447"><span class="annot"><span class="annottext">a -&gt; b
+</span><a href="#local-6989586621679072447"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="annot"><span class="annottext">c -&gt; d
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Either.Validation.html#Failure"><span class="hs-identifier hs-type">Failure</span></a></span><span> </span><span id="local-6989586621679072448"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679072448"><span class="hs-identifier hs-var">e</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">b -&gt; Validation b d
+forall e a. e -&gt; Validation e a
+</span><a href="Data.Either.Validation.html#Failure"><span class="hs-identifier hs-var">Failure</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a -&gt; b
+</span><a href="#local-6989586621679072447"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679072448"><span class="hs-identifier hs-var">e</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-86"></span><span>  </span><span class="annot"><span class="hs-identifier hs-var">bimap</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; b
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621679072449"><span class="annot"><span class="annottext">c -&gt; d
+</span><a href="#local-6989586621679072449"><span class="hs-identifier hs-var">g</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Either.Validation.html#Success"><span class="hs-identifier hs-type">Success</span></a></span><span> </span><span id="local-6989586621679072450"><span class="annot"><span class="annottext">c
+</span><a href="#local-6989586621679072450"><span class="hs-identifier hs-var">a</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">d -&gt; Validation b d
+forall e a. a -&gt; Validation e a
+</span><a href="Data.Either.Validation.html#Success"><span class="hs-identifier hs-var">Success</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">c -&gt; d
+</span><a href="#local-6989586621679072449"><span class="hs-identifier hs-var">g</span></a></span><span> </span><span class="annot"><span class="annottext">c
+</span><a href="#local-6989586621679072450"><span class="hs-identifier hs-var">a</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-87"></span><span>
+</span><span id="line-88"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679072452"><span id="local-6989586621679072458"><span id="local-6989586621679072464"><span class="annot"><span class="hs-identifier hs-type">Bifoldable</span></span><span> </span><span class="annot"><a href="Data.Either.Validation.html#Validation"><span class="hs-identifier hs-type">Validation</span></a></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-89"></span><span>  </span><span id="local-6989586621679072467"><span class="annot"><span class="annottext">bifoldr :: forall a c b.
+(a -&gt; c -&gt; c) -&gt; (b -&gt; c -&gt; c) -&gt; c -&gt; Validation a b -&gt; c
+</span><span class="hs-identifier hs-var hs-var hs-var">bifoldr</span></span></span><span> </span><span class="annot"><span class="annottext">a -&gt; c -&gt; c
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621679072468"><span class="annot"><span class="annottext">b -&gt; c -&gt; c
+</span><a href="#local-6989586621679072468"><span class="hs-identifier hs-var">g</span></a></span></span><span> </span><span id="local-6989586621679072469"><span class="annot"><span class="annottext">c
+</span><a href="#local-6989586621679072469"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Either.Validation.html#Success"><span class="hs-identifier hs-type">Success</span></a></span><span> </span><span id="local-6989586621679072470"><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679072470"><span class="hs-identifier hs-var">a</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">b -&gt; c -&gt; c
+</span><a href="#local-6989586621679072468"><span class="hs-identifier hs-var">g</span></a></span><span> </span><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679072470"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="annot"><span class="annottext">c
+</span><a href="#local-6989586621679072469"><span class="hs-identifier hs-var">x</span></a></span><span>
+</span><span id="line-90"></span><span>  </span><span class="annot"><span class="hs-identifier hs-var">bifoldr</span></span><span> </span><span id="local-6989586621679072471"><span class="annot"><span class="annottext">a -&gt; c -&gt; c
+</span><a href="#local-6989586621679072471"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="annot"><span class="annottext">b -&gt; c -&gt; c
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621679072472"><span class="annot"><span class="annottext">c
+</span><a href="#local-6989586621679072472"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Either.Validation.html#Failure"><span class="hs-identifier hs-type">Failure</span></a></span><span> </span><span id="local-6989586621679072473"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679072473"><span class="hs-identifier hs-var">e</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">a -&gt; c -&gt; c
+</span><a href="#local-6989586621679072471"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679072473"><span class="hs-identifier hs-var">e</span></a></span><span> </span><span class="annot"><span class="annottext">c
+</span><a href="#local-6989586621679072472"><span class="hs-identifier hs-var">x</span></a></span><span>
+</span><span id="line-91"></span><span>
+</span><span id="line-92"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bitraversable</span></span><span> </span><span class="annot"><a href="Data.Either.Validation.html#Validation"><span class="hs-identifier hs-type">Validation</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-93"></span><span>  </span><span id="local-6989586621679072485"><span class="annot"><span class="annottext">bitraverse :: forall (f :: * -&gt; *) a c b d.
+Applicative f =&gt;
+(a -&gt; f c) -&gt; (b -&gt; f d) -&gt; Validation a b -&gt; f (Validation c d)
+</span><span class="hs-identifier hs-var hs-var hs-var">bitraverse</span></span></span><span> </span><span class="annot"><span class="annottext">a -&gt; f c
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621679072486"><span class="annot"><span class="annottext">b -&gt; f d
+</span><a href="#local-6989586621679072486"><span class="hs-identifier hs-var">g</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Either.Validation.html#Success"><span class="hs-identifier hs-type">Success</span></a></span><span> </span><span id="local-6989586621679072487"><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679072487"><span class="hs-identifier hs-var">a</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">d -&gt; Validation c d
+forall e a. a -&gt; Validation e a
+</span><a href="Data.Either.Validation.html#Success"><span class="hs-identifier hs-var">Success</span></a></span><span> </span><span class="annot"><span class="annottext">(d -&gt; Validation c d) -&gt; f d -&gt; f (Validation c d)
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">b -&gt; f d
+</span><a href="#local-6989586621679072486"><span class="hs-identifier hs-var">g</span></a></span><span> </span><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679072487"><span class="hs-identifier hs-var">a</span></a></span><span>
+</span><span id="line-94"></span><span>  </span><span class="annot"><span class="hs-identifier hs-var">bitraverse</span></span><span> </span><span id="local-6989586621679072488"><span class="annot"><span class="annottext">a -&gt; f c
+</span><a href="#local-6989586621679072488"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="annot"><span class="annottext">b -&gt; f d
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Either.Validation.html#Failure"><span class="hs-identifier hs-type">Failure</span></a></span><span> </span><span id="local-6989586621679072489"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679072489"><span class="hs-identifier hs-var">e</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">c -&gt; Validation c d
+forall e a. e -&gt; Validation e a
+</span><a href="Data.Either.Validation.html#Failure"><span class="hs-identifier hs-var">Failure</span></a></span><span> </span><span class="annot"><span class="annottext">(c -&gt; Validation c d) -&gt; f c -&gt; f (Validation c d)
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; f c
+</span><a href="#local-6989586621679072488"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679072489"><span class="hs-identifier hs-var">e</span></a></span><span>
+</span><span id="line-95"></span><span>
+</span><span id="line-96"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679072044"><span id="local-6989586621679072045"><span id="local-6989586621679072493"><span id="local-6989586621679072497"><span class="annot"><span class="hs-identifier hs-type">Semigroup</span></span><span> </span><span class="annot"><a href="#local-6989586621679072044"><span class="hs-identifier hs-type">e</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Semigroup</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Either.Validation.html#Validation"><span class="hs-identifier hs-type">Validation</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679072044"><span class="hs-identifier hs-type">e</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679072045"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-97"></span><span>  </span><span id="local-6989586621679072503"><span class="annot"><span class="annottext">x :: Validation e a
+</span><a href="#local-6989586621679072503"><span class="hs-identifier hs-var">x</span></a></span></span><span class="hs-glyph">@</span><span class="annot"><a href="Data.Either.Validation.html#Success"><span class="hs-identifier hs-type">Success</span></a></span><span class="hs-special">{</span><span class="hs-special">}</span><span> </span><span id="local-6989586621679072504"><span class="annot"><span class="annottext">&lt;&gt; :: Validation e a -&gt; Validation e a -&gt; Validation e a
+</span><span class="hs-operator hs-var hs-var hs-var">&lt;&gt;</span></span></span><span> </span><span class="annot"><span class="annottext">Validation e a
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Validation e a
+</span><a href="#local-6989586621679072503"><span class="hs-identifier hs-var">x</span></a></span><span>
+</span><span id="line-98"></span><span>  </span><span class="annot"><span class="annottext">Validation e a
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span id="local-6989586621679072505"><span class="annot"><span class="annottext">x :: Validation e a
+</span><a href="#local-6989586621679072505"><span class="hs-identifier hs-var">x</span></a></span></span><span class="hs-glyph">@</span><span class="annot"><a href="Data.Either.Validation.html#Success"><span class="hs-identifier hs-type">Success</span></a></span><span class="hs-special">{</span><span class="hs-special">}</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Validation e a
+</span><a href="#local-6989586621679072505"><span class="hs-identifier hs-var">x</span></a></span><span>
+</span><span id="line-99"></span><span>  </span><span class="annot"><a href="Data.Either.Validation.html#Failure"><span class="hs-identifier hs-type">Failure</span></a></span><span> </span><span id="local-6989586621679072506"><span class="annot"><span class="annottext">e
+</span><a href="#local-6989586621679072506"><span class="hs-identifier hs-var">e1</span></a></span></span><span> </span><span class="annot"><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><a href="Data.Either.Validation.html#Failure"><span class="hs-identifier hs-type">Failure</span></a></span><span> </span><span id="local-6989586621679072507"><span class="annot"><span class="annottext">e
+</span><a href="#local-6989586621679072507"><span class="hs-identifier hs-var">e2</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">e -&gt; Validation e a
+forall e a. e -&gt; Validation e a
+</span><a href="Data.Either.Validation.html#Failure"><span class="hs-identifier hs-var">Failure</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">e
+</span><a href="#local-6989586621679072506"><span class="hs-identifier hs-var">e1</span></a></span><span> </span><span class="annot"><span class="annottext">e -&gt; e -&gt; e
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">e
+</span><a href="#local-6989586621679072507"><span class="hs-identifier hs-var">e2</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-100"></span><span>
+</span><span id="line-101"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679072048"><span id="local-6989586621679072049"><span id="local-6989586621679072514"><span id="local-6989586621679072518"><span class="annot"><span class="hs-identifier hs-type">Monoid</span></span><span> </span><span class="annot"><a href="#local-6989586621679072048"><span class="hs-identifier hs-type">e</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Monoid</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Either.Validation.html#Validation"><span class="hs-identifier hs-type">Validation</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679072048"><span class="hs-identifier hs-type">e</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679072049"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-102"></span><span>  </span><span id="local-6989586621679072523"><span class="annot"><span class="annottext">mempty :: Validation e a
+</span><span class="hs-identifier hs-var hs-var hs-var">mempty</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">e -&gt; Validation e a
+forall e a. e -&gt; Validation e a
+</span><a href="Data.Either.Validation.html#Failure"><span class="hs-identifier hs-var">Failure</span></a></span><span> </span><span class="annot"><span class="annottext">e
+forall a. Monoid a =&gt; a
+</span><span class="hs-identifier hs-var">mempty</span></span><span class="hs-cpp">
+#if !(MIN_VERSION_base(4,11,0))
+</span><span>  </span><span class="hs-identifier">x</span><span class="hs-glyph">@</span><span class="hs-identifier">Success</span><span class="hs-special">{</span><span class="hs-special">}</span><span> </span><span class="hs-special">`</span><span class="hs-identifier">mappend</span><span class="hs-special">`</span><span> </span><span class="hs-identifier">_</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">x</span><span>
+</span><span id="line-105"></span><span>  </span><span class="hs-identifier">_</span><span> </span><span class="hs-special">`</span><span class="hs-identifier">mappend</span><span class="hs-special">`</span><span> </span><span class="hs-identifier">x</span><span class="hs-glyph">@</span><span class="hs-identifier">Success</span><span class="hs-special">{</span><span class="hs-special">}</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">x</span><span>
+</span><span id="line-106"></span><span>  </span><span class="hs-identifier">Failure</span><span> </span><span class="hs-identifier">e1</span><span> </span><span class="hs-special">`</span><span class="hs-identifier">mappend</span><span class="hs-special">`</span><span> </span><span class="hs-identifier">Failure</span><span> </span><span class="hs-identifier">e2</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">Failure</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">e1</span><span> </span><span class="hs-special">`</span><span class="hs-identifier">mappend</span><span class="hs-special">`</span><span> </span><span class="hs-identifier">e2</span><span class="hs-special">)</span><span class="hs-cpp">
+#endif
+</span><span>
+</span><span id="line-109"></span><span class="hs-keyword">type</span><span> </span><span id="Prism"><span class="annot"><a href="Data.Either.Validation.html#Prism"><span class="hs-identifier hs-var">Prism</span></a></span></span><span> </span><span id="local-6989586621679072524"><span class="annot"><a href="#local-6989586621679072524"><span class="hs-identifier hs-type">s</span></a></span></span><span> </span><span id="local-6989586621679072525"><span class="annot"><a href="#local-6989586621679072525"><span class="hs-identifier hs-type">t</span></a></span></span><span> </span><span id="local-6989586621679072526"><span class="annot"><a href="#local-6989586621679072526"><span class="hs-identifier hs-type">a</span></a></span></span><span> </span><span id="local-6989586621679072527"><span class="annot"><a href="#local-6989586621679072527"><span class="hs-identifier hs-type">b</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">forall</span><span> </span><span id="local-6989586621679072078"><span class="annot"><a href="#local-6989586621679072078"><span class="hs-identifier hs-type">p</span></a></span></span><span> </span><span id="local-6989586621679072079"><span class="annot"><a href="#local-6989586621679072079"><span class="hs-identifier hs-type">f</span></a></span></span><span class="hs-operator">.</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Choice</span></span><span> </span><span class="annot"><a href="#local-6989586621679072078"><span class="hs-identifier hs-type">p</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Applicative</span></span><span> </span><span class="annot"><a href="#local-6989586621679072079"><span class="hs-identifier hs-type">f</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679072078"><span class="hs-identifier hs-type">p</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679072526"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679072079"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679072527"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679072078"><span class="hs-identifier hs-type">p</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679072524"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679072079"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679072525"><span class="hs-identifier hs-type">t</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-110"></span><span>
+</span><span id="line-111"></span><span id="local-6989586621679072050"><span id="local-6989586621679072051"><span id="local-6989586621679072052"><span id="local-6989586621679072053"><span class="annot"><a href="Data.Either.Validation.html#prism"><span class="hs-identifier hs-type">prism</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679072050"><span class="hs-identifier hs-type">b</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679072051"><span class="hs-identifier hs-type">t</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679072052"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Either</span></span><span> </span><span class="annot"><a href="#local-6989586621679072051"><span class="hs-identifier hs-type">t</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679072053"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Data.Either.Validation.html#Prism"><span class="hs-identifier hs-type">Prism</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679072052"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679072051"><span class="hs-identifier hs-type">t</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679072053"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679072050"><span class="hs-identifier hs-type">b</span></a></span></span></span></span></span><span>
+</span><span id="line-112"></span><span id="prism"><span class="annot"><span class="annottext">prism :: forall b t s a. (b -&gt; t) -&gt; (s -&gt; Either t a) -&gt; Prism s t a b
+</span><a href="Data.Either.Validation.html#prism"><span class="hs-identifier hs-var hs-var">prism</span></a></span></span><span> </span><span id="local-6989586621679072538"><span class="annot"><span class="annottext">b -&gt; t
+</span><a href="#local-6989586621679072538"><span class="hs-identifier hs-var">bt</span></a></span></span><span> </span><span id="local-6989586621679072539"><span class="annot"><span class="annottext">s -&gt; Either t a
+</span><a href="#local-6989586621679072539"><span class="hs-identifier hs-var">seta</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(s -&gt; Either t a)
+-&gt; (Either t (f b) -&gt; f t)
+-&gt; p (Either t a) (Either t (f b))
+-&gt; p s (f t)
+forall a b c d. (a -&gt; b) -&gt; (c -&gt; d) -&gt; p b c -&gt; p a d
+forall (p :: * -&gt; * -&gt; *) a b c d.
+Profunctor p =&gt;
+(a -&gt; b) -&gt; (c -&gt; d) -&gt; p b c -&gt; p a d
+</span><span class="hs-identifier hs-var">dimap</span></span><span> </span><span class="annot"><span class="annottext">s -&gt; Either t a
+</span><a href="#local-6989586621679072539"><span class="hs-identifier hs-var">seta</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(t -&gt; f t) -&gt; (f b -&gt; f t) -&gt; Either t (f b) -&gt; f t
+forall a c b. (a -&gt; c) -&gt; (b -&gt; c) -&gt; Either a b -&gt; c
+</span><span class="hs-identifier hs-var">either</span></span><span> </span><span class="annot"><span class="annottext">t -&gt; f t
+forall a. a -&gt; f a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(b -&gt; t) -&gt; f b -&gt; f t
+forall a b. (a -&gt; b) -&gt; f a -&gt; f b
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="annot"><span class="annottext">b -&gt; t
+</span><a href="#local-6989586621679072538"><span class="hs-identifier hs-var">bt</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(p (Either t a) (Either t (f b)) -&gt; p s (f t))
+-&gt; (p a (f b) -&gt; p (Either t a) (Either t (f b)))
+-&gt; p a (f b)
+-&gt; p s (f t)
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">p a (f b) -&gt; p (Either t a) (Either t (f b))
+forall a b c. p a b -&gt; p (Either c a) (Either c b)
+forall (p :: * -&gt; * -&gt; *) a b c.
+Choice p =&gt;
+p a b -&gt; p (Either c a) (Either c b)
+</span><span class="hs-identifier hs-var">right'</span></span><span>
+</span><span id="line-113"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Data.Either.Validation.html#prism"><span class="hs-pragma hs-type">prism</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-114"></span><span>
+</span><span id="line-115"></span><span id="local-6989586621679072080"><span id="local-6989586621679072081"><span id="local-6989586621679072082"><span class="annot"><a href="Data.Either.Validation.html#_Failure"><span class="hs-identifier hs-type">_Failure</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Data.Either.Validation.html#Prism"><span class="hs-identifier hs-type">Prism</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Either.Validation.html#Validation"><span class="hs-identifier hs-type">Validation</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679072080"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679072082"><span class="hs-identifier hs-type">c</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Either.Validation.html#Validation"><span class="hs-identifier hs-type">Validation</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679072081"><span class="hs-identifier hs-type">b</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679072082"><span class="hs-identifier hs-type">c</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><a href="#local-6989586621679072080"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679072081"><span class="hs-identifier hs-type">b</span></a></span></span></span></span><span>
+</span><span id="line-116"></span><span id="_Failure"><span class="annot"><span class="annottext">_Failure :: forall a c b (p :: * -&gt; * -&gt; *) (f :: * -&gt; *).
+(Choice p, Applicative f) =&gt;
+p a (f b) -&gt; p (Validation a c) (f (Validation b c))
+</span><a href="Data.Either.Validation.html#_Failure"><span class="hs-identifier hs-var hs-var">_Failure</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(b -&gt; Validation b c)
+-&gt; (Validation a c -&gt; Either (Validation b c) a)
+-&gt; Prism (Validation a c) (Validation b c) a b
+forall b t s a. (b -&gt; t) -&gt; (s -&gt; Either t a) -&gt; Prism s t a b
+</span><a href="Data.Either.Validation.html#prism"><span class="hs-identifier hs-var">prism</span></a></span><span>
+</span><span id="line-117"></span><span>           </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span> </span><span id="local-6989586621679072548"><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679072548"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">b -&gt; Validation b c
+forall e a. e -&gt; Validation e a
+</span><a href="Data.Either.Validation.html#Failure"><span class="hs-identifier hs-var">Failure</span></a></span><span> </span><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679072548"><span class="hs-identifier hs-var">x</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-118"></span><span>           </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span> </span><span id="local-6989586621679072549"><span class="annot"><span class="annottext">Validation a c
+</span><a href="#local-6989586621679072549"><span class="hs-identifier hs-var">x</span></a></span></span><span>
+</span><span id="line-119"></span><span>            </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Validation a c
+</span><a href="#local-6989586621679072549"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-120"></span><span>              </span><span class="annot"><a href="Data.Either.Validation.html#Failure"><span class="hs-identifier hs-type">Failure</span></a></span><span> </span><span id="local-6989586621679072550"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679072550"><span class="hs-identifier hs-var">y</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">a -&gt; Either (Validation b c) a
+forall a b. b -&gt; Either a b
+</span><span class="hs-identifier hs-var">Right</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679072550"><span class="hs-identifier hs-var">y</span></a></span><span>
+</span><span id="line-121"></span><span>              </span><span class="annot"><a href="Data.Either.Validation.html#Success"><span class="hs-identifier hs-type">Success</span></a></span><span> </span><span id="local-6989586621679072551"><span class="annot"><span class="annottext">c
+</span><a href="#local-6989586621679072551"><span class="hs-identifier hs-var">y</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Validation b c -&gt; Either (Validation b c) a
+forall a b. a -&gt; Either a b
+</span><span class="hs-identifier hs-var">Left</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">c -&gt; Validation b c
+forall e a. a -&gt; Validation e a
+</span><a href="Data.Either.Validation.html#Success"><span class="hs-identifier hs-var">Success</span></a></span><span> </span><span class="annot"><span class="annottext">c
+</span><a href="#local-6989586621679072551"><span class="hs-identifier hs-var">y</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-122"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Data.Either.Validation.html#_Failure"><span class="hs-pragma hs-type">_Failure</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-123"></span><span>
+</span><span id="line-124"></span><span id="local-6989586621679072090"><span id="local-6989586621679072091"><span id="local-6989586621679072092"><span class="annot"><a href="Data.Either.Validation.html#_Success"><span class="hs-identifier hs-type">_Success</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Data.Either.Validation.html#Prism"><span class="hs-identifier hs-type">Prism</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Either.Validation.html#Validation"><span class="hs-identifier hs-type">Validation</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679072092"><span class="hs-identifier hs-type">c</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679072090"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Either.Validation.html#Validation"><span class="hs-identifier hs-type">Validation</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679072092"><span class="hs-identifier hs-type">c</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679072091"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><a href="#local-6989586621679072090"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679072091"><span class="hs-identifier hs-type">b</span></a></span></span></span></span><span>
+</span><span id="line-125"></span><span id="_Success"><span class="annot"><span class="annottext">_Success :: forall c a b (p :: * -&gt; * -&gt; *) (f :: * -&gt; *).
+(Choice p, Applicative f) =&gt;
+p a (f b) -&gt; p (Validation c a) (f (Validation c b))
+</span><a href="Data.Either.Validation.html#_Success"><span class="hs-identifier hs-var hs-var">_Success</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(b -&gt; Validation c b)
+-&gt; (Validation c a -&gt; Either (Validation c b) a)
+-&gt; Prism (Validation c a) (Validation c b) a b
+forall b t s a. (b -&gt; t) -&gt; (s -&gt; Either t a) -&gt; Prism s t a b
+</span><a href="Data.Either.Validation.html#prism"><span class="hs-identifier hs-var">prism</span></a></span><span>
+</span><span id="line-126"></span><span>           </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span> </span><span id="local-6989586621679072556"><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679072556"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">b -&gt; Validation c b
+forall e a. a -&gt; Validation e a
+</span><a href="Data.Either.Validation.html#Success"><span class="hs-identifier hs-var">Success</span></a></span><span> </span><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679072556"><span class="hs-identifier hs-var">x</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-127"></span><span>           </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span> </span><span id="local-6989586621679072557"><span class="annot"><span class="annottext">Validation c a
+</span><a href="#local-6989586621679072557"><span class="hs-identifier hs-var">x</span></a></span></span><span>
+</span><span id="line-128"></span><span>            </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Validation c a
+</span><a href="#local-6989586621679072557"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-129"></span><span>              </span><span class="annot"><a href="Data.Either.Validation.html#Failure"><span class="hs-identifier hs-type">Failure</span></a></span><span> </span><span id="local-6989586621679072558"><span class="annot"><span class="annottext">c
+</span><a href="#local-6989586621679072558"><span class="hs-identifier hs-var">y</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Validation c b -&gt; Either (Validation c b) a
+forall a b. a -&gt; Either a b
+</span><span class="hs-identifier hs-var">Left</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">c -&gt; Validation c b
+forall e a. e -&gt; Validation e a
+</span><a href="Data.Either.Validation.html#Failure"><span class="hs-identifier hs-var">Failure</span></a></span><span> </span><span class="annot"><span class="annottext">c
+</span><a href="#local-6989586621679072558"><span class="hs-identifier hs-var">y</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-130"></span><span>              </span><span class="annot"><a href="Data.Either.Validation.html#Success"><span class="hs-identifier hs-type">Success</span></a></span><span> </span><span id="local-6989586621679072559"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679072559"><span class="hs-identifier hs-var">y</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">a -&gt; Either (Validation c b) a
+forall a b. b -&gt; Either a b
+</span><span class="hs-identifier hs-var">Right</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679072559"><span class="hs-identifier hs-var">y</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-131"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Data.Either.Validation.html#_Success"><span class="hs-pragma hs-type">_Success</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-132"></span><span>
+</span><span id="line-133"></span><span class="hs-keyword">type</span><span> </span><span id="Iso"><span class="annot"><a href="Data.Either.Validation.html#Iso"><span class="hs-identifier hs-var">Iso</span></a></span></span><span> </span><span id="local-6989586621679072560"><span class="annot"><a href="#local-6989586621679072560"><span class="hs-identifier hs-type">s</span></a></span></span><span> </span><span id="local-6989586621679072561"><span class="annot"><a href="#local-6989586621679072561"><span class="hs-identifier hs-type">t</span></a></span></span><span> </span><span id="local-6989586621679072562"><span class="annot"><a href="#local-6989586621679072562"><span class="hs-identifier hs-type">a</span></a></span></span><span> </span><span id="local-6989586621679072563"><span class="annot"><a href="#local-6989586621679072563"><span class="hs-identifier hs-type">b</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">forall</span><span> </span><span id="local-6989586621679072117"><span class="annot"><a href="#local-6989586621679072117"><span class="hs-identifier hs-type">p</span></a></span></span><span> </span><span id="local-6989586621679072118"><span class="annot"><a href="#local-6989586621679072118"><span class="hs-identifier hs-type">f</span></a></span></span><span class="hs-operator">.</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Profunctor</span></span><span> </span><span class="annot"><a href="#local-6989586621679072117"><span class="hs-identifier hs-type">p</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Functor</span></span><span> </span><span class="annot"><a href="#local-6989586621679072118"><span class="hs-identifier hs-type">f</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679072117"><span class="hs-identifier hs-type">p</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679072562"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679072118"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679072563"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679072117"><span class="hs-identifier hs-type">p</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679072560"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679072118"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679072561"><span class="hs-identifier hs-type">t</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-134"></span><span>
+</span><span id="line-135"></span><span id="local-6989586621679072098"><span id="local-6989586621679072099"><span id="local-6989586621679072100"><span id="local-6989586621679072101"><span class="annot"><a href="Data.Either.Validation.html#iso"><span class="hs-identifier hs-type">iso</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679072098"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679072099"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679072100"><span class="hs-identifier hs-type">b</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679072101"><span class="hs-identifier hs-type">t</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Data.Either.Validation.html#Iso"><span class="hs-identifier hs-type">Iso</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679072098"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679072101"><span class="hs-identifier hs-type">t</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679072099"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679072100"><span class="hs-identifier hs-type">b</span></a></span></span></span></span></span><span>
+</span><span id="line-136"></span><span id="iso"><span class="annot"><span class="annottext">iso :: forall s a b t. (s -&gt; a) -&gt; (b -&gt; t) -&gt; Iso s t a b
+</span><a href="Data.Either.Validation.html#iso"><span class="hs-identifier hs-var hs-var">iso</span></a></span></span><span> </span><span id="local-6989586621679072569"><span class="annot"><span class="annottext">s -&gt; a
+</span><a href="#local-6989586621679072569"><span class="hs-identifier hs-var">sa</span></a></span></span><span> </span><span id="local-6989586621679072570"><span class="annot"><span class="annottext">b -&gt; t
+</span><a href="#local-6989586621679072570"><span class="hs-identifier hs-var">bt</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(s -&gt; a) -&gt; (f b -&gt; f t) -&gt; p a (f b) -&gt; p s (f t)
+forall a b c d. (a -&gt; b) -&gt; (c -&gt; d) -&gt; p b c -&gt; p a d
+forall (p :: * -&gt; * -&gt; *) a b c d.
+Profunctor p =&gt;
+(a -&gt; b) -&gt; (c -&gt; d) -&gt; p b c -&gt; p a d
+</span><span class="hs-identifier hs-var">dimap</span></span><span> </span><span class="annot"><span class="annottext">s -&gt; a
+</span><a href="#local-6989586621679072569"><span class="hs-identifier hs-var">sa</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(b -&gt; t) -&gt; f b -&gt; f t
+forall a b. (a -&gt; b) -&gt; f a -&gt; f b
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="annot"><span class="annottext">b -&gt; t
+</span><a href="#local-6989586621679072570"><span class="hs-identifier hs-var">bt</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-137"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Data.Either.Validation.html#iso"><span class="hs-pragma hs-type">iso</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-138"></span><span>
+</span><span id="line-139"></span><span id="local-6989586621679072109"><span id="local-6989586621679072110"><span class="annot"><a href="Data.Either.Validation.html#validationToEither"><span class="hs-identifier hs-type">validationToEither</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Data.Either.Validation.html#Validation"><span class="hs-identifier hs-type">Validation</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679072109"><span class="hs-identifier hs-type">e</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679072110"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Either</span></span><span> </span><span class="annot"><a href="#local-6989586621679072109"><span class="hs-identifier hs-type">e</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679072110"><span class="hs-identifier hs-type">a</span></a></span></span></span><span>
+</span><span id="line-140"></span><span id="validationToEither"><span class="annot"><span class="annottext">validationToEither :: forall e a. Validation e a -&gt; Either e a
+</span><a href="Data.Either.Validation.html#validationToEither"><span class="hs-identifier hs-var hs-var">validationToEither</span></a></span></span><span> </span><span id="local-6989586621679072571"><span class="annot"><span class="annottext">Validation e a
+</span><a href="#local-6989586621679072571"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Validation e a
+</span><a href="#local-6989586621679072571"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-141"></span><span>  </span><span class="annot"><a href="Data.Either.Validation.html#Failure"><span class="hs-identifier hs-type">Failure</span></a></span><span> </span><span id="local-6989586621679072572"><span class="annot"><span class="annottext">e
+</span><a href="#local-6989586621679072572"><span class="hs-identifier hs-var">e</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">e -&gt; Either e a
+forall a b. a -&gt; Either a b
+</span><span class="hs-identifier hs-var">Left</span></span><span> </span><span class="annot"><span class="annottext">e
+</span><a href="#local-6989586621679072572"><span class="hs-identifier hs-var">e</span></a></span><span>
+</span><span id="line-142"></span><span>  </span><span class="annot"><a href="Data.Either.Validation.html#Success"><span class="hs-identifier hs-type">Success</span></a></span><span> </span><span id="local-6989586621679072573"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679072573"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">a -&gt; Either e a
+forall a b. b -&gt; Either a b
+</span><span class="hs-identifier hs-var">Right</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679072573"><span class="hs-identifier hs-var">a</span></a></span><span>
+</span><span id="line-143"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Data.Either.Validation.html#validationToEither"><span class="hs-pragma hs-type">validationToEither</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-144"></span><span>
+</span><span id="line-145"></span><span id="local-6989586621679072113"><span id="local-6989586621679072114"><span class="annot"><a href="Data.Either.Validation.html#eitherToValidation"><span class="hs-identifier hs-type">eitherToValidation</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Either</span></span><span> </span><span class="annot"><a href="#local-6989586621679072113"><span class="hs-identifier hs-type">e</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679072114"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Data.Either.Validation.html#Validation"><span class="hs-identifier hs-type">Validation</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679072113"><span class="hs-identifier hs-type">e</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679072114"><span class="hs-identifier hs-type">a</span></a></span></span></span><span>
+</span><span id="line-146"></span><span id="eitherToValidation"><span class="annot"><span class="annottext">eitherToValidation :: forall e a. Either e a -&gt; Validation e a
+</span><a href="Data.Either.Validation.html#eitherToValidation"><span class="hs-identifier hs-var hs-var">eitherToValidation</span></a></span></span><span> </span><span id="local-6989586621679072574"><span class="annot"><span class="annottext">Either e a
+</span><a href="#local-6989586621679072574"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Either e a
+</span><a href="#local-6989586621679072574"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-147"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">Left</span></span><span> </span><span id="local-6989586621679072575"><span class="annot"><span class="annottext">e
+</span><a href="#local-6989586621679072575"><span class="hs-identifier hs-var">e</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">e -&gt; Validation e a
+forall e a. e -&gt; Validation e a
+</span><a href="Data.Either.Validation.html#Failure"><span class="hs-identifier hs-var">Failure</span></a></span><span> </span><span class="annot"><span class="annottext">e
+</span><a href="#local-6989586621679072575"><span class="hs-identifier hs-var">e</span></a></span><span>
+</span><span id="line-148"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">Right</span></span><span> </span><span id="local-6989586621679072576"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679072576"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">a -&gt; Validation e a
+forall e a. a -&gt; Validation e a
+</span><a href="Data.Either.Validation.html#Success"><span class="hs-identifier hs-var">Success</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679072576"><span class="hs-identifier hs-var">a</span></a></span><span>
+</span><span id="line-149"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Data.Either.Validation.html#eitherToValidation"><span class="hs-pragma hs-type">eitherToValidation</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-150"></span><span>
+</span><span id="line-151"></span><span class="annot"><span class="hs-comment">-- | 'Validation' is isomorphic to 'Either'</span></span><span>
+</span><span id="line-152"></span><span id="local-6989586621679072119"><span id="local-6989586621679072120"><span id="local-6989586621679072121"><span id="local-6989586621679072122"><span class="annot"><a href="Data.Either.Validation.html#_Validation"><span class="hs-identifier hs-type">_Validation</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Data.Either.Validation.html#Iso"><span class="hs-identifier hs-type">Iso</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Either.Validation.html#Validation"><span class="hs-identifier hs-type">Validation</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679072119"><span class="hs-identifier hs-type">e</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679072120"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Either.Validation.html#Validation"><span class="hs-identifier hs-type">Validation</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679072121"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679072122"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Either</span></span><span> </span><span class="annot"><a href="#local-6989586621679072119"><span class="hs-identifier hs-type">e</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679072120"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Either</span></span><span> </span><span class="annot"><a href="#local-6989586621679072121"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679072122"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">)</span></span></span></span></span><span>
+</span><span id="line-153"></span><span id="_Validation"><span class="annot"><span class="annottext">_Validation :: forall e a g b (p :: * -&gt; * -&gt; *) (f :: * -&gt; *).
+(Profunctor p, Functor f) =&gt;
+p (Either e a) (f (Either g b))
+-&gt; p (Validation e a) (f (Validation g b))
+</span><a href="Data.Either.Validation.html#_Validation"><span class="hs-identifier hs-var hs-var">_Validation</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Validation e a -&gt; Either e a)
+-&gt; (Either g b -&gt; Validation g b)
+-&gt; Iso (Validation e a) (Validation g b) (Either e a) (Either g b)
+forall s a b t. (s -&gt; a) -&gt; (b -&gt; t) -&gt; Iso s t a b
+</span><a href="Data.Either.Validation.html#iso"><span class="hs-identifier hs-var">iso</span></a></span><span> </span><span class="annot"><span class="annottext">Validation e a -&gt; Either e a
+forall e a. Validation e a -&gt; Either e a
+</span><a href="Data.Either.Validation.html#validationToEither"><span class="hs-identifier hs-var">validationToEither</span></a></span><span> </span><span class="annot"><span class="annottext">Either g b -&gt; Validation g b
+forall e a. Either e a -&gt; Validation e a
+</span><a href="Data.Either.Validation.html#eitherToValidation"><span class="hs-identifier hs-var">eitherToValidation</span></a></span><span>
+</span><span id="line-154"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Data.Either.Validation.html#_Validation"><span class="hs-pragma hs-type">_Validation</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-155"></span><span>
+</span><span id="line-156"></span><span id="local-6989586621679072129"><span id="local-6989586621679072130"><span id="local-6989586621679072131"><span class="annot"><a href="Data.Either.Validation.html#vap"><span class="hs-identifier hs-type">vap</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Semigroup</span></span><span> </span><span class="annot"><a href="#local-6989586621679072129"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Either</span></span><span> </span><span class="annot"><a href="#local-6989586621679072129"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679072130"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679072131"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Either</span></span><span> </span><span class="annot"><a href="#local-6989586621679072129"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679072130"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Either</span></span><span> </span><span class="annot"><a href="#local-6989586621679072129"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679072131"><span class="hs-identifier hs-type">b</span></a></span></span></span></span><span>
+</span><span id="line-157"></span><span id="vap"><span class="annot"><span class="annottext">vap :: forall m a b.
+Semigroup m =&gt;
+Either m (a -&gt; b) -&gt; Either m a -&gt; Either m b
+</span><a href="Data.Either.Validation.html#vap"><span class="hs-identifier hs-var hs-var">vap</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Left</span></span><span> </span><span id="local-6989586621679072583"><span class="annot"><span class="annottext">m
+</span><a href="#local-6989586621679072583"><span class="hs-identifier hs-var">m</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621679072584"><span class="annot"><span class="annottext">Either m a
+</span><a href="#local-6989586621679072584"><span class="hs-identifier hs-var">b</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">m -&gt; Either m b
+forall a b. a -&gt; Either a b
+</span><span class="hs-identifier hs-var">Left</span></span><span> </span><span class="annot"><span class="annottext">(m -&gt; Either m b) -&gt; m -&gt; Either m b
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Either m a
+</span><a href="#local-6989586621679072584"><span class="hs-identifier hs-var">b</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-158"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">Left</span></span><span> </span><span id="local-6989586621679072585"><span class="annot"><span class="annottext">m
+</span><a href="#local-6989586621679072585"><span class="hs-identifier hs-var">n</span></a></span></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">m
+</span><a href="#local-6989586621679072583"><span class="hs-identifier hs-var">m</span></a></span><span> </span><span class="annot"><span class="annottext">m -&gt; m -&gt; m
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">m
+</span><a href="#local-6989586621679072585"><span class="hs-identifier hs-var">n</span></a></span><span>
+</span><span id="line-159"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">Right</span></span><span class="hs-special">{</span><span class="hs-special">}</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">m
+</span><a href="#local-6989586621679072583"><span class="hs-identifier hs-var">m</span></a></span><span>
+</span><span id="line-160"></span><span class="annot"><a href="Data.Either.Validation.html#vap"><span class="hs-identifier hs-var">vap</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Right</span></span><span class="hs-special">{</span><span class="hs-special">}</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Left</span></span><span> </span><span id="local-6989586621679072586"><span class="annot"><span class="annottext">m
+</span><a href="#local-6989586621679072586"><span class="hs-identifier hs-var">n</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">m -&gt; Either m b
+forall a b. a -&gt; Either a b
+</span><span class="hs-identifier hs-var">Left</span></span><span> </span><span class="annot"><span class="annottext">m
+</span><a href="#local-6989586621679072586"><span class="hs-identifier hs-var">n</span></a></span><span>
+</span><span id="line-161"></span><span class="annot"><a href="Data.Either.Validation.html#vap"><span class="hs-identifier hs-var">vap</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Right</span></span><span> </span><span id="local-6989586621679072587"><span class="annot"><span class="annottext">a -&gt; b
+</span><a href="#local-6989586621679072587"><span class="hs-identifier hs-var">f</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Right</span></span><span> </span><span id="local-6989586621679072588"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679072588"><span class="hs-identifier hs-var">a</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">b -&gt; Either m b
+forall a b. b -&gt; Either a b
+</span><span class="hs-identifier hs-var">Right</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a -&gt; b
+</span><a href="#local-6989586621679072587"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679072588"><span class="hs-identifier hs-var">a</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-162"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Data.Either.Validation.html#vap"><span class="hs-pragma hs-type">vap</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-163"></span><span>
+</span><span id="line-164"></span><span id="local-6989586621679072135"><span id="local-6989586621679072136"><span id="local-6989586621679072137"><span class="annot"><a href="Data.Either.Validation.html#apm"><span class="hs-identifier hs-type">apm</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Monoid</span></span><span> </span><span class="annot"><a href="#local-6989586621679072135"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Data.Either.Validation.html#Validation"><span class="hs-identifier hs-type">Validation</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679072135"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679072136"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679072137"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Data.Either.Validation.html#Validation"><span class="hs-identifier hs-type">Validation</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679072135"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679072136"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Data.Either.Validation.html#Validation"><span class="hs-identifier hs-type">Validation</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679072135"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679072137"><span class="hs-identifier hs-type">b</span></a></span></span></span></span><span>
+</span><span id="line-165"></span><span id="apm"><span class="annot"><span class="annottext">apm :: forall m a b.
+Monoid m =&gt;
+Validation m (a -&gt; b) -&gt; Validation m a -&gt; Validation m b
+</span><a href="Data.Either.Validation.html#apm"><span class="hs-identifier hs-var hs-var">apm</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Either.Validation.html#Failure"><span class="hs-identifier hs-type">Failure</span></a></span><span> </span><span id="local-6989586621679072592"><span class="annot"><span class="annottext">m
+</span><a href="#local-6989586621679072592"><span class="hs-identifier hs-var">m</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621679072593"><span class="annot"><span class="annottext">Validation m a
+</span><a href="#local-6989586621679072593"><span class="hs-identifier hs-var">b</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">m -&gt; Validation m b
+forall e a. e -&gt; Validation e a
+</span><a href="Data.Either.Validation.html#Failure"><span class="hs-identifier hs-var">Failure</span></a></span><span> </span><span class="annot"><span class="annottext">(m -&gt; Validation m b) -&gt; m -&gt; Validation m b
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">m
+</span><a href="#local-6989586621679072592"><span class="hs-identifier hs-var">m</span></a></span><span> </span><span class="annot"><span class="annottext">m -&gt; m -&gt; m
+forall a. Monoid a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">`mappend`</span></span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Validation m a
+</span><a href="#local-6989586621679072593"><span class="hs-identifier hs-var">b</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-166"></span><span>  </span><span class="annot"><a href="Data.Either.Validation.html#Failure"><span class="hs-identifier hs-type">Failure</span></a></span><span> </span><span id="local-6989586621679072594"><span class="annot"><span class="annottext">m
+</span><a href="#local-6989586621679072594"><span class="hs-identifier hs-var">n</span></a></span></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">m
+</span><a href="#local-6989586621679072594"><span class="hs-identifier hs-var">n</span></a></span><span>
+</span><span id="line-167"></span><span>  </span><span class="annot"><a href="Data.Either.Validation.html#Success"><span class="hs-identifier hs-type">Success</span></a></span><span class="hs-special">{</span><span class="hs-special">}</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">m
+forall a. Monoid a =&gt; a
+</span><span class="hs-identifier hs-var">mempty</span></span><span>
+</span><span id="line-168"></span><span class="annot"><a href="Data.Either.Validation.html#apm"><span class="hs-identifier hs-var">apm</span></a></span><span> </span><span class="annot"><a href="Data.Either.Validation.html#Success"><span class="hs-identifier hs-type">Success</span></a></span><span class="hs-special">{</span><span class="hs-special">}</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Either.Validation.html#Failure"><span class="hs-identifier hs-type">Failure</span></a></span><span> </span><span id="local-6989586621679072595"><span class="annot"><span class="annottext">m
+</span><a href="#local-6989586621679072595"><span class="hs-identifier hs-var">n</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">m -&gt; Validation m b
+forall e a. e -&gt; Validation e a
+</span><a href="Data.Either.Validation.html#Failure"><span class="hs-identifier hs-var">Failure</span></a></span><span> </span><span class="annot"><span class="annottext">m
+</span><a href="#local-6989586621679072595"><span class="hs-identifier hs-var">n</span></a></span><span>
+</span><span id="line-169"></span><span class="annot"><a href="Data.Either.Validation.html#apm"><span class="hs-identifier hs-var">apm</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Either.Validation.html#Success"><span class="hs-identifier hs-type">Success</span></a></span><span> </span><span id="local-6989586621679072596"><span class="annot"><span class="annottext">a -&gt; b
+</span><a href="#local-6989586621679072596"><span class="hs-identifier hs-var">f</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Either.Validation.html#Success"><span class="hs-identifier hs-type">Success</span></a></span><span> </span><span id="local-6989586621679072597"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679072597"><span class="hs-identifier hs-var">a</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">b -&gt; Validation m b
+forall e a. a -&gt; Validation e a
+</span><a href="Data.Either.Validation.html#Success"><span class="hs-identifier hs-var">Success</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a -&gt; b
+</span><a href="#local-6989586621679072596"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679072597"><span class="hs-identifier hs-var">a</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-170"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Data.Either.Validation.html#apm"><span class="hs-pragma hs-type">apm</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-171"></span><span>
+</span><span id="line-172"></span><span class="hs-comment">-- lazier version of vap that can leak less, but which requires a Monoid</span><span>
+</span><span id="line-173"></span><span id="local-6989586621679072141"><span id="local-6989586621679072142"><span id="local-6989586621679072143"><span class="annot"><a href="Data.Either.Validation.html#vapm"><span class="hs-identifier hs-type">vapm</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Monoid</span></span><span> </span><span class="annot"><a href="#local-6989586621679072141"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Either</span></span><span> </span><span class="annot"><a href="#local-6989586621679072141"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679072142"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679072143"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Either</span></span><span> </span><span class="annot"><a href="#local-6989586621679072141"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679072142"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Either</span></span><span> </span><span class="annot"><a href="#local-6989586621679072141"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679072143"><span class="hs-identifier hs-type">b</span></a></span></span></span></span><span>
+</span><span id="line-174"></span><span id="vapm"><span class="annot"><span class="annottext">vapm :: forall m a b.
+Monoid m =&gt;
+Either m (a -&gt; b) -&gt; Either m a -&gt; Either m b
+</span><a href="Data.Either.Validation.html#vapm"><span class="hs-identifier hs-var hs-var">vapm</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Left</span></span><span> </span><span id="local-6989586621679072601"><span class="annot"><span class="annottext">m
+</span><a href="#local-6989586621679072601"><span class="hs-identifier hs-var">m</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621679072602"><span class="annot"><span class="annottext">Either m a
+</span><a href="#local-6989586621679072602"><span class="hs-identifier hs-var">b</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">m -&gt; Either m b
+forall a b. a -&gt; Either a b
+</span><span class="hs-identifier hs-var">Left</span></span><span> </span><span class="annot"><span class="annottext">(m -&gt; Either m b) -&gt; m -&gt; Either m b
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">m
+</span><a href="#local-6989586621679072601"><span class="hs-identifier hs-var">m</span></a></span><span> </span><span class="annot"><span class="annottext">m -&gt; m -&gt; m
+forall a. Monoid a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">`mappend`</span></span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Either m a
+</span><a href="#local-6989586621679072602"><span class="hs-identifier hs-var">b</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-175"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">Left</span></span><span> </span><span id="local-6989586621679072603"><span class="annot"><span class="annottext">m
+</span><a href="#local-6989586621679072603"><span class="hs-identifier hs-var">n</span></a></span></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">m
+</span><a href="#local-6989586621679072603"><span class="hs-identifier hs-var">n</span></a></span><span>
+</span><span id="line-176"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">Right</span></span><span class="hs-special">{</span><span class="hs-special">}</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">m
+forall a. Monoid a =&gt; a
+</span><span class="hs-identifier hs-var">mempty</span></span><span>
+</span><span id="line-177"></span><span class="annot"><a href="Data.Either.Validation.html#vapm"><span class="hs-identifier hs-var">vapm</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Right</span></span><span class="hs-special">{</span><span class="hs-special">}</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Left</span></span><span> </span><span id="local-6989586621679072604"><span class="annot"><span class="annottext">m
+</span><a href="#local-6989586621679072604"><span class="hs-identifier hs-var">n</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">m -&gt; Either m b
+forall a b. a -&gt; Either a b
+</span><span class="hs-identifier hs-var">Left</span></span><span> </span><span class="annot"><span class="annottext">m
+</span><a href="#local-6989586621679072604"><span class="hs-identifier hs-var">n</span></a></span><span>
+</span><span id="line-178"></span><span class="annot"><a href="Data.Either.Validation.html#vapm"><span class="hs-identifier hs-var">vapm</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Right</span></span><span> </span><span id="local-6989586621679072605"><span class="annot"><span class="annottext">a -&gt; b
+</span><a href="#local-6989586621679072605"><span class="hs-identifier hs-var">f</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Right</span></span><span> </span><span id="local-6989586621679072606"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679072606"><span class="hs-identifier hs-var">a</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">b -&gt; Either m b
+forall a b. b -&gt; Either a b
+</span><span class="hs-identifier hs-var">Right</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a -&gt; b
+</span><a href="#local-6989586621679072605"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679072606"><span class="hs-identifier hs-var">a</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-179"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Data.Either.Validation.html#vapm"><span class="hs-pragma hs-type">vapm</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-180"></span><span>
+</span><span id="line-181"></span><span id="local-6989586621679072147"><span id="local-6989586621679072148"><span class="annot"><a href="Data.Either.Validation.html#ealt"><span class="hs-identifier hs-type">ealt</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Data.Either.Validation.html#Validation"><span class="hs-identifier hs-type">Validation</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679072147"><span class="hs-identifier hs-type">e</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679072148"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Data.Either.Validation.html#Validation"><span class="hs-identifier hs-type">Validation</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679072147"><span class="hs-identifier hs-type">e</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679072148"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Data.Either.Validation.html#Validation"><span class="hs-identifier hs-type">Validation</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679072147"><span class="hs-identifier hs-type">e</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679072148"><span class="hs-identifier hs-type">a</span></a></span></span></span><span>
+</span><span id="line-182"></span><span id="ealt"><span class="annot"><span class="annottext">ealt :: forall e a. Validation e a -&gt; Validation e a -&gt; Validation e a
+</span><a href="Data.Either.Validation.html#ealt"><span class="hs-identifier hs-var hs-var">ealt</span></a></span></span><span> </span><span class="annot"><a href="Data.Either.Validation.html#Failure"><span class="hs-identifier hs-type">Failure</span></a></span><span class="hs-special">{</span><span class="hs-special">}</span><span> </span><span id="local-6989586621679072607"><span class="annot"><span class="annottext">Validation e a
+</span><a href="#local-6989586621679072607"><span class="hs-identifier hs-var">r</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Validation e a
+</span><a href="#local-6989586621679072607"><span class="hs-identifier hs-var">r</span></a></span><span>
+</span><span id="line-183"></span><span class="annot"><a href="Data.Either.Validation.html#ealt"><span class="hs-identifier hs-var">ealt</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Either.Validation.html#Success"><span class="hs-identifier hs-type">Success</span></a></span><span> </span><span id="local-6989586621679072608"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679072608"><span class="hs-identifier hs-var">a</span></a></span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Validation e a
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">a -&gt; Validation e a
+forall e a. a -&gt; Validation e a
+</span><a href="Data.Either.Validation.html#Success"><span class="hs-identifier hs-var">Success</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679072608"><span class="hs-identifier hs-var">a</span></a></span><span>
+</span><span id="line-184"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Data.Either.Validation.html#ealt"><span class="hs-pragma hs-type">ealt</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-185"></span></pre></body></html>

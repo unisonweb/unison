@@ -1,0 +1,70 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE BangPatterns #-}</span><span>
+</span><span id="line-2"></span><span>
+</span><span id="line-3"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Bench.Vector.Algo.MutableSet.html"><span class="hs-identifier">Bench.Vector.Algo.MutableSet</span></a></span><span>
+</span><span id="line-4"></span><span class="hs-keyword">where</span><span>
+</span><span id="line-5"></span><span>
+</span><span id="line-6"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Prelude</span></span><span> </span><span class="hs-keyword">hiding</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">length</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">read</span></span><span class="hs-special">)</span><span>
+</span><span id="line-7"></span><span>
+</span><span id="line-8"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Vector.Mutable</span></span><span>
+</span><span id="line-9"></span><span>
+</span><span id="line-10"></span><span class="annot"><a href="Bench.Vector.Algo.MutableSet.html#mutableSet"><span class="hs-identifier hs-type">mutableSet</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IOVector</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>
+</span><span id="line-11"></span><span class="hs-pragma">{-# NOINLINE</span><span> </span><span class="annot"><a href="Bench.Vector.Algo.MutableSet.html#mutableSet"><span class="hs-pragma hs-type">mutableSet</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-12"></span><span id="mutableSet"><span class="annot"><span class="annottext">mutableSet :: IOVector Int -&gt; IO Int
+</span><a href="Bench.Vector.Algo.MutableSet.html#mutableSet"><span class="hs-identifier hs-var hs-var">mutableSet</span></a></span></span><span> </span><span id="local-6989586621679071842"><span class="annot"><span class="annottext">IOVector Int
+</span><a href="#local-6989586621679071842"><span class="hs-identifier hs-var">v</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-13"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679071844"><span class="annot"><span class="annottext">repetitions :: Int
+</span><a href="#local-6989586621679071844"><span class="hs-identifier hs-var hs-var">repetitions</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">100</span></span><span> </span><span class="hs-comment">-- we repeat to reduce the standard deviation in measurements.</span><span>
+</span><span id="line-14"></span><span>      </span><span id="local-6989586621679071845"><span class="annot"><span class="annottext">l :: Int
+</span><a href="#local-6989586621679071845"><span class="hs-identifier hs-var hs-var">l</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">IOVector Int -&gt; Int
+forall s a. MVector s a -&gt; Int
+</span><span class="hs-identifier hs-var">length</span></span><span> </span><span class="annot"><span class="annottext">IOVector Int
+</span><a href="#local-6989586621679071842"><span class="hs-identifier hs-var">v</span></a></span><span>
+</span><span id="line-15"></span><span>
+</span><span id="line-16"></span><span>      </span><span class="hs-comment">-- This function is tail recursive.</span><span>
+</span><span id="line-17"></span><span>      </span><span class="annot"><a href="#local-6989586621679071847"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>
+</span><span id="line-18"></span><span>      </span><span id="local-6989586621679071847"><span class="annot"><span class="annottext">f :: Int -&gt; Int -&gt; IO Int
+</span><a href="#local-6989586621679071847"><span class="hs-identifier hs-var hs-var">f</span></a></span></span><span> </span><span id="local-6989586621679071848"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679071848"><span class="hs-identifier hs-var">i</span></a></span></span><span> </span><span class="hs-glyph">!</span><span id="local-6989586621679071849"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679071849"><span class="hs-identifier hs-var">curSum</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-19"></span><span>       </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679071848"><span class="hs-identifier hs-var">i</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span>
+</span><span id="line-20"></span><span>         </span><span class="hs-keyword">then</span><span>
+</span><span id="line-21"></span><span>           </span><span class="annot"><span class="annottext">Int -&gt; IO Int
+forall a. a -&gt; IO a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679071849"><span class="hs-identifier hs-var">curSum</span></a></span><span>
+</span><span id="line-22"></span><span>         </span><span class="hs-keyword">else</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-23"></span><span>           </span><span class="hs-comment">-- 'set' is what we want to benchmark.</span><span>
+</span><span id="line-24"></span><span>           </span><span class="annot"><span class="annottext">MVector (PrimState IO) Int -&gt; Int -&gt; IO ()
+forall (m :: * -&gt; *) a.
+PrimMonad m =&gt;
+MVector (PrimState m) a -&gt; a -&gt; m ()
+</span><span class="hs-identifier hs-var">set</span></span><span> </span><span class="annot"><span class="annottext">IOVector Int
+MVector (PrimState IO) Int
+</span><a href="#local-6989586621679071842"><span class="hs-identifier hs-var">v</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679071848"><span class="hs-identifier hs-var">i</span></a></span><span>
+</span><span id="line-25"></span><span>           </span><span class="hs-comment">-- In order to make it difficult for ghc to optimize the 'set' call</span><span>
+</span><span id="line-26"></span><span>           </span><span class="hs-comment">-- away, we read the value of one element and add it to a running sum</span><span>
+</span><span id="line-27"></span><span>           </span><span class="hs-comment">-- which is returned by the function.</span><span>
+</span><span id="line-28"></span><span>           </span><span id="local-6989586621679071851"><span class="annot"><a href="#local-6989586621679071851"><span class="hs-identifier hs-var">val</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">MVector (PrimState IO) Int -&gt; Int -&gt; IO Int
+forall (m :: * -&gt; *) a.
+PrimMonad m =&gt;
+MVector (PrimState m) a -&gt; Int -&gt; m a
+</span><span class="hs-identifier hs-var">read</span></span><span> </span><span class="annot"><span class="annottext">IOVector Int
+MVector (PrimState IO) Int
+</span><a href="#local-6989586621679071842"><span class="hs-identifier hs-var">v</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679071845"><span class="hs-identifier hs-var">l</span></a></span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span class="hs-special">)</span><span>
+</span><span id="line-29"></span><span>           </span><span class="annot"><a href="#local-6989586621679071847"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679071848"><span class="hs-identifier hs-type">i</span></a></span><span class="annot"><span class="hs-glyph hs-type">-</span></span><span class="annot"><span class="hs-number">1</span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679071849"><span class="hs-identifier hs-type">curSum</span></a></span><span class="annot"><span class="hs-operator hs-type">+</span></span><span class="annot"><a href="#local-6989586621679071851"><span class="hs-identifier hs-type">val</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-30"></span><span>  </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; IO Int
+</span><a href="#local-6989586621679071847"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679071844"><span class="hs-identifier hs-var">repetitions</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span>
+</span><span id="line-31"></span></pre></body></html>

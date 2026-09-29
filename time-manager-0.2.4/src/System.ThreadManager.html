@@ -1,0 +1,553 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE CPP #-}</span><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# LANGUAGE RankNTypes #-}</span><span>
+</span><span id="line-3"></span><span class="hs-pragma">{-# LANGUAGE ScopedTypeVariables #-}</span><span>
+</span><span id="line-4"></span><span>
+</span><span id="line-5"></span><span class="hs-comment">-- | A thread manager including a time manager.</span><span>
+</span><span id="line-6"></span><span class="hs-comment">--   The manager has responsibility to kill managed threads.</span><span>
+</span><span id="line-7"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="System.ThreadManager.html"><span class="hs-identifier">System.ThreadManager</span></a></span><span> </span><span class="hs-special">(</span><span>
+</span><span id="line-8"></span><span>    </span><span class="annot"><a href="System.ThreadManager.html#ThreadManager"><span class="hs-identifier">ThreadManager</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-9"></span><span>    </span><span class="annot"><a href="System.ThreadManager.html#newThreadManager"><span class="hs-identifier">newThreadManager</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-10"></span><span>    </span><span class="annot"><a href="System.ThreadManager.html#stopAfter"><span class="hs-identifier">stopAfter</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-11"></span><span>    </span><span class="annot"><a href="System.ThreadManager.html#KilledByThreadManager"><span class="hs-identifier">KilledByThreadManager</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-12"></span><span>
+</span><span id="line-13"></span><span>    </span><span class="annot"><span class="hs-comment">-- * Fork</span></span><span>
+</span><span id="line-14"></span><span>    </span><span class="annot"><a href="System.ThreadManager.html#forkManaged"><span class="hs-identifier">forkManaged</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-15"></span><span>    </span><span class="annot"><a href="System.ThreadManager.html#forkManagedFinally"><span class="hs-identifier">forkManagedFinally</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-16"></span><span>    </span><span class="annot"><a href="System.ThreadManager.html#forkManagedUnmask"><span class="hs-identifier">forkManagedUnmask</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-17"></span><span>    </span><span class="annot"><a href="System.ThreadManager.html#forkManagedTimeout"><span class="hs-identifier">forkManagedTimeout</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-18"></span><span>    </span><span class="annot"><a href="System.ThreadManager.html#forkManagedTimeoutFinally"><span class="hs-identifier">forkManagedTimeoutFinally</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-19"></span><span>
+</span><span id="line-20"></span><span>    </span><span class="annot"><span class="hs-comment">-- * Synchronization</span></span><span>
+</span><span id="line-21"></span><span>    </span><span class="annot"><a href="System.ThreadManager.html#waitUntilAllGone"><span class="hs-identifier">waitUntilAllGone</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-22"></span><span>    </span><span class="annot"><a href="System.ThreadManager.html#isAllGone"><span class="hs-identifier">isAllGone</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-23"></span><span>
+</span><span id="line-24"></span><span>    </span><span class="annot"><span class="hs-comment">-- * Re-exports</span></span><span>
+</span><span id="line-25"></span><span>    </span><span class="annot"><a href="System.TimeManager.html#Manager"><span class="hs-identifier">T.Manager</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-26"></span><span>    </span><span class="annot"><a href="System.ThreadManager.html#withHandle"><span class="hs-identifier">withHandle</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-27"></span><span>    </span><span class="annot"><a href="System.TimeManager.html#Handle"><span class="hs-identifier">T.Handle</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-28"></span><span>    </span><span class="annot"><a href="System.TimeManager.html#tickle"><span class="hs-identifier">T.tickle</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-29"></span><span>    </span><span class="annot"><a href="System.TimeManager.html#pause"><span class="hs-identifier">T.pause</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-30"></span><span>    </span><span class="annot"><a href="System.TimeManager.html#resume"><span class="hs-identifier">T.resume</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-31"></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-32"></span><span>
+</span><span id="line-33"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Concurrent</span></span><span>
+</span><span id="line-34"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Concurrent.STM</span></span><span>
+</span><span id="line-35"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Exception</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Exception</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">SomeException</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-36"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Control.Exception</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">E</span></span><span>
+</span><span id="line-37"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Monad</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">unless</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">void</span></span><span class="hs-special">)</span><span>
+</span><span id="line-38"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Foldable</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">forM_</span></span><span class="hs-special">)</span><span>
+</span><span id="line-39"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.IORef</span></span><span>
+</span><span id="line-40"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Map.Strict</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Map</span></span><span class="hs-special">)</span><span>
+</span><span id="line-41"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Map.Strict</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Map</span></span><span>
+</span><span id="line-42"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Word</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Word64</span></span><span class="hs-special">)</span><span>
+</span><span id="line-43"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">GHC.Conc.Sync</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">labelThread</span></span><span class="hs-special">)</span><span class="hs-cpp">
+#if __GLASGOW_HASKELL__ &gt;= 908
+</span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">GHC.Conc.Sync</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">fromThreadId</span></span><span class="hs-special">)</span><span class="hs-cpp">
+#endif
+</span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">System.Mem.Weak</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Weak</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">deRefWeak</span></span><span class="hs-special">)</span><span>
+</span><span id="line-48"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="System.TimeManager.html"><span class="hs-identifier">System.TimeManager</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">T</span></span><span>
+</span><span id="line-49"></span><span>
+</span><span id="line-50"></span><span class="hs-comment">----------------------------------------------------------------</span><span>
+</span><span id="line-51"></span><span>
+</span><span id="line-52"></span><span class="annot"><span class="hs-comment">-- | Manager to manage the thread and the timer.</span></span><span>
+</span><span id="line-53"></span><span class="hs-keyword">data</span><span> </span><span id="ThreadManager"><span class="annot"><a href="System.ThreadManager.html#ThreadManager"><span class="hs-identifier hs-var">ThreadManager</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="ThreadManager"><span class="annot"><a href="System.ThreadManager.html#ThreadManager"><span class="hs-identifier hs-var">ThreadManager</span></a></span></span><span> </span><span class="annot"><a href="System.TimeManager.html#Manager"><span class="hs-identifier hs-type">T.Manager</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">TVar</span></span><span> </span><span class="annot"><a href="System.ThreadManager.html#ManagedThreads"><span class="hs-identifier hs-type">ManagedThreads</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-54"></span><span>
+</span><span id="line-55"></span><span class="hs-keyword">type</span><span> </span><span id="Key"><span class="annot"><a href="System.ThreadManager.html#Key"><span class="hs-identifier hs-var">Key</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word64</span></span><span>
+</span><span id="line-56"></span><span class="hs-keyword">type</span><span> </span><span id="ManagedThreads"><span class="annot"><a href="System.ThreadManager.html#ManagedThreads"><span class="hs-identifier hs-var">ManagedThreads</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Map</span></span><span> </span><span class="annot"><a href="System.ThreadManager.html#Key"><span class="hs-identifier hs-type">Key</span></a></span><span> </span><span class="annot"><a href="System.ThreadManager.html#ManagedThread"><span class="hs-identifier hs-type">ManagedThread</span></a></span><span>
+</span><span id="line-57"></span><span>
+</span><span id="line-58"></span><span class="hs-comment">----------------------------------------------------------------</span><span>
+</span><span id="line-59"></span><span>
+</span><span id="line-60"></span><span class="hs-comment">-- 'IORef' prevents race between WAI TimeManager (TimeoutThread)</span><span>
+</span><span id="line-61"></span><span class="hs-comment">-- and stopAfter (KilledByThreadManager).</span><span>
+</span><span id="line-62"></span><span class="hs-comment">-- It is initialized with 'False' and turned into 'True' when locked.</span><span>
+</span><span id="line-63"></span><span class="hs-comment">-- The winner can throw an asynchronous exception.</span><span>
+</span><span id="line-64"></span><span class="hs-keyword">data</span><span> </span><span id="ManagedThread"><span class="annot"><a href="System.ThreadManager.html#ManagedThread"><span class="hs-identifier hs-var">ManagedThread</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="ManagedThread"><span class="annot"><a href="System.ThreadManager.html#ManagedThread"><span class="hs-identifier hs-var">ManagedThread</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Weak</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">ThreadId</span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">IORef</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span class="hs-special">)</span><span>
+</span><span id="line-65"></span><span>
+</span><span id="line-66"></span><span class="hs-comment">----------------------------------------------------------------</span><span>
+</span><span id="line-67"></span><span>
+</span><span id="line-68"></span><span class="hs-comment">-- | Starting a thread manager.</span><span>
+</span><span id="line-69"></span><span class="hs-comment">--   Its action is initially set to 'return ()' and should be set</span><span>
+</span><span id="line-70"></span><span class="hs-comment">--   by 'setAction'. This allows that the action can include</span><span>
+</span><span id="line-71"></span><span class="hs-comment">--   the manager itself.</span><span>
+</span><span id="line-72"></span><span class="annot"><a href="System.ThreadManager.html#newThreadManager"><span class="hs-identifier hs-type">newThreadManager</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="System.TimeManager.html#Manager"><span class="hs-identifier hs-type">T.Manager</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="System.ThreadManager.html#ThreadManager"><span class="hs-identifier hs-type">ThreadManager</span></a></span><span>
+</span><span id="line-73"></span><span id="newThreadManager"><span class="annot"><span class="annottext">newThreadManager :: Manager -&gt; IO ThreadManager
+</span><a href="System.ThreadManager.html#newThreadManager"><span class="hs-identifier hs-var hs-var">newThreadManager</span></a></span></span><span> </span><span id="local-6989586621679050898"><span class="annot"><span class="annottext">Manager
+</span><a href="#local-6989586621679050898"><span class="hs-identifier hs-var">timmgr</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Manager -&gt; TVar ManagedThreads -&gt; ThreadManager
+</span><a href="System.ThreadManager.html#ThreadManager"><span class="hs-identifier hs-var">ThreadManager</span></a></span><span> </span><span class="annot"><span class="annottext">Manager
+</span><a href="#local-6989586621679050898"><span class="hs-identifier hs-var">timmgr</span></a></span><span> </span><span class="annot"><span class="annottext">(TVar ManagedThreads -&gt; ThreadManager)
+-&gt; IO (TVar ManagedThreads) -&gt; IO ThreadManager
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">ManagedThreads -&gt; IO (TVar ManagedThreads)
+forall a. a -&gt; IO (TVar a)
+</span><span class="hs-identifier hs-var">newTVarIO</span></span><span> </span><span class="annot"><span class="annottext">ManagedThreads
+forall k a. Map k a
+</span><span class="hs-identifier hs-var">Map.empty</span></span><span>
+</span><span id="line-74"></span><span>
+</span><span id="line-75"></span><span class="hs-comment">----------------------------------------------------------------</span><span>
+</span><span id="line-76"></span><span>
+</span><span id="line-77"></span><span class="annot"><span class="hs-comment">-- | An exception used internally to kill a managed thread.</span></span><span>
+</span><span id="line-78"></span><span class="hs-keyword">data</span><span> </span><span id="KilledByThreadManager"><span class="annot"><a href="System.ThreadManager.html#KilledByThreadManager"><span class="hs-identifier hs-var">KilledByThreadManager</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="KilledByThreadManager"><span class="annot"><a href="System.ThreadManager.html#KilledByThreadManager"><span class="hs-identifier hs-var">KilledByThreadManager</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">SomeException</span></span><span class="hs-special">)</span><span>
+</span><span id="line-79"></span><span>    </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679050904"><span id="local-6989586621679050911"><span id="local-6989586621679050915"><span class="annot"><span class="annottext">Int -&gt; KilledByThreadManager -&gt; ShowS
+[KilledByThreadManager] -&gt; ShowS
+KilledByThreadManager -&gt; String
+(Int -&gt; KilledByThreadManager -&gt; ShowS)
+-&gt; (KilledByThreadManager -&gt; String)
+-&gt; ([KilledByThreadManager] -&gt; ShowS)
+-&gt; Show KilledByThreadManager
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; KilledByThreadManager -&gt; ShowS
+showsPrec :: Int -&gt; KilledByThreadManager -&gt; ShowS
+$cshow :: KilledByThreadManager -&gt; String
+show :: KilledByThreadManager -&gt; String
+$cshowList :: [KilledByThreadManager] -&gt; ShowS
+showList :: [KilledByThreadManager] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-80"></span><span>
+</span><span id="line-81"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679050927"><span id="local-6989586621679050930"><span class="annot"><span class="hs-identifier hs-type">Exception</span></span><span> </span><span class="annot"><a href="System.ThreadManager.html#KilledByThreadManager"><span class="hs-identifier hs-type">KilledByThreadManager</span></a></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-82"></span><span>    </span><span id="local-6989586621679050934"><span class="annot"><span class="annottext">toException :: KilledByThreadManager -&gt; SomeException
+</span><a href="#local-6989586621679050934"><span class="hs-identifier hs-var hs-var hs-var">toException</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">KilledByThreadManager -&gt; SomeException
+forall e. Exception e =&gt; e -&gt; SomeException
+</span><span class="hs-identifier hs-var">E.asyncExceptionToException</span></span><span>
+</span><span id="line-83"></span><span>    </span><span id="local-6989586621679050938"><span class="annot"><span class="annottext">fromException :: SomeException -&gt; Maybe KilledByThreadManager
+</span><a href="#local-6989586621679050938"><span class="hs-identifier hs-var hs-var hs-var">fromException</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">SomeException -&gt; Maybe KilledByThreadManager
+forall e. Exception e =&gt; SomeException -&gt; Maybe e
+</span><span class="hs-identifier hs-var">E.asyncExceptionFromException</span></span><span>
+</span><span id="line-84"></span><span>
+</span><span id="line-85"></span><span class="hs-comment">-- | Stopping the manager.</span><span>
+</span><span id="line-86"></span><span class="hs-comment">--</span><span>
+</span><span id="line-87"></span><span class="hs-comment">-- The action is run in the scope of an exception handler that catches all</span><span>
+</span><span id="line-88"></span><span class="hs-comment">-- exceptions (including asynchronous ones); this allows the cleanup handler</span><span>
+</span><span id="line-89"></span><span class="hs-comment">-- to cleanup in all circumstances. If an exception is caught, it is rethrown</span><span>
+</span><span id="line-90"></span><span class="hs-comment">-- after the cleanup is complete.</span><span>
+</span><span id="line-91"></span><span id="local-6989586621679050770"><span class="annot"><a href="System.ThreadManager.html#stopAfter"><span class="hs-identifier hs-type">stopAfter</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="System.ThreadManager.html#ThreadManager"><span class="hs-identifier hs-type">ThreadManager</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="#local-6989586621679050770"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">SomeException</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="#local-6989586621679050770"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-92"></span><span id="stopAfter"><span class="annot"><span class="annottext">stopAfter :: forall a.
+ThreadManager -&gt; IO a -&gt; (Maybe SomeException -&gt; IO ()) -&gt; IO a
+</span><a href="System.ThreadManager.html#stopAfter"><span class="hs-identifier hs-var hs-var">stopAfter</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="System.ThreadManager.html#ThreadManager"><span class="hs-identifier hs-type">ThreadManager</span></a></span><span> </span><span id="local-6989586621679050958"><span class="annot"><span class="annottext">Manager
+</span><a href="#local-6989586621679050958"><span class="hs-identifier hs-var">_timmgr</span></a></span></span><span> </span><span id="local-6989586621679050959"><span class="annot"><span class="annottext">TVar ManagedThreads
+</span><a href="#local-6989586621679050959"><span class="hs-identifier hs-var">var</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621679050960"><span class="annot"><span class="annottext">IO a
+</span><a href="#local-6989586621679050960"><span class="hs-identifier hs-var">action</span></a></span></span><span> </span><span id="local-6989586621679050961"><span class="annot"><span class="annottext">Maybe SomeException -&gt; IO ()
+</span><a href="#local-6989586621679050961"><span class="hs-identifier hs-var">cleanup</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-93"></span><span>    </span><span class="annot"><span class="annottext">((forall a. IO a -&gt; IO a) -&gt; IO a) -&gt; IO a
+forall b. ((forall a. IO a -&gt; IO a) -&gt; IO b) -&gt; IO b
+</span><span class="hs-identifier hs-var">E.mask</span></span><span> </span><span class="annot"><span class="annottext">(((forall a. IO a -&gt; IO a) -&gt; IO a) -&gt; IO a)
+-&gt; ((forall a. IO a -&gt; IO a) -&gt; IO a) -&gt; IO a
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679050963"><span class="annot"><span class="annottext">forall a. IO a -&gt; IO a
+</span><a href="#local-6989586621679050963"><span class="hs-identifier hs-var">unmask</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-94"></span><span>        </span><span id="local-6989586621679050964"><span class="annot"><a href="#local-6989586621679050964"><span class="hs-identifier hs-var">ma</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">IO a -&gt; IO (Either SomeException a)
+forall e a. Exception e =&gt; IO a -&gt; IO (Either e a)
+</span><span class="hs-identifier hs-var">E.try</span></span><span> </span><span class="annot"><span class="annottext">(IO a -&gt; IO (Either SomeException a))
+-&gt; IO a -&gt; IO (Either SomeException a)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">IO a -&gt; IO a
+forall a. IO a -&gt; IO a
+</span><a href="#local-6989586621679050963"><span class="hs-identifier hs-var">unmask</span></a></span><span> </span><span class="annot"><span class="annottext">IO a
+</span><a href="#local-6989586621679050960"><span class="hs-identifier hs-var">action</span></a></span><span>
+</span><span id="line-95"></span><span>        </span><span id="local-6989586621679050966"><span class="annot"><a href="#local-6989586621679050966"><span class="hs-identifier hs-var">m</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="hs-identifier hs-type">atomically</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">$</span></span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-96"></span><span>            </span><span id="local-6989586621679050968"><span class="annot"><a href="#local-6989586621679050968"><span class="hs-identifier hs-var">m0</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="hs-identifier hs-type">readTVar</span></span><span> </span><span class="annot"><a href="#local-6989586621679050959"><span class="hs-identifier hs-type">var</span></a></span><span>
+</span><span id="line-97"></span><span>            </span><span class="annot"><span class="hs-identifier hs-type">writeTVar</span></span><span> </span><span class="annot"><a href="#local-6989586621679050959"><span class="hs-identifier hs-type">var</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Map.empty</span></span><span>
+</span><span id="line-98"></span><span>            </span><span class="annot"><span class="hs-identifier hs-type">return</span></span><span> </span><span class="annot"><a href="#local-6989586621679050968"><span class="hs-identifier hs-type">m0</span></a></span><span>
+</span><span id="line-99"></span><span>        </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679050971"><span class="annot"><a href="#local-6989586621679050971"><span class="hs-identifier hs-var hs-var">ths</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ManagedThreads -&gt; [ManagedThread]
+forall k a. Map k a -&gt; [a]
+</span><span class="hs-identifier hs-var">Map.elems</span></span><span> </span><span class="annot"><span class="annottext">ManagedThreads
+</span><a href="#local-6989586621679050966"><span class="hs-identifier hs-var">m</span></a></span><span>
+</span><span id="line-100"></span><span>            </span><span id="local-6989586621679050973"><span class="annot"><a href="#local-6989586621679050973"><span class="hs-identifier hs-var hs-var">er</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(SomeException -&gt; Maybe SomeException)
+-&gt; (a -&gt; Maybe SomeException)
+-&gt; Either SomeException a
+-&gt; Maybe SomeException
+forall a c b. (a -&gt; c) -&gt; (b -&gt; c) -&gt; Either a b -&gt; c
+</span><span class="hs-identifier hs-var">either</span></span><span> </span><span class="annot"><span class="annottext">SomeException -&gt; Maybe SomeException
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Maybe SomeException -&gt; a -&gt; Maybe SomeException
+forall a b. a -&gt; b -&gt; a
+</span><span class="hs-identifier hs-var">const</span></span><span> </span><span class="annot"><span class="annottext">Maybe SomeException
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Either SomeException a
+</span><a href="#local-6989586621679050964"><span class="hs-identifier hs-var">ma</span></a></span><span>
+</span><span id="line-101"></span><span>            </span><span id="local-6989586621679050976"><span class="annot"><a href="#local-6989586621679050976"><span class="hs-identifier hs-var hs-var">ex</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Maybe SomeException -&gt; KilledByThreadManager
+</span><a href="System.ThreadManager.html#KilledByThreadManager"><span class="hs-identifier hs-var">KilledByThreadManager</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe SomeException
+</span><a href="#local-6989586621679050973"><span class="hs-identifier hs-var">er</span></a></span><span>
+</span><span id="line-102"></span><span>        </span><span class="annot"><span class="hs-identifier hs-type">forM_</span></span><span> </span><span class="annot"><a href="#local-6989586621679050971"><span class="hs-identifier hs-type">ths</span></a></span><span> </span><span class="annot"><span class="hs-operator hs-type">$</span></span><span> </span><span class="hs-glyph">\</span><span class="hs-special">(</span><span class="annot"><a href="System.ThreadManager.html#ManagedThread"><span class="hs-identifier hs-type">ManagedThread</span></a></span><span> </span><span id="local-6989586621679050977"><span class="annot"><span class="annottext">Weak ThreadId
+</span><a href="#local-6989586621679050977"><span class="hs-identifier hs-var">wtid</span></a></span></span><span> </span><span id="local-6989586621679050978"><span class="annot"><span class="annottext">IORef Bool
+</span><a href="#local-6989586621679050978"><span class="hs-identifier hs-var">ref</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Weak ThreadId -&gt; IORef Bool -&gt; KilledByThreadManager -&gt; IO ()
+forall e. Exception e =&gt; Weak ThreadId -&gt; IORef Bool -&gt; e -&gt; IO ()
+</span><a href="System.ThreadManager.html#lockAndKill"><span class="hs-identifier hs-var">lockAndKill</span></a></span><span> </span><span class="annot"><span class="annottext">Weak ThreadId
+</span><a href="#local-6989586621679050977"><span class="hs-identifier hs-var">wtid</span></a></span><span> </span><span class="annot"><span class="annottext">IORef Bool
+</span><a href="#local-6989586621679050978"><span class="hs-identifier hs-var">ref</span></a></span><span> </span><span class="annot"><span class="annottext">KilledByThreadManager
+</span><a href="#local-6989586621679050976"><span class="hs-identifier hs-var">ex</span></a></span><span>
+</span><span id="line-103"></span><span>        </span><span class="hs-keyword">case</span><span> </span><span class="annot"><a href="#local-6989586621679050964"><span class="hs-identifier hs-type">ma</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-104"></span><span>            </span><span class="annot"><span class="hs-identifier hs-type">Left</span></span><span> </span><span id="local-6989586621679050980"><span class="annot"><span class="annottext">SomeException
+</span><a href="#local-6989586621679050980"><span class="hs-identifier hs-var">err</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Maybe SomeException -&gt; IO ()
+</span><a href="#local-6989586621679050961"><span class="hs-identifier hs-var">cleanup</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">SomeException -&gt; Maybe SomeException
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">SomeException
+</span><a href="#local-6989586621679050980"><span class="hs-identifier hs-var">err</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">IO () -&gt; IO a -&gt; IO a
+forall a b. IO a -&gt; IO b -&gt; IO b
+forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; m b -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">SomeException -&gt; IO a
+forall e a. (HasCallStack, Exception e) =&gt; e -&gt; IO a
+</span><span class="hs-identifier hs-var">E.throwIO</span></span><span> </span><span class="annot"><span class="annottext">SomeException
+</span><a href="#local-6989586621679050980"><span class="hs-identifier hs-var">err</span></a></span><span>
+</span><span id="line-105"></span><span>            </span><span class="annot"><span class="hs-identifier hs-type">Right</span></span><span> </span><span id="local-6989586621679050982"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679050982"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Maybe SomeException -&gt; IO ()
+</span><a href="#local-6989586621679050961"><span class="hs-identifier hs-var">cleanup</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe SomeException
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="annot"><span class="annottext">IO () -&gt; IO a -&gt; IO a
+forall a b. IO a -&gt; IO b -&gt; IO b
+forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; m b -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; IO a
+forall a. a -&gt; IO a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679050982"><span class="hs-identifier hs-var">a</span></a></span><span>
+</span><span id="line-106"></span><span>
+</span><span id="line-107"></span><span class="hs-comment">----------------------------------------------------------------</span><span>
+</span><span id="line-108"></span><span>
+</span><span id="line-109"></span><span class="hs-comment">-- | Fork a managed thread.</span><span>
+</span><span id="line-110"></span><span class="hs-comment">--</span><span>
+</span><span id="line-111"></span><span class="hs-comment">-- This guarantees that the thread ID is added to the manager's queue before</span><span>
+</span><span id="line-112"></span><span class="hs-comment">-- the thread starts, and is removed again when the thread terminates</span><span>
+</span><span id="line-113"></span><span class="hs-comment">-- (normally or abnormally).</span><span>
+</span><span id="line-114"></span><span class="annot"><a href="System.ThreadManager.html#forkManaged"><span class="hs-identifier hs-type">forkManaged</span></a></span><span>
+</span><span id="line-115"></span><span>    </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="System.ThreadManager.html#ThreadManager"><span class="hs-identifier hs-type">ThreadManager</span></a></span><span>
+</span><span id="line-116"></span><span>    </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span>
+</span><span id="line-117"></span><span>    </span><span class="annot"><span class="hs-comment">-- ^ Thread name</span></span><span>
+</span><span id="line-118"></span><span>    </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-119"></span><span>    </span><span class="annot"><span class="hs-comment">-- ^ Action</span></span><span>
+</span><span id="line-120"></span><span>    </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-121"></span><span id="forkManaged"><span class="annot"><span class="annottext">forkManaged :: ThreadManager -&gt; String -&gt; IO () -&gt; IO ()
+</span><a href="System.ThreadManager.html#forkManaged"><span class="hs-identifier hs-var hs-var">forkManaged</span></a></span></span><span> </span><span id="local-6989586621679050983"><span class="annot"><span class="annottext">ThreadManager
+</span><a href="#local-6989586621679050983"><span class="hs-identifier hs-var">mgr</span></a></span></span><span> </span><span id="local-6989586621679050984"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679050984"><span class="hs-keyword hs-var">label</span></a></span></span><span> </span><span id="local-6989586621679050985"><span class="annot"><span class="annottext">IO ()
+</span><a href="#local-6989586621679050985"><span class="hs-identifier hs-var">io</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-122"></span><span>    </span><span class="annot"><span class="annottext">ThreadManager
+-&gt; String -&gt; ((forall a. IO a -&gt; IO a) -&gt; IO ()) -&gt; IO ()
+</span><a href="System.ThreadManager.html#forkManagedUnmask"><span class="hs-identifier hs-var">forkManagedUnmask</span></a></span><span> </span><span class="annot"><span class="annottext">ThreadManager
+</span><a href="#local-6989586621679050983"><span class="hs-identifier hs-var">mgr</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679050984"><span class="hs-keyword hs-var">label</span></a></span><span> </span><span class="annot"><span class="annottext">(((forall a. IO a -&gt; IO a) -&gt; IO ()) -&gt; IO ())
+-&gt; ((forall a. IO a -&gt; IO a) -&gt; IO ()) -&gt; IO ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679050986"><span class="annot"><span class="annottext">forall a. IO a -&gt; IO a
+</span><a href="#local-6989586621679050986"><span class="hs-identifier hs-var">unmask</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">IO () -&gt; IO ()
+forall a. IO a -&gt; IO a
+</span><a href="#local-6989586621679050986"><span class="hs-identifier hs-var">unmask</span></a></span><span> </span><span class="annot"><span class="annottext">IO ()
+</span><a href="#local-6989586621679050985"><span class="hs-identifier hs-var">io</span></a></span><span>
+</span><span id="line-123"></span><span>
+</span><span id="line-124"></span><span class="annot"><span class="hs-comment">-- | Like 'forkManaged', but run action with exceptions masked</span></span><span>
+</span><span id="line-125"></span><span class="annot"><a href="System.ThreadManager.html#forkManagedUnmask"><span class="hs-identifier hs-type">forkManagedUnmask</span></a></span><span>
+</span><span id="line-126"></span><span>    </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="System.ThreadManager.html#ThreadManager"><span class="hs-identifier hs-type">ThreadManager</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="hs-keyword">forall</span><span> </span><span id="local-6989586621679050987"><span class="annot"><a href="#local-6989586621679050987"><span class="hs-identifier hs-type">x</span></a></span></span><span class="hs-operator">.</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="#local-6989586621679050987"><span class="hs-identifier hs-type">x</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="#local-6989586621679050987"><span class="hs-identifier hs-type">x</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-127"></span><span id="forkManagedUnmask"><span class="annot"><span class="annottext">forkManagedUnmask :: ThreadManager
+-&gt; String -&gt; ((forall a. IO a -&gt; IO a) -&gt; IO ()) -&gt; IO ()
+</span><a href="System.ThreadManager.html#forkManagedUnmask"><span class="hs-identifier hs-var hs-var">forkManagedUnmask</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="System.ThreadManager.html#ThreadManager"><span class="hs-identifier hs-type">ThreadManager</span></a></span><span> </span><span id="local-6989586621679050988"><span class="annot"><span class="annottext">Manager
+</span><a href="#local-6989586621679050988"><span class="hs-identifier hs-var">_timmgr</span></a></span></span><span> </span><span id="local-6989586621679050989"><span class="annot"><span class="annottext">TVar ManagedThreads
+</span><a href="#local-6989586621679050989"><span class="hs-identifier hs-var">var</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621679050990"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679050990"><span class="hs-keyword hs-var">label</span></a></span></span><span> </span><span id="local-6989586621679050991"><span class="annot"><span class="annottext">(forall a. IO a -&gt; IO a) -&gt; IO ()
+</span><a href="#local-6989586621679050991"><span class="hs-identifier hs-var">io</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-128"></span><span>    </span><span class="annot"><span class="annottext">IO ThreadId -&gt; IO ()
+forall (f :: * -&gt; *) a. Functor f =&gt; f a -&gt; f ()
+</span><span class="hs-identifier hs-var">void</span></span><span> </span><span class="annot"><span class="annottext">(IO ThreadId -&gt; IO ()) -&gt; IO ThreadId -&gt; IO ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">IO ThreadId -&gt; IO ThreadId
+forall a. IO a -&gt; IO a
+</span><span class="hs-identifier hs-var">E.mask_</span></span><span> </span><span class="annot"><span class="annottext">(IO ThreadId -&gt; IO ThreadId) -&gt; IO ThreadId -&gt; IO ThreadId
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">((forall a. IO a -&gt; IO a) -&gt; IO ()) -&gt; IO ThreadId
+</span><span class="hs-identifier hs-var">forkIOWithUnmask</span></span><span> </span><span class="annot"><span class="annottext">(((forall a. IO a -&gt; IO a) -&gt; IO ()) -&gt; IO ThreadId)
+-&gt; ((forall a. IO a -&gt; IO a) -&gt; IO ()) -&gt; IO ThreadId
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679050994"><span class="annot"><span class="annottext">forall a. IO a -&gt; IO a
+</span><a href="#local-6989586621679050994"><span class="hs-identifier hs-var">unmask</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">(KilledByThreadManager -&gt; IO ()) -&gt; IO () -&gt; IO ()
+forall e a. Exception e =&gt; (e -&gt; IO a) -&gt; IO a -&gt; IO a
+</span><span class="hs-identifier hs-var">E.handle</span></span><span> </span><span class="annot"><span class="annottext">KilledByThreadManager -&gt; IO ()
+</span><a href="System.ThreadManager.html#ignore"><span class="hs-identifier hs-var">ignore</span></a></span><span> </span><span class="annot"><span class="annottext">(IO () -&gt; IO ()) -&gt; IO () -&gt; IO ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-129"></span><span>        </span><span class="annot"><span class="annottext">String -&gt; IO ()
+</span><a href="System.ThreadManager.html#labelMe"><span class="hs-identifier hs-var">labelMe</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679050990"><span class="hs-keyword hs-var">label</span></a></span><span>
+</span><span id="line-130"></span><span>        </span><span class="annot"><span class="annottext">IO (Key, Weak ThreadId, IORef Bool)
+-&gt; ((Key, Weak ThreadId, IORef Bool) -&gt; IO ())
+-&gt; ((Key, Weak ThreadId, IORef Bool) -&gt; IO ())
+-&gt; IO ()
+forall a b c. IO a -&gt; (a -&gt; IO b) -&gt; (a -&gt; IO c) -&gt; IO c
+</span><span class="hs-identifier hs-var">E.bracket</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">TVar ManagedThreads -&gt; IO (Key, Weak ThreadId, IORef Bool)
+</span><a href="System.ThreadManager.html#setup"><span class="hs-identifier hs-var">setup</span></a></span><span> </span><span class="annot"><span class="annottext">TVar ManagedThreads
+</span><a href="#local-6989586621679050989"><span class="hs-identifier hs-var">var</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">TVar ManagedThreads -&gt; (Key, Weak ThreadId, IORef Bool) -&gt; IO ()
+</span><a href="System.ThreadManager.html#clear"><span class="hs-identifier hs-var">clear</span></a></span><span> </span><span class="annot"><span class="annottext">TVar ManagedThreads
+</span><a href="#local-6989586621679050989"><span class="hs-identifier hs-var">var</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(((Key, Weak ThreadId, IORef Bool) -&gt; IO ()) -&gt; IO ())
+-&gt; ((Key, Weak ThreadId, IORef Bool) -&gt; IO ()) -&gt; IO ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span class="annot"><span class="annottext">(Key, Weak ThreadId, IORef Bool)
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">(forall a. IO a -&gt; IO a) -&gt; IO ()
+</span><a href="#local-6989586621679050991"><span class="hs-identifier hs-var">io</span></a></span><span> </span><span class="annot"><span class="annottext">IO x -&gt; IO x
+forall a. IO a -&gt; IO a
+</span><a href="#local-6989586621679050994"><span class="hs-identifier hs-var">unmask</span></a></span><span>
+</span><span id="line-131"></span><span>
+</span><span id="line-132"></span><span class="annot"><span class="hs-comment">-- | Fork a managed thread with a handle created by a timeout manager.</span></span><span>
+</span><span id="line-133"></span><span class="annot"><a href="System.ThreadManager.html#forkManagedTimeout"><span class="hs-identifier hs-type">forkManagedTimeout</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="System.ThreadManager.html#ThreadManager"><span class="hs-identifier hs-type">ThreadManager</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="System.TimeManager.html#Handle"><span class="hs-identifier hs-type">T.Handle</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-134"></span><span id="forkManagedTimeout"><span class="annot"><span class="annottext">forkManagedTimeout :: ThreadManager -&gt; String -&gt; (Handle -&gt; IO ()) -&gt; IO ()
+</span><a href="System.ThreadManager.html#forkManagedTimeout"><span class="hs-identifier hs-var hs-var">forkManagedTimeout</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="System.ThreadManager.html#ThreadManager"><span class="hs-identifier hs-type">ThreadManager</span></a></span><span> </span><span id="local-6989586621679051001"><span class="annot"><span class="annottext">Manager
+</span><a href="#local-6989586621679051001"><span class="hs-identifier hs-var">timmgr</span></a></span></span><span> </span><span id="local-6989586621679051002"><span class="annot"><span class="annottext">TVar ManagedThreads
+</span><a href="#local-6989586621679051002"><span class="hs-identifier hs-var">var</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621679051003"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679051003"><span class="hs-keyword hs-var">label</span></a></span></span><span> </span><span id="local-6989586621679051004"><span class="annot"><span class="annottext">Handle -&gt; IO ()
+</span><a href="#local-6989586621679051004"><span class="hs-identifier hs-var">io</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-135"></span><span>    </span><span class="annot"><span class="annottext">IO ThreadId -&gt; IO ()
+forall (f :: * -&gt; *) a. Functor f =&gt; f a -&gt; f ()
+</span><span class="hs-identifier hs-var">void</span></span><span> </span><span class="annot"><span class="annottext">(IO ThreadId -&gt; IO ()) -&gt; IO ThreadId -&gt; IO ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">IO () -&gt; IO ThreadId
+</span><span class="hs-identifier hs-var">forkIO</span></span><span> </span><span class="annot"><span class="annottext">(IO () -&gt; IO ThreadId) -&gt; IO () -&gt; IO ThreadId
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">(KilledByThreadManager -&gt; IO ()) -&gt; IO () -&gt; IO ()
+forall e a. Exception e =&gt; (e -&gt; IO a) -&gt; IO a -&gt; IO a
+</span><span class="hs-identifier hs-var">E.handle</span></span><span> </span><span class="annot"><span class="annottext">KilledByThreadManager -&gt; IO ()
+</span><a href="System.ThreadManager.html#ignore"><span class="hs-identifier hs-var">ignore</span></a></span><span> </span><span class="annot"><span class="annottext">(IO () -&gt; IO ()) -&gt; IO () -&gt; IO ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-136"></span><span>        </span><span class="annot"><span class="annottext">String -&gt; IO ()
+</span><a href="System.ThreadManager.html#labelMe"><span class="hs-identifier hs-var">labelMe</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679051003"><span class="hs-keyword hs-var">label</span></a></span><span>
+</span><span id="line-137"></span><span>        </span><span class="annot"><span class="annottext">IO (Key, Weak ThreadId, IORef Bool)
+-&gt; ((Key, Weak ThreadId, IORef Bool) -&gt; IO ())
+-&gt; ((Key, Weak ThreadId, IORef Bool) -&gt; IO ())
+-&gt; IO ()
+forall a b c. IO a -&gt; (a -&gt; IO b) -&gt; (a -&gt; IO c) -&gt; IO c
+</span><span class="hs-identifier hs-var">E.bracket</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">TVar ManagedThreads -&gt; IO (Key, Weak ThreadId, IORef Bool)
+</span><a href="System.ThreadManager.html#setup"><span class="hs-identifier hs-var">setup</span></a></span><span> </span><span class="annot"><span class="annottext">TVar ManagedThreads
+</span><a href="#local-6989586621679051002"><span class="hs-identifier hs-var">var</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">TVar ManagedThreads -&gt; (Key, Weak ThreadId, IORef Bool) -&gt; IO ()
+</span><a href="System.ThreadManager.html#clear"><span class="hs-identifier hs-var">clear</span></a></span><span> </span><span class="annot"><span class="annottext">TVar ManagedThreads
+</span><a href="#local-6989586621679051002"><span class="hs-identifier hs-var">var</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(((Key, Weak ThreadId, IORef Bool) -&gt; IO ()) -&gt; IO ())
+-&gt; ((Key, Weak ThreadId, IORef Bool) -&gt; IO ()) -&gt; IO ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span class="hs-special">(</span><span id="local-6989586621679051006"><span class="annot"><span class="annottext">Key
+</span><a href="#local-6989586621679051006"><span class="hs-identifier hs-var">_n</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679051007"><span class="annot"><span class="annottext">Weak ThreadId
+</span><a href="#local-6989586621679051007"><span class="hs-identifier hs-var">wtid</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679051008"><span class="annot"><span class="annottext">IORef Bool
+</span><a href="#local-6989586621679051008"><span class="hs-identifier hs-var">ref</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-138"></span><span>            </span><span class="hs-comment">-- 'TimeoutThread' is ignored by 'withHandle'.</span><span>
+</span><span id="line-139"></span><span>            </span><span class="annot"><span class="annottext">IO (Maybe ()) -&gt; IO ()
+forall (f :: * -&gt; *) a. Functor f =&gt; f a -&gt; f ()
+</span><span class="hs-identifier hs-var">void</span></span><span> </span><span class="annot"><span class="annottext">(IO (Maybe ()) -&gt; IO ()) -&gt; IO (Maybe ()) -&gt; IO ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Manager -&gt; IO () -&gt; (Handle -&gt; IO ()) -&gt; IO (Maybe ())
+forall a. Manager -&gt; IO () -&gt; (Handle -&gt; IO a) -&gt; IO (Maybe a)
+</span><a href="System.TimeManager.html#withHandle"><span class="hs-identifier hs-var">T.withHandle</span></a></span><span> </span><span class="annot"><span class="annottext">Manager
+</span><a href="#local-6989586621679051001"><span class="hs-identifier hs-var">timmgr</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Weak ThreadId -&gt; IORef Bool -&gt; TimeoutThread -&gt; IO ()
+forall e. Exception e =&gt; Weak ThreadId -&gt; IORef Bool -&gt; e -&gt; IO ()
+</span><a href="System.ThreadManager.html#lockAndKill"><span class="hs-identifier hs-var">lockAndKill</span></a></span><span> </span><span class="annot"><span class="annottext">Weak ThreadId
+</span><a href="#local-6989586621679051007"><span class="hs-identifier hs-var">wtid</span></a></span><span> </span><span class="annot"><span class="annottext">IORef Bool
+</span><a href="#local-6989586621679051008"><span class="hs-identifier hs-var">ref</span></a></span><span> </span><span class="annot"><span class="annottext">TimeoutThread
+</span><a href="System.TimeManager.html#TimeoutThread"><span class="hs-identifier hs-var">T.TimeoutThread</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Handle -&gt; IO ()
+</span><a href="#local-6989586621679051004"><span class="hs-identifier hs-var">io</span></a></span><span>
+</span><span id="line-140"></span><span>
+</span><span id="line-141"></span><span class="annot"><span class="hs-comment">-- | Fork a managed thread with a cleanup function.</span></span><span>
+</span><span id="line-142"></span><span class="annot"><a href="System.ThreadManager.html#forkManagedFinally"><span class="hs-identifier hs-type">forkManagedFinally</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="System.ThreadManager.html#ThreadManager"><span class="hs-identifier hs-type">ThreadManager</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-143"></span><span id="forkManagedFinally"><span class="annot"><span class="annottext">forkManagedFinally :: ThreadManager -&gt; String -&gt; IO () -&gt; IO () -&gt; IO ()
+</span><a href="System.ThreadManager.html#forkManagedFinally"><span class="hs-identifier hs-var hs-var">forkManagedFinally</span></a></span></span><span> </span><span id="local-6989586621679051011"><span class="annot"><span class="annottext">ThreadManager
+</span><a href="#local-6989586621679051011"><span class="hs-identifier hs-var">mgr</span></a></span></span><span> </span><span id="local-6989586621679051012"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679051012"><span class="hs-keyword hs-var">label</span></a></span></span><span> </span><span id="local-6989586621679051013"><span class="annot"><span class="annottext">IO ()
+</span><a href="#local-6989586621679051013"><span class="hs-identifier hs-var">io</span></a></span></span><span> </span><span id="local-6989586621679051014"><span class="annot"><span class="annottext">IO ()
+</span><a href="#local-6989586621679051014"><span class="hs-identifier hs-var">final</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">((forall a. IO a -&gt; IO a) -&gt; IO ()) -&gt; IO ()
+forall b. ((forall a. IO a -&gt; IO a) -&gt; IO b) -&gt; IO b
+</span><span class="hs-identifier hs-var">E.mask</span></span><span> </span><span class="annot"><span class="annottext">(((forall a. IO a -&gt; IO a) -&gt; IO ()) -&gt; IO ())
+-&gt; ((forall a. IO a -&gt; IO a) -&gt; IO ()) -&gt; IO ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679051015"><span class="annot"><span class="annottext">forall a. IO a -&gt; IO a
+</span><a href="#local-6989586621679051015"><span class="hs-identifier hs-var">restore</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-144"></span><span>    </span><span class="annot"><span class="annottext">ThreadManager -&gt; String -&gt; IO () -&gt; IO ()
+</span><a href="System.ThreadManager.html#forkManaged"><span class="hs-identifier hs-var">forkManaged</span></a></span><span>
+</span><span id="line-145"></span><span>        </span><span class="annot"><span class="annottext">ThreadManager
+</span><a href="#local-6989586621679051011"><span class="hs-identifier hs-var">mgr</span></a></span><span>
+</span><span id="line-146"></span><span>        </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679051012"><span class="hs-keyword hs-var">label</span></a></span><span>
+</span><span id="line-147"></span><span>        </span><span class="hs-special">(</span><span class="annot"><span class="annottext">IO () -&gt; IO (Either SomeException ())
+forall e a. Exception e =&gt; IO a -&gt; IO (Either e a)
+</span><span class="hs-identifier hs-var">E.try</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">IO () -&gt; IO ()
+forall a. IO a -&gt; IO a
+</span><a href="#local-6989586621679051015"><span class="hs-identifier hs-var">restore</span></a></span><span> </span><span class="annot"><span class="annottext">IO ()
+</span><a href="#local-6989586621679051013"><span class="hs-identifier hs-var">io</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">IO (Either SomeException ())
+-&gt; (Either SomeException () -&gt; IO ()) -&gt; IO ()
+forall a b. IO a -&gt; (a -&gt; IO b) -&gt; IO b
+forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; (a -&gt; m b) -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;=</span></span><span> </span><span class="hs-glyph">\</span><span class="hs-special">(</span><span class="annot"><span class="annottext">Either SomeException ()
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Either</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">E.SomeException</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">IO ()
+</span><a href="#local-6989586621679051014"><span class="hs-identifier hs-var">final</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-148"></span><span>
+</span><span id="line-149"></span><span class="hs-comment">-- | Fork a managed thread with a handle created by a timeout manager</span><span>
+</span><span id="line-150"></span><span class="hs-comment">-- and with a cleanup function.</span><span>
+</span><span id="line-151"></span><span class="annot"><a href="System.ThreadManager.html#forkManagedTimeoutFinally"><span class="hs-identifier hs-type">forkManagedTimeoutFinally</span></a></span><span>
+</span><span id="line-152"></span><span>    </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="System.ThreadManager.html#ThreadManager"><span class="hs-identifier hs-type">ThreadManager</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="System.TimeManager.html#Handle"><span class="hs-identifier hs-type">T.Handle</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-153"></span><span id="forkManagedTimeoutFinally"><span class="annot"><span class="annottext">forkManagedTimeoutFinally :: ThreadManager -&gt; String -&gt; (Handle -&gt; IO ()) -&gt; IO () -&gt; IO ()
+</span><a href="System.ThreadManager.html#forkManagedTimeoutFinally"><span class="hs-identifier hs-var hs-var">forkManagedTimeoutFinally</span></a></span></span><span> </span><span id="local-6989586621679051016"><span class="annot"><span class="annottext">ThreadManager
+</span><a href="#local-6989586621679051016"><span class="hs-identifier hs-var">mgr</span></a></span></span><span> </span><span id="local-6989586621679051017"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679051017"><span class="hs-keyword hs-var">label</span></a></span></span><span> </span><span id="local-6989586621679051018"><span class="annot"><span class="annottext">Handle -&gt; IO ()
+</span><a href="#local-6989586621679051018"><span class="hs-identifier hs-var">io</span></a></span></span><span> </span><span id="local-6989586621679051019"><span class="annot"><span class="annottext">IO ()
+</span><a href="#local-6989586621679051019"><span class="hs-identifier hs-var">final</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">((forall a. IO a -&gt; IO a) -&gt; IO ()) -&gt; IO ()
+forall b. ((forall a. IO a -&gt; IO a) -&gt; IO b) -&gt; IO b
+</span><span class="hs-identifier hs-var">E.mask</span></span><span> </span><span class="annot"><span class="annottext">(((forall a. IO a -&gt; IO a) -&gt; IO ()) -&gt; IO ())
+-&gt; ((forall a. IO a -&gt; IO a) -&gt; IO ()) -&gt; IO ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679051020"><span class="annot"><span class="annottext">forall a. IO a -&gt; IO a
+</span><a href="#local-6989586621679051020"><span class="hs-identifier hs-var">restore</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-154"></span><span>    </span><span class="annot"><span class="annottext">ThreadManager -&gt; String -&gt; (Handle -&gt; IO ()) -&gt; IO ()
+</span><a href="System.ThreadManager.html#forkManagedTimeout"><span class="hs-identifier hs-var">forkManagedTimeout</span></a></span><span>
+</span><span id="line-155"></span><span>        </span><span class="annot"><span class="annottext">ThreadManager
+</span><a href="#local-6989586621679051016"><span class="hs-identifier hs-var">mgr</span></a></span><span>
+</span><span id="line-156"></span><span>        </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679051017"><span class="hs-keyword hs-var">label</span></a></span><span>
+</span><span id="line-157"></span><span>        </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span id="local-6989586621679051021"><span class="annot"><span class="annottext">Handle
+</span><a href="#local-6989586621679051021"><span class="hs-identifier hs-var">th</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">IO () -&gt; IO (Either SomeException ())
+forall e a. Exception e =&gt; IO a -&gt; IO (Either e a)
+</span><span class="hs-identifier hs-var">E.try</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">IO () -&gt; IO ()
+forall a. IO a -&gt; IO a
+</span><a href="#local-6989586621679051020"><span class="hs-identifier hs-var">restore</span></a></span><span> </span><span class="annot"><span class="annottext">(IO () -&gt; IO ()) -&gt; IO () -&gt; IO ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Handle -&gt; IO ()
+</span><a href="#local-6989586621679051018"><span class="hs-identifier hs-var">io</span></a></span><span> </span><span class="annot"><span class="annottext">Handle
+</span><a href="#local-6989586621679051021"><span class="hs-identifier hs-var">th</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">IO (Either SomeException ())
+-&gt; (Either SomeException () -&gt; IO ()) -&gt; IO ()
+forall a b. IO a -&gt; (a -&gt; IO b) -&gt; IO b
+forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; (a -&gt; m b) -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;=</span></span><span> </span><span class="hs-glyph">\</span><span class="hs-special">(</span><span class="annot"><span class="annottext">Either SomeException ()
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Either</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">E.SomeException</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">IO ()
+</span><a href="#local-6989586621679051019"><span class="hs-identifier hs-var">final</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-158"></span><span>
+</span><span id="line-159"></span><span class="annot"><a href="System.ThreadManager.html#setup"><span class="hs-identifier hs-type">setup</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">TVar</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Map</span></span><span> </span><span class="annot"><a href="System.ThreadManager.html#Key"><span class="hs-identifier hs-type">Key</span></a></span><span> </span><span class="annot"><a href="System.ThreadManager.html#ManagedThread"><span class="hs-identifier hs-type">ManagedThread</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="System.ThreadManager.html#Key"><span class="hs-identifier hs-type">Key</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Weak</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">ThreadId</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IORef</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span class="hs-special">)</span><span>
+</span><span id="line-160"></span><span id="setup"><span class="annot"><span class="annottext">setup :: TVar ManagedThreads -&gt; IO (Key, Weak ThreadId, IORef Bool)
+</span><a href="System.ThreadManager.html#setup"><span class="hs-identifier hs-var hs-var">setup</span></a></span></span><span> </span><span id="local-6989586621679051022"><span class="annot"><span class="annottext">TVar ManagedThreads
+</span><a href="#local-6989586621679051022"><span class="hs-identifier hs-var">var</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-161"></span><span>    </span><span class="hs-special">(</span><span id="local-6989586621679051023"><span class="annot"><a href="#local-6989586621679051023"><span class="hs-identifier hs-var">wtid</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679051024"><span class="annot"><a href="#local-6989586621679051024"><span class="hs-identifier hs-var">n</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">IO (Weak ThreadId, Key)
+</span><a href="System.ThreadManager.html#myWeakThradId"><span class="hs-identifier hs-var">myWeakThradId</span></a></span><span>
+</span><span id="line-162"></span><span>    </span><span id="local-6989586621679051026"><span class="annot"><a href="#local-6989586621679051026"><span class="hs-identifier hs-var">ref</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="hs-identifier hs-type">newIORef</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">False</span></span><span>
+</span><span id="line-163"></span><span>    </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679051028"><span class="annot"><a href="#local-6989586621679051028"><span class="hs-identifier hs-var hs-var">ent</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Weak ThreadId -&gt; IORef Bool -&gt; ManagedThread
+</span><a href="System.ThreadManager.html#ManagedThread"><span class="hs-identifier hs-var">ManagedThread</span></a></span><span> </span><span class="annot"><span class="annottext">Weak ThreadId
+</span><a href="#local-6989586621679051023"><span class="hs-identifier hs-var">wtid</span></a></span><span> </span><span class="annot"><span class="annottext">IORef Bool
+</span><a href="#local-6989586621679051026"><span class="hs-identifier hs-var">ref</span></a></span><span>
+</span><span id="line-164"></span><span>    </span><span class="hs-comment">-- asking to throw KilledByThreadManager to me</span><span>
+</span><span id="line-165"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">atomically</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">$</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">modifyTVar'</span></span><span> </span><span class="annot"><a href="#local-6989586621679051022"><span class="hs-identifier hs-type">var</span></a></span><span> </span><span class="annot"><span class="hs-operator hs-type">$</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Map.insert</span></span><span> </span><span class="annot"><a href="#local-6989586621679051024"><span class="hs-identifier hs-type">n</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679051028"><span class="hs-identifier hs-type">ent</span></a></span><span>
+</span><span id="line-166"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">return</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679051024"><span class="hs-identifier hs-type">n</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679051023"><span class="hs-identifier hs-type">wtid</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679051026"><span class="hs-identifier hs-type">ref</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-167"></span><span>
+</span><span id="line-168"></span><span id="local-6989586621679050802"><span class="annot"><a href="System.ThreadManager.html#lockAndKill"><span class="hs-identifier hs-type">lockAndKill</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Exception</span></span><span> </span><span class="annot"><a href="#local-6989586621679050802"><span class="hs-identifier hs-type">e</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Weak</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">ThreadId</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IORef</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679050802"><span class="hs-identifier hs-type">e</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span></span><span>
+</span><span id="line-169"></span><span id="lockAndKill"><span class="annot"><span class="annottext">lockAndKill :: forall e. Exception e =&gt; Weak ThreadId -&gt; IORef Bool -&gt; e -&gt; IO ()
+</span><a href="System.ThreadManager.html#lockAndKill"><span class="hs-identifier hs-var hs-var">lockAndKill</span></a></span></span><span> </span><span id="local-6989586621679051038"><span class="annot"><span class="annottext">Weak ThreadId
+</span><a href="#local-6989586621679051038"><span class="hs-identifier hs-var">wtid</span></a></span></span><span> </span><span id="local-6989586621679051039"><span class="annot"><span class="annottext">IORef Bool
+</span><a href="#local-6989586621679051039"><span class="hs-identifier hs-var">ref</span></a></span></span><span> </span><span id="local-6989586621679051040"><span class="annot"><span class="annottext">e
+</span><a href="#local-6989586621679051040"><span class="hs-identifier hs-var">e</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-170"></span><span>    </span><span id="local-6989586621679051041"><span class="annot"><a href="#local-6989586621679051041"><span class="hs-identifier hs-var">alreadyLocked</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">IORef Bool -&gt; (Bool -&gt; (Bool, Bool)) -&gt; IO Bool
+forall a b. IORef a -&gt; (a -&gt; (a, b)) -&gt; IO b
+</span><span class="hs-identifier hs-var">atomicModifyIORef'</span></span><span> </span><span class="annot"><span class="annottext">IORef Bool
+</span><a href="#local-6989586621679051039"><span class="hs-identifier hs-var">ref</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span id="local-6989586621679051043"><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679051043"><span class="hs-identifier hs-var">b</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679051043"><span class="hs-identifier hs-var">b</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-comment">-- try to lock</span><span>
+</span><span id="line-171"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">unless</span></span><span> </span><span class="annot"><a href="#local-6989586621679051041"><span class="hs-identifier hs-type">alreadyLocked</span></a></span><span> </span><span class="annot"><span class="hs-operator hs-type">$</span></span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-172"></span><span>        </span><span id="local-6989586621679051044"><span class="annot"><a href="#local-6989586621679051044"><span class="hs-identifier hs-var">mtid</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="hs-identifier hs-type">deRefWeak</span></span><span> </span><span class="annot"><a href="#local-6989586621679051038"><span class="hs-identifier hs-type">wtid</span></a></span><span>
+</span><span id="line-173"></span><span>        </span><span class="hs-keyword">case</span><span> </span><span class="annot"><a href="#local-6989586621679051044"><span class="hs-identifier hs-type">mtid</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-174"></span><span>            </span><span class="annot"><span class="annottext">Maybe ThreadId
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">() -&gt; IO ()
+forall a. a -&gt; IO a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-175"></span><span>            </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621679051045"><span class="annot"><span class="annottext">ThreadId
+</span><a href="#local-6989586621679051045"><span class="hs-identifier hs-var">tid</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">ThreadId -&gt; e -&gt; IO ()
+forall e. Exception e =&gt; ThreadId -&gt; e -&gt; IO ()
+</span><span class="hs-identifier hs-var">E.throwTo</span></span><span> </span><span class="annot"><span class="annottext">ThreadId
+</span><a href="#local-6989586621679051045"><span class="hs-identifier hs-var">tid</span></a></span><span> </span><span class="annot"><span class="annottext">e
+</span><a href="#local-6989586621679051040"><span class="hs-identifier hs-var">e</span></a></span><span>
+</span><span id="line-176"></span><span>
+</span><span id="line-177"></span><span class="annot"><a href="System.ThreadManager.html#clear"><span class="hs-identifier hs-type">clear</span></a></span><span>
+</span><span id="line-178"></span><span>    </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">TVar</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Map</span></span><span> </span><span class="annot"><a href="System.ThreadManager.html#Key"><span class="hs-identifier hs-type">Key</span></a></span><span> </span><span class="annot"><a href="System.ThreadManager.html#ManagedThread"><span class="hs-identifier hs-type">ManagedThread</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-179"></span><span>    </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="System.ThreadManager.html#Key"><span class="hs-identifier hs-type">Key</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Weak</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">ThreadId</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IORef</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span class="hs-special">)</span><span>
+</span><span id="line-180"></span><span>    </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-181"></span><span id="clear"><span class="annot"><span class="annottext">clear :: TVar ManagedThreads -&gt; (Key, Weak ThreadId, IORef Bool) -&gt; IO ()
+</span><a href="System.ThreadManager.html#clear"><span class="hs-identifier hs-var hs-var">clear</span></a></span></span><span> </span><span id="local-6989586621679051047"><span class="annot"><span class="annottext">TVar ManagedThreads
+</span><a href="#local-6989586621679051047"><span class="hs-identifier hs-var">var</span></a></span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679051048"><span class="annot"><span class="annottext">Key
+</span><a href="#local-6989586621679051048"><span class="hs-identifier hs-var">n</span></a></span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Weak ThreadId
+</span><span class="hs-identifier">_</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">IORef Bool
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">STM () -&gt; IO ()
+forall a. STM a -&gt; IO a
+</span><span class="hs-identifier hs-var">atomically</span></span><span> </span><span class="annot"><span class="annottext">(STM () -&gt; IO ()) -&gt; STM () -&gt; IO ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">TVar ManagedThreads -&gt; (ManagedThreads -&gt; ManagedThreads) -&gt; STM ()
+forall a. TVar a -&gt; (a -&gt; a) -&gt; STM ()
+</span><span class="hs-identifier hs-var">modifyTVar'</span></span><span> </span><span class="annot"><span class="annottext">TVar ManagedThreads
+</span><a href="#local-6989586621679051047"><span class="hs-identifier hs-var">var</span></a></span><span> </span><span class="annot"><span class="annottext">((ManagedThreads -&gt; ManagedThreads) -&gt; STM ())
+-&gt; (ManagedThreads -&gt; ManagedThreads) -&gt; STM ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Key -&gt; ManagedThreads -&gt; ManagedThreads
+forall k a. Ord k =&gt; k -&gt; Map k a -&gt; Map k a
+</span><span class="hs-identifier hs-var">Map.delete</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><a href="#local-6989586621679051048"><span class="hs-identifier hs-var">n</span></a></span><span>
+</span><span id="line-182"></span><span>
+</span><span id="line-183"></span><span class="annot"><a href="System.ThreadManager.html#ignore"><span class="hs-identifier hs-type">ignore</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="System.ThreadManager.html#KilledByThreadManager"><span class="hs-identifier hs-type">KilledByThreadManager</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-184"></span><span id="ignore"><span class="annot"><span class="annottext">ignore :: KilledByThreadManager -&gt; IO ()
+</span><a href="System.ThreadManager.html#ignore"><span class="hs-identifier hs-var hs-var">ignore</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="System.ThreadManager.html#KilledByThreadManager"><span class="hs-identifier hs-type">KilledByThreadManager</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe SomeException
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">() -&gt; IO ()
+forall a. a -&gt; IO a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-185"></span><span>
+</span><span id="line-186"></span><span class="annot"><span class="hs-comment">-- | Wait until all managed thread are finished.</span></span><span>
+</span><span id="line-187"></span><span class="annot"><a href="System.ThreadManager.html#waitUntilAllGone"><span class="hs-identifier hs-type">waitUntilAllGone</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="System.ThreadManager.html#ThreadManager"><span class="hs-identifier hs-type">ThreadManager</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-188"></span><span id="waitUntilAllGone"><span class="annot"><span class="annottext">waitUntilAllGone :: ThreadManager -&gt; IO ()
+</span><a href="System.ThreadManager.html#waitUntilAllGone"><span class="hs-identifier hs-var hs-var">waitUntilAllGone</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="System.ThreadManager.html#ThreadManager"><span class="hs-identifier hs-type">ThreadManager</span></a></span><span> </span><span id="local-6989586621679051050"><span class="annot"><span class="annottext">Manager
+</span><a href="#local-6989586621679051050"><span class="hs-identifier hs-var">_timmgr</span></a></span></span><span> </span><span id="local-6989586621679051051"><span class="annot"><span class="annottext">TVar ManagedThreads
+</span><a href="#local-6989586621679051051"><span class="hs-identifier hs-var">var</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">STM () -&gt; IO ()
+forall a. STM a -&gt; IO a
+</span><span class="hs-identifier hs-var">atomically</span></span><span> </span><span class="annot"><span class="annottext">(STM () -&gt; IO ()) -&gt; STM () -&gt; IO ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-189"></span><span>    </span><span id="local-6989586621679051052"><span class="annot"><a href="#local-6989586621679051052"><span class="hs-identifier hs-var">m</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">TVar ManagedThreads -&gt; STM ManagedThreads
+forall a. TVar a -&gt; STM a
+</span><span class="hs-identifier hs-var">readTVar</span></span><span> </span><span class="annot"><span class="annottext">TVar ManagedThreads
+</span><a href="#local-6989586621679051051"><span class="hs-identifier hs-var">var</span></a></span><span>
+</span><span id="line-190"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">check</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Map.size</span></span><span> </span><span class="annot"><a href="#local-6989586621679051052"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><span class="hs-operator hs-type">==</span></span><span> </span><span class="annot"><span class="hs-number">0</span></span><span class="hs-special">)</span><span>
+</span><span id="line-191"></span><span>
+</span><span id="line-192"></span><span class="annot"><a href="System.ThreadManager.html#isAllGone"><span class="hs-identifier hs-type">isAllGone</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="System.ThreadManager.html#ThreadManager"><span class="hs-identifier hs-type">ThreadManager</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">STM</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>
+</span><span id="line-193"></span><span id="isAllGone"><span class="annot"><span class="annottext">isAllGone :: ThreadManager -&gt; STM Bool
+</span><a href="System.ThreadManager.html#isAllGone"><span class="hs-identifier hs-var hs-var">isAllGone</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="System.ThreadManager.html#ThreadManager"><span class="hs-identifier hs-type">ThreadManager</span></a></span><span> </span><span id="local-6989586621679051055"><span class="annot"><span class="annottext">Manager
+</span><a href="#local-6989586621679051055"><span class="hs-identifier hs-var">_timmgr</span></a></span></span><span> </span><span id="local-6989586621679051056"><span class="annot"><span class="annottext">TVar ManagedThreads
+</span><a href="#local-6989586621679051056"><span class="hs-identifier hs-var">var</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-194"></span><span>    </span><span id="local-6989586621679051057"><span class="annot"><a href="#local-6989586621679051057"><span class="hs-identifier hs-var">m</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">TVar ManagedThreads -&gt; STM ManagedThreads
+forall a. TVar a -&gt; STM a
+</span><span class="hs-identifier hs-var">readTVar</span></span><span> </span><span class="annot"><span class="annottext">TVar ManagedThreads
+</span><a href="#local-6989586621679051056"><span class="hs-identifier hs-var">var</span></a></span><span>
+</span><span id="line-195"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">return</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Map.size</span></span><span> </span><span class="annot"><a href="#local-6989586621679051057"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><span class="hs-operator hs-type">==</span></span><span> </span><span class="annot"><span class="hs-number">0</span></span><span class="hs-special">)</span><span>
+</span><span id="line-196"></span><span>
+</span><span id="line-197"></span><span class="hs-comment">----------------------------------------------------------------</span><span>
+</span><span id="line-198"></span><span>
+</span><span id="line-199"></span><span class="annot"><a href="System.ThreadManager.html#myWeakThradId"><span class="hs-identifier hs-type">myWeakThradId</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Weak</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">ThreadId</span></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="System.ThreadManager.html#Key"><span class="hs-identifier hs-type">Key</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-200"></span><span id="myWeakThradId"><span class="annot"><span class="annottext">myWeakThradId :: IO (Weak ThreadId, Key)
+</span><a href="System.ThreadManager.html#myWeakThradId"><span class="hs-identifier hs-var hs-var">myWeakThradId</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-201"></span><span>    </span><span id="local-6989586621679051058"><span class="annot"><a href="#local-6989586621679051058"><span class="hs-identifier hs-var">tid</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">IO ThreadId
+</span><span class="hs-identifier hs-var">myThreadId</span></span><span>
+</span><span id="line-202"></span><span>    </span><span id="local-6989586621679051060"><span class="annot"><a href="#local-6989586621679051060"><span class="hs-identifier hs-var">wtid</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="hs-identifier hs-type">mkWeakThreadId</span></span><span> </span><span class="annot"><a href="#local-6989586621679051058"><span class="hs-identifier hs-type">tid</span></a></span><span>
+</span><span id="line-203"></span><span>    </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679051062"><span class="annot"><a href="#local-6989586621679051062"><span class="hs-identifier hs-var hs-var">n</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ThreadId -&gt; Key
+</span><span class="hs-identifier hs-var">fromThreadId</span></span><span> </span><span class="annot"><span class="annottext">ThreadId
+</span><a href="#local-6989586621679051058"><span class="hs-identifier hs-var">tid</span></a></span><span>
+</span><span id="line-204"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">return</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679051060"><span class="hs-identifier hs-type">wtid</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679051062"><span class="hs-identifier hs-type">n</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-205"></span><span>
+</span><span id="line-206"></span><span class="annot"><a href="System.ThreadManager.html#labelMe"><span class="hs-identifier hs-type">labelMe</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-207"></span><span id="labelMe"><span class="annot"><span class="annottext">labelMe :: String -&gt; IO ()
+</span><a href="System.ThreadManager.html#labelMe"><span class="hs-identifier hs-var hs-var">labelMe</span></a></span></span><span> </span><span id="local-6989586621679051063"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679051063"><span class="hs-identifier hs-var">l</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-208"></span><span>    </span><span id="local-6989586621679051064"><span class="annot"><a href="#local-6989586621679051064"><span class="hs-identifier hs-var">tid</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">IO ThreadId
+</span><span class="hs-identifier hs-var">myThreadId</span></span><span>
+</span><span id="line-209"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">labelThread</span></span><span> </span><span class="annot"><a href="#local-6989586621679051064"><span class="hs-identifier hs-type">tid</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679051063"><span class="hs-identifier hs-type">l</span></a></span><span>
+</span><span id="line-210"></span><span>
+</span><span id="line-211"></span><span id="local-6989586621679050835"><span class="annot"><a href="System.ThreadManager.html#withHandle"><span class="hs-identifier hs-type">withHandle</span></a></span><span>
+</span><span id="line-212"></span><span>    </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="System.ThreadManager.html#ThreadManager"><span class="hs-identifier hs-type">ThreadManager</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="System.TimeManager.html#TimeoutAction"><span class="hs-identifier hs-type">T.TimeoutAction</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="System.TimeManager.html#Handle"><span class="hs-identifier hs-type">T.Handle</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="#local-6989586621679050835"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="#local-6989586621679050835"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span><span>
+</span><span id="line-213"></span><span id="withHandle"><span class="annot"><span class="annottext">withHandle :: forall a.
+ThreadManager -&gt; IO () -&gt; (Handle -&gt; IO a) -&gt; IO (Maybe a)
+</span><a href="System.ThreadManager.html#withHandle"><span class="hs-identifier hs-var hs-var">withHandle</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="System.ThreadManager.html#ThreadManager"><span class="hs-identifier hs-type">ThreadManager</span></a></span><span> </span><span id="local-6989586621679051066"><span class="annot"><span class="annottext">Manager
+</span><a href="#local-6989586621679051066"><span class="hs-identifier hs-var">timmgr</span></a></span></span><span> </span><span class="annot"><span class="annottext">TVar ManagedThreads
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Manager -&gt; IO () -&gt; (Handle -&gt; IO a) -&gt; IO (Maybe a)
+forall a. Manager -&gt; IO () -&gt; (Handle -&gt; IO a) -&gt; IO (Maybe a)
+</span><a href="System.TimeManager.html#withHandle"><span class="hs-identifier hs-var">T.withHandle</span></a></span><span> </span><span class="annot"><span class="annottext">Manager
+</span><a href="#local-6989586621679051066"><span class="hs-identifier hs-var">timmgr</span></a></span><span class="hs-cpp">
+
+#if __GLASGOW_HASKELL__ &lt; 908
+</span><span class="hs-identifier">fromThreadId</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">ThreadId</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">Word64</span><span>
+</span><span id="line-217"></span><span class="hs-identifier">fromThreadId</span><span> </span><span class="hs-identifier">tid</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">read</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">drop</span><span> </span><span class="hs-number">9</span><span> </span><span class="hs-operator">$</span><span> </span><span class="hs-identifier">show</span><span> </span><span class="hs-identifier">tid</span><span class="hs-special">)</span><span class="hs-cpp">
+#endif
+</span></pre></body></html>

@@ -1,0 +1,47 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE Safe #-}</span><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# OPTIONS_HADDOCK not-home #-}</span><span>
+</span><span id="line-3"></span><span>
+</span><span id="line-4"></span><span class="hs-comment">-- |</span><span>
+</span><span id="line-5"></span><span class="hs-comment">--</span><span>
+</span><span id="line-6"></span><span class="hs-comment">-- Module      :  GHC.Unicode</span><span>
+</span><span id="line-7"></span><span class="hs-comment">-- Copyright   :  (c) The University of Glasgow, 2003</span><span>
+</span><span id="line-8"></span><span class="hs-comment">-- License     :  see libraries/base/LICENSE</span><span>
+</span><span id="line-9"></span><span class="hs-comment">--</span><span>
+</span><span id="line-10"></span><span class="hs-comment">-- Maintainer  :  ghc-devs@haskell.org</span><span>
+</span><span id="line-11"></span><span class="hs-comment">-- Stability   :  internal</span><span>
+</span><span id="line-12"></span><span class="hs-comment">-- Portability :  non-portable (GHC extensions)</span><span>
+</span><span id="line-13"></span><span class="hs-comment">--</span><span>
+</span><span id="line-14"></span><span class="hs-comment">-- Implementations for the character predicates (isLower, isUpper, etc.)</span><span>
+</span><span id="line-15"></span><span class="hs-comment">-- and the conversions (toUpper, toLower).  The implementation uses</span><span>
+</span><span id="line-16"></span><span class="hs-comment">-- libunicode on Unix systems if that is available.</span><span>
+</span><span id="line-17"></span><span class="hs-comment">--</span><span>
+</span><span id="line-18"></span><span>
+</span><span id="line-19"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="GHC.Unicode.html"><span class="hs-identifier">GHC.Unicode</span></a></span><span>
+</span><span id="line-20"></span><span>    </span><span class="hs-special">(</span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Unicode.Version.html#unicodeVersion"><span class="hs-identifier">unicodeVersion</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-21"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Unicode.html#GeneralCategory"><span class="hs-identifier">GeneralCategory</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-22"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Unicode.html#generalCategory"><span class="hs-identifier">generalCategory</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-23"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Unicode.html#isAscii"><span class="hs-identifier">isAscii</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-24"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Unicode.html#isLatin1"><span class="hs-identifier">isLatin1</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-25"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Unicode.html#isControl"><span class="hs-identifier">isControl</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-26"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Unicode.html#isAsciiUpper"><span class="hs-identifier">isAsciiUpper</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-27"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Unicode.html#isAsciiLower"><span class="hs-identifier">isAsciiLower</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-28"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Unicode.html#isPrint"><span class="hs-identifier">isPrint</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-29"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Unicode.html#isSpace"><span class="hs-identifier">isSpace</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-30"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Unicode.html#isUpper"><span class="hs-identifier">isUpper</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-31"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Unicode.html#isUpperCase"><span class="hs-identifier">isUpperCase</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-32"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Unicode.html#isLower"><span class="hs-identifier">isLower</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-33"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Unicode.html#isLowerCase"><span class="hs-identifier">isLowerCase</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-34"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Unicode.html#isAlpha"><span class="hs-identifier">isAlpha</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-35"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Unicode.html#isDigit"><span class="hs-identifier">isDigit</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-36"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Unicode.html#isOctDigit"><span class="hs-identifier">isOctDigit</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-37"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Unicode.html#isHexDigit"><span class="hs-identifier">isHexDigit</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-38"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Unicode.html#isAlphaNum"><span class="hs-identifier">isAlphaNum</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-39"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Unicode.html#isPunctuation"><span class="hs-identifier">isPunctuation</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-40"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Unicode.html#isSymbol"><span class="hs-identifier">isSymbol</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-41"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Unicode.html#toUpper"><span class="hs-identifier">toUpper</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-42"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Unicode.html#toLower"><span class="hs-identifier">toLower</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-43"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Unicode.html#toTitle"><span class="hs-identifier">toTitle</span></a></span><span>
+</span><span id="line-44"></span><span>     </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-45"></span><span>
+</span><span id="line-46"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Unicode.html"><span class="hs-identifier">GHC.Internal.Unicode</span></a></span><span>
+</span><span id="line-47"></span></pre></body></html>

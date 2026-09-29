@@ -1,0 +1,233 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-comment">-----------------------------------------------------------------------------</span><span>
+</span><span id="line-2"></span><span class="hs-comment">-- |</span><span>
+</span><span id="line-3"></span><span class="hs-comment">-- Module     : Algebra.Graph.Relation.Preorder</span><span>
+</span><span id="line-4"></span><span class="hs-comment">-- Copyright  : (c) Andrey Mokhov 2016-2022</span><span>
+</span><span id="line-5"></span><span class="hs-comment">-- License    : MIT (see the file LICENSE)</span><span>
+</span><span id="line-6"></span><span class="hs-comment">-- Maintainer : andrey.mokhov@gmail.com</span><span>
+</span><span id="line-7"></span><span class="hs-comment">-- Stability  : experimental</span><span>
+</span><span id="line-8"></span><span class="hs-comment">--</span><span>
+</span><span id="line-9"></span><span class="hs-comment">-- An abstract implementation of preorder relations. Use &quot;Algebra.Graph.Class&quot;</span><span>
+</span><span id="line-10"></span><span class="hs-comment">-- for polymorphic construction and manipulation.</span><span>
+</span><span id="line-11"></span><span class="hs-comment">-----------------------------------------------------------------------------</span><span>
+</span><span id="line-12"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Algebra.Graph.Relation.Preorder.html"><span class="hs-identifier">Algebra.Graph.Relation.Preorder</span></a></span><span> </span><span class="hs-special">(</span><span>
+</span><span id="line-13"></span><span>    </span><span class="annot"><span class="hs-comment">-- * Data structure</span></span><span>
+</span><span id="line-14"></span><span>    </span><span class="annot"><a href="Algebra.Graph.Relation.Preorder.html#PreorderRelation"><span class="hs-identifier">PreorderRelation</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Algebra.Graph.Relation.Preorder.html#fromRelation"><span class="hs-identifier">fromRelation</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Algebra.Graph.Relation.Preorder.html#toRelation"><span class="hs-identifier">toRelation</span></a></span><span>
+</span><span id="line-15"></span><span>    </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-16"></span><span>
+</span><span id="line-17"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Algebra.Graph.Relation.html"><span class="hs-identifier">Algebra.Graph.Relation</span></a></span><span>
+</span><span id="line-18"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.DeepSeq</span></span><span>
+</span><span id="line-19"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.String</span></span><span>
+</span><span id="line-20"></span><span>
+</span><span id="line-21"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Algebra.Graph.Class.html"><span class="hs-identifier">Algebra.Graph.Class</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">C</span></span><span>
+</span><span id="line-22"></span><span>
+</span><span id="line-23"></span><span class="hs-comment">-- TODO: Optimise the implementation by caching the results of preorder closure.</span><span>
+</span><span id="line-24"></span><span class="annot"><span class="hs-comment">{-| The 'PreorderRelation' data type represents a
+/binary relation that is both reflexive and transitive/. Preorders satisfy all
+laws of the 'Preorder' type class and, in particular, the /self-loop/ axiom:
+
+@'vertex' x == 'vertex' x * 'vertex' x@
+
+and the /closure/ axiom:
+
+@y /= 'empty' ==&gt; x * y + x * z + y * z == x * y + y * z@
+
+For example, the following holds:
+
+@'path' xs == ('clique' xs :: PreorderRelation Int)@
+
+The 'Show' instance produces reflexively and transitively closed expressions:
+
+@show (1             :: PreorderRelation Int) == &quot;edge 1 1&quot;
+show (1 * 2         :: PreorderRelation Int) == &quot;edges [(1,1),(1,2),(2,2)]&quot;
+show (1 * 2 + 2 * 3 :: PreorderRelation Int) == &quot;edges [(1,1),(1,2),(1,3),(2,2),(2,3),(3,3)]&quot;@
+-}</span></span><span>
+</span><span id="line-44"></span><span class="hs-keyword">newtype</span><span> </span><span id="PreorderRelation"><span class="annot"><a href="Algebra.Graph.Relation.Preorder.html#PreorderRelation"><span class="hs-identifier hs-var">PreorderRelation</span></a></span></span><span> </span><span id="local-6989586621679167649"><span class="annot"><a href="#local-6989586621679167649"><span class="hs-identifier hs-type">a</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="PreorderRelation"><span class="annot"><a href="Algebra.Graph.Relation.Preorder.html#PreorderRelation"><span class="hs-identifier hs-var">PreorderRelation</span></a></span></span><span> </span><span class="hs-special">{</span><span> </span><span id="fromPreorder"><span class="annot"><span class="annottext">forall a. PreorderRelation a -&gt; Relation a
+</span><a href="Algebra.Graph.Relation.Preorder.html#fromPreorder"><span class="hs-identifier hs-var hs-var">fromPreorder</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Algebra.Graph.Relation.html#Relation"><span class="hs-identifier hs-type">Relation</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679167649"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-special">}</span><span>
+</span><span id="line-45"></span><span>    </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679167723"><span class="annot"><span class="annottext">String -&gt; PreorderRelation a
+(String -&gt; PreorderRelation a) -&gt; IsString (PreorderRelation a)
+forall a. IsString a =&gt; String -&gt; PreorderRelation a
+forall a. (String -&gt; a) -&gt; IsString a
+$cfromString :: forall a. IsString a =&gt; String -&gt; PreorderRelation a
+fromString :: String -&gt; PreorderRelation a
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">IsString</span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679167731"><span class="annot"><span class="annottext">PreorderRelation a -&gt; ()
+(PreorderRelation a -&gt; ()) -&gt; NFData (PreorderRelation a)
+forall a. NFData a =&gt; PreorderRelation a -&gt; ()
+forall a. (a -&gt; ()) -&gt; NFData a
+$crnf :: forall a. NFData a =&gt; PreorderRelation a -&gt; ()
+rnf :: PreorderRelation a -&gt; ()
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">NFData</span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679167741"><span id="local-6989586621679167746"><span id="local-6989586621679167750"><span id="local-6989586621679167754"><span id="local-6989586621679167758"><span id="local-6989586621679167762"><span id="local-6989586621679167766"><span class="annot"><span class="annottext">Integer -&gt; PreorderRelation a
+PreorderRelation a -&gt; PreorderRelation a
+PreorderRelation a -&gt; PreorderRelation a -&gt; PreorderRelation a
+(PreorderRelation a -&gt; PreorderRelation a -&gt; PreorderRelation a)
+-&gt; (PreorderRelation a -&gt; PreorderRelation a -&gt; PreorderRelation a)
+-&gt; (PreorderRelation a -&gt; PreorderRelation a -&gt; PreorderRelation a)
+-&gt; (PreorderRelation a -&gt; PreorderRelation a)
+-&gt; (PreorderRelation a -&gt; PreorderRelation a)
+-&gt; (PreorderRelation a -&gt; PreorderRelation a)
+-&gt; (Integer -&gt; PreorderRelation a)
+-&gt; Num (PreorderRelation a)
+forall a. (Ord a, Num a) =&gt; Integer -&gt; PreorderRelation a
+forall a.
+(Ord a, Num a) =&gt;
+PreorderRelation a -&gt; PreorderRelation a
+forall a.
+(Ord a, Num a) =&gt;
+PreorderRelation a -&gt; PreorderRelation a -&gt; PreorderRelation a
+forall a.
+(a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a)
+-&gt; (a -&gt; a)
+-&gt; (a -&gt; a)
+-&gt; (Integer -&gt; a)
+-&gt; Num a
+$c+ :: forall a.
+(Ord a, Num a) =&gt;
+PreorderRelation a -&gt; PreorderRelation a -&gt; PreorderRelation a
++ :: PreorderRelation a -&gt; PreorderRelation a -&gt; PreorderRelation a
+$c- :: forall a.
+(Ord a, Num a) =&gt;
+PreorderRelation a -&gt; PreorderRelation a -&gt; PreorderRelation a
+- :: PreorderRelation a -&gt; PreorderRelation a -&gt; PreorderRelation a
+$c* :: forall a.
+(Ord a, Num a) =&gt;
+PreorderRelation a -&gt; PreorderRelation a -&gt; PreorderRelation a
+* :: PreorderRelation a -&gt; PreorderRelation a -&gt; PreorderRelation a
+$cnegate :: forall a.
+(Ord a, Num a) =&gt;
+PreorderRelation a -&gt; PreorderRelation a
+negate :: PreorderRelation a -&gt; PreorderRelation a
+$cabs :: forall a.
+(Ord a, Num a) =&gt;
+PreorderRelation a -&gt; PreorderRelation a
+abs :: PreorderRelation a -&gt; PreorderRelation a
+$csignum :: forall a.
+(Ord a, Num a) =&gt;
+PreorderRelation a -&gt; PreorderRelation a
+signum :: PreorderRelation a -&gt; PreorderRelation a
+$cfromInteger :: forall a. (Ord a, Num a) =&gt; Integer -&gt; PreorderRelation a
+fromInteger :: Integer -&gt; PreorderRelation a
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Num</span></span></span></span></span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-46"></span><span>
+</span><span id="line-47"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679167672"><span id="local-6989586621679167778"><span id="local-6989586621679167783"><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ord</span></span><span> </span><span class="annot"><a href="#local-6989586621679167672"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Show</span></span><span> </span><span class="annot"><a href="#local-6989586621679167672"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Show</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Algebra.Graph.Relation.Preorder.html#PreorderRelation"><span class="hs-identifier hs-type">PreorderRelation</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679167672"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-48"></span><span>    </span><span id="local-6989586621679167789"><span class="annot"><span class="annottext">show :: PreorderRelation a -&gt; String
+</span><a href="#local-6989586621679167789"><span class="hs-identifier hs-var hs-var hs-var">show</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Relation a -&gt; String
+forall a. Show a =&gt; a -&gt; String
+</span><span class="hs-identifier hs-var">show</span></span><span> </span><span class="annot"><span class="annottext">(Relation a -&gt; String)
+-&gt; (PreorderRelation a -&gt; Relation a)
+-&gt; PreorderRelation a
+-&gt; String
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">PreorderRelation a -&gt; Relation a
+forall a. Ord a =&gt; PreorderRelation a -&gt; Relation a
+</span><a href="Algebra.Graph.Relation.Preorder.html#toRelation"><span class="hs-identifier hs-var">toRelation</span></a></span><span>
+</span><span id="line-49"></span><span>
+</span><span id="line-50"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679167681"><span id="local-6989586621679167795"><span class="annot"><span class="hs-identifier hs-type">Ord</span></span><span> </span><span class="annot"><a href="#local-6989586621679167681"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Eq</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Algebra.Graph.Relation.Preorder.html#PreorderRelation"><span class="hs-identifier hs-type">PreorderRelation</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679167681"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-51"></span><span>    </span><span id="local-6989586621679167805"><span class="annot"><span class="annottext">PreorderRelation a
+</span><a href="#local-6989586621679167805"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span id="local-6989586621679167806"><span class="annot"><span class="annottext">== :: PreorderRelation a -&gt; PreorderRelation a -&gt; Bool
+</span><span class="hs-operator hs-var hs-var hs-var">==</span></span></span><span> </span><span id="local-6989586621679167807"><span class="annot"><span class="annottext">PreorderRelation a
+</span><a href="#local-6989586621679167807"><span class="hs-identifier hs-var">y</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">PreorderRelation a -&gt; Relation a
+forall a. Ord a =&gt; PreorderRelation a -&gt; Relation a
+</span><a href="Algebra.Graph.Relation.Preorder.html#toRelation"><span class="hs-identifier hs-var">toRelation</span></a></span><span> </span><span class="annot"><span class="annottext">PreorderRelation a
+</span><a href="#local-6989586621679167805"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">Relation a -&gt; Relation a -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">PreorderRelation a -&gt; Relation a
+forall a. Ord a =&gt; PreorderRelation a -&gt; Relation a
+</span><a href="Algebra.Graph.Relation.Preorder.html#toRelation"><span class="hs-identifier hs-var">toRelation</span></a></span><span> </span><span class="annot"><span class="annottext">PreorderRelation a
+</span><a href="#local-6989586621679167807"><span class="hs-identifier hs-var">y</span></a></span><span>
+</span><span id="line-52"></span><span>
+</span><span id="line-53"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679167684"><span id="local-6989586621679167813"><span id="local-6989586621679167817"><span id="local-6989586621679167820"><span id="local-6989586621679167823"><span id="local-6989586621679167826"><span id="local-6989586621679167829"><span class="annot"><span class="hs-identifier hs-type">Ord</span></span><span> </span><span class="annot"><a href="#local-6989586621679167684"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ord</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Algebra.Graph.Relation.Preorder.html#PreorderRelation"><span class="hs-identifier hs-type">PreorderRelation</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679167684"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span></span></span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-54"></span><span>    </span><span id="local-6989586621679167836"><span class="annot"><span class="annottext">compare :: PreorderRelation a -&gt; PreorderRelation a -&gt; Ordering
+</span><a href="#local-6989586621679167836"><span class="hs-identifier hs-var hs-var hs-var">compare</span></a></span></span><span> </span><span id="local-6989586621679167838"><span class="annot"><span class="annottext">PreorderRelation a
+</span><a href="#local-6989586621679167838"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span id="local-6989586621679167839"><span class="annot"><span class="annottext">PreorderRelation a
+</span><a href="#local-6989586621679167839"><span class="hs-identifier hs-var">y</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Relation a -&gt; Relation a -&gt; Ordering
+forall a. Ord a =&gt; a -&gt; a -&gt; Ordering
+</span><span class="hs-identifier hs-var">compare</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">PreorderRelation a -&gt; Relation a
+forall a. Ord a =&gt; PreorderRelation a -&gt; Relation a
+</span><a href="Algebra.Graph.Relation.Preorder.html#toRelation"><span class="hs-identifier hs-var">toRelation</span></a></span><span> </span><span class="annot"><span class="annottext">PreorderRelation a
+</span><a href="#local-6989586621679167838"><span class="hs-identifier hs-var">x</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">PreorderRelation a -&gt; Relation a
+forall a. Ord a =&gt; PreorderRelation a -&gt; Relation a
+</span><a href="Algebra.Graph.Relation.Preorder.html#toRelation"><span class="hs-identifier hs-var">toRelation</span></a></span><span> </span><span class="annot"><span class="annottext">PreorderRelation a
+</span><a href="#local-6989586621679167839"><span class="hs-identifier hs-var">y</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-55"></span><span>
+</span><span id="line-56"></span><span class="hs-comment">-- TODO: To be derived automatically using GeneralizedNewtypeDeriving in GHC 8.2</span><span>
+</span><span id="line-57"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679167690"><span class="annot"><span class="hs-identifier hs-type">Ord</span></span><span> </span><span class="annot"><a href="#local-6989586621679167690"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Algebra.Graph.Class.html#Graph"><span class="hs-identifier hs-type">C.Graph</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Algebra.Graph.Relation.Preorder.html#PreorderRelation"><span class="hs-identifier hs-type">PreorderRelation</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679167690"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-58"></span><span>    </span><span class="hs-keyword">type</span><span> </span><span id="Vertex"><span class="annot"><a href="Algebra.Graph.Class.html#Vertex"><span class="hs-identifier hs-var">Vertex</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Algebra.Graph.Relation.Preorder.html#PreorderRelation"><span class="hs-identifier hs-type">PreorderRelation</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679167690"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="#local-6989586621679167690"><span class="hs-identifier hs-type">a</span></a></span><span>
+</span><span id="line-59"></span><span>    </span><span id="local-6989586621679167847"><span class="annot"><span class="annottext">empty :: PreorderRelation a
+</span><a href="#local-6989586621679167847"><span class="hs-identifier hs-var hs-var hs-var">empty</span></a></span></span><span>       </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Relation a -&gt; PreorderRelation a
+forall a. Relation a -&gt; PreorderRelation a
+</span><a href="Algebra.Graph.Relation.Preorder.html#PreorderRelation"><span class="hs-identifier hs-var">PreorderRelation</span></a></span><span> </span><span class="annot"><span class="annottext">Relation a
+forall a. Relation a
+</span><a href="Algebra.Graph.Relation.html#empty"><span class="hs-identifier hs-var">empty</span></a></span><span>
+</span><span id="line-60"></span><span>    </span><span id="local-6989586621679167849"><span class="annot"><span class="annottext">vertex :: Vertex (PreorderRelation a) -&gt; PreorderRelation a
+</span><a href="#local-6989586621679167849"><span class="hs-identifier hs-var hs-var hs-var">vertex</span></a></span></span><span>      </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Relation a -&gt; PreorderRelation a
+forall a. Relation a -&gt; PreorderRelation a
+</span><a href="Algebra.Graph.Relation.Preorder.html#PreorderRelation"><span class="hs-identifier hs-var">PreorderRelation</span></a></span><span> </span><span class="annot"><span class="annottext">(Relation a -&gt; PreorderRelation a)
+-&gt; (a -&gt; Relation a) -&gt; a -&gt; PreorderRelation a
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; Relation a
+forall a. a -&gt; Relation a
+</span><a href="Algebra.Graph.Relation.html#vertex"><span class="hs-identifier hs-var">vertex</span></a></span><span>
+</span><span id="line-61"></span><span>    </span><span id="local-6989586621679167852"><span class="annot"><span class="annottext">overlay :: PreorderRelation a -&gt; PreorderRelation a -&gt; PreorderRelation a
+</span><a href="#local-6989586621679167852"><span class="hs-identifier hs-var hs-var hs-var">overlay</span></a></span></span><span> </span><span id="local-6989586621679167854"><span class="annot"><span class="annottext">PreorderRelation a
+</span><a href="#local-6989586621679167854"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span id="local-6989586621679167855"><span class="annot"><span class="annottext">PreorderRelation a
+</span><a href="#local-6989586621679167855"><span class="hs-identifier hs-var">y</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Relation a -&gt; PreorderRelation a
+forall a. Relation a -&gt; PreorderRelation a
+</span><a href="Algebra.Graph.Relation.Preorder.html#PreorderRelation"><span class="hs-identifier hs-var">PreorderRelation</span></a></span><span> </span><span class="annot"><span class="annottext">(Relation a -&gt; PreorderRelation a)
+-&gt; Relation a -&gt; PreorderRelation a
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">PreorderRelation a -&gt; Relation a
+forall a. PreorderRelation a -&gt; Relation a
+</span><a href="Algebra.Graph.Relation.Preorder.html#fromPreorder"><span class="hs-identifier hs-var">fromPreorder</span></a></span><span> </span><span class="annot"><span class="annottext">PreorderRelation a
+</span><a href="#local-6989586621679167854"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">Relation a -&gt; Relation a -&gt; Relation a
+forall a. Ord a =&gt; Relation a -&gt; Relation a -&gt; Relation a
+</span><a href="Algebra.Graph.Relation.html#overlay"><span class="hs-operator hs-var">`overlay`</span></a></span><span> </span><span class="annot"><span class="annottext">PreorderRelation a -&gt; Relation a
+forall a. PreorderRelation a -&gt; Relation a
+</span><a href="Algebra.Graph.Relation.Preorder.html#fromPreorder"><span class="hs-identifier hs-var">fromPreorder</span></a></span><span> </span><span class="annot"><span class="annottext">PreorderRelation a
+</span><a href="#local-6989586621679167855"><span class="hs-identifier hs-var">y</span></a></span><span>
+</span><span id="line-62"></span><span>    </span><span id="local-6989586621679167858"><span class="annot"><span class="annottext">connect :: PreorderRelation a -&gt; PreorderRelation a -&gt; PreorderRelation a
+</span><a href="#local-6989586621679167858"><span class="hs-identifier hs-var hs-var hs-var">connect</span></a></span></span><span> </span><span id="local-6989586621679167860"><span class="annot"><span class="annottext">PreorderRelation a
+</span><a href="#local-6989586621679167860"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span id="local-6989586621679167861"><span class="annot"><span class="annottext">PreorderRelation a
+</span><a href="#local-6989586621679167861"><span class="hs-identifier hs-var">y</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Relation a -&gt; PreorderRelation a
+forall a. Relation a -&gt; PreorderRelation a
+</span><a href="Algebra.Graph.Relation.Preorder.html#PreorderRelation"><span class="hs-identifier hs-var">PreorderRelation</span></a></span><span> </span><span class="annot"><span class="annottext">(Relation a -&gt; PreorderRelation a)
+-&gt; Relation a -&gt; PreorderRelation a
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">PreorderRelation a -&gt; Relation a
+forall a. PreorderRelation a -&gt; Relation a
+</span><a href="Algebra.Graph.Relation.Preorder.html#fromPreorder"><span class="hs-identifier hs-var">fromPreorder</span></a></span><span> </span><span class="annot"><span class="annottext">PreorderRelation a
+</span><a href="#local-6989586621679167860"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">Relation a -&gt; Relation a -&gt; Relation a
+forall a. Ord a =&gt; Relation a -&gt; Relation a -&gt; Relation a
+</span><a href="Algebra.Graph.Relation.html#connect"><span class="hs-operator hs-var">`connect`</span></a></span><span> </span><span class="annot"><span class="annottext">PreorderRelation a -&gt; Relation a
+forall a. PreorderRelation a -&gt; Relation a
+</span><a href="Algebra.Graph.Relation.Preorder.html#fromPreorder"><span class="hs-identifier hs-var">fromPreorder</span></a></span><span> </span><span class="annot"><span class="annottext">PreorderRelation a
+</span><a href="#local-6989586621679167861"><span class="hs-identifier hs-var">y</span></a></span><span>
+</span><span id="line-63"></span><span>
+</span><span id="line-64"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679167701"><span class="annot"><span class="hs-identifier hs-type">Ord</span></span><span> </span><span class="annot"><a href="#local-6989586621679167701"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Algebra.Graph.Class.html#Reflexive"><span class="hs-identifier hs-type">C.Reflexive</span></a></span><span>  </span><span class="hs-special">(</span><span class="annot"><a href="Algebra.Graph.Relation.Preorder.html#PreorderRelation"><span class="hs-identifier hs-type">PreorderRelation</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679167701"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span><span>
+</span><span id="line-65"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679167705"><span class="annot"><span class="hs-identifier hs-type">Ord</span></span><span> </span><span class="annot"><a href="#local-6989586621679167705"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Algebra.Graph.Class.html#Transitive"><span class="hs-identifier hs-type">C.Transitive</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Algebra.Graph.Relation.Preorder.html#PreorderRelation"><span class="hs-identifier hs-type">PreorderRelation</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679167705"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span><span>
+</span><span id="line-66"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679167709"><span class="annot"><span class="hs-identifier hs-type">Ord</span></span><span> </span><span class="annot"><a href="#local-6989586621679167709"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Algebra.Graph.Class.html#Preorder"><span class="hs-identifier hs-type">C.Preorder</span></a></span><span>   </span><span class="hs-special">(</span><span class="annot"><a href="Algebra.Graph.Relation.Preorder.html#PreorderRelation"><span class="hs-identifier hs-type">PreorderRelation</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679167709"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span><span>
+</span><span id="line-67"></span><span>
+</span><span id="line-68"></span><span class="hs-comment">-- | Construct a preorder relation from a 'Relation'.</span><span>
+</span><span id="line-69"></span><span class="hs-comment">-- Complexity: /O(1)/ time.</span><span>
+</span><span id="line-70"></span><span id="local-6989586621679167880"><span class="annot"><a href="Algebra.Graph.Relation.Preorder.html#fromRelation"><span class="hs-identifier hs-type">fromRelation</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Algebra.Graph.Relation.html#Relation"><span class="hs-identifier hs-type">Relation</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679167880"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Algebra.Graph.Relation.Preorder.html#PreorderRelation"><span class="hs-identifier hs-type">PreorderRelation</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679167880"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-71"></span><span id="fromRelation"><span class="annot"><span class="annottext">fromRelation :: forall a. Relation a -&gt; PreorderRelation a
+</span><a href="Algebra.Graph.Relation.Preorder.html#fromRelation"><span class="hs-identifier hs-var hs-var">fromRelation</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Relation a -&gt; PreorderRelation a
+forall a. Relation a -&gt; PreorderRelation a
+</span><a href="Algebra.Graph.Relation.Preorder.html#PreorderRelation"><span class="hs-identifier hs-var">PreorderRelation</span></a></span><span>
+</span><span id="line-72"></span><span>
+</span><span id="line-73"></span><span class="hs-comment">-- | Extract the underlying relation.</span><span>
+</span><span id="line-74"></span><span class="hs-comment">-- Complexity: /O(n * m * log(m))/ time.</span><span>
+</span><span id="line-75"></span><span id="local-6989586621679167677"><span class="annot"><a href="Algebra.Graph.Relation.Preorder.html#toRelation"><span class="hs-identifier hs-type">toRelation</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ord</span></span><span> </span><span class="annot"><a href="#local-6989586621679167677"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Algebra.Graph.Relation.Preorder.html#PreorderRelation"><span class="hs-identifier hs-type">PreorderRelation</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679167677"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Algebra.Graph.Relation.html#Relation"><span class="hs-identifier hs-type">Relation</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679167677"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-76"></span><span id="toRelation"><span class="annot"><span class="annottext">toRelation :: forall a. Ord a =&gt; PreorderRelation a -&gt; Relation a
+</span><a href="Algebra.Graph.Relation.Preorder.html#toRelation"><span class="hs-identifier hs-var hs-var">toRelation</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Relation a -&gt; Relation a
+forall a. Ord a =&gt; Relation a -&gt; Relation a
+</span><a href="Algebra.Graph.Relation.html#closure"><span class="hs-identifier hs-var">closure</span></a></span><span> </span><span class="annot"><span class="annottext">(Relation a -&gt; Relation a)
+-&gt; (PreorderRelation a -&gt; Relation a)
+-&gt; PreorderRelation a
+-&gt; Relation a
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">PreorderRelation a -&gt; Relation a
+forall a. PreorderRelation a -&gt; Relation a
+</span><a href="Algebra.Graph.Relation.Preorder.html#fromPreorder"><span class="hs-identifier hs-var">fromPreorder</span></a></span><span>
+</span><span id="line-77"></span></pre></body></html>

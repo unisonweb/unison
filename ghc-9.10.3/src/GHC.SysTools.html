@@ -1,0 +1,238 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# LANGUAGE ScopedTypeVariables #-}</span><span>
+</span><span id="line-3"></span><span>
+</span><span id="line-4"></span><span class="hs-comment">{-
+-----------------------------------------------------------------------------
+--
+-- (c) The University of Glasgow 2001-2003
+--
+-- Access to system tools: gcc, cp, rm etc
+--
+-----------------------------------------------------------------------------
+-}</span><span>
+</span><span id="line-13"></span><span>
+</span><span id="line-14"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="GHC.SysTools.html"><span class="hs-identifier">GHC.SysTools</span></a></span><span> </span><span class="hs-special">(</span><span>
+</span><span id="line-15"></span><span>        </span><span class="annot"><span class="hs-comment">-- * Initialisation</span></span><span>
+</span><span id="line-16"></span><span>        </span><span class="annot"><a href="GHC.SysTools.html#initSysTools"><span class="hs-identifier">initSysTools</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-17"></span><span>
+</span><span id="line-18"></span><span>        </span><span class="annot"><span class="hs-comment">-- * Interface to system tools</span></span><span>
+</span><span id="line-19"></span><span>        </span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="GHC.SysTools.Tasks.html"><span class="hs-identifier">GHC.SysTools.Tasks</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-20"></span><span>
+</span><span id="line-21"></span><span>        </span><span class="annot"><span class="hs-comment">-- * Fast file copy</span></span><span>
+</span><span id="line-22"></span><span>        </span><span class="annot"><a href="../../directory-1.3.8.5-757a/src/System.Directory.html#copyFile"><span class="hs-identifier">copyFile</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-23"></span><span>        </span><span class="annot"><a href="GHC.SysTools.html#copyHandle"><span class="hs-identifier">copyHandle</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-24"></span><span>        </span><span class="annot"><a href="GHC.SysTools.html#copyWithHeader"><span class="hs-identifier">copyWithHeader</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-25"></span><span>
+</span><span id="line-26"></span><span>        </span><span class="annot"><span class="hs-comment">-- * General utilities</span></span><span>
+</span><span id="line-27"></span><span>        </span><span class="annot"><a href="GHC.Utils.CliOption.html#Option"><span class="hs-identifier">Option</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-28"></span><span>        </span><span class="annot"><a href="../../ghc-boot-9.10.3-46f3/src/GHC.BaseDir.html#expandTopDir"><span class="hs-identifier">expandTopDir</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-29"></span><span> </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-30"></span><span>
+</span><span id="line-31"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Prelude.html"><span class="hs-identifier">GHC.Prelude</span></a></span><span>
+</span><span id="line-32"></span><span>
+</span><span id="line-33"></span><span>
+</span><span id="line-34"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Utils.Panic.html"><span class="hs-identifier">GHC.Utils.Panic</span></a></span><span>
+</span><span id="line-35"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Driver.Session.html"><span class="hs-identifier">GHC.Driver.Session</span></a></span><span>
+</span><span id="line-36"></span><span>
+</span><span id="line-37"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.SysTools.Tasks.html"><span class="hs-identifier">GHC.SysTools.Tasks</span></a></span><span>
+</span><span id="line-38"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.SysTools.BaseDir.html"><span class="hs-identifier">GHC.SysTools.BaseDir</span></a></span><span>
+</span><span id="line-39"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Settings.IO.html"><span class="hs-identifier">GHC.Settings.IO</span></a></span><span>
+</span><span id="line-40"></span><span>
+</span><span id="line-41"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../transformers-0.6.1.1-c721/src/Control.Monad.Trans.Except.html"><span class="hs-identifier">Control.Monad.Trans.Except</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="../../transformers-0.6.1.1-c721/src/Control.Monad.Trans.Except.html#runExceptT"><span class="hs-identifier">runExceptT</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-42"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.20.2.0-6654/src/System.IO.html"><span class="hs-identifier">System.IO</span></a></span><span>
+</span><span id="line-43"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.20.2.0-6654/src/Foreign.Marshal.Alloc.html"><span class="hs-identifier">Foreign.Marshal.Alloc</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">allocaBytes</span></span><span class="hs-special">)</span><span>
+</span><span id="line-44"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../directory-1.3.8.5-757a/src/System.Directory.html"><span class="hs-identifier">System.Directory</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="../../directory-1.3.8.5-757a/src/System.Directory.html#copyFile"><span class="hs-identifier">copyFile</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-45"></span><span>
+</span><span id="line-46"></span><span class="hs-comment">{-
+Note [How GHC finds toolchain utilities]
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+GHC.SysTools.initSysProgs figures out exactly where all the auxiliary programs
+are, and initialises mutable variables to make it easy to call them.
+To do this, it makes use of definitions in Config.hs, which is a Haskell
+file containing variables whose value is figured out by the build system.
+
+Config.hs contains two sorts of things
+
+  cGCC,         The *names* of the programs
+  cCPP            e.g.  cGCC = gcc
+  cUNLIT                cCPP = gcc -E
+  etc           They do *not* include paths
+
+
+  cUNLIT_DIR   The *path* to the directory containing unlit, split etc
+  cSPLIT_DIR   *relative* to the root of the build tree,
+                   for use when running *in-place* in a build tree (only)
+
+
+---------------------------------------------
+NOTES for an ALTERNATIVE scheme (i.e *not* what is currently implemented):
+
+Another hair-brained scheme for simplifying the current tool location
+nightmare in GHC: Simon originally suggested using another
+configuration file along the lines of GCC's specs file - which is fine
+except that it means adding code to read yet another configuration
+file.  What I didn't notice is that the current package.conf is
+general enough to do this:
+
+Package
+    {name = &quot;tools&quot;,    import_dirs = [],  source_dirs = [],
+     library_dirs = [], hs_libraries = [], extra_libraries = [],
+     include_dirs = [], c_includes = [],   package_deps = [],
+     extra_ghc_opts = [&quot;-pgmc/usr/bin/gcc&quot;,&quot;-pgml${topdir}/bin/unlit&quot;, ... etc.],
+     extra_cc_opts = [], extra_ld_opts = []}
+
+Which would have the advantage that we get to collect together in one
+place the path-specific package stuff with the path-specific tool
+stuff.
+                End of NOTES
+---------------------------------------------
+
+************************************************************************
+*                                                                      *
+\subsection{Initialisation}
+*                                                                      *
+************************************************************************
+-}</span><span>
+</span><span id="line-97"></span><span>
+</span><span id="line-98"></span><span>
+</span><span id="line-99"></span><span class="annot"><a href="GHC.SysTools.html#initSysTools"><span class="hs-identifier hs-type">initSysTools</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span>          </span><span class="hs-comment">-- TopDir path</span><span>
+</span><span id="line-100"></span><span>             </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="GHC.Settings.html#Settings"><span class="hs-identifier hs-type">Settings</span></a></span><span>     </span><span class="hs-comment">-- Set all the mutable variables above, holding</span><span>
+</span><span id="line-101"></span><span>                                </span><span class="hs-comment">--      (a) the system programs</span><span>
+</span><span id="line-102"></span><span>                                </span><span class="hs-comment">--      (b) the package-config file</span><span>
+</span><span id="line-103"></span><span>                                </span><span class="hs-comment">--      (c) the GHC usage message</span><span>
+</span><span id="line-104"></span><span id="initSysTools"><span class="annot"><span class="annottext">initSysTools :: String -&gt; IO Settings
+</span><a href="GHC.SysTools.html#initSysTools"><span class="hs-identifier hs-var hs-var">initSysTools</span></a></span></span><span> </span><span id="local-6989586621682765448"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621682765448"><span class="hs-identifier hs-var">top_dir</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-105"></span><span>  </span><span id="local-6989586621682765449"><span class="annot"><a href="#local-6989586621682765449"><span class="hs-identifier hs-var">res</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">ExceptT SettingsError IO Settings
+-&gt; IO (Either SettingsError Settings)
+forall e (m :: * -&gt; *) a. ExceptT e m a -&gt; m (Either e a)
+</span><a href="../../transformers-0.6.1.1-c721/src/Control.Monad.Trans.Except.html#runExceptT"><span class="hs-identifier hs-var">runExceptT</span></a></span><span> </span><span class="annot"><span class="annottext">(ExceptT SettingsError IO Settings
+ -&gt; IO (Either SettingsError Settings))
+-&gt; ExceptT SettingsError IO Settings
+-&gt; IO (Either SettingsError Settings)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; ExceptT SettingsError IO Settings
+forall (m :: * -&gt; *).
+MonadIO m =&gt;
+String -&gt; ExceptT SettingsError m Settings
+</span><a href="GHC.Settings.IO.html#initSettings"><span class="hs-identifier hs-var">initSettings</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621682765448"><span class="hs-identifier hs-var">top_dir</span></a></span><span>
+</span><span id="line-106"></span><span>  </span><span class="hs-keyword">case</span><span> </span><span class="annot"><a href="#local-6989586621682765449"><span class="hs-identifier hs-type">res</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-107"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">Right</span></span><span> </span><span id="local-6989586621682765451"><span class="annot"><span class="annottext">Settings
+</span><a href="#local-6989586621682765451"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Settings -&gt; IO Settings
+forall a. a -&gt; IO a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">Settings
+</span><a href="#local-6989586621682765451"><span class="hs-identifier hs-var">a</span></a></span><span>
+</span><span id="line-108"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">Left</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Settings.IO.html#SettingsError_MissingData"><span class="hs-identifier hs-type">SettingsError_MissingData</span></a></span><span> </span><span id="local-6989586621682765453"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621682765453"><span class="hs-identifier hs-var">msg</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">String -&gt; IO Settings
+forall a. HasCallStack =&gt; String -&gt; a
+</span><a href="GHC.Utils.Panic.Plain.html#pgmError"><span class="hs-identifier hs-var">pgmError</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621682765453"><span class="hs-identifier hs-var">msg</span></a></span><span>
+</span><span id="line-109"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">Left</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Settings.IO.html#SettingsError_BadData"><span class="hs-identifier hs-type">SettingsError_BadData</span></a></span><span> </span><span id="local-6989586621682765456"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621682765456"><span class="hs-identifier hs-var">msg</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">String -&gt; IO Settings
+forall a. HasCallStack =&gt; String -&gt; a
+</span><a href="GHC.Utils.Panic.Plain.html#pgmError"><span class="hs-identifier hs-var">pgmError</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621682765456"><span class="hs-identifier hs-var">msg</span></a></span><span>
+</span><span id="line-110"></span><span>
+</span><span id="line-111"></span><span class="hs-comment">{- Note [Windows stack allocations]
+   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+See: #8870 (and #8834 for related info) and #12186
+
+On Windows, occasionally we need to grow the stack. In order to do
+this, we would normally just bump the stack pointer - but there's a
+catch on Windows.
+
+If the stack pointer is bumped by more than a single page, then the
+pages between the initial pointer and the resulting location must be
+properly committed by the Windows virtual memory subsystem. This is
+only needed in the event we bump by more than one page (i.e 4097 bytes
+or more).
+
+Windows compilers solve this by emitting a call to a special function
+called _chkstk, which does this committing of the pages for you.
+
+The reason this was causing a segfault was because due to the fact the
+new code generator tends to generate larger functions, we needed more
+stack space in GHC itself. In the x86 codegen, we needed approximately
+~12kb of stack space in one go, which caused the process to segfault,
+as the intervening pages were not committed.
+
+GCC can emit such a check for us automatically but only when the flag
+-fstack-check is used.
+
+See https://gcc.gnu.org/onlinedocs/gnat_ugn/Stack-Overflow-Checking.html
+for more information.
+
+-}</span><span>
+</span><span id="line-141"></span><span>
+</span><span id="line-142"></span><span class="annot"><span class="hs-comment">-- | Copy remaining bytes from the first Handle to the second one</span></span><span>
+</span><span id="line-143"></span><span class="annot"><a href="GHC.SysTools.html#copyHandle"><span class="hs-identifier hs-type">copyHandle</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Handle</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Handle</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-144"></span><span id="copyHandle"><span class="annot"><span class="annottext">copyHandle :: Handle -&gt; Handle -&gt; IO ()
+</span><a href="GHC.SysTools.html#copyHandle"><span class="hs-identifier hs-var hs-var">copyHandle</span></a></span></span><span> </span><span id="local-6989586621682765457"><span class="annot"><span class="annottext">Handle
+</span><a href="#local-6989586621682765457"><span class="hs-identifier hs-var">hin</span></a></span></span><span> </span><span id="local-6989586621682765458"><span class="annot"><span class="annottext">Handle
+</span><a href="#local-6989586621682765458"><span class="hs-identifier hs-var">hout</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-145"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621682765460"><span class="annot"><span class="annottext">buf_size :: Int
+</span><a href="#local-6989586621682765460"><span class="hs-identifier hs-var hs-var">buf_size</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">8192</span></span><span>
+</span><span id="line-146"></span><span>  </span><span class="annot"><span class="annottext">Int -&gt; (Ptr (ZonkAny 0) -&gt; IO ()) -&gt; IO ()
+forall a b. Int -&gt; (Ptr a -&gt; IO b) -&gt; IO b
+</span><span class="hs-identifier hs-var">allocaBytes</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621682765460"><span class="hs-identifier hs-var">buf_size</span></a></span><span> </span><span class="annot"><span class="annottext">((Ptr (ZonkAny 0) -&gt; IO ()) -&gt; IO ())
+-&gt; (Ptr (ZonkAny 0) -&gt; IO ()) -&gt; IO ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621682765461"><span class="annot"><span class="annottext">Ptr (ZonkAny 0)
+</span><a href="#local-6989586621682765461"><span class="hs-identifier hs-var">ptr</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-147"></span><span>    </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621682765462"><span class="annot"><span class="annottext">go :: IO ()
+</span><a href="#local-6989586621682765462"><span class="hs-identifier hs-var hs-var">go</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-148"></span><span>          </span><span id="local-6989586621682765463"><span class="annot"><a href="#local-6989586621682765463"><span class="hs-identifier hs-var">c</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Handle -&gt; Ptr (ZonkAny 0) -&gt; Int -&gt; IO Int
+forall a. Handle -&gt; Ptr a -&gt; Int -&gt; IO Int
+</span><span class="hs-identifier hs-var">hGetBuf</span></span><span> </span><span class="annot"><span class="annottext">Handle
+</span><a href="#local-6989586621682765457"><span class="hs-identifier hs-var">hin</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr (ZonkAny 0)
+</span><a href="#local-6989586621682765461"><span class="hs-identifier hs-var">ptr</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621682765460"><span class="hs-identifier hs-var">buf_size</span></a></span><span>
+</span><span id="line-149"></span><span>          </span><span class="annot"><span class="hs-identifier hs-type">hPutBuf</span></span><span> </span><span class="annot"><a href="#local-6989586621682765458"><span class="hs-identifier hs-type">hout</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682765461"><span class="hs-identifier hs-type">ptr</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682765463"><span class="hs-identifier hs-type">c</span></a></span><span>
+</span><span id="line-150"></span><span>          </span><span class="hs-keyword">if</span><span> </span><span class="annot"><a href="#local-6989586621682765463"><span class="hs-identifier hs-type">c</span></a></span><span> </span><span class="annot"><span class="hs-operator hs-type">==</span></span><span> </span><span class="annot"><span class="hs-number">0</span></span><span> </span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="hs-identifier hs-type">return</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span> </span><span class="hs-keyword">else</span><span> </span><span class="annot"><a href="#local-6989586621682765462"><span class="hs-identifier hs-type">go</span></a></span><span>
+</span><span id="line-151"></span><span>    </span><span class="annot"><span class="annottext">IO ()
+</span><a href="#local-6989586621682765462"><span class="hs-identifier hs-var">go</span></a></span><span>
+</span><span id="line-152"></span><span>
+</span><span id="line-153"></span><span class="annot"><span class="hs-comment">-- | Copy file after printing the given header</span></span><span>
+</span><span id="line-154"></span><span class="annot"><a href="GHC.SysTools.html#copyWithHeader"><span class="hs-identifier hs-type">copyWithHeader</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">FilePath</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">FilePath</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-155"></span><span id="copyWithHeader"><span class="annot"><span class="annottext">copyWithHeader :: String -&gt; String -&gt; String -&gt; IO ()
+</span><a href="GHC.SysTools.html#copyWithHeader"><span class="hs-identifier hs-var hs-var">copyWithHeader</span></a></span></span><span> </span><span id="local-6989586621682765467"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621682765467"><span class="hs-identifier hs-var">header</span></a></span></span><span> </span><span id="local-6989586621682765468"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621682765468"><span class="hs-identifier hs-var">from</span></a></span></span><span> </span><span id="local-6989586621682765469"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621682765469"><span class="hs-identifier hs-var">to</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-156"></span><span>  </span><span class="annot"><span class="annottext">String -&gt; IOMode -&gt; (Handle -&gt; IO ()) -&gt; IO ()
+forall r. String -&gt; IOMode -&gt; (Handle -&gt; IO r) -&gt; IO r
+</span><span class="hs-identifier hs-var">withBinaryFile</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621682765469"><span class="hs-identifier hs-var">to</span></a></span><span> </span><span class="annot"><span class="annottext">IOMode
+</span><span class="hs-identifier hs-var">WriteMode</span></span><span> </span><span class="annot"><span class="annottext">((Handle -&gt; IO ()) -&gt; IO ()) -&gt; (Handle -&gt; IO ()) -&gt; IO ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621682765472"><span class="annot"><span class="annottext">Handle
+</span><a href="#local-6989586621682765472"><span class="hs-identifier hs-var">hout</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-157"></span><span>    </span><span class="hs-comment">-- write the header string in UTF-8.  The header is something like</span><span>
+</span><span id="line-158"></span><span>    </span><span class="hs-comment">--   {-# LINE &quot;foo.hs&quot; #-}</span><span>
+</span><span id="line-159"></span><span>    </span><span class="hs-comment">-- and we want to make sure a Unicode filename isn't mangled.</span><span>
+</span><span id="line-160"></span><span>    </span><span class="annot"><span class="annottext">Handle -&gt; TextEncoding -&gt; IO ()
+</span><span class="hs-identifier hs-var">hSetEncoding</span></span><span> </span><span class="annot"><span class="annottext">Handle
+</span><a href="#local-6989586621682765472"><span class="hs-identifier hs-var">hout</span></a></span><span> </span><span class="annot"><span class="annottext">TextEncoding
+</span><span class="hs-identifier hs-var">utf8</span></span><span>
+</span><span id="line-161"></span><span>    </span><span class="annot"><span class="annottext">Handle -&gt; String -&gt; IO ()
+</span><span class="hs-identifier hs-var">hPutStr</span></span><span> </span><span class="annot"><span class="annottext">Handle
+</span><a href="#local-6989586621682765472"><span class="hs-identifier hs-var">hout</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621682765467"><span class="hs-identifier hs-var">header</span></a></span><span>
+</span><span id="line-162"></span><span>    </span><span class="annot"><span class="annottext">String -&gt; IOMode -&gt; (Handle -&gt; IO ()) -&gt; IO ()
+forall r. String -&gt; IOMode -&gt; (Handle -&gt; IO r) -&gt; IO r
+</span><span class="hs-identifier hs-var">withBinaryFile</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621682765468"><span class="hs-identifier hs-var">from</span></a></span><span> </span><span class="annot"><span class="annottext">IOMode
+</span><span class="hs-identifier hs-var">ReadMode</span></span><span> </span><span class="annot"><span class="annottext">((Handle -&gt; IO ()) -&gt; IO ()) -&gt; (Handle -&gt; IO ()) -&gt; IO ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621682765477"><span class="annot"><span class="annottext">Handle
+</span><a href="#local-6989586621682765477"><span class="hs-identifier hs-var">hin</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-163"></span><span>      </span><span class="annot"><span class="annottext">Handle -&gt; Handle -&gt; IO ()
+</span><a href="GHC.SysTools.html#copyHandle"><span class="hs-identifier hs-var">copyHandle</span></a></span><span> </span><span class="annot"><span class="annottext">Handle
+</span><a href="#local-6989586621682765477"><span class="hs-identifier hs-var">hin</span></a></span><span> </span><span class="annot"><span class="annottext">Handle
+</span><a href="#local-6989586621682765472"><span class="hs-identifier hs-var">hout</span></a></span><span>
+</span><span id="line-164"></span></pre></body></html>

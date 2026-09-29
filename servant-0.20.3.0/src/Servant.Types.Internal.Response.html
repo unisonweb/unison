@@ -1,0 +1,221 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE DeriveTraversable #-}</span><span>
+</span><span id="line-2"></span><span>
+</span><span id="line-3"></span><span class="hs-comment">-- | This module offers other servant libraries a minimalistic HTTP response type.</span><span>
+</span><span id="line-4"></span><span class="hs-comment">--</span><span>
+</span><span id="line-5"></span><span class="hs-comment">-- It is purely an internal API and SHOULD NOT be used by end-users of Servant.</span><span>
+</span><span id="line-6"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Servant.Types.Internal.Response.html"><span class="hs-identifier">Servant.Types.Internal.Response</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-7"></span><span>
+</span><span id="line-8"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Network.HTTP.Types</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Status</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">Header</span></span><span class="hs-special">)</span><span>
+</span><span id="line-9"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Sequence</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Seq</span></span><span class="hs-special">)</span><span>
+</span><span id="line-10"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">GHC.Generics</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Generic</span></span><span class="hs-special">)</span><span>
+</span><span id="line-11"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Data</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Typeable</span></span><span class="hs-special">)</span><span>
+</span><span id="line-12"></span><span>
+</span><span id="line-13"></span><span class="hs-keyword">data</span><span> </span><span id="InternalResponse"><span class="annot"><a href="Servant.Types.Internal.Response.html#InternalResponse"><span class="hs-identifier hs-var">InternalResponse</span></a></span></span><span> </span><span id="local-6989586621679150467"><span class="annot"><a href="#local-6989586621679150467"><span class="hs-identifier hs-type">a</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="InternalResponse"><span class="annot"><a href="Servant.Types.Internal.Response.html#InternalResponse"><span class="hs-identifier hs-var">InternalResponse</span></a></span></span><span>
+</span><span id="line-14"></span><span>  </span><span class="hs-special">{</span><span> </span><span id="statusCode"><span class="annot"><span class="annottext">forall a. InternalResponse a -&gt; Status
+</span><a href="Servant.Types.Internal.Response.html#statusCode"><span class="hs-identifier hs-var hs-var">statusCode</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Status</span></span><span>
+</span><span id="line-15"></span><span>  </span><span class="hs-special">,</span><span> </span><span id="headers"><span class="annot"><span class="annottext">forall a. InternalResponse a -&gt; Seq Header
+</span><a href="Servant.Types.Internal.Response.html#headers"><span class="hs-identifier hs-var hs-var">headers</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Seq</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Header</span></span><span>
+</span><span id="line-16"></span><span>  </span><span class="hs-special">,</span><span> </span><span id="responseBody"><span class="annot"><span class="annottext">forall a. InternalResponse a -&gt; a
+</span><a href="Servant.Types.Internal.Response.html#responseBody"><span class="hs-identifier hs-var hs-var">responseBody</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="#local-6989586621679150467"><span class="hs-identifier hs-type">a</span></a></span><span>
+</span><span id="line-17"></span><span>  </span><span class="hs-special">}</span><span> </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">stock</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679150547"><span id="local-6989586621679150555"><span class="annot"><span class="annottext">InternalResponse a -&gt; InternalResponse a -&gt; Bool
+(InternalResponse a -&gt; InternalResponse a -&gt; Bool)
+-&gt; (InternalResponse a -&gt; InternalResponse a -&gt; Bool)
+-&gt; Eq (InternalResponse a)
+forall a. Eq a =&gt; InternalResponse a -&gt; InternalResponse a -&gt; Bool
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: forall a. Eq a =&gt; InternalResponse a -&gt; InternalResponse a -&gt; Bool
+== :: InternalResponse a -&gt; InternalResponse a -&gt; Bool
+$c/= :: forall a. Eq a =&gt; InternalResponse a -&gt; InternalResponse a -&gt; Bool
+/= :: InternalResponse a -&gt; InternalResponse a -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679150567"><span id="local-6989586621679150577"><span id="local-6989586621679150581"><span class="annot"><span class="annottext">Int -&gt; InternalResponse a -&gt; ShowS
+[InternalResponse a] -&gt; ShowS
+InternalResponse a -&gt; String
+(Int -&gt; InternalResponse a -&gt; ShowS)
+-&gt; (InternalResponse a -&gt; String)
+-&gt; ([InternalResponse a] -&gt; ShowS)
+-&gt; Show (InternalResponse a)
+forall a. Show a =&gt; Int -&gt; InternalResponse a -&gt; ShowS
+forall a. Show a =&gt; [InternalResponse a] -&gt; ShowS
+forall a. Show a =&gt; InternalResponse a -&gt; String
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: forall a. Show a =&gt; Int -&gt; InternalResponse a -&gt; ShowS
+showsPrec :: Int -&gt; InternalResponse a -&gt; ShowS
+$cshow :: forall a. Show a =&gt; InternalResponse a -&gt; String
+show :: InternalResponse a -&gt; String
+$cshowList :: forall a. Show a =&gt; [InternalResponse a] -&gt; ShowS
+showList :: [InternalResponse a] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679150592"><span id="local-6989586621679150594"><span class="annot"><span class="annottext">(forall x. InternalResponse a -&gt; Rep (InternalResponse a) x)
+-&gt; (forall x. Rep (InternalResponse a) x -&gt; InternalResponse a)
+-&gt; Generic (InternalResponse a)
+forall x. Rep (InternalResponse a) x -&gt; InternalResponse a
+forall x. InternalResponse a -&gt; Rep (InternalResponse a) x
+forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+forall a x. Rep (InternalResponse a) x -&gt; InternalResponse a
+forall a x. InternalResponse a -&gt; Rep (InternalResponse a) x
+$cfrom :: forall a x. InternalResponse a -&gt; Rep (InternalResponse a) x
+from :: forall x. InternalResponse a -&gt; Rep (InternalResponse a) x
+$cto :: forall a x. Rep (InternalResponse a) x -&gt; InternalResponse a
+to :: forall x. Rep (InternalResponse a) x -&gt; InternalResponse a
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Generic</span></span></span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Typeable</span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679150600"><span id="local-6989586621679150602"><span class="annot"><span class="annottext">(forall a b. (a -&gt; b) -&gt; InternalResponse a -&gt; InternalResponse b)
+-&gt; (forall a b. a -&gt; InternalResponse b -&gt; InternalResponse a)
+-&gt; Functor InternalResponse
+forall a b. a -&gt; InternalResponse b -&gt; InternalResponse a
+forall a b. (a -&gt; b) -&gt; InternalResponse a -&gt; InternalResponse b
+forall (f :: Type -&gt; Type).
+(forall a b. (a -&gt; b) -&gt; f a -&gt; f b)
+-&gt; (forall a b. a -&gt; f b -&gt; f a) -&gt; Functor f
+$cfmap :: forall a b. (a -&gt; b) -&gt; InternalResponse a -&gt; InternalResponse b
+fmap :: forall a b. (a -&gt; b) -&gt; InternalResponse a -&gt; InternalResponse b
+$c&lt;$ :: forall a b. a -&gt; InternalResponse b -&gt; InternalResponse a
+&lt;$ :: forall a b. a -&gt; InternalResponse b -&gt; InternalResponse a
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Functor</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679150607"><span id="local-6989586621679150613"><span id="local-6989586621679150616"><span id="local-6989586621679150621"><span id="local-6989586621679150623"><span id="local-6989586621679150626"><span id="local-6989586621679150629"><span id="local-6989586621679150632"><span id="local-6989586621679150635"><span id="local-6989586621679150638"><span id="local-6989586621679150641"><span id="local-6989586621679150643"><span id="local-6989586621679150646"><span id="local-6989586621679150651"><span id="local-6989586621679150656"><span id="local-6989586621679150661"><span id="local-6989586621679150666"><span class="annot"><span class="annottext">(forall m. Monoid m =&gt; InternalResponse m -&gt; m)
+-&gt; (forall m a. Monoid m =&gt; (a -&gt; m) -&gt; InternalResponse a -&gt; m)
+-&gt; (forall m a. Monoid m =&gt; (a -&gt; m) -&gt; InternalResponse a -&gt; m)
+-&gt; (forall a b. (a -&gt; b -&gt; b) -&gt; b -&gt; InternalResponse a -&gt; b)
+-&gt; (forall a b. (a -&gt; b -&gt; b) -&gt; b -&gt; InternalResponse a -&gt; b)
+-&gt; (forall b a. (b -&gt; a -&gt; b) -&gt; b -&gt; InternalResponse a -&gt; b)
+-&gt; (forall b a. (b -&gt; a -&gt; b) -&gt; b -&gt; InternalResponse a -&gt; b)
+-&gt; (forall a. (a -&gt; a -&gt; a) -&gt; InternalResponse a -&gt; a)
+-&gt; (forall a. (a -&gt; a -&gt; a) -&gt; InternalResponse a -&gt; a)
+-&gt; (forall a. InternalResponse a -&gt; [a])
+-&gt; (forall a. InternalResponse a -&gt; Bool)
+-&gt; (forall a. InternalResponse a -&gt; Int)
+-&gt; (forall a. Eq a =&gt; a -&gt; InternalResponse a -&gt; Bool)
+-&gt; (forall a. Ord a =&gt; InternalResponse a -&gt; a)
+-&gt; (forall a. Ord a =&gt; InternalResponse a -&gt; a)
+-&gt; (forall a. Num a =&gt; InternalResponse a -&gt; a)
+-&gt; (forall a. Num a =&gt; InternalResponse a -&gt; a)
+-&gt; Foldable InternalResponse
+forall a. Eq a =&gt; a -&gt; InternalResponse a -&gt; Bool
+forall a. Num a =&gt; InternalResponse a -&gt; a
+forall a. Ord a =&gt; InternalResponse a -&gt; a
+forall m. Monoid m =&gt; InternalResponse m -&gt; m
+forall a. InternalResponse a -&gt; Bool
+forall a. InternalResponse a -&gt; Int
+forall a. InternalResponse a -&gt; [a]
+forall a. (a -&gt; a -&gt; a) -&gt; InternalResponse a -&gt; a
+forall m a. Monoid m =&gt; (a -&gt; m) -&gt; InternalResponse a -&gt; m
+forall b a. (b -&gt; a -&gt; b) -&gt; b -&gt; InternalResponse a -&gt; b
+forall a b. (a -&gt; b -&gt; b) -&gt; b -&gt; InternalResponse a -&gt; b
+forall (t :: Type -&gt; Type).
+(forall m. Monoid m =&gt; t m -&gt; m)
+-&gt; (forall m a. Monoid m =&gt; (a -&gt; m) -&gt; t a -&gt; m)
+-&gt; (forall m a. Monoid m =&gt; (a -&gt; m) -&gt; t a -&gt; m)
+-&gt; (forall a b. (a -&gt; b -&gt; b) -&gt; b -&gt; t a -&gt; b)
+-&gt; (forall a b. (a -&gt; b -&gt; b) -&gt; b -&gt; t a -&gt; b)
+-&gt; (forall b a. (b -&gt; a -&gt; b) -&gt; b -&gt; t a -&gt; b)
+-&gt; (forall b a. (b -&gt; a -&gt; b) -&gt; b -&gt; t a -&gt; b)
+-&gt; (forall a. (a -&gt; a -&gt; a) -&gt; t a -&gt; a)
+-&gt; (forall a. (a -&gt; a -&gt; a) -&gt; t a -&gt; a)
+-&gt; (forall a. t a -&gt; [a])
+-&gt; (forall a. t a -&gt; Bool)
+-&gt; (forall a. t a -&gt; Int)
+-&gt; (forall a. Eq a =&gt; a -&gt; t a -&gt; Bool)
+-&gt; (forall a. Ord a =&gt; t a -&gt; a)
+-&gt; (forall a. Ord a =&gt; t a -&gt; a)
+-&gt; (forall a. Num a =&gt; t a -&gt; a)
+-&gt; (forall a. Num a =&gt; t a -&gt; a)
+-&gt; Foldable t
+$cfold :: forall m. Monoid m =&gt; InternalResponse m -&gt; m
+fold :: forall m. Monoid m =&gt; InternalResponse m -&gt; m
+$cfoldMap :: forall m a. Monoid m =&gt; (a -&gt; m) -&gt; InternalResponse a -&gt; m
+foldMap :: forall m a. Monoid m =&gt; (a -&gt; m) -&gt; InternalResponse a -&gt; m
+$cfoldMap' :: forall m a. Monoid m =&gt; (a -&gt; m) -&gt; InternalResponse a -&gt; m
+foldMap' :: forall m a. Monoid m =&gt; (a -&gt; m) -&gt; InternalResponse a -&gt; m
+$cfoldr :: forall a b. (a -&gt; b -&gt; b) -&gt; b -&gt; InternalResponse a -&gt; b
+foldr :: forall a b. (a -&gt; b -&gt; b) -&gt; b -&gt; InternalResponse a -&gt; b
+$cfoldr' :: forall a b. (a -&gt; b -&gt; b) -&gt; b -&gt; InternalResponse a -&gt; b
+foldr' :: forall a b. (a -&gt; b -&gt; b) -&gt; b -&gt; InternalResponse a -&gt; b
+$cfoldl :: forall b a. (b -&gt; a -&gt; b) -&gt; b -&gt; InternalResponse a -&gt; b
+foldl :: forall b a. (b -&gt; a -&gt; b) -&gt; b -&gt; InternalResponse a -&gt; b
+$cfoldl' :: forall b a. (b -&gt; a -&gt; b) -&gt; b -&gt; InternalResponse a -&gt; b
+foldl' :: forall b a. (b -&gt; a -&gt; b) -&gt; b -&gt; InternalResponse a -&gt; b
+$cfoldr1 :: forall a. (a -&gt; a -&gt; a) -&gt; InternalResponse a -&gt; a
+foldr1 :: forall a. (a -&gt; a -&gt; a) -&gt; InternalResponse a -&gt; a
+$cfoldl1 :: forall a. (a -&gt; a -&gt; a) -&gt; InternalResponse a -&gt; a
+foldl1 :: forall a. (a -&gt; a -&gt; a) -&gt; InternalResponse a -&gt; a
+$ctoList :: forall a. InternalResponse a -&gt; [a]
+toList :: forall a. InternalResponse a -&gt; [a]
+$cnull :: forall a. InternalResponse a -&gt; Bool
+null :: forall a. InternalResponse a -&gt; Bool
+$clength :: forall a. InternalResponse a -&gt; Int
+length :: forall a. InternalResponse a -&gt; Int
+$celem :: forall a. Eq a =&gt; a -&gt; InternalResponse a -&gt; Bool
+elem :: forall a. Eq a =&gt; a -&gt; InternalResponse a -&gt; Bool
+$cmaximum :: forall a. Ord a =&gt; InternalResponse a -&gt; a
+maximum :: forall a. Ord a =&gt; InternalResponse a -&gt; a
+$cminimum :: forall a. Ord a =&gt; InternalResponse a -&gt; a
+minimum :: forall a. Ord a =&gt; InternalResponse a -&gt; a
+$csum :: forall a. Num a =&gt; InternalResponse a -&gt; a
+sum :: forall a. Num a =&gt; InternalResponse a -&gt; a
+$cproduct :: forall a. Num a =&gt; InternalResponse a -&gt; a
+product :: forall a. Num a =&gt; InternalResponse a -&gt; a
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Foldable</span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679150679"><span id="local-6989586621679150684"><span id="local-6989586621679150690"><span id="local-6989586621679150695"><span class="annot"><span class="annottext">Functor InternalResponse
+Foldable InternalResponse
+(Functor InternalResponse, Foldable InternalResponse) =&gt;
+(forall (f :: Type -&gt; Type) a b.
+ Applicative f =&gt;
+ (a -&gt; f b) -&gt; InternalResponse a -&gt; f (InternalResponse b))
+-&gt; (forall (f :: Type -&gt; Type) a.
+    Applicative f =&gt;
+    InternalResponse (f a) -&gt; f (InternalResponse a))
+-&gt; (forall (m :: Type -&gt; Type) a b.
+    Monad m =&gt;
+    (a -&gt; m b) -&gt; InternalResponse a -&gt; m (InternalResponse b))
+-&gt; (forall (m :: Type -&gt; Type) a.
+    Monad m =&gt;
+    InternalResponse (m a) -&gt; m (InternalResponse a))
+-&gt; Traversable InternalResponse
+forall (t :: Type -&gt; Type).
+(Functor t, Foldable t) =&gt;
+(forall (f :: Type -&gt; Type) a b.
+ Applicative f =&gt;
+ (a -&gt; f b) -&gt; t a -&gt; f (t b))
+-&gt; (forall (f :: Type -&gt; Type) a.
+    Applicative f =&gt;
+    t (f a) -&gt; f (t a))
+-&gt; (forall (m :: Type -&gt; Type) a b.
+    Monad m =&gt;
+    (a -&gt; m b) -&gt; t a -&gt; m (t b))
+-&gt; (forall (m :: Type -&gt; Type) a. Monad m =&gt; t (m a) -&gt; m (t a))
+-&gt; Traversable t
+forall (m :: Type -&gt; Type) a.
+Monad m =&gt;
+InternalResponse (m a) -&gt; m (InternalResponse a)
+forall (f :: Type -&gt; Type) a.
+Applicative f =&gt;
+InternalResponse (f a) -&gt; f (InternalResponse a)
+forall (m :: Type -&gt; Type) a b.
+Monad m =&gt;
+(a -&gt; m b) -&gt; InternalResponse a -&gt; m (InternalResponse b)
+forall (f :: Type -&gt; Type) a b.
+Applicative f =&gt;
+(a -&gt; f b) -&gt; InternalResponse a -&gt; f (InternalResponse b)
+$ctraverse :: forall (f :: Type -&gt; Type) a b.
+Applicative f =&gt;
+(a -&gt; f b) -&gt; InternalResponse a -&gt; f (InternalResponse b)
+traverse :: forall (f :: Type -&gt; Type) a b.
+Applicative f =&gt;
+(a -&gt; f b) -&gt; InternalResponse a -&gt; f (InternalResponse b)
+$csequenceA :: forall (f :: Type -&gt; Type) a.
+Applicative f =&gt;
+InternalResponse (f a) -&gt; f (InternalResponse a)
+sequenceA :: forall (f :: Type -&gt; Type) a.
+Applicative f =&gt;
+InternalResponse (f a) -&gt; f (InternalResponse a)
+$cmapM :: forall (m :: Type -&gt; Type) a b.
+Monad m =&gt;
+(a -&gt; m b) -&gt; InternalResponse a -&gt; m (InternalResponse b)
+mapM :: forall (m :: Type -&gt; Type) a b.
+Monad m =&gt;
+(a -&gt; m b) -&gt; InternalResponse a -&gt; m (InternalResponse b)
+$csequence :: forall (m :: Type -&gt; Type) a.
+Monad m =&gt;
+InternalResponse (m a) -&gt; m (InternalResponse a)
+sequence :: forall (m :: Type -&gt; Type) a.
+Monad m =&gt;
+InternalResponse (m a) -&gt; m (InternalResponse a)
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Traversable</span></span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-18"></span></pre></body></html>

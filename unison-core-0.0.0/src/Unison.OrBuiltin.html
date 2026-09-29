@@ -1,0 +1,148 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Unison.OrBuiltin.html"><span class="hs-identifier">Unison.OrBuiltin</span></a></span><span>
+</span><span id="line-2"></span><span>  </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="Unison.OrBuiltin.html#OrBuiltin"><span class="hs-identifier">OrBuiltin</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-3"></span><span>    </span><span class="annot"><a href="Unison.OrBuiltin.html#builtin_"><span class="hs-identifier">builtin_</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-4"></span><span>    </span><span class="annot"><a href="Unison.OrBuiltin.html#notBuiltin_"><span class="hs-identifier">notBuiltin_</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-5"></span><span>  </span><span class="hs-special">)</span><span>
+</span><span id="line-6"></span><span class="hs-keyword">where</span><span>
+</span><span id="line-7"></span><span>
+</span><span id="line-8"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Lens</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Traversal</span></span><span class="hs-special">)</span><span>
+</span><span id="line-9"></span><span>
+</span><span id="line-10"></span><span class="hs-keyword">data</span><span> </span><span id="OrBuiltin"><span class="annot"><a href="Unison.OrBuiltin.html#OrBuiltin"><span class="hs-identifier hs-var">OrBuiltin</span></a></span></span><span> </span><span id="local-6989586621679149483"><span class="annot"><a href="#local-6989586621679149483"><span class="hs-identifier hs-type">a</span></a></span></span><span> </span><span id="local-6989586621679149484"><span class="annot"><a href="#local-6989586621679149484"><span class="hs-identifier hs-type">b</span></a></span></span><span>
+</span><span id="line-11"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span id="Builtin"><span class="annot"><a href="Unison.OrBuiltin.html#Builtin"><span class="hs-identifier hs-var">Builtin</span></a></span></span><span> </span><span class="annot"><a href="#local-6989586621679149483"><span class="hs-identifier hs-type">a</span></a></span><span>
+</span><span id="line-12"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="NotBuiltin"><span class="annot"><a href="Unison.OrBuiltin.html#NotBuiltin"><span class="hs-identifier hs-var">NotBuiltin</span></a></span></span><span> </span><span class="annot"><a href="#local-6989586621679149484"><span class="hs-identifier hs-type">b</span></a></span><span>
+</span><span id="line-13"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">stock</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679149504"><span id="local-6989586621679149511"><span class="annot"><span class="annottext">OrBuiltin a b -&gt; OrBuiltin a b -&gt; Bool
+(OrBuiltin a b -&gt; OrBuiltin a b -&gt; Bool)
+-&gt; (OrBuiltin a b -&gt; OrBuiltin a b -&gt; Bool) -&gt; Eq (OrBuiltin a b)
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+forall a b. (Eq a, Eq b) =&gt; OrBuiltin a b -&gt; OrBuiltin a b -&gt; Bool
+$c== :: forall a b. (Eq a, Eq b) =&gt; OrBuiltin a b -&gt; OrBuiltin a b -&gt; Bool
+== :: OrBuiltin a b -&gt; OrBuiltin a b -&gt; Bool
+$c/= :: forall a b. (Eq a, Eq b) =&gt; OrBuiltin a b -&gt; OrBuiltin a b -&gt; Bool
+/= :: OrBuiltin a b -&gt; OrBuiltin a b -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679149522"><span id="local-6989586621679149526"><span id="local-6989586621679149530"><span id="local-6989586621679149534"><span id="local-6989586621679149537"><span id="local-6989586621679149540"><span id="local-6989586621679149543"><span class="annot"><span class="annottext">Eq (OrBuiltin a b)
+Eq (OrBuiltin a b) =&gt;
+(OrBuiltin a b -&gt; OrBuiltin a b -&gt; Ordering)
+-&gt; (OrBuiltin a b -&gt; OrBuiltin a b -&gt; Bool)
+-&gt; (OrBuiltin a b -&gt; OrBuiltin a b -&gt; Bool)
+-&gt; (OrBuiltin a b -&gt; OrBuiltin a b -&gt; Bool)
+-&gt; (OrBuiltin a b -&gt; OrBuiltin a b -&gt; Bool)
+-&gt; (OrBuiltin a b -&gt; OrBuiltin a b -&gt; OrBuiltin a b)
+-&gt; (OrBuiltin a b -&gt; OrBuiltin a b -&gt; OrBuiltin a b)
+-&gt; Ord (OrBuiltin a b)
+OrBuiltin a b -&gt; OrBuiltin a b -&gt; Bool
+OrBuiltin a b -&gt; OrBuiltin a b -&gt; Ordering
+OrBuiltin a b -&gt; OrBuiltin a b -&gt; OrBuiltin a b
+forall a.
+Eq a =&gt;
+(a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+forall a b. (Ord a, Ord b) =&gt; Eq (OrBuiltin a b)
+forall a b.
+(Ord a, Ord b) =&gt;
+OrBuiltin a b -&gt; OrBuiltin a b -&gt; Bool
+forall a b.
+(Ord a, Ord b) =&gt;
+OrBuiltin a b -&gt; OrBuiltin a b -&gt; Ordering
+forall a b.
+(Ord a, Ord b) =&gt;
+OrBuiltin a b -&gt; OrBuiltin a b -&gt; OrBuiltin a b
+$ccompare :: forall a b.
+(Ord a, Ord b) =&gt;
+OrBuiltin a b -&gt; OrBuiltin a b -&gt; Ordering
+compare :: OrBuiltin a b -&gt; OrBuiltin a b -&gt; Ordering
+$c&lt; :: forall a b.
+(Ord a, Ord b) =&gt;
+OrBuiltin a b -&gt; OrBuiltin a b -&gt; Bool
+&lt; :: OrBuiltin a b -&gt; OrBuiltin a b -&gt; Bool
+$c&lt;= :: forall a b.
+(Ord a, Ord b) =&gt;
+OrBuiltin a b -&gt; OrBuiltin a b -&gt; Bool
+&lt;= :: OrBuiltin a b -&gt; OrBuiltin a b -&gt; Bool
+$c&gt; :: forall a b.
+(Ord a, Ord b) =&gt;
+OrBuiltin a b -&gt; OrBuiltin a b -&gt; Bool
+&gt; :: OrBuiltin a b -&gt; OrBuiltin a b -&gt; Bool
+$c&gt;= :: forall a b.
+(Ord a, Ord b) =&gt;
+OrBuiltin a b -&gt; OrBuiltin a b -&gt; Bool
+&gt;= :: OrBuiltin a b -&gt; OrBuiltin a b -&gt; Bool
+$cmax :: forall a b.
+(Ord a, Ord b) =&gt;
+OrBuiltin a b -&gt; OrBuiltin a b -&gt; OrBuiltin a b
+max :: OrBuiltin a b -&gt; OrBuiltin a b -&gt; OrBuiltin a b
+$cmin :: forall a b.
+(Ord a, Ord b) =&gt;
+OrBuiltin a b -&gt; OrBuiltin a b -&gt; OrBuiltin a b
+min :: OrBuiltin a b -&gt; OrBuiltin a b -&gt; OrBuiltin a b
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679149554"><span id="local-6989586621679149561"><span id="local-6989586621679149565"><span class="annot"><span class="annottext">Int -&gt; OrBuiltin a b -&gt; ShowS
+[OrBuiltin a b] -&gt; ShowS
+OrBuiltin a b -&gt; String
+(Int -&gt; OrBuiltin a b -&gt; ShowS)
+-&gt; (OrBuiltin a b -&gt; String)
+-&gt; ([OrBuiltin a b] -&gt; ShowS)
+-&gt; Show (OrBuiltin a b)
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+forall a b. (Show a, Show b) =&gt; Int -&gt; OrBuiltin a b -&gt; ShowS
+forall a b. (Show a, Show b) =&gt; [OrBuiltin a b] -&gt; ShowS
+forall a b. (Show a, Show b) =&gt; OrBuiltin a b -&gt; String
+$cshowsPrec :: forall a b. (Show a, Show b) =&gt; Int -&gt; OrBuiltin a b -&gt; ShowS
+showsPrec :: Int -&gt; OrBuiltin a b -&gt; ShowS
+$cshow :: forall a b. (Show a, Show b) =&gt; OrBuiltin a b -&gt; String
+show :: OrBuiltin a b -&gt; String
+$cshowList :: forall a b. (Show a, Show b) =&gt; [OrBuiltin a b] -&gt; ShowS
+showList :: [OrBuiltin a b] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-14"></span><span>
+</span><span id="line-15"></span><span id="local-6989586621679149475"><span id="local-6989586621679149476"><span id="local-6989586621679149477"><span class="annot"><a href="Unison.OrBuiltin.html#builtin_"><span class="hs-identifier hs-type">builtin_</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Traversal</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.OrBuiltin.html#OrBuiltin"><span class="hs-identifier hs-type">OrBuiltin</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679149475"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679149477"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.OrBuiltin.html#OrBuiltin"><span class="hs-identifier hs-type">OrBuiltin</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679149476"><span class="hs-identifier hs-type">a'</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679149477"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><a href="#local-6989586621679149475"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679149476"><span class="hs-identifier hs-type">a'</span></a></span></span></span></span><span>
+</span><span id="line-16"></span><span id="builtin_"><span class="annot"><span class="annottext">builtin_ :: forall a b a' (f :: * -&gt; *).
+Applicative f =&gt;
+(a -&gt; f a') -&gt; OrBuiltin a b -&gt; f (OrBuiltin a' b)
+</span><a href="Unison.OrBuiltin.html#builtin_"><span class="hs-identifier hs-var hs-var">builtin_</span></a></span></span><span> </span><span id="local-6989586621679149574"><span class="annot"><span class="annottext">a -&gt; f a'
+</span><a href="#local-6989586621679149574"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-17"></span><span>  </span><span class="annot"><a href="Unison.OrBuiltin.html#Builtin"><span class="hs-identifier hs-type">Builtin</span></a></span><span> </span><span id="local-6989586621679149575"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679149575"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">a' -&gt; OrBuiltin a' b
+forall a b. a -&gt; OrBuiltin a b
+</span><a href="Unison.OrBuiltin.html#Builtin"><span class="hs-identifier hs-var">Builtin</span></a></span><span> </span><span class="annot"><span class="annottext">(a' -&gt; OrBuiltin a' b) -&gt; f a' -&gt; f (OrBuiltin a' b)
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; f a'
+</span><a href="#local-6989586621679149574"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679149575"><span class="hs-identifier hs-var">x</span></a></span><span>
+</span><span id="line-18"></span><span>  </span><span class="annot"><a href="Unison.OrBuiltin.html#NotBuiltin"><span class="hs-identifier hs-type">NotBuiltin</span></a></span><span> </span><span id="local-6989586621679149577"><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679149577"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">OrBuiltin a' b -&gt; f (OrBuiltin a' b)
+forall a. a -&gt; f a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">b -&gt; OrBuiltin a' b
+forall a b. b -&gt; OrBuiltin a b
+</span><a href="Unison.OrBuiltin.html#NotBuiltin"><span class="hs-identifier hs-var">NotBuiltin</span></a></span><span> </span><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679149577"><span class="hs-identifier hs-var">x</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-19"></span><span>
+</span><span id="line-20"></span><span id="local-6989586621679149489"><span id="local-6989586621679149490"><span id="local-6989586621679149491"><span class="annot"><a href="Unison.OrBuiltin.html#notBuiltin_"><span class="hs-identifier hs-type">notBuiltin_</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Traversal</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.OrBuiltin.html#OrBuiltin"><span class="hs-identifier hs-type">OrBuiltin</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679149491"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679149489"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.OrBuiltin.html#OrBuiltin"><span class="hs-identifier hs-type">OrBuiltin</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679149491"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679149490"><span class="hs-identifier hs-type">b'</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><a href="#local-6989586621679149489"><span class="hs-identifier hs-type">b</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679149490"><span class="hs-identifier hs-type">b'</span></a></span></span></span></span><span>
+</span><span id="line-21"></span><span id="notBuiltin_"><span class="annot"><span class="annottext">notBuiltin_ :: forall a b b' (f :: * -&gt; *).
+Applicative f =&gt;
+(b -&gt; f b') -&gt; OrBuiltin a b -&gt; f (OrBuiltin a b')
+</span><a href="Unison.OrBuiltin.html#notBuiltin_"><span class="hs-identifier hs-var hs-var">notBuiltin_</span></a></span></span><span> </span><span id="local-6989586621679149582"><span class="annot"><span class="annottext">b -&gt; f b'
+</span><a href="#local-6989586621679149582"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-22"></span><span>  </span><span class="annot"><a href="Unison.OrBuiltin.html#Builtin"><span class="hs-identifier hs-type">Builtin</span></a></span><span> </span><span id="local-6989586621679149583"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679149583"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">OrBuiltin a b' -&gt; f (OrBuiltin a b')
+forall a. a -&gt; f a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a -&gt; OrBuiltin a b'
+forall a b. a -&gt; OrBuiltin a b
+</span><a href="Unison.OrBuiltin.html#Builtin"><span class="hs-identifier hs-var">Builtin</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679149583"><span class="hs-identifier hs-var">x</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-23"></span><span>  </span><span class="annot"><a href="Unison.OrBuiltin.html#NotBuiltin"><span class="hs-identifier hs-type">NotBuiltin</span></a></span><span> </span><span id="local-6989586621679149584"><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679149584"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">b' -&gt; OrBuiltin a b'
+forall a b. b -&gt; OrBuiltin a b
+</span><a href="Unison.OrBuiltin.html#NotBuiltin"><span class="hs-identifier hs-var">NotBuiltin</span></a></span><span> </span><span class="annot"><span class="annottext">(b' -&gt; OrBuiltin a b') -&gt; f b' -&gt; f (OrBuiltin a b')
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">b -&gt; f b'
+</span><a href="#local-6989586621679149582"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679149584"><span class="hs-identifier hs-var">x</span></a></span><span>
+</span><span id="line-24"></span></pre></body></html>

@@ -1,0 +1,572 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE CPP #-}</span><span>
+</span><span id="line-2"></span><span>
+</span><span id="line-3"></span><span class="hs-comment">-- | Process-wide POSIX signal subscriptions. No Unison code runs in an OS</span><span>
+</span><span id="line-4"></span><span class="hs-comment">-- signal handler: the RTS schedules a Haskell action which publishes to STM.</span><span>
+</span><span id="line-5"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Unison.Runtime.Signal.html"><span class="hs-identifier">Unison.Runtime.Signal</span></a></span><span>
+</span><span id="line-6"></span><span>  </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="Unison.Runtime.Signal.html#Signal"><span class="hs-identifier">Signal</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-7"></span><span>    </span><span class="annot"><a href="Unison.Runtime.Signal.html#Subscription"><span class="hs-identifier">Subscription</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-8"></span><span>    </span><span class="annot"><a href="Unison.Runtime.Signal.html#available"><span class="hs-identifier">available</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-9"></span><span>    </span><span class="annot"><a href="Unison.Runtime.Signal.html#subscribe"><span class="hs-identifier">subscribe</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-10"></span><span>    </span><span class="annot"><a href="Unison.Runtime.Signal.html#await"><span class="hs-identifier">await</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-11"></span><span>    </span><span class="annot"><a href="Unison.Runtime.Signal.html#close"><span class="hs-identifier">close</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-12"></span><span>  </span><span class="hs-special">)</span><span>
+</span><span id="line-13"></span><span class="hs-keyword">where</span><span>
+</span><span id="line-14"></span><span>
+</span><span id="line-15"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Concurrent.STM</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">STM</span></span><span>
+</span><span id="line-16"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Exception</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">throwIO</span></span><span class="hs-special">)</span><span>
+</span><span id="line-17"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Unique</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Unique</span></span><span class="hs-special">)</span><span class="hs-cpp">
+
+#if !defined(mingw32_HOST_OS)
+</span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Concurrent.MVar</span></span><span>
+</span><span id="line-21"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Exception</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">mask_</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">onException</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">uninterruptibleMask_</span></span><span class="hs-special">)</span><span>
+</span><span id="line-22"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Monad</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">forM</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">forM_</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">unless</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">when</span></span><span class="hs-special">)</span><span>
+</span><span id="line-23"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Map.Strict</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Map</span></span><span>
+</span><span id="line-24"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Unique</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">newUnique</span></span><span class="hs-special">)</span><span>
+</span><span id="line-25"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Foreign.C.Error</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">throwErrnoIfMinus1_</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">throwErrnoIfNull</span></span><span class="hs-special">)</span><span>
+</span><span id="line-26"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Foreign.C.Types</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">CInt</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-27"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Foreign.C.String</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">CString</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">peekCString</span></span><span class="hs-special">)</span><span>
+</span><span id="line-28"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Foreign.Marshal.Alloc</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">free</span></span><span class="hs-special">)</span><span>
+</span><span id="line-29"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Foreign.Ptr</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Ptr</span></span><span class="hs-special">)</span><span>
+</span><span id="line-30"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">System.IO.Unsafe</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">unsafePerformIO</span></span><span class="hs-special">)</span><span>
+</span><span id="line-31"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">System.Posix.Signals</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Posix</span></span><span class="hs-cpp">
+#endif
+</span><span>
+</span><span id="line-34"></span><span class="hs-keyword">newtype</span><span> </span><span id="Signal"><span class="annot"><a href="Unison.Runtime.Signal.html#Signal"><span class="hs-identifier hs-var">Signal</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="Signal"><span class="annot"><a href="Unison.Runtime.Signal.html#Signal"><span class="hs-identifier hs-var">Signal</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621680724540"><span id="local-6989586621680724545"><span class="annot"><span class="annottext">Signal -&gt; Signal -&gt; Bool
+(Signal -&gt; Signal -&gt; Bool)
+-&gt; (Signal -&gt; Signal -&gt; Bool) -&gt; Eq Signal
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: Signal -&gt; Signal -&gt; Bool
+== :: Signal -&gt; Signal -&gt; Bool
+$c/= :: Signal -&gt; Signal -&gt; Bool
+/= :: Signal -&gt; Signal -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621680724553"><span id="local-6989586621680724558"><span id="local-6989586621680724562"><span id="local-6989586621680724566"><span id="local-6989586621680724570"><span id="local-6989586621680724574"><span id="local-6989586621680724578"><span class="annot"><span class="annottext">Eq Signal
+Eq Signal =&gt;
+(Signal -&gt; Signal -&gt; Ordering)
+-&gt; (Signal -&gt; Signal -&gt; Bool)
+-&gt; (Signal -&gt; Signal -&gt; Bool)
+-&gt; (Signal -&gt; Signal -&gt; Bool)
+-&gt; (Signal -&gt; Signal -&gt; Bool)
+-&gt; (Signal -&gt; Signal -&gt; Signal)
+-&gt; (Signal -&gt; Signal -&gt; Signal)
+-&gt; Ord Signal
+Signal -&gt; Signal -&gt; Bool
+Signal -&gt; Signal -&gt; Ordering
+Signal -&gt; Signal -&gt; Signal
+forall a.
+Eq a =&gt;
+(a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+$ccompare :: Signal -&gt; Signal -&gt; Ordering
+compare :: Signal -&gt; Signal -&gt; Ordering
+$c&lt; :: Signal -&gt; Signal -&gt; Bool
+&lt; :: Signal -&gt; Signal -&gt; Bool
+$c&lt;= :: Signal -&gt; Signal -&gt; Bool
+&lt;= :: Signal -&gt; Signal -&gt; Bool
+$c&gt; :: Signal -&gt; Signal -&gt; Bool
+&gt; :: Signal -&gt; Signal -&gt; Bool
+$c&gt;= :: Signal -&gt; Signal -&gt; Bool
+&gt;= :: Signal -&gt; Signal -&gt; Bool
+$cmax :: Signal -&gt; Signal -&gt; Signal
+max :: Signal -&gt; Signal -&gt; Signal
+$cmin :: Signal -&gt; Signal -&gt; Signal
+min :: Signal -&gt; Signal -&gt; Signal
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-35"></span><span>
+</span><span id="line-36"></span><span class="hs-comment">-- The registration retains only the notification cell, not this handle.</span><span>
+</span><span id="line-37"></span><span class="hs-comment">-- Nothing means closed; Just True means at least one notification is pending.</span><span>
+</span><span id="line-38"></span><span class="hs-keyword">data</span><span> </span><span id="Subscription"><span class="annot"><a href="Unison.Runtime.Signal.html#Subscription"><span class="hs-identifier hs-var">Subscription</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="Subscription"><span class="annot"><a href="Unison.Runtime.Signal.html#Subscription"><span class="hs-identifier hs-var">Subscription</span></a></span></span><span> </span><span class="hs-glyph">!</span><span class="annot"><a href="Unison.Runtime.Signal.html#Signal"><span class="hs-identifier hs-type">Signal</span></a></span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">Unique</span></span><span> </span><span class="hs-glyph">!</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">STM.TVar</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-39"></span><span>
+</span><span id="line-40"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621680724591"><span class="annot"><span class="hs-identifier hs-type">Eq</span></span><span> </span><span class="annot"><a href="Unison.Runtime.Signal.html#Subscription"><span class="hs-identifier hs-type">Subscription</span></a></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-41"></span><span>  </span><span class="annot"><a href="Unison.Runtime.Signal.html#Subscription"><span class="hs-identifier hs-type">Subscription</span></a></span><span> </span><span class="annot"><span class="annottext">Signal
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621680724596"><span class="annot"><span class="annottext">Unique
+</span><a href="#local-6989586621680724596"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span class="annot"><span class="annottext">TVar (Maybe Bool)
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621680724597"><span class="annot"><span class="annottext">== :: Subscription -&gt; Subscription -&gt; Bool
+</span><span class="hs-operator hs-var hs-var hs-var">==</span></span></span><span> </span><span class="annot"><a href="Unison.Runtime.Signal.html#Subscription"><span class="hs-identifier hs-type">Subscription</span></a></span><span> </span><span class="annot"><span class="annottext">Signal
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621680724598"><span class="annot"><span class="annottext">Unique
+</span><a href="#local-6989586621680724598"><span class="hs-identifier hs-var">b</span></a></span></span><span> </span><span class="annot"><span class="annottext">TVar (Maybe Bool)
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Unique
+</span><a href="#local-6989586621680724596"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="annot"><span class="annottext">Unique -&gt; Unique -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">Unique
+</span><a href="#local-6989586621680724598"><span class="hs-identifier hs-var">b</span></a></span><span>
+</span><span id="line-42"></span><span>
+</span><span id="line-43"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621680724603"><span id="local-6989586621680724607"><span id="local-6989586621680724610"><span id="local-6989586621680724613"><span id="local-6989586621680724616"><span id="local-6989586621680724619"><span class="annot"><span class="hs-identifier hs-type">Ord</span></span><span> </span><span class="annot"><a href="Unison.Runtime.Signal.html#Subscription"><span class="hs-identifier hs-type">Subscription</span></a></span></span></span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-44"></span><span>  </span><span id="local-6989586621680724622"><span class="annot"><span class="annottext">compare :: Subscription -&gt; Subscription -&gt; Ordering
+</span><span class="hs-identifier hs-var hs-var hs-var">compare</span></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Runtime.Signal.html#Subscription"><span class="hs-identifier hs-type">Subscription</span></a></span><span> </span><span class="annot"><span class="annottext">Signal
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621680724623"><span class="annot"><span class="annottext">Unique
+</span><a href="#local-6989586621680724623"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span class="annot"><span class="annottext">TVar (Maybe Bool)
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Runtime.Signal.html#Subscription"><span class="hs-identifier hs-type">Subscription</span></a></span><span> </span><span class="annot"><span class="annottext">Signal
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621680724624"><span class="annot"><span class="annottext">Unique
+</span><a href="#local-6989586621680724624"><span class="hs-identifier hs-var">b</span></a></span></span><span> </span><span class="annot"><span class="annottext">TVar (Maybe Bool)
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Unique -&gt; Unique -&gt; Ordering
+forall a. Ord a =&gt; a -&gt; a -&gt; Ordering
+</span><span class="hs-identifier hs-var">compare</span></span><span> </span><span class="annot"><span class="annottext">Unique
+</span><a href="#local-6989586621680724623"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="annot"><span class="annottext">Unique
+</span><a href="#local-6989586621680724624"><span class="hs-identifier hs-var">b</span></a></span><span>
+</span><span id="line-45"></span><span>
+</span><span id="line-46"></span><span class="annot"><a href="Unison.Runtime.Signal.html#await"><span class="hs-identifier hs-type">await</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Unison.Runtime.Signal.html#Subscription"><span class="hs-identifier hs-type">Subscription</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-47"></span><span id="await"><span class="annot"><span class="annottext">await :: Subscription -&gt; IO ()
+</span><a href="Unison.Runtime.Signal.html#await"><span class="hs-identifier hs-var hs-var">await</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Runtime.Signal.html#Subscription"><span class="hs-identifier hs-type">Subscription</span></a></span><span> </span><span class="annot"><span class="annottext">Signal
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">Unique
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621680724625"><span class="annot"><span class="annottext">TVar (Maybe Bool)
+</span><a href="#local-6989586621680724625"><span class="hs-identifier hs-var">pending</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">STM () -&gt; IO ()
+forall a. STM a -&gt; IO a
+</span><span class="hs-identifier hs-var">STM.atomically</span></span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-48"></span><span>  </span><span class="annot"><span class="annottext">TVar (Maybe Bool) -&gt; STM (Maybe Bool)
+forall a. TVar a -&gt; STM a
+</span><span class="hs-identifier hs-var">STM.readTVar</span></span><span> </span><span class="annot"><span class="annottext">TVar (Maybe Bool)
+</span><a href="#local-6989586621680724625"><span class="hs-identifier hs-var">pending</span></a></span><span> </span><span class="annot"><span class="annottext">STM (Maybe Bool) -&gt; (Maybe Bool -&gt; STM ()) -&gt; STM ()
+forall a b. STM a -&gt; (a -&gt; STM b) -&gt; STM b
+forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; (a -&gt; m b) -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;=</span></span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-49"></span><span>    </span><span class="annot"><span class="annottext">Maybe Bool
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">IOError -&gt; STM ()
+forall e a. Exception e =&gt; e -&gt; STM a
+</span><span class="hs-identifier hs-var">STM.throwSTM</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String -&gt; IOError
+</span><span class="hs-identifier hs-var">userError</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Signal subscription is closed&quot;</span></span><span class="hs-special">)</span><span>
+</span><span id="line-50"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">STM ()
+forall a. STM a
+</span><span class="hs-identifier hs-var">STM.retry</span></span><span>
+</span><span id="line-51"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">TVar (Maybe Bool) -&gt; Maybe Bool -&gt; STM ()
+forall a. TVar a -&gt; a -&gt; STM ()
+</span><span class="hs-identifier hs-var">STM.writeTVar</span></span><span> </span><span class="annot"><span class="annottext">TVar (Maybe Bool)
+</span><a href="#local-6989586621680724625"><span class="hs-identifier hs-var">pending</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Bool -&gt; Maybe Bool
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span class="hs-special">)</span><span class="hs-cpp">
+
+#if defined(mingw32_HOST_OS)
+</span><span>
+</span><span id="line-55"></span><span class="hs-identifier">available</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="hs-special">(</span><span class="hs-identifier">String</span><span class="hs-special">,</span><span> </span><span class="hs-identifier">Signal</span><span class="hs-special">)</span><span class="hs-special">]</span><span>
+</span><span id="line-56"></span><span class="hs-identifier">available</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span>
+</span><span id="line-57"></span><span>
+</span><span id="line-58"></span><span class="hs-identifier">subscribe</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">Signal</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">IO</span><span> </span><span class="hs-identifier">Subscription</span><span>
+</span><span id="line-59"></span><span class="hs-identifier">subscribe</span><span> </span><span class="hs-identifier">_</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">throwIO</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">userError</span><span> </span><span class="hs-string">&quot;POSIX signal subscriptions are not supported on Windows&quot;</span><span class="hs-special">)</span><span>
+</span><span id="line-60"></span><span>
+</span><span id="line-61"></span><span class="hs-identifier">close</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">Subscription</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">IO</span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-62"></span><span class="hs-identifier">close</span><span> </span><span class="hs-identifier">_</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">pure</span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-cpp">
+
+#else
+</span><span>
+</span><span id="line-66"></span><span class="hs-keyword">data</span><span> </span><span id="Registration"><span class="annot"><a href="Unison.Runtime.Signal.html#Registration"><span class="hs-identifier hs-var">Registration</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="Registration"><span class="annot"><a href="Unison.Runtime.Signal.html#Registration"><span class="hs-identifier hs-var">Registration</span></a></span></span><span>
+</span><span id="line-67"></span><span>  </span><span class="hs-special">{</span><span> </span><span id="previousHandler"><span class="annot"><span class="annottext">Registration -&gt; Handler
+</span><a href="Unison.Runtime.Signal.html#previousHandler"><span class="hs-identifier hs-var hs-var">previousHandler</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">Posix.Handler</span></span><span class="hs-special">,</span><span>
+</span><span id="line-68"></span><span>    </span><span id="previousAction"><span class="annot"><span class="annottext">Registration -&gt; Ptr ()
+</span><a href="Unison.Runtime.Signal.html#previousAction"><span class="hs-identifier hs-var hs-var">previousAction</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-69"></span><span>    </span><span id="listeners"><span class="annot"><span class="annottext">Registration -&gt; TVar (Map Unique (TVar (Maybe Bool)))
+</span><a href="Unison.Runtime.Signal.html#listeners"><span class="hs-identifier hs-var hs-var">listeners</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">STM.TVar</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Map.Map</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Unique</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">STM.TVar</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-70"></span><span>  </span><span class="hs-special">}</span><span>
+</span><span id="line-71"></span><span>
+</span><span id="line-72"></span><span class="hs-comment">-- Separate registrations per installation prevent an already queued callback</span><span>
+</span><span id="line-73"></span><span class="hs-comment">-- from an old installation from reaching a later generation of subscribers.</span><span>
+</span><span id="line-74"></span><span class="hs-pragma">{-# NOINLINE</span><span> </span><span class="annot"><a href="Unison.Runtime.Signal.html#registrations"><span class="hs-pragma hs-type">registrations</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-75"></span><span class="annot"><a href="Unison.Runtime.Signal.html#registrations"><span class="hs-identifier hs-type">registrations</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">MVar</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Map.Map</span></span><span> </span><span class="annot"><a href="Unison.Runtime.Signal.html#Signal"><span class="hs-identifier hs-type">Signal</span></a></span><span> </span><span class="annot"><a href="Unison.Runtime.Signal.html#Registration"><span class="hs-identifier hs-type">Registration</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-76"></span><span id="registrations"><span class="annot"><span class="annottext">registrations :: MVar (Map Signal Registration)
+</span><a href="Unison.Runtime.Signal.html#registrations"><span class="hs-identifier hs-var hs-var">registrations</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">IO (MVar (Map Signal Registration))
+-&gt; MVar (Map Signal Registration)
+forall a. IO a -&gt; a
+</span><span class="hs-identifier hs-var">unsafePerformIO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Map Signal Registration -&gt; IO (MVar (Map Signal Registration))
+forall a. a -&gt; IO (MVar a)
+</span><span class="hs-identifier hs-var">newMVar</span></span><span> </span><span class="annot"><span class="annottext">Map Signal Registration
+forall k a. Map k a
+</span><span class="hs-identifier hs-var">Map.empty</span></span><span class="hs-special">)</span><span>
+</span><span id="line-77"></span><span>
+</span><span id="line-78"></span><span class="hs-comment">-- Synchronous hardware faults cannot be delivered safely as asynchronous</span><span>
+</span><span id="line-79"></span><span class="hs-comment">-- notifications. SIGPIPE is used by GHC to interrupt blocking foreign calls;</span><span>
+</span><span id="line-80"></span><span class="hs-comment">-- the RTS timer signal is excluded through reservedSignals as well.</span><span>
+</span><span id="line-81"></span><span class="hs-comment">-- Real-time signals (queued payloads and ordering) need a different contract.</span><span>
+</span><span id="line-82"></span><span class="annot"><a href="Unison.Runtime.Signal.html#available"><span class="hs-identifier hs-type">available</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Unison.Runtime.Signal.html#Signal"><span class="hs-identifier hs-type">Signal</span></a></span><span class="hs-special">)</span><span class="hs-special">]</span><span>
+</span><span id="line-83"></span><span id="available"><span class="annot"><span class="annottext">available :: [(String, Signal)]
+</span><a href="Unison.Runtime.Signal.html#available"><span class="hs-identifier hs-var hs-var">available</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">IO [(String, Signal)] -&gt; [(String, Signal)]
+forall a. IO a -&gt; a
+</span><span class="hs-identifier hs-var">unsafePerformIO</span></span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-84"></span><span>  </span><span id="local-6989586621680724639"><span class="annot"><span class="annottext">CInt
+</span><a href="#local-6989586621680724639"><span class="hs-identifier hs-var">count</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">IO CInt
+</span><a href="Unison.Runtime.Signal.html#signalCount"><span class="hs-identifier hs-var">signalCount</span></a></span><span>
+</span><span id="line-85"></span><span>  </span><span id="local-6989586621680724641"><span class="annot"><span class="annottext">[(String, CInt)]
+</span><a href="#local-6989586621680724641"><span class="hs-identifier hs-var">entries</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">[CInt] -&gt; (CInt -&gt; IO (String, CInt)) -&gt; IO [(String, CInt)]
+forall (t :: * -&gt; *) (m :: * -&gt; *) a b.
+(Traversable t, Monad m) =&gt;
+t a -&gt; (a -&gt; m b) -&gt; m (t b)
+</span><span class="hs-identifier hs-var">forM</span></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">CInt
+</span><span class="hs-number">0</span></span><span> </span><span class="hs-glyph">..</span><span> </span><span class="annot"><span class="annottext">CInt
+</span><a href="#local-6989586621680724639"><span class="hs-identifier hs-var">count</span></a></span><span> </span><span class="annot"><span class="annottext">CInt -&gt; CInt -&gt; CInt
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">CInt
+</span><span class="hs-number">1</span></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621680724642"><span class="annot"><span class="annottext">CInt
+</span><a href="#local-6989586621680724642"><span class="hs-identifier hs-var">index</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-86"></span><span>    </span><span id="local-6989586621680724643"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621680724643"><span class="hs-identifier hs-var">name</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">CString -&gt; IO String
+</span><span class="hs-identifier hs-var">peekCString</span></span><span> </span><span class="annot"><span class="annottext">(CString -&gt; IO String) -&gt; IO CString -&gt; IO String
+forall (m :: * -&gt; *) a b. Monad m =&gt; (a -&gt; m b) -&gt; m a -&gt; m b
+</span><span class="hs-operator hs-var">=&lt;&lt;</span></span><span> </span><span class="annot"><span class="annottext">CInt -&gt; IO CString
+</span><a href="Unison.Runtime.Signal.html#signalName"><span class="hs-identifier hs-var">signalName</span></a></span><span> </span><span class="annot"><span class="annottext">CInt
+</span><a href="#local-6989586621680724642"><span class="hs-identifier hs-var">index</span></a></span><span>
+</span><span id="line-87"></span><span>    </span><span id="local-6989586621680724646"><span class="annot"><span class="annottext">CInt
+</span><a href="#local-6989586621680724646"><span class="hs-identifier hs-var">number</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">CInt -&gt; IO CInt
+</span><a href="Unison.Runtime.Signal.html#signalNumber"><span class="hs-identifier hs-var">signalNumber</span></a></span><span> </span><span class="annot"><span class="annottext">CInt
+</span><a href="#local-6989586621680724642"><span class="hs-identifier hs-var">index</span></a></span><span>
+</span><span id="line-88"></span><span>    </span><span class="hs-identifier">pure</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621680724643"><span class="hs-identifier hs-var">name</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">CInt
+</span><a href="#local-6989586621680724646"><span class="hs-identifier hs-var">number</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-89"></span><span>  </span><span class="hs-identifier">pure</span><span>
+</span><span id="line-90"></span><span>    </span><span class="hs-special">[</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621680724648"><span class="hs-identifier hs-var">name</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Signal
+</span><a href="Unison.Runtime.Signal.html#Signal"><span class="hs-identifier hs-var">Signal</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">CInt -&gt; Int
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="annot"><span class="annottext">CInt
+</span><a href="#local-6989586621680724649"><span class="hs-identifier hs-var">number</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-91"></span><span>      </span><span class="hs-glyph">|</span><span> </span><span class="hs-special">(</span><span id="local-6989586621680724648"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621680724648"><span class="hs-identifier hs-var">name</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621680724649"><span class="annot"><span class="annottext">CInt
+</span><a href="#local-6989586621680724649"><span class="hs-identifier hs-var">number</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">[(String, CInt)]
+</span><a href="#local-6989586621680724641"><span class="hs-identifier hs-var">entries</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-92"></span><span>        </span><span class="annot"><span class="annottext">Bool -&gt; Bool
+</span><span class="hs-identifier hs-var">not</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">CInt -&gt; SignalSet -&gt; Bool
+</span><span class="hs-identifier hs-var">Posix.inSignalSet</span></span><span> </span><span class="annot"><span class="annottext">CInt
+</span><a href="#local-6989586621680724649"><span class="hs-identifier hs-var">number</span></a></span><span> </span><span class="annot"><span class="annottext">SignalSet
+</span><span class="hs-identifier hs-var">Posix.reservedSignals</span></span><span class="hs-special">)</span><span>
+</span><span id="line-93"></span><span>    </span><span class="hs-special">]</span><span>
+</span><span id="line-94"></span><span class="hs-pragma">{-# NOINLINE</span><span> </span><span class="annot"><a href="Unison.Runtime.Signal.html#available"><span class="hs-pragma hs-type">available</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-95"></span><span>
+</span><span id="line-96"></span><span class="annot"><a href="Unison.Runtime.Signal.html#subscribe"><span class="hs-identifier hs-type">subscribe</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Unison.Runtime.Signal.html#Signal"><span class="hs-identifier hs-type">Signal</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="Unison.Runtime.Signal.html#Subscription"><span class="hs-identifier hs-type">Subscription</span></a></span><span>
+</span><span id="line-97"></span><span id="subscribe"><span class="annot"><span class="annottext">subscribe :: Signal -&gt; IO Subscription
+</span><a href="Unison.Runtime.Signal.html#subscribe"><span class="hs-identifier hs-var hs-var">subscribe</span></a></span></span><span> </span><span id="local-6989586621680724653"><span class="annot"><span class="annottext">signal :: Signal
+</span><a href="#local-6989586621680724653"><span class="hs-identifier hs-var">signal</span></a></span></span><span class="hs-glyph">@</span><span class="hs-special">(</span><span class="annot"><a href="Unison.Runtime.Signal.html#Signal"><span class="hs-identifier hs-type">Signal</span></a></span><span> </span><span id="local-6989586621680724654"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621680724654"><span class="hs-identifier hs-var">number</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">IO Subscription -&gt; IO Subscription
+forall a. IO a -&gt; IO a
+</span><span class="hs-identifier hs-var">mask_</span></span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-98"></span><span>  </span><span class="annot"><span class="annottext">Bool -&gt; IO () -&gt; IO ()
+forall (f :: * -&gt; *). Applicative f =&gt; Bool -&gt; f () -&gt; f ()
+</span><span class="hs-identifier hs-var">unless</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Signal
+</span><a href="#local-6989586621680724653"><span class="hs-identifier hs-var">signal</span></a></span><span> </span><span class="annot"><span class="annottext">Signal -&gt; [Signal] -&gt; Bool
+forall a. Eq a =&gt; a -&gt; [a] -&gt; Bool
+forall (t :: * -&gt; *) a. (Foldable t, Eq a) =&gt; a -&gt; t a -&gt; Bool
+</span><span class="hs-operator hs-var">`elem`</span></span><span> </span><span class="annot"><span class="annottext">((String, Signal) -&gt; Signal) -&gt; [(String, Signal)] -&gt; [Signal]
+forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+</span><span class="hs-identifier hs-var">map</span></span><span> </span><span class="annot"><span class="annottext">(String, Signal) -&gt; Signal
+forall a b. (a, b) -&gt; b
+</span><span class="hs-identifier hs-var">snd</span></span><span> </span><span class="annot"><span class="annottext">[(String, Signal)]
+</span><a href="Unison.Runtime.Signal.html#available"><span class="hs-identifier hs-var">available</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(IO () -&gt; IO ()) -&gt; IO () -&gt; IO ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-99"></span><span>    </span><span class="annot"><span class="annottext">IOError -&gt; IO ()
+forall e a. (HasCallStack, Exception e) =&gt; e -&gt; IO a
+</span><span class="hs-identifier hs-var">throwIO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String -&gt; IOError
+</span><span class="hs-identifier hs-var">userError</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Unsupported POSIX signal&quot;</span></span><span class="hs-special">)</span><span>
+</span><span id="line-100"></span><span>  </span><span id="local-6989586621680724657"><span class="annot"><span class="annottext">Unique
+</span><a href="#local-6989586621680724657"><span class="hs-identifier hs-var">ident</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">IO Unique
+</span><span class="hs-identifier hs-var">newUnique</span></span><span>
+</span><span id="line-101"></span><span>  </span><span id="local-6989586621680724658"><span class="annot"><span class="annottext">TVar (Maybe Bool)
+</span><a href="#local-6989586621680724658"><span class="hs-identifier hs-var">pending</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Maybe Bool -&gt; IO (TVar (Maybe Bool))
+forall a. a -&gt; IO (TVar a)
+</span><span class="hs-identifier hs-var">STM.newTVarIO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Bool -&gt; Maybe Bool
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span class="hs-special">)</span><span>
+</span><span id="line-102"></span><span>  </span><span class="annot"><span class="annottext">MVar (Map Signal Registration)
+-&gt; (Map Signal Registration -&gt; IO (Map Signal Registration))
+-&gt; IO ()
+forall a. MVar a -&gt; (a -&gt; IO a) -&gt; IO ()
+</span><span class="hs-identifier hs-var">modifyMVar_</span></span><span> </span><span class="annot"><span class="annottext">MVar (Map Signal Registration)
+</span><a href="Unison.Runtime.Signal.html#registrations"><span class="hs-identifier hs-var">registrations</span></a></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621680724661"><span class="annot"><span class="annottext">Map Signal Registration
+</span><a href="#local-6989586621680724661"><span class="hs-identifier hs-var">table</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-103"></span><span>    </span><span id="local-6989586621680724662"><span class="annot"><span class="annottext">Registration
+</span><a href="#local-6989586621680724662"><span class="hs-identifier hs-var">registration</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Signal -&gt; Map Signal Registration -&gt; Maybe Registration
+forall k a. Ord k =&gt; k -&gt; Map k a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Map.lookup</span></span><span> </span><span class="annot"><span class="annottext">Signal
+</span><a href="#local-6989586621680724653"><span class="hs-identifier hs-var">signal</span></a></span><span> </span><span class="annot"><span class="annottext">Map Signal Registration
+</span><a href="#local-6989586621680724661"><span class="hs-identifier hs-var">table</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-104"></span><span>      </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621680724664"><span class="annot"><span class="annottext">Registration
+</span><a href="#local-6989586621680724664"><span class="hs-identifier hs-var">registration</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Registration -&gt; IO Registration
+forall a. a -&gt; IO a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">Registration
+</span><a href="#local-6989586621680724664"><span class="hs-identifier hs-var">registration</span></a></span><span>
+</span><span id="line-105"></span><span>      </span><span class="annot"><span class="annottext">Maybe Registration
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-106"></span><span>        </span><span id="local-6989586621680724665"><span class="annot"><span class="annottext">TVar (Map Unique (TVar (Maybe Bool)))
+</span><a href="#local-6989586621680724665"><span class="hs-identifier hs-var">listeners</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Map Unique (TVar (Maybe Bool))
+-&gt; IO (TVar (Map Unique (TVar (Maybe Bool))))
+forall a. a -&gt; IO (TVar a)
+</span><span class="hs-identifier hs-var">STM.newTVarIO</span></span><span> </span><span class="annot"><span class="annottext">Map Unique (TVar (Maybe Bool))
+forall k a. Map k a
+</span><span class="hs-identifier hs-var">Map.empty</span></span><span>
+</span><span id="line-107"></span><span>        </span><span id="local-6989586621680724666"><span class="annot"><span class="annottext">Ptr ()
+</span><a href="#local-6989586621680724666"><span class="hs-identifier hs-var">saved</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">String -&gt; IO (Ptr ()) -&gt; IO (Ptr ())
+forall a. String -&gt; IO (Ptr a) -&gt; IO (Ptr a)
+</span><span class="hs-identifier hs-var">throwErrnoIfNull</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;save signal handler&quot;</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">CInt -&gt; IO (Ptr ())
+</span><a href="Unison.Runtime.Signal.html#saveAction"><span class="hs-identifier hs-var">saveAction</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; CInt
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621680724654"><span class="hs-identifier hs-var">number</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-108"></span><span>        </span><span id="local-6989586621680724668"><span class="annot"><span class="annottext">Handler
+</span><a href="#local-6989586621680724668"><span class="hs-identifier hs-var">previous</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span>
+</span><span id="line-109"></span><span>          </span><span class="annot"><span class="annottext">CInt -&gt; Handler -&gt; Maybe SignalSet -&gt; IO Handler
+</span><span class="hs-identifier hs-var">Posix.installHandler</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; CInt
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621680724654"><span class="hs-identifier hs-var">number</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">IO () -&gt; Handler
+</span><span class="hs-identifier hs-var">Posix.Catch</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">TVar (Map Unique (TVar (Maybe Bool))) -&gt; IO ()
+</span><a href="Unison.Runtime.Signal.html#notify"><span class="hs-identifier hs-var">notify</span></a></span><span> </span><span class="annot"><span class="annottext">TVar (Map Unique (TVar (Maybe Bool)))
+</span><a href="#local-6989586621680724665"><span class="hs-identifier hs-var">listeners</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Maybe SignalSet
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-110"></span><span>            </span><span class="annot"><span class="annottext">IO Handler -&gt; IO () -&gt; IO Handler
+forall a b. IO a -&gt; IO b -&gt; IO a
+</span><span class="hs-operator hs-var">`onException`</span></span><span> </span><span class="annot"><span class="annottext">Ptr () -&gt; IO ()
+forall a. Ptr a -&gt; IO ()
+</span><span class="hs-identifier hs-var">free</span></span><span> </span><span class="annot"><span class="annottext">Ptr ()
+</span><a href="#local-6989586621680724666"><span class="hs-identifier hs-var">saved</span></a></span><span>
+</span><span id="line-111"></span><span>        </span><span class="hs-identifier">pure</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Handler
+-&gt; Ptr () -&gt; TVar (Map Unique (TVar (Maybe Bool))) -&gt; Registration
+</span><a href="Unison.Runtime.Signal.html#Registration"><span class="hs-identifier hs-var">Registration</span></a></span><span> </span><span class="annot"><span class="annottext">Handler
+</span><a href="#local-6989586621680724668"><span class="hs-identifier hs-var">previous</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr ()
+</span><a href="#local-6989586621680724666"><span class="hs-identifier hs-var">saved</span></a></span><span> </span><span class="annot"><span class="annottext">TVar (Map Unique (TVar (Maybe Bool)))
+</span><a href="#local-6989586621680724665"><span class="hs-identifier hs-var">listeners</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-112"></span><span>    </span><span class="annot"><span class="annottext">STM () -&gt; IO ()
+forall a. STM a -&gt; IO a
+</span><span class="hs-identifier hs-var">STM.atomically</span></span><span> </span><span class="annot"><span class="annottext">(STM () -&gt; IO ()) -&gt; STM () -&gt; IO ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">TVar (Map Unique (TVar (Maybe Bool)))
+-&gt; (Map Unique (TVar (Maybe Bool))
+    -&gt; Map Unique (TVar (Maybe Bool)))
+-&gt; STM ()
+forall a. TVar a -&gt; (a -&gt; a) -&gt; STM ()
+</span><span class="hs-identifier hs-var">STM.modifyTVar'</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Registration -&gt; TVar (Map Unique (TVar (Maybe Bool)))
+</span><a href="Unison.Runtime.Signal.html#listeners"><span class="hs-identifier hs-var">listeners</span></a></span><span> </span><span class="annot"><span class="annottext">Registration
+</span><a href="#local-6989586621680724662"><span class="hs-identifier hs-var">registration</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Unique
+-&gt; TVar (Maybe Bool)
+-&gt; Map Unique (TVar (Maybe Bool))
+-&gt; Map Unique (TVar (Maybe Bool))
+forall k a. Ord k =&gt; k -&gt; a -&gt; Map k a -&gt; Map k a
+</span><span class="hs-identifier hs-var">Map.insert</span></span><span> </span><span class="annot"><span class="annottext">Unique
+</span><a href="#local-6989586621680724657"><span class="hs-identifier hs-var">ident</span></a></span><span> </span><span class="annot"><span class="annottext">TVar (Maybe Bool)
+</span><a href="#local-6989586621680724658"><span class="hs-identifier hs-var">pending</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-113"></span><span>    </span><span class="hs-identifier">pure</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Signal
+-&gt; Registration
+-&gt; Map Signal Registration
+-&gt; Map Signal Registration
+forall k a. Ord k =&gt; k -&gt; a -&gt; Map k a -&gt; Map k a
+</span><span class="hs-identifier hs-var">Map.insert</span></span><span> </span><span class="annot"><span class="annottext">Signal
+</span><a href="#local-6989586621680724653"><span class="hs-identifier hs-var">signal</span></a></span><span> </span><span class="annot"><span class="annottext">Registration
+</span><a href="#local-6989586621680724662"><span class="hs-identifier hs-var">registration</span></a></span><span> </span><span class="annot"><span class="annottext">Map Signal Registration
+</span><a href="#local-6989586621680724661"><span class="hs-identifier hs-var">table</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-114"></span><span>  </span><span class="hs-identifier">pure</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Signal -&gt; Unique -&gt; TVar (Maybe Bool) -&gt; Subscription
+</span><a href="Unison.Runtime.Signal.html#Subscription"><span class="hs-identifier hs-var">Subscription</span></a></span><span> </span><span class="annot"><span class="annottext">Signal
+</span><a href="#local-6989586621680724653"><span class="hs-identifier hs-var">signal</span></a></span><span> </span><span class="annot"><span class="annottext">Unique
+</span><a href="#local-6989586621680724657"><span class="hs-identifier hs-var">ident</span></a></span><span> </span><span class="annot"><span class="annottext">TVar (Maybe Bool)
+</span><a href="#local-6989586621680724658"><span class="hs-identifier hs-var">pending</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-115"></span><span>
+</span><span id="line-116"></span><span class="annot"><a href="Unison.Runtime.Signal.html#notify"><span class="hs-identifier hs-type">notify</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">STM.TVar</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Map.Map</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Unique</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">STM.TVar</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-117"></span><span id="notify"><span class="annot"><span class="annottext">notify :: TVar (Map Unique (TVar (Maybe Bool))) -&gt; IO ()
+</span><a href="Unison.Runtime.Signal.html#notify"><span class="hs-identifier hs-var hs-var">notify</span></a></span></span><span> </span><span id="local-6989586621680724674"><span class="annot"><span class="annottext">TVar (Map Unique (TVar (Maybe Bool)))
+</span><a href="#local-6989586621680724674"><span class="hs-identifier hs-var">listeners</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">STM () -&gt; IO ()
+forall a. STM a -&gt; IO a
+</span><span class="hs-identifier hs-var">STM.atomically</span></span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-118"></span><span>  </span><span id="local-6989586621680724675"><span class="annot"><span class="annottext">Map Unique (TVar (Maybe Bool))
+</span><a href="#local-6989586621680724675"><span class="hs-identifier hs-var">cells</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">TVar (Map Unique (TVar (Maybe Bool)))
+-&gt; STM (Map Unique (TVar (Maybe Bool)))
+forall a. TVar a -&gt; STM a
+</span><span class="hs-identifier hs-var">STM.readTVar</span></span><span> </span><span class="annot"><span class="annottext">TVar (Map Unique (TVar (Maybe Bool)))
+</span><a href="#local-6989586621680724674"><span class="hs-identifier hs-var">listeners</span></a></span><span>
+</span><span id="line-119"></span><span>  </span><span class="annot"><span class="annottext">Map Unique (TVar (Maybe Bool))
+-&gt; (TVar (Maybe Bool) -&gt; STM ()) -&gt; STM ()
+forall (t :: * -&gt; *) (m :: * -&gt; *) a b.
+(Foldable t, Monad m) =&gt;
+t a -&gt; (a -&gt; m b) -&gt; m ()
+</span><span class="hs-identifier hs-var">forM_</span></span><span> </span><span class="annot"><span class="annottext">Map Unique (TVar (Maybe Bool))
+</span><a href="#local-6989586621680724675"><span class="hs-identifier hs-var">cells</span></a></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621680724676"><span class="annot"><span class="annottext">TVar (Maybe Bool)
+</span><a href="#local-6989586621680724676"><span class="hs-identifier hs-var">pending</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">TVar (Maybe Bool) -&gt; Maybe Bool -&gt; STM ()
+forall a. TVar a -&gt; a -&gt; STM ()
+</span><span class="hs-identifier hs-var">STM.writeTVar</span></span><span> </span><span class="annot"><span class="annottext">TVar (Maybe Bool)
+</span><a href="#local-6989586621680724676"><span class="hs-identifier hs-var">pending</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Bool -&gt; Maybe Bool
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span class="hs-special">)</span><span>
+</span><span id="line-120"></span><span>
+</span><span id="line-121"></span><span class="annot"><a href="Unison.Runtime.Signal.html#close"><span class="hs-identifier hs-type">close</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Unison.Runtime.Signal.html#Subscription"><span class="hs-identifier hs-type">Subscription</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-122"></span><span id="close"><span class="annot"><span class="annottext">close :: Subscription -&gt; IO ()
+</span><a href="Unison.Runtime.Signal.html#close"><span class="hs-identifier hs-var hs-var">close</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Runtime.Signal.html#Subscription"><span class="hs-identifier hs-type">Subscription</span></a></span><span> </span><span id="local-6989586621680724677"><span class="annot"><span class="annottext">signal :: Signal
+</span><a href="#local-6989586621680724677"><span class="hs-identifier hs-var">signal</span></a></span></span><span class="hs-glyph">@</span><span class="hs-special">(</span><span class="annot"><a href="Unison.Runtime.Signal.html#Signal"><span class="hs-identifier hs-type">Signal</span></a></span><span> </span><span id="local-6989586621680724678"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621680724678"><span class="hs-identifier hs-var">number</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621680724679"><span class="annot"><span class="annottext">Unique
+</span><a href="#local-6989586621680724679"><span class="hs-identifier hs-var">ident</span></a></span></span><span> </span><span id="local-6989586621680724680"><span class="annot"><span class="annottext">TVar (Maybe Bool)
+</span><a href="#local-6989586621680724680"><span class="hs-identifier hs-var">pending</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">IO () -&gt; IO ()
+forall a. IO a -&gt; IO a
+</span><span class="hs-identifier hs-var">mask_</span></span><span> </span><span class="annot"><span class="annottext">(IO () -&gt; IO ()) -&gt; IO () -&gt; IO ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-123"></span><span>  </span><span class="annot"><span class="annottext">MVar (Map Signal Registration)
+-&gt; (Map Signal Registration -&gt; IO (Map Signal Registration))
+-&gt; IO ()
+forall a. MVar a -&gt; (a -&gt; IO a) -&gt; IO ()
+</span><span class="hs-identifier hs-var">modifyMVar_</span></span><span> </span><span class="annot"><span class="annottext">MVar (Map Signal Registration)
+</span><a href="Unison.Runtime.Signal.html#registrations"><span class="hs-identifier hs-var">registrations</span></a></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621680724681"><span class="annot"><span class="annottext">Map Signal Registration
+</span><a href="#local-6989586621680724681"><span class="hs-identifier hs-var">table</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Signal -&gt; Map Signal Registration -&gt; Maybe Registration
+forall k a. Ord k =&gt; k -&gt; Map k a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Map.lookup</span></span><span> </span><span class="annot"><span class="annottext">Signal
+</span><a href="#local-6989586621680724677"><span class="hs-identifier hs-var">signal</span></a></span><span> </span><span class="annot"><span class="annottext">Map Signal Registration
+</span><a href="#local-6989586621680724681"><span class="hs-identifier hs-var">table</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-124"></span><span>    </span><span class="annot"><span class="annottext">Maybe Registration
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Map Signal Registration -&gt; IO (Map Signal Registration)
+forall a. a -&gt; IO a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">Map Signal Registration
+</span><a href="#local-6989586621680724681"><span class="hs-identifier hs-var">table</span></a></span><span>
+</span><span id="line-125"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621680724682"><span class="annot"><span class="annottext">Registration
+</span><a href="#local-6989586621680724682"><span class="hs-identifier hs-var">registration</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-126"></span><span>      </span><span id="local-6989586621680724683"><span class="annot"><span class="annottext">Map Unique (TVar (Maybe Bool))
+</span><a href="#local-6989586621680724683"><span class="hs-identifier hs-var">cells</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">TVar (Map Unique (TVar (Maybe Bool)))
+-&gt; IO (Map Unique (TVar (Maybe Bool)))
+forall a. TVar a -&gt; IO a
+</span><span class="hs-identifier hs-var">STM.readTVarIO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Registration -&gt; TVar (Map Unique (TVar (Maybe Bool)))
+</span><a href="Unison.Runtime.Signal.html#listeners"><span class="hs-identifier hs-var">listeners</span></a></span><span> </span><span class="annot"><span class="annottext">Registration
+</span><a href="#local-6989586621680724682"><span class="hs-identifier hs-var">registration</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-127"></span><span>      </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">Unique -&gt; Map Unique (TVar (Maybe Bool)) -&gt; Bool
+forall k a. Ord k =&gt; k -&gt; Map k a -&gt; Bool
+</span><span class="hs-identifier hs-var">Map.notMember</span></span><span> </span><span class="annot"><span class="annottext">Unique
+</span><a href="#local-6989586621680724679"><span class="hs-identifier hs-var">ident</span></a></span><span> </span><span class="annot"><span class="annottext">Map Unique (TVar (Maybe Bool))
+</span><a href="#local-6989586621680724683"><span class="hs-identifier hs-var">cells</span></a></span><span>
+</span><span id="line-128"></span><span>        </span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="annottext">Map Signal Registration -&gt; IO (Map Signal Registration)
+forall a. a -&gt; IO a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">Map Signal Registration
+</span><a href="#local-6989586621680724681"><span class="hs-identifier hs-var">table</span></a></span><span>
+</span><span id="line-129"></span><span>        </span><span class="hs-keyword">else</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-130"></span><span>          </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621680724686"><span class="annot"><span class="annottext">remaining :: Map Unique (TVar (Maybe Bool))
+</span><a href="#local-6989586621680724686"><span class="hs-identifier hs-var hs-var">remaining</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Unique
+-&gt; Map Unique (TVar (Maybe Bool)) -&gt; Map Unique (TVar (Maybe Bool))
+forall k a. Ord k =&gt; k -&gt; Map k a -&gt; Map k a
+</span><span class="hs-identifier hs-var">Map.delete</span></span><span> </span><span class="annot"><span class="annottext">Unique
+</span><a href="#local-6989586621680724679"><span class="hs-identifier hs-var">ident</span></a></span><span> </span><span class="annot"><span class="annottext">Map Unique (TVar (Maybe Bool))
+</span><a href="#local-6989586621680724683"><span class="hs-identifier hs-var">cells</span></a></span><span>
+</span><span id="line-131"></span><span>          </span><span class="annot"><span class="annottext">Bool -&gt; IO () -&gt; IO ()
+forall (f :: * -&gt; *). Applicative f =&gt; Bool -&gt; f () -&gt; f ()
+</span><span class="hs-identifier hs-var">when</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Map Unique (TVar (Maybe Bool)) -&gt; Bool
+forall k a. Map k a -&gt; Bool
+</span><span class="hs-identifier hs-var">Map.null</span></span><span> </span><span class="annot"><span class="annottext">Map Unique (TVar (Maybe Bool))
+</span><a href="#local-6989586621680724686"><span class="hs-identifier hs-var">remaining</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(IO () -&gt; IO ()) -&gt; IO () -&gt; IO ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">IO () -&gt; IO ()
+forall a. IO a -&gt; IO a
+</span><span class="hs-identifier hs-var">uninterruptibleMask_</span></span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-132"></span><span>            </span><span class="hs-comment">-- Restore the Haskell handler table and then the complete native</span><span>
+</span><span id="line-133"></span><span>            </span><span class="hs-comment">-- action, including flags and mask which unix does not preserve.</span><span>
+</span><span id="line-134"></span><span>            </span><span class="hs-comment">-- GHC can report Default even when a native handler was installed.</span><span>
+</span><span id="line-135"></span><span>            </span><span class="hs-comment">-- Do not briefly install SIG_DFL: a signal arriving before the</span><span>
+</span><span id="line-136"></span><span>            </span><span class="hs-comment">-- native action is restored could terminate the process. Ignore</span><span>
+</span><span id="line-137"></span><span>            </span><span class="hs-comment">-- clears GHC's handler bookkeeping without that unsafe interval;</span><span>
+</span><span id="line-138"></span><span>            </span><span class="hs-comment">-- restoreAction installs the actual original disposition below.</span><span>
+</span><span id="line-139"></span><span>            </span><span class="hs-comment">-- installHandler can wait for GHC's internal handler-table lock</span><span>
+</span><span id="line-140"></span><span>            </span><span class="hs-comment">-- after changing the native disposition, so defer cancellation</span><span>
+</span><span id="line-141"></span><span>            </span><span class="hs-comment">-- across this short transition (which never runs user code).</span><span>
+</span><span id="line-142"></span><span>            </span><span id="local-6989586621680724689"><span class="annot"><span class="annottext">Handler
+</span><a href="#local-6989586621680724689"><span class="hs-identifier hs-var">handler</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Registration -&gt; Handler
+</span><a href="Unison.Runtime.Signal.html#previousHandler"><span class="hs-identifier hs-var">previousHandler</span></a></span><span> </span><span class="annot"><span class="annottext">Registration
+</span><a href="#local-6989586621680724682"><span class="hs-identifier hs-var">registration</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-143"></span><span>              </span><span class="annot"><span class="annottext">Handler
+</span><span class="hs-identifier hs-var">Posix.Default</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-144"></span><span>                </span><span id="local-6989586621680724691"><span class="annot"><span class="annottext">CInt
+</span><a href="#local-6989586621680724691"><span class="hs-identifier hs-var">isDefault</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Ptr () -&gt; IO CInt
+</span><a href="Unison.Runtime.Signal.html#savedActionIsDefault"><span class="hs-identifier hs-var">savedActionIsDefault</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Registration -&gt; Ptr ()
+</span><a href="Unison.Runtime.Signal.html#previousAction"><span class="hs-identifier hs-var">previousAction</span></a></span><span> </span><span class="annot"><span class="annottext">Registration
+</span><a href="#local-6989586621680724682"><span class="hs-identifier hs-var">registration</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-145"></span><span>                </span><span class="hs-comment">-- Preserve Default in GHC's bookkeeping when it really was</span><span>
+</span><span id="line-146"></span><span>                </span><span class="hs-comment">-- the native disposition, so later installHandler callers</span><span>
+</span><span id="line-147"></span><span>                </span><span class="hs-comment">-- receive the correct previous handler.</span><span>
+</span><span id="line-148"></span><span>                </span><span class="hs-identifier">pure</span><span> </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">CInt
+</span><a href="#local-6989586621680724691"><span class="hs-identifier hs-var">isDefault</span></a></span><span> </span><span class="annot"><span class="annottext">CInt -&gt; CInt -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">/=</span></span><span> </span><span class="annot"><span class="annottext">CInt
+</span><span class="hs-number">0</span></span><span> </span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="annottext">Handler
+</span><span class="hs-identifier hs-var">Posix.Default</span></span><span> </span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="annottext">Handler
+</span><span class="hs-identifier hs-var">Posix.Ignore</span></span><span>
+</span><span id="line-149"></span><span>              </span><span id="local-6989586621680724694"><span class="annot"><span class="annottext">Handler
+</span><a href="#local-6989586621680724694"><span class="hs-identifier hs-var">previous</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Handler -&gt; IO Handler
+forall a. a -&gt; IO a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">Handler
+</span><a href="#local-6989586621680724694"><span class="hs-identifier hs-var">previous</span></a></span><span>
+</span><span id="line-150"></span><span>            </span><span class="annot"><span class="annottext">Handler
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">CInt -&gt; Handler -&gt; Maybe SignalSet -&gt; IO Handler
+</span><span class="hs-identifier hs-var">Posix.installHandler</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; CInt
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621680724678"><span class="hs-identifier hs-var">number</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Handler
+</span><a href="#local-6989586621680724689"><span class="hs-identifier hs-var">handler</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe SignalSet
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-151"></span><span>            </span><span class="annot"><span class="annottext">String -&gt; IO CInt -&gt; IO ()
+forall a. (Eq a, Num a) =&gt; String -&gt; IO a -&gt; IO ()
+</span><span class="hs-identifier hs-var">throwErrnoIfMinus1_</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;restore signal handler&quot;</span></span><span> </span><span class="annot"><span class="annottext">(IO CInt -&gt; IO ()) -&gt; IO CInt -&gt; IO ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-152"></span><span>              </span><span class="annot"><span class="annottext">CInt -&gt; Ptr () -&gt; IO CInt
+</span><a href="Unison.Runtime.Signal.html#restoreAction"><span class="hs-identifier hs-var">restoreAction</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; CInt
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621680724678"><span class="hs-identifier hs-var">number</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Registration -&gt; Ptr ()
+</span><a href="Unison.Runtime.Signal.html#previousAction"><span class="hs-identifier hs-var">previousAction</span></a></span><span> </span><span class="annot"><span class="annottext">Registration
+</span><a href="#local-6989586621680724682"><span class="hs-identifier hs-var">registration</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-153"></span><span>            </span><span class="annot"><span class="annottext">Ptr () -&gt; IO ()
+forall a. Ptr a -&gt; IO ()
+</span><span class="hs-identifier hs-var">free</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Registration -&gt; Ptr ()
+</span><a href="Unison.Runtime.Signal.html#previousAction"><span class="hs-identifier hs-var">previousAction</span></a></span><span> </span><span class="annot"><span class="annottext">Registration
+</span><a href="#local-6989586621680724682"><span class="hs-identifier hs-var">registration</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-154"></span><span>          </span><span class="annot"><span class="annottext">STM () -&gt; IO ()
+forall a. STM a -&gt; IO a
+</span><span class="hs-identifier hs-var">STM.atomically</span></span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-155"></span><span>            </span><span class="annot"><span class="annottext">TVar (Maybe Bool) -&gt; Maybe Bool -&gt; STM ()
+forall a. TVar a -&gt; a -&gt; STM ()
+</span><span class="hs-identifier hs-var">STM.writeTVar</span></span><span> </span><span class="annot"><span class="annottext">TVar (Maybe Bool)
+</span><a href="#local-6989586621680724680"><span class="hs-identifier hs-var">pending</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe Bool
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-156"></span><span>            </span><span class="annot"><span class="annottext">TVar (Map Unique (TVar (Maybe Bool)))
+-&gt; Map Unique (TVar (Maybe Bool)) -&gt; STM ()
+forall a. TVar a -&gt; a -&gt; STM ()
+</span><span class="hs-identifier hs-var">STM.writeTVar</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Registration -&gt; TVar (Map Unique (TVar (Maybe Bool)))
+</span><a href="Unison.Runtime.Signal.html#listeners"><span class="hs-identifier hs-var">listeners</span></a></span><span> </span><span class="annot"><span class="annottext">Registration
+</span><a href="#local-6989586621680724682"><span class="hs-identifier hs-var">registration</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Map Unique (TVar (Maybe Bool))
+</span><a href="#local-6989586621680724686"><span class="hs-identifier hs-var">remaining</span></a></span><span>
+</span><span id="line-157"></span><span>          </span><span class="hs-identifier">pure</span><span> </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">Map Unique (TVar (Maybe Bool)) -&gt; Bool
+forall k a. Map k a -&gt; Bool
+</span><span class="hs-identifier hs-var">Map.null</span></span><span> </span><span class="annot"><span class="annottext">Map Unique (TVar (Maybe Bool))
+</span><a href="#local-6989586621680724686"><span class="hs-identifier hs-var">remaining</span></a></span><span> </span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="annottext">Signal -&gt; Map Signal Registration -&gt; Map Signal Registration
+forall k a. Ord k =&gt; k -&gt; Map k a -&gt; Map k a
+</span><span class="hs-identifier hs-var">Map.delete</span></span><span> </span><span class="annot"><span class="annottext">Signal
+</span><a href="#local-6989586621680724677"><span class="hs-identifier hs-var">signal</span></a></span><span> </span><span class="annot"><span class="annottext">Map Signal Registration
+</span><a href="#local-6989586621680724681"><span class="hs-identifier hs-var">table</span></a></span><span> </span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="annottext">Map Signal Registration
+</span><a href="#local-6989586621680724681"><span class="hs-identifier hs-var">table</span></a></span><span>
+</span><span id="line-158"></span><span>
+</span><span id="line-159"></span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-keyword">ccall</span></span><span> </span><span class="annot"><span class="hs-keyword">unsafe</span></span><span> </span><span class="annot"><span class="hs-string">&quot;unison_signal_save&quot;</span></span><span>
+</span><span id="line-160"></span><span>  </span><span id="saveAction"><span class="annot"><a href="Unison.Runtime.Signal.html#saveAction"><span class="hs-identifier hs-var">saveAction</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">CInt</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-161"></span><span>
+</span><span id="line-162"></span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-keyword">ccall</span></span><span> </span><span class="annot"><span class="hs-keyword">unsafe</span></span><span> </span><span class="annot"><span class="hs-string">&quot;unison_signal_restore&quot;</span></span><span>
+</span><span id="line-163"></span><span>  </span><span id="restoreAction"><span class="annot"><a href="Unison.Runtime.Signal.html#restoreAction"><span class="hs-identifier hs-var">restoreAction</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">CInt</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">CInt</span></span><span>
+</span><span id="line-164"></span><span>
+</span><span id="line-165"></span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-keyword">ccall</span></span><span> </span><span class="annot"><span class="hs-keyword">unsafe</span></span><span> </span><span class="annot"><span class="hs-string">&quot;unison_signal_is_default&quot;</span></span><span>
+</span><span id="line-166"></span><span>  </span><span id="savedActionIsDefault"><span class="annot"><a href="Unison.Runtime.Signal.html#savedActionIsDefault"><span class="hs-identifier hs-var">savedActionIsDefault</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">CInt</span></span><span>
+</span><span id="line-167"></span><span>
+</span><span id="line-168"></span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-keyword">ccall</span></span><span> </span><span class="annot"><span class="hs-keyword">unsafe</span></span><span> </span><span class="annot"><span class="hs-string">&quot;unison_signal_count&quot;</span></span><span>
+</span><span id="line-169"></span><span>  </span><span id="signalCount"><span class="annot"><a href="Unison.Runtime.Signal.html#signalCount"><span class="hs-identifier hs-var">signalCount</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">CInt</span></span><span>
+</span><span id="line-170"></span><span>
+</span><span id="line-171"></span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-keyword">ccall</span></span><span> </span><span class="annot"><span class="hs-keyword">unsafe</span></span><span> </span><span class="annot"><span class="hs-string">&quot;unison_signal_name&quot;</span></span><span>
+</span><span id="line-172"></span><span>  </span><span id="signalName"><span class="annot"><a href="Unison.Runtime.Signal.html#signalName"><span class="hs-identifier hs-var">signalName</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">CInt</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">CString</span></span><span>
+</span><span id="line-173"></span><span>
+</span><span id="line-174"></span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-keyword">ccall</span></span><span> </span><span class="annot"><span class="hs-keyword">unsafe</span></span><span> </span><span class="annot"><span class="hs-string">&quot;unison_signal_number&quot;</span></span><span>
+</span><span id="line-175"></span><span>  </span><span id="signalNumber"><span class="annot"><a href="Unison.Runtime.Signal.html#signalNumber"><span class="hs-identifier hs-var">signalNumber</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">CInt</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">CInt</span></span><span class="hs-cpp">
+
+#endif
+</span></pre></body></html>

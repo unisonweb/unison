@@ -1,0 +1,65 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Control.AutoUpdate.Types.html"><span class="hs-identifier">Control.AutoUpdate.Types</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-2"></span><span>
+</span><span id="line-3"></span><span class="hs-comment">-- | Settings to control how values are updated.</span><span>
+</span><span id="line-4"></span><span class="hs-comment">--</span><span>
+</span><span id="line-5"></span><span class="hs-comment">-- This should be constructed using 'defaultUpdateSettings' and record</span><span>
+</span><span id="line-6"></span><span class="hs-comment">-- update syntax, e.g.:</span><span>
+</span><span id="line-7"></span><span class="hs-comment">--</span><span>
+</span><span id="line-8"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-9"></span><span class="hs-comment">-- let settings = 'defaultUpdateSettings' { 'updateAction' = 'Data.Time.Clock.getCurrentTime' }</span><span>
+</span><span id="line-10"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-11"></span><span class="hs-comment">--</span><span>
+</span><span id="line-12"></span><span class="hs-comment">-- @since 0.1.0</span><span>
+</span><span id="line-13"></span><span class="hs-keyword">data</span><span> </span><span id="UpdateSettings"><span class="annot"><a href="Control.AutoUpdate.Types.html#UpdateSettings"><span class="hs-identifier hs-var">UpdateSettings</span></a></span></span><span> </span><span id="local-6989586621679041047"><span class="annot"><a href="#local-6989586621679041047"><span class="hs-identifier hs-type">a</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="UpdateSettings"><span class="annot"><a href="Control.AutoUpdate.Types.html#UpdateSettings"><span class="hs-identifier hs-var">UpdateSettings</span></a></span></span><span>
+</span><span id="line-14"></span><span>    </span><span class="hs-special">{</span><span> </span><span id="updateFreq"><span class="annot"><span class="annottext">forall a. UpdateSettings a -&gt; Int
+</span><a href="Control.AutoUpdate.Types.html#updateFreq"><span class="hs-identifier hs-var hs-var">updateFreq</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>
+</span><span id="line-15"></span><span>    </span><span class="hs-comment">-- ^ Microseconds between update calls. Same considerations as</span><span>
+</span><span id="line-16"></span><span>    </span><span class="hs-comment">-- 'threadDelay' apply.</span><span>
+</span><span id="line-17"></span><span>    </span><span class="hs-comment">--</span><span>
+</span><span id="line-18"></span><span>    </span><span class="hs-comment">-- Default: 1000000 microseconds (1 second)</span><span>
+</span><span id="line-19"></span><span>    </span><span class="hs-comment">--</span><span>
+</span><span id="line-20"></span><span>    </span><span class="hs-comment">-- @since 0.1.0</span><span>
+</span><span id="line-21"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="updateSpawnThreshold"><span class="annot"><span class="annottext">forall a. UpdateSettings a -&gt; Int
+</span><a href="Control.AutoUpdate.Types.html#updateSpawnThreshold"><span class="hs-identifier hs-var hs-var">updateSpawnThreshold</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>
+</span><span id="line-22"></span><span>    </span><span class="hs-comment">-- ^ Obsoleted field.</span><span>
+</span><span id="line-23"></span><span>    </span><span class="hs-comment">--</span><span>
+</span><span id="line-24"></span><span>    </span><span class="hs-comment">-- @since 0.1.0</span><span>
+</span><span id="line-25"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="updateAction"><span class="annot"><span class="annottext">forall a. UpdateSettings a -&gt; IO a
+</span><a href="Control.AutoUpdate.Types.html#updateAction"><span class="hs-identifier hs-var hs-var">updateAction</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="#local-6989586621679041047"><span class="hs-identifier hs-type">a</span></a></span><span>
+</span><span id="line-26"></span><span>    </span><span class="hs-comment">-- ^ Action to be performed to get the current value.</span><span>
+</span><span id="line-27"></span><span>    </span><span class="hs-comment">--</span><span>
+</span><span id="line-28"></span><span>    </span><span class="hs-comment">-- Default: does nothing.</span><span>
+</span><span id="line-29"></span><span>    </span><span class="hs-comment">--</span><span>
+</span><span id="line-30"></span><span>    </span><span class="hs-comment">-- @since 0.1.0</span><span>
+</span><span id="line-31"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="updateThreadName"><span class="annot"><span class="annottext">forall a. UpdateSettings a -&gt; String
+</span><a href="Control.AutoUpdate.Types.html#updateThreadName"><span class="hs-identifier hs-var hs-var">updateThreadName</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span>
+</span><span id="line-32"></span><span>    </span><span class="hs-comment">-- ^ Label of the thread being forked.</span><span>
+</span><span id="line-33"></span><span>    </span><span class="hs-comment">--</span><span>
+</span><span id="line-34"></span><span>    </span><span class="hs-comment">-- Default: @&quot;AutoUpdate&quot;@</span><span>
+</span><span id="line-35"></span><span>    </span><span class="hs-comment">--</span><span>
+</span><span id="line-36"></span><span>    </span><span class="hs-comment">-- @since 0.2.2</span><span>
+</span><span id="line-37"></span><span>    </span><span class="hs-special">}</span><span>
+</span><span id="line-38"></span><span>
+</span><span id="line-39"></span><span class="hs-comment">-- | Default value for creating an 'UpdateSettings'.</span><span>
+</span><span id="line-40"></span><span class="hs-comment">--</span><span>
+</span><span id="line-41"></span><span class="hs-comment">-- @since 0.1.0</span><span>
+</span><span id="line-42"></span><span class="annot"><a href="Control.AutoUpdate.Types.html#defaultUpdateSettings"><span class="hs-identifier hs-type">defaultUpdateSettings</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Control.AutoUpdate.Types.html#UpdateSettings"><span class="hs-identifier hs-type">UpdateSettings</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-43"></span><span id="defaultUpdateSettings"><span class="annot"><span class="annottext">defaultUpdateSettings :: UpdateSettings ()
+</span><a href="Control.AutoUpdate.Types.html#defaultUpdateSettings"><span class="hs-identifier hs-var hs-var">defaultUpdateSettings</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-44"></span><span>    </span><span class="annot"><a href="Control.AutoUpdate.Types.html#UpdateSettings"><span class="hs-identifier hs-type">UpdateSettings</span></a></span><span>
+</span><span id="line-45"></span><span>        </span><span class="hs-special">{</span><span> </span><span class="annot"><span class="annottext">updateFreq :: Int
+</span><a href="Control.AutoUpdate.Types.html#updateFreq"><span class="hs-identifier hs-var">updateFreq</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1000000</span></span><span>
+</span><span id="line-46"></span><span>        </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">updateSpawnThreshold :: Int
+</span><a href="Control.AutoUpdate.Types.html#updateSpawnThreshold"><span class="hs-identifier hs-var">updateSpawnThreshold</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">3</span></span><span>
+</span><span id="line-47"></span><span>        </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">updateAction :: IO ()
+</span><a href="Control.AutoUpdate.Types.html#updateAction"><span class="hs-identifier hs-var">updateAction</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">() -&gt; IO ()
+forall a. a -&gt; IO a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-48"></span><span>        </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">updateThreadName :: String
+</span><a href="Control.AutoUpdate.Types.html#updateThreadName"><span class="hs-identifier hs-var">updateThreadName</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;AutoUpdate&quot;</span></span><span>
+</span><span id="line-49"></span><span>        </span><span class="hs-special">}</span><span>
+</span><span id="line-50"></span></pre></body></html>

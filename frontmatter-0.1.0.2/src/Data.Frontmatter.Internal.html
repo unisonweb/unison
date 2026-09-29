@@ -1,0 +1,48 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE OverloadedStrings #-}</span><span>
+</span><span id="line-2"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Data.Frontmatter.Internal.html"><span class="hs-identifier">Data.Frontmatter.Internal</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-3"></span><span>
+</span><span id="line-4"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Control.Applicative</span></span><span>              </span><span class="hs-special">(</span><span class="annot"><span class="hs-operator">(*&gt;)</span></span><span class="hs-special">)</span><span>
+</span><span id="line-5"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.Attoparsec.ByteString</span></span><span>
+</span><span id="line-6"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.Attoparsec.ByteString.Char8</span></span><span>
+</span><span id="line-7"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.ByteString</span></span><span>                  </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">ByteString</span></span><span class="hs-special">)</span><span>
+</span><span id="line-8"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.ByteString.Char8</span></span><span>            </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">ByteString</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">pack</span></span><span class="hs-special">)</span><span>
+</span><span id="line-9"></span><span>
+</span><span id="line-10"></span><span class="hs-comment">-- |</span><span>
+</span><span id="line-11"></span><span class="hs-comment">-- A parser for a frontmatter; returns it as a 'ByteString'. Doesn't fail even</span><span>
+</span><span id="line-12"></span><span class="hs-comment">-- if it's empty. When it fails; returns a a IResult with the whole input</span><span>
+</span><span id="line-13"></span><span class="hs-comment">-- rather than consuming it.</span><span>
+</span><span id="line-14"></span><span class="annot"><a href="Data.Frontmatter.Internal.html#frontmatter"><span class="hs-identifier hs-type">frontmatter</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Parser</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">ByteString</span></span><span>
+</span><span id="line-15"></span><span id="frontmatter"><span class="annot"><span class="annottext">frontmatter :: Parser ByteString
+</span><a href="Data.Frontmatter.Internal.html#frontmatter"><span class="hs-identifier hs-var hs-var">frontmatter</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Parser ByteString
+</span><a href="#local-6989586621679075484"><span class="hs-identifier hs-var">frontmatter'</span></a></span><span> </span><span class="annot"><span class="annottext">Parser ByteString -&gt; String -&gt; Parser ByteString
+forall i a. Parser i a -&gt; String -&gt; Parser i a
+</span><span class="hs-operator hs-var">&lt;?&gt;</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;frontmatter&quot;</span></span><span>
+</span><span id="line-16"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-17"></span><span>    </span><span id="local-6989586621679075484"><span class="annot"><span class="annottext">frontmatter' :: Parser ByteString
+</span><a href="#local-6989586621679075484"><span class="hs-identifier hs-var hs-var">frontmatter'</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-18"></span><span>        </span><span id="local-6989586621679075492"><span class="annot"><a href="#local-6989586621679075492"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Parser ()
+</span><a href="Data.Frontmatter.Internal.html#frontmatterSeparator"><span class="hs-identifier hs-var">frontmatterSeparator</span></a></span><span> </span><span class="annot"><span class="annottext">Parser () -&gt; Parser ByteString String -&gt; Parser ByteString String
+forall a b.
+Parser ByteString a -&gt; Parser ByteString b -&gt; Parser ByteString b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f a -&gt; f b -&gt; f b
+</span><span class="hs-operator hs-var">*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Parser ByteString Char -&gt; Parser () -&gt; Parser ByteString String
+forall (f :: * -&gt; *) a b. Alternative f =&gt; f a -&gt; f b -&gt; f [a]
+</span><span class="hs-identifier hs-var">manyTill</span></span><span> </span><span class="annot"><span class="annottext">Parser ByteString Char
+</span><span class="hs-identifier hs-var">anyChar</span></span><span> </span><span class="annot"><span class="annottext">Parser ()
+</span><a href="Data.Frontmatter.Internal.html#frontmatterSeparator"><span class="hs-identifier hs-var">frontmatterSeparator</span></a></span><span>
+</span><span id="line-19"></span><span>        </span><span class="annot"><span class="hs-identifier hs-type">return</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">$</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">ByteString.pack</span></span><span> </span><span class="annot"><a href="#local-6989586621679075492"><span class="hs-identifier hs-type">f</span></a></span><span>
+</span><span id="line-20"></span><span>
+</span><span id="line-21"></span><span class="hs-comment">-- |</span><span>
+</span><span id="line-22"></span><span class="hs-comment">-- Internal parser for the frontmatter separator</span><span>
+</span><span id="line-23"></span><span class="annot"><a href="Data.Frontmatter.Internal.html#frontmatterSeparator"><span class="hs-identifier hs-type">frontmatterSeparator</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Parser</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-24"></span><span id="frontmatterSeparator"><span class="annot"><span class="annottext">frontmatterSeparator :: Parser ()
+</span><a href="Data.Frontmatter.Internal.html#frontmatterSeparator"><span class="hs-identifier hs-var hs-var">frontmatterSeparator</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; Parser ByteString
+</span><span class="hs-identifier hs-var">string</span></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><span class="hs-string">&quot;---&quot;</span></span><span> </span><span class="annot"><span class="annottext">Parser ByteString -&gt; Parser () -&gt; Parser ()
+forall a b.
+Parser ByteString a -&gt; Parser ByteString b -&gt; Parser ByteString b
+forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; m b -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Parser ()
+</span><span class="hs-identifier hs-var">endOfLine</span></span><span>
+</span><span id="line-25"></span></pre></body></html>

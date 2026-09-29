@@ -1,0 +1,857 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="TextBuilder.Domains.Digits.html"><span class="hs-identifier">TextBuilder.Domains.Digits</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-2"></span><span>
+</span><span id="line-3"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Text.Array</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">TextArray</span></span><span>
+</span><span id="line-4"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="TextBuilder.Domains.Digits.Codepoints.html"><span class="hs-identifier">TextBuilder.Domains.Digits.Codepoints</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Codepoints</span></span><span>
+</span><span id="line-5"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="TextBuilder.Prelude.html"><span class="hs-identifier">TextBuilder.Prelude</span></a></span><span>
+</span><span id="line-6"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">TextBuilderCore</span></span><span>
+</span><span id="line-7"></span><span>
+</span><span id="line-8"></span><span class="annot"><span class="hs-comment">-- | Decimal digit.</span></span><span>
+</span><span id="line-9"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="TextBuilder.Domains.Digits.html#decimalDigit"><span class="hs-pragma hs-type">decimalDigit</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-10"></span><span id="local-6989586621679083283"><span class="annot"><a href="TextBuilder.Domains.Digits.html#decimalDigit"><span class="hs-identifier hs-type">decimalDigit</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Integral</span></span><span> </span><span class="annot"><a href="#local-6989586621679083283"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679083283"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">TextBuilder</span></span></span><span>
+</span><span id="line-11"></span><span id="decimalDigit"><span class="annot"><span class="annottext">decimalDigit :: forall a. Integral a =&gt; a -&gt; TextBuilder
+</span><a href="TextBuilder.Domains.Digits.html#decimalDigit"><span class="hs-identifier hs-var hs-var">decimalDigit</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a -&gt; Int
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span id="local-6989586621679083359"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679083359"><span class="hs-identifier hs-var">n</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-12"></span><span>  </span><span class="annot"><span class="annottext">Int -&gt; TextBuilder
+</span><span class="hs-identifier hs-var">unicodeCodepoint</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679083359"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">48</span></span><span class="hs-special">)</span><span>
+</span><span id="line-13"></span><span>
+</span><span id="line-14"></span><span class="annot"><span class="hs-comment">-- | Hexadecimal digit.</span></span><span>
+</span><span id="line-15"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="TextBuilder.Domains.Digits.html#hexadecimalDigit"><span class="hs-pragma hs-type">hexadecimalDigit</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-16"></span><span id="local-6989586621679083363"><span class="annot"><a href="TextBuilder.Domains.Digits.html#hexadecimalDigit"><span class="hs-identifier hs-type">hexadecimalDigit</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Integral</span></span><span> </span><span class="annot"><a href="#local-6989586621679083363"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679083363"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">TextBuilder</span></span></span><span>
+</span><span id="line-17"></span><span id="hexadecimalDigit"><span class="annot"><span class="annottext">hexadecimalDigit :: forall a. Integral a =&gt; a -&gt; TextBuilder
+</span><a href="TextBuilder.Domains.Digits.html#hexadecimalDigit"><span class="hs-identifier hs-var hs-var">hexadecimalDigit</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a -&gt; Int
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span id="local-6989586621679083374"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679083374"><span class="hs-identifier hs-var">n</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-18"></span><span>  </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679083374"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&lt;=</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">9</span></span><span>
+</span><span id="line-19"></span><span>    </span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="annottext">Int -&gt; TextBuilder
+</span><span class="hs-identifier hs-var">unicodeCodepoint</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679083374"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">48</span></span><span class="hs-special">)</span><span>
+</span><span id="line-20"></span><span>    </span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="annottext">Int -&gt; TextBuilder
+</span><span class="hs-identifier hs-var">unicodeCodepoint</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679083374"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">87</span></span><span class="hs-special">)</span><span>
+</span><span id="line-21"></span><span>
+</span><span id="line-22"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="TextBuilder.Domains.Digits.html#customFixedNumeralSystem"><span class="hs-pragma hs-type">customFixedNumeralSystem</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-23"></span><span id="local-6989586621679083291"><span class="annot"><a href="TextBuilder.Domains.Digits.html#customFixedNumeralSystem"><span class="hs-identifier hs-type">customFixedNumeralSystem</span></a></span><span> </span><span class="hs-glyph">::</span><span>
+</span><span id="line-24"></span><span>  </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">FiniteBits</span></span><span> </span><span class="annot"><a href="#local-6989586621679083291"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Integral</span></span><span> </span><span class="annot"><a href="#local-6989586621679083291"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span>
+</span><span id="line-25"></span><span>  </span><span class="annot"><span class="hs-comment">-- | Number of bits per digit.</span></span><span>
+</span><span id="line-26"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-27"></span><span>  </span><span class="annot"><span class="hs-comment">-- | Projection to codepoint with handling of overflow.</span></span><span>
+</span><span id="line-28"></span><span>  </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679083291"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679083291"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-29"></span><span>  </span><span class="annot"><span class="hs-comment">-- | Value.</span></span><span>
+</span><span id="line-30"></span><span>  </span><span class="annot"><a href="#local-6989586621679083291"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-31"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">TextBuilder</span></span></span><span>
+</span><span id="line-32"></span><span id="customFixedNumeralSystem"><span class="annot"><span class="annottext">customFixedNumeralSystem :: forall a.
+(FiniteBits a, Integral a) =&gt;
+Int -&gt; (a -&gt; a) -&gt; a -&gt; TextBuilder
+</span><a href="TextBuilder.Domains.Digits.html#customFixedNumeralSystem"><span class="hs-identifier hs-var hs-var">customFixedNumeralSystem</span></a></span></span><span> </span><span id="local-6989586621679083387"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679083387"><span class="hs-identifier hs-var">bitsPerDigit</span></a></span></span><span> </span><span id="local-6989586621679083388"><span class="annot"><span class="annottext">a -&gt; a
+</span><a href="#local-6989586621679083388"><span class="hs-identifier hs-var">digitCodepoint</span></a></span></span><span> </span><span id="local-6989586621679083389"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679083389"><span class="hs-identifier hs-var">val</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-33"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679083390"><span class="annot"><span class="annottext">size :: Int
+</span><a href="#local-6989586621679083390"><span class="hs-identifier hs-var hs-var">size</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Integral a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-identifier hs-var">div</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a -&gt; Int
+forall b. FiniteBits b =&gt; b -&gt; Int
+</span><span class="hs-identifier hs-var">finiteBitSize</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679083389"><span class="hs-identifier hs-var">val</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679083387"><span class="hs-identifier hs-var">bitsPerDigit</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679083387"><span class="hs-identifier hs-var">bitsPerDigit</span></a></span><span>
+</span><span id="line-34"></span><span>   </span><span class="hs-keyword">in</span><span> </span><span class="annot"><span class="annottext">Int -&gt; (forall s. MArray s -&gt; Int -&gt; ST s Int) -&gt; TextBuilder
+</span><span class="hs-identifier hs-var">TextBuilder</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679083390"><span class="hs-identifier hs-var">size</span></a></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679083406"><span class="annot"><span class="annottext">MArray s
+</span><a href="#local-6989586621679083406"><span class="hs-identifier hs-var">array</span></a></span></span><span> </span><span id="local-6989586621679083407"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679083407"><span class="hs-identifier hs-var">arrayStartIndex</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-35"></span><span>        </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679083408"><span class="annot"><span class="annottext">go :: a -&gt; Int -&gt; ST s Int
+</span><a href="#local-6989586621679083408"><span class="hs-identifier hs-var hs-var">go</span></a></span></span><span> </span><span id="local-6989586621679083409"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679083409"><span class="hs-identifier hs-var">val</span></a></span></span><span> </span><span id="local-6989586621679083410"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679083410"><span class="hs-identifier hs-var">arrayIndex</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-36"></span><span>              </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679083410"><span class="hs-identifier hs-var">arrayIndex</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&gt;=</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679083407"><span class="hs-identifier hs-var">arrayStartIndex</span></a></span><span>
+</span><span id="line-37"></span><span>                </span><span class="hs-keyword">then</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-38"></span><span>                  </span><span class="annot"><span class="annottext">MArray s -&gt; Int -&gt; Word8 -&gt; ST s ()
+forall s. MArray s -&gt; Int -&gt; Word8 -&gt; ST s ()
+</span><span class="hs-identifier hs-var">TextArray.unsafeWrite</span></span><span> </span><span class="annot"><span class="annottext">MArray s
+</span><a href="#local-6989586621679083406"><span class="hs-identifier hs-var">array</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679083410"><span class="hs-identifier hs-var">arrayIndex</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a -&gt; Word8
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a -&gt; a
+</span><a href="#local-6989586621679083388"><span class="hs-identifier hs-var">digitCodepoint</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679083409"><span class="hs-identifier hs-var">val</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-39"></span><span>                  </span><span class="annot"><span class="annottext">a -&gt; Int -&gt; ST s Int
+</span><a href="#local-6989586621679083408"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a -&gt; Int -&gt; a
+forall a. Bits a =&gt; a -&gt; Int -&gt; a
+</span><span class="hs-identifier hs-var">unsafeShiftR</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679083409"><span class="hs-identifier hs-var">val</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679083387"><span class="hs-identifier hs-var">bitsPerDigit</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; Int
+forall a. Enum a =&gt; a -&gt; a
+</span><span class="hs-identifier hs-var">pred</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679083410"><span class="hs-identifier hs-var">arrayIndex</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-40"></span><span>                </span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="annottext">Int -&gt; ST s Int
+forall a. a -&gt; ST s a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679083414"><span class="hs-identifier hs-var">indexAfter</span></a></span><span>
+</span><span id="line-41"></span><span>            </span><span id="local-6989586621679083414"><span class="annot"><span class="annottext">indexAfter :: Int
+</span><a href="#local-6989586621679083414"><span class="hs-identifier hs-var hs-var">indexAfter</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-42"></span><span>              </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679083407"><span class="hs-identifier hs-var">arrayStartIndex</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679083390"><span class="hs-identifier hs-var">size</span></a></span><span>
+</span><span id="line-43"></span><span>         </span><span class="hs-keyword">in</span><span> </span><span class="annot"><span class="annottext">a -&gt; Int -&gt; ST s Int
+</span><a href="#local-6989586621679083408"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679083389"><span class="hs-identifier hs-var">val</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; Int
+forall a. Enum a =&gt; a -&gt; a
+</span><span class="hs-identifier hs-var">pred</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679083414"><span class="hs-identifier hs-var">indexAfter</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-44"></span><span>
+</span><span id="line-45"></span><span class="hs-comment">-- |</span><span>
+</span><span id="line-46"></span><span class="hs-comment">-- [Two's complement](https://en.wikipedia.org/wiki/Two%27s_complement) binary representation of a value.</span><span>
+</span><span id="line-47"></span><span class="hs-comment">--</span><span>
+</span><span id="line-48"></span><span class="hs-comment">-- Bits of a statically sized value padded from the left according to the size.</span><span>
+</span><span id="line-49"></span><span class="hs-comment">-- If it's a negatable integer, the sign is reflected in the bits.</span><span>
+</span><span id="line-50"></span><span class="hs-comment">--</span><span>
+</span><span id="line-51"></span><span class="hs-comment">-- &gt;&gt;&gt; binary @Int8 0</span><span>
+</span><span id="line-52"></span><span class="hs-comment">-- &quot;00000000&quot;</span><span>
+</span><span id="line-53"></span><span class="hs-comment">--</span><span>
+</span><span id="line-54"></span><span class="hs-comment">-- &gt;&gt;&gt; binary @Int8 4</span><span>
+</span><span id="line-55"></span><span class="hs-comment">-- &quot;00000100&quot;</span><span>
+</span><span id="line-56"></span><span class="hs-comment">--</span><span>
+</span><span id="line-57"></span><span class="hs-comment">-- &gt;&gt;&gt; binary @Int8 (-1)</span><span>
+</span><span id="line-58"></span><span class="hs-comment">-- &quot;11111111&quot;</span><span>
+</span><span id="line-59"></span><span class="hs-comment">--</span><span>
+</span><span id="line-60"></span><span class="hs-comment">-- &gt;&gt;&gt; binary @Word8 255</span><span>
+</span><span id="line-61"></span><span class="hs-comment">-- &quot;11111111&quot;</span><span>
+</span><span id="line-62"></span><span class="hs-comment">--</span><span>
+</span><span id="line-63"></span><span class="hs-comment">-- &gt;&gt;&gt; binary @Int16 4</span><span>
+</span><span id="line-64"></span><span class="hs-comment">-- &quot;0000000000000100&quot;</span><span>
+</span><span id="line-65"></span><span class="hs-comment">--</span><span>
+</span><span id="line-66"></span><span class="hs-comment">-- &gt;&gt;&gt; binary @Int16 (-4)</span><span>
+</span><span id="line-67"></span><span class="hs-comment">-- &quot;1111111111111100&quot;</span><span>
+</span><span id="line-68"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="TextBuilder.Domains.Digits.html#binary"><span class="hs-pragma hs-type">binary</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-69"></span><span id="local-6989586621679083307"><span class="annot"><a href="TextBuilder.Domains.Digits.html#binary"><span class="hs-identifier hs-type">binary</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">FiniteBits</span></span><span> </span><span class="annot"><a href="#local-6989586621679083307"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679083307"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">TextBuilder</span></span></span><span>
+</span><span id="line-70"></span><span id="binary"><span class="annot"><span class="annottext">binary :: forall a. FiniteBits a =&gt; a -&gt; TextBuilder
+</span><a href="TextBuilder.Domains.Digits.html#binary"><span class="hs-identifier hs-var hs-var">binary</span></a></span></span><span> </span><span id="local-6989586621679083419"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679083419"><span class="hs-identifier hs-var">val</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-71"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679083420"><span class="annot"><span class="annottext">size :: Int
+</span><a href="#local-6989586621679083420"><span class="hs-identifier hs-var hs-var">size</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">a -&gt; Int
+forall b. FiniteBits b =&gt; b -&gt; Int
+</span><span class="hs-identifier hs-var">finiteBitSize</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679083419"><span class="hs-identifier hs-var">val</span></a></span><span>
+</span><span id="line-72"></span><span>   </span><span class="hs-keyword">in</span><span> </span><span class="annot"><span class="annottext">Int -&gt; (forall s. MArray s -&gt; Int -&gt; ST s Int) -&gt; TextBuilder
+</span><span class="hs-identifier hs-var">TextBuilder</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679083420"><span class="hs-identifier hs-var">size</span></a></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679083431"><span class="annot"><span class="annottext">MArray s
+</span><a href="#local-6989586621679083431"><span class="hs-identifier hs-var">array</span></a></span></span><span> </span><span id="local-6989586621679083432"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679083432"><span class="hs-identifier hs-var">arrayStartIndex</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-73"></span><span>        </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679083433"><span class="annot"><span class="annottext">go :: a -&gt; Int -&gt; ST s Int
+</span><a href="#local-6989586621679083433"><span class="hs-identifier hs-var hs-var">go</span></a></span></span><span> </span><span id="local-6989586621679083434"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679083434"><span class="hs-identifier hs-var">val</span></a></span></span><span> </span><span id="local-6989586621679083435"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679083435"><span class="hs-identifier hs-var">arrayIndex</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-74"></span><span>              </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679083435"><span class="hs-identifier hs-var">arrayIndex</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&gt;=</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679083432"><span class="hs-identifier hs-var">arrayStartIndex</span></a></span><span>
+</span><span id="line-75"></span><span>                </span><span class="hs-keyword">then</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-76"></span><span>                  </span><span class="annot"><span class="annottext">MArray s -&gt; Int -&gt; Word8 -&gt; ST s ()
+forall s. MArray s -&gt; Int -&gt; Word8 -&gt; ST s ()
+</span><span class="hs-identifier hs-var">TextArray.unsafeWrite</span></span><span> </span><span class="annot"><span class="annottext">MArray s
+</span><a href="#local-6989586621679083431"><span class="hs-identifier hs-var">array</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679083435"><span class="hs-identifier hs-var">arrayIndex</span></a></span><span> </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">a -&gt; Int -&gt; Bool
+forall a. Bits a =&gt; a -&gt; Int -&gt; Bool
+</span><span class="hs-identifier hs-var">testBit</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679083434"><span class="hs-identifier hs-var">val</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span> </span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">49</span></span><span> </span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">48</span></span><span>
+</span><span id="line-77"></span><span>                  </span><span class="annot"><span class="annottext">a -&gt; Int -&gt; ST s Int
+</span><a href="#local-6989586621679083433"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a -&gt; Int -&gt; a
+forall a. Bits a =&gt; a -&gt; Int -&gt; a
+</span><span class="hs-identifier hs-var">unsafeShiftR</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679083434"><span class="hs-identifier hs-var">val</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; Int
+forall a. Enum a =&gt; a -&gt; a
+</span><span class="hs-identifier hs-var">pred</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679083435"><span class="hs-identifier hs-var">arrayIndex</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-78"></span><span>                </span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="annottext">Int -&gt; ST s Int
+forall a. a -&gt; ST s a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679083437"><span class="hs-identifier hs-var">indexAfter</span></a></span><span>
+</span><span id="line-79"></span><span>            </span><span id="local-6989586621679083437"><span class="annot"><span class="annottext">indexAfter :: Int
+</span><a href="#local-6989586621679083437"><span class="hs-identifier hs-var hs-var">indexAfter</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-80"></span><span>              </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679083432"><span class="hs-identifier hs-var">arrayStartIndex</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679083420"><span class="hs-identifier hs-var">size</span></a></span><span>
+</span><span id="line-81"></span><span>         </span><span class="hs-keyword">in</span><span> </span><span class="annot"><span class="annottext">a -&gt; Int -&gt; ST s Int
+</span><a href="#local-6989586621679083433"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679083419"><span class="hs-identifier hs-var">val</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; Int
+forall a. Enum a =&gt; a -&gt; a
+</span><span class="hs-identifier hs-var">pred</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679083437"><span class="hs-identifier hs-var">indexAfter</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-82"></span><span>
+</span><span id="line-83"></span><span class="hs-comment">-- |</span><span>
+</span><span id="line-84"></span><span class="hs-comment">-- Same as 'binary', but with the \&quot;0b\&quot; prefix.</span><span>
+</span><span id="line-85"></span><span class="hs-comment">--</span><span>
+</span><span id="line-86"></span><span class="hs-comment">-- &gt;&gt;&gt; prefixedBinary @Int8 0</span><span>
+</span><span id="line-87"></span><span class="hs-comment">-- &quot;0b00000000&quot;</span><span>
+</span><span id="line-88"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="TextBuilder.Domains.Digits.html#prefixedBinary"><span class="hs-pragma hs-type">prefixedBinary</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-89"></span><span id="local-6989586621679083439"><span class="annot"><a href="TextBuilder.Domains.Digits.html#prefixedBinary"><span class="hs-identifier hs-type">prefixedBinary</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">FiniteBits</span></span><span> </span><span class="annot"><a href="#local-6989586621679083439"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679083439"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">TextBuilder</span></span></span><span>
+</span><span id="line-90"></span><span id="prefixedBinary"><span class="annot"><span class="annottext">prefixedBinary :: forall a. FiniteBits a =&gt; a -&gt; TextBuilder
+</span><a href="TextBuilder.Domains.Digits.html#prefixedBinary"><span class="hs-identifier hs-var hs-var">prefixedBinary</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">TextBuilder -&gt; TextBuilder -&gt; TextBuilder
+forall a. Monoid a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-identifier hs-var">mappend</span></span><span> </span><span class="annot"><span class="annottext">TextBuilder
+</span><span class="hs-string">&quot;0b&quot;</span></span><span> </span><span class="annot"><span class="annottext">(TextBuilder -&gt; TextBuilder)
+-&gt; (a -&gt; TextBuilder) -&gt; a -&gt; TextBuilder
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+forall {k} (cat :: k -&gt; k -&gt; *) (b :: k) (c :: k) (a :: k).
+Category cat =&gt;
+cat b c -&gt; cat a b -&gt; cat a c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; TextBuilder
+forall a. FiniteBits a =&gt; a -&gt; TextBuilder
+</span><a href="TextBuilder.Domains.Digits.html#binary"><span class="hs-identifier hs-var">binary</span></a></span><span>
+</span><span id="line-91"></span><span>
+</span><span id="line-92"></span><span class="hs-comment">-- | Octal representation of an integer.</span><span>
+</span><span id="line-93"></span><span class="hs-comment">--</span><span>
+</span><span id="line-94"></span><span class="hs-comment">-- &gt;&gt;&gt; octal @Int32 123456</span><span>
+</span><span id="line-95"></span><span class="hs-comment">-- &quot;00000361100&quot;</span><span>
+</span><span id="line-96"></span><span class="hs-comment">--</span><span>
+</span><span id="line-97"></span><span class="hs-comment">-- &gt;&gt;&gt; octal @Int32 (-123456)</span><span>
+</span><span id="line-98"></span><span class="hs-comment">-- &quot;77777416700&quot;</span><span>
+</span><span id="line-99"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="TextBuilder.Domains.Digits.html#octal"><span class="hs-pragma hs-type">octal</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-100"></span><span id="local-6989586621679083319"><span class="annot"><a href="TextBuilder.Domains.Digits.html#octal"><span class="hs-identifier hs-type">octal</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">FiniteBits</span></span><span> </span><span class="annot"><a href="#local-6989586621679083319"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Integral</span></span><span> </span><span class="annot"><a href="#local-6989586621679083319"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679083319"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">TextBuilder</span></span></span><span>
+</span><span id="line-101"></span><span id="octal"><span class="annot"><span class="annottext">octal :: forall a. (FiniteBits a, Integral a) =&gt; a -&gt; TextBuilder
+</span><a href="TextBuilder.Domains.Digits.html#octal"><span class="hs-identifier hs-var hs-var">octal</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; (a -&gt; a) -&gt; a -&gt; TextBuilder
+forall a.
+(FiniteBits a, Integral a) =&gt;
+Int -&gt; (a -&gt; a) -&gt; a -&gt; TextBuilder
+</span><a href="TextBuilder.Domains.Digits.html#customFixedNumeralSystem"><span class="hs-identifier hs-var">customFixedNumeralSystem</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">3</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a -&gt; a
+forall a. (Bits a, Num a) =&gt; a -&gt; a
+</span><a href="TextBuilder.Domains.Digits.Codepoints.html#octalDigit"><span class="hs-identifier hs-var">Codepoints.octalDigit</span></a></span><span> </span><span class="annot"><span class="annottext">(a -&gt; a) -&gt; (a -&gt; a) -&gt; a -&gt; a
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+forall {k} (cat :: k -&gt; k -&gt; *) (b :: k) (c :: k) (a :: k).
+Category cat =&gt;
+cat b c -&gt; cat a b -&gt; cat a c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; a
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span class="hs-special">)</span><span>
+</span><span id="line-102"></span><span>
+</span><span id="line-103"></span><span class="hs-comment">-- |</span><span>
+</span><span id="line-104"></span><span class="hs-comment">-- Same as 'octal', but with the \&quot;0o\&quot; prefix.</span><span>
+</span><span id="line-105"></span><span class="hs-comment">--</span><span>
+</span><span id="line-106"></span><span class="hs-comment">-- &gt;&gt;&gt; prefixedOctal @Int8 0</span><span>
+</span><span id="line-107"></span><span class="hs-comment">-- &quot;0o000&quot;</span><span>
+</span><span id="line-108"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="TextBuilder.Domains.Digits.html#prefixedOctal"><span class="hs-pragma hs-type">prefixedOctal</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-109"></span><span id="local-6989586621679083466"><span class="annot"><a href="TextBuilder.Domains.Digits.html#prefixedOctal"><span class="hs-identifier hs-type">prefixedOctal</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">FiniteBits</span></span><span> </span><span class="annot"><a href="#local-6989586621679083466"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Integral</span></span><span> </span><span class="annot"><a href="#local-6989586621679083466"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679083466"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">TextBuilder</span></span></span><span>
+</span><span id="line-110"></span><span id="prefixedOctal"><span class="annot"><span class="annottext">prefixedOctal :: forall a. (FiniteBits a, Integral a) =&gt; a -&gt; TextBuilder
+</span><a href="TextBuilder.Domains.Digits.html#prefixedOctal"><span class="hs-identifier hs-var hs-var">prefixedOctal</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">TextBuilder -&gt; TextBuilder -&gt; TextBuilder
+forall a. Monoid a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-identifier hs-var">mappend</span></span><span> </span><span class="annot"><span class="annottext">TextBuilder
+</span><span class="hs-string">&quot;0o&quot;</span></span><span> </span><span class="annot"><span class="annottext">(TextBuilder -&gt; TextBuilder)
+-&gt; (a -&gt; TextBuilder) -&gt; a -&gt; TextBuilder
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+forall {k} (cat :: k -&gt; k -&gt; *) (b :: k) (c :: k) (a :: k).
+Category cat =&gt;
+cat b c -&gt; cat a b -&gt; cat a c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; TextBuilder
+forall a. (FiniteBits a, Integral a) =&gt; a -&gt; TextBuilder
+</span><a href="TextBuilder.Domains.Digits.html#octal"><span class="hs-identifier hs-var">octal</span></a></span><span>
+</span><span id="line-111"></span><span>
+</span><span id="line-112"></span><span class="hs-comment">-- | Integer in hexadecimal notation with a fixed number of digits determined by the size of the type.</span><span>
+</span><span id="line-113"></span><span class="hs-comment">--</span><span>
+</span><span id="line-114"></span><span class="hs-comment">-- &gt;&gt;&gt; hexadecimal @Int8 0</span><span>
+</span><span id="line-115"></span><span class="hs-comment">-- &quot;00&quot;</span><span>
+</span><span id="line-116"></span><span class="hs-comment">--</span><span>
+</span><span id="line-117"></span><span class="hs-comment">-- &gt;&gt;&gt; hexadecimal @Int8 4</span><span>
+</span><span id="line-118"></span><span class="hs-comment">-- &quot;04&quot;</span><span>
+</span><span id="line-119"></span><span class="hs-comment">--</span><span>
+</span><span id="line-120"></span><span class="hs-comment">-- &gt;&gt;&gt; hexadecimal @Int8 (-128)</span><span>
+</span><span id="line-121"></span><span class="hs-comment">-- &quot;80&quot;</span><span>
+</span><span id="line-122"></span><span class="hs-comment">--</span><span>
+</span><span id="line-123"></span><span class="hs-comment">-- &gt;&gt;&gt; hexadecimal @Int8 (-1)</span><span>
+</span><span id="line-124"></span><span class="hs-comment">-- &quot;ff&quot;</span><span>
+</span><span id="line-125"></span><span class="hs-comment">--</span><span>
+</span><span id="line-126"></span><span class="hs-comment">-- &gt;&gt;&gt; hexadecimal @Word8 255</span><span>
+</span><span id="line-127"></span><span class="hs-comment">-- &quot;ff&quot;</span><span>
+</span><span id="line-128"></span><span class="hs-comment">--</span><span>
+</span><span id="line-129"></span><span class="hs-comment">-- &gt;&gt;&gt; hexadecimal @Int32 123456</span><span>
+</span><span id="line-130"></span><span class="hs-comment">-- &quot;0001e240&quot;</span><span>
+</span><span id="line-131"></span><span class="hs-comment">--</span><span>
+</span><span id="line-132"></span><span class="hs-comment">-- &gt;&gt;&gt; hexadecimal @Int32 (-123456)</span><span>
+</span><span id="line-133"></span><span class="hs-comment">-- &quot;fffe1dc0&quot;</span><span>
+</span><span id="line-134"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="TextBuilder.Domains.Digits.html#hexadecimal"><span class="hs-pragma hs-type">hexadecimal</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-135"></span><span id="local-6989586621679083475"><span class="annot"><a href="TextBuilder.Domains.Digits.html#hexadecimal"><span class="hs-identifier hs-type">hexadecimal</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">FiniteBits</span></span><span> </span><span class="annot"><a href="#local-6989586621679083475"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Integral</span></span><span> </span><span class="annot"><a href="#local-6989586621679083475"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679083475"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">TextBuilder</span></span></span><span>
+</span><span id="line-136"></span><span id="hexadecimal"><span class="annot"><span class="annottext">hexadecimal :: forall a. (FiniteBits a, Integral a) =&gt; a -&gt; TextBuilder
+</span><a href="TextBuilder.Domains.Digits.html#hexadecimal"><span class="hs-identifier hs-var hs-var">hexadecimal</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; (a -&gt; a) -&gt; a -&gt; TextBuilder
+forall a.
+(FiniteBits a, Integral a) =&gt;
+Int -&gt; (a -&gt; a) -&gt; a -&gt; TextBuilder
+</span><a href="TextBuilder.Domains.Digits.html#customFixedNumeralSystem"><span class="hs-identifier hs-var">customFixedNumeralSystem</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">4</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a -&gt; a
+forall a. (Bits a, Num a, Ord a) =&gt; a -&gt; a
+</span><a href="TextBuilder.Domains.Digits.Codepoints.html#hexDigit"><span class="hs-identifier hs-var">Codepoints.hexDigit</span></a></span><span> </span><span class="annot"><span class="annottext">(a -&gt; a) -&gt; (a -&gt; a) -&gt; a -&gt; a
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+forall {k} (cat :: k -&gt; k -&gt; *) (b :: k) (c :: k) (a :: k).
+Category cat =&gt;
+cat b c -&gt; cat a b -&gt; cat a c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; a
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span class="hs-special">)</span><span>
+</span><span id="line-137"></span><span>
+</span><span id="line-138"></span><span class="hs-comment">-- |</span><span>
+</span><span id="line-139"></span><span class="hs-comment">-- Same as 'hexadecimal', but with the \&quot;0x\&quot; prefix.</span><span>
+</span><span id="line-140"></span><span class="hs-comment">--</span><span>
+</span><span id="line-141"></span><span class="hs-comment">-- &gt;&gt;&gt; prefixedHexadecimal @Int8 0</span><span>
+</span><span id="line-142"></span><span class="hs-comment">-- &quot;0x00&quot;</span><span>
+</span><span id="line-143"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="TextBuilder.Domains.Digits.html#prefixedHexadecimal"><span class="hs-pragma hs-type">prefixedHexadecimal</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-144"></span><span id="local-6989586621679083493"><span class="annot"><a href="TextBuilder.Domains.Digits.html#prefixedHexadecimal"><span class="hs-identifier hs-type">prefixedHexadecimal</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">FiniteBits</span></span><span> </span><span class="annot"><a href="#local-6989586621679083493"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Integral</span></span><span> </span><span class="annot"><a href="#local-6989586621679083493"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679083493"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">TextBuilder</span></span></span><span>
+</span><span id="line-145"></span><span id="prefixedHexadecimal"><span class="annot"><span class="annottext">prefixedHexadecimal :: forall a. (FiniteBits a, Integral a) =&gt; a -&gt; TextBuilder
+</span><a href="TextBuilder.Domains.Digits.html#prefixedHexadecimal"><span class="hs-identifier hs-var hs-var">prefixedHexadecimal</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">TextBuilder -&gt; TextBuilder -&gt; TextBuilder
+forall a. Monoid a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-identifier hs-var">mappend</span></span><span> </span><span class="annot"><span class="annottext">TextBuilder
+</span><span class="hs-string">&quot;0x&quot;</span></span><span> </span><span class="annot"><span class="annottext">(TextBuilder -&gt; TextBuilder)
+-&gt; (a -&gt; TextBuilder) -&gt; a -&gt; TextBuilder
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+forall {k} (cat :: k -&gt; k -&gt; *) (b :: k) (c :: k) (a :: k).
+Category cat =&gt;
+cat b c -&gt; cat a b -&gt; cat a c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; TextBuilder
+forall a. (FiniteBits a, Integral a) =&gt; a -&gt; TextBuilder
+</span><a href="TextBuilder.Domains.Digits.html#hexadecimal"><span class="hs-identifier hs-var">hexadecimal</span></a></span><span>
+</span><span id="line-146"></span><span>
+</span><span id="line-147"></span><span class="annot"><span class="hs-comment">-- * Signed Numbers</span></span><span>
+</span><span id="line-148"></span><span>
+</span><span id="line-149"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="TextBuilder.Domains.Digits.html#signed"><span class="hs-pragma hs-type">signed</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-150"></span><span id="local-6989586621679083327"><span class="annot"><a href="TextBuilder.Domains.Digits.html#signed"><span class="hs-identifier hs-type">signed</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Integral</span></span><span> </span><span class="annot"><a href="#local-6989586621679083327"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-special">(</span><span class="hs-keyword">forall</span><span> </span><span id="local-6989586621679083502"><span class="annot"><a href="#local-6989586621679083502"><span class="hs-identifier hs-type">a</span></a></span></span><span class="hs-operator">.</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Integral</span></span><span> </span><span class="annot"><a href="#local-6989586621679083502"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679083502"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">TextBuilder</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679083327"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">TextBuilder</span></span></span><span>
+</span><span id="line-151"></span><span id="signed"><span class="annot"><span class="annottext">signed :: forall a.
+Integral a =&gt;
+(forall a. Integral a =&gt; a -&gt; TextBuilder) -&gt; a -&gt; TextBuilder
+</span><a href="TextBuilder.Domains.Digits.html#signed"><span class="hs-identifier hs-var hs-var">signed</span></a></span></span><span> </span><span id="local-6989586621679083523"><span class="annot"><span class="annottext">forall a. Integral a =&gt; a -&gt; TextBuilder
+</span><a href="#local-6989586621679083523"><span class="hs-identifier hs-var">onUnsigned</span></a></span></span><span> </span><span id="local-6989586621679083524"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679083524"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-152"></span><span>  </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679083524"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="annot"><span class="annottext">a -&gt; a -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&gt;=</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><span class="hs-number">0</span></span><span>
+</span><span id="line-153"></span><span>    </span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="annottext">a -&gt; TextBuilder
+forall a. Integral a =&gt; a -&gt; TextBuilder
+</span><a href="#local-6989586621679083523"><span class="hs-identifier hs-var">onUnsigned</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679083524"><span class="hs-identifier hs-var">a</span></a></span><span>
+</span><span id="line-154"></span><span>    </span><span class="hs-keyword">else</span><span>
+</span><span id="line-155"></span><span>      </span><span class="annot"><span class="annottext">Int -&gt; TextBuilder
+</span><span class="hs-identifier hs-var">unicodeCodepoint</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">45</span></span><span>
+</span><span id="line-156"></span><span>        </span><span class="annot"><span class="annottext">TextBuilder -&gt; TextBuilder -&gt; TextBuilder
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679083525"><span class="annot"><span class="annottext">negated :: a
+</span><a href="#local-6989586621679083525"><span class="hs-identifier hs-var hs-var">negated</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">a -&gt; a
+forall a. Num a =&gt; a -&gt; a
+</span><span class="hs-identifier hs-var">negate</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679083524"><span class="hs-identifier hs-var">a</span></a></span><span>
+</span><span id="line-157"></span><span>            </span><span class="hs-keyword">in</span><span> </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679083525"><span class="hs-identifier hs-var">negated</span></a></span><span> </span><span class="annot"><span class="annottext">a -&gt; a -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">/=</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679083524"><span class="hs-identifier hs-var">a</span></a></span><span>
+</span><span id="line-158"></span><span>                 </span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="annottext">a -&gt; TextBuilder
+forall a. Integral a =&gt; a -&gt; TextBuilder
+</span><a href="#local-6989586621679083523"><span class="hs-identifier hs-var">onUnsigned</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679083525"><span class="hs-identifier hs-var">negated</span></a></span><span>
+</span><span id="line-159"></span><span>                 </span><span class="hs-keyword">else</span><span>
+</span><span id="line-160"></span><span>                   </span><span class="hs-comment">-- This is a special case for the minimum value of signed types.</span><span>
+</span><span id="line-161"></span><span>                   </span><span class="hs-comment">-- The negation of the minimum value is not representable in the same type.</span><span>
+</span><span id="line-162"></span><span>                   </span><span class="hs-comment">-- For example, for Int8, -128 is not representable as a positive number.</span><span>
+</span><span id="line-163"></span><span>                   </span><span class="annot"><span class="annottext">Integer -&gt; TextBuilder
+forall a. Integral a =&gt; a -&gt; TextBuilder
+</span><a href="#local-6989586621679083523"><span class="hs-identifier hs-var">onUnsigned</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Integer -&gt; Integer
+forall a. Num a =&gt; a -&gt; a
+</span><span class="hs-identifier hs-var">negate</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a -&gt; Integer
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679083524"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Integer</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-164"></span><span>
+</span><span id="line-165"></span><span class="hs-comment">-- | Signed decimal representation of an integer.</span><span>
+</span><span id="line-166"></span><span class="hs-comment">--</span><span>
+</span><span id="line-167"></span><span class="hs-comment">-- &gt;&gt;&gt; decimal 123456</span><span>
+</span><span id="line-168"></span><span class="hs-comment">-- &quot;123456&quot;</span><span>
+</span><span id="line-169"></span><span class="hs-comment">--</span><span>
+</span><span id="line-170"></span><span class="hs-comment">-- &gt;&gt;&gt; decimal (-123456)</span><span>
+</span><span id="line-171"></span><span class="hs-comment">-- &quot;-123456&quot;</span><span>
+</span><span id="line-172"></span><span class="hs-comment">--</span><span>
+</span><span id="line-173"></span><span class="hs-comment">-- &gt;&gt;&gt; decimal 0</span><span>
+</span><span id="line-174"></span><span class="hs-comment">-- &quot;0&quot;</span><span>
+</span><span id="line-175"></span><span class="hs-comment">--</span><span>
+</span><span id="line-176"></span><span class="hs-comment">-- &gt;&gt;&gt; decimal (-2 :: Int8)</span><span>
+</span><span id="line-177"></span><span class="hs-comment">-- &quot;-2&quot;</span><span>
+</span><span id="line-178"></span><span class="hs-comment">--</span><span>
+</span><span id="line-179"></span><span class="hs-comment">-- &gt;&gt;&gt; decimal (-128 :: Int8)</span><span>
+</span><span id="line-180"></span><span class="hs-comment">-- &quot;-128&quot;</span><span>
+</span><span id="line-181"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="TextBuilder.Domains.Digits.html#decimal"><span class="hs-pragma hs-type">decimal</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-182"></span><span id="local-6989586621679083528"><span class="annot"><a href="TextBuilder.Domains.Digits.html#decimal"><span class="hs-identifier hs-type">decimal</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Integral</span></span><span> </span><span class="annot"><a href="#local-6989586621679083528"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679083528"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">TextBuilder</span></span></span><span>
+</span><span id="line-183"></span><span id="decimal"><span class="annot"><span class="annottext">decimal :: forall a. Integral a =&gt; a -&gt; TextBuilder
+</span><a href="TextBuilder.Domains.Digits.html#decimal"><span class="hs-identifier hs-var hs-var">decimal</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(forall a. Integral a =&gt; a -&gt; TextBuilder) -&gt; a -&gt; TextBuilder
+forall a.
+Integral a =&gt;
+(forall a. Integral a =&gt; a -&gt; TextBuilder) -&gt; a -&gt; TextBuilder
+</span><a href="TextBuilder.Domains.Digits.html#signed"><span class="hs-identifier hs-var">signed</span></a></span><span> </span><span class="annot"><span class="annottext">a -&gt; TextBuilder
+forall a. Integral a =&gt; a -&gt; TextBuilder
+</span><a href="TextBuilder.Domains.Digits.html#unsignedDecimal"><span class="hs-identifier hs-var">unsignedDecimal</span></a></span><span>
+</span><span id="line-184"></span><span>
+</span><span id="line-185"></span><span class="annot"><span class="hs-comment">-- * Unsigned Numbers</span></span><span>
+</span><span id="line-186"></span><span>
+</span><span id="line-187"></span><span class="annot"><span class="hs-comment">-- | Render a number in the given radix.</span></span><span>
+</span><span id="line-188"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="TextBuilder.Domains.Digits.html#digitsByRadix"><span class="hs-pragma hs-type">digitsByRadix</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-189"></span><span id="local-6989586621679083333"><span class="annot"><a href="TextBuilder.Domains.Digits.html#digitsByRadix"><span class="hs-identifier hs-type">digitsByRadix</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Integral</span></span><span> </span><span class="annot"><a href="#local-6989586621679083333"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679083333"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679083333"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679083333"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679083333"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">TextBuilder</span></span></span><span>
+</span><span id="line-190"></span><span id="digitsByRadix"><span class="annot"><span class="annottext">digitsByRadix :: forall a. Integral a =&gt; a -&gt; (a -&gt; a) -&gt; a -&gt; TextBuilder
+</span><a href="TextBuilder.Domains.Digits.html#digitsByRadix"><span class="hs-identifier hs-var hs-var">digitsByRadix</span></a></span></span><span> </span><span id="local-6989586621679083545"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679083545"><span class="hs-identifier hs-var">radix</span></a></span></span><span> </span><span id="local-6989586621679083546"><span class="annot"><span class="annottext">a -&gt; a
+</span><a href="#local-6989586621679083546"><span class="hs-identifier hs-var">digitCodepoint</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-191"></span><span>  </span><span class="annot"><span class="annottext">Int -&gt; [a] -&gt; a -&gt; TextBuilder
+</span><a href="#local-6989586621679083547"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span>
+</span><span id="line-192"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-193"></span><span>    </span><span id="local-6989586621679083547"><span class="annot"><span class="annottext">go :: Int -&gt; [a] -&gt; a -&gt; TextBuilder
+</span><a href="#local-6989586621679083547"><span class="hs-identifier hs-var hs-var">go</span></a></span></span><span> </span><span class="hs-glyph">!</span><span id="local-6989586621679083548"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679083548"><span class="hs-identifier hs-var">offset</span></a></span></span><span> </span><span class="hs-glyph">!</span><span id="local-6989586621679083549"><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679083549"><span class="hs-identifier hs-var">digits</span></a></span></span><span> </span><span id="local-6989586621679083550"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679083550"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">a -&gt; a -&gt; (a, a)
+forall a. Integral a =&gt; a -&gt; a -&gt; (a, a)
+</span><span class="hs-identifier hs-var">divMod</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679083550"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679083545"><span class="hs-identifier hs-var">radix</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-194"></span><span>      </span><span class="hs-special">(</span><span id="local-6989586621679083552"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679083552"><span class="hs-identifier hs-var">next</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679083553"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679083553"><span class="hs-identifier hs-var">digit</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-195"></span><span>        </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679083552"><span class="hs-identifier hs-var">next</span></a></span><span> </span><span class="annot"><span class="annottext">a -&gt; a -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&lt;=</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><span class="hs-number">0</span></span><span>
+</span><span id="line-196"></span><span>          </span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="annottext">Int -&gt; [a] -&gt; TextBuilder
+</span><a href="#local-6989586621679083554"><span class="hs-identifier hs-var">finish</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; Int
+forall a. Enum a =&gt; a -&gt; a
+</span><span class="hs-identifier hs-var">succ</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679083548"><span class="hs-identifier hs-var">offset</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679083553"><span class="hs-identifier hs-var">digit</span></a></span><span> </span><span class="annot"><span class="annottext">a -&gt; [a] -&gt; [a]
+forall a. a -&gt; [a] -&gt; [a]
+</span><span class="hs-glyph hs-var">:</span></span><span> </span><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679083549"><span class="hs-identifier hs-var">digits</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-197"></span><span>          </span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="annottext">Int -&gt; [a] -&gt; a -&gt; TextBuilder
+</span><a href="#local-6989586621679083547"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; Int
+forall a. Enum a =&gt; a -&gt; a
+</span><span class="hs-identifier hs-var">succ</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679083548"><span class="hs-identifier hs-var">offset</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679083553"><span class="hs-identifier hs-var">digit</span></a></span><span> </span><span class="annot"><span class="annottext">a -&gt; [a] -&gt; [a]
+forall a. a -&gt; [a] -&gt; [a]
+</span><span class="hs-glyph hs-var">:</span></span><span> </span><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679083549"><span class="hs-identifier hs-var">digits</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679083552"><span class="hs-identifier hs-var">next</span></a></span><span>
+</span><span id="line-198"></span><span>
+</span><span id="line-199"></span><span>    </span><span id="local-6989586621679083554"><span class="annot"><span class="annottext">finish :: Int -&gt; [a] -&gt; TextBuilder
+</span><a href="#local-6989586621679083554"><span class="hs-identifier hs-var hs-var">finish</span></a></span></span><span> </span><span id="local-6989586621679083556"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679083556"><span class="hs-identifier hs-var">size</span></a></span></span><span> </span><span id="local-6989586621679083557"><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679083557"><span class="hs-identifier hs-var">digits</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-200"></span><span>      </span><span class="annot"><span class="annottext">Int -&gt; (forall s. MArray s -&gt; Int -&gt; ST s Int) -&gt; TextBuilder
+</span><span class="hs-identifier hs-var">TextBuilder</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679083556"><span class="hs-identifier hs-var">size</span></a></span><span> </span><span class="annot"><span class="annottext">MArray s -&gt; Int -&gt; ST s Int
+forall s. MArray s -&gt; Int -&gt; ST s Int
+</span><a href="#local-6989586621679083558"><span class="hs-identifier hs-var">action</span></a></span><span>
+</span><span id="line-201"></span><span>      </span><span class="hs-keyword">where</span><span>
+</span><span id="line-202"></span><span>        </span><span id="local-6989586621679083559"><span class="annot"><a href="#local-6989586621679083558"><span class="hs-identifier hs-type">action</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">TextArray.MArray</span></span><span> </span><span class="annot"><a href="#local-6989586621679083559"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ST</span></span><span> </span><span class="annot"><a href="#local-6989586621679083559"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span></span><span>
+</span><span id="line-203"></span><span>        </span><span id="local-6989586621679083558"><span class="annot"><span class="annottext">action :: forall s. MArray s -&gt; Int -&gt; ST s Int
+</span><a href="#local-6989586621679083558"><span class="hs-identifier hs-var hs-var">action</span></a></span></span><span> </span><span id="local-6989586621679083565"><span class="annot"><span class="annottext">MArray s
+</span><a href="#local-6989586621679083565"><span class="hs-identifier hs-var">array</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-204"></span><span>          </span><span class="annot"><span class="annottext">[a] -&gt; Int -&gt; ST s Int
+</span><a href="#local-6989586621679083566"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679083557"><span class="hs-identifier hs-var">digits</span></a></span><span>
+</span><span id="line-205"></span><span>          </span><span class="hs-keyword">where</span><span>
+</span><span id="line-206"></span><span>            </span><span id="local-6989586621679083566"><span class="annot"><span class="annottext">go :: [a] -&gt; Int -&gt; ST s Int
+</span><a href="#local-6989586621679083566"><span class="hs-identifier hs-var hs-var">go</span></a></span></span><span> </span><span id="local-6989586621679083567"><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679083567"><span class="hs-identifier hs-var">digits</span></a></span></span><span> </span><span id="local-6989586621679083568"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679083568"><span class="hs-identifier hs-var">offset</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679083567"><span class="hs-identifier hs-var">digits</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-207"></span><span>              </span><span class="hs-special">[</span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Int -&gt; ST s Int
+forall a. a -&gt; ST s a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679083568"><span class="hs-identifier hs-var">offset</span></a></span><span>
+</span><span id="line-208"></span><span>              </span><span class="hs-special">(</span><span id="local-6989586621679083569"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679083569"><span class="hs-identifier hs-var">digit</span></a></span></span><span> </span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span> </span><span id="local-6989586621679083570"><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679083570"><span class="hs-identifier hs-var">digits</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-209"></span><span>                </span><span class="annot"><span class="annottext">MArray s -&gt; Int -&gt; Word8 -&gt; ST s ()
+forall s. MArray s -&gt; Int -&gt; Word8 -&gt; ST s ()
+</span><span class="hs-identifier hs-var">TextArray.unsafeWrite</span></span><span> </span><span class="annot"><span class="annottext">MArray s
+</span><a href="#local-6989586621679083565"><span class="hs-identifier hs-var">array</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679083568"><span class="hs-identifier hs-var">offset</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a -&gt; Word8
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a -&gt; a
+</span><a href="#local-6989586621679083546"><span class="hs-identifier hs-var">digitCodepoint</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679083569"><span class="hs-identifier hs-var">digit</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-210"></span><span>                </span><span class="annot"><span class="annottext">[a] -&gt; Int -&gt; ST s Int
+</span><a href="#local-6989586621679083566"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679083570"><span class="hs-identifier hs-var">digits</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; Int
+forall a. Enum a =&gt; a -&gt; a
+</span><span class="hs-identifier hs-var">succ</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679083568"><span class="hs-identifier hs-var">offset</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-211"></span><span>
+</span><span id="line-212"></span><span class="hs-comment">-- | Unsigned octal representation of a non-negative integral value.</span><span>
+</span><span id="line-213"></span><span class="hs-comment">--</span><span>
+</span><span id="line-214"></span><span class="hs-comment">-- __Warning:__ It is your responsibility to ensure that the value is non-negative.</span><span>
+</span><span id="line-215"></span><span class="hs-comment">--</span><span>
+</span><span id="line-216"></span><span class="hs-comment">--</span><span>
+</span><span id="line-217"></span><span class="hs-comment">-- &gt;&gt;&gt; unsignedOctal 7</span><span>
+</span><span id="line-218"></span><span class="hs-comment">-- &quot;7&quot;</span><span>
+</span><span id="line-219"></span><span class="hs-comment">--</span><span>
+</span><span id="line-220"></span><span class="hs-comment">-- &gt;&gt;&gt; unsignedOctal 9</span><span>
+</span><span id="line-221"></span><span class="hs-comment">-- &quot;11&quot;</span><span>
+</span><span id="line-222"></span><span class="hs-comment">--</span><span>
+</span><span id="line-223"></span><span class="hs-comment">-- &gt;&gt;&gt; unsignedOctal 16</span><span>
+</span><span id="line-224"></span><span class="hs-comment">-- &quot;20&quot;</span><span>
+</span><span id="line-225"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="TextBuilder.Domains.Digits.html#unsignedOctal"><span class="hs-pragma hs-type">unsignedOctal</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-226"></span><span id="local-6989586621679083572"><span class="annot"><a href="TextBuilder.Domains.Digits.html#unsignedOctal"><span class="hs-identifier hs-type">unsignedOctal</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Integral</span></span><span> </span><span class="annot"><a href="#local-6989586621679083572"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679083572"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">TextBuilder</span></span></span><span>
+</span><span id="line-227"></span><span id="unsignedOctal"><span class="annot"><span class="annottext">unsignedOctal :: forall a. Integral a =&gt; a -&gt; TextBuilder
+</span><a href="TextBuilder.Domains.Digits.html#unsignedOctal"><span class="hs-identifier hs-var hs-var">unsignedOctal</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-228"></span><span>  </span><span class="annot"><span class="annottext">a -&gt; (a -&gt; a) -&gt; a -&gt; TextBuilder
+forall a. Integral a =&gt; a -&gt; (a -&gt; a) -&gt; a -&gt; TextBuilder
+</span><a href="TextBuilder.Domains.Digits.html#digitsByRadix"><span class="hs-identifier hs-var">digitsByRadix</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><span class="hs-number">8</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a -&gt; a -&gt; a
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><span class="hs-number">48</span></span><span class="hs-special">)</span><span>
+</span><span id="line-229"></span><span>
+</span><span id="line-230"></span><span class="hs-comment">-- | Unsigned decimal representation of a non-negative integral value.</span><span>
+</span><span id="line-231"></span><span class="hs-comment">--</span><span>
+</span><span id="line-232"></span><span class="hs-comment">-- __Warning:__ It is your responsibility to ensure that the value is non-negative.</span><span>
+</span><span id="line-233"></span><span class="hs-comment">--</span><span>
+</span><span id="line-234"></span><span class="hs-comment">-- &gt;&gt;&gt; unsignedDecimal 123456</span><span>
+</span><span id="line-235"></span><span class="hs-comment">-- &quot;123456&quot;</span><span>
+</span><span id="line-236"></span><span class="hs-comment">--</span><span>
+</span><span id="line-237"></span><span class="hs-comment">-- &gt;&gt;&gt; unsignedDecimal 0</span><span>
+</span><span id="line-238"></span><span class="hs-comment">-- &quot;0&quot;</span><span>
+</span><span id="line-239"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="TextBuilder.Domains.Digits.html#unsignedDecimal"><span class="hs-pragma hs-type">unsignedDecimal</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-240"></span><span id="local-6989586621679083580"><span class="annot"><a href="TextBuilder.Domains.Digits.html#unsignedDecimal"><span class="hs-identifier hs-type">unsignedDecimal</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Integral</span></span><span> </span><span class="annot"><a href="#local-6989586621679083580"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679083580"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">TextBuilder</span></span></span><span>
+</span><span id="line-241"></span><span id="unsignedDecimal"><span class="annot"><span class="annottext">unsignedDecimal :: forall a. Integral a =&gt; a -&gt; TextBuilder
+</span><a href="TextBuilder.Domains.Digits.html#unsignedDecimal"><span class="hs-identifier hs-var hs-var">unsignedDecimal</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-242"></span><span>  </span><span class="annot"><span class="annottext">a -&gt; (a -&gt; a) -&gt; a -&gt; TextBuilder
+forall a. Integral a =&gt; a -&gt; (a -&gt; a) -&gt; a -&gt; TextBuilder
+</span><a href="TextBuilder.Domains.Digits.html#digitsByRadix"><span class="hs-identifier hs-var">digitsByRadix</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><span class="hs-number">10</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a -&gt; a -&gt; a
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><span class="hs-number">48</span></span><span class="hs-special">)</span><span>
+</span><span id="line-243"></span><span>
+</span><span id="line-244"></span><span class="hs-comment">-- | Unsigned hexadecimal representation of a non-negative integral value.</span><span>
+</span><span id="line-245"></span><span class="hs-comment">--</span><span>
+</span><span id="line-246"></span><span class="hs-comment">-- __Warning:__ It is your responsibility to ensure that the value is non-negative.</span><span>
+</span><span id="line-247"></span><span class="hs-comment">--</span><span>
+</span><span id="line-248"></span><span class="hs-comment">-- &gt;&gt;&gt; unsignedHexadecimal 123456</span><span>
+</span><span id="line-249"></span><span class="hs-comment">-- &quot;1e240&quot;</span><span>
+</span><span id="line-250"></span><span class="hs-comment">--</span><span>
+</span><span id="line-251"></span><span class="hs-comment">-- &gt;&gt;&gt; unsignedHexadecimal 0</span><span>
+</span><span id="line-252"></span><span class="hs-comment">-- &quot;0&quot;</span><span>
+</span><span id="line-253"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="TextBuilder.Domains.Digits.html#unsignedHexadecimal"><span class="hs-pragma hs-type">unsignedHexadecimal</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-254"></span><span id="local-6989586621679083589"><span class="annot"><a href="TextBuilder.Domains.Digits.html#unsignedHexadecimal"><span class="hs-identifier hs-type">unsignedHexadecimal</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Integral</span></span><span> </span><span class="annot"><a href="#local-6989586621679083589"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679083589"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">TextBuilder</span></span></span><span>
+</span><span id="line-255"></span><span id="unsignedHexadecimal"><span class="annot"><span class="annottext">unsignedHexadecimal :: forall a. Integral a =&gt; a -&gt; TextBuilder
+</span><a href="TextBuilder.Domains.Digits.html#unsignedHexadecimal"><span class="hs-identifier hs-var hs-var">unsignedHexadecimal</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-256"></span><span>  </span><span class="annot"><span class="annottext">a -&gt; (a -&gt; a) -&gt; a -&gt; TextBuilder
+forall a. Integral a =&gt; a -&gt; (a -&gt; a) -&gt; a -&gt; TextBuilder
+</span><a href="TextBuilder.Domains.Digits.html#digitsByRadix"><span class="hs-identifier hs-var">digitsByRadix</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><span class="hs-number">16</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span id="local-6989586621679083602"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679083602"><span class="hs-identifier hs-var">digit</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679083602"><span class="hs-identifier hs-var">digit</span></a></span><span> </span><span class="annot"><span class="annottext">a -&gt; a -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&lt;=</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><span class="hs-number">9</span></span><span> </span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679083602"><span class="hs-identifier hs-var">digit</span></a></span><span> </span><span class="annot"><span class="annottext">a -&gt; a -&gt; a
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><span class="hs-number">48</span></span><span> </span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679083602"><span class="hs-identifier hs-var">digit</span></a></span><span> </span><span class="annot"><span class="annottext">a -&gt; a -&gt; a
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><span class="hs-number">87</span></span><span class="hs-special">)</span><span>
+</span><span id="line-257"></span><span>
+</span><span id="line-258"></span><span class="annot"><span class="hs-comment">-- * Other</span></span><span>
+</span><span id="line-259"></span><span>
+</span><span id="line-260"></span><span class="hs-comment">-- | Fixed-length decimal without sign.</span><span>
+</span><span id="line-261"></span><span class="hs-comment">-- Padded with zeros or trimmed depending on whether it's shorter or longer</span><span>
+</span><span id="line-262"></span><span class="hs-comment">-- than specified.</span><span>
+</span><span id="line-263"></span><span class="hs-comment">--</span><span>
+</span><span id="line-264"></span><span class="hs-comment">-- &gt;&gt;&gt; fixedLengthDecimal 5 123</span><span>
+</span><span id="line-265"></span><span class="hs-comment">-- &quot;00123&quot;</span><span>
+</span><span id="line-266"></span><span class="hs-comment">--</span><span>
+</span><span id="line-267"></span><span class="hs-comment">-- &gt;&gt;&gt; fixedLengthDecimal 5 123456</span><span>
+</span><span id="line-268"></span><span class="hs-comment">-- &quot;23456&quot;</span><span>
+</span><span id="line-269"></span><span class="hs-comment">--</span><span>
+</span><span id="line-270"></span><span class="hs-comment">-- &gt;&gt;&gt; fixedLengthDecimal 5 (-123456)</span><span>
+</span><span id="line-271"></span><span class="hs-comment">-- &quot;23456&quot;</span><span>
+</span><span id="line-272"></span><span class="hs-comment">--</span><span>
+</span><span id="line-273"></span><span class="hs-comment">-- &gt;&gt;&gt; fixedLengthDecimal 7 (-123456)</span><span>
+</span><span id="line-274"></span><span class="hs-comment">-- &quot;0123456&quot;</span><span>
+</span><span id="line-275"></span><span class="hs-comment">--</span><span>
+</span><span id="line-276"></span><span class="hs-comment">-- &gt;&gt;&gt; fixedLengthDecimal 0 123</span><span>
+</span><span id="line-277"></span><span class="hs-comment">-- &quot;&quot;</span><span>
+</span><span id="line-278"></span><span class="hs-comment">--</span><span>
+</span><span id="line-279"></span><span class="hs-comment">-- &gt;&gt;&gt; fixedLengthDecimal (-2) 123</span><span>
+</span><span id="line-280"></span><span class="hs-comment">-- &quot;&quot;</span><span>
+</span><span id="line-281"></span><span class="hs-pragma">{-# INLINEABLE</span><span> </span><span class="annot"><a href="TextBuilder.Domains.Digits.html#fixedLengthDecimal"><span class="hs-pragma hs-type">fixedLengthDecimal</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-282"></span><span id="local-6989586621679083341"><span class="annot"><a href="TextBuilder.Domains.Digits.html#fixedLengthDecimal"><span class="hs-identifier hs-type">fixedLengthDecimal</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Integral</span></span><span> </span><span class="annot"><a href="#local-6989586621679083341"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679083341"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">TextBuilder</span></span></span><span>
+</span><span id="line-283"></span><span id="fixedLengthDecimal"><span class="annot"><span class="annottext">fixedLengthDecimal :: forall a. Integral a =&gt; Int -&gt; a -&gt; TextBuilder
+</span><a href="TextBuilder.Domains.Digits.html#fixedLengthDecimal"><span class="hs-identifier hs-var hs-var">fixedLengthDecimal</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Ord a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-identifier hs-var">max</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span id="local-6989586621679083613"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679083613"><span class="hs-identifier hs-var">size</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a -&gt; a
+forall a. Num a =&gt; a -&gt; a
+</span><span class="hs-identifier hs-var">abs</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span id="local-6989586621679083615"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679083615"><span class="hs-identifier hs-var">val</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-284"></span><span>  </span><span class="annot"><span class="annottext">Int -&gt; (forall s. MArray s -&gt; Int -&gt; ST s Int) -&gt; TextBuilder
+</span><span class="hs-identifier hs-var">TextBuilder</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679083613"><span class="hs-identifier hs-var">size</span></a></span><span> </span><span class="annot"><span class="annottext">((forall s. MArray s -&gt; Int -&gt; ST s Int) -&gt; TextBuilder)
+-&gt; (forall s. MArray s -&gt; Int -&gt; ST s Int) -&gt; TextBuilder
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679083635"><span class="annot"><span class="annottext">MArray s
+</span><a href="#local-6989586621679083635"><span class="hs-identifier hs-var">array</span></a></span></span><span> </span><span id="local-6989586621679083636"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679083636"><span class="hs-identifier hs-var">startOffset</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-285"></span><span>    </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679083637"><span class="annot"><span class="annottext">offsetAfter :: Int
+</span><a href="#local-6989586621679083637"><span class="hs-identifier hs-var hs-var">offsetAfter</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679083636"><span class="hs-identifier hs-var">startOffset</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679083613"><span class="hs-identifier hs-var">size</span></a></span><span>
+</span><span id="line-286"></span><span>        </span><span id="local-6989586621679083638"><span class="annot"><span class="annottext">writeValue :: a -&gt; Int -&gt; ST s Int
+</span><a href="#local-6989586621679083638"><span class="hs-identifier hs-var hs-var">writeValue</span></a></span></span><span> </span><span id="local-6989586621679083639"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679083639"><span class="hs-identifier hs-var">val</span></a></span></span><span> </span><span id="local-6989586621679083640"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679083640"><span class="hs-identifier hs-var">offset</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-287"></span><span>          </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679083640"><span class="hs-identifier hs-var">offset</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&gt;=</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679083636"><span class="hs-identifier hs-var">startOffset</span></a></span><span>
+</span><span id="line-288"></span><span>            </span><span class="hs-keyword">then</span><span>
+</span><span id="line-289"></span><span>              </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679083639"><span class="hs-identifier hs-var">val</span></a></span><span> </span><span class="annot"><span class="annottext">a -&gt; a -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">/=</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><span class="hs-number">0</span></span><span>
+</span><span id="line-290"></span><span>                </span><span class="hs-keyword">then</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">a -&gt; a -&gt; (a, a)
+forall a. Integral a =&gt; a -&gt; a -&gt; (a, a)
+</span><span class="hs-identifier hs-var">divMod</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679083639"><span class="hs-identifier hs-var">val</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><span class="hs-number">10</span></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-291"></span><span>                  </span><span class="hs-special">(</span><span id="local-6989586621679083641"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679083641"><span class="hs-identifier hs-var">val</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679083642"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679083642"><span class="hs-identifier hs-var">digit</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-292"></span><span>                    </span><span class="annot"><span class="annottext">MArray s -&gt; Int -&gt; Word8 -&gt; ST s ()
+forall s. MArray s -&gt; Int -&gt; Word8 -&gt; ST s ()
+</span><span class="hs-identifier hs-var">TextArray.unsafeWrite</span></span><span> </span><span class="annot"><span class="annottext">MArray s
+</span><a href="#local-6989586621679083635"><span class="hs-identifier hs-var">array</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679083640"><span class="hs-identifier hs-var">offset</span></a></span><span> </span><span class="annot"><span class="annottext">(Word8 -&gt; ST s ()) -&gt; Word8 -&gt; ST s ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">48</span></span><span> </span><span class="annot"><span class="annottext">Word8 -&gt; Word8 -&gt; Word8
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; Word8
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679083642"><span class="hs-identifier hs-var">digit</span></a></span><span>
+</span><span id="line-293"></span><span>                    </span><span class="annot"><span class="annottext">a -&gt; Int -&gt; ST s Int
+</span><a href="#local-6989586621679083638"><span class="hs-identifier hs-var">writeValue</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679083641"><span class="hs-identifier hs-var">val</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; Int
+forall a. Enum a =&gt; a -&gt; a
+</span><span class="hs-identifier hs-var">pred</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679083640"><span class="hs-identifier hs-var">offset</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-294"></span><span>                </span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="annottext">Int -&gt; ST s Int
+</span><a href="#local-6989586621679083643"><span class="hs-identifier hs-var">writePadding</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679083640"><span class="hs-identifier hs-var">offset</span></a></span><span>
+</span><span id="line-295"></span><span>            </span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="annottext">Int -&gt; ST s Int
+forall a. a -&gt; ST s a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679083637"><span class="hs-identifier hs-var">offsetAfter</span></a></span><span>
+</span><span id="line-296"></span><span>        </span><span id="local-6989586621679083643"><span class="annot"><span class="annottext">writePadding :: Int -&gt; ST s Int
+</span><a href="#local-6989586621679083643"><span class="hs-identifier hs-var hs-var">writePadding</span></a></span></span><span> </span><span id="local-6989586621679083644"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679083644"><span class="hs-identifier hs-var">offset</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-297"></span><span>          </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679083644"><span class="hs-identifier hs-var">offset</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&gt;=</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679083636"><span class="hs-identifier hs-var">startOffset</span></a></span><span>
+</span><span id="line-298"></span><span>            </span><span class="hs-keyword">then</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-299"></span><span>              </span><span class="annot"><span class="annottext">MArray s -&gt; Int -&gt; Word8 -&gt; ST s ()
+forall s. MArray s -&gt; Int -&gt; Word8 -&gt; ST s ()
+</span><span class="hs-identifier hs-var">TextArray.unsafeWrite</span></span><span> </span><span class="annot"><span class="annottext">MArray s
+</span><a href="#local-6989586621679083635"><span class="hs-identifier hs-var">array</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679083644"><span class="hs-identifier hs-var">offset</span></a></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">48</span></span><span>
+</span><span id="line-300"></span><span>              </span><span class="annot"><span class="annottext">Int -&gt; ST s Int
+</span><a href="#local-6989586621679083643"><span class="hs-identifier hs-var">writePadding</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; Int
+forall a. Enum a =&gt; a -&gt; a
+</span><span class="hs-identifier hs-var">pred</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679083644"><span class="hs-identifier hs-var">offset</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-301"></span><span>            </span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="annottext">Int -&gt; ST s Int
+forall a. a -&gt; ST s a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679083637"><span class="hs-identifier hs-var">offsetAfter</span></a></span><span>
+</span><span id="line-302"></span><span>     </span><span class="hs-keyword">in</span><span> </span><span class="annot"><span class="annottext">a -&gt; Int -&gt; ST s Int
+</span><a href="#local-6989586621679083638"><span class="hs-identifier hs-var">writeValue</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679083615"><span class="hs-identifier hs-var">val</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; Int
+forall a. Enum a =&gt; a -&gt; a
+</span><span class="hs-identifier hs-var">pred</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679083637"><span class="hs-identifier hs-var">offsetAfter</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-303"></span><span>
+</span><span id="line-304"></span><span class="hs-comment">-- | Decimal representation of an integral value with thousands separated by the specified character.</span><span>
+</span><span id="line-305"></span><span class="hs-comment">--</span><span>
+</span><span id="line-306"></span><span class="hs-comment">-- &gt;&gt;&gt; thousandSeparatedDecimal ',' 1234567890</span><span>
+</span><span id="line-307"></span><span class="hs-comment">-- &quot;1,234,567,890&quot;</span><span>
+</span><span id="line-308"></span><span class="hs-comment">--</span><span>
+</span><span id="line-309"></span><span class="hs-comment">-- &gt;&gt;&gt; thousandSeparatedDecimal ' ' (-1234567890)</span><span>
+</span><span id="line-310"></span><span class="hs-comment">-- &quot;-1 234 567 890&quot;</span><span>
+</span><span id="line-311"></span><span class="hs-pragma">{-# INLINEABLE</span><span> </span><span class="annot"><a href="TextBuilder.Domains.Digits.html#thousandSeparatedDecimal"><span class="hs-pragma hs-type">thousandSeparatedDecimal</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-312"></span><span id="local-6989586621679083348"><span class="annot"><a href="TextBuilder.Domains.Digits.html#thousandSeparatedDecimal"><span class="hs-identifier hs-type">thousandSeparatedDecimal</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Integral</span></span><span> </span><span class="annot"><a href="#local-6989586621679083348"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Char</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679083348"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">TextBuilder</span></span></span><span>
+</span><span id="line-313"></span><span id="thousandSeparatedDecimal"><span class="annot"><span class="annottext">thousandSeparatedDecimal :: forall a. Integral a =&gt; Char -&gt; a -&gt; TextBuilder
+</span><a href="TextBuilder.Domains.Digits.html#thousandSeparatedDecimal"><span class="hs-identifier hs-var hs-var">thousandSeparatedDecimal</span></a></span></span><span> </span><span id="local-6989586621679083648"><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621679083648"><span class="hs-identifier hs-var">separatorChar</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-314"></span><span>  </span><span class="annot"><span class="annottext">(forall a. Integral a =&gt; a -&gt; TextBuilder) -&gt; a -&gt; TextBuilder
+forall a.
+Integral a =&gt;
+(forall a. Integral a =&gt; a -&gt; TextBuilder) -&gt; a -&gt; TextBuilder
+</span><a href="TextBuilder.Domains.Digits.html#signed"><span class="hs-identifier hs-var">signed</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Char -&gt; a -&gt; TextBuilder
+forall a. Integral a =&gt; Char -&gt; a -&gt; TextBuilder
+</span><a href="TextBuilder.Domains.Digits.html#unsignedThousandSeparatedDecimal"><span class="hs-identifier hs-var">unsignedThousandSeparatedDecimal</span></a></span><span> </span><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621679083648"><span class="hs-identifier hs-var">separatorChar</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-315"></span><span>
+</span><span id="line-316"></span><span class="hs-comment">-- | Decimal representation of an unsigned integral value with thousands separated by the specified character.</span><span>
+</span><span id="line-317"></span><span class="hs-comment">--</span><span>
+</span><span id="line-318"></span><span class="hs-comment">-- __Warning:__ It is your responsibility to ensure that the value is non-negative.</span><span>
+</span><span id="line-319"></span><span class="hs-comment">--</span><span>
+</span><span id="line-320"></span><span class="hs-comment">-- &gt;&gt;&gt; unsignedThousandSeparatedDecimal ',' 1234567890</span><span>
+</span><span id="line-321"></span><span class="hs-comment">-- &quot;1,234,567,890&quot;</span><span>
+</span><span id="line-322"></span><span class="hs-comment">--</span><span>
+</span><span id="line-323"></span><span class="hs-comment">-- &gt;&gt;&gt; unsignedThousandSeparatedDecimal ' ' 1234567890</span><span>
+</span><span id="line-324"></span><span class="hs-comment">-- &quot;1 234 567 890&quot;</span><span>
+</span><span id="line-325"></span><span class="hs-comment">--</span><span>
+</span><span id="line-326"></span><span class="hs-comment">-- &gt;&gt;&gt; unsignedThousandSeparatedDecimal ',' 0</span><span>
+</span><span id="line-327"></span><span class="hs-comment">-- &quot;0&quot;</span><span>
+</span><span id="line-328"></span><span class="hs-pragma">{-# INLINEABLE</span><span> </span><span class="annot"><a href="TextBuilder.Domains.Digits.html#unsignedThousandSeparatedDecimal"><span class="hs-pragma hs-type">unsignedThousandSeparatedDecimal</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-329"></span><span id="local-6989586621679083652"><span class="annot"><a href="TextBuilder.Domains.Digits.html#unsignedThousandSeparatedDecimal"><span class="hs-identifier hs-type">unsignedThousandSeparatedDecimal</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Integral</span></span><span> </span><span class="annot"><a href="#local-6989586621679083652"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Char</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679083652"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">TextBuilder</span></span></span><span>
+</span><span id="line-330"></span><span id="unsignedThousandSeparatedDecimal"><span class="annot"><span class="annottext">unsignedThousandSeparatedDecimal :: forall a. Integral a =&gt; Char -&gt; a -&gt; TextBuilder
+</span><a href="TextBuilder.Domains.Digits.html#unsignedThousandSeparatedDecimal"><span class="hs-identifier hs-var hs-var">unsignedThousandSeparatedDecimal</span></a></span></span><span> </span><span id="local-6989586621679083675"><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621679083675"><span class="hs-identifier hs-var">separatorChar</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-331"></span><span>  </span><span class="annot"><span class="annottext">a -&gt; TextBuilder
+</span><a href="#local-6989586621679083676"><span class="hs-identifier hs-var">processRightmostDigit</span></a></span><span>
+</span><span id="line-332"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-333"></span><span>    </span><span id="local-6989586621679083676"><span class="annot"><span class="annottext">processRightmostDigit :: a -&gt; TextBuilder
+</span><a href="#local-6989586621679083676"><span class="hs-identifier hs-var hs-var">processRightmostDigit</span></a></span></span><span> </span><span id="local-6989586621679083677"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679083677"><span class="hs-identifier hs-var">value</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-334"></span><span>      </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">a -&gt; a -&gt; (a, a)
+forall a. Integral a =&gt; a -&gt; a -&gt; (a, a)
+</span><span class="hs-identifier hs-var">divMod</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679083677"><span class="hs-identifier hs-var">value</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><span class="hs-number">10</span></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-335"></span><span>        </span><span class="hs-special">(</span><span id="local-6989586621679083678"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679083678"><span class="hs-identifier hs-var">value</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679083679"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679083679"><span class="hs-identifier hs-var">digit</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-336"></span><span>          </span><span class="annot"><span class="annottext">[TextBuilder] -&gt; Int -&gt; a -&gt; TextBuilder
+</span><a href="#local-6989586621679083680"><span class="hs-identifier hs-var">processAnotherDigit</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">a -&gt; TextBuilder
+forall a. Integral a =&gt; a -&gt; TextBuilder
+</span><a href="TextBuilder.Domains.Digits.html#decimalDigit"><span class="hs-identifier hs-var">decimalDigit</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679083679"><span class="hs-identifier hs-var">digit</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679083678"><span class="hs-identifier hs-var">value</span></a></span><span>
+</span><span id="line-337"></span><span>    </span><span id="local-6989586621679083680"><span class="annot"><span class="annottext">processAnotherDigit :: [TextBuilder] -&gt; Int -&gt; a -&gt; TextBuilder
+</span><a href="#local-6989586621679083680"><span class="hs-identifier hs-var hs-var">processAnotherDigit</span></a></span></span><span> </span><span id="local-6989586621679083681"><span class="annot"><span class="annottext">[TextBuilder]
+</span><a href="#local-6989586621679083681"><span class="hs-identifier hs-var">builders</span></a></span></span><span> </span><span id="local-6989586621679083682"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679083682"><span class="hs-identifier hs-var">index</span></a></span></span><span> </span><span id="local-6989586621679083683"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679083683"><span class="hs-identifier hs-var">value</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-338"></span><span>      </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679083683"><span class="hs-identifier hs-var">value</span></a></span><span> </span><span class="annot"><span class="annottext">a -&gt; a -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><span class="hs-number">0</span></span><span>
+</span><span id="line-339"></span><span>        </span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="annottext">[TextBuilder] -&gt; TextBuilder
+forall a. Monoid a =&gt; [a] -&gt; a
+</span><span class="hs-identifier hs-var">mconcat</span></span><span> </span><span class="annot"><span class="annottext">[TextBuilder]
+</span><a href="#local-6989586621679083681"><span class="hs-identifier hs-var">builders</span></a></span><span>
+</span><span id="line-340"></span><span>        </span><span class="hs-keyword">else</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">a -&gt; a -&gt; (a, a)
+forall a. Integral a =&gt; a -&gt; a -&gt; (a, a)
+</span><span class="hs-identifier hs-var">divMod</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679083683"><span class="hs-identifier hs-var">value</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><span class="hs-number">10</span></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-341"></span><span>          </span><span class="hs-special">(</span><span id="local-6989586621679083684"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679083684"><span class="hs-identifier hs-var">value</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679083685"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679083685"><span class="hs-identifier hs-var">digit</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-342"></span><span>            </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Integral a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-identifier hs-var">mod</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679083682"><span class="hs-identifier hs-var">index</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">3</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span>
+</span><span id="line-343"></span><span>              </span><span class="hs-keyword">then</span><span>
+</span><span id="line-344"></span><span>                </span><span class="annot"><span class="annottext">[TextBuilder] -&gt; Int -&gt; a -&gt; TextBuilder
+</span><a href="#local-6989586621679083680"><span class="hs-identifier hs-var">processAnotherDigit</span></a></span><span>
+</span><span id="line-345"></span><span>                  </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a -&gt; TextBuilder
+forall a. Integral a =&gt; a -&gt; TextBuilder
+</span><a href="TextBuilder.Domains.Digits.html#decimalDigit"><span class="hs-identifier hs-var">decimalDigit</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679083685"><span class="hs-identifier hs-var">digit</span></a></span><span> </span><span class="annot"><span class="annottext">TextBuilder -&gt; [TextBuilder] -&gt; [TextBuilder]
+forall a. a -&gt; [a] -&gt; [a]
+</span><span class="hs-glyph hs-var">:</span></span><span> </span><span class="annot"><span class="annottext">Char -&gt; TextBuilder
+</span><span class="hs-identifier hs-var">char</span></span><span> </span><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621679083675"><span class="hs-identifier hs-var">separatorChar</span></a></span><span> </span><span class="annot"><span class="annottext">TextBuilder -&gt; [TextBuilder] -&gt; [TextBuilder]
+forall a. a -&gt; [a] -&gt; [a]
+</span><span class="hs-glyph hs-var">:</span></span><span> </span><span class="annot"><span class="annottext">[TextBuilder]
+</span><a href="#local-6989586621679083681"><span class="hs-identifier hs-var">builders</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-346"></span><span>                  </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; Int
+forall a. Enum a =&gt; a -&gt; a
+</span><span class="hs-identifier hs-var">succ</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679083682"><span class="hs-identifier hs-var">index</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-347"></span><span>                  </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679083684"><span class="hs-identifier hs-var">value</span></a></span><span>
+</span><span id="line-348"></span><span>              </span><span class="hs-keyword">else</span><span>
+</span><span id="line-349"></span><span>                </span><span class="annot"><span class="annottext">[TextBuilder] -&gt; Int -&gt; a -&gt; TextBuilder
+</span><a href="#local-6989586621679083680"><span class="hs-identifier hs-var">processAnotherDigit</span></a></span><span>
+</span><span id="line-350"></span><span>                  </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a -&gt; TextBuilder
+forall a. Integral a =&gt; a -&gt; TextBuilder
+</span><a href="TextBuilder.Domains.Digits.html#decimalDigit"><span class="hs-identifier hs-var">decimalDigit</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679083685"><span class="hs-identifier hs-var">digit</span></a></span><span> </span><span class="annot"><span class="annottext">TextBuilder -&gt; [TextBuilder] -&gt; [TextBuilder]
+forall a. a -&gt; [a] -&gt; [a]
+</span><span class="hs-glyph hs-var">:</span></span><span> </span><span class="annot"><span class="annottext">[TextBuilder]
+</span><a href="#local-6989586621679083681"><span class="hs-identifier hs-var">builders</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-351"></span><span>                  </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; Int
+forall a. Enum a =&gt; a -&gt; a
+</span><span class="hs-identifier hs-var">succ</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679083682"><span class="hs-identifier hs-var">index</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-352"></span><span>                  </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679083684"><span class="hs-identifier hs-var">value</span></a></span><span>
+</span><span id="line-353"></span></pre></body></html>

@@ -1,0 +1,587 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE BangPatterns #-}</span><span>
+</span><span id="line-2"></span><span>
+</span><span id="line-3"></span><span class="hs-comment">-- |</span><span>
+</span><span id="line-4"></span><span class="hs-comment">-- Module      : Data.Text.Internal.Encoding.Fusion.Common</span><span>
+</span><span id="line-5"></span><span class="hs-comment">-- Copyright   : (c) Tom Harper 2008-2009,</span><span>
+</span><span id="line-6"></span><span class="hs-comment">--               (c) Bryan O'Sullivan 2009,</span><span>
+</span><span id="line-7"></span><span class="hs-comment">--               (c) Duncan Coutts 2009,</span><span>
+</span><span id="line-8"></span><span class="hs-comment">--               (c) Jasper Van der Jeugt 2011</span><span>
+</span><span id="line-9"></span><span class="hs-comment">--</span><span>
+</span><span id="line-10"></span><span class="hs-comment">-- License     : BSD-style</span><span>
+</span><span id="line-11"></span><span class="hs-comment">-- Maintainer  : bos@serpentine.com</span><span>
+</span><span id="line-12"></span><span class="hs-comment">-- Stability   : experimental</span><span>
+</span><span id="line-13"></span><span class="hs-comment">-- Portability : portable</span><span>
+</span><span id="line-14"></span><span class="hs-comment">--</span><span>
+</span><span id="line-15"></span><span class="hs-comment">-- /Warning/: this is an internal module, and does not have a stable</span><span>
+</span><span id="line-16"></span><span class="hs-comment">-- API or name. Use at your own risk!</span><span>
+</span><span id="line-17"></span><span class="hs-comment">--</span><span>
+</span><span id="line-18"></span><span class="hs-comment">-- Fusible 'Stream'-oriented functions for converting between 'Text'</span><span>
+</span><span id="line-19"></span><span class="hs-comment">-- and several common encodings.</span><span>
+</span><span id="line-20"></span><span>
+</span><span id="line-21"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Data.Text.Internal.Encoding.Fusion.Common.html"><span class="hs-identifier">Data.Text.Internal.Encoding.Fusion.Common</span></a></span><span>
+</span><span id="line-22"></span><span>    </span><span class="hs-special">(</span><span>
+</span><span id="line-23"></span><span>    </span><span class="annot"><span class="hs-comment">-- * Restreaming</span></span><span>
+</span><span id="line-24"></span><span>    </span><span class="hs-comment">-- Restreaming is the act of converting from one 'Stream'</span><span>
+</span><span id="line-25"></span><span>    </span><span class="hs-comment">-- representation to another.</span><span>
+</span><span id="line-26"></span><span>      </span><span class="annot"><a href="Data.Text.Internal.Encoding.Fusion.Common.html#restreamUtf16LE"><span class="hs-identifier">restreamUtf16LE</span></a></span><span>
+</span><span id="line-27"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Text.Internal.Encoding.Fusion.Common.html#restreamUtf16BE"><span class="hs-identifier">restreamUtf16BE</span></a></span><span>
+</span><span id="line-28"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Text.Internal.Encoding.Fusion.Common.html#restreamUtf32LE"><span class="hs-identifier">restreamUtf32LE</span></a></span><span>
+</span><span id="line-29"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Text.Internal.Encoding.Fusion.Common.html#restreamUtf32BE"><span class="hs-identifier">restreamUtf32BE</span></a></span><span>
+</span><span id="line-30"></span><span>    </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-31"></span><span>
+</span><span id="line-32"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.20.2.0-6654/src/Data.Bits.html"><span class="hs-identifier">Data.Bits</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-operator">(.&amp;.)</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">shiftR</span></span><span class="hs-special">)</span><span>
+</span><span id="line-33"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Data.Text.Internal.Fusion.html"><span class="hs-identifier">Data.Text.Internal.Fusion</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Text.Internal.Fusion.Types.html#Step"><span class="hs-identifier">Step</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Text.Internal.Fusion.Types.html#Stream"><span class="hs-identifier">Stream</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-34"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Data.Text.Internal.Fusion.Types.html"><span class="hs-identifier">Data.Text.Internal.Fusion.Types</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Text.Internal.Fusion.Types.html#RS"><span class="hs-identifier">RS</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-35"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Data.Text.Internal.Unsafe.Char.html"><span class="hs-identifier">Data.Text.Internal.Unsafe.Char</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Text.Internal.Unsafe.Char.html#ord"><span class="hs-identifier">ord</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-36"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.20.2.0-6654/src/Data.Word.html"><span class="hs-identifier">Data.Word</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Word8</span></span><span class="hs-special">)</span><span>
+</span><span id="line-37"></span><span>
+</span><span id="line-38"></span><span class="annot"><a href="Data.Text.Internal.Encoding.Fusion.Common.html#restreamUtf16BE"><span class="hs-identifier hs-type">restreamUtf16BE</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Data.Text.Internal.Fusion.Types.html#Stream"><span class="hs-identifier hs-type">Stream</span></a></span><span> </span><span class="annot"><a href="../../ghc-prim-0.12.0-595c/src/GHC.Types.html#Char"><span class="hs-identifier hs-type">Char</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Data.Text.Internal.Fusion.Types.html#Stream"><span class="hs-identifier hs-type">Stream</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word8</span></span><span>
+</span><span id="line-39"></span><span id="restreamUtf16BE"><span class="annot"><span class="annottext">restreamUtf16BE :: Stream Char -&gt; Stream Word8
+</span><a href="Data.Text.Internal.Encoding.Fusion.Common.html#restreamUtf16BE"><span class="hs-identifier hs-var hs-var">restreamUtf16BE</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Text.Internal.Fusion.Types.html#Stream"><span class="hs-identifier hs-type">Stream</span></a></span><span> </span><span id="local-6989586621679164215"><span class="annot"><span class="annottext">s -&gt; Step s Char
+</span><a href="#local-6989586621679164215"><span class="hs-identifier hs-var">next0</span></a></span></span><span> </span><span id="local-6989586621679164216"><span class="annot"><span class="annottext">s
+</span><a href="#local-6989586621679164216"><span class="hs-identifier hs-var">s0</span></a></span></span><span> </span><span id="local-6989586621679164217"><span class="annot"><span class="annottext">Size
+</span><a href="#local-6989586621679164217"><span class="hs-identifier hs-var">len</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(RS s -&gt; Step (RS s) Word8) -&gt; RS s -&gt; Size -&gt; Stream Word8
+forall a s. (s -&gt; Step s a) -&gt; s -&gt; Size -&gt; Stream a
+</span><a href="Data.Text.Internal.Fusion.Types.html#Stream"><span class="hs-identifier hs-var">Stream</span></a></span><span> </span><span class="annot"><span class="annottext">RS s -&gt; Step (RS s) Word8
+</span><a href="#local-6989586621679164218"><span class="hs-identifier hs-var">next</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">s -&gt; RS s
+forall s. s -&gt; RS s
+</span><a href="Data.Text.Internal.Fusion.Types.html#RS0"><span class="hs-identifier hs-var">RS0</span></a></span><span> </span><span class="annot"><span class="annottext">s
+</span><a href="#local-6989586621679164216"><span class="hs-identifier hs-var">s0</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Size
+</span><a href="#local-6989586621679164217"><span class="hs-identifier hs-var">len</span></a></span><span> </span><span class="annot"><span class="annottext">Size -&gt; Size -&gt; Size
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">*</span></span><span> </span><span class="annot"><span class="annottext">Size
+</span><span class="hs-number">2</span></span><span class="hs-special">)</span><span>
+</span><span id="line-40"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-41"></span><span>    </span><span id="local-6989586621679164218"><span class="annot"><span class="annottext">next :: RS s -&gt; Step (RS s) Word8
+</span><a href="#local-6989586621679164218"><span class="hs-identifier hs-var hs-var">next</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Text.Internal.Fusion.Types.html#RS0"><span class="hs-identifier hs-type">RS0</span></a></span><span> </span><span id="local-6989586621679164227"><span class="annot"><span class="annottext">s
+</span><a href="#local-6989586621679164227"><span class="hs-identifier hs-var">s</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">s -&gt; Step s Char
+</span><a href="#local-6989586621679164215"><span class="hs-identifier hs-var">next0</span></a></span><span> </span><span class="annot"><span class="annottext">s
+</span><a href="#local-6989586621679164227"><span class="hs-identifier hs-var">s</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-42"></span><span>        </span><span class="annot"><span class="annottext">Step s Char
+</span><a href="Data.Text.Internal.Fusion.Types.html#Done"><span class="hs-identifier hs-var">Done</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Step (RS s) Word8
+forall s a. Step s a
+</span><a href="Data.Text.Internal.Fusion.Types.html#Done"><span class="hs-identifier hs-var">Done</span></a></span><span>
+</span><span id="line-43"></span><span>        </span><span class="annot"><a href="Data.Text.Internal.Fusion.Types.html#Skip"><span class="hs-identifier hs-type">Skip</span></a></span><span> </span><span id="local-6989586621679164230"><span class="annot"><span class="annottext">s
+</span><a href="#local-6989586621679164230"><span class="hs-identifier hs-var">s'</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">RS s -&gt; Step (RS s) Word8
+forall s a. s -&gt; Step s a
+</span><a href="Data.Text.Internal.Fusion.Types.html#Skip"><span class="hs-identifier hs-var">Skip</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">s -&gt; RS s
+forall s. s -&gt; RS s
+</span><a href="Data.Text.Internal.Fusion.Types.html#RS0"><span class="hs-identifier hs-var">RS0</span></a></span><span> </span><span class="annot"><span class="annottext">s
+</span><a href="#local-6989586621679164230"><span class="hs-identifier hs-var">s'</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-44"></span><span>        </span><span class="annot"><a href="Data.Text.Internal.Fusion.Types.html#Yield"><span class="hs-identifier hs-type">Yield</span></a></span><span> </span><span id="local-6989586621679164232"><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621679164232"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span id="local-6989586621679164233"><span class="annot"><span class="annottext">s
+</span><a href="#local-6989586621679164233"><span class="hs-identifier hs-var">s'</span></a></span></span><span>
+</span><span id="line-45"></span><span>            </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679164234"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><a href="../../ghc-prim-0.12.0-595c/src/GHC.Classes.html#%3C"><span class="hs-operator hs-var">&lt;</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0x10000</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word8 -&gt; RS s -&gt; Step (RS s) Word8
+forall s a. a -&gt; s -&gt; Step s a
+</span><a href="Data.Text.Internal.Fusion.Types.html#Yield"><span class="hs-identifier hs-var">Yield</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; Word8
+</span><a href="Data.Text.Internal.Encoding.Fusion.Common.html#intToWord8"><span class="hs-identifier hs-var">intToWord8</span></a></span><span> </span><span class="annot"><span class="annottext">(Int -&gt; Word8) -&gt; Int -&gt; Word8
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679164234"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Bits a =&gt; a -&gt; Int -&gt; a
+</span><span class="hs-operator hs-var">`shiftR`</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">8</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(RS s -&gt; Step (RS s) Word8) -&gt; RS s -&gt; Step (RS s) Word8
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-46"></span><span>                             </span><span class="annot"><span class="annottext">s -&gt; Word8 -&gt; RS s
+forall s. s -&gt; Word8 -&gt; RS s
+</span><a href="Data.Text.Internal.Fusion.Types.html#RS1"><span class="hs-identifier hs-var">RS1</span></a></span><span> </span><span class="annot"><span class="annottext">s
+</span><a href="#local-6989586621679164233"><span class="hs-identifier hs-var">s'</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; Word8
+</span><a href="Data.Text.Internal.Encoding.Fusion.Common.html#intToWord8"><span class="hs-identifier hs-var">intToWord8</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679164234"><span class="hs-identifier hs-var">n</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-47"></span><span>            </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span>   </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word8 -&gt; RS s -&gt; Step (RS s) Word8
+forall s a. a -&gt; s -&gt; Step s a
+</span><a href="Data.Text.Internal.Fusion.Types.html#Yield"><span class="hs-identifier hs-var">Yield</span></a></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679164238"><span class="hs-identifier hs-var">c1</span></a></span><span> </span><span class="annot"><span class="annottext">(RS s -&gt; Step (RS s) Word8) -&gt; RS s -&gt; Step (RS s) Word8
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">s -&gt; Word8 -&gt; Word8 -&gt; Word8 -&gt; RS s
+forall s. s -&gt; Word8 -&gt; Word8 -&gt; Word8 -&gt; RS s
+</span><a href="Data.Text.Internal.Fusion.Types.html#RS3"><span class="hs-identifier hs-var">RS3</span></a></span><span> </span><span class="annot"><span class="annottext">s
+</span><a href="#local-6989586621679164233"><span class="hs-identifier hs-var">s'</span></a></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679164240"><span class="hs-identifier hs-var">c2</span></a></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679164241"><span class="hs-identifier hs-var">c3</span></a></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679164242"><span class="hs-identifier hs-var">c4</span></a></span><span>
+</span><span id="line-48"></span><span>            </span><span class="hs-keyword">where</span><span>
+</span><span id="line-49"></span><span>              </span><span id="local-6989586621679164234"><span class="annot"><span class="annottext">n :: Int
+</span><a href="#local-6989586621679164234"><span class="hs-identifier hs-var hs-var">n</span></a></span></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Char -&gt; Int
+</span><a href="Data.Text.Internal.Unsafe.Char.html#ord"><span class="hs-identifier hs-var">ord</span></a></span><span> </span><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621679164232"><span class="hs-identifier hs-var">x</span></a></span><span>
+</span><span id="line-50"></span><span>              </span><span id="local-6989586621679164245"><span class="annot"><span class="annottext">n1 :: Int
+</span><a href="#local-6989586621679164245"><span class="hs-identifier hs-var hs-var">n1</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679164234"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0x10000</span></span><span>
+</span><span id="line-51"></span><span>              </span><span id="local-6989586621679164238"><span class="annot"><span class="annottext">c1 :: Word8
+</span><a href="#local-6989586621679164238"><span class="hs-identifier hs-var hs-var">c1</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Word8
+</span><a href="Data.Text.Internal.Encoding.Fusion.Common.html#intToWord8"><span class="hs-identifier hs-var">intToWord8</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679164245"><span class="hs-identifier hs-var">n1</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Bits a =&gt; a -&gt; Int -&gt; a
+</span><span class="hs-operator hs-var">`shiftR`</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">18</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0xD8</span></span><span class="hs-special">)</span><span>
+</span><span id="line-52"></span><span>              </span><span id="local-6989586621679164240"><span class="annot"><span class="annottext">c2 :: Word8
+</span><a href="#local-6989586621679164240"><span class="hs-identifier hs-var hs-var">c2</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Word8
+</span><a href="Data.Text.Internal.Encoding.Fusion.Common.html#intToWord8"><span class="hs-identifier hs-var">intToWord8</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679164245"><span class="hs-identifier hs-var">n1</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Bits a =&gt; a -&gt; Int -&gt; a
+</span><span class="hs-operator hs-var">`shiftR`</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">10</span></span><span class="hs-special">)</span><span>
+</span><span id="line-53"></span><span>              </span><span id="local-6989586621679164253"><span class="annot"><span class="annottext">n2 :: Int
+</span><a href="#local-6989586621679164253"><span class="hs-identifier hs-var hs-var">n2</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679164245"><span class="hs-identifier hs-var">n1</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Bits a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">.&amp;.</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0x3FF</span></span><span>
+</span><span id="line-54"></span><span>              </span><span id="local-6989586621679164241"><span class="annot"><span class="annottext">c3 :: Word8
+</span><a href="#local-6989586621679164241"><span class="hs-identifier hs-var hs-var">c3</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Word8
+</span><a href="Data.Text.Internal.Encoding.Fusion.Common.html#intToWord8"><span class="hs-identifier hs-var">intToWord8</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679164253"><span class="hs-identifier hs-var">n2</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Bits a =&gt; a -&gt; Int -&gt; a
+</span><span class="hs-operator hs-var">`shiftR`</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">8</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0xDC</span></span><span class="hs-special">)</span><span>
+</span><span id="line-55"></span><span>              </span><span id="local-6989586621679164242"><span class="annot"><span class="annottext">c4 :: Word8
+</span><a href="#local-6989586621679164242"><span class="hs-identifier hs-var hs-var">c4</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Word8
+</span><a href="Data.Text.Internal.Encoding.Fusion.Common.html#intToWord8"><span class="hs-identifier hs-var">intToWord8</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679164253"><span class="hs-identifier hs-var">n2</span></a></span><span>
+</span><span id="line-56"></span><span>    </span><span class="annot"><a href="#local-6989586621679164218"><span class="hs-identifier hs-var">next</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Text.Internal.Fusion.Types.html#RS1"><span class="hs-identifier hs-type">RS1</span></a></span><span> </span><span id="local-6989586621679164257"><span class="annot"><span class="annottext">s
+</span><a href="#local-6989586621679164257"><span class="hs-identifier hs-var">s</span></a></span></span><span> </span><span id="local-6989586621679164258"><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679164258"><span class="hs-identifier hs-var">x2</span></a></span></span><span class="hs-special">)</span><span>       </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word8 -&gt; RS s -&gt; Step (RS s) Word8
+forall s a. a -&gt; s -&gt; Step s a
+</span><a href="Data.Text.Internal.Fusion.Types.html#Yield"><span class="hs-identifier hs-var">Yield</span></a></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679164258"><span class="hs-identifier hs-var">x2</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">s -&gt; RS s
+forall s. s -&gt; RS s
+</span><a href="Data.Text.Internal.Fusion.Types.html#RS0"><span class="hs-identifier hs-var">RS0</span></a></span><span> </span><span class="annot"><span class="annottext">s
+</span><a href="#local-6989586621679164257"><span class="hs-identifier hs-var">s</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-57"></span><span>    </span><span class="annot"><a href="#local-6989586621679164218"><span class="hs-identifier hs-var">next</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Text.Internal.Fusion.Types.html#RS2"><span class="hs-identifier hs-type">RS2</span></a></span><span> </span><span id="local-6989586621679164260"><span class="annot"><span class="annottext">s
+</span><a href="#local-6989586621679164260"><span class="hs-identifier hs-var">s</span></a></span></span><span> </span><span id="local-6989586621679164261"><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679164261"><span class="hs-identifier hs-var">x2</span></a></span></span><span> </span><span id="local-6989586621679164262"><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679164262"><span class="hs-identifier hs-var">x3</span></a></span></span><span class="hs-special">)</span><span>    </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word8 -&gt; RS s -&gt; Step (RS s) Word8
+forall s a. a -&gt; s -&gt; Step s a
+</span><a href="Data.Text.Internal.Fusion.Types.html#Yield"><span class="hs-identifier hs-var">Yield</span></a></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679164261"><span class="hs-identifier hs-var">x2</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">s -&gt; Word8 -&gt; RS s
+forall s. s -&gt; Word8 -&gt; RS s
+</span><a href="Data.Text.Internal.Fusion.Types.html#RS1"><span class="hs-identifier hs-var">RS1</span></a></span><span> </span><span class="annot"><span class="annottext">s
+</span><a href="#local-6989586621679164260"><span class="hs-identifier hs-var">s</span></a></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679164262"><span class="hs-identifier hs-var">x3</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-58"></span><span>    </span><span class="annot"><a href="#local-6989586621679164218"><span class="hs-identifier hs-var">next</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Text.Internal.Fusion.Types.html#RS3"><span class="hs-identifier hs-type">RS3</span></a></span><span> </span><span id="local-6989586621679164263"><span class="annot"><span class="annottext">s
+</span><a href="#local-6989586621679164263"><span class="hs-identifier hs-var">s</span></a></span></span><span> </span><span id="local-6989586621679164264"><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679164264"><span class="hs-identifier hs-var">x2</span></a></span></span><span> </span><span id="local-6989586621679164265"><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679164265"><span class="hs-identifier hs-var">x3</span></a></span></span><span> </span><span id="local-6989586621679164266"><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679164266"><span class="hs-identifier hs-var">x4</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word8 -&gt; RS s -&gt; Step (RS s) Word8
+forall s a. a -&gt; s -&gt; Step s a
+</span><a href="Data.Text.Internal.Fusion.Types.html#Yield"><span class="hs-identifier hs-var">Yield</span></a></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679164264"><span class="hs-identifier hs-var">x2</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">s -&gt; Word8 -&gt; Word8 -&gt; RS s
+forall s. s -&gt; Word8 -&gt; Word8 -&gt; RS s
+</span><a href="Data.Text.Internal.Fusion.Types.html#RS2"><span class="hs-identifier hs-var">RS2</span></a></span><span> </span><span class="annot"><span class="annottext">s
+</span><a href="#local-6989586621679164263"><span class="hs-identifier hs-var">s</span></a></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679164265"><span class="hs-identifier hs-var">x3</span></a></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679164266"><span class="hs-identifier hs-var">x4</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-59"></span><span>    </span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="#local-6989586621679164218"><span class="hs-pragma hs-type">next</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-60"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Data.Text.Internal.Encoding.Fusion.Common.html#restreamUtf16BE"><span class="hs-pragma hs-type">restreamUtf16BE</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-61"></span><span>
+</span><span id="line-62"></span><span class="annot"><a href="Data.Text.Internal.Encoding.Fusion.Common.html#restreamUtf16LE"><span class="hs-identifier hs-type">restreamUtf16LE</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Data.Text.Internal.Fusion.Types.html#Stream"><span class="hs-identifier hs-type">Stream</span></a></span><span> </span><span class="annot"><a href="../../ghc-prim-0.12.0-595c/src/GHC.Types.html#Char"><span class="hs-identifier hs-type">Char</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Data.Text.Internal.Fusion.Types.html#Stream"><span class="hs-identifier hs-type">Stream</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word8</span></span><span>
+</span><span id="line-63"></span><span id="restreamUtf16LE"><span class="annot"><span class="annottext">restreamUtf16LE :: Stream Char -&gt; Stream Word8
+</span><a href="Data.Text.Internal.Encoding.Fusion.Common.html#restreamUtf16LE"><span class="hs-identifier hs-var hs-var">restreamUtf16LE</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Text.Internal.Fusion.Types.html#Stream"><span class="hs-identifier hs-type">Stream</span></a></span><span> </span><span id="local-6989586621679164269"><span class="annot"><span class="annottext">s -&gt; Step s Char
+</span><a href="#local-6989586621679164269"><span class="hs-identifier hs-var">next0</span></a></span></span><span> </span><span id="local-6989586621679164270"><span class="annot"><span class="annottext">s
+</span><a href="#local-6989586621679164270"><span class="hs-identifier hs-var">s0</span></a></span></span><span> </span><span id="local-6989586621679164271"><span class="annot"><span class="annottext">Size
+</span><a href="#local-6989586621679164271"><span class="hs-identifier hs-var">len</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(RS s -&gt; Step (RS s) Word8) -&gt; RS s -&gt; Size -&gt; Stream Word8
+forall a s. (s -&gt; Step s a) -&gt; s -&gt; Size -&gt; Stream a
+</span><a href="Data.Text.Internal.Fusion.Types.html#Stream"><span class="hs-identifier hs-var">Stream</span></a></span><span> </span><span class="annot"><span class="annottext">RS s -&gt; Step (RS s) Word8
+</span><a href="#local-6989586621679164272"><span class="hs-identifier hs-var">next</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">s -&gt; RS s
+forall s. s -&gt; RS s
+</span><a href="Data.Text.Internal.Fusion.Types.html#RS0"><span class="hs-identifier hs-var">RS0</span></a></span><span> </span><span class="annot"><span class="annottext">s
+</span><a href="#local-6989586621679164270"><span class="hs-identifier hs-var">s0</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Size
+</span><a href="#local-6989586621679164271"><span class="hs-identifier hs-var">len</span></a></span><span> </span><span class="annot"><span class="annottext">Size -&gt; Size -&gt; Size
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">*</span></span><span> </span><span class="annot"><span class="annottext">Size
+</span><span class="hs-number">2</span></span><span class="hs-special">)</span><span>
+</span><span id="line-64"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-65"></span><span>    </span><span id="local-6989586621679164272"><span class="annot"><span class="annottext">next :: RS s -&gt; Step (RS s) Word8
+</span><a href="#local-6989586621679164272"><span class="hs-identifier hs-var hs-var">next</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Text.Internal.Fusion.Types.html#RS0"><span class="hs-identifier hs-type">RS0</span></a></span><span> </span><span id="local-6989586621679164276"><span class="annot"><span class="annottext">s
+</span><a href="#local-6989586621679164276"><span class="hs-identifier hs-var">s</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">s -&gt; Step s Char
+</span><a href="#local-6989586621679164269"><span class="hs-identifier hs-var">next0</span></a></span><span> </span><span class="annot"><span class="annottext">s
+</span><a href="#local-6989586621679164276"><span class="hs-identifier hs-var">s</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-66"></span><span>        </span><span class="annot"><span class="annottext">Step s Char
+</span><a href="Data.Text.Internal.Fusion.Types.html#Done"><span class="hs-identifier hs-var">Done</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Step (RS s) Word8
+forall s a. Step s a
+</span><a href="Data.Text.Internal.Fusion.Types.html#Done"><span class="hs-identifier hs-var">Done</span></a></span><span>
+</span><span id="line-67"></span><span>        </span><span class="annot"><a href="Data.Text.Internal.Fusion.Types.html#Skip"><span class="hs-identifier hs-type">Skip</span></a></span><span> </span><span id="local-6989586621679164277"><span class="annot"><span class="annottext">s
+</span><a href="#local-6989586621679164277"><span class="hs-identifier hs-var">s'</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">RS s -&gt; Step (RS s) Word8
+forall s a. s -&gt; Step s a
+</span><a href="Data.Text.Internal.Fusion.Types.html#Skip"><span class="hs-identifier hs-var">Skip</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">s -&gt; RS s
+forall s. s -&gt; RS s
+</span><a href="Data.Text.Internal.Fusion.Types.html#RS0"><span class="hs-identifier hs-var">RS0</span></a></span><span> </span><span class="annot"><span class="annottext">s
+</span><a href="#local-6989586621679164277"><span class="hs-identifier hs-var">s'</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-68"></span><span>        </span><span class="annot"><a href="Data.Text.Internal.Fusion.Types.html#Yield"><span class="hs-identifier hs-type">Yield</span></a></span><span> </span><span id="local-6989586621679164278"><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621679164278"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span id="local-6989586621679164279"><span class="annot"><span class="annottext">s
+</span><a href="#local-6989586621679164279"><span class="hs-identifier hs-var">s'</span></a></span></span><span>
+</span><span id="line-69"></span><span>            </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679164280"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><a href="../../ghc-prim-0.12.0-595c/src/GHC.Classes.html#%3C"><span class="hs-operator hs-var">&lt;</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0x10000</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word8 -&gt; RS s -&gt; Step (RS s) Word8
+forall s a. a -&gt; s -&gt; Step s a
+</span><a href="Data.Text.Internal.Fusion.Types.html#Yield"><span class="hs-identifier hs-var">Yield</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; Word8
+</span><a href="Data.Text.Internal.Encoding.Fusion.Common.html#intToWord8"><span class="hs-identifier hs-var">intToWord8</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679164280"><span class="hs-identifier hs-var">n</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(RS s -&gt; Step (RS s) Word8) -&gt; RS s -&gt; Step (RS s) Word8
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-70"></span><span>                             </span><span class="annot"><span class="annottext">s -&gt; Word8 -&gt; RS s
+forall s. s -&gt; Word8 -&gt; RS s
+</span><a href="Data.Text.Internal.Fusion.Types.html#RS1"><span class="hs-identifier hs-var">RS1</span></a></span><span> </span><span class="annot"><span class="annottext">s
+</span><a href="#local-6989586621679164279"><span class="hs-identifier hs-var">s'</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; Word8
+</span><a href="Data.Text.Internal.Encoding.Fusion.Common.html#intToWord8"><span class="hs-identifier hs-var">intToWord8</span></a></span><span> </span><span class="annot"><span class="annottext">(Int -&gt; Word8) -&gt; Int -&gt; Word8
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Bits a =&gt; a -&gt; Int -&gt; a
+</span><span class="hs-identifier hs-var">shiftR</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679164280"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">8</span></span><span class="hs-special">)</span><span>
+</span><span id="line-71"></span><span>            </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span>   </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word8 -&gt; RS s -&gt; Step (RS s) Word8
+forall s a. a -&gt; s -&gt; Step s a
+</span><a href="Data.Text.Internal.Fusion.Types.html#Yield"><span class="hs-identifier hs-var">Yield</span></a></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679164281"><span class="hs-identifier hs-var">c1</span></a></span><span> </span><span class="annot"><span class="annottext">(RS s -&gt; Step (RS s) Word8) -&gt; RS s -&gt; Step (RS s) Word8
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">s -&gt; Word8 -&gt; Word8 -&gt; Word8 -&gt; RS s
+forall s. s -&gt; Word8 -&gt; Word8 -&gt; Word8 -&gt; RS s
+</span><a href="Data.Text.Internal.Fusion.Types.html#RS3"><span class="hs-identifier hs-var">RS3</span></a></span><span> </span><span class="annot"><span class="annottext">s
+</span><a href="#local-6989586621679164279"><span class="hs-identifier hs-var">s'</span></a></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679164282"><span class="hs-identifier hs-var">c2</span></a></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679164283"><span class="hs-identifier hs-var">c3</span></a></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679164284"><span class="hs-identifier hs-var">c4</span></a></span><span>
+</span><span id="line-72"></span><span>          </span><span class="hs-keyword">where</span><span>
+</span><span id="line-73"></span><span>            </span><span id="local-6989586621679164280"><span class="annot"><span class="annottext">n :: Int
+</span><a href="#local-6989586621679164280"><span class="hs-identifier hs-var hs-var">n</span></a></span></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Char -&gt; Int
+</span><a href="Data.Text.Internal.Unsafe.Char.html#ord"><span class="hs-identifier hs-var">ord</span></a></span><span> </span><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621679164278"><span class="hs-identifier hs-var">x</span></a></span><span>
+</span><span id="line-74"></span><span>            </span><span id="local-6989586621679164287"><span class="annot"><span class="annottext">n1 :: Int
+</span><a href="#local-6989586621679164287"><span class="hs-identifier hs-var hs-var">n1</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679164280"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0x10000</span></span><span>
+</span><span id="line-75"></span><span>            </span><span id="local-6989586621679164282"><span class="annot"><span class="annottext">c2 :: Word8
+</span><a href="#local-6989586621679164282"><span class="hs-identifier hs-var hs-var">c2</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Word8
+</span><a href="Data.Text.Internal.Encoding.Fusion.Common.html#intToWord8"><span class="hs-identifier hs-var">intToWord8</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Bits a =&gt; a -&gt; Int -&gt; a
+</span><span class="hs-identifier hs-var">shiftR</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679164287"><span class="hs-identifier hs-var">n1</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">18</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0xD8</span></span><span class="hs-special">)</span><span>
+</span><span id="line-76"></span><span>            </span><span id="local-6989586621679164281"><span class="annot"><span class="annottext">c1 :: Word8
+</span><a href="#local-6989586621679164281"><span class="hs-identifier hs-var hs-var">c1</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Word8
+</span><a href="Data.Text.Internal.Encoding.Fusion.Common.html#intToWord8"><span class="hs-identifier hs-var">intToWord8</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Bits a =&gt; a -&gt; Int -&gt; a
+</span><span class="hs-identifier hs-var">shiftR</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679164287"><span class="hs-identifier hs-var">n1</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">10</span></span><span class="hs-special">)</span><span>
+</span><span id="line-77"></span><span>            </span><span id="local-6989586621679164294"><span class="annot"><span class="annottext">n2 :: Int
+</span><a href="#local-6989586621679164294"><span class="hs-identifier hs-var hs-var">n2</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679164287"><span class="hs-identifier hs-var">n1</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Bits a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">.&amp;.</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0x3FF</span></span><span>
+</span><span id="line-78"></span><span>            </span><span id="local-6989586621679164284"><span class="annot"><span class="annottext">c4 :: Word8
+</span><a href="#local-6989586621679164284"><span class="hs-identifier hs-var hs-var">c4</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Word8
+</span><a href="Data.Text.Internal.Encoding.Fusion.Common.html#intToWord8"><span class="hs-identifier hs-var">intToWord8</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Bits a =&gt; a -&gt; Int -&gt; a
+</span><span class="hs-identifier hs-var">shiftR</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679164294"><span class="hs-identifier hs-var">n2</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">8</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0xDC</span></span><span class="hs-special">)</span><span>
+</span><span id="line-79"></span><span>            </span><span id="local-6989586621679164283"><span class="annot"><span class="annottext">c3 :: Word8
+</span><a href="#local-6989586621679164283"><span class="hs-identifier hs-var hs-var">c3</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Word8
+</span><a href="Data.Text.Internal.Encoding.Fusion.Common.html#intToWord8"><span class="hs-identifier hs-var">intToWord8</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679164294"><span class="hs-identifier hs-var">n2</span></a></span><span>
+</span><span id="line-80"></span><span>    </span><span class="annot"><a href="#local-6989586621679164272"><span class="hs-identifier hs-var">next</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Text.Internal.Fusion.Types.html#RS1"><span class="hs-identifier hs-type">RS1</span></a></span><span> </span><span id="local-6989586621679164298"><span class="annot"><span class="annottext">s
+</span><a href="#local-6989586621679164298"><span class="hs-identifier hs-var">s</span></a></span></span><span> </span><span id="local-6989586621679164299"><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679164299"><span class="hs-identifier hs-var">x2</span></a></span></span><span class="hs-special">)</span><span>       </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word8 -&gt; RS s -&gt; Step (RS s) Word8
+forall s a. a -&gt; s -&gt; Step s a
+</span><a href="Data.Text.Internal.Fusion.Types.html#Yield"><span class="hs-identifier hs-var">Yield</span></a></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679164299"><span class="hs-identifier hs-var">x2</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">s -&gt; RS s
+forall s. s -&gt; RS s
+</span><a href="Data.Text.Internal.Fusion.Types.html#RS0"><span class="hs-identifier hs-var">RS0</span></a></span><span> </span><span class="annot"><span class="annottext">s
+</span><a href="#local-6989586621679164298"><span class="hs-identifier hs-var">s</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-81"></span><span>    </span><span class="annot"><a href="#local-6989586621679164272"><span class="hs-identifier hs-var">next</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Text.Internal.Fusion.Types.html#RS2"><span class="hs-identifier hs-type">RS2</span></a></span><span> </span><span id="local-6989586621679164300"><span class="annot"><span class="annottext">s
+</span><a href="#local-6989586621679164300"><span class="hs-identifier hs-var">s</span></a></span></span><span> </span><span id="local-6989586621679164301"><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679164301"><span class="hs-identifier hs-var">x2</span></a></span></span><span> </span><span id="local-6989586621679164302"><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679164302"><span class="hs-identifier hs-var">x3</span></a></span></span><span class="hs-special">)</span><span>    </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word8 -&gt; RS s -&gt; Step (RS s) Word8
+forall s a. a -&gt; s -&gt; Step s a
+</span><a href="Data.Text.Internal.Fusion.Types.html#Yield"><span class="hs-identifier hs-var">Yield</span></a></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679164301"><span class="hs-identifier hs-var">x2</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">s -&gt; Word8 -&gt; RS s
+forall s. s -&gt; Word8 -&gt; RS s
+</span><a href="Data.Text.Internal.Fusion.Types.html#RS1"><span class="hs-identifier hs-var">RS1</span></a></span><span> </span><span class="annot"><span class="annottext">s
+</span><a href="#local-6989586621679164300"><span class="hs-identifier hs-var">s</span></a></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679164302"><span class="hs-identifier hs-var">x3</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-82"></span><span>    </span><span class="annot"><a href="#local-6989586621679164272"><span class="hs-identifier hs-var">next</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Text.Internal.Fusion.Types.html#RS3"><span class="hs-identifier hs-type">RS3</span></a></span><span> </span><span id="local-6989586621679164303"><span class="annot"><span class="annottext">s
+</span><a href="#local-6989586621679164303"><span class="hs-identifier hs-var">s</span></a></span></span><span> </span><span id="local-6989586621679164304"><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679164304"><span class="hs-identifier hs-var">x2</span></a></span></span><span> </span><span id="local-6989586621679164305"><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679164305"><span class="hs-identifier hs-var">x3</span></a></span></span><span> </span><span id="local-6989586621679164306"><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679164306"><span class="hs-identifier hs-var">x4</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word8 -&gt; RS s -&gt; Step (RS s) Word8
+forall s a. a -&gt; s -&gt; Step s a
+</span><a href="Data.Text.Internal.Fusion.Types.html#Yield"><span class="hs-identifier hs-var">Yield</span></a></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679164304"><span class="hs-identifier hs-var">x2</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">s -&gt; Word8 -&gt; Word8 -&gt; RS s
+forall s. s -&gt; Word8 -&gt; Word8 -&gt; RS s
+</span><a href="Data.Text.Internal.Fusion.Types.html#RS2"><span class="hs-identifier hs-var">RS2</span></a></span><span> </span><span class="annot"><span class="annottext">s
+</span><a href="#local-6989586621679164303"><span class="hs-identifier hs-var">s</span></a></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679164305"><span class="hs-identifier hs-var">x3</span></a></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679164306"><span class="hs-identifier hs-var">x4</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-83"></span><span>    </span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="#local-6989586621679164272"><span class="hs-pragma hs-type">next</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-84"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Data.Text.Internal.Encoding.Fusion.Common.html#restreamUtf16LE"><span class="hs-pragma hs-type">restreamUtf16LE</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-85"></span><span>
+</span><span id="line-86"></span><span class="annot"><a href="Data.Text.Internal.Encoding.Fusion.Common.html#restreamUtf32BE"><span class="hs-identifier hs-type">restreamUtf32BE</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Data.Text.Internal.Fusion.Types.html#Stream"><span class="hs-identifier hs-type">Stream</span></a></span><span> </span><span class="annot"><a href="../../ghc-prim-0.12.0-595c/src/GHC.Types.html#Char"><span class="hs-identifier hs-type">Char</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Data.Text.Internal.Fusion.Types.html#Stream"><span class="hs-identifier hs-type">Stream</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word8</span></span><span>
+</span><span id="line-87"></span><span id="restreamUtf32BE"><span class="annot"><span class="annottext">restreamUtf32BE :: Stream Char -&gt; Stream Word8
+</span><a href="Data.Text.Internal.Encoding.Fusion.Common.html#restreamUtf32BE"><span class="hs-identifier hs-var hs-var">restreamUtf32BE</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Text.Internal.Fusion.Types.html#Stream"><span class="hs-identifier hs-type">Stream</span></a></span><span> </span><span id="local-6989586621679164309"><span class="annot"><span class="annottext">s -&gt; Step s Char
+</span><a href="#local-6989586621679164309"><span class="hs-identifier hs-var">next0</span></a></span></span><span> </span><span id="local-6989586621679164310"><span class="annot"><span class="annottext">s
+</span><a href="#local-6989586621679164310"><span class="hs-identifier hs-var">s0</span></a></span></span><span> </span><span id="local-6989586621679164311"><span class="annot"><span class="annottext">Size
+</span><a href="#local-6989586621679164311"><span class="hs-identifier hs-var">len</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(RS s -&gt; Step (RS s) Word8) -&gt; RS s -&gt; Size -&gt; Stream Word8
+forall a s. (s -&gt; Step s a) -&gt; s -&gt; Size -&gt; Stream a
+</span><a href="Data.Text.Internal.Fusion.Types.html#Stream"><span class="hs-identifier hs-var">Stream</span></a></span><span> </span><span class="annot"><span class="annottext">RS s -&gt; Step (RS s) Word8
+</span><a href="#local-6989586621679164312"><span class="hs-identifier hs-var">next</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">s -&gt; RS s
+forall s. s -&gt; RS s
+</span><a href="Data.Text.Internal.Fusion.Types.html#RS0"><span class="hs-identifier hs-var">RS0</span></a></span><span> </span><span class="annot"><span class="annottext">s
+</span><a href="#local-6989586621679164310"><span class="hs-identifier hs-var">s0</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Size
+</span><a href="#local-6989586621679164311"><span class="hs-identifier hs-var">len</span></a></span><span> </span><span class="annot"><span class="annottext">Size -&gt; Size -&gt; Size
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">*</span></span><span> </span><span class="annot"><span class="annottext">Size
+</span><span class="hs-number">2</span></span><span class="hs-special">)</span><span>
+</span><span id="line-88"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-89"></span><span>    </span><span id="local-6989586621679164312"><span class="annot"><span class="annottext">next :: RS s -&gt; Step (RS s) Word8
+</span><a href="#local-6989586621679164312"><span class="hs-identifier hs-var hs-var">next</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Text.Internal.Fusion.Types.html#RS0"><span class="hs-identifier hs-type">RS0</span></a></span><span> </span><span id="local-6989586621679164313"><span class="annot"><span class="annottext">s
+</span><a href="#local-6989586621679164313"><span class="hs-identifier hs-var">s</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">s -&gt; Step s Char
+</span><a href="#local-6989586621679164309"><span class="hs-identifier hs-var">next0</span></a></span><span> </span><span class="annot"><span class="annottext">s
+</span><a href="#local-6989586621679164313"><span class="hs-identifier hs-var">s</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-90"></span><span>        </span><span class="annot"><span class="annottext">Step s Char
+</span><a href="Data.Text.Internal.Fusion.Types.html#Done"><span class="hs-identifier hs-var">Done</span></a></span><span>       </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Step (RS s) Word8
+forall s a. Step s a
+</span><a href="Data.Text.Internal.Fusion.Types.html#Done"><span class="hs-identifier hs-var">Done</span></a></span><span>
+</span><span id="line-91"></span><span>        </span><span class="annot"><a href="Data.Text.Internal.Fusion.Types.html#Skip"><span class="hs-identifier hs-type">Skip</span></a></span><span> </span><span id="local-6989586621679164314"><span class="annot"><span class="annottext">s
+</span><a href="#local-6989586621679164314"><span class="hs-identifier hs-var">s'</span></a></span></span><span>    </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">RS s -&gt; Step (RS s) Word8
+forall s a. s -&gt; Step s a
+</span><a href="Data.Text.Internal.Fusion.Types.html#Skip"><span class="hs-identifier hs-var">Skip</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">s -&gt; RS s
+forall s. s -&gt; RS s
+</span><a href="Data.Text.Internal.Fusion.Types.html#RS0"><span class="hs-identifier hs-var">RS0</span></a></span><span> </span><span class="annot"><span class="annottext">s
+</span><a href="#local-6989586621679164314"><span class="hs-identifier hs-var">s'</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-92"></span><span>        </span><span class="annot"><a href="Data.Text.Internal.Fusion.Types.html#Yield"><span class="hs-identifier hs-type">Yield</span></a></span><span> </span><span id="local-6989586621679164315"><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621679164315"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span id="local-6989586621679164316"><span class="annot"><span class="annottext">s
+</span><a href="#local-6989586621679164316"><span class="hs-identifier hs-var">s'</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word8 -&gt; RS s -&gt; Step (RS s) Word8
+forall s a. a -&gt; s -&gt; Step s a
+</span><a href="Data.Text.Internal.Fusion.Types.html#Yield"><span class="hs-identifier hs-var">Yield</span></a></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679164317"><span class="hs-identifier hs-var">c1</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">s -&gt; Word8 -&gt; Word8 -&gt; Word8 -&gt; RS s
+forall s. s -&gt; Word8 -&gt; Word8 -&gt; Word8 -&gt; RS s
+</span><a href="Data.Text.Internal.Fusion.Types.html#RS3"><span class="hs-identifier hs-var">RS3</span></a></span><span> </span><span class="annot"><span class="annottext">s
+</span><a href="#local-6989586621679164316"><span class="hs-identifier hs-var">s'</span></a></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679164318"><span class="hs-identifier hs-var">c2</span></a></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679164319"><span class="hs-identifier hs-var">c3</span></a></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679164320"><span class="hs-identifier hs-var">c4</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-93"></span><span>          </span><span class="hs-keyword">where</span><span>
+</span><span id="line-94"></span><span>            </span><span id="local-6989586621679164321"><span class="annot"><span class="annottext">n :: Int
+</span><a href="#local-6989586621679164321"><span class="hs-identifier hs-var hs-var">n</span></a></span></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Char -&gt; Int
+</span><a href="Data.Text.Internal.Unsafe.Char.html#ord"><span class="hs-identifier hs-var">ord</span></a></span><span> </span><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621679164315"><span class="hs-identifier hs-var">x</span></a></span><span>
+</span><span id="line-95"></span><span>            </span><span id="local-6989586621679164317"><span class="annot"><span class="annottext">c1 :: Word8
+</span><a href="#local-6989586621679164317"><span class="hs-identifier hs-var hs-var">c1</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Word8
+</span><a href="Data.Text.Internal.Encoding.Fusion.Common.html#intToWord8"><span class="hs-identifier hs-var">intToWord8</span></a></span><span> </span><span class="annot"><span class="annottext">(Int -&gt; Word8) -&gt; Int -&gt; Word8
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Bits a =&gt; a -&gt; Int -&gt; a
+</span><span class="hs-identifier hs-var">shiftR</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679164321"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">24</span></span><span>
+</span><span id="line-96"></span><span>            </span><span id="local-6989586621679164318"><span class="annot"><span class="annottext">c2 :: Word8
+</span><a href="#local-6989586621679164318"><span class="hs-identifier hs-var hs-var">c2</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Word8
+</span><a href="Data.Text.Internal.Encoding.Fusion.Common.html#intToWord8"><span class="hs-identifier hs-var">intToWord8</span></a></span><span> </span><span class="annot"><span class="annottext">(Int -&gt; Word8) -&gt; Int -&gt; Word8
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Bits a =&gt; a -&gt; Int -&gt; a
+</span><span class="hs-identifier hs-var">shiftR</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679164321"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">16</span></span><span>
+</span><span id="line-97"></span><span>            </span><span id="local-6989586621679164319"><span class="annot"><span class="annottext">c3 :: Word8
+</span><a href="#local-6989586621679164319"><span class="hs-identifier hs-var hs-var">c3</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Word8
+</span><a href="Data.Text.Internal.Encoding.Fusion.Common.html#intToWord8"><span class="hs-identifier hs-var">intToWord8</span></a></span><span> </span><span class="annot"><span class="annottext">(Int -&gt; Word8) -&gt; Int -&gt; Word8
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Bits a =&gt; a -&gt; Int -&gt; a
+</span><span class="hs-identifier hs-var">shiftR</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679164321"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">8</span></span><span>
+</span><span id="line-98"></span><span>            </span><span id="local-6989586621679164320"><span class="annot"><span class="annottext">c4 :: Word8
+</span><a href="#local-6989586621679164320"><span class="hs-identifier hs-var hs-var">c4</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Word8
+</span><a href="Data.Text.Internal.Encoding.Fusion.Common.html#intToWord8"><span class="hs-identifier hs-var">intToWord8</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679164321"><span class="hs-identifier hs-var">n</span></a></span><span>
+</span><span id="line-99"></span><span>    </span><span class="annot"><a href="#local-6989586621679164312"><span class="hs-identifier hs-var">next</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Text.Internal.Fusion.Types.html#RS1"><span class="hs-identifier hs-type">RS1</span></a></span><span> </span><span id="local-6989586621679164325"><span class="annot"><span class="annottext">s
+</span><a href="#local-6989586621679164325"><span class="hs-identifier hs-var">s</span></a></span></span><span> </span><span id="local-6989586621679164326"><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679164326"><span class="hs-identifier hs-var">x2</span></a></span></span><span class="hs-special">)</span><span>       </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word8 -&gt; RS s -&gt; Step (RS s) Word8
+forall s a. a -&gt; s -&gt; Step s a
+</span><a href="Data.Text.Internal.Fusion.Types.html#Yield"><span class="hs-identifier hs-var">Yield</span></a></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679164326"><span class="hs-identifier hs-var">x2</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">s -&gt; RS s
+forall s. s -&gt; RS s
+</span><a href="Data.Text.Internal.Fusion.Types.html#RS0"><span class="hs-identifier hs-var">RS0</span></a></span><span> </span><span class="annot"><span class="annottext">s
+</span><a href="#local-6989586621679164325"><span class="hs-identifier hs-var">s</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-100"></span><span>    </span><span class="annot"><a href="#local-6989586621679164312"><span class="hs-identifier hs-var">next</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Text.Internal.Fusion.Types.html#RS2"><span class="hs-identifier hs-type">RS2</span></a></span><span> </span><span id="local-6989586621679164327"><span class="annot"><span class="annottext">s
+</span><a href="#local-6989586621679164327"><span class="hs-identifier hs-var">s</span></a></span></span><span> </span><span id="local-6989586621679164328"><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679164328"><span class="hs-identifier hs-var">x2</span></a></span></span><span> </span><span id="local-6989586621679164329"><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679164329"><span class="hs-identifier hs-var">x3</span></a></span></span><span class="hs-special">)</span><span>    </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word8 -&gt; RS s -&gt; Step (RS s) Word8
+forall s a. a -&gt; s -&gt; Step s a
+</span><a href="Data.Text.Internal.Fusion.Types.html#Yield"><span class="hs-identifier hs-var">Yield</span></a></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679164328"><span class="hs-identifier hs-var">x2</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">s -&gt; Word8 -&gt; RS s
+forall s. s -&gt; Word8 -&gt; RS s
+</span><a href="Data.Text.Internal.Fusion.Types.html#RS1"><span class="hs-identifier hs-var">RS1</span></a></span><span> </span><span class="annot"><span class="annottext">s
+</span><a href="#local-6989586621679164327"><span class="hs-identifier hs-var">s</span></a></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679164329"><span class="hs-identifier hs-var">x3</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-101"></span><span>    </span><span class="annot"><a href="#local-6989586621679164312"><span class="hs-identifier hs-var">next</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Text.Internal.Fusion.Types.html#RS3"><span class="hs-identifier hs-type">RS3</span></a></span><span> </span><span id="local-6989586621679164330"><span class="annot"><span class="annottext">s
+</span><a href="#local-6989586621679164330"><span class="hs-identifier hs-var">s</span></a></span></span><span> </span><span id="local-6989586621679164331"><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679164331"><span class="hs-identifier hs-var">x2</span></a></span></span><span> </span><span id="local-6989586621679164332"><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679164332"><span class="hs-identifier hs-var">x3</span></a></span></span><span> </span><span id="local-6989586621679164333"><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679164333"><span class="hs-identifier hs-var">x4</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word8 -&gt; RS s -&gt; Step (RS s) Word8
+forall s a. a -&gt; s -&gt; Step s a
+</span><a href="Data.Text.Internal.Fusion.Types.html#Yield"><span class="hs-identifier hs-var">Yield</span></a></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679164331"><span class="hs-identifier hs-var">x2</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">s -&gt; Word8 -&gt; Word8 -&gt; RS s
+forall s. s -&gt; Word8 -&gt; Word8 -&gt; RS s
+</span><a href="Data.Text.Internal.Fusion.Types.html#RS2"><span class="hs-identifier hs-var">RS2</span></a></span><span> </span><span class="annot"><span class="annottext">s
+</span><a href="#local-6989586621679164330"><span class="hs-identifier hs-var">s</span></a></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679164332"><span class="hs-identifier hs-var">x3</span></a></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679164333"><span class="hs-identifier hs-var">x4</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-102"></span><span>    </span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="#local-6989586621679164312"><span class="hs-pragma hs-type">next</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-103"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Data.Text.Internal.Encoding.Fusion.Common.html#restreamUtf32BE"><span class="hs-pragma hs-type">restreamUtf32BE</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-104"></span><span>
+</span><span id="line-105"></span><span class="annot"><a href="Data.Text.Internal.Encoding.Fusion.Common.html#restreamUtf32LE"><span class="hs-identifier hs-type">restreamUtf32LE</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Data.Text.Internal.Fusion.Types.html#Stream"><span class="hs-identifier hs-type">Stream</span></a></span><span> </span><span class="annot"><a href="../../ghc-prim-0.12.0-595c/src/GHC.Types.html#Char"><span class="hs-identifier hs-type">Char</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Data.Text.Internal.Fusion.Types.html#Stream"><span class="hs-identifier hs-type">Stream</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word8</span></span><span>
+</span><span id="line-106"></span><span id="restreamUtf32LE"><span class="annot"><span class="annottext">restreamUtf32LE :: Stream Char -&gt; Stream Word8
+</span><a href="Data.Text.Internal.Encoding.Fusion.Common.html#restreamUtf32LE"><span class="hs-identifier hs-var hs-var">restreamUtf32LE</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Text.Internal.Fusion.Types.html#Stream"><span class="hs-identifier hs-type">Stream</span></a></span><span> </span><span id="local-6989586621679164336"><span class="annot"><span class="annottext">s -&gt; Step s Char
+</span><a href="#local-6989586621679164336"><span class="hs-identifier hs-var">next0</span></a></span></span><span> </span><span id="local-6989586621679164337"><span class="annot"><span class="annottext">s
+</span><a href="#local-6989586621679164337"><span class="hs-identifier hs-var">s0</span></a></span></span><span> </span><span id="local-6989586621679164338"><span class="annot"><span class="annottext">Size
+</span><a href="#local-6989586621679164338"><span class="hs-identifier hs-var">len</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(RS s -&gt; Step (RS s) Word8) -&gt; RS s -&gt; Size -&gt; Stream Word8
+forall a s. (s -&gt; Step s a) -&gt; s -&gt; Size -&gt; Stream a
+</span><a href="Data.Text.Internal.Fusion.Types.html#Stream"><span class="hs-identifier hs-var">Stream</span></a></span><span> </span><span class="annot"><span class="annottext">RS s -&gt; Step (RS s) Word8
+</span><a href="#local-6989586621679164339"><span class="hs-identifier hs-var">next</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">s -&gt; RS s
+forall s. s -&gt; RS s
+</span><a href="Data.Text.Internal.Fusion.Types.html#RS0"><span class="hs-identifier hs-var">RS0</span></a></span><span> </span><span class="annot"><span class="annottext">s
+</span><a href="#local-6989586621679164337"><span class="hs-identifier hs-var">s0</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Size
+</span><a href="#local-6989586621679164338"><span class="hs-identifier hs-var">len</span></a></span><span> </span><span class="annot"><span class="annottext">Size -&gt; Size -&gt; Size
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">*</span></span><span> </span><span class="annot"><span class="annottext">Size
+</span><span class="hs-number">2</span></span><span class="hs-special">)</span><span>
+</span><span id="line-107"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-108"></span><span>    </span><span id="local-6989586621679164339"><span class="annot"><span class="annottext">next :: RS s -&gt; Step (RS s) Word8
+</span><a href="#local-6989586621679164339"><span class="hs-identifier hs-var hs-var">next</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Text.Internal.Fusion.Types.html#RS0"><span class="hs-identifier hs-type">RS0</span></a></span><span> </span><span id="local-6989586621679164340"><span class="annot"><span class="annottext">s
+</span><a href="#local-6989586621679164340"><span class="hs-identifier hs-var">s</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">s -&gt; Step s Char
+</span><a href="#local-6989586621679164336"><span class="hs-identifier hs-var">next0</span></a></span><span> </span><span class="annot"><span class="annottext">s
+</span><a href="#local-6989586621679164340"><span class="hs-identifier hs-var">s</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-109"></span><span>        </span><span class="annot"><span class="annottext">Step s Char
+</span><a href="Data.Text.Internal.Fusion.Types.html#Done"><span class="hs-identifier hs-var">Done</span></a></span><span>       </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Step (RS s) Word8
+forall s a. Step s a
+</span><a href="Data.Text.Internal.Fusion.Types.html#Done"><span class="hs-identifier hs-var">Done</span></a></span><span>
+</span><span id="line-110"></span><span>        </span><span class="annot"><a href="Data.Text.Internal.Fusion.Types.html#Skip"><span class="hs-identifier hs-type">Skip</span></a></span><span> </span><span id="local-6989586621679164341"><span class="annot"><span class="annottext">s
+</span><a href="#local-6989586621679164341"><span class="hs-identifier hs-var">s'</span></a></span></span><span>    </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">RS s -&gt; Step (RS s) Word8
+forall s a. s -&gt; Step s a
+</span><a href="Data.Text.Internal.Fusion.Types.html#Skip"><span class="hs-identifier hs-var">Skip</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">s -&gt; RS s
+forall s. s -&gt; RS s
+</span><a href="Data.Text.Internal.Fusion.Types.html#RS0"><span class="hs-identifier hs-var">RS0</span></a></span><span> </span><span class="annot"><span class="annottext">s
+</span><a href="#local-6989586621679164341"><span class="hs-identifier hs-var">s'</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-111"></span><span>        </span><span class="annot"><a href="Data.Text.Internal.Fusion.Types.html#Yield"><span class="hs-identifier hs-type">Yield</span></a></span><span> </span><span id="local-6989586621679164342"><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621679164342"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span id="local-6989586621679164343"><span class="annot"><span class="annottext">s
+</span><a href="#local-6989586621679164343"><span class="hs-identifier hs-var">s'</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word8 -&gt; RS s -&gt; Step (RS s) Word8
+forall s a. a -&gt; s -&gt; Step s a
+</span><a href="Data.Text.Internal.Fusion.Types.html#Yield"><span class="hs-identifier hs-var">Yield</span></a></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679164344"><span class="hs-identifier hs-var">c1</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">s -&gt; Word8 -&gt; Word8 -&gt; Word8 -&gt; RS s
+forall s. s -&gt; Word8 -&gt; Word8 -&gt; Word8 -&gt; RS s
+</span><a href="Data.Text.Internal.Fusion.Types.html#RS3"><span class="hs-identifier hs-var">RS3</span></a></span><span> </span><span class="annot"><span class="annottext">s
+</span><a href="#local-6989586621679164343"><span class="hs-identifier hs-var">s'</span></a></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679164345"><span class="hs-identifier hs-var">c2</span></a></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679164346"><span class="hs-identifier hs-var">c3</span></a></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679164347"><span class="hs-identifier hs-var">c4</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-112"></span><span>          </span><span class="hs-keyword">where</span><span>
+</span><span id="line-113"></span><span>            </span><span id="local-6989586621679164348"><span class="annot"><span class="annottext">n :: Int
+</span><a href="#local-6989586621679164348"><span class="hs-identifier hs-var hs-var">n</span></a></span></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Char -&gt; Int
+</span><a href="Data.Text.Internal.Unsafe.Char.html#ord"><span class="hs-identifier hs-var">ord</span></a></span><span> </span><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621679164342"><span class="hs-identifier hs-var">x</span></a></span><span>
+</span><span id="line-114"></span><span>            </span><span id="local-6989586621679164347"><span class="annot"><span class="annottext">c4 :: Word8
+</span><a href="#local-6989586621679164347"><span class="hs-identifier hs-var hs-var">c4</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Word8
+</span><a href="Data.Text.Internal.Encoding.Fusion.Common.html#intToWord8"><span class="hs-identifier hs-var">intToWord8</span></a></span><span> </span><span class="annot"><span class="annottext">(Int -&gt; Word8) -&gt; Int -&gt; Word8
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Bits a =&gt; a -&gt; Int -&gt; a
+</span><span class="hs-identifier hs-var">shiftR</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679164348"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">24</span></span><span>
+</span><span id="line-115"></span><span>            </span><span id="local-6989586621679164346"><span class="annot"><span class="annottext">c3 :: Word8
+</span><a href="#local-6989586621679164346"><span class="hs-identifier hs-var hs-var">c3</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Word8
+</span><a href="Data.Text.Internal.Encoding.Fusion.Common.html#intToWord8"><span class="hs-identifier hs-var">intToWord8</span></a></span><span> </span><span class="annot"><span class="annottext">(Int -&gt; Word8) -&gt; Int -&gt; Word8
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Bits a =&gt; a -&gt; Int -&gt; a
+</span><span class="hs-identifier hs-var">shiftR</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679164348"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">16</span></span><span>
+</span><span id="line-116"></span><span>            </span><span id="local-6989586621679164345"><span class="annot"><span class="annottext">c2 :: Word8
+</span><a href="#local-6989586621679164345"><span class="hs-identifier hs-var hs-var">c2</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Word8
+</span><a href="Data.Text.Internal.Encoding.Fusion.Common.html#intToWord8"><span class="hs-identifier hs-var">intToWord8</span></a></span><span> </span><span class="annot"><span class="annottext">(Int -&gt; Word8) -&gt; Int -&gt; Word8
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Bits a =&gt; a -&gt; Int -&gt; a
+</span><span class="hs-identifier hs-var">shiftR</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679164348"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">8</span></span><span>
+</span><span id="line-117"></span><span>            </span><span id="local-6989586621679164344"><span class="annot"><span class="annottext">c1 :: Word8
+</span><a href="#local-6989586621679164344"><span class="hs-identifier hs-var hs-var">c1</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Word8
+</span><a href="Data.Text.Internal.Encoding.Fusion.Common.html#intToWord8"><span class="hs-identifier hs-var">intToWord8</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679164348"><span class="hs-identifier hs-var">n</span></a></span><span>
+</span><span id="line-118"></span><span>    </span><span class="annot"><a href="#local-6989586621679164339"><span class="hs-identifier hs-var">next</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Text.Internal.Fusion.Types.html#RS1"><span class="hs-identifier hs-type">RS1</span></a></span><span> </span><span id="local-6989586621679164352"><span class="annot"><span class="annottext">s
+</span><a href="#local-6989586621679164352"><span class="hs-identifier hs-var">s</span></a></span></span><span> </span><span id="local-6989586621679164353"><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679164353"><span class="hs-identifier hs-var">x2</span></a></span></span><span class="hs-special">)</span><span>       </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word8 -&gt; RS s -&gt; Step (RS s) Word8
+forall s a. a -&gt; s -&gt; Step s a
+</span><a href="Data.Text.Internal.Fusion.Types.html#Yield"><span class="hs-identifier hs-var">Yield</span></a></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679164353"><span class="hs-identifier hs-var">x2</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">s -&gt; RS s
+forall s. s -&gt; RS s
+</span><a href="Data.Text.Internal.Fusion.Types.html#RS0"><span class="hs-identifier hs-var">RS0</span></a></span><span> </span><span class="annot"><span class="annottext">s
+</span><a href="#local-6989586621679164352"><span class="hs-identifier hs-var">s</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-119"></span><span>    </span><span class="annot"><a href="#local-6989586621679164339"><span class="hs-identifier hs-var">next</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Text.Internal.Fusion.Types.html#RS2"><span class="hs-identifier hs-type">RS2</span></a></span><span> </span><span id="local-6989586621679164354"><span class="annot"><span class="annottext">s
+</span><a href="#local-6989586621679164354"><span class="hs-identifier hs-var">s</span></a></span></span><span> </span><span id="local-6989586621679164355"><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679164355"><span class="hs-identifier hs-var">x2</span></a></span></span><span> </span><span id="local-6989586621679164356"><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679164356"><span class="hs-identifier hs-var">x3</span></a></span></span><span class="hs-special">)</span><span>    </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word8 -&gt; RS s -&gt; Step (RS s) Word8
+forall s a. a -&gt; s -&gt; Step s a
+</span><a href="Data.Text.Internal.Fusion.Types.html#Yield"><span class="hs-identifier hs-var">Yield</span></a></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679164355"><span class="hs-identifier hs-var">x2</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">s -&gt; Word8 -&gt; RS s
+forall s. s -&gt; Word8 -&gt; RS s
+</span><a href="Data.Text.Internal.Fusion.Types.html#RS1"><span class="hs-identifier hs-var">RS1</span></a></span><span> </span><span class="annot"><span class="annottext">s
+</span><a href="#local-6989586621679164354"><span class="hs-identifier hs-var">s</span></a></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679164356"><span class="hs-identifier hs-var">x3</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-120"></span><span>    </span><span class="annot"><a href="#local-6989586621679164339"><span class="hs-identifier hs-var">next</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Text.Internal.Fusion.Types.html#RS3"><span class="hs-identifier hs-type">RS3</span></a></span><span> </span><span id="local-6989586621679164357"><span class="annot"><span class="annottext">s
+</span><a href="#local-6989586621679164357"><span class="hs-identifier hs-var">s</span></a></span></span><span> </span><span id="local-6989586621679164358"><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679164358"><span class="hs-identifier hs-var">x2</span></a></span></span><span> </span><span id="local-6989586621679164359"><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679164359"><span class="hs-identifier hs-var">x3</span></a></span></span><span> </span><span id="local-6989586621679164360"><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679164360"><span class="hs-identifier hs-var">x4</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word8 -&gt; RS s -&gt; Step (RS s) Word8
+forall s a. a -&gt; s -&gt; Step s a
+</span><a href="Data.Text.Internal.Fusion.Types.html#Yield"><span class="hs-identifier hs-var">Yield</span></a></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679164358"><span class="hs-identifier hs-var">x2</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">s -&gt; Word8 -&gt; Word8 -&gt; RS s
+forall s. s -&gt; Word8 -&gt; Word8 -&gt; RS s
+</span><a href="Data.Text.Internal.Fusion.Types.html#RS2"><span class="hs-identifier hs-var">RS2</span></a></span><span> </span><span class="annot"><span class="annottext">s
+</span><a href="#local-6989586621679164357"><span class="hs-identifier hs-var">s</span></a></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679164359"><span class="hs-identifier hs-var">x3</span></a></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679164360"><span class="hs-identifier hs-var">x4</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-121"></span><span>    </span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="#local-6989586621679164339"><span class="hs-pragma hs-type">next</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-122"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Data.Text.Internal.Encoding.Fusion.Common.html#restreamUtf32LE"><span class="hs-pragma hs-type">restreamUtf32LE</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-123"></span><span>
+</span><span id="line-124"></span><span class="annot"><a href="Data.Text.Internal.Encoding.Fusion.Common.html#intToWord8"><span class="hs-identifier hs-type">intToWord8</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="../../ghc-prim-0.12.0-595c/src/GHC.Types.html#Int"><span class="hs-identifier hs-type">Int</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word8</span></span><span>
+</span><span id="line-125"></span><span id="intToWord8"><span class="annot"><span class="annottext">intToWord8 :: Int -&gt; Word8
+</span><a href="Data.Text.Internal.Encoding.Fusion.Common.html#intToWord8"><span class="hs-identifier hs-var hs-var">intToWord8</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Word8
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span>
+</span><span id="line-126"></span></pre></body></html>

@@ -1,0 +1,511 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE ScopedTypeVariables #-}</span><span>
+</span><span id="line-2"></span><span>
+</span><span id="line-3"></span><span class="annot"><span class="hs-comment">-- | Unstable API which exposes internals for testing.</span></span><span>
+</span><span id="line-4"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Control.Debounce.Internal.html"><span class="hs-identifier">Control.Debounce.Internal</span></a></span><span> </span><span class="hs-special">(</span><span>
+</span><span id="line-5"></span><span>    </span><span class="annot"><a href="Control.Debounce.Internal.html#DebounceSettings"><span class="hs-identifier">DebounceSettings</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-6"></span><span>    </span><span class="annot"><a href="Control.Debounce.Internal.html#DebounceEdge"><span class="hs-identifier">DebounceEdge</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-7"></span><span>    </span><span class="annot"><a href="Control.Debounce.Internal.html#leadingEdge"><span class="hs-identifier">leadingEdge</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-8"></span><span>    </span><span class="annot"><a href="Control.Debounce.Internal.html#leadingMuteEdge"><span class="hs-identifier">leadingMuteEdge</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-9"></span><span>    </span><span class="annot"><a href="Control.Debounce.Internal.html#trailingEdge"><span class="hs-identifier">trailingEdge</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-10"></span><span>    </span><span class="annot"><a href="Control.Debounce.Internal.html#trailingDelayEdge"><span class="hs-identifier">trailingDelayEdge</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-11"></span><span>    </span><span class="annot"><a href="Control.Debounce.Internal.html#mkDebounceInternal"><span class="hs-identifier">mkDebounceInternal</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-12"></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-13"></span><span>
+</span><span id="line-14"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Concurrent</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">forkIO</span></span><span class="hs-special">)</span><span>
+</span><span id="line-15"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Concurrent.MVar</span></span><span> </span><span class="hs-special">(</span><span>
+</span><span id="line-16"></span><span>    </span><span class="annot"><span class="hs-identifier">MVar</span></span><span class="hs-special">,</span><span>
+</span><span id="line-17"></span><span>    </span><span class="annot"><span class="hs-identifier">newEmptyMVar</span></span><span class="hs-special">,</span><span>
+</span><span id="line-18"></span><span>    </span><span class="annot"><span class="hs-identifier">putMVar</span></span><span class="hs-special">,</span><span>
+</span><span id="line-19"></span><span>    </span><span class="annot"><span class="hs-identifier">tryPutMVar</span></span><span class="hs-special">,</span><span>
+</span><span id="line-20"></span><span>    </span><span class="annot"><span class="hs-identifier">tryTakeMVar</span></span><span class="hs-special">,</span><span>
+</span><span id="line-21"></span><span> </span><span class="hs-special">)</span><span>
+</span><span id="line-22"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Exception</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">SomeException</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">handle</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">mask_</span></span><span class="hs-special">)</span><span>
+</span><span id="line-23"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Monad</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">void</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">when</span></span><span class="hs-special">)</span><span>
+</span><span id="line-24"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">GHC.Clock</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">getMonotonicTimeNSec</span></span><span class="hs-special">)</span><span>
+</span><span id="line-25"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">GHC.Conc</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">atomically</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">newTVarIO</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">readTVar</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">readTVarIO</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">writeTVar</span></span><span class="hs-special">)</span><span>
+</span><span id="line-26"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">GHC.Conc.Sync</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">labelThread</span></span><span class="hs-special">)</span><span>
+</span><span id="line-27"></span><span>
+</span><span id="line-28"></span><span class="hs-comment">-- | Settings to control how debouncing should work.</span><span>
+</span><span id="line-29"></span><span class="hs-comment">--</span><span>
+</span><span id="line-30"></span><span class="hs-comment">-- This should be constructed using 'defaultDebounceSettings' and record</span><span>
+</span><span id="line-31"></span><span class="hs-comment">-- update syntax, e.g.:</span><span>
+</span><span id="line-32"></span><span class="hs-comment">--</span><span>
+</span><span id="line-33"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-34"></span><span class="hs-comment">-- let settings = 'defaultDebounceSettings' { 'debounceAction' = flushLog }</span><span>
+</span><span id="line-35"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-36"></span><span class="hs-comment">--</span><span>
+</span><span id="line-37"></span><span class="hs-comment">-- @since 0.1.2</span><span>
+</span><span id="line-38"></span><span class="hs-keyword">data</span><span> </span><span id="DebounceSettings"><span class="annot"><a href="Control.Debounce.Internal.html#DebounceSettings"><span class="hs-identifier hs-var">DebounceSettings</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="DebounceSettings"><span class="annot"><a href="Control.Debounce.Internal.html#DebounceSettings"><span class="hs-identifier hs-var">DebounceSettings</span></a></span></span><span>
+</span><span id="line-39"></span><span>    </span><span class="hs-special">{</span><span> </span><span id="debounceFreq"><span class="annot"><span class="annottext">DebounceSettings -&gt; Int
+</span><a href="Control.Debounce.Internal.html#debounceFreq"><span class="hs-identifier hs-var hs-var">debounceFreq</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>
+</span><span id="line-40"></span><span>    </span><span class="hs-comment">-- ^ Length of the debounce timeout period in microseconds.</span><span>
+</span><span id="line-41"></span><span>    </span><span class="hs-comment">--</span><span>
+</span><span id="line-42"></span><span>    </span><span class="hs-comment">-- Default: 1 second (1000000)</span><span>
+</span><span id="line-43"></span><span>    </span><span class="hs-comment">--</span><span>
+</span><span id="line-44"></span><span>    </span><span class="hs-comment">-- @since 0.1.2</span><span>
+</span><span id="line-45"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="debounceAction"><span class="annot"><span class="annottext">DebounceSettings -&gt; IO ()
+</span><a href="Control.Debounce.Internal.html#debounceAction"><span class="hs-identifier hs-var hs-var">debounceAction</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-46"></span><span>    </span><span class="hs-comment">-- ^ Action to be performed.</span><span>
+</span><span id="line-47"></span><span>    </span><span class="hs-comment">--</span><span>
+</span><span id="line-48"></span><span>    </span><span class="hs-comment">-- Note: all exceptions thrown by this action will be silently discarded.</span><span>
+</span><span id="line-49"></span><span>    </span><span class="hs-comment">--</span><span>
+</span><span id="line-50"></span><span>    </span><span class="hs-comment">-- Default: does nothing.</span><span>
+</span><span id="line-51"></span><span>    </span><span class="hs-comment">--</span><span>
+</span><span id="line-52"></span><span>    </span><span class="hs-comment">-- @since 0.1.2</span><span>
+</span><span id="line-53"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="debounceEdge"><span class="annot"><span class="annottext">DebounceSettings -&gt; DebounceEdge
+</span><a href="Control.Debounce.Internal.html#debounceEdge"><span class="hs-identifier hs-var hs-var">debounceEdge</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Control.Debounce.Internal.html#DebounceEdge"><span class="hs-identifier hs-type">DebounceEdge</span></a></span><span>
+</span><span id="line-54"></span><span>    </span><span class="hs-comment">-- ^ Whether to perform the action on the leading edge or trailing edge of</span><span>
+</span><span id="line-55"></span><span>    </span><span class="hs-comment">-- the timeout.</span><span>
+</span><span id="line-56"></span><span>    </span><span class="hs-comment">--</span><span>
+</span><span id="line-57"></span><span>    </span><span class="hs-comment">-- Default: 'leadingEdge'.</span><span>
+</span><span id="line-58"></span><span>    </span><span class="hs-comment">--</span><span>
+</span><span id="line-59"></span><span>    </span><span class="hs-comment">-- @since 0.1.6</span><span>
+</span><span id="line-60"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="debounceThreadName"><span class="annot"><span class="annottext">DebounceSettings -&gt; String
+</span><a href="Control.Debounce.Internal.html#debounceThreadName"><span class="hs-identifier hs-var hs-var">debounceThreadName</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span>
+</span><span id="line-61"></span><span>    </span><span class="hs-comment">-- ^ Label of the thread spawned when debouncing.</span><span>
+</span><span id="line-62"></span><span>    </span><span class="hs-comment">--</span><span>
+</span><span id="line-63"></span><span>    </span><span class="hs-comment">-- Default: @&quot;Debounce&quot;@.</span><span>
+</span><span id="line-64"></span><span>    </span><span class="hs-comment">--</span><span>
+</span><span id="line-65"></span><span>    </span><span class="hs-comment">-- @since 0.2.2</span><span>
+</span><span id="line-66"></span><span>    </span><span class="hs-special">}</span><span>
+</span><span id="line-67"></span><span>
+</span><span id="line-68"></span><span class="hs-comment">-- | Setting to control whether the action happens at the leading and/or trailing</span><span>
+</span><span id="line-69"></span><span class="hs-comment">-- edge of the timeout.</span><span>
+</span><span id="line-70"></span><span class="hs-comment">--</span><span>
+</span><span id="line-71"></span><span class="hs-comment">-- @since 0.1.6</span><span>
+</span><span id="line-72"></span><span class="hs-keyword">data</span><span> </span><span id="DebounceEdge"><span class="annot"><a href="Control.Debounce.Internal.html#DebounceEdge"><span class="hs-identifier hs-var">DebounceEdge</span></a></span></span><span>
+</span><span id="line-73"></span><span>    </span><span class="hs-glyph">=</span><span> </span><span class="hs-comment">-- | Perform the action immediately, and then begin a cooldown period.</span><span>
+</span><span id="line-74"></span><span>      </span><span class="hs-comment">-- If the trigger happens again during the cooldown, wait until the end of the cooldown</span><span>
+</span><span id="line-75"></span><span>      </span><span class="hs-comment">-- and then perform the action again, then enter a new cooldown period.</span><span>
+</span><span id="line-76"></span><span>      </span><span id="Leading"><span class="annot"><a href="Control.Debounce.Internal.html#Leading"><span class="hs-identifier hs-var">Leading</span></a></span></span><span>
+</span><span id="line-77"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span class="hs-comment">-- | Perform the action immediately, and then begin a cooldown period.</span><span>
+</span><span id="line-78"></span><span>      </span><span class="hs-comment">-- If the trigger happens again during the cooldown, it is ignored.</span><span>
+</span><span id="line-79"></span><span>      </span><span id="LeadingMute"><span class="annot"><a href="Control.Debounce.Internal.html#LeadingMute"><span class="hs-identifier hs-var">LeadingMute</span></a></span></span><span>
+</span><span id="line-80"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span class="hs-comment">-- | Start a cooldown period and perform the action when the period ends. If another trigger</span><span>
+</span><span id="line-81"></span><span>      </span><span class="hs-comment">-- happens during the cooldown, it has no effect.</span><span>
+</span><span id="line-82"></span><span>      </span><span id="Trailing"><span class="annot"><a href="Control.Debounce.Internal.html#Trailing"><span class="hs-identifier hs-var">Trailing</span></a></span></span><span>
+</span><span id="line-83"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span class="hs-comment">-- | Start a cooldown period and perform the action when the period ends. If another trigger</span><span>
+</span><span id="line-84"></span><span>      </span><span class="hs-comment">-- happens during the cooldown, it restarts the cooldown again.</span><span>
+</span><span id="line-85"></span><span>      </span><span id="TrailingDelay"><span class="annot"><a href="Control.Debounce.Internal.html#TrailingDelay"><span class="hs-identifier hs-var">TrailingDelay</span></a></span></span><span>
+</span><span id="line-86"></span><span>    </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679041505"><span id="local-6989586621679041507"><span id="local-6989586621679041511"><span class="annot"><span class="annottext">Int -&gt; DebounceEdge -&gt; ShowS
+[DebounceEdge] -&gt; ShowS
+DebounceEdge -&gt; String
+(Int -&gt; DebounceEdge -&gt; ShowS)
+-&gt; (DebounceEdge -&gt; String)
+-&gt; ([DebounceEdge] -&gt; ShowS)
+-&gt; Show DebounceEdge
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; DebounceEdge -&gt; ShowS
+showsPrec :: Int -&gt; DebounceEdge -&gt; ShowS
+$cshow :: DebounceEdge -&gt; String
+show :: DebounceEdge -&gt; String
+$cshowList :: [DebounceEdge] -&gt; ShowS
+showList :: [DebounceEdge] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679041516"><span id="local-6989586621679041521"><span class="annot"><span class="annottext">DebounceEdge -&gt; DebounceEdge -&gt; Bool
+(DebounceEdge -&gt; DebounceEdge -&gt; Bool)
+-&gt; (DebounceEdge -&gt; DebounceEdge -&gt; Bool) -&gt; Eq DebounceEdge
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: DebounceEdge -&gt; DebounceEdge -&gt; Bool
+== :: DebounceEdge -&gt; DebounceEdge -&gt; Bool
+$c/= :: DebounceEdge -&gt; DebounceEdge -&gt; Bool
+/= :: DebounceEdge -&gt; DebounceEdge -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-87"></span><span>
+</span><span id="line-88"></span><span class="hs-comment">-- | Perform the action immediately, and then begin a cooldown period.</span><span>
+</span><span id="line-89"></span><span class="hs-comment">-- If the trigger happens again during the cooldown, wait until the end of the cooldown</span><span>
+</span><span id="line-90"></span><span class="hs-comment">-- and then perform the action again, then enter a new cooldown period.</span><span>
+</span><span id="line-91"></span><span class="hs-comment">--</span><span>
+</span><span id="line-92"></span><span class="hs-comment">-- Example of how this style debounce works:</span><span>
+</span><span id="line-93"></span><span class="hs-comment">--</span><span>
+</span><span id="line-94"></span><span class="hs-comment">-- &gt; ! = function execution</span><span>
+</span><span id="line-95"></span><span class="hs-comment">-- &gt; . = cooldown period</span><span>
+</span><span id="line-96"></span><span class="hs-comment">-- &gt; X = debounced code execution</span><span>
+</span><span id="line-97"></span><span class="hs-comment">-- &gt;</span><span>
+</span><span id="line-98"></span><span class="hs-comment">-- &gt; !   !         !            !</span><span>
+</span><span id="line-99"></span><span class="hs-comment">-- &gt;  ....... ....... .......    .......</span><span>
+</span><span id="line-100"></span><span class="hs-comment">-- &gt; X       X       X          X</span><span>
+</span><span id="line-101"></span><span class="hs-comment">--</span><span>
+</span><span id="line-102"></span><span class="hs-comment">-- @since 0.1.6</span><span>
+</span><span id="line-103"></span><span class="annot"><a href="Control.Debounce.Internal.html#leadingEdge"><span class="hs-identifier hs-type">leadingEdge</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Control.Debounce.Internal.html#DebounceEdge"><span class="hs-identifier hs-type">DebounceEdge</span></a></span><span>
+</span><span id="line-104"></span><span id="leadingEdge"><span class="annot"><span class="annottext">leadingEdge :: DebounceEdge
+</span><a href="Control.Debounce.Internal.html#leadingEdge"><span class="hs-identifier hs-var hs-var">leadingEdge</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">DebounceEdge
+</span><a href="Control.Debounce.Internal.html#Leading"><span class="hs-identifier hs-var">Leading</span></a></span><span>
+</span><span id="line-105"></span><span>
+</span><span id="line-106"></span><span class="hs-comment">-- | Perform the action immediately, and then begin a cooldown period.</span><span>
+</span><span id="line-107"></span><span class="hs-comment">-- If the trigger happens again during the cooldown, it is ignored.</span><span>
+</span><span id="line-108"></span><span class="hs-comment">--</span><span>
+</span><span id="line-109"></span><span class="hs-comment">-- Example of how this style debounce works:</span><span>
+</span><span id="line-110"></span><span class="hs-comment">--</span><span>
+</span><span id="line-111"></span><span class="hs-comment">-- &gt; ! = function execution</span><span>
+</span><span id="line-112"></span><span class="hs-comment">-- &gt; . = cooldown period</span><span>
+</span><span id="line-113"></span><span class="hs-comment">-- &gt; X = debounced code execution</span><span>
+</span><span id="line-114"></span><span class="hs-comment">-- &gt;</span><span>
+</span><span id="line-115"></span><span class="hs-comment">-- &gt; !   !      !     !</span><span>
+</span><span id="line-116"></span><span class="hs-comment">-- &gt;  .......    .......</span><span>
+</span><span id="line-117"></span><span class="hs-comment">-- &gt; X          X</span><span>
+</span><span id="line-118"></span><span class="hs-comment">--</span><span>
+</span><span id="line-119"></span><span class="hs-comment">-- @since 0.1.6</span><span>
+</span><span id="line-120"></span><span class="annot"><a href="Control.Debounce.Internal.html#leadingMuteEdge"><span class="hs-identifier hs-type">leadingMuteEdge</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Control.Debounce.Internal.html#DebounceEdge"><span class="hs-identifier hs-type">DebounceEdge</span></a></span><span>
+</span><span id="line-121"></span><span id="leadingMuteEdge"><span class="annot"><span class="annottext">leadingMuteEdge :: DebounceEdge
+</span><a href="Control.Debounce.Internal.html#leadingMuteEdge"><span class="hs-identifier hs-var hs-var">leadingMuteEdge</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">DebounceEdge
+</span><a href="Control.Debounce.Internal.html#LeadingMute"><span class="hs-identifier hs-var">LeadingMute</span></a></span><span>
+</span><span id="line-122"></span><span>
+</span><span id="line-123"></span><span class="hs-comment">-- | Start a cooldown period and perform the action when the period ends.</span><span>
+</span><span id="line-124"></span><span class="hs-comment">-- If another trigger happens during the cooldown, it has no effect.</span><span>
+</span><span id="line-125"></span><span class="hs-comment">--</span><span>
+</span><span id="line-126"></span><span class="hs-comment">-- Example of how this style debounce works:</span><span>
+</span><span id="line-127"></span><span class="hs-comment">--</span><span>
+</span><span id="line-128"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-129"></span><span class="hs-comment">-- ! = function execution</span><span>
+</span><span id="line-130"></span><span class="hs-comment">-- . = cooldown period</span><span>
+</span><span id="line-131"></span><span class="hs-comment">-- X = debounced code execution</span><span>
+</span><span id="line-132"></span><span class="hs-comment">--</span><span>
+</span><span id="line-133"></span><span class="hs-comment">-- !     !     !  !</span><span>
+</span><span id="line-134"></span><span class="hs-comment">--  .......     .......</span><span>
+</span><span id="line-135"></span><span class="hs-comment">--         X           X</span><span>
+</span><span id="line-136"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-137"></span><span class="hs-comment">--</span><span>
+</span><span id="line-138"></span><span class="hs-comment">-- @since 0.1.6</span><span>
+</span><span id="line-139"></span><span class="annot"><a href="Control.Debounce.Internal.html#trailingEdge"><span class="hs-identifier hs-type">trailingEdge</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Control.Debounce.Internal.html#DebounceEdge"><span class="hs-identifier hs-type">DebounceEdge</span></a></span><span>
+</span><span id="line-140"></span><span id="trailingEdge"><span class="annot"><span class="annottext">trailingEdge :: DebounceEdge
+</span><a href="Control.Debounce.Internal.html#trailingEdge"><span class="hs-identifier hs-var hs-var">trailingEdge</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">DebounceEdge
+</span><a href="Control.Debounce.Internal.html#Trailing"><span class="hs-identifier hs-var">Trailing</span></a></span><span>
+</span><span id="line-141"></span><span>
+</span><span id="line-142"></span><span class="hs-comment">-- | Start a cooldown period and perform the action when the period ends.</span><span>
+</span><span id="line-143"></span><span class="hs-comment">-- If another trigger happens during the cooldown, it restarts the cooldown again.</span><span>
+</span><span id="line-144"></span><span class="hs-comment">--</span><span>
+</span><span id="line-145"></span><span class="hs-comment">-- /N.B. If a trigger happens DURING the 'debounceAction' it starts a new cooldown./</span><span>
+</span><span id="line-146"></span><span class="hs-comment">-- /So if the 'debounceAction' takes longer than the 'debounceFreq', it might run/</span><span>
+</span><span id="line-147"></span><span class="hs-comment">-- /again before the previous action has ended./</span><span>
+</span><span id="line-148"></span><span class="hs-comment">--</span><span>
+</span><span id="line-149"></span><span class="hs-comment">-- Example of how this style debounce works:</span><span>
+</span><span id="line-150"></span><span class="hs-comment">--</span><span>
+</span><span id="line-151"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-152"></span><span class="hs-comment">-- ! = function execution</span><span>
+</span><span id="line-153"></span><span class="hs-comment">-- . = cooldown period</span><span>
+</span><span id="line-154"></span><span class="hs-comment">-- X = debounced code execution</span><span>
+</span><span id="line-155"></span><span class="hs-comment">--</span><span>
+</span><span id="line-156"></span><span class="hs-comment">-- !           !  !    !</span><span>
+</span><span id="line-157"></span><span class="hs-comment">--  .......     ...............</span><span>
+</span><span id="line-158"></span><span class="hs-comment">--         X                   X</span><span>
+</span><span id="line-159"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-160"></span><span class="hs-comment">--</span><span>
+</span><span id="line-161"></span><span class="hs-comment">-- @since 0.1.6</span><span>
+</span><span id="line-162"></span><span class="annot"><a href="Control.Debounce.Internal.html#trailingDelayEdge"><span class="hs-identifier hs-type">trailingDelayEdge</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Control.Debounce.Internal.html#DebounceEdge"><span class="hs-identifier hs-type">DebounceEdge</span></a></span><span>
+</span><span id="line-163"></span><span id="trailingDelayEdge"><span class="annot"><span class="annottext">trailingDelayEdge :: DebounceEdge
+</span><a href="Control.Debounce.Internal.html#trailingDelayEdge"><span class="hs-identifier hs-var hs-var">trailingDelayEdge</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">DebounceEdge
+</span><a href="Control.Debounce.Internal.html#TrailingDelay"><span class="hs-identifier hs-var">TrailingDelay</span></a></span><span>
+</span><span id="line-164"></span><span>
+</span><span id="line-165"></span><span class="annot"><a href="Control.Debounce.Internal.html#mkDebounceInternal"><span class="hs-identifier hs-type">mkDebounceInternal</span></a></span><span>
+</span><span id="line-166"></span><span>    </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">MVar</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Control.Debounce.Internal.html#DebounceSettings"><span class="hs-identifier hs-type">DebounceSettings</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-167"></span><span id="mkDebounceInternal"><span class="annot"><span class="annottext">mkDebounceInternal :: MVar () -&gt; (Int -&gt; IO ()) -&gt; DebounceSettings -&gt; IO (IO ())
+</span><a href="Control.Debounce.Internal.html#mkDebounceInternal"><span class="hs-identifier hs-var hs-var">mkDebounceInternal</span></a></span></span><span> </span><span id="local-6989586621679041525"><span class="annot"><span class="annottext">MVar ()
+</span><a href="#local-6989586621679041525"><span class="hs-identifier hs-var">baton</span></a></span></span><span> </span><span id="local-6989586621679041526"><span class="annot"><span class="annottext">Int -&gt; IO ()
+</span><a href="#local-6989586621679041526"><span class="hs-identifier hs-var">delayFn</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.Debounce.Internal.html#DebounceSettings"><span class="hs-identifier hs-type">DebounceSettings</span></a></span><span> </span><span id="local-6989586621679041527"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679041527"><span class="hs-identifier hs-var">freq</span></a></span></span><span> </span><span id="local-6989586621679041528"><span class="annot"><span class="annottext">IO ()
+</span><a href="#local-6989586621679041528"><span class="hs-identifier hs-var">action</span></a></span></span><span> </span><span id="local-6989586621679041529"><span class="annot"><span class="annottext">DebounceEdge
+</span><a href="#local-6989586621679041529"><span class="hs-identifier hs-var">edge</span></a></span></span><span> </span><span id="local-6989586621679041530"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679041530"><span class="hs-identifier hs-var">name</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-168"></span><span>    </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">DebounceEdge
+</span><a href="#local-6989586621679041529"><span class="hs-identifier hs-var">edge</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-169"></span><span>        </span><span class="annot"><span class="annottext">DebounceEdge
+</span><a href="Control.Debounce.Internal.html#Leading"><span class="hs-identifier hs-var">Leading</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">MVar () -&gt; IO ()
+</span><a href="#local-6989586621679041531"><span class="hs-identifier hs-var">leadingDebounce</span></a></span><span> </span><span class="annot"><span class="annottext">(MVar () -&gt; IO ()) -&gt; IO (MVar ()) -&gt; IO (IO ())
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">IO (MVar ())
+forall a. IO (MVar a)
+</span><span class="hs-identifier hs-var">newEmptyMVar</span></span><span>
+</span><span id="line-170"></span><span>        </span><span class="annot"><span class="annottext">DebounceEdge
+</span><a href="Control.Debounce.Internal.html#LeadingMute"><span class="hs-identifier hs-var">LeadingMute</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">IO () -&gt; IO (IO ())
+forall a. a -&gt; IO a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">IO ()
+</span><a href="#local-6989586621679041533"><span class="hs-identifier hs-var">leadingMuteDebounce</span></a></span><span>
+</span><span id="line-171"></span><span>        </span><span class="annot"><span class="annottext">DebounceEdge
+</span><a href="Control.Debounce.Internal.html#Trailing"><span class="hs-identifier hs-var">Trailing</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">IO () -&gt; IO (IO ())
+forall a. a -&gt; IO a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">IO ()
+</span><a href="#local-6989586621679041534"><span class="hs-identifier hs-var">trailingDebounce</span></a></span><span>
+</span><span id="line-172"></span><span>        </span><span class="annot"><span class="annottext">DebounceEdge
+</span><a href="Control.Debounce.Internal.html#TrailingDelay"><span class="hs-identifier hs-var">TrailingDelay</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">TVar Word64 -&gt; IO ()
+</span><a href="#local-6989586621679041535"><span class="hs-identifier hs-var">trailingDelayDebounce</span></a></span><span> </span><span class="annot"><span class="annottext">(TVar Word64 -&gt; IO ()) -&gt; IO (TVar Word64) -&gt; IO (IO ())
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">Word64 -&gt; IO (TVar Word64)
+forall a. a -&gt; IO (TVar a)
+</span><span class="hs-identifier hs-var">newTVarIO</span></span><span> </span><span class="annot"><span class="annottext">Word64
+forall a. Bounded a =&gt; a
+</span><span class="hs-identifier hs-var">minBound</span></span><span>
+</span><span id="line-173"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-174"></span><span>    </span><span class="hs-comment">-- LEADING</span><span>
+</span><span id="line-175"></span><span>    </span><span class="hs-comment">--</span><span>
+</span><span id="line-176"></span><span>    </span><span class="hs-comment">--   1) try take baton to start</span><span>
+</span><span id="line-177"></span><span>    </span><span class="hs-comment">--   2) succes -&gt; empty trigger &amp; start worker, failed -&gt; fill trigger</span><span>
+</span><span id="line-178"></span><span>    </span><span class="hs-comment">--   3) worker do action</span><span>
+</span><span id="line-179"></span><span>    </span><span class="hs-comment">--   4) delay</span><span>
+</span><span id="line-180"></span><span>    </span><span class="hs-comment">--   5) try take trigger</span><span>
+</span><span id="line-181"></span><span>    </span><span class="hs-comment">--   6) success -&gt; repeat action, failed -&gt; put baton back</span><span>
+</span><span id="line-182"></span><span>    </span><span id="local-6989586621679041531"><span class="annot"><span class="annottext">leadingDebounce :: MVar () -&gt; IO ()
+</span><a href="#local-6989586621679041531"><span class="hs-identifier hs-var hs-var">leadingDebounce</span></a></span></span><span> </span><span id="local-6989586621679041541"><span class="annot"><span class="annottext">MVar ()
+</span><a href="#local-6989586621679041541"><span class="hs-identifier hs-var">trigger</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-183"></span><span>        </span><span class="hs-comment">-- 1)</span><span>
+</span><span id="line-184"></span><span>        </span><span id="local-6989586621679041542"><span class="annot"><a href="#local-6989586621679041542"><span class="hs-identifier hs-var">success</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">MVar () -&gt; IO (Maybe ())
+forall a. MVar a -&gt; IO (Maybe a)
+</span><span class="hs-identifier hs-var">tryTakeMVar</span></span><span> </span><span class="annot"><span class="annottext">MVar ()
+</span><a href="#local-6989586621679041525"><span class="hs-identifier hs-var">baton</span></a></span><span>
+</span><span id="line-185"></span><span>        </span><span class="hs-keyword">case</span><span> </span><span class="annot"><a href="#local-6989586621679041542"><span class="hs-identifier hs-type">success</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-186"></span><span>            </span><span class="hs-comment">-- 2)</span><span>
+</span><span id="line-187"></span><span>            </span><span class="annot"><span class="annottext">Maybe ()
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">IO Bool -&gt; IO ()
+forall (f :: * -&gt; *) a. Functor f =&gt; f a -&gt; f ()
+</span><span class="hs-identifier hs-var">void</span></span><span> </span><span class="annot"><span class="annottext">(IO Bool -&gt; IO ()) -&gt; IO Bool -&gt; IO ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">MVar () -&gt; () -&gt; IO Bool
+forall a. MVar a -&gt; a -&gt; IO Bool
+</span><span class="hs-identifier hs-var">tryPutMVar</span></span><span> </span><span class="annot"><span class="annottext">MVar ()
+</span><a href="#local-6989586621679041541"><span class="hs-identifier hs-var">trigger</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-188"></span><span>            </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-189"></span><span>                </span><span class="annot"><span class="annottext">IO (Maybe ()) -&gt; IO ()
+forall (f :: * -&gt; *) a. Functor f =&gt; f a -&gt; f ()
+</span><span class="hs-identifier hs-var">void</span></span><span> </span><span class="annot"><span class="annottext">(IO (Maybe ()) -&gt; IO ()) -&gt; IO (Maybe ()) -&gt; IO ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">MVar () -&gt; IO (Maybe ())
+forall a. MVar a -&gt; IO (Maybe a)
+</span><span class="hs-identifier hs-var">tryTakeMVar</span></span><span> </span><span class="annot"><span class="annottext">MVar ()
+</span><a href="#local-6989586621679041541"><span class="hs-identifier hs-var">trigger</span></a></span><span>
+</span><span id="line-190"></span><span>                </span><span class="annot"><span class="annottext">IO () -&gt; IO ()
+</span><a href="#local-6989586621679041543"><span class="hs-identifier hs-var">forkAndLabel</span></a></span><span> </span><span class="annot"><span class="annottext">IO ()
+</span><a href="#local-6989586621679041544"><span class="hs-identifier hs-var">loop</span></a></span><span>
+</span><span id="line-191"></span><span>      </span><span class="hs-keyword">where</span><span>
+</span><span id="line-192"></span><span>        </span><span id="local-6989586621679041544"><span class="annot"><span class="annottext">loop :: IO ()
+</span><a href="#local-6989586621679041544"><span class="hs-identifier hs-var hs-var">loop</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-193"></span><span>            </span><span class="hs-comment">-- 3)</span><span>
+</span><span id="line-194"></span><span>            </span><span class="annot"><span class="annottext">IO () -&gt; IO ()
+</span><a href="Control.Debounce.Internal.html#ignoreExc"><span class="hs-identifier hs-var">ignoreExc</span></a></span><span> </span><span class="annot"><span class="annottext">IO ()
+</span><a href="#local-6989586621679041528"><span class="hs-identifier hs-var">action</span></a></span><span>
+</span><span id="line-195"></span><span>            </span><span class="hs-comment">-- 4)</span><span>
+</span><span id="line-196"></span><span>            </span><span class="annot"><span class="annottext">Int -&gt; IO ()
+</span><a href="#local-6989586621679041526"><span class="hs-identifier hs-var">delayFn</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679041527"><span class="hs-identifier hs-var">freq</span></a></span><span>
+</span><span id="line-197"></span><span>            </span><span class="hs-comment">-- 5)</span><span>
+</span><span id="line-198"></span><span>            </span><span id="local-6989586621679041549"><span class="annot"><a href="#local-6989586621679041549"><span class="hs-identifier hs-var">isTriggered</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">MVar () -&gt; IO (Maybe ())
+forall a. MVar a -&gt; IO (Maybe a)
+</span><span class="hs-identifier hs-var">tryTakeMVar</span></span><span> </span><span class="annot"><span class="annottext">MVar ()
+</span><a href="#local-6989586621679041541"><span class="hs-identifier hs-var">trigger</span></a></span><span>
+</span><span id="line-199"></span><span>            </span><span class="hs-keyword">case</span><span> </span><span class="annot"><a href="#local-6989586621679041549"><span class="hs-identifier hs-type">isTriggered</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-200"></span><span>                </span><span class="hs-comment">-- 6)</span><span>
+</span><span id="line-201"></span><span>                </span><span class="annot"><span class="annottext">Maybe ()
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">MVar () -&gt; () -&gt; IO ()
+forall a. MVar a -&gt; a -&gt; IO ()
+</span><span class="hs-identifier hs-var">putMVar</span></span><span> </span><span class="annot"><span class="annottext">MVar ()
+</span><a href="#local-6989586621679041525"><span class="hs-identifier hs-var">baton</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-202"></span><span>                </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">IO ()
+</span><a href="#local-6989586621679041544"><span class="hs-identifier hs-var">loop</span></a></span><span>
+</span><span id="line-203"></span><span>    </span><span class="hs-comment">-- LEADING MUTE</span><span>
+</span><span id="line-204"></span><span>    </span><span class="hs-comment">--</span><span>
+</span><span id="line-205"></span><span>    </span><span class="hs-comment">--   1) try take baton to start</span><span>
+</span><span id="line-206"></span><span>    </span><span class="hs-comment">--   2) success -&gt; start worker, failed -&gt; die</span><span>
+</span><span id="line-207"></span><span>    </span><span class="hs-comment">--   3) worker delay</span><span>
+</span><span id="line-208"></span><span>    </span><span class="hs-comment">--   4) do action</span><span>
+</span><span id="line-209"></span><span>    </span><span class="hs-comment">--   5) put baton back</span><span>
+</span><span id="line-210"></span><span>    </span><span id="local-6989586621679041533"><span class="annot"><span class="annottext">leadingMuteDebounce :: IO ()
+</span><a href="#local-6989586621679041533"><span class="hs-identifier hs-var hs-var">leadingMuteDebounce</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-211"></span><span>        </span><span class="hs-comment">-- 1)</span><span>
+</span><span id="line-212"></span><span>        </span><span id="local-6989586621679041554"><span class="annot"><a href="#local-6989586621679041554"><span class="hs-identifier hs-var">success</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">MVar () -&gt; IO (Maybe ())
+forall a. MVar a -&gt; IO (Maybe a)
+</span><span class="hs-identifier hs-var">tryTakeMVar</span></span><span> </span><span class="annot"><span class="annottext">MVar ()
+</span><a href="#local-6989586621679041525"><span class="hs-identifier hs-var">baton</span></a></span><span>
+</span><span id="line-213"></span><span>        </span><span class="hs-keyword">case</span><span> </span><span class="annot"><a href="#local-6989586621679041554"><span class="hs-identifier hs-type">success</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-214"></span><span>            </span><span class="hs-comment">-- 2)</span><span>
+</span><span id="line-215"></span><span>            </span><span class="annot"><span class="annottext">Maybe ()
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">() -&gt; IO ()
+forall a. a -&gt; IO a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-216"></span><span>            </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-217"></span><span>                </span><span class="annot"><span class="annottext">IO () -&gt; IO ()
+</span><a href="#local-6989586621679041543"><span class="hs-identifier hs-var">forkAndLabel</span></a></span><span> </span><span class="annot"><span class="annottext">(IO () -&gt; IO ()) -&gt; IO () -&gt; IO ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-218"></span><span>                    </span><span class="hs-comment">-- 3)</span><span>
+</span><span id="line-219"></span><span>                    </span><span class="annot"><span class="annottext">IO () -&gt; IO ()
+</span><a href="Control.Debounce.Internal.html#ignoreExc"><span class="hs-identifier hs-var">ignoreExc</span></a></span><span> </span><span class="annot"><span class="annottext">IO ()
+</span><a href="#local-6989586621679041528"><span class="hs-identifier hs-var">action</span></a></span><span>
+</span><span id="line-220"></span><span>                    </span><span class="hs-comment">-- 4)</span><span>
+</span><span id="line-221"></span><span>                    </span><span class="annot"><span class="annottext">Int -&gt; IO ()
+</span><a href="#local-6989586621679041526"><span class="hs-identifier hs-var">delayFn</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679041527"><span class="hs-identifier hs-var">freq</span></a></span><span>
+</span><span id="line-222"></span><span>                    </span><span class="hs-comment">-- 5)</span><span>
+</span><span id="line-223"></span><span>                    </span><span class="annot"><span class="annottext">MVar () -&gt; () -&gt; IO ()
+forall a. MVar a -&gt; a -&gt; IO ()
+</span><span class="hs-identifier hs-var">putMVar</span></span><span> </span><span class="annot"><span class="annottext">MVar ()
+</span><a href="#local-6989586621679041525"><span class="hs-identifier hs-var">baton</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-224"></span><span>    </span><span class="hs-comment">-- TRAILING</span><span>
+</span><span id="line-225"></span><span>    </span><span class="hs-comment">--</span><span>
+</span><span id="line-226"></span><span>    </span><span class="hs-comment">--   1) try take baton to start</span><span>
+</span><span id="line-227"></span><span>    </span><span class="hs-comment">--   2) success -&gt; start worker, failed -&gt; die</span><span>
+</span><span id="line-228"></span><span>    </span><span class="hs-comment">--   3) worker delay</span><span>
+</span><span id="line-229"></span><span>    </span><span class="hs-comment">--   4) do action</span><span>
+</span><span id="line-230"></span><span>    </span><span class="hs-comment">--   5) put baton back</span><span>
+</span><span id="line-231"></span><span>    </span><span id="local-6989586621679041534"><span class="annot"><span class="annottext">trailingDebounce :: IO ()
+</span><a href="#local-6989586621679041534"><span class="hs-identifier hs-var hs-var">trailingDebounce</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-232"></span><span>        </span><span class="hs-comment">-- 1)</span><span>
+</span><span id="line-233"></span><span>        </span><span id="local-6989586621679041559"><span class="annot"><a href="#local-6989586621679041559"><span class="hs-identifier hs-var">success</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">MVar () -&gt; IO (Maybe ())
+forall a. MVar a -&gt; IO (Maybe a)
+</span><span class="hs-identifier hs-var">tryTakeMVar</span></span><span> </span><span class="annot"><span class="annottext">MVar ()
+</span><a href="#local-6989586621679041525"><span class="hs-identifier hs-var">baton</span></a></span><span>
+</span><span id="line-234"></span><span>        </span><span class="hs-keyword">case</span><span> </span><span class="annot"><a href="#local-6989586621679041559"><span class="hs-identifier hs-type">success</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-235"></span><span>            </span><span class="hs-comment">-- 2)</span><span>
+</span><span id="line-236"></span><span>            </span><span class="annot"><span class="annottext">Maybe ()
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">() -&gt; IO ()
+forall a. a -&gt; IO a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-237"></span><span>            </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-238"></span><span>                </span><span class="annot"><span class="annottext">IO () -&gt; IO ()
+</span><a href="#local-6989586621679041543"><span class="hs-identifier hs-var">forkAndLabel</span></a></span><span> </span><span class="annot"><span class="annottext">(IO () -&gt; IO ()) -&gt; IO () -&gt; IO ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-239"></span><span>                    </span><span class="hs-comment">-- 3)</span><span>
+</span><span id="line-240"></span><span>                    </span><span class="annot"><span class="annottext">Int -&gt; IO ()
+</span><a href="#local-6989586621679041526"><span class="hs-identifier hs-var">delayFn</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679041527"><span class="hs-identifier hs-var">freq</span></a></span><span>
+</span><span id="line-241"></span><span>                    </span><span class="hs-comment">-- 4)</span><span>
+</span><span id="line-242"></span><span>                    </span><span class="annot"><span class="annottext">IO () -&gt; IO ()
+</span><a href="Control.Debounce.Internal.html#ignoreExc"><span class="hs-identifier hs-var">ignoreExc</span></a></span><span> </span><span class="annot"><span class="annottext">IO ()
+</span><a href="#local-6989586621679041528"><span class="hs-identifier hs-var">action</span></a></span><span>
+</span><span id="line-243"></span><span>                    </span><span class="hs-comment">-- 5)</span><span>
+</span><span id="line-244"></span><span>                    </span><span class="annot"><span class="annottext">MVar () -&gt; () -&gt; IO ()
+forall a. MVar a -&gt; a -&gt; IO ()
+</span><span class="hs-identifier hs-var">putMVar</span></span><span> </span><span class="annot"><span class="annottext">MVar ()
+</span><a href="#local-6989586621679041525"><span class="hs-identifier hs-var">baton</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-245"></span><span>        </span><span class="hs-comment">-- TRAILING DELAY</span><span>
+</span><span id="line-246"></span><span>        </span><span class="hs-comment">--</span><span>
+</span><span id="line-247"></span><span>        </span><span class="hs-comment">--   1) get current time -&gt; /now/</span><span>
+</span><span id="line-248"></span><span>        </span><span class="hs-comment">--   2) try take baton to start</span><span>
+</span><span id="line-249"></span><span>        </span><span class="hs-comment">--   3) success -&gt; set time var to /now/ &amp; start worker, failed -&gt; update time var to /now/</span><span>
+</span><span id="line-250"></span><span>        </span><span class="hs-comment">--   4) worker waits minimum delay</span><span>
+</span><span id="line-251"></span><span>        </span><span class="hs-comment">--   5) check diff of time var with /now/</span><span>
+</span><span id="line-252"></span><span>        </span><span class="hs-comment">--   6) less -&gt; wait the difference, same/more -&gt; do action</span><span>
+</span><span id="line-253"></span><span>        </span><span class="hs-comment">--   7) after action, recheck if there was any trigger</span><span>
+</span><span id="line-254"></span><span>        </span><span class="hs-comment">--   8) put baton back</span><span>
+</span><span id="line-255"></span><span>    </span><span id="local-6989586621679041535"><span class="annot"><span class="annottext">trailingDelayDebounce :: TVar Word64 -&gt; IO ()
+</span><a href="#local-6989586621679041535"><span class="hs-identifier hs-var hs-var">trailingDelayDebounce</span></a></span></span><span> </span><span id="local-6989586621679041569"><span class="annot"><span class="annottext">TVar Word64
+</span><a href="#local-6989586621679041569"><span class="hs-identifier hs-var">timeTVar</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-256"></span><span>        </span><span class="hs-comment">-- 1)</span><span>
+</span><span id="line-257"></span><span>        </span><span id="local-6989586621679041570"><span class="annot"><a href="#local-6989586621679041570"><span class="hs-identifier hs-var">now</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">IO Word64
+</span><span class="hs-identifier hs-var">getMonotonicTimeNSec</span></span><span>
+</span><span id="line-258"></span><span>        </span><span class="hs-comment">-- 2)</span><span>
+</span><span id="line-259"></span><span>        </span><span id="local-6989586621679041571"><span class="annot"><a href="#local-6989586621679041571"><span class="hs-identifier hs-var">success</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="hs-identifier hs-type">tryTakeMVar</span></span><span> </span><span class="annot"><a href="#local-6989586621679041525"><span class="hs-identifier hs-type">baton</span></a></span><span>
+</span><span id="line-260"></span><span>        </span><span class="hs-keyword">case</span><span> </span><span class="annot"><a href="#local-6989586621679041571"><span class="hs-identifier hs-type">success</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-261"></span><span>            </span><span class="hs-comment">-- 3)</span><span>
+</span><span id="line-262"></span><span>            </span><span class="annot"><span class="annottext">Maybe ()
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">STM () -&gt; IO ()
+forall a. STM a -&gt; IO a
+</span><span class="hs-identifier hs-var">atomically</span></span><span> </span><span class="annot"><span class="annottext">(STM () -&gt; IO ()) -&gt; STM () -&gt; IO ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-263"></span><span>                </span><span id="local-6989586621679041572"><span class="annot"><a href="#local-6989586621679041572"><span class="hs-identifier hs-var">oldTime</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">TVar Word64 -&gt; STM Word64
+forall a. TVar a -&gt; STM a
+</span><span class="hs-identifier hs-var">readTVar</span></span><span> </span><span class="annot"><span class="annottext">TVar Word64
+</span><a href="#local-6989586621679041569"><span class="hs-identifier hs-var">timeTVar</span></a></span><span>
+</span><span id="line-264"></span><span>                </span><span class="annot"><span class="hs-identifier hs-type">when</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679041572"><span class="hs-identifier hs-type">oldTime</span></a></span><span> </span><span class="annot"><span class="hs-operator hs-type">&lt;</span></span><span> </span><span class="annot"><a href="#local-6989586621679041570"><span class="hs-identifier hs-type">now</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="hs-operator hs-type">$</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">writeTVar</span></span><span> </span><span class="annot"><a href="#local-6989586621679041569"><span class="hs-identifier hs-type">timeTVar</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679041570"><span class="hs-identifier hs-type">now</span></a></span><span>
+</span><span id="line-265"></span><span>            </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-266"></span><span>                </span><span class="annot"><span class="annottext">STM () -&gt; IO ()
+forall a. STM a -&gt; IO a
+</span><span class="hs-identifier hs-var">atomically</span></span><span> </span><span class="annot"><span class="annottext">(STM () -&gt; IO ()) -&gt; STM () -&gt; IO ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">TVar Word64 -&gt; Word64 -&gt; STM ()
+forall a. TVar a -&gt; a -&gt; STM ()
+</span><span class="hs-identifier hs-var">writeTVar</span></span><span> </span><span class="annot"><span class="annottext">TVar Word64
+</span><a href="#local-6989586621679041569"><span class="hs-identifier hs-var">timeTVar</span></a></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679041570"><span class="hs-identifier hs-var">now</span></a></span><span>
+</span><span id="line-267"></span><span>                </span><span class="annot"><span class="annottext">IO () -&gt; IO ()
+</span><a href="#local-6989586621679041543"><span class="hs-identifier hs-var">forkAndLabel</span></a></span><span> </span><span class="annot"><span class="annottext">(IO () -&gt; IO ()) -&gt; IO () -&gt; IO ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; IO ()
+</span><a href="#local-6989586621679041574"><span class="hs-identifier hs-var">loop</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679041527"><span class="hs-identifier hs-var">freq</span></a></span><span>
+</span><span id="line-268"></span><span>      </span><span class="hs-keyword">where</span><span>
+</span><span id="line-269"></span><span>        </span><span id="local-6989586621679041574"><span class="annot"><span class="annottext">loop :: Int -&gt; IO ()
+</span><a href="#local-6989586621679041574"><span class="hs-identifier hs-var hs-var">loop</span></a></span></span><span> </span><span id="local-6989586621679041584"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679041584"><span class="hs-identifier hs-var">delay</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-270"></span><span>            </span><span class="hs-comment">-- 4)</span><span>
+</span><span id="line-271"></span><span>            </span><span class="annot"><span class="annottext">Int -&gt; IO ()
+</span><a href="#local-6989586621679041526"><span class="hs-identifier hs-var">delayFn</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679041584"><span class="hs-identifier hs-var">delay</span></a></span><span>
+</span><span id="line-272"></span><span>            </span><span id="local-6989586621679041585"><span class="annot"><a href="#local-6989586621679041585"><span class="hs-identifier hs-var">lastTrigger</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">TVar Word64 -&gt; IO Word64
+forall a. TVar a -&gt; IO a
+</span><span class="hs-identifier hs-var">readTVarIO</span></span><span> </span><span class="annot"><span class="annottext">TVar Word64
+</span><a href="#local-6989586621679041569"><span class="hs-identifier hs-var">timeTVar</span></a></span><span>
+</span><span id="line-273"></span><span>            </span><span id="local-6989586621679041586"><span class="annot"><a href="#local-6989586621679041586"><span class="hs-identifier hs-var">now</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="hs-identifier hs-type">getMonotonicTimeNSec</span></span><span>
+</span><span id="line-274"></span><span>            </span><span class="hs-comment">-- 5)</span><span>
+</span><span id="line-275"></span><span>            </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679041604"><span class="annot"><a href="#local-6989586621679041604"><span class="hs-identifier hs-var hs-var">diff</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word64 -&gt; Int
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679041586"><span class="hs-identifier hs-var">now</span></a></span><span> </span><span class="annot"><span class="annottext">Word64 -&gt; Word64 -&gt; Word64
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679041585"><span class="hs-identifier hs-var">lastTrigger</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Integral a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">`div`</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1000</span></span><span>
+</span><span id="line-276"></span><span>                </span><span id="local-6989586621679041607"><span class="annot"><a href="#local-6989586621679041607"><span class="hs-identifier hs-var hs-var">shouldWait</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679041604"><span class="hs-identifier hs-var">diff</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&lt;</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679041527"><span class="hs-identifier hs-var">freq</span></a></span><span>
+</span><span id="line-277"></span><span>            </span><span class="hs-keyword">if</span><span> </span><span class="annot"><a href="#local-6989586621679041607"><span class="hs-identifier hs-type">shouldWait</span></a></span><span>
+</span><span id="line-278"></span><span>                </span><span class="hs-comment">-- 6)</span><span>
+</span><span id="line-279"></span><span>                </span><span class="hs-keyword">then</span><span> </span><span class="annot"><a href="#local-6989586621679041574"><span class="hs-identifier hs-type">loop</span></a></span><span> </span><span class="annot"><span class="hs-operator hs-type">$</span></span><span> </span><span class="annot"><a href="#local-6989586621679041527"><span class="hs-identifier hs-type">freq</span></a></span><span> </span><span class="annot"><span class="hs-glyph hs-type">-</span></span><span> </span><span class="annot"><a href="#local-6989586621679041604"><span class="hs-identifier hs-type">diff</span></a></span><span>
+</span><span id="line-280"></span><span>                </span><span class="hs-keyword">else</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-281"></span><span>                    </span><span class="annot"><a href="Control.Debounce.Internal.html#ignoreExc"><span class="hs-identifier hs-type">ignoreExc</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679041528"><span class="hs-identifier hs-type">action</span></a></span><span>
+</span><span id="line-282"></span><span>                    </span><span id="local-6989586621679041608"><span class="annot"><a href="#local-6989586621679041608"><span class="hs-identifier hs-var">timeAfterAction</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="hs-identifier hs-type">readTVarIO</span></span><span> </span><span class="annot"><a href="#local-6989586621679041569"><span class="hs-identifier hs-type">timeTVar</span></a></span><span>
+</span><span id="line-283"></span><span>                    </span><span class="hs-comment">-- 7)</span><span>
+</span><span id="line-284"></span><span>                    </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679041610"><span class="annot"><a href="#local-6989586621679041610"><span class="hs-identifier hs-var hs-var">wasTriggered</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679041608"><span class="hs-identifier hs-var">timeAfterAction</span></a></span><span> </span><span class="annot"><span class="annottext">Word64 -&gt; Word64 -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&gt;</span></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679041586"><span class="hs-identifier hs-var">now</span></a></span><span>
+</span><span id="line-285"></span><span>                    </span><span class="hs-keyword">if</span><span> </span><span class="annot"><a href="#local-6989586621679041610"><span class="hs-identifier hs-type">wasTriggered</span></a></span><span>
+</span><span id="line-286"></span><span>                        </span><span class="hs-keyword">then</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-287"></span><span>                            </span><span id="local-6989586621679041612"><span class="annot"><a href="#local-6989586621679041612"><span class="hs-identifier hs-var">updatedNow</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="hs-identifier hs-type">getMonotonicTimeNSec</span></span><span>
+</span><span id="line-288"></span><span>                            </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679041623"><span class="annot"><a href="#local-6989586621679041623"><span class="hs-identifier hs-var hs-var">newDiff</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word64 -&gt; Int
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679041612"><span class="hs-identifier hs-var">updatedNow</span></a></span><span> </span><span class="annot"><span class="annottext">Word64 -&gt; Word64 -&gt; Word64
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679041608"><span class="hs-identifier hs-var">timeAfterAction</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Integral a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">`div`</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1000</span></span><span>
+</span><span id="line-289"></span><span>                            </span><span class="annot"><a href="#local-6989586621679041574"><span class="hs-identifier hs-type">loop</span></a></span><span> </span><span class="annot"><span class="hs-operator hs-type">$</span></span><span> </span><span class="annot"><a href="#local-6989586621679041527"><span class="hs-identifier hs-type">freq</span></a></span><span> </span><span class="annot"><span class="hs-glyph hs-type">-</span></span><span> </span><span class="annot"><a href="#local-6989586621679041623"><span class="hs-identifier hs-type">newDiff</span></a></span><span>
+</span><span id="line-290"></span><span>                        </span><span class="hs-comment">-- 8)</span><span>
+</span><span id="line-291"></span><span>                        </span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="hs-identifier hs-type">putMVar</span></span><span> </span><span class="annot"><a href="#local-6989586621679041525"><span class="hs-identifier hs-type">baton</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-292"></span><span>    </span><span id="local-6989586621679041543"><span class="annot"><span class="annottext">forkAndLabel :: IO () -&gt; IO ()
+</span><a href="#local-6989586621679041543"><span class="hs-identifier hs-var hs-var">forkAndLabel</span></a></span></span><span> </span><span id="local-6989586621679041625"><span class="annot"><span class="annottext">IO ()
+</span><a href="#local-6989586621679041625"><span class="hs-identifier hs-var">act</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-293"></span><span>        </span><span id="local-6989586621679041626"><span class="annot"><a href="#local-6989586621679041626"><span class="hs-identifier hs-var">tid</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">IO ThreadId -&gt; IO ThreadId
+forall a. IO a -&gt; IO a
+</span><span class="hs-identifier hs-var">mask_</span></span><span> </span><span class="annot"><span class="annottext">(IO ThreadId -&gt; IO ThreadId) -&gt; IO ThreadId -&gt; IO ThreadId
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">IO () -&gt; IO ThreadId
+</span><span class="hs-identifier hs-var">forkIO</span></span><span> </span><span class="annot"><span class="annottext">IO ()
+</span><a href="#local-6989586621679041625"><span class="hs-identifier hs-var">act</span></a></span><span>
+</span><span id="line-294"></span><span>        </span><span class="annot"><span class="hs-identifier hs-type">labelThread</span></span><span> </span><span class="annot"><a href="#local-6989586621679041626"><span class="hs-identifier hs-type">tid</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679041530"><span class="hs-identifier hs-type">name</span></a></span><span>
+</span><span id="line-295"></span><span>
+</span><span id="line-296"></span><span class="annot"><a href="Control.Debounce.Internal.html#ignoreExc"><span class="hs-identifier hs-type">ignoreExc</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-297"></span><span id="ignoreExc"><span class="annot"><span class="annottext">ignoreExc :: IO () -&gt; IO ()
+</span><a href="Control.Debounce.Internal.html#ignoreExc"><span class="hs-identifier hs-var hs-var">ignoreExc</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(SomeException -&gt; IO ()) -&gt; IO () -&gt; IO ()
+forall e a. Exception e =&gt; (e -&gt; IO a) -&gt; IO a -&gt; IO a
+</span><span class="hs-identifier hs-var">handle</span></span><span> </span><span class="annot"><span class="annottext">((SomeException -&gt; IO ()) -&gt; IO () -&gt; IO ())
+-&gt; (SomeException -&gt; IO ()) -&gt; IO () -&gt; IO ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span class="hs-special">(</span><span class="annot"><span class="annottext">SomeException
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">SomeException</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">() -&gt; IO ()
+forall a. a -&gt; IO a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-298"></span></pre></body></html>

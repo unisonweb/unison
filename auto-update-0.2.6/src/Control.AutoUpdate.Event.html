@@ -1,0 +1,322 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE RecordWildCards #-}</span><span>
+</span><span id="line-2"></span><span>
+</span><span id="line-3"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Control.AutoUpdate.Event.html"><span class="hs-identifier">Control.AutoUpdate.Event</span></a></span><span> </span><span class="hs-special">(</span><span>
+</span><span id="line-4"></span><span>    </span><span class="annot"><span class="hs-comment">-- * Creation</span></span><span>
+</span><span id="line-5"></span><span>    </span><span class="annot"><a href="Control.AutoUpdate.Event.html#mkAutoUpdate"><span class="hs-identifier">mkAutoUpdate</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-6"></span><span>    </span><span class="annot"><a href="Control.AutoUpdate.Event.html#mkAutoUpdateWithModify"><span class="hs-identifier">mkAutoUpdateWithModify</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-7"></span><span>
+</span><span id="line-8"></span><span>    </span><span class="annot"><span class="hs-comment">-- * Internal</span></span><span>
+</span><span id="line-9"></span><span>    </span><span class="annot"><a href="Control.AutoUpdate.Event.html#UpdateState"><span class="hs-identifier">UpdateState</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-10"></span><span>    </span><span class="annot"><a href="Control.AutoUpdate.Event.html#mkClosableAutoUpdate"><span class="hs-identifier">mkClosableAutoUpdate</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-11"></span><span>    </span><span class="annot"><a href="Control.AutoUpdate.Event.html#mkClosableAutoUpdate%27"><span class="hs-identifier">mkClosableAutoUpdate'</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-12"></span><span class="hs-special">)</span><span>
+</span><span id="line-13"></span><span class="hs-keyword">where</span><span>
+</span><span id="line-14"></span><span>
+</span><span id="line-15"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Concurrent.STM</span></span><span>
+</span><span id="line-16"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Monad</span></span><span>
+</span><span id="line-17"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.IORef</span></span><span>
+</span><span id="line-18"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">GHC.Event</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">getSystemTimerManager</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">registerTimeout</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">unregisterTimeout</span></span><span class="hs-special">)</span><span>
+</span><span id="line-19"></span><span>
+</span><span id="line-20"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Control.AutoUpdate.Types.html"><span class="hs-identifier">Control.AutoUpdate.Types</span></a></span><span>
+</span><span id="line-21"></span><span>
+</span><span id="line-22"></span><span class="hs-comment">--------------------------------------------------------------------------------</span><span>
+</span><span id="line-23"></span><span>
+</span><span id="line-24"></span><span class="hs-comment">-- | Generate an action which will either read from an automatically</span><span>
+</span><span id="line-25"></span><span class="hs-comment">-- updated value, or run the update action in the current thread.</span><span>
+</span><span id="line-26"></span><span class="hs-comment">--</span><span>
+</span><span id="line-27"></span><span class="hs-comment">-- @since 0.1.0</span><span>
+</span><span id="line-28"></span><span id="local-6989586621679041200"><span class="annot"><a href="Control.AutoUpdate.Event.html#mkAutoUpdate"><span class="hs-identifier hs-type">mkAutoUpdate</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Control.AutoUpdate.Types.html#UpdateSettings"><span class="hs-identifier hs-type">UpdateSettings</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679041200"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="#local-6989586621679041200"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span><span>
+</span><span id="line-29"></span><span id="mkAutoUpdate"><span class="annot"><span class="annottext">mkAutoUpdate :: forall a. UpdateSettings a -&gt; IO (IO a)
+</span><a href="Control.AutoUpdate.Event.html#mkAutoUpdate"><span class="hs-identifier hs-var hs-var">mkAutoUpdate</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(IO a -&gt; IO () -&gt; UpdateState a -&gt; IO a)
+-&gt; UpdateSettings a -&gt; IO (IO a)
+forall a b.
+(IO a -&gt; IO () -&gt; UpdateState a -&gt; b) -&gt; UpdateSettings a -&gt; IO b
+</span><a href="Control.AutoUpdate.Event.html#mkAutoUpdateThings"><span class="hs-identifier hs-var">mkAutoUpdateThings</span></a></span><span> </span><span class="annot"><span class="annottext">((IO a -&gt; IO () -&gt; UpdateState a -&gt; IO a)
+ -&gt; UpdateSettings a -&gt; IO (IO a))
+-&gt; (IO a -&gt; IO () -&gt; UpdateState a -&gt; IO a)
+-&gt; UpdateSettings a
+-&gt; IO (IO a)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679041280"><span class="annot"><span class="annottext">IO a
+</span><a href="#local-6989586621679041280"><span class="hs-identifier hs-var">g</span></a></span></span><span> </span><span class="annot"><span class="annottext">IO ()
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">UpdateState a
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">IO a
+</span><a href="#local-6989586621679041280"><span class="hs-identifier hs-var">g</span></a></span><span>
+</span><span id="line-30"></span><span>
+</span><span id="line-31"></span><span class="hs-comment">-- | Generate an action which will either read from an automatically</span><span>
+</span><span id="line-32"></span><span class="hs-comment">-- updated value, or run the update action in the current thread if</span><span>
+</span><span id="line-33"></span><span class="hs-comment">-- the first time or the provided modify action after that.</span><span>
+</span><span id="line-34"></span><span class="hs-comment">--</span><span>
+</span><span id="line-35"></span><span class="hs-comment">-- @since 0.1.4</span><span>
+</span><span id="line-36"></span><span id="local-6989586621679041210"><span class="annot"><a href="Control.AutoUpdate.Event.html#mkAutoUpdateWithModify"><span class="hs-identifier hs-type">mkAutoUpdateWithModify</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Control.AutoUpdate.Types.html#UpdateSettings"><span class="hs-identifier hs-type">UpdateSettings</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679041210"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679041210"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="#local-6989586621679041210"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="#local-6989586621679041210"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span><span>
+</span><span id="line-37"></span><span id="mkAutoUpdateWithModify"><span class="annot"><span class="annottext">mkAutoUpdateWithModify :: forall a. UpdateSettings a -&gt; (a -&gt; IO a) -&gt; IO (IO a)
+</span><a href="Control.AutoUpdate.Event.html#mkAutoUpdateWithModify"><span class="hs-identifier hs-var hs-var">mkAutoUpdateWithModify</span></a></span></span><span> </span><span id="local-6989586621679041281"><span class="annot"><span class="annottext">UpdateSettings a
+</span><a href="#local-6989586621679041281"><span class="hs-identifier hs-var">us</span></a></span></span><span> </span><span id="local-6989586621679041282"><span class="annot"><span class="annottext">a -&gt; IO a
+</span><a href="#local-6989586621679041282"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(IO a -&gt; IO () -&gt; UpdateState a -&gt; IO a)
+-&gt; UpdateSettings a -&gt; (a -&gt; IO a) -&gt; IO (IO a)
+forall a b.
+(IO a -&gt; IO () -&gt; UpdateState a -&gt; b)
+-&gt; UpdateSettings a -&gt; (a -&gt; IO a) -&gt; IO b
+</span><a href="Control.AutoUpdate.Event.html#mkAutoUpdateThingsWithModify"><span class="hs-identifier hs-var">mkAutoUpdateThingsWithModify</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span id="local-6989586621679041284"><span class="annot"><span class="annottext">IO a
+</span><a href="#local-6989586621679041284"><span class="hs-identifier hs-var">g</span></a></span></span><span> </span><span class="annot"><span class="annottext">IO ()
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">UpdateState a
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">IO a
+</span><a href="#local-6989586621679041284"><span class="hs-identifier hs-var">g</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">UpdateSettings a
+</span><a href="#local-6989586621679041281"><span class="hs-identifier hs-var">us</span></a></span><span> </span><span class="annot"><span class="annottext">a -&gt; IO a
+</span><a href="#local-6989586621679041282"><span class="hs-identifier hs-var">f</span></a></span><span>
+</span><span id="line-38"></span><span>
+</span><span id="line-39"></span><span class="hs-comment">--------------------------------------------------------------------------------</span><span>
+</span><span id="line-40"></span><span>
+</span><span id="line-41"></span><span class="hs-comment">{- FOURMOLU_DISABLE -}</span><span>
+</span><span id="line-42"></span><span class="hs-keyword">data</span><span> </span><span id="UpdateState"><span class="annot"><a href="Control.AutoUpdate.Event.html#UpdateState"><span class="hs-identifier hs-var">UpdateState</span></a></span></span><span> </span><span id="local-6989586621679041214"><span class="annot"><a href="#local-6989586621679041214"><span class="hs-identifier hs-type">a</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-43"></span><span>    </span><span id="UpdateState"><span class="annot"><a href="Control.AutoUpdate.Event.html#UpdateState"><span class="hs-identifier hs-var">UpdateState</span></a></span></span><span>
+</span><span id="line-44"></span><span>    </span><span class="hs-special">{</span><span> </span><span id="usUpdateAction_"><span class="annot"><span class="annottext">forall a. UpdateState a -&gt; a -&gt; IO a
+</span><a href="Control.AutoUpdate.Event.html#usUpdateAction_"><span class="hs-identifier hs-var hs-var">usUpdateAction_</span></a></span></span><span>   </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="#local-6989586621679041214"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="#local-6989586621679041214"><span class="hs-identifier hs-type">a</span></a></span><span>
+</span><span id="line-45"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="usLastResult_"><span class="annot"><span class="annottext">forall a. UpdateState a -&gt; IORef a
+</span><a href="Control.AutoUpdate.Event.html#usLastResult_"><span class="hs-identifier hs-var hs-var">usLastResult_</span></a></span></span><span>     </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IORef</span></span><span> </span><span class="annot"><a href="#local-6989586621679041214"><span class="hs-identifier hs-type">a</span></a></span><span>
+</span><span id="line-46"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="usIntervalMicro_"><span class="annot"><span class="annottext">forall a. UpdateState a -&gt; Int
+</span><a href="Control.AutoUpdate.Event.html#usIntervalMicro_"><span class="hs-identifier hs-var hs-var">usIntervalMicro_</span></a></span></span><span>  </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>
+</span><span id="line-47"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="usTimeHasCome_"><span class="annot"><span class="annottext">forall a. UpdateState a -&gt; TVar Bool
+</span><a href="Control.AutoUpdate.Event.html#usTimeHasCome_"><span class="hs-identifier hs-var hs-var">usTimeHasCome_</span></a></span></span><span>    </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">TVar</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>
+</span><span id="line-48"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="usDeleteTimeout_"><span class="annot"><span class="annottext">forall a. UpdateState a -&gt; IORef (IO ())
+</span><a href="Control.AutoUpdate.Event.html#usDeleteTimeout_"><span class="hs-identifier hs-var hs-var">usDeleteTimeout_</span></a></span></span><span>  </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IORef</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-49"></span><span>    </span><span class="hs-special">}</span><span>
+</span><span id="line-50"></span><span class="hs-comment">{- FOURMOLU_ENABLE -}</span><span>
+</span><span id="line-51"></span><span>
+</span><span id="line-52"></span><span class="hs-comment">--------------------------------------------------------------------------------</span><span>
+</span><span id="line-53"></span><span>
+</span><span id="line-54"></span><span id="local-6989586621679041204"><span id="local-6989586621679041205"><span class="annot"><a href="Control.AutoUpdate.Event.html#mkAutoUpdateThings"><span class="hs-identifier hs-type">mkAutoUpdateThings</span></a></span><span>
+</span><span id="line-55"></span><span>    </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="#local-6989586621679041204"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Control.AutoUpdate.Event.html#UpdateState"><span class="hs-identifier hs-type">UpdateState</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679041204"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679041205"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Control.AutoUpdate.Types.html#UpdateSettings"><span class="hs-identifier hs-type">UpdateSettings</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679041204"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="#local-6989586621679041205"><span class="hs-identifier hs-type">b</span></a></span></span></span><span>
+</span><span id="line-56"></span><span id="mkAutoUpdateThings"><span class="annot"><span class="annottext">mkAutoUpdateThings :: forall a b.
+(IO a -&gt; IO () -&gt; UpdateState a -&gt; b) -&gt; UpdateSettings a -&gt; IO b
+</span><a href="Control.AutoUpdate.Event.html#mkAutoUpdateThings"><span class="hs-identifier hs-var hs-var">mkAutoUpdateThings</span></a></span></span><span> </span><span id="local-6989586621679041291"><span class="annot"><span class="annottext">IO a -&gt; IO () -&gt; UpdateState a -&gt; b
+</span><a href="#local-6989586621679041291"><span class="hs-identifier hs-var">mk</span></a></span></span><span> </span><span id="local-6989586621679041292"><span class="annot"><span class="annottext">settings :: UpdateSettings a
+</span><a href="#local-6989586621679041292"><span class="hs-identifier hs-var">settings</span></a></span></span><span class="hs-glyph">@</span><span class="annot"><a href="Control.AutoUpdate.Types.html#UpdateSettings"><span class="hs-identifier hs-type">UpdateSettings</span></a></span><span class="hs-special">{</span><span id="local-6989586621679041294"><span id="local-6989586621679041295"><span id="local-6989586621679041296"><span id="local-6989586621679041297"><span class="annot"><span class="annottext">Int
+String
+IO a
+updateFreq :: Int
+updateSpawnThreshold :: Int
+updateAction :: IO a
+updateThreadName :: String
+updateThreadName :: forall a. UpdateSettings a -&gt; String
+updateAction :: forall a. UpdateSettings a -&gt; IO a
+updateSpawnThreshold :: forall a. UpdateSettings a -&gt; Int
+updateFreq :: forall a. UpdateSettings a -&gt; Int
+</span><a href="#local-6989586621679041294"><span class="hs-glyph hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">..</span></a></span></span></span></span></span><span class="hs-special">}</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-57"></span><span>    </span><span class="annot"><span class="annottext">(IO a -&gt; IO () -&gt; UpdateState a -&gt; b)
+-&gt; UpdateSettings a -&gt; (a -&gt; IO a) -&gt; IO b
+forall a b.
+(IO a -&gt; IO () -&gt; UpdateState a -&gt; b)
+-&gt; UpdateSettings a -&gt; (a -&gt; IO a) -&gt; IO b
+</span><a href="Control.AutoUpdate.Event.html#mkAutoUpdateThingsWithModify"><span class="hs-identifier hs-var">mkAutoUpdateThingsWithModify</span></a></span><span> </span><span class="annot"><span class="annottext">IO a -&gt; IO () -&gt; UpdateState a -&gt; b
+</span><a href="#local-6989586621679041291"><span class="hs-identifier hs-var">mk</span></a></span><span> </span><span class="annot"><span class="annottext">UpdateSettings a
+</span><a href="#local-6989586621679041292"><span class="hs-identifier hs-var">settings</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">IO a -&gt; a -&gt; IO a
+forall a b. a -&gt; b -&gt; a
+</span><span class="hs-identifier hs-var">const</span></span><span> </span><span class="annot"><span class="annottext">IO a
+</span><a href="#local-6989586621679041296"><span class="hs-identifier hs-var">updateAction</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-58"></span><span>
+</span><span id="line-59"></span><span id="local-6989586621679041212"><span id="local-6989586621679041213"><span class="annot"><a href="Control.AutoUpdate.Event.html#mkAutoUpdateThingsWithModify"><span class="hs-identifier hs-type">mkAutoUpdateThingsWithModify</span></a></span><span>
+</span><span id="line-60"></span><span>    </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="#local-6989586621679041212"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Control.AutoUpdate.Event.html#UpdateState"><span class="hs-identifier hs-type">UpdateState</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679041212"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679041213"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Control.AutoUpdate.Types.html#UpdateSettings"><span class="hs-identifier hs-type">UpdateSettings</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679041212"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679041212"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="#local-6989586621679041212"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="#local-6989586621679041213"><span class="hs-identifier hs-type">b</span></a></span></span></span><span>
+</span><span id="line-61"></span><span id="mkAutoUpdateThingsWithModify"><span class="annot"><span class="annottext">mkAutoUpdateThingsWithModify :: forall a b.
+(IO a -&gt; IO () -&gt; UpdateState a -&gt; b)
+-&gt; UpdateSettings a -&gt; (a -&gt; IO a) -&gt; IO b
+</span><a href="Control.AutoUpdate.Event.html#mkAutoUpdateThingsWithModify"><span class="hs-identifier hs-var hs-var">mkAutoUpdateThingsWithModify</span></a></span></span><span> </span><span id="local-6989586621679041305"><span class="annot"><span class="annottext">IO a -&gt; IO () -&gt; UpdateState a -&gt; b
+</span><a href="#local-6989586621679041305"><span class="hs-identifier hs-var">mk</span></a></span></span><span> </span><span id="local-6989586621679041306"><span class="annot"><span class="annottext">UpdateSettings a
+</span><a href="#local-6989586621679041306"><span class="hs-identifier hs-var">settings</span></a></span></span><span> </span><span id="local-6989586621679041307"><span class="annot"><span class="annottext">a -&gt; IO a
+</span><a href="#local-6989586621679041307"><span class="hs-identifier hs-var">update1</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-62"></span><span>    </span><span id="local-6989586621679041308"><span class="annot"><a href="#local-6989586621679041308"><span class="hs-identifier hs-var">us</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">UpdateSettings a -&gt; (a -&gt; IO a) -&gt; IO (UpdateState a)
+forall a. UpdateSettings a -&gt; (a -&gt; IO a) -&gt; IO (UpdateState a)
+</span><a href="Control.AutoUpdate.Event.html#openUpdateState"><span class="hs-identifier hs-var">openUpdateState</span></a></span><span> </span><span class="annot"><span class="annottext">UpdateSettings a
+</span><a href="#local-6989586621679041306"><span class="hs-identifier hs-var">settings</span></a></span><span> </span><span class="annot"><span class="annottext">a -&gt; IO a
+</span><a href="#local-6989586621679041307"><span class="hs-identifier hs-var">update1</span></a></span><span>
+</span><span id="line-63"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">pure</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">$</span></span><span> </span><span class="annot"><a href="#local-6989586621679041305"><span class="hs-identifier hs-type">mk</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.AutoUpdate.Event.html#getUpdateResult"><span class="hs-identifier hs-type">getUpdateResult</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679041308"><span class="hs-identifier hs-type">us</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.AutoUpdate.Event.html#closeUpdateState"><span class="hs-identifier hs-type">closeUpdateState</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679041308"><span class="hs-identifier hs-type">us</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><a href="#local-6989586621679041308"><span class="hs-identifier hs-type">us</span></a></span><span>
+</span><span id="line-64"></span><span>
+</span><span id="line-65"></span><span class="hs-comment">--------------------------------------------------------------------------------</span><span>
+</span><span id="line-66"></span><span>
+</span><span id="line-67"></span><span class="hs-comment">-- $setup</span><span>
+</span><span id="line-68"></span><span class="hs-comment">-- &gt;&gt;&gt; :set -XNumericUnderscores</span><span>
+</span><span id="line-69"></span><span class="hs-comment">-- &gt;&gt;&gt; import Control.Concurrent</span><span>
+</span><span id="line-70"></span><span>
+</span><span id="line-71"></span><span class="hs-comment">-- |</span><span>
+</span><span id="line-72"></span><span class="hs-comment">-- &gt;&gt;&gt; iref &lt;- newIORef (0 :: Int)</span><span>
+</span><span id="line-73"></span><span class="hs-comment">-- &gt;&gt;&gt; action = modifyIORef iref (+ 1) &gt;&gt; readIORef iref</span><span>
+</span><span id="line-74"></span><span class="hs-comment">-- &gt;&gt;&gt; (getValue, closeState) &lt;- mkClosableAutoUpdate $ defaultUpdateSettings { updateFreq = 200_000, updateAction = action }</span><span>
+</span><span id="line-75"></span><span class="hs-comment">-- &gt;&gt;&gt; getValue</span><span>
+</span><span id="line-76"></span><span class="hs-comment">-- 1</span><span>
+</span><span id="line-77"></span><span class="hs-comment">-- &gt;&gt;&gt; threadDelay 100_000 &gt;&gt; getValue</span><span>
+</span><span id="line-78"></span><span class="hs-comment">-- 1</span><span>
+</span><span id="line-79"></span><span class="hs-comment">-- &gt;&gt;&gt; threadDelay 200_000 &gt;&gt; getValue</span><span>
+</span><span id="line-80"></span><span class="hs-comment">-- 2</span><span>
+</span><span id="line-81"></span><span class="hs-comment">-- &gt;&gt;&gt; closeState</span><span>
+</span><span id="line-82"></span><span id="local-6989586621679041236"><span class="annot"><a href="Control.AutoUpdate.Event.html#mkClosableAutoUpdate"><span class="hs-identifier hs-type">mkClosableAutoUpdate</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Control.AutoUpdate.Types.html#UpdateSettings"><span class="hs-identifier hs-type">UpdateSettings</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679041236"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="#local-6989586621679041236"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span></span><span>
+</span><span id="line-83"></span><span id="mkClosableAutoUpdate"><span class="annot"><span class="annottext">mkClosableAutoUpdate :: forall a. UpdateSettings a -&gt; IO (IO a, IO ())
+</span><a href="Control.AutoUpdate.Event.html#mkClosableAutoUpdate"><span class="hs-identifier hs-var hs-var">mkClosableAutoUpdate</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(IO a -&gt; IO () -&gt; UpdateState a -&gt; (IO a, IO ()))
+-&gt; UpdateSettings a -&gt; IO (IO a, IO ())
+forall a b.
+(IO a -&gt; IO () -&gt; UpdateState a -&gt; b) -&gt; UpdateSettings a -&gt; IO b
+</span><a href="Control.AutoUpdate.Event.html#mkAutoUpdateThings"><span class="hs-identifier hs-var">mkAutoUpdateThings</span></a></span><span> </span><span class="annot"><span class="annottext">((IO a -&gt; IO () -&gt; UpdateState a -&gt; (IO a, IO ()))
+ -&gt; UpdateSettings a -&gt; IO (IO a, IO ()))
+-&gt; (IO a -&gt; IO () -&gt; UpdateState a -&gt; (IO a, IO ()))
+-&gt; UpdateSettings a
+-&gt; IO (IO a, IO ())
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679041312"><span class="annot"><span class="annottext">IO a
+</span><a href="#local-6989586621679041312"><span class="hs-identifier hs-var">g</span></a></span></span><span> </span><span id="local-6989586621679041313"><span class="annot"><span class="annottext">IO ()
+</span><a href="#local-6989586621679041313"><span class="hs-identifier hs-var">c</span></a></span></span><span> </span><span class="annot"><span class="annottext">UpdateState a
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">IO a
+</span><a href="#local-6989586621679041312"><span class="hs-identifier hs-var">g</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">IO ()
+</span><a href="#local-6989586621679041313"><span class="hs-identifier hs-var">c</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-84"></span><span>
+</span><span id="line-85"></span><span class="annot"><span class="hs-comment">-- | provide `UpdateState` for debugging</span></span><span>
+</span><span id="line-86"></span><span id="local-6989586621679041238"><span class="annot"><a href="Control.AutoUpdate.Event.html#mkClosableAutoUpdate%27"><span class="hs-identifier hs-type">mkClosableAutoUpdate'</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Control.AutoUpdate.Types.html#UpdateSettings"><span class="hs-identifier hs-type">UpdateSettings</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679041238"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="#local-6989586621679041238"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Control.AutoUpdate.Event.html#UpdateState"><span class="hs-identifier hs-type">UpdateState</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679041238"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span><span>
+</span><span id="line-87"></span><span id="mkClosableAutoUpdate%27"><span class="annot"><span class="annottext">mkClosableAutoUpdate' :: forall a. UpdateSettings a -&gt; IO (IO a, IO (), UpdateState a)
+</span><a href="Control.AutoUpdate.Event.html#mkClosableAutoUpdate%27"><span class="hs-identifier hs-var hs-var">mkClosableAutoUpdate'</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(IO a -&gt; IO () -&gt; UpdateState a -&gt; (IO a, IO (), UpdateState a))
+-&gt; UpdateSettings a -&gt; IO (IO a, IO (), UpdateState a)
+forall a b.
+(IO a -&gt; IO () -&gt; UpdateState a -&gt; b) -&gt; UpdateSettings a -&gt; IO b
+</span><a href="Control.AutoUpdate.Event.html#mkAutoUpdateThings"><span class="hs-identifier hs-var">mkAutoUpdateThings</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">,</span><span class="hs-special">,</span><span class="hs-special">)</span><span>
+</span><span id="line-88"></span><span>
+</span><span id="line-89"></span><span class="hs-comment">--------------------------------------------------------------------------------</span><span>
+</span><span id="line-90"></span><span>
+</span><span id="line-91"></span><span class="annot"><a href="Control.AutoUpdate.Event.html#mkDeleteTimeout"><span class="hs-identifier hs-type">mkDeleteTimeout</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">TVar</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-92"></span><span id="mkDeleteTimeout"><span class="annot"><span class="annottext">mkDeleteTimeout :: TVar Bool -&gt; Int -&gt; IO (IO ())
+</span><a href="Control.AutoUpdate.Event.html#mkDeleteTimeout"><span class="hs-identifier hs-var hs-var">mkDeleteTimeout</span></a></span></span><span> </span><span id="local-6989586621679041315"><span class="annot"><span class="annottext">TVar Bool
+</span><a href="#local-6989586621679041315"><span class="hs-identifier hs-var">thc</span></a></span></span><span> </span><span id="local-6989586621679041316"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679041316"><span class="hs-identifier hs-var">micro</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-93"></span><span>    </span><span id="local-6989586621679041317"><span class="annot"><a href="#local-6989586621679041317"><span class="hs-identifier hs-var">mgr</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">IO TimerManager
+</span><span class="hs-identifier hs-var">getSystemTimerManager</span></span><span>
+</span><span id="line-94"></span><span>    </span><span id="local-6989586621679041318"><span class="annot"><a href="#local-6989586621679041318"><span class="hs-identifier hs-var">key</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="hs-identifier hs-type">registerTimeout</span></span><span> </span><span class="annot"><a href="#local-6989586621679041317"><span class="hs-identifier hs-type">mgr</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679041316"><span class="hs-identifier hs-type">micro</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">atomically</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">$</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">writeTVar</span></span><span> </span><span class="annot"><a href="#local-6989586621679041315"><span class="hs-identifier hs-type">thc</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">True</span></span><span class="hs-special">)</span><span>
+</span><span id="line-95"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">pure</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">$</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">unregisterTimeout</span></span><span> </span><span class="annot"><a href="#local-6989586621679041317"><span class="hs-identifier hs-type">mgr</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679041318"><span class="hs-identifier hs-type">key</span></a></span><span>
+</span><span id="line-96"></span><span>
+</span><span id="line-97"></span><span id="local-6989586621679041231"><span class="annot"><a href="Control.AutoUpdate.Event.html#openUpdateState"><span class="hs-identifier hs-type">openUpdateState</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Control.AutoUpdate.Types.html#UpdateSettings"><span class="hs-identifier hs-type">UpdateSettings</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679041231"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679041231"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="#local-6989586621679041231"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Control.AutoUpdate.Event.html#UpdateState"><span class="hs-identifier hs-type">UpdateState</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679041231"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span><span>
+</span><span id="line-98"></span><span id="openUpdateState"><span class="annot"><span class="annottext">openUpdateState :: forall a. UpdateSettings a -&gt; (a -&gt; IO a) -&gt; IO (UpdateState a)
+</span><a href="Control.AutoUpdate.Event.html#openUpdateState"><span class="hs-identifier hs-var hs-var">openUpdateState</span></a></span></span><span> </span><span class="annot"><a href="Control.AutoUpdate.Types.html#UpdateSettings"><span class="hs-identifier hs-type">UpdateSettings</span></a></span><span class="hs-special">{</span><span id="local-6989586621679041331"><span id="local-6989586621679041332"><span id="local-6989586621679041333"><span id="local-6989586621679041334"><span class="annot"><span class="annottext">Int
+String
+IO a
+updateThreadName :: forall a. UpdateSettings a -&gt; String
+updateAction :: forall a. UpdateSettings a -&gt; IO a
+updateSpawnThreshold :: forall a. UpdateSettings a -&gt; Int
+updateFreq :: forall a. UpdateSettings a -&gt; Int
+updateFreq :: Int
+updateSpawnThreshold :: Int
+updateAction :: IO a
+updateThreadName :: String
+</span><a href="Control.AutoUpdate.Types.html#updateThreadName"><span class="hs-glyph hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">..</span></a></span></span></span></span></span><span class="hs-special">}</span><span> </span><span id="local-6989586621679041335"><span class="annot"><span class="annottext">a -&gt; IO a
+</span><a href="#local-6989586621679041335"><span class="hs-identifier hs-var">update1</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-99"></span><span>    </span><span id="local-6989586621679041336"><span class="annot"><a href="#local-6989586621679041336"><span class="hs-identifier hs-var">thc</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Bool -&gt; IO (TVar Bool)
+forall a. a -&gt; IO (TVar a)
+</span><span class="hs-identifier hs-var">newTVarIO</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span>
+</span><span id="line-100"></span><span>    </span><span class="annot"><a href="Control.AutoUpdate.Event.html#UpdateState"><span class="hs-identifier hs-type">UpdateState</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679041335"><span class="hs-identifier hs-type">update1</span></a></span><span>
+</span><span id="line-101"></span><span>        </span><span class="annot"><span class="hs-operator hs-type">&lt;$&gt;</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">newIORef</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">=&lt;&lt;</span></span><span> </span><span class="annot"><a href="#local-6989586621679041333"><span class="hs-identifier hs-type">updateAction</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-102"></span><span>        </span><span class="annot"><span class="hs-operator hs-type">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">pure</span></span><span> </span><span class="annot"><a href="#local-6989586621679041331"><span class="hs-identifier hs-type">updateFreq</span></a></span><span>
+</span><span id="line-103"></span><span>        </span><span class="annot"><span class="hs-operator hs-type">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">pure</span></span><span> </span><span class="annot"><a href="#local-6989586621679041336"><span class="hs-identifier hs-type">thc</span></a></span><span>
+</span><span id="line-104"></span><span>        </span><span class="annot"><span class="hs-operator hs-type">&lt;*&gt;</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">newIORef</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">=&lt;&lt;</span></span><span> </span><span class="annot"><a href="Control.AutoUpdate.Event.html#mkDeleteTimeout"><span class="hs-identifier hs-type">mkDeleteTimeout</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679041336"><span class="hs-identifier hs-type">thc</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679041331"><span class="hs-identifier hs-type">updateFreq</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-105"></span><span>
+</span><span id="line-106"></span><span id="local-6989586621679041235"><span class="annot"><a href="Control.AutoUpdate.Event.html#closeUpdateState"><span class="hs-identifier hs-type">closeUpdateState</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Control.AutoUpdate.Event.html#UpdateState"><span class="hs-identifier hs-type">UpdateState</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679041235"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span></span><span>
+</span><span id="line-107"></span><span id="closeUpdateState"><span class="annot"><span class="annottext">closeUpdateState :: forall a. UpdateState a -&gt; IO ()
+</span><a href="Control.AutoUpdate.Event.html#closeUpdateState"><span class="hs-identifier hs-var hs-var">closeUpdateState</span></a></span></span><span> </span><span class="annot"><a href="Control.AutoUpdate.Event.html#UpdateState"><span class="hs-identifier hs-type">UpdateState</span></a></span><span class="hs-special">{</span><span id="local-6989586621679041342"><span id="local-6989586621679041343"><span id="local-6989586621679041344"><span id="local-6989586621679041345"><span id="local-6989586621679041346"><span class="annot"><span class="annottext">Int
+TVar Bool
+IORef a
+IORef (IO ())
+a -&gt; IO a
+usUpdateAction_ :: forall a. UpdateState a -&gt; a -&gt; IO a
+usLastResult_ :: forall a. UpdateState a -&gt; IORef a
+usIntervalMicro_ :: forall a. UpdateState a -&gt; Int
+usTimeHasCome_ :: forall a. UpdateState a -&gt; TVar Bool
+usDeleteTimeout_ :: forall a. UpdateState a -&gt; IORef (IO ())
+usUpdateAction_ :: a -&gt; IO a
+usLastResult_ :: IORef a
+usIntervalMicro_ :: Int
+usTimeHasCome_ :: TVar Bool
+usDeleteTimeout_ :: IORef (IO ())
+</span><a href="Control.AutoUpdate.Event.html#usUpdateAction_"><span class="hs-glyph hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">..</span></a></span></span></span></span></span></span><span class="hs-special">}</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-108"></span><span>    </span><span id="local-6989586621679041347"><span class="annot"><a href="#local-6989586621679041347"><span class="hs-identifier hs-var">delete</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">IORef (IO ()) -&gt; IO (IO ())
+forall a. IORef a -&gt; IO a
+</span><span class="hs-identifier hs-var">readIORef</span></span><span> </span><span class="annot"><span class="annottext">IORef (IO ())
+</span><a href="#local-6989586621679041346"><span class="hs-identifier hs-var">usDeleteTimeout_</span></a></span><span>
+</span><span id="line-109"></span><span>    </span><span class="annot"><a href="#local-6989586621679041347"><span class="hs-identifier hs-type">delete</span></a></span><span>
+</span><span id="line-110"></span><span>
+</span><span id="line-111"></span><span id="local-6989586621679041261"><span class="annot"><a href="Control.AutoUpdate.Event.html#onceOnTimeHasCome"><span class="hs-identifier hs-type">onceOnTimeHasCome</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Control.AutoUpdate.Event.html#UpdateState"><span class="hs-identifier hs-type">UpdateState</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679041261"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span></span><span>
+</span><span id="line-112"></span><span id="onceOnTimeHasCome"><span class="annot"><span class="annottext">onceOnTimeHasCome :: forall a. UpdateState a -&gt; IO () -&gt; IO ()
+</span><a href="Control.AutoUpdate.Event.html#onceOnTimeHasCome"><span class="hs-identifier hs-var hs-var">onceOnTimeHasCome</span></a></span></span><span> </span><span class="annot"><a href="Control.AutoUpdate.Event.html#UpdateState"><span class="hs-identifier hs-type">UpdateState</span></a></span><span class="hs-special">{</span><span id="local-6989586621679041358"><span id="local-6989586621679041359"><span id="local-6989586621679041360"><span id="local-6989586621679041361"><span id="local-6989586621679041362"><span class="annot"><span class="annottext">Int
+TVar Bool
+IORef a
+IORef (IO ())
+a -&gt; IO a
+usUpdateAction_ :: forall a. UpdateState a -&gt; a -&gt; IO a
+usLastResult_ :: forall a. UpdateState a -&gt; IORef a
+usIntervalMicro_ :: forall a. UpdateState a -&gt; Int
+usTimeHasCome_ :: forall a. UpdateState a -&gt; TVar Bool
+usDeleteTimeout_ :: forall a. UpdateState a -&gt; IORef (IO ())
+usUpdateAction_ :: a -&gt; IO a
+usLastResult_ :: IORef a
+usIntervalMicro_ :: Int
+usTimeHasCome_ :: TVar Bool
+usDeleteTimeout_ :: IORef (IO ())
+</span><a href="Control.AutoUpdate.Event.html#usUpdateAction_"><span class="hs-glyph hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">..</span></a></span></span></span></span></span></span><span class="hs-special">}</span><span> </span><span id="local-6989586621679041363"><span class="annot"><span class="annottext">IO ()
+</span><a href="#local-6989586621679041363"><span class="hs-identifier hs-var">action</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-113"></span><span>    </span><span id="local-6989586621679041364"><span class="annot"><a href="#local-6989586621679041364"><span class="hs-identifier hs-var">action'</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">STM (IO ()) -&gt; IO (IO ())
+forall a. STM a -&gt; IO a
+</span><span class="hs-identifier hs-var">atomically</span></span><span> </span><span class="annot"><span class="annottext">(STM (IO ()) -&gt; IO (IO ())) -&gt; STM (IO ()) -&gt; IO (IO ())
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-114"></span><span>        </span><span id="local-6989586621679041365"><span class="annot"><a href="#local-6989586621679041365"><span class="hs-identifier hs-var">timeHasCome</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">TVar Bool -&gt; STM Bool
+forall a. TVar a -&gt; STM a
+</span><span class="hs-identifier hs-var">readTVar</span></span><span> </span><span class="annot"><span class="annottext">TVar Bool
+</span><a href="#local-6989586621679041361"><span class="hs-identifier hs-var">usTimeHasCome_</span></a></span><span>
+</span><span id="line-115"></span><span>        </span><span class="annot"><span class="hs-identifier hs-type">when</span></span><span> </span><span class="annot"><a href="#local-6989586621679041365"><span class="hs-identifier hs-type">timeHasCome</span></a></span><span> </span><span class="annot"><span class="hs-operator hs-type">$</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">writeTVar</span></span><span> </span><span class="annot"><a href="#local-6989586621679041361"><span class="hs-identifier hs-type">usTimeHasCome_</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">False</span></span><span>
+</span><span id="line-116"></span><span>        </span><span class="annot"><span class="hs-identifier hs-type">pure</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">$</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">when</span></span><span> </span><span class="annot"><a href="#local-6989586621679041365"><span class="hs-identifier hs-type">timeHasCome</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679041363"><span class="hs-identifier hs-type">action</span></a></span><span>
+</span><span id="line-117"></span><span>    </span><span class="annot"><a href="#local-6989586621679041364"><span class="hs-identifier hs-type">action'</span></a></span><span>
+</span><span id="line-118"></span><span>
+</span><span id="line-119"></span><span id="local-6989586621679041234"><span class="annot"><a href="Control.AutoUpdate.Event.html#getUpdateResult"><span class="hs-identifier hs-type">getUpdateResult</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Control.AutoUpdate.Event.html#UpdateState"><span class="hs-identifier hs-type">UpdateState</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679041234"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="#local-6989586621679041234"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-120"></span><span id="getUpdateResult"><span class="annot"><span class="annottext">getUpdateResult :: forall a. UpdateState a -&gt; IO a
+</span><a href="Control.AutoUpdate.Event.html#getUpdateResult"><span class="hs-identifier hs-var hs-var">getUpdateResult</span></a></span></span><span> </span><span id="local-6989586621679041373"><span class="annot"><span class="annottext">us :: UpdateState a
+</span><a href="#local-6989586621679041373"><span class="hs-identifier hs-var">us</span></a></span></span><span class="hs-glyph">@</span><span class="annot"><a href="Control.AutoUpdate.Event.html#UpdateState"><span class="hs-identifier hs-type">UpdateState</span></a></span><span class="hs-special">{</span><span id="local-6989586621679041374"><span id="local-6989586621679041375"><span id="local-6989586621679041376"><span id="local-6989586621679041377"><span id="local-6989586621679041378"><span class="annot"><span class="annottext">Int
+TVar Bool
+IORef a
+IORef (IO ())
+a -&gt; IO a
+usUpdateAction_ :: forall a. UpdateState a -&gt; a -&gt; IO a
+usLastResult_ :: forall a. UpdateState a -&gt; IORef a
+usIntervalMicro_ :: forall a. UpdateState a -&gt; Int
+usTimeHasCome_ :: forall a. UpdateState a -&gt; TVar Bool
+usDeleteTimeout_ :: forall a. UpdateState a -&gt; IORef (IO ())
+usUpdateAction_ :: a -&gt; IO a
+usLastResult_ :: IORef a
+usIntervalMicro_ :: Int
+usTimeHasCome_ :: TVar Bool
+usDeleteTimeout_ :: IORef (IO ())
+</span><a href="Control.AutoUpdate.Event.html#usUpdateAction_"><span class="hs-glyph hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">..</span></a></span></span></span></span></span></span><span class="hs-special">}</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-121"></span><span>    </span><span class="annot"><span class="annottext">UpdateState a -&gt; IO () -&gt; IO ()
+forall a. UpdateState a -&gt; IO () -&gt; IO ()
+</span><a href="Control.AutoUpdate.Event.html#onceOnTimeHasCome"><span class="hs-identifier hs-var">onceOnTimeHasCome</span></a></span><span> </span><span class="annot"><span class="annottext">UpdateState a
+</span><a href="#local-6989586621679041373"><span class="hs-identifier hs-var">us</span></a></span><span> </span><span class="annot"><span class="annottext">(IO () -&gt; IO ()) -&gt; IO () -&gt; IO ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-122"></span><span>        </span><span class="annot"><span class="annottext">IORef a -&gt; a -&gt; IO ()
+forall a. IORef a -&gt; a -&gt; IO ()
+</span><span class="hs-identifier hs-var">writeIORef</span></span><span> </span><span class="annot"><span class="annottext">IORef a
+</span><a href="#local-6989586621679041375"><span class="hs-identifier hs-var">usLastResult_</span></a></span><span> </span><span class="annot"><span class="annottext">(a -&gt; IO ()) -&gt; IO a -&gt; IO ()
+forall (m :: * -&gt; *) a b. Monad m =&gt; (a -&gt; m b) -&gt; m a -&gt; m b
+</span><span class="hs-operator hs-var">=&lt;&lt;</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; IO a
+</span><a href="#local-6989586621679041374"><span class="hs-identifier hs-var">usUpdateAction_</span></a></span><span> </span><span class="annot"><span class="annottext">(a -&gt; IO a) -&gt; IO a -&gt; IO a
+forall (m :: * -&gt; *) a b. Monad m =&gt; (a -&gt; m b) -&gt; m a -&gt; m b
+</span><span class="hs-operator hs-var">=&lt;&lt;</span></span><span> </span><span class="annot"><span class="annottext">IORef a -&gt; IO a
+forall a. IORef a -&gt; IO a
+</span><span class="hs-identifier hs-var">readIORef</span></span><span> </span><span class="annot"><span class="annottext">IORef a
+</span><a href="#local-6989586621679041375"><span class="hs-identifier hs-var">usLastResult_</span></a></span><span>
+</span><span id="line-123"></span><span>        </span><span class="annot"><span class="annottext">IORef (IO ()) -&gt; IO () -&gt; IO ()
+forall a. IORef a -&gt; a -&gt; IO ()
+</span><span class="hs-identifier hs-var">writeIORef</span></span><span> </span><span class="annot"><span class="annottext">IORef (IO ())
+</span><a href="#local-6989586621679041378"><span class="hs-identifier hs-var">usDeleteTimeout_</span></a></span><span> </span><span class="annot"><span class="annottext">(IO () -&gt; IO ()) -&gt; IO (IO ()) -&gt; IO ()
+forall (m :: * -&gt; *) a b. Monad m =&gt; (a -&gt; m b) -&gt; m a -&gt; m b
+</span><span class="hs-operator hs-var">=&lt;&lt;</span></span><span> </span><span class="annot"><span class="annottext">TVar Bool -&gt; Int -&gt; IO (IO ())
+</span><a href="Control.AutoUpdate.Event.html#mkDeleteTimeout"><span class="hs-identifier hs-var">mkDeleteTimeout</span></a></span><span> </span><span class="annot"><span class="annottext">TVar Bool
+</span><a href="#local-6989586621679041377"><span class="hs-identifier hs-var">usTimeHasCome_</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679041376"><span class="hs-identifier hs-var">usIntervalMicro_</span></a></span><span>
+</span><span id="line-124"></span><span>    </span><span class="annot"><span class="annottext">IORef a -&gt; IO a
+forall a. IORef a -&gt; IO a
+</span><span class="hs-identifier hs-var">readIORef</span></span><span> </span><span class="annot"><span class="annottext">IORef a
+</span><a href="#local-6989586621679041375"><span class="hs-identifier hs-var">usLastResult_</span></a></span><span>
+</span><span id="line-125"></span></pre></body></html>
