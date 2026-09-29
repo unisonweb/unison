@@ -789,6 +789,34 @@ scratch/main> run codeRoundTrip
   (true, 5)
 ```
 
+A runtime error carrying a record shows real field names, since the names
+travel with the value rather than being looked up by interned id.
+
+``` unison :error
+boom = bug { name: "Alice", age: 30 }
+
+> boom
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  + boom : b
+
+  Run `update` to apply these changes to your codebase.
+
+  💔💥
+
+  I've encountered a call to builtin.bug with the following
+  value:
+
+    {age: 30, name: "Alice"}
+
+  Stack trace:
+    #135ikr7m3u
+    #s2jmnl2nc9
+```
+
 ### Universals
 
 Records are ordered by field name, most significant field first -- not by the

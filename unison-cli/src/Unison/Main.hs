@@ -174,9 +174,8 @@ main version = do
         Run (RunFromSymbol mainName) args -> do
           getCodebaseOrExit mCodePathOption SC.DoLock (SC.MigrateAutomatically SC.Backup SC.Vacuum) \(_, _, theCodebase) -> do
             RTI.withRuntime False RTI.OneOff (Version.gitDescribeWithDate version) \runtime -> do
-              let rsLookup rn = "<unknown-field-" <> tShow rn <> ">"
               withArgs args (execute theCodebase runtime mainName) >>= \case
-                Left err -> exitError =<< RTI.prettyError rsLookup fetchIssueFromGitHub err
+                Left err -> exitError =<< RTI.prettyError fetchIssueFromGitHub err
                 Right () -> pure ()
         Run (RunFromFile file mainName) args
           | not (isDotU file) -> exitError "Files must have a .u extension."
@@ -236,12 +235,11 @@ main version = do
                     initRes
                     noOpCheckForChanges
                     CommandLine.ShouldNotWatchFiles
-        Run (RunCompiled file) args -> do
-          let rsLookup rn = "<unknown-field-" <> tShow rn <> ">"
+        Run (RunCompiled file) args ->
           BS.readFile file >>= \bs ->
             try (RTI.decodeStandalone bs) >>= \case
               Left re -> do
-                exnMessage <- RTI.prettyRuntimeExn rsLookup fetchIssueFromGitHub re
+                exnMessage <- RTI.prettyRuntimeExn fetchIssueFromGitHub re
                 exitError . P.lines $
                   [ P.wrap . P.text $
                       "I was unable to parse this file as a compiled\
@@ -259,10 +257,9 @@ main version = do
                   ]
               Right (Right (v, rf, combIx, sto))
                 | not vmatch -> mismatchMsg
-                | otherwise -> do
-                    let rsLookup rn = "<unknown-field-" <> tShow rn <> ">"
+                | otherwise ->
                     withArgs args (RTI.runStandalone False sto combIx) >>= \case
-                      Left err -> exitError =<< RTI.prettyError rsLookup fetchIssueFromGitHub err
+                      Left err -> exitError =<< RTI.prettyError fetchIssueFromGitHub err
                       Right () -> pure ()
                 where
                   vmatch = v == Version.gitDescribeWithDate version

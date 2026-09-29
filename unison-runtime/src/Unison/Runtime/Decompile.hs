@@ -26,7 +26,7 @@ import Unison.Referent qualified as Referent
 import Unison.Runtime.ANF (maskTags)
 import Unison.Runtime.Array (byteArrayToList)
 import Unison.Runtime.IOSource (iarrayFromListRef, ibarrayFromBytesRef)
-import Unison.Runtime.MCode (CombIx (..), FieldRef, shapeFields)
+import Unison.Runtime.MCode (CombIx (..), shapeFields)
 import Unison.Runtime.Stack
   ( Closure (..),
     Foreign (..),
@@ -93,12 +93,11 @@ type DecompResult v = (Set DecompError, Term v ())
 decompile ::
   forall v.
   (Var v) =>
-  (FieldRef -> Text) ->
   (Reference -> Maybe Reference) ->
   (Word64 -> Word64 -> Maybe (Term v ())) ->
   Val ->
   DecompResult v
-decompile frLookup backref topTerms = \case
+decompile backref topTerms = \case
   CharVal c -> pure (char () c)
   NatVal n -> pure (nat () n)
   IntVal i -> pure (int () (fromIntegral i))
@@ -110,11 +109,11 @@ decompile frLookup backref topTerms = \case
       | rf == booleanRef -> tag2bool ct
     (DataC rf _ [b])
       | rf == anyRef ->
-          app () (builtin () "Any.Any") <$> decompile frLookup backref topTerms b
+          app () (builtin () "Any.Any") <$> decompile backref topTerms b
     (DataC rf (maskTags -> ct) vs) ->
-      apps' (con rf ct) <$> traverse (decompile frLookup backref topTerms) vs
+      apps' (con rf ct) <$> traverse (decompile backref topTerms) vs
     (RecordC shape vals) -> do
-      vs' <- traverse (decompile frLookup backref topTerms) vals
+      vs' <- traverse (decompile backref topTerms) vals
       -- The field names are carried by the record's shape, in the same
       -- ascending order as its slots.
       pure . Term.record () . Map.fromList $
@@ -124,12 +123,12 @@ decompile frLookup backref topTerms = \case
           err Cont $ bug "<Continuation>"
       | Just t <- topTerms rt k ->
           Term.etaReduceEtaVars . substitute t
-            <$> traverse (decompile frLookup backref topTerms) vs
+            <$> traverse (decompile backref topTerms) vs
       | k > 0,
         Just _ <- topTerms rt 0 ->
           err (UnkLocal rf k) $ bug "<Unknown>"
       | Builtin nm <- rf ->
-          apps' (builtin () nm) <$> traverse (decompile frLookup backref topTerms) vs
+          apps' (builtin () nm) <$> traverse (decompile backref topTerms) vs
       | otherwise -> err (UnkComb rf) $ ref () rf
     (PAp (CIx rf _ _) _ _) ->
       err (BadPAp rf) $ bug "<Unknown>"
@@ -137,7 +136,7 @@ decompile frLookup backref topTerms = \case
     (Captured {}) -> err Cont $ bug "<Continuation>"
     (Affine {}) -> err Aff $ bug "<Affine>"
     (Foreign f) ->
-      decompileForeign frLookup backref topTerms f
+      decompileForeign backref topTerms f
 
 tag2bool :: (Var v) => Word64 -> DecompResult v
 tag2bool 0 = pure (boolean () False)
@@ -154,12 +153,11 @@ substitute = align []
 
 decompileForeign ::
   (Var v) =>
-  (FieldRef -> Text) ->
   (Reference -> Maybe Reference) ->
   (Word64 -> Word64 -> Maybe (Term v ())) ->
   Foreign ->
   DecompResult v
-decompileForeign frLookup backref topTerms = \case
+decompileForeign backref topTerms = \case
   WrapText t -> pure $ text () (Text.toText t)
   WrapBytes b -> pure $ decompileBytes b
   WrapHashAlgorithm h -> pure $ decompileHashAlgorithm h
@@ -170,7 +168,7 @@ decompileForeign frLookup backref topTerms = \case
   WrapReference l -> pure $ typeLink () l
   WrapArray a ->
     app () (ref () iarrayFromListRef) . list ()
-      <$> traverse (decompile frLookup backref topTerms) (toList a)
+      <$> traverse (decompile backref topTerms) (toList a)
   WrapByteArray a ->
     pure $
       app
@@ -178,9 +176,9 @@ decompileForeign frLookup backref topTerms = \case
         (ref () ibarrayFromBytesRef)
         (decompileBytes . By.fromWord8s $ byteArrayToList a)
   WrapSeq s ->
-    list' () <$> traverse (decompile frLookup backref topTerms) s
+    list' () <$> traverse (decompile backref topTerms) s
   WrapMap m -> do
-    let decompileEntry k v = pair <$> decompile frLookup backref topTerms k <*> decompile frLookup backref topTerms v
+    let decompileEntry k v = pair <$> decompile backref topTerms k <*> decompile backref topTerms v
     kvs <- traverse (uncurry decompileEntry) (Map.toList m)
     pure $ app () map_fromList (list () kvs)
   WrapNatural n ->

@@ -716,9 +716,7 @@ notifyUser dir issueFn = \case
             <> " with the codebase, or the term was deleted just now "
             <> " by someone else. Trying your command again might fix it."
       ]
-  EvaluationFailure ctx err -> do
-    let rsLookup rn = "<unknown-field-" <> tShow rn <> ">"
-    ctx <$> prettyError rsLookup issueFn err
+  EvaluationFailure ctx err -> ctx <$> prettyError issueFn err
   SearchTermsNotFound hqs | null hqs -> pure mempty
   SearchTermsNotFound hqs ->
     pure $
