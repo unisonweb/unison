@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE ExistentialQuantification #-}
 
 module Unison.Test.Runtime.Foreign.Dynamic (test) where
@@ -14,6 +15,24 @@ import Foreign.Ptr
 import Foreign.Storable
 import System.Mem (performGC)
 import Unison.Runtime.Foreign.Dynamic
+
+-- | Whether an unpromoted /fixed/ prefix is accepted. Not checked on macOS:
+-- Apple's system libffi applies the "variadic arguments must be promoted" check
+-- to every argument past the first, ignoring @nfixedargs@, and so rejects a
+-- legal unpromoted fixed prefix with @FFI_BAD_ARGTYPE@. It does this even when
+-- @nfixedargs@ equals the total argument count and nothing is variadic at all.
+-- Upstream libffi accepts these specs; @\/usr\/lib\/libffi.dylib@ is what GHC
+-- links against here.
+promotionTests :: [Test ()]
+#if defined(darwin_HOST_OS)
+promotionTests = []
+#else
+promotionTests =
+  [ scope "fixed prefix is not promoted" do
+      actual <- io $ try $ void $ prepareSpec $ FFSpec [F32, I8, U16, D64, I32] Void (Just 3)
+      expectEqual (Right () :: Either PrepException ()) actual
+  ]
+#endif
 
 foreign import ccall unsafe "&snprintf" snprintfPtr :: FunPtr ()
 
@@ -48,7 +67,7 @@ formatWith types values format = do
 test :: Test ()
 test =
   scope "ffi.dynamic" $
-    tests
+    tests $
       [ scope "fixed calls" do
           actual <- io do
             spec <- prepareSpec $ FFSpec [Ptr] sizeType Nothing
@@ -102,9 +121,6 @@ test =
               "%d %s %.1f %u %lld %llu %.1f %d %.1f %d %.1f %d %.1f %d %.1f"
           let expected = "-7 hello 2.5 99 -1234567890123 12345678901234 3.5 4 4.5 5 5.5 6 6.5 7 7.5"
           expectEqual (expected, fromIntegral $ length expected) actual,
-        scope "fixed prefix is not promoted" do
-          actual <- io $ try $ void $ prepareSpec $ FFSpec [F32, I8, U16, D64, I32] Void (Just 3)
-          expectEqual (Right () :: Either PrepException ()) actual,
         scope "void placeholder for fixed no-argument function" do
           actual <- io $ ffArgs . ffSpec <$> prepareSpec (FFSpec [Void] I32 Nothing)
           expectEqual [] actual,
@@ -127,6 +143,7 @@ test =
         scope "reject array results" $
           rejects BadResult (FFSpec [I32] MBArr (Just 1))
       ]
+        <> promotionTests
   where
     rejects expected spec = do
       actual <- io $ try $ void $ prepareSpec spec
