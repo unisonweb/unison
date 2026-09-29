@@ -1,4 +1,5 @@
 #include <stdint.h>
+#include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 
@@ -124,4 +125,44 @@ __declspec(dllexport)
 #endif
 void freeptr(uint32_t *ptr) {
   free(ptr);
+}
+
+#ifdef WINDOWS_BUILD
+__declspec(dllexport)
+#endif
+int64_t testvarsum(int32_t count, ...) {
+  va_list args;
+  va_start(args, count);
+  int64_t sum = 0;
+  for (int32_t i = 0; i < count; ++i) {
+    sum += va_arg(args, int64_t);
+  }
+  va_end(args);
+  return sum;
+}
+
+#ifdef WINDOWS_BUILD
+__declspec(dllexport)
+#endif
+double testvarmixed(float bias, int32_t count, ...) {
+  va_list args;
+  va_start(args, count);
+  double sum = bias;
+  for (int32_t i = 0; i < count; ++i) {
+    sum += va_arg(args, int);
+    sum += va_arg(args, double);
+  }
+  va_end(args);
+  return sum;
+}
+
+#ifdef WINDOWS_BUILD
+__declspec(dllexport)
+#endif
+uint32_t testvarpointer(int32_t unused, ...) {
+  va_list args;
+  va_start(args, unused);
+  uint32_t *p = va_arg(args, uint32_t *);
+  va_end(args);
+  return *p;
 }
