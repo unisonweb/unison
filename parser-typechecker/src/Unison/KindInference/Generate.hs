@@ -47,7 +47,7 @@ typeConstraints resultVar typ =
   flatten bottomUp <$> typeConstraintTree resultVar typ
 
 typeConstraintTree :: (Var v, Ord loc) => UVar v loc -> Type.Type v loc -> Gen v loc (ConstraintTree v loc)
-typeConstraintTree resultVar term@ABT.Term {annotation, out} = do
+typeConstraintTree resultVar ABT.Term {annotation, out} = do
   case out of
     ABT.Abs _ _ -> error "[typeConstraintTree] malformed type: Abs without an enclosing Forall or IntroOuter"
     ABT.Var v ->
@@ -103,7 +103,7 @@ typeConstraintTree resultVar term@ABT.Term {annotation, out} = do
           Nothing ->
             if Reference.isBuiltin r
               then throwError $ MissingBuiltin annotation r
-              else error ("[typeConstraintTree] Ref lookup failure: " <> show term)
+              else throwError $ UnknownType annotation r
           Just x -> pure $ Constraint (Unify (Provenance ContextLookup annotation) resultVar x) (Node [])
       Type.Effect effTyp b -> do
         effKind <- freshVar effTyp
@@ -376,12 +376,16 @@ withInstantiatedConstructorType declType tyParams0 constructorType0 k =
               unifyVars e xs
           | otherwise -> goEffs es
 
+      -- Constrain each type argument of the constructor's result type to have
+      -- the kind of the corresponding declared type parameter. For an ordinary
+      -- ADT every argument is exactly a bound type variable, but for a GADT the
+      -- result type may apply the declared type to arbitrary types (e.g. `Int`
+      -- in `Expr Int`), so we generate kind constraints for each argument
+      -- generally rather than assuming it is a single variable.
       unifyVars :: Type.Type v loc -> [Type.Type v loc] -> Gen v loc [GeneratedConstraint v loc]
-      unifyVars typ vs = for (zip vs tyParams0) \(v, tp) -> do
-        lookupType v >>= \case
-          Nothing -> error ("[unifyVars] unknown type in decl result: " <> show v)
-          Just x ->
-            pure (Unify (Provenance DeclDefinition (ABT.annotation typ)) x tp)
+      unifyVars _typ vs =
+        concat <$> for (zip vs tyParams0) \(argTy, declParamKind) ->
+          typeConstraints declParamKind argTy
    in goForall constructorType0
 
 --------------------------------------------------------------------------------
@@ -439,7 +443,9 @@ builtinConstraintTree =
           flip Type.ref Type.int8Ref,
           flip Type.ref Type.int16Ref,
           flip Type.ref Type.int32Ref,
-          flip Type.ref Type.float32Ref
+          flip Type.ref Type.float32Ref,
+          flip Type.ref Type.signalRef,
+          flip Type.ref Type.signalSubscriptionRef
         ],
       traverse
         (constrain (Type :-> Type))

@@ -27,6 +27,9 @@ PATTERNS=(
     '**/package.yaml'
     # Haskell source (affects test behavior)
     '**/*.hs'
+    # Native sources and headers (including POSIX signal handling)
+    '**/*.c'
+    '**/*.h'
     # Integration test inputs
     'unison-cli-integration/integration-tests/**/*.md'
     'unison-cli-integration/integration-tests/**/*.u'

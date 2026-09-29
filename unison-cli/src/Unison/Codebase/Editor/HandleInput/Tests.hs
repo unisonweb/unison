@@ -2,6 +2,7 @@ module Unison.Codebase.Editor.HandleInput.Tests
   ( handleTest,
     handleIOTest,
     handleAllIOTests,
+    runIOTestsWithProgress,
     isTestOk,
   )
 where
@@ -187,19 +188,36 @@ handleAllIOTests = do
   case NESet.nonEmptySet ioTestRefs of
     Nothing -> Cli.respondNumbered $ TestResults Output.NewlyComputed suffixifiedPPE True True Map.empty Map.empty
     Just neTestRefs -> do
-      let total = NESet.size neTestRefs
       (fails, oks) <-
-        toList neTestRefs
-          & zip [1 :: Int ..]
-          & Foldable.foldrM
-            ( \(n, r) (f, o) -> do
-                Cli.respond $ TestIncrementalOutputStart suffixifiedPPE (n, total) r
-                (fails, oks) <- runIOTest suffixifiedPPE r
-                Cli.respond $ TestIncrementalOutputEnd suffixifiedPPE (n, total) r (null fails)
-                pure (if null fails then f else Map.insert r fails f, if null oks then o else Map.insert r oks o)
-            )
-            (Map.empty, Map.empty)
+        runIOTestsWithProgress
+          (\progress r -> Cli.respond $ TestIncrementalOutputStart suffixifiedPPE progress r)
+          (runIOTest suffixifiedPPE)
+          (\progress r isOk -> Cli.respond $ TestIncrementalOutputEnd suffixifiedPPE progress r isOk)
+          (toList neTestRefs)
       Cli.respondNumbered $ TestResults Output.NewlyComputed suffixifiedPPE True True oks fails
+
+-- | Run tests in order and report their progress.
+runIOTestsWithProgress ::
+  (Monad m, Ord r) =>
+  ((Int, Int) -> r -> m ()) ->
+  (r -> m ([Text], [Text])) ->
+  ((Int, Int) -> r -> Bool -> m ()) ->
+  [r] ->
+  m (Map r [Text], Map r [Text])
+runIOTestsWithProgress onStart runTest onEnd refs =
+  refs
+    & zip [0 :: Int ..]
+    & Foldable.foldlM
+      ( \(f, o) (n, r) -> do
+          let progress = (n, total)
+          onStart progress r
+          (fails, oks) <- runTest r
+          onEnd progress r (null fails)
+          pure (if null fails then f else Map.insert r fails f, if null oks then o else Map.insert r oks o)
+      )
+      (Map.empty, Map.empty)
+  where
+    total = length refs
 
 resolveHQNames :: Names -> Set (HQ.HashQualified Name) -> Cli (Set (Reference.Id, Type.Type Symbol Ann))
 resolveHQNames parseNames hqNames =

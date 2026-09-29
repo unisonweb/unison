@@ -41,7 +41,7 @@ import Network.HTTP.Client.TLS qualified as HTTP
 import Network.Socket qualified as Socket
 import Stats (recordRtsStats)
 import System.Directory (canonicalizePath, getCurrentDirectory, removeDirectoryRecursive)
-import System.Environment (getProgName, withArgs)
+import System.Environment (getProgName, lookupEnv, withArgs)
 import System.Exit (ExitCode (..))
 import System.Exit qualified as Exit
 import System.Exit qualified as System
@@ -99,6 +99,17 @@ import UnliftIO.Directory (getHomeDirectory)
 import UnliftIO.Directory qualified as Directory
 
 type Runtimes = (RTI.Runtime Symbol, RTI.Runtime Symbol)
+
+-- | Determine whether the codebase should be locked, based on the @UNISON_CODEBASE_LOCK@ environment variable.
+--
+-- By default we lock the codebase (@DoLock@), but setting @UNISON_CODEBASE_LOCK=false@ disables locking for the
+-- operations that would otherwise take a lock.
+getCodebaseLockOption :: IO SC.CodebaseLockOption
+getCodebaseLockOption = do
+  lockEnv <- lookupEnv "UNISON_CODEBASE_LOCK"
+  pure case lockEnv of
+    Just "false" -> SC.DontLock
+    _ -> SC.DoLock
 
 main :: Version -> IO ()
 main version = do
@@ -173,7 +184,7 @@ main version = do
                 ]
             )
         Run (RunFromSymbol mainName) args -> do
-          getCodebaseOrExit mCodePathOption SC.DoLock (SC.MigrateAutomatically SC.Backup SC.Vacuum) \(_, _, theCodebase) -> do
+          getCodebaseOrExit mCodePathOption SC.DontLock SC.DontMigrate \(_, _, theCodebase) -> do
             RTI.withRuntime False RTI.OneOff (Version.gitDescribeWithDate version) \runtime -> do
               withArgs args (execute theCodebase runtime mainName) >>= \case
                 Left err -> exitError =<< RTI.prettyError fetchIssueFromGitHub err
@@ -185,7 +196,7 @@ main version = do
               case e of
                 Left _ -> exitError "I couldn't find that file or it is for some reason unreadable."
                 Right contents -> do
-                  getCodebaseOrExit mCodePathOption SC.DoLock (SC.MigrateAutomatically SC.Backup SC.Vacuum) \(initRes, _, theCodebase) -> do
+                  getCodebaseOrExit mCodePathOption SC.DontLock SC.DontMigrate \(initRes, _, theCodebase) -> do
                     withRuntimes RTI.OneOff \(rt, sbrt) -> do
                       let fileEvent = Input.UnisonFileChanged (Text.pack file) contents
                       let noOpCheckForChanges _ = pure ()
@@ -213,7 +224,7 @@ main version = do
           case e of
             Left _ -> exitError "I had trouble reading this input."
             Right contents -> do
-              getCodebaseOrExit mCodePathOption SC.DoLock (SC.MigrateAutomatically SC.Backup SC.Vacuum) \(initRes, _, theCodebase) -> do
+              getCodebaseOrExit mCodePathOption SC.DontLock SC.DontMigrate \(initRes, _, theCodebase) -> do
                 withRuntimes RTI.OneOff \(rt, sbrt) -> do
                   let fileEvent = Input.UnisonFileChanged (Text.pack "<standard input>") contents
                   let noOpCheckForChanges _ = pure ()
@@ -303,7 +314,8 @@ main version = do
             Nothing -> action
             Just fp -> recordRtsStats fp action
         Launch isHeadless codebaseServerOpts mayStartingProject shouldWatchFiles -> do
-          getCodebaseOrExit mCodePathOption SC.DoLock (SC.MigrateAfterPrompt SC.Backup SC.Vacuum) \(initRes, _, theCodebase) -> do
+          lockOption <- getCodebaseLockOption
+          getCodebaseOrExit mCodePathOption lockOption (SC.MigrateAfterPrompt SC.Backup SC.Vacuum) \(initRes, _, theCodebase) -> do
             withRuntimes RTI.Persistent \(runtime, sbRuntime) -> do
               startingProjectPath <- do
                 -- If the user didn't provide a starting path on the command line, put them in the most recent
@@ -432,7 +444,8 @@ withTranscriptDir verbosity progName codebaseSetup mCodePathOption action = do
       case codebaseSetup of
         InPlace -> do
           -- Create the codebase/migrate it according to codebase path option
-          getCodebaseOrExit mCodePathOption SC.DoLock (SC.MigrateAfterPrompt SC.Backup SC.Vacuum) $ const (pure ())
+          lockOption <- getCodebaseLockOption
+          getCodebaseOrExit mCodePathOption lockOption (SC.MigrateAfterPrompt SC.Backup SC.Vacuum) $ const (pure ())
           path <- Codebase.getCodebaseDir (fmap codebasePathOptionToPath mCodePathOption)
           unless (Verbosity.isSilent verbosity) . PT.putPrettyLn $
             P.lines
@@ -479,7 +492,7 @@ withTranscriptDir verbosity progName codebaseSetup mCodePathOption action = do
           case shouldFork of
             UseFork -> do
               -- A forked codebase does not need to Create a codebase, because it already exists
-              getCodebaseOrExit mCodePathOption SC.DoLock (SC.MigrateAutomatically SC.Backup SC.Vacuum) $ const (pure ())
+              getCodebaseOrExit mCodePathOption SC.DontLock SC.DontMigrate $ const (pure ())
               path <- Codebase.getCodebaseDir (fmap codebasePathOptionToPath mCodePathOption)
               (absPath, absTmp) <- bitraverse Directory.canonicalizePath Directory.canonicalizePath (path, tmp)
               if (absPath == absTmp)
@@ -504,7 +517,8 @@ withTranscriptDir verbosity progName codebaseSetup mCodePathOption action = do
                   pure (Just tmp, cleanup)
             DontFork -> do
               PT.putPrettyLn . P.wrap $ "Transcript will be run on a new, empty codebase."
-              CodebaseInit.withNewUcmCodebaseOrExit cbInit verbosity "main.transcript" tmp SC.DoLock (const $ pure ())
+              lockOption <- getCodebaseLockOption
+              CodebaseInit.withNewUcmCodebaseOrExit cbInit verbosity "main.transcript" tmp lockOption (const $ pure ())
               pure (Just tmp, cleanup)
     cleanup :: (Maybe FilePath, IO ()) -> IO ()
     cleanup (_transcriptDir, cleanupAction) = do

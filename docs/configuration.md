@@ -2,6 +2,7 @@
 
 
 * [UCM Configuration](#ucm-configuration)
+    * [`UNISON_CODEBASE_LOCK`](#unison_codebase_lock)
     * [`UNISON_DEBUG`](#unison_debug)
     * [`UNISON_PAGER`](#unison_pager)
     * [`UNISON_LSP_PORT`](#unison_lsp_port)
@@ -18,6 +19,20 @@
 * [Codebase Configuration](#codebase-configuration)
 
 ## UCM Configuration
+
+### `UNISON_CODEBASE_LOCK`
+
+Allows disabling codebase locking.
+The codebase lock ensures each ucm client has exclusive access when editing the codebase. It is generally safe to
+disable, though could result in unexpected results in some cases. For example, if a codebase branch is edited by two
+clients at the same time, one of the updates may be clobbered by the other.
+
+E.g.
+
+```sh
+# Disable codebase locking
+$ UNISON_CODEBASE_LOCK=false ucm
+```
 
 ### `UNISON_DEBUG`
 

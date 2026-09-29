@@ -14,6 +14,7 @@ import Unison.Test.Runtime.Crypto.Rsa qualified as Rsa
 import Unison.Test.Runtime.MCode qualified as MCode
 import Unison.Test.Runtime.MCode.Serialization qualified as MCode.Serialization
 import Unison.Test.Runtime.Process qualified as Process
+import Unison.Test.Runtime.Signal qualified as Signal
 import Unison.Test.UnisonSources qualified as UnisonSources
 
 test :: Test ()
@@ -26,6 +27,7 @@ test =
       P256.test,
       Rsa.test,
       Process.test,
+      Signal.test,
       UnisonSources.test
     ]
 

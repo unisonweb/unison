@@ -32,7 +32,7 @@ jobs:
       - name: install stack
         uses: unisonweb/actions/stack/install@main
         with:
-          stack-version: 3.7.1
+          stack-version: 3.9.3
 
       - name: build with haddocks
         working-directory: unison

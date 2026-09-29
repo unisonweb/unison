@@ -1,5 +1,6 @@
-## To minimize building of Haskell packages, this should match the LTS used by the rev of Nixpkgs that we’re on
-resolver: lts-24.21 # GHC 9.10.3
+## To minimize building of Haskell packages, this should match the LTS used by the rev of Nixpkgs that we’re on –
+## https://github.com/NixOS/nixpkgs/blob/master/pkgs/development/haskell-modules/configuration-hackage2nix/stackage.yaml
+resolver: lts-24.38 # GHC 9.10.3
 
 ## We intentionally disable Nix integration when running in a Nix shell.
 notify-if-nix-on-path: false

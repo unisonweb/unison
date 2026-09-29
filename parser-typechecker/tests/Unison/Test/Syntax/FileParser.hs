@@ -65,7 +65,9 @@ test =
       typeAliasExpandsInDataDeclTest,
       typeAliasExpandsInTermSignatureTest,
       abilityRowAliasTest,
-      typeAliasCycleTest
+      typeAliasCycleTest,
+      patternInFunctionDeclarationTest,
+      patternInFunctionDeclarationWithTypeSigTest
     ]
 
 expectFileParseFailure :: String -> (P.Error Symbol -> Test ()) -> Test ()
@@ -164,6 +166,26 @@ typeAliasCycleTest =
     expectation e = case e of
       P.TypeAliasCycle {} -> ok
       _ -> crash "Error wasn't TypeAliasCycle"
+
+patternInFunctionDeclarationTest :: Test ()
+patternInFunctionDeclarationTest =
+  scope "patternInFunctionDeclarationTest" $
+    expectFileParseFailure "isEmpty [] = true" expectation
+  where
+    expectation :: (Var e) => P.Error e -> Test ()
+    expectation e = case e of
+      P.PatternInFunctionDeclaration _ _ -> ok
+      _ -> crash "Error wasn't PatternInFunctionDeclaration"
+
+patternInFunctionDeclarationWithTypeSigTest :: Test ()
+patternInFunctionDeclarationWithTypeSigTest =
+  scope "patternInFunctionDeclarationWithTypeSigTest" $
+    expectFileParseFailure (unlines ["isEmpty : [a] -> Boolean", "isEmpty [] = true"]) expectation
+  where
+    expectation :: (Var e) => P.Error e -> Test ()
+    expectation e = case e of
+      P.PatternInFunctionDeclaration _ _ -> ok
+      _ -> crash "Error wasn't PatternInFunctionDeclaration"
 
 parses :: String -> Test ()
 parses s = scope s $ do

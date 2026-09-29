@@ -20,16 +20,16 @@
     },
     "nixpkgs": {
       "locked": {
-        "lastModified": 1767480499,
-        "narHash": "sha256-8IQQUorUGiSmFaPnLSo2+T+rjHtiNWc+OAzeHck7N48=",
+        "lastModified": 1781472460,
+        "narHash": "sha256-dqwpb1o0xIwb1rv3PPbpY7RBm8heFiOLAubszNLBefc=",
         "owner": "NixOS",
         "repo": "nixpkgs",
-        "rev": "30a3c519afcf3f99e2c6df3b359aec5692054d92",
+        "rev": "8c14fa3ccacddaec887134e523083b63c8ea57ac",
         "type": "github"
       },
       "original": {
         "owner": "NixOS",
-        "ref": "nixpkgs-25.11-darwin",
+        "ref": "nixpkgs-26.05-darwin",
         "repo": "nixpkgs",
         "type": "github"
       }
@@ -47,16 +47,16 @@
     },
     "stacklock2nix": {
       "locked": {
-        "lastModified": 1758881683,
-        "narHash": "sha256-GZDAUJ3RGOjxB0KRbQMPZNQ0uTQKqcyQeVLyN8CrJtQ=",
+        "lastModified": 1769669881,
+        "narHash": "sha256-ZEE1ENBUM+Lj2yX0RtG7BdwvgAQQL6DCgpxDht9e6Ro=",
         "owner": "cdepillabout",
         "repo": "stacklock2nix",
-        "rev": "246cae921545dfb340ba5776f2962bc5c2692097",
+        "rev": "27c7a46f9a4c73d3aef95d4a011213af0ce1e700",
         "type": "github"
       },
       "original": {
         "owner": "cdepillabout",
-        "ref": "v5.2.1",
+        "ref": "v5.2.3",
         "repo": "stacklock2nix",
         "type": "github"
       }

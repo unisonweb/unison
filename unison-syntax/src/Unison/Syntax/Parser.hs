@@ -238,6 +238,9 @@ data Error v
     -- the annotation of one alias in the cycle and the list of alias names
     -- involved.
     TypeAliasCycle Ann [v]
+  | -- | Pattern found in function declaration head (e.g. `f [] = ...`)
+    -- Carries the function name and the location of the pattern token.
+    PatternInFunctionDeclaration v Ann
   deriving (Show, Eq, Ord)
 
 tokenToPair :: L.Token a -> (Ann, a)
