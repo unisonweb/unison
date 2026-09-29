@@ -48,6 +48,9 @@ library:
   when:
     - condition: false
       other-modules: Paths_unison_runtime
+    - condition: "!os(windows)"
+      dependencies: unix
+      c-sources: cbits/signals.c
 
   c-sources:
     - cbits/i2d.c
@@ -121,6 +124,9 @@ tests:
     when:
       - condition: false
         other-modules: Paths_unison_parser_typechecker
+      - condition: "!os(windows)"
+        dependencies: unix
+        c-sources: tests/cbits/signals.c
     dependencies:
       - base
       - bytestring

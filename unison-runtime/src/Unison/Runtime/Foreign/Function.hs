@@ -195,6 +195,7 @@ import Unison.Runtime.Foreign.Function.Type
   )
 import Unison.Runtime.MCode
 import Unison.Runtime.Referenced (Referenced, dereference)
+import Unison.Runtime.Signal qualified as Signal
 import Unison.Runtime.Stack hiding (Failure)
 import Unison.Runtime.Stack qualified as F
 import Unison.Runtime.TypeTags qualified as TT
@@ -434,6 +435,11 @@ foreignCallHelper = \case
   IO_process_exitCode ->
     mkForeign $
       fmap (fmap exitDecode) . getProcessExitCode
+  IO_signal_available -> mkForeign $ \() ->
+    pure [(pack name, signal) | (name, signal) <- Signal.available]
+  IO_signal_subscribe -> mkForeignIOExn Signal.subscribe
+  IO_signal_Subscription_await -> mkForeignIOExn Signal.await
+  IO_signal_Subscription_close -> mkForeignIOExn Signal.close
   MVar_new -> mkForeign $
     \(c :: Val) -> newMVar c
   MVar_newEmpty_v2 -> mkForeign $

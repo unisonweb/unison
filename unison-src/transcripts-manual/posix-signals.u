@@ -1,0 +1,46 @@
+signalNamed : Text -> [(Text, IO.signal.Signal)] -> Optional IO.signal.Signal
+signalNamed name entries = match entries with
+  [] -> None
+  (label, signal) +: rest ->
+    if name == label then Some signal else signalNamed name rest
+
+signalRejects : '{IO, Exception} a ->{IO} Boolean
+signalRejects action =
+  handle
+    _ = action()
+    false
+  with cases
+    { Exception.raise _ -> _ } -> true
+    { result } -> result
+
+signalPortableChecks : '{IO, Exception} Boolean
+signalPortableChecks = do
+  match IO.signal.available() with
+    [] -> true
+    (_, signal) +: _ ->
+      subscription = IO.signal.subscribe signal
+      IO.signal.Subscription.close subscription
+      IO.signal.Subscription.close subscription
+      signalRejects do IO.signal.Subscription.await subscription
+
+signalChecks = do
+  entries = IO.signal.available()
+  match (signalNamed "SIGHUP" entries, signalNamed "SIGWINCH" entries) with
+    (Some hup, Some winch) ->
+      first = IO.signal.subscribe hup
+      second = IO.signal.subscribe hup
+      resize = IO.signal.subscribe winch
+      hupStatus = io2.IO.process.call "/bin/sh" ["-c", "kill -HUP \"$PPID\""]
+      IO.signal.Subscription.await first
+      IO.signal.Subscription.await second
+      IO.signal.Subscription.close first
+      IO.signal.Subscription.close first
+      secondStatus = io2.IO.process.call "/bin/sh" ["-c", "kill -HUP \"$PPID\""]
+      IO.signal.Subscription.await second
+      resizeStatus = io2.IO.process.call "/bin/sh" ["-c", "kill -WINCH \"$PPID\""]
+      IO.signal.Subscription.await resize
+      IO.signal.Subscription.close second
+      IO.signal.Subscription.close resize
+      (hupStatus == 0, secondStatus == 0, resizeStatus == 0,
+       signalRejects do IO.signal.Subscription.await first)
+    _ -> (false, false, false, false)
