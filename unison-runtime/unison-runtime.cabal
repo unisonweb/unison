@@ -1,6 +1,6 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.36.0.
+-- This file has been generated from package.yaml by hpack version 0.38.1.
 --
 -- see: https://github.com/sol/hpack
 
@@ -274,6 +274,7 @@ test-suite runtime-tests
     , unison-runtime
     , unison-syntax
     , unison-util-bytes
+    , unison-util-relation
   default-language: Haskell2010
   if flag(arraychecks)
     cpp-options: -DARRAY_CHECK

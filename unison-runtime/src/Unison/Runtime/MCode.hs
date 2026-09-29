@@ -38,6 +38,7 @@ module Unison.Runtime.MCode
     Branch,
     RBranch,
     RecordFieldMappings (..),
+    emptyRecordFieldMappings,
     convertFieldNamesToRefs,
     emitCombs,
     emitComb,
@@ -1066,6 +1067,11 @@ data RecordFieldMappings
       (FieldRef {- next unassigned ref -})
       (BiMap ANF.FieldName FieldRef {- mapping from field name to field ref -})
   deriving stock (Show, Eq, Ord)
+
+-- | No field names assigned yet. The starting state for `emitCombs` and
+-- friends, in the same spirit as `emptyRNs`.
+emptyRecordFieldMappings :: RecordFieldMappings
+emptyRecordFieldMappings = RecordFieldMappings (FieldRef 0) mempty
 
 -- | Note that the Ord instance for Field Refs is arbitrary and not tied to the field name Ord instance.
 convertFieldNamesToRefs :: (MonadState RecordFieldMappings m, Traversable f) => f ANF.FieldName -> m (f FieldRef)

@@ -151,6 +151,7 @@ tests:
       - unison-core1
       - unison-hash
       - unison-util-bytes
+      - unison-util-relation
       - unison-parser-typechecker
       - unison-prelude
       - unison-pretty-printer

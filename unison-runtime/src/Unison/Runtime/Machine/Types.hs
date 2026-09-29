@@ -233,12 +233,10 @@ baseCCache sandboxed = do
 
     rns = emptyRNs {dnum = refLookup "ty" builtinTypeNumbering}
 
-    initRFM :: RecordFieldMappings
-    initRFM = RecordFieldMappings (FieldRef 0) mempty
     srcCombs :: EnumMap Word64 Combs
     rfm :: RecordFieldMappings
     (srcCombs, rfm) =
-      flip runState initRFM $
+      flip runState emptyRecordFieldMappings $
         ( numberedTermLookup
             & traverseWithKey
               ( \k v -> do
