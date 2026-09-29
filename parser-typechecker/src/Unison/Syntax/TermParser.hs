@@ -675,7 +675,58 @@ resolveHashQualified tok = do
           | otherwise -> pure $ Term.fromReferent (ann tok) (Set.findMin s)
 
 termLeaf :: forall m v. (Monad m, Var v) => TermP v m
-termLeaf =
+termLeaf = termLeafNoProjection >>= recordProjections
+
+-- | Parse a chain of record field projections onto an already-parsed term, so
+-- that @r\@x@ reads the @x@ field of the record @r@.
+--
+-- The @\@@ must be adjacent to both sides -- @r\@x@, never @r \@ x@. That keeps
+-- it from reading as an ordinary infix operator, and keeps it clear of the
+-- @\@@ that introduces doc special forms.
+--
+-- Because this wraps a leaf, projection binds tighter than application:
+-- @f r\@x@ is @f (r\@x)@.
+recordProjections :: forall m v. (Monad m, Var v) => Term v Ann -> P v m (Term v Ann)
+recordProjections base = do
+  mfield <- optional . P.try $ do
+    at <- reserved "@"
+    guard (adjacentAnns (ann base) (ann at))
+    field <- recordFieldName
+    guard (adjacentAnns (ann at) (ann field))
+    pure field
+  case mfield of
+    Nothing -> pure base
+    Just field -> recordProjections (recordProjection base field)
+
+-- | Whether the second annotation begins exactly where the first ends, meaning
+-- there was no whitespace between the two tokens.
+adjacentAnns :: Ann -> Ann -> Bool
+adjacentAnns (Ann _ e) (Ann s _) = e == s
+adjacentAnns _ _ = False
+
+-- | @base\@field@ desugars to a single-field record match.
+--
+-- That needs no new term form: it typechecks to @{field: t | ...} -> t@ through
+-- the existing record pattern machinery, and compiles to the existing
+-- @RecUnpack@ instruction. The bound variable scopes over nothing but itself,
+-- so it cannot capture and needs no freshening.
+recordProjection :: (Var v) => Term v Ann -> L.Token Text -> Term v Ann
+recordProjection base fieldTok =
+  let fieldAnn = ann fieldTok
+      -- Not `_field`: a leading underscore makes it a wildcard when the
+      -- printed form is re-parsed, which would drop the binding.
+      v = Var.named "field"
+   in Term.match
+        (ann base <> fieldAnn)
+        base
+        [ Term.MatchCase
+            (Pattern.RecordLiteral fieldAnn (Map.singleton (L.payload fieldTok) (Pattern.Var fieldAnn)))
+            Nothing
+            (ABT.abs' fieldAnn v (Term.var fieldAnn v))
+        ]
+
+termLeafNoProjection :: forall m v. (Monad m, Var v) => TermP v m
+termLeafNoProjection =
   asum
     [ force,
       hashQualifiedPrefixTerm,

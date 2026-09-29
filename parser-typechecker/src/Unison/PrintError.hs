@@ -1046,19 +1046,19 @@ renderTypeError e env src = case e of
   PatternMatchedMissingField {matchedFieldName, recordPatternLoc, scrutineeRecordType} ->
     Pr.lines
       [ Pr.wrap $
-          "This pattern matches on a field called "
-            <> (style ErrorSite (Text.unpack matchedFieldName) <> ",")
-            <> " but the record it's matching doesn't have that field:",
+          "This record has no field called "
+            <> style ErrorSite (Text.unpack matchedFieldName)
+            <> " here:",
         "",
         annotatedAsErrorSite src recordPatternLoc,
         "",
-        "The record being matched has type:",
+        "It has type:",
         Pr.indentN 2 (style Type1 (renderType' env scrutineeRecordType)),
         ""
       ]
   RecordPatternMatchOnNonRecordType {recordPatternLoc, scrutineeNonRecordType} ->
     Pr.lines
-      [ Pr.wrap "This is a record pattern, but the value it's matching isn't a record:",
+      [ Pr.wrap "This isn't a record, so there are no fields to read from it:",
         "",
         annotatedAsErrorSite src recordPatternLoc,
         "",

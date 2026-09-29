@@ -387,6 +387,16 @@ pretty0
           LetBlock bs e ->
             let (im', uses) = calcImports im term
              in printLet a {imports = im'} bc bs e uses
+          -- A single-field record match is what `base@field` desugars to, so
+          -- print it back that way rather than as the underlying match.
+          (asRecordProjection -> Just (base, field)) -> do
+            -- `Top` so anything that parenthesizes at all gets parens; a
+            -- projection binds tighter than application and than `!`/`'`.
+            pbase <- goNormal Top base
+            pure $
+              pbase
+                <> fmt S.DelimiterChar "@"
+                <> fmt (S.RecordFieldName field) (PP.text field)
           -- Some matches are rendered as a destructuring bind, like
           --   match foo with (a,b) -> blah
           -- becomes
@@ -667,6 +677,7 @@ pretty0
 
       isDelay (Delay' _) = True
       isDelay _ = False
+
       varList = intercalateMap PP.softbreak prettyBinder
 
       nonForcePred :: Term3 v PrintAnnotation -> Bool
@@ -1719,6 +1730,20 @@ isLet _ = False
 -- Has shadowing, is rendered as a regular `match`.
 --   match blah with 42 -> body
 -- Pattern has (is) a literal, rendered as a regular match (rather than `42 = blah; body`)
+
+-- | Recognize the term that `base@field` desugars to: a match with one
+-- irrefutable single-field record pattern whose body is just the bound
+-- variable. Printing it back as a projection keeps `view` showing the syntax
+-- that was written.
+asRecordProjection ::
+  (Var v) => Term3 v PrintAnnotation -> Maybe (Term3 v PrintAnnotation, Text)
+asRecordProjection = \case
+  Match' scrutinee [MatchCase (Pattern.RecordLiteral _ fields) Nothing (AbsN' [v] (Var' v'))]
+    | v == v',
+      [(field, Pattern.Var _)] <- Map.toList fields ->
+        Just (scrutinee, field)
+  _ -> Nothing
+
 isDestructuringBind :: (Ord v) => ABT.Term f v a -> [MatchCase loc (ABT.Term f v a)] -> Bool
 isDestructuringBind scrutinee [MatchCase pat _ (ABT.AbsN' vs _)] =
   all (`Set.notMember` ABT.freeVars scrutinee) vs && not (hasLiteral pat)

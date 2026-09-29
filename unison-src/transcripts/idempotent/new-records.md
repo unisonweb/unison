@@ -332,8 +332,7 @@ notARecord = cases
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  This is a record pattern, but the value it's matching isn't a
-  record:
+  This isn't a record, so there are no fields to read from it:
 
       3 |   { a: a } -> a
 
@@ -353,13 +352,12 @@ noSuchField = cases
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  This pattern matches on a field called name , but the record
-  it's matching doesn't have that field:
+  This record has no field called name here:
 
       3 |   { name: n, age: _ } -> 1
 
 
-  The record being matched has type:
+  It has type:
     {age: Nat}
 ```
 
@@ -815,6 +813,243 @@ boom = bug { name: "Alice", age: 30 }
   Stack trace:
     #135ikr7m3u
     #s2jmnl2nc9
+```
+
+### Reading fields
+
+A record pattern in a destructuring bind reads fields without a `match`, and
+works partially and at depth.
+
+``` unison
+sum3 : { x: Nat, y: Nat, z: Nat | ... } -> Nat
+sum3 r =
+  { x: x, y: y, z: z } = r
+  x Nat.+ y Nat.+ z
+
+getInner : { a: { b: Nat } | ... } -> Nat
+getInner r =
+  { a: { b: b } } = r
+  b
+
+> sum3 { x: 1, y: 2, z: 3, extra: "ignored" }
+> getInner { a: { b: 42 }, c: 1 }
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  + getInner : {a: {b: Nat} | ...} -> Nat
+  + sum3     : {x: Nat, y: Nat, z: Nat | ...} -> Nat
+      (also named addUpRec)
+
+  Run `update` to apply these changes to your codebase.
+
+    11 | > sum3 { x: 1, y: 2, z: 3, extra: "ignored" }
+           ⧩
+           6
+
+    12 | > getInner { a: { b: 42 }, c: 1 }
+           ⧩
+           42
+```
+
+`r@x` reads the `x` field inline. It binds tighter than application, so
+`f r@x` is `f (r@x)`, and it chains.
+
+``` unison
+rec : { a: Nat, b: Text }
+rec = { a: 7, b: "hi" }
+
+nested : { a: { b: { c: Nat } } }
+nested = { a: { b: { c: 42 } } }
+
+> rec@a
+> rec@b
+> Nat.increment rec@a
+> nested@a@b@c
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  + nested : {a: {b: {c: Nat}}}
+  + rec    : {a: Nat, b: Text}
+
+  Run `update` to apply these changes to your codebase.
+
+    7 | > rec@a
+          ⧩
+          7
+
+    8 | > rec@b
+          ⧩
+          "hi"
+
+    9 | > Nat.increment rec@a
+          ⧩
+          8
+
+    10 | > nested@a@b@c
+           ⧩
+           42
+```
+
+Unlike a qualified name, the left side can be any expression, not just an
+identifier.
+
+``` unison
+mkRec2 : Nat -> { v: Nat }
+mkRec2 n = { v: n }
+
+> (mkRec2 5)@v
+> ({ v: 9 })@v
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  + mkRec2 : Nat -> {v: Nat}
+
+  Run `update` to apply these changes to your codebase.
+
+    4 | > (mkRec2 5)@v
+          ⧩
+          5
+
+    5 | > ({ v: 9 })@v
+          ⧩
+          9
+```
+
+The `@` has to be adjacent to both sides, which is what keeps it from being
+confused with the `@` of an as-pattern.
+
+``` unison :error
+spaced : { a: Nat } -> Nat
+spaced r = r @ a
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  I got confused here:
+
+      2 | spaced r = r @ a
+
+
+  I was surprised to find a '@' here.
+  I was expecting one of these instead:
+
+  * and
+  * bang
+  * do
+  * false
+  * force
+  * handle
+  * if
+  * infixApp
+  * let
+  * newline or semicolon
+  * or
+  * quote
+  * termLink
+  * true
+  * tuple
+  * typeLink
+```
+
+``` unison
+asPat : Optional Nat -> Nat
+asPat = cases
+  x@(Some n) -> n
+  None -> 0
+
+> asPat (Some 5)
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  + asPat : Optional Nat -> Nat
+
+  Run `update` to apply these changes to your codebase.
+
+    6 | > asPat (Some 5)
+          ⧩
+          5
+```
+
+Reading a field the record doesn't have, or reading from something that isn't a
+record:
+
+``` unison :error
+noSuchField2 : { a: Nat } -> Nat
+noSuchField2 r = r@nope
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  This record has no field called nope here:
+
+      2 | noSuchField2 r = r@nope
+
+
+  It has type:
+    {a: Nat}
+```
+
+``` unison :error
+notARecord2 : Nat -> Nat
+notARecord2 n = n@a
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  This isn't a record, so there are no fields to read from it:
+
+      2 | notARecord2 n = n@a
+
+
+  It has type:
+    Nat
+```
+
+A projection prints back as a projection.
+
+``` unison
+projA : { a: Nat | ... } -> Nat
+projA r = Nat.increment r@a
+
+projDeep : { a: { b: Nat } | ... } -> Nat
+projDeep r = r@a@b
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  + projA    : {a: Nat | ...} -> Nat
+  + projDeep : {a: {b: Nat} | ...} -> Nat
+
+  Run `update` to apply these changes to your codebase.
+```
+
+``` ucm
+scratch/main> update
+
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
+  Done.
+
+scratch/main> view projA projDeep
+
+  projA : {a: Nat | ...} -> Nat
+  projA r = Nat.increment r@a
+
+  projDeep : {a: {b: Nat} | ...} -> Nat
+  projDeep r = r@a@b
 ```
 
 ### Universals
