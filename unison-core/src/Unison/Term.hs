@@ -1543,9 +1543,14 @@ toPattern tm = case tm of
     Pattern.EffectBind loc r <$> traverse toPattern args <*> toPattern k
   Apps' (Request' r) args -> Pattern.EffectBind loc r <$> traverse toPattern args <*> pure (Pattern.Unbound loc)
   Apps' (Constructor' r) args -> Pattern.Constructor loc r <$> traverse toPattern args
-  Apps' (Record' _fields) _args -> error "toPattern: TODO: implement record pattern matching"
   Constructor' r -> pure $ Pattern.Constructor loc r []
-  Record' _fields -> error "toPattern: TODO: implement record pattern matching"
+  -- A record literal is never applied to arguments, so unlike a constructor there's
+  -- no `Apps'` case here; `{x = ...} y` isn't a term that could have been a pattern.
+  --
+  -- `traverse` over a `Map Text` visits fields in ascending key order, which is the
+  -- order `intop` assigns pattern variables in and the order `ABT.allVars` recovers
+  -- them in, so the variables of the rebuilt pattern line up with the abs chain.
+  Record' fields -> Pattern.RecordLiteral loc <$> traverse toPattern fields
   Request' r -> pure $ Pattern.EffectBind loc r [] (Pattern.Unbound loc)
   Int' i -> pure $ Pattern.Int loc i
   Nat' n -> pure $ Pattern.Nat loc n
@@ -1605,7 +1610,7 @@ matchCaseToTerm (MatchCase pat guard (ABT.unabsA -> (avs, body))) =
       Pattern.Text loc t -> pure (text loc t)
       Pattern.Char loc c -> pure (char loc c)
       Pattern.Constructor loc r ps -> apps' (constructor loc r) <$> traverse intop ps
-      Pattern.RecordLiteral _loc _ps -> error "Pattern.Record: TODO: implement record pattern matching"
+      Pattern.RecordLiteral loc ps -> record loc <$> traverse intop ps
       Pattern.As loc p -> do
         avs <- State.get
         case avs of

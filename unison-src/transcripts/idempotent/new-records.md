@@ -1142,3 +1142,262 @@ comparing the sorted field-name lists.
           ⧩
           false
 ```
+
+### Rewrite rules
+
+A `@rewrite case` rule can match on a record pattern. Here the field value is
+a literal:
+
+``` unison
+litRule = @rewrite
+  case {x: 0} ==> {x: 1}
+
+targetLit : {x: Nat} -> Nat
+targetLit = cases
+  {x: 0} -> 100
+  {x: n} -> n
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  + litRule   : Rewrites
+                  (Tuple (RewriteCase {x: Nat} {x: Nat}) ())
+  + targetLit : {x: Nat} -> Nat
+
+  Run `update` to apply these changes to your codebase.
+```
+
+``` ucm
+scratch/main> rewrite litRule
+
+  ☝️
+
+  I found and replaced matches in these definitions: targetLit
+
+  The rewritten file has been added to the top of scratch.u
+```
+
+``` unison :added-by-ucm scratch.u
+-- | Rewrote using: 
+-- | Modified definition(s): targetLit
+
+litRule = @rewrite case {x: 0} ==> {x: 1}
+
+targetLit : {x: Nat} -> Nat
+targetLit = cases
+  {x: 1} -> 100
+  {x: n} -> n
+```
+
+``` ucm :hide
+scratch/main> load
+
+scratch/main> add
+```
+
+A record pattern binds its variables in ascending field-name order, so a rule
+that swaps two field subpatterns has to move the bindings along with them. The
+rewritten body still refers to `p` and `q` by name, and they follow the fields
+they were swapped onto:
+
+``` unison
+swapRule a b = @rewrite
+  case {x: a, y: b} ==> {x: b, y: a}
+
+targetSwap : {x: Nat, y: Nat} -> Nat
+targetSwap = cases
+  {x: p, y: q} -> p Nat.+ (q Nat.* 2)
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  + swapRule   : a
+                 -> b
+                 -> Rewrites
+                   (Tuple
+                     (RewriteCase {x: a, y: b} {x: b, y: a}) ())
+  + targetSwap : {x: Nat, y: Nat} -> Nat
+
+  Run `update` to apply these changes to your codebase.
+```
+
+``` ucm
+scratch/main> rewrite swapRule
+
+  ☝️
+
+  I found and replaced matches in these definitions: targetSwap
+
+  The rewritten file has been added to the top of scratch.u
+```
+
+``` unison :added-by-ucm scratch.u
+-- | Rewrote using: 
+-- | Modified definition(s): targetSwap
+
+swapRule a b = @rewrite case {x: a, y: b} ==> {x: b, y: a}
+
+targetSwap : {x: Nat, y: Nat} -> Nat
+targetSwap = cases {x: q, y: p} -> p Nat.+ q Nat.* 2
+```
+
+``` ucm :hide
+scratch/main> load
+
+scratch/main> add
+```
+
+Record patterns nest:
+
+``` unison
+nestRule = @rewrite
+  case {x: {y: 0}} ==> {x: {y: 1}}
+
+targetNest : {x: {y: Nat}} -> Nat
+targetNest = cases
+  {x: {y: 0}} -> 100
+  {x: {y: n}} -> n
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  + nestRule   : Rewrites
+                   (Tuple
+                     (RewriteCase {x: {y: Nat}} {x: {y: Nat}})
+                     ())
+  + targetNest : {x: {y: Nat}} -> Nat
+
+  Run `update` to apply these changes to your codebase.
+```
+
+``` ucm
+scratch/main> rewrite nestRule
+
+  ☝️
+
+  I found and replaced matches in these definitions: targetNest
+
+  The rewritten file has been added to the top of scratch.u
+```
+
+``` unison :added-by-ucm scratch.u
+-- | Rewrote using: 
+-- | Modified definition(s): targetNest
+
+nestRule = @rewrite case {x: {y: 0}} ==> {x: {y: 1}}
+
+targetNest : {x: {y: Nat}} -> Nat
+targetNest = cases
+  {x: {y: 1}} -> 100
+  {x: {y: n}} -> n
+```
+
+``` ucm :hide
+scratch/main> load
+
+scratch/main> add
+```
+
+Finally, a rule that has nothing to do with records still has to pass over any
+record patterns in the definitions it rewrites:
+
+``` unison
+structural type Flag = On | Off
+
+flagRule = @rewrite
+  case On ==> Off
+
+targetFlag : {x: Flag} -> Nat
+targetFlag = cases
+  {x: f} -> match f with
+    On -> 1
+    _ -> 0
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  + structural type Flag
+
+  + flagRule   : Rewrites (Tuple (RewriteCase Flag Flag) ())
+  + targetFlag : {x: Flag} -> Nat
+
+  Run `update` to apply these changes to your codebase.
+```
+
+``` ucm
+scratch/main> rewrite flagRule
+
+  ☝️
+
+  I found and replaced matches in these definitions: targetFlag
+
+  The rewritten file has been added to the top of scratch.u
+```
+
+``` unison :added-by-ucm scratch.u
+-- | Rewrote using: 
+-- | Modified definition(s): targetFlag
+
+structural type Flag = On | Off
+
+flagRule = @rewrite case Flag.On ==> Flag.Off
+
+targetFlag : {x: Flag} -> Nat
+targetFlag = cases
+  {x: f} ->
+    match f with
+      Flag.Off -> 1
+      _        -> 0
+```
+
+``` ucm :hide
+scratch/main> load
+```
+
+A leading underscore makes the field's subpattern a wildcard, the same as
+anywhere else in a rule:
+
+``` unison
+wildRule _w = @rewrite
+  case {w: _w} ==> {w: 0}
+
+targetWild : {w: Nat} -> Nat
+targetWild = cases
+  {w: _} -> 7
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  + targetWild : {w: Nat} -> Nat
+  + wildRule   : ∀ _w.
+                   _w
+                   -> Rewrites
+                     (Tuple (RewriteCase {w: _w} {w: Nat}) ())
+
+  Run `update` to apply these changes to your codebase.
+```
+
+``` ucm
+scratch/main> rewrite wildRule
+
+  ☝️
+
+  I found and replaced matches in these definitions: targetWild
+
+  The rewritten file has been added to the top of scratch.u
+```
+
+``` unison :added-by-ucm scratch.u
+-- | Rewrote using: 
+-- | Modified definition(s): targetWild
+
+wildRule _w = @rewrite case {w: _w} ==> {w: 0}
+
+targetWild : {w: Nat} -> Nat
+targetWild = cases {w: 0} -> 7
+```
