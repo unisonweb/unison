@@ -249,6 +249,11 @@ test =
             "1 + match x with\n\
             \  +1 -> foo\n\
             \  +2 -> bar",
-          testANF "(match x with +3 -> foo) + (match x with +2 -> foo)"
+          testANF "(match x with +3 -> foo) + (match x with +2 -> foo)",
+          testANF "{a: x}",
+          -- Fields are laid out in ascending name order, not source order.
+          testANF "{b: x, a: y}",
+          testANF "match x with {a: y} -> y",
+          testANF "match x with {b: y, a: z} -> y"
         ]
     ]

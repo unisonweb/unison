@@ -80,6 +80,7 @@ instance Eq (Pattern loc) where
   PatternEffectBind _ r ctor ps k == PatternEffectBind _ r2 ctor2 ps2 k2 = r == r2 && ctor == ctor2 && ps == ps2 && k == k2
   PatternAs _ p == PatternAs _ q = p == q
   PatternText _ t == PatternText _ t2 = t == t2
+  PatternRecord _ fs == PatternRecord _ fs2 = fs == fs2
   PatternBytes _ b == PatternBytes _ b2 = b == b2
   PatternSequenceLiteral _ ps == PatternSequenceLiteral _ ps2 = ps == ps2
   PatternSequenceOp _ ph op pt == PatternSequenceOp _ ph2 op2 pt2 = ph == ph2 && op == op2 && pt == pt2

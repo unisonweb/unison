@@ -1358,6 +1358,46 @@ targetFlag = cases
 scratch/main> load
 ```
 
+`sfind` reports the matches without rewriting them. Unlike `rewrite`, which
+compares the pattern as a term, this compares record patterns to each other
+directly:
+
+``` unison
+findRule = @rewrite
+  case {q: 0} ==> {q: 1}
+
+targetFind : {q: Nat} -> Nat
+targetFind = cases
+  {q: 0} -> 100
+  {q: n} -> n
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  + findRule   : Rewrites
+                   (Tuple (RewriteCase {q: Nat} {q: Nat}) ())
+  + targetFind : {q: Nat} -> Nat
+
+  Run `update` to apply these changes to your codebase.
+```
+
+``` ucm :hide
+scratch/main> add
+```
+
+``` ucm
+scratch/main> sfind findRule
+
+  🔎
+
+  These definitions from the current namespace (excluding `lib`) have matches:
+
+    1. targetFind
+
+  Tip: Try `edit 1` to bring this into your scratch file.
+```
+
 A leading underscore makes the field's subpattern a wildcard, the same as
 anywhere else in a rule:
 

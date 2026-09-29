@@ -152,6 +152,7 @@ instance Eq (Pattern loc) where
   Nat _ n == Nat _ m = n == m
   Float _ f == Float _ g = f == g
   Constructor _ r args == Constructor _ s brgs = r == s && args == brgs
+  RecordLiteral _ ps == RecordLiteral _ ps2 = ps == ps2
   EffectPure _ p == EffectPure _ q = p == q
   EffectBind _ r ps k == EffectBind _ r2 ps2 k2 = r == r2 && ps == ps2 && k == k2
   As _ p == As _ q = p == q
