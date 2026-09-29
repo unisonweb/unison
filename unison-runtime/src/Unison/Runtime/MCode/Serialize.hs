@@ -19,9 +19,8 @@ import Unison.Runtime.ANF (PackedTag (..))
 import Unison.Runtime.Array (PrimArray)
 import Unison.Runtime.Foreign.Function.Type (ForeignFunc)
 import Unison.Runtime.MCode hiding (MatchT)
-import Unison.Runtime.Serialize hiding (getFieldTag, putFieldTag)
+import Unison.Runtime.Serialize
 import Unison.Runtime.Serialize.Get
-import Unison.Runtime.TypeTags (FieldTag (..))
 import Unison.Util.Text qualified as Util.Text
 import Prelude hiding (getChar, putChar)
 
@@ -234,7 +233,7 @@ putInstr = \case
   (Name r a) -> putTag NameT <> putRef r <> putArgs a
   (Info s) -> putTag InfoT <> putString s
   (Pack r w a) -> putTag PackT <> putReference r <> putPackedTag w <> putArgs a
-  (RecPack rr fields args) -> putTag RecPackT <> putRecordRef rr <> putFoldable putFieldRef fields <> putArgs args
+  (RecPack shape args) -> putTag RecPackT <> putRecordShape shape <> putArgs args
   (RecUnpack fields recIndex) -> putTag RecUnpackT <> putFoldable putFieldRef fields <> pInt recIndex
   (Lit l) -> putTag LitT <> putLit l
   (Print i) -> putTag PrintT <> pInt i
@@ -256,11 +255,18 @@ putInstr = \case
     -- same for DLL calls; those happen exclusively at runtime
     error "putInstr: Unexpected serialized DLLCall"
 
-_putFieldTag :: FieldTag -> Builder
-_putFieldTag (FieldTag name) = putText name
+putRecordShape :: RecordShape -> Builder
+putRecordShape (RecordShape ref fields positions) =
+  putRecordRef ref
+    <> putFoldable putText fields
+    <> putEnumMap putFieldRef pInt positions
 
-_getFieldTag :: (PrimBase m) => Get m FieldTag
-_getFieldTag = FieldTag <$> getText
+getRecordShape :: (PrimBase m) => Get m RecordShape
+getRecordShape =
+  RecordShape
+    <$> getRecordRef
+    <*> getVector getText
+    <*> getEnumMap getFieldRef gInt
 
 getInstr :: (PrimBase m) => Get m Instr
 getInstr =
@@ -285,7 +291,7 @@ getInstr =
     InLocalT -> InLocal <$> gInt
     KeepAliveT -> KeepAlive <$> gInt
     SandboxingFailureT -> error "getInstr: Unexpected serialized Sandboxing Failure"
-    RecPackT -> RecPack <$> getRecordRef <*> getVector getFieldRef <*> getArgs
+    RecPackT -> RecPack <$> getRecordShape <*> getArgs
     RecUnpackT -> RecUnpack <$> getVector getFieldRef <*> gInt
 
 data ArgsT
@@ -335,12 +341,6 @@ putFieldRef (FieldRef r) = putVarInt r
 
 getFieldRef :: (PrimBase m) => Get m FieldRef
 getFieldRef = FieldRef <$> getVarInt
-
--- getRecordRef :: (PrimBase m) => Get m RecordRef
--- getRecordRef = RecordRef <$> getWord64be
-
--- putRecordRef :: RecordRef -> Builder
--- putRecordRef (RecordRef r) = BU.word64BE r
 
 data RefT = StkT | EnvT | DynT
 

@@ -213,7 +213,7 @@ recursiveDeclDeps ::
   CodeLookup Symbol IO () ->
   Decl Symbol () ->
   -- (type deps, term deps)
-  StateT (Set RF.LabeledDependency) IO (Set Reference, Set Reference, Set RecordSchema)
+  StateT (Set RF.LabeledDependency) IO (Set Reference, Set Reference)
 recursiveDeclDeps cl d = do
   seen0 <- get
   let seen = seen0 <> Set.map RF.typeRef deps
@@ -227,7 +227,7 @@ recursiveDeclDeps cl d = do
             Just d -> recursiveDeclDeps cl d
             Nothing -> pure mempty
         _ -> pure mempty
-  pure $ (deps, mempty, mempty) <> rec
+  pure $ (deps, mempty) <> rec
   where
     deps = declTypeDependencies d
 
@@ -241,8 +241,8 @@ categorize =
 recursiveTermDeps ::
   CodeLookup Symbol IO () ->
   Term Symbol ->
-  -- (type deps, term deps, record schemas)
-  StateT (Set RF.LabeledDependency) IO (Set Reference, Set Reference, Set RecordSchema)
+  -- (type deps, term deps)
+  StateT (Set RF.LabeledDependency) IO (Set Reference, Set Reference)
 recursiveTermDeps cl tm = do
   seen0 <- get
   let seen = seen0 <> deps
@@ -254,22 +254,19 @@ recursiveTermDeps cl tm = do
         RF.TypeReference (RF.DerivedId refId) -> handleTypeReferenceId refId
         RF.TermReference r -> recursiveRefDeps cl r
         _ -> pure mempty
-
-  let (tyrs, tmrs) = foldMap categorize deps
-  pure $ (tyrs, tmrs, recordSchemas) <> rec
+  pure $ foldMap categorize deps <> rec
   where
-    handleTypeReferenceId :: RF.Id -> StateT (Set RF.LabeledDependency) IO (Set Reference, Set Reference, Set RecordSchema)
+    handleTypeReferenceId :: RF.Id -> StateT (Set RF.LabeledDependency) IO (Set Reference, Set Reference)
     handleTypeReferenceId refId =
       lift (getTypeDeclaration cl refId) >>= \case
         Just d -> recursiveDeclDeps cl d
         Nothing -> pure mempty
     deps = Tm.labeledDependencies tm
-    recordSchemas = Set.map RecordSchema $ Tm.recordSchemas tm
 
 recursiveRefDeps ::
   CodeLookup Symbol IO () ->
   Reference ->
-  StateT (Set RF.LabeledDependency) IO (Set Reference, Set Reference, Set RecordSchema)
+  StateT (Set RF.LabeledDependency) IO (Set Reference, Set Reference)
 recursiveRefDeps cl (RF.DerivedId i) =
   lift (getTerm cl i) >>= \case
     Just tm -> recursiveTermDeps cl tm
@@ -310,10 +307,10 @@ recursiveIntermedDeps cl rfs = mapMaybe f $ Set.toList ds
 collectDeps ::
   CodeLookup Symbol IO () ->
   Term Symbol ->
-  IO ([(Reference, Either [Int] [Int])], [Reference], Set RecordSchema)
+  IO ([(Reference, Either [Int] [Int])], [Reference])
 collectDeps cl tm = do
-  (tys, tms, rss) <- evalStateT (recursiveTermDeps cl tm) mempty
-  (,toList tms,rss) <$> (traverse getDecl (toList tys))
+  (tys, tms) <- evalStateT (recursiveTermDeps cl tm) mempty
+  (,toList tms) <$> (traverse getDecl (toList tys))
   where
     getDecl ty@(RF.DerivedId i) =
       (ty,) . maybe (Right []) declFields
@@ -323,11 +320,11 @@ collectDeps cl tm = do
 collectRefDeps ::
   CodeLookup Symbol IO () ->
   Reference ->
-  IO ([(Reference, Either [Int] [Int])], [Reference], Set RecordSchema)
+  IO ([(Reference, Either [Int] [Int])], [Reference])
 collectRefDeps cl r = do
   tm <- resolveTermRef cl r
-  (tyrs, tmrs, rss) <- collectDeps cl tm
-  pure (tyrs, r : tmrs, rss)
+  (tyrs, tmrs) <- collectDeps cl tm
+  pure (tyrs, r : tmrs)
 
 backrefAdd ::
   Map.Map Reference (Map.Map Word64 (Term Symbol)) ->
@@ -451,9 +448,8 @@ loadDeps ::
   EvalCtx ->
   [(Reference, Either [Int] [Int])] ->
   [Reference] ->
-  Set RecordSchema ->
   IO (EvalCtx, [(Reference, Code Reference)])
-loadDeps cl ppe ctx tyrs tmrs recSchemas = do
+loadDeps cl ppe ctx tyrs tmrs = do
   let cc = ccache ctx
   sand <- readTVarIO (sandbox cc)
   p <-
@@ -466,7 +462,7 @@ loadDeps cl ppe ctx tyrs tmrs recSchemas = do
   let tyAdd = Set.fromList $ fst <$> tyrs
   (ctx', rgrp) <- loadCode cl ppe ctx tmrs
   crgrp <- traverse (checkCacheability cl ctx') rgrp
-  (ctx', crgrp) <$ cacheAdd0 recSchemas tyAdd crgrp (expandSandbox sand rgrp) cc
+  (ctx', crgrp) <$ cacheAdd0 tyAdd crgrp (expandSandbox sand rgrp) cc
 
 checkCacheability ::
   CodeLookup Symbol IO () ->
@@ -521,8 +517,8 @@ interpEvalDirect ::
 interpEvalDirect activeThreads cleanupThreads ctxVar prof cl ppe tm =
   catchErrors $ do
     ctx <- readIORef ctxVar
-    (tyrs, tmrs, recSchemas) <- collectDeps cl tm
-    (ctx, _) <- loadDeps cl ppe ctx tyrs tmrs recSchemas
+    (tyrs, tmrs) <- collectDeps cl tm
+    (ctx, _) <- loadDeps cl ppe ctx tyrs tmrs
     (ctx, _, init) <- prepareEvaluation ppe tm ctx
     initw <- refNumTm (ccache ctx) init
     writeIORef ctxVar ctx
@@ -617,8 +613,8 @@ interpCompile ::
   IO (Maybe Error)
 interpCompile version ctxVar _copts cl ppe rf path = tryM $ do
   ctx <- readIORef ctxVar
-  (tyrs, tmrs, recSchemas) <- collectRefDeps cl rf
-  (ctx, _) <- loadDeps cl ppe ctx tyrs tmrs recSchemas
+  (tyrs, tmrs) <- collectRefDeps cl rf
+  (ctx, _) <- loadDeps cl ppe ctx tyrs tmrs
   let cc = ccache ctx
       lk m = flip Map.lookup m =<< baseToIntermed ctx rf
   Just w <- lk <$> readTVarIO (refTm cc)

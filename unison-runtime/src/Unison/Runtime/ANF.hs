@@ -89,6 +89,7 @@ module Unison.Runtime.ANF
     replaceFunctions,
     foldGroup,
     foldGroupLinks,
+    groupRecordSchemas,
     overGroup,
     overGroupLinks,
     traverseGroup,
@@ -2419,6 +2420,33 @@ foldGroupLinks ::
   SuperGroup ref v ->
   r
 foldGroupLinks f = getConst . traverseGroupLinks (\b -> Const . f b)
+
+-- | Every record schema constructed or matched on anywhere in a group.
+--
+-- Record schemas are interned by the runtime like type and term references
+-- are, so this is the analogue of 'foldGroupLinks' for them: it tells the code
+-- cache which schemas a group needs before its code is emitted.
+groupRecordSchemas :: SuperGroup ref v -> Set RecordSchema
+groupRecordSchemas (Rec bs e) =
+  foldMap (normalRecordSchemas . snd) bs <> normalRecordSchemas e
+
+normalRecordSchemas :: SuperNormal ref v -> Set RecordSchema
+normalRecordSchemas (Lambda _ e) = anfRecordSchemas e
+
+anfRecordSchemas :: ANormal ref v -> Set RecordSchema
+anfRecordSchemas = \case
+  ABTN.Term _ (ABTN.Abs _ e) -> anfRecordSchemas e
+  ABTN.Term _ (ABTN.Tm e) -> case e of
+    AApp (FRec rs) _ -> Set.singleton rs
+    AMatch _ bs -> branchRecordSchemas bs
+    -- Everything else just recurses; `ANormalF` is Foldable in its
+    -- subexpressions, and no other constructor mentions a schema.
+    _ -> foldMap anfRecordSchemas e
+
+branchRecordSchemas :: Branched ref (ANormal ref v) -> Set RecordSchema
+branchRecordSchemas = \case
+  MatchRec rs e -> Set.insert rs (anfRecordSchemas e)
+  bs -> foldMap anfRecordSchemas bs
 
 normalLinks ::
   (Applicative f, Var v) =>

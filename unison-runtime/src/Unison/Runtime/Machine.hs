@@ -426,18 +426,21 @@ exec _ henv !_activeThreads !stk !k _ (Pack r t args) = do
   stk <- bump stk
   bpoke stk clo
   pure (False, henv, stk, k)
-exec _ henv !_activeThreads !stk !k _ (RecPack rr fields args) = do
-  clo <- buildRec stk rr fields args
+exec _ henv !_activeThreads !stk !k _ (RecPack shape args) = do
+  clo <- buildRec stk shape args
   stk <- bump stk
   bpoke stk clo
   pure (False, henv, stk, k)
 exec _ henv !_activeThreads !stk !k _ (RecUnpack desiredFields recIndex) = do
   bpeekOff stk recIndex >>= \case
-    RecordG _valRecRef vals -> do
+    RecordG shape vals -> do
+      -- The slot a field sits in depends on the *value's* shape, not the
+      -- pattern's: one pattern matches records of several shapes, in which a
+      -- given field may sit at a different slot.
+      let positions = shapePositions shape
       let seg =
             V.toList desiredFields
-              <&> (\f -> vals EC.! f)
-              -- TODO: Can we speed this up somehow?
+              <&> (\f -> vals V.! (positions EC.! f))
               & segFromList
       stk' <- dumpSeg stk seg S
       pure (False, henv, stk', k)
@@ -1118,16 +1121,13 @@ buildData !stk !r !t (VArgV i) = do
     l = fsize stk - i
 {-# INLINE buildData #-}
 
--- | Pack some number of args into a record data type of the provided ref/tag type.
-buildRec :: Stack -> ANF.RecordRef -> V.Vector FieldRef -> Args -> IO Closure
-buildRec !stk rr fields args = do
-  -- TODO: Add more cases like buildData for efficiency
+-- | Pack some number of args into a record value of the given shape. The args
+-- are emitted in ascending field-name order, which is the shape's slot order,
+-- so this is a straight copy.
+buildRec :: Stack -> RecordShape -> Args -> IO Closure
+buildRec !stk shape args = do
   seg <- augSeg I stk nullSeg (Just $ argsToArgs' args)
-  let valMap =
-        segToList seg
-          & zip (V.toList fields)
-          & EC.mapFromList
-  pure $ RecordG rr valMap
+  pure . RecordG shape . V.fromList $ segToList seg
 {-# INLINE buildRec #-}
 
 dumpDataValNoTag ::
@@ -1586,14 +1586,16 @@ normalizeCodes = id
 
 cacheAdd0 ::
   (RuntimeProfiler p) =>
-  S.Set ANF.RecordSchema ->
   S.Set Reference ->
   [(Reference, Code Reference)] ->
   [(Reference, Set Reference)] ->
   CCache p ->
   IO ()
-cacheAdd0 recSchemas ntys0 (normalizeCodes -> termSuperGroups) sands cc = do
+cacheAdd0 ntys0 (normalizeCodes -> termSuperGroups) sands cc = do
   let toAdd = M.fromList (termSuperGroups <&> second codeGroup)
+  -- Which record schemas this code needs is a property of the code, so read it
+  -- off the groups rather than making every caller work it out.
+  let recSchemas = foldMap (ANF.groupRecordSchemas . codeGroup . snd) termSuperGroups
   (unresolvedCacheableCombs, unresolvedNonCacheableCombs) <- atomically $ do
     have <- readTVar (intermed cc)
     haveRecSchemas <- readTVar (recordRefs cc)
@@ -1616,17 +1618,12 @@ cacheAdd0 recSchemas ntys0 (normalizeCodes -> termSuperGroups) sands cc = do
     let newRecSchemaMap = BM.fromList $ zip (Set.toList newRecSchemas) (ANF.RecordRef <$> [nrs ..])
     rtm <- updateMap (M.fromList $ zip rs [ntm ..]) (refTm cc)
     rrLookup <- updateMap newRecSchemaMap (recordRefs cc)
-    oldRfms@(RecordFieldMappings _ existingRfmsBM) <- readTVar (recordFieldMappings cc)
-    let recFields =
-          BM.toList rrLookup
-            <&> fst
-            & foldMap (\(ANF.RecordSchema flds) -> flds)
-            & Set.toList
-    let currentRFMs = flip execState oldRfms (convertFieldNamesToRefs recFields)
+    -- Field names no longer need pre-registering here: building a record's
+    -- shape during emit interns any name it hasn't seen.
+    oldRfms <- readTVar (recordFieldMappings cc)
     -- check for missing references
     let arities = fmap (head . ANF.arities) int <> builtinArities
-        lookupRN (RecordFieldMappings _ rfmBM) fn = fromMaybe (error $ "cacheAdd0: missing reference for FieldName: " <> show fn <> " in map: " <> (show (rfmBM <> existingRfmsBM)) <> " and schemas: " <> show rrLookup) $ BM.lookupL fn (rfmBM <> existingRfmsBM)
-        rns = RN (refLookup "ty" rty) (refLookup "tm" rtm) (flip M.lookup arities) (recordRefLookup rrLookup) lookupRN
+        rns = RN (refLookup "ty" rty) (refLookup "tm" rtm) (flip M.lookup arities) (recordRefLookup rrLookup)
         combinate :: Word64 -> (Reference, SuperGroup Reference Symbol) -> State RecordFieldMappings (Word64, EnumMap Word64 Comb)
         combinate n (r, g) = (n,) <$> emitCombs rns r n g
     let combRefUpdates = (mapFromList $ zip [ntm ..] rs)
@@ -1645,7 +1642,7 @@ cacheAdd0 recSchemas ntys0 (normalizeCodes -> termSuperGroups) sands cc = do
       let (emittedCombs, newRFMs) =
             zipWith combinate [ntm ..] (M.toList opt)
               & sequenceA
-              & flip runState currentRFMs
+              & flip runState oldRfms
           unresolvedNewCombs :: EnumMap Word64 (GCombs any CombIx)
           unresolvedNewCombs =
             emittedCombs
@@ -1749,10 +1746,8 @@ cacheAdd l cc = do
         getConst $ (foldMap . foldMap . foldGroup) (foldGroupLinks f) l
       l'' = filter (\(r, _) -> M.notMember r rtm) l
       l' = map (second codeGroup) l''
-  -- TODO: also collect record schemas
-  let recordSchemas = mempty
   if S.null missing
-    then [] <$ cacheAdd0 recordSchemas tys l'' (expandSandbox sand l') cc
+    then [] <$ cacheAdd0 tys l'' (expandSandbox sand l') cc
     else pure $ S.toList missing
 
 data ReflectionState = RS
@@ -1907,7 +1902,11 @@ reflectValue0 rty rtm = goV0
           DataG _ t seg -> do
             r <- resolveTy rty $ TT.typeTag t
             ANF.Data r (maskTags t) <$> goVs seg
-          RecordC _rr _args -> error "reflectValue: Record reflection not yet implemented"
+          RecordC shape vals ->
+            -- The shape carries the field names, in the same ascending order
+            -- as the slots, which is also the order `reifyValue` expects.
+            ANF.Record (ANF.RecordSchema (S.fromList (V.toList (shapeFields shape))))
+              <$> traverse goV (V.toList vals)
           Captured k _ segs ->
             ANF.Cont <$> goVs segs <*> goK k
           Foreign f -> ANF.BLit <$> goF f
@@ -2010,7 +2009,7 @@ reifyValue0Canon ::
   RecordFieldMappings ->
   ANF.Value RefNum ->
   IO Val
-reifyValue0Canon combs tys tms rty rtm rrLookup (RecordFieldMappings _ rfmsBM) = goV
+reifyValue0Canon combs tys tms rty rtm rrLookup rfms = goV
   where
     err s = "reifyValue: cannot restore value: " ++ s
 
@@ -2067,17 +2066,17 @@ reifyValue0Canon combs tys tms rty rtm rrLookup (RecordFieldMappings _ rfmsBM) =
       t <- flip packTags (fromIntegral t0) . fromIntegral <$> refTy rn
       rf <- ixTy rn
       boxedVal . formDataReplaced rf t <$> goVs vs
-    goV (ANF.Record rs@(ANF.RecordSchema fields) vals) = do
+    goV (ANF.Record rs vals) = do
       rref <- case BM.lookupL rs rrLookup of
         Just r -> pure r
         Nothing -> die [] . err $ "unknown record schema reference: " ++ show rs
+      shape <- case recordShapeFrom rfms rref rs of
+        Just shape -> pure shape
+        Nothing -> die [] . err $ "record schema with un-interned fields: " ++ show rs
+      -- `putValue` writes the values in ascending field-name order, which is
+      -- the shape's slot order, so no reordering is needed.
       vals' <- goVs vals
-      let fieldMap =
-            zip (Set.toList fields) (segToList vals')
-              <&> first (\fn -> fromMaybe (error $ "Missing FieldRef for name " <> show fn) $ BM.lookupL fn rfmsBM)
-              & EC.mapFromList
-
-      pure $ boxedVal $ RecordG rref fieldMap
+      pure . boxedVal . RecordG shape . V.fromList $ segToList vals'
     goV (ANF.Cont vs k) = do
       k' <- goK k
       vs' <- goVs vs
@@ -2139,7 +2138,7 @@ reifyValue0 ::
   (EnumMap Word64 MCombs, M.Map Reference Word64, M.Map Reference Word64, BM.BiMap ANF.RecordSchema ANF.RecordRef, RecordFieldMappings) ->
   ANF.Value Reference ->
   IO Val
-reifyValue0 (combs, rty, rtm, rrLookup, RecordFieldMappings _ rfms) = goV
+reifyValue0 (combs, rty, rtm, rrLookup, rfms) = goV
   where
     err s = "reifyValue: cannot restore value: " ++ s
     refTy r
@@ -2175,18 +2174,17 @@ reifyValue0 (combs, rty, rtm, rrLookup, RecordFieldMappings _ rfms) = goV
     goV (ANF.Data r t0 vs) = do
       t <- flip packTags (fromIntegral t0) . fromIntegral <$> refTy r
       boxedVal . formDataReplaced r t <$> goVs vs
-    goV (ANF.Record rs@(ANF.RecordSchema fields) vals) = do
+    goV (ANF.Record rs vals) = do
       rref <- case BM.lookupL rs rrLookup of
         Just r -> pure r
         Nothing -> die [] . err $ "unknown record schema reference: " ++ show rs
+      shape <- case recordShapeFrom rfms rref rs of
+        Just shape -> pure shape
+        Nothing -> die [] . err $ "record schema with un-interned fields: " ++ show rs
+      -- `putValue` writes the values in ascending field-name order, which is
+      -- the shape's slot order, so no reordering is needed.
       vals' <- goVs vals
-      let fieldMap =
-            -- TODO: Maybe need to reverse seg here?
-            zip (Set.toList fields) (segToList vals')
-              <&> first (\fr -> fromMaybe (error $ "Missing FieldRef " <> show fr) $ BM.lookupL fr rfms)
-              & EC.mapFromList
-
-      pure $ boxedVal $ RecordG rref fieldMap
+      pure . boxedVal . RecordG shape . V.fromList $ segToList vals'
     goV (ANF.Cont vs k) = do
       k' <- goK k
       vs' <- goVs vs

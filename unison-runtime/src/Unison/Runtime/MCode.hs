@@ -9,8 +9,10 @@
 module Unison.Runtime.MCode
   ( Args' (..),
     Args (..),
-    FieldTags (..),
     FieldRef (..),
+    RecordShape (..),
+    recordShape,
+    recordShapeFrom,
     RefNums (..),
     MLit (..),
     GInstr (..),
@@ -305,12 +307,74 @@ argsToArgs' = \case
   VArgV n -> ArgR 0 n
 {-# INLINEABLE argsToArgs' #-}
 
-newtype FieldTags = FieldTags (PrimArray Word64)
-  deriving stock (Show, Eq, Ord)
-
 -- | Efficient mapping for record field names
 newtype FieldRef = FieldRef Word64
   deriving newtype (Show, Eq, Ord, Enum, EnumKey)
+
+-- | The shape of a record: which fields it has, and where each one sits in a
+-- record value's slots.
+--
+-- One of these is built per record-construction site and is carried by every
+-- value built there. Reaching it from the value is what lets `Eq` and
+-- `compareClosure` -- which are pure, with no access to the code cache --
+-- order two records of *different* shapes by field name. That case is
+-- reachable: two records with different fields can be compared once they are
+-- wrapped in `Any`, which erases their types.
+data RecordShape = RecordShape
+  { -- | Interned id for this field set. Not used for ordering: it is handed
+    -- out in allocation order, which is why ordering goes through
+    -- 'shapeFields' instead.
+    shapeRef :: !ANF.RecordRef,
+    -- | The record's field names, ascending. Slot @i@ of a record value holds
+    -- the value of @shapeFields ! i@.
+    shapeFields :: !(Vector ANF.FieldName),
+    -- | Slot index of each field, for 'RecUnpack'.
+    shapePositions :: !(EC.EnumMap FieldRef Int)
+  }
+  deriving stock (Show)
+
+-- | Records are equal and ordered by field name, never by 'shapeRef', so that
+-- the result doesn't depend on the order field names happened to be interned.
+instance Eq RecordShape where
+  s1 == s2 = shapeFields s1 == shapeFields s2
+
+instance Ord RecordShape where
+  compare s1 s2 = compare (shapeFields s1) (shapeFields s2)
+
+-- | Build the shape for a record schema from already-interned field names.
+-- Returns Nothing if any of them is unknown, which shouldn't happen for a
+-- schema that is itself already interned.
+recordShapeFrom ::
+  RecordFieldMappings ->
+  ANF.RecordRef ->
+  ANF.RecordSchema ->
+  Maybe RecordShape
+recordShapeFrom (RecordFieldMappings _ m) ref (ANF.RecordSchema fields) = do
+  let names = V.fromList (Set.toAscList fields)
+  refs <- traverse (\n -> BiMap.lookupL n m) names
+  pure
+    RecordShape
+      { shapeRef = ref,
+        shapeFields = names,
+        shapePositions = EC.mapFromList (zip (V.toList refs) [0 ..])
+      }
+
+-- | Build the shape for a record schema, assigning a 'FieldRef' to any field
+-- name not yet seen.
+recordShape ::
+  (MonadState RecordFieldMappings m) =>
+  ANF.RecordRef ->
+  ANF.RecordSchema ->
+  m RecordShape
+recordShape ref (ANF.RecordSchema fields) = do
+  let names = V.fromList (Set.toAscList fields)
+  refs <- convertFieldNamesToRefs names
+  pure
+    RecordShape
+      { shapeRef = ref,
+        shapeFields = names,
+        shapePositions = EC.mapFromList (zip (V.toList refs) [0 ..])
+      }
 
 argsToLists :: Args -> [Int]
 argsToLists = \case
@@ -572,14 +636,17 @@ data GInstr comb
       !PackedTag -- tag
       !Args -- arguments to pack
   | -- Pack a record type into a closure and place it on the stack.
+    -- The args arrive in ascending field-name order, matching the shape's
+    -- slot order.
     RecPack
-      !ANF.RecordRef
-      !(Vector FieldRef)
+      !RecordShape
       -- values to pack
       !Args
   | -- Unpack a set of fields from a record on the boxed stack.
-    -- It may be a subset of the fields, so the RecordRef may not match
-    -- that of the record in the closure.
+    -- It may be a subset of the record's fields, so the slot each one sits in
+    -- is read from the shape carried by the value rather than baked in here:
+    -- one pattern can match records of several different shapes, in which a
+    -- given field sits at a different slot.
     RecUnpack
       !(Vector FieldRef {- fields to unpack -})
       !Int {- index of record on boxed stack -}
@@ -704,13 +771,11 @@ data RefNums = RN
     -- anum maps combinator references to their main arity
     anum :: Reference -> Maybe Int,
     -- Map record schemas into their runtime reference
-    recNum :: ANF.RecordSchema -> ANF.RecordRef,
-    -- Map record field names into their runtime reference
-    recField :: RecordFieldMappings -> ANF.FieldName -> FieldRef
+    recNum :: ANF.RecordSchema -> ANF.RecordRef
   }
 
 emptyRNs :: RefNums
-emptyRNs = RN mt mt (const Nothing) mt mt
+emptyRNs = RN mt mt (const Nothing) mt
   where
     mt _ = internalBug [] "RefNums: empty"
 
@@ -1121,8 +1186,12 @@ emitSection _ _ grpn _ ctx (TFOp p args) =
     $ countBlock ctx
 emitSection rns grpr grpn rec ctx (TApp f args) =
   emitClosures grpr grpn rec ctx args $ \ctx as -> do
-    rfm <- get
-    countCtx ctx $ emitFunction rns rfm grpr grpn rec ctx f as
+    -- Record construction needs a shape, whose creation may intern new field
+    -- names, so it has to happen here rather than inside pure `emitFunction`.
+    mshape <- case f of
+      FRec rs -> Just <$> recordShape (recNum rns rs) rs
+      _ -> pure Nothing
+    countCtx ctx $ emitFunction rns mshape grpr grpn rec ctx f as
 emitSection rns grpr grpn rec ctx (TLocal v bo)
   | Just (i, BX) <- ctxResolve ctx v =
       Ins (InLocal i)
@@ -1233,7 +1302,8 @@ emitSection _ _ _ _ _ tm =
 emitFunction ::
   (Var v) =>
   RefNums ->
-  RecordFieldMappings ->
+  -- | the record shape, when emitting a record construction
+  Maybe RecordShape ->
   Reference ->
   Word64 -> -- self combinator number
   RCtx v -> -- recursive binding group
@@ -1241,14 +1311,14 @@ emitFunction ::
   Func Reference v ->
   Args ->
   Section
-emitFunction _ _rfms grpr grpn rec ctx (FVar v) as
+emitFunction _ _mshape grpr grpn rec ctx (FVar v) as
   | Just (i, BX) <- ctxResolve ctx v =
       App False (Stk i) as
   | Just j <- rctxResolve rec v =
       let cix = CIx grpr grpn j
        in App False (Env cix cix) as
   | otherwise = emitSectionVErr v
-emitFunction rns _rfms _grpr _ _ _ (FComb r) as
+emitFunction rns _mshape _grpr _ _ _ (FComb r) as
   | Just k <- anum rns r,
     countArgs as == k -- exactly saturated call
     =
@@ -1259,19 +1329,19 @@ emitFunction rns _rfms _grpr _ _ _ (FComb r) as
   where
     n = cnum rns r
     cix = CIx r n 0
-emitFunction rns _rfms _grpr _ _ _ (FCon r t) as =
+emitFunction rns _mshape _grpr _ _ _ (FCon r t) as =
   Ins (Pack r (packTags rt t) as)
     . Yield
     $ VArg1 0
   where
     rt = toEnum . fromIntegral $ dnum rns r
-emitFunction rns rfms _grpr _ _ _ (FRec rs@(ANF.RecordSchema fields)) as =
-  Ins (RecPack recRef (V.fromList . fmap (recField rns rfms) $ Set.toList fields) as)
-    . Yield
-    $ VArg1 0
-  where
-    recRef = recNum rns rs
-emitFunction rns _rfms _grpr _ _ _ (FReq r e) as =
+emitFunction _ mshape _grpr _ _ _ (FRec _rs) as
+  | Just shape <- mshape =
+      Ins (RecPack shape as)
+        . Yield
+        $ VArg1 0
+  | otherwise = internalBug [] "emitFunction: record construction without a shape"
+emitFunction rns _mshape _grpr _ _ _ (FReq r e) as =
   -- Currently implementing packed calling convention for abilities
   -- TODO ct is 16 bits, but a is 48 bits. This will be a problem if we have
   -- more than 2^16 types.
@@ -1281,11 +1351,11 @@ emitFunction rns _rfms _grpr _ _ _ (FReq r e) as =
   where
     a = dnum rns r
     rt = toEnum . fromIntegral $ a
-emitFunction _ _rfms _grpr _ _ ctx (FCont k) as
+emitFunction _ _mshape _grpr _ _ ctx (FCont k) as
   | Just (i, BX) <- ctxResolve ctx k = Jump i as
   | Nothing <- ctxResolve ctx k = emitFunctionVErr k
   | otherwise = internalBug [] $ "emitFunction: continuations are boxed"
-emitFunction _ _rfms _grpr _ _ _ (FPrim _) _ =
+emitFunction _ _mshape _grpr _ _ _ (FPrim _) _ =
   internalBug [] "emitFunction: impossible"
 
 countBlock :: Ctx v -> Int
@@ -1348,9 +1418,9 @@ emitLet rns _ grpn _ _ _ ctx (TApp (FCon r n) args) =
   fmap (Ins . Pack r (packTags rt n) $ emitArgs grpn ctx args)
   where
     rt = toEnum . fromIntegral $ dnum rns r
-emitLet rns _ grpn _ _ _ ctx (TApp (FRec rs@(ANF.RecordSchema fields)) args) = \es -> do
-  rfm <- get
-  fmap (Ins . RecPack (recNum rns rs) (V.fromList . fmap (recField rns rfm) $ Set.toList fields) $ emitArgs grpn ctx args) es
+emitLet rns _ grpn _ _ _ ctx (TApp (FRec rs) args) = \es -> do
+  shape <- recordShape (recNum rns rs) rs
+  fmap (Ins . RecPack shape $ emitArgs grpn ctx args) es
 emitLet _ _ grpn _ _ _ ctx (TApp (FPrim p) args) =
   fmap (Ins . either emitPOp emitFOp p $ emitArgs grpn ctx args)
 emitLet _ _ _ _ _ _ ctx (TDiscard v)

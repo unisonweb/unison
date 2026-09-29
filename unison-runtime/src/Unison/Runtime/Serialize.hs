@@ -38,7 +38,6 @@ import Unison.Runtime.MCode
   )
 import Unison.Runtime.Referenced (RefNum (..))
 import Unison.Runtime.Serialize.Get as Get
-import Unison.Runtime.TypeTags (FieldTag (..))
 import Unison.Util.Bytes qualified as Bytes
 import Unison.Util.EnumContainers as EC
 import Prelude hiding (getChar)
@@ -474,12 +473,6 @@ putConstructorReference (ConstructorReference r i) =
 getConstructorReference :: (PrimBase m) => Get m ConstructorReference
 getConstructorReference =
   ConstructorReference <$> getReference <*> getLength
-
-getFieldTag :: (PrimBase m) => Get m FieldTag
-getFieldTag = FieldTag <$> getText
-
-putFieldTag :: FieldTag -> Builder
-putFieldTag (FieldTag t) = putText t
 
 getRecordSchema :: (PrimBase m) => Get m ANF.RecordSchema
 getRecordSchema = do

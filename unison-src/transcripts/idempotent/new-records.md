@@ -669,7 +669,167 @@ notRedundant = cases
           99
 ```
 
+### Values and code
+
+A record value can be reflected into a `Value`, serialized, deserialized and
+reified back. Fields are written in ascending name order regardless of the
+order they were given in, so this uses deliberately unsorted source order with
+distinguishable values.
+
+``` unison
+unpack : { a: Nat, z: Nat } -> (Nat, Nat)
+unpack = cases { a: a, z: z } -> (a, z)
+
+valueRoundTrip : '{IO, Exception} (Nat, Nat)
+valueRoundTrip = do
+  bytes = Value.serialize (Value.value {z: 7, a: 3})
+  v = match Value.deserialize bytes with
+    Right x -> x
+    Left e -> bug e
+  r : { a: Nat, z: Nat }
+  r = match Value.load v with
+    Right x -> x
+    Left deps -> bug deps
+  unpack r
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  + unpack         : {a: Nat, z: Nat} -> (Nat, Nat)
+  + valueRoundTrip : '{IO, Exception} (Nat, Nat)
+
+  Run `update` to apply these changes to your codebase.
+```
+
+``` ucm
+scratch/main> update
+
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
+  Done.
+
+scratch/main> run valueRoundTrip
+
+  (3, 7)
+```
+
+Code that builds and matches on records survives `validateLinks`,
+serialization, and the code cache.
+
+``` unison
+mkRec : Nat -> { a: Nat, z: Text }
+mkRec n = { a: n, z: "hi" }
+
+readA : { a: Nat | ... } -> Nat
+readA = cases { a: a } -> a
+
+isRight : Either a b -> Boolean
+isRight = cases
+  Right _ -> true
+  Left _ -> false
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  + isRight : Either a b -> Boolean
+  + readA   : {a: Nat | ...} -> Nat
+  ~ mkRec : Nat -> {a: Nat, z: Text}
+
+  + (added), ~ (modified)
+
+  Run `update` to apply these changes to your codebase.
+```
+
+``` ucm
+scratch/main> update
+
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
+  Done.
+```
+
+``` unison
+codeRoundTrip : '{IO, Exception} (Boolean, Nat)
+codeRoundTrip = do
+  tl = termLink mkRec
+  code = match Code.lookup tl with
+    Some c -> c
+    None -> bug "no code"
+  ok = Code.validateLinks [(tl, code)]
+  bytes = Code.serialize code
+  code2 = match Code.deserialize bytes with
+    Right c -> c
+    Left e -> bug e
+  _ = Code.cache_ [(tl, code2)]
+  (isRight ok, readA (mkRec 5))
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  + codeRoundTrip : '{IO, Exception} (Boolean, Nat)
+
+  Run `update` to apply these changes to your codebase.
+```
+
+``` ucm
+scratch/main> update
+
+  Okay, I'm searching the branch for code that needs to be
+  updated...
+
+  Done.
+
+scratch/main> run codeRoundTrip
+
+  (true, 5)
+```
+
 ### Universals
+
+Records are ordered by field name, most significant field first -- not by the
+order field names happened to be interned, which would make the result depend
+on unrelated compilation history. Two records of *different* shapes can be
+compared once wrapped in `Any`, which erases their types; those are ordered by
+comparing the sorted field-name lists.
+
+``` unison
+> Universal.compare {a: 2, b: 1} {a: 1, b: 2}
+> Universal.compare (Any {a: 1}) (Any {b: 1})
+> Universal.compare (Any {b: 1}) (Any {a: 1})
+> Universal.compare (Any {a: 1}) (Any {a: 1, b: 2})
+> Universal.compare (Any {a: 1, b: 2}) (Any {a: 1})
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  No changes found.
+
+    1 | > Universal.compare {a: 2, b: 1} {a: 1, b: 2}
+          ⧩
+          +1
+
+    2 | > Universal.compare (Any {a: 1}) (Any {b: 1})
+          ⧩
+          -1
+
+    3 | > Universal.compare (Any {b: 1}) (Any {a: 1})
+          ⧩
+          +1
+
+    4 | > Universal.compare (Any {a: 1}) (Any {a: 1, b: 2})
+          ⧩
+          -1
+
+    5 | > Universal.compare (Any {a: 1, b: 2}) (Any {a: 1})
+          ⧩
+          +1
+```
 
 ``` unison
 > {a: 1} Universal.== {a: 1}

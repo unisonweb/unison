@@ -68,6 +68,7 @@ module Unison.Runtime.Stack
     USeg,
     BSeg,
     SegList,
+    RecordVals,
     segToList,
     Val
       ( ..,
@@ -196,6 +197,8 @@ import Data.Ord (comparing)
 import Data.Primitive (sizeOf)
 import Data.Primitive.ByteArray qualified as BA
 import Data.Tagged (Tagged (..))
+import Data.Vector (Vector)
+import Data.Vector qualified as V
 import Data.Word
 import Data.X509 qualified as X509
 import Foreign.Ptr qualified as Ptr
@@ -219,7 +222,7 @@ import Unison.Builtin.Decls as Ty hiding
 import Unison.Prelude
 import Unison.Reference (Reference)
 import Unison.Referent (Referent)
-import Unison.Runtime.ANF (Code, PackedTag, RecordRef, Value, maskTags)
+import Unison.Runtime.ANF (Code, PackedTag, Value, maskTags)
 import Unison.Runtime.Array as PA
 import Unison.Runtime.FFI.DLL
 import Unison.Runtime.Foreign.Dynamic
@@ -402,7 +405,9 @@ unboxedTypeTagFromInt = \case
   3 -> NatTag
   _ -> error "intToUnboxedTypeTag: invalid tag"
 
-type RecordValMap = EnumMap FieldRef Val
+-- | A record's field values, in ascending field-name order. Slot @i@ holds the
+-- value of field @i@ of the accompanying 'RecordShape'.
+type RecordVals = Vector Val
 
 data GClosure comb
   = GPAp
@@ -421,7 +426,7 @@ data GClosure comb
       !Int
       -- | u/b data stacks
       {-# UNPACK #-} !Seg
-  | GRecord !RecordRef !RecordValMap
+  | GRecord !RecordShape !RecordVals
   | GForeign !Foreign
   | -- | The type tag for the value in the corresponding unboxed stack slot.
     --
@@ -473,8 +478,8 @@ pattern Data2 r t i j = Closure (GData2 r t i j)
 
 pattern DataG r t seg = Closure (GDataG r t seg)
 
-pattern RecordG :: RecordRef -> RecordValMap -> Closure
-pattern RecordG rr seg = Closure (GRecord rr seg)
+pattern RecordG :: RecordShape -> RecordVals -> Closure
+pattern RecordG sh vs = Closure (GRecord sh vs)
 
 pattern Captured k a seg = Closure (GCaptured k a seg)
 
@@ -628,10 +633,10 @@ pattern DataC rf ct segs <-
   where
     DataC rf ct segs = formData rf ct segs
 
-pattern RecordC :: RecordRef -> RecordValMap -> Closure
-pattern RecordC rr v <- (RecordG rr v)
+pattern RecordC :: RecordShape -> RecordVals -> Closure
+pattern RecordC sh v <- (RecordG sh v)
   where
-    RecordC rr v = RecordG rr v
+    RecordC sh v = RecordG sh v
 
 matchCharVal :: Val -> Maybe Char
 matchCharVal = \case
@@ -1620,8 +1625,9 @@ instance Eq Closure where
     matchTags ct1 ct2 && w1 == w2
   DataC _ ct1 vs1 == DataC _ ct2 vs2 =
     ct1 == ct2 && eqValList vs1 vs2
-  RecordC rr1 vm1 == RecordC rr2 vm2 =
-    rr1 == rr2 && eqValList (snd <$> mapToList vm1) (snd <$> mapToList vm2)
+  -- Shape equality is by field name, so this doesn't depend on intern order.
+  RecordC sh1 vs1 == RecordC sh2 vs2 =
+    sh1 == sh2 && eqValList (V.toList vs1) (V.toList vs2)
   PApV cix1 _ segs1 == PApV cix2 _ segs2 =
     cix1 == cix2 && eqValList segs1 segs2
   CapV k1 a1 vs1 == CapV k2 a2 vs2 =
@@ -1689,9 +1695,16 @@ compareClosure tyEq = \cases
       -- when comparing corresponding `Any` values, which have
       -- existentials inside check that type references match
       <> compareValList (tyEq || rf1 == Ty.anyRef) vs1 vs2
-  (RecordC rr1 vm1) (RecordC rr2 vm2)
-    | tyEq && rr1 /= rr2 -> compare rr1 rr2
-    | otherwise -> compareValList tyEq (snd <$> mapToList vm1) (snd <$> mapToList vm2)
+  -- Two records of different shapes can reach this once wrapped in `Any`,
+  -- which erases their types. Order those by field name -- via the `Ord
+  -- RecordShape` instance -- rather than by interned shape id, so the result
+  -- doesn't depend on the order field names were first compiled.
+  --
+  -- Without `tyEq` the static types are known equal, so the shapes match and
+  -- the slots line up positionally.
+  (RecordC sh1 vs1) (RecordC sh2 vs2)
+    | tyEq, sh1 /= sh2 -> compare sh1 sh2
+    | otherwise -> compareValList tyEq (V.toList vs1) (V.toList vs2)
   (PApV cix1 _ segs1) (PApV cix2 _ segs2) ->
     compare cix1 cix2
       <> compareValList tyEq segs1 segs2
