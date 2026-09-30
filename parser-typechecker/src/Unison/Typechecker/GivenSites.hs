@@ -6,6 +6,7 @@ module Unison.Typechecker.GivenSites
     binderRenamings,
     renameLocals,
     binderDepths,
+    expressionDepths,
   )
 where
 
@@ -23,14 +24,15 @@ import Unison.Var qualified as Var
 data PreparedTerm v = PreparedTerm
   { preparedTerm :: Term v Ann,
     binderRenamings :: Map SiteId v,
-    binderDepths :: Map SiteId Int
+    binderDepths :: Map SiteId Int,
+    expressionDepths :: Map SiteId Int
   }
 
 -- | Assign identities even when nodes share a source range. Plan fresh local
 -- names without changing binders yet: duplicate binding/pattern diagnostics
 -- must run on the original names. File-level names remain unchanged.
 prepare :: (Var v) => Term v Ann -> PreparedTerm v
-prepare original = PreparedTerm numbered renamings (depths 0 numbered)
+prepare original = PreparedTerm numbered renamings (depths 0 numbered) (expressionLevels 0 numbered)
   where
     numbered = flip evalState 0 $ ABT.rewriteDown_ identify original
     identify node = state $ \next ->
@@ -60,6 +62,15 @@ prepare original = PreparedTerm numbered renamings (depths 0 numbered)
         ABT.Abs _ body ->
           Map.fromList [(site, depth + 1) | Just site <- [siteId (ABT.annotation node)]] <> depths (depth + 1) body
         other -> foldMap (depths depth) other
+    -- An implicit parameter introduced at depth d is inside that expression's
+    -- enclosing scope, but outside any explicit binders in its source body.
+    expressionLevels depth node =
+      Map.fromList [(site, depth) | Just site <- [siteId (ABT.annotation node)]] <> case node of
+        Term.LetRecNamedAnnotatedTop' top _ bindings body ->
+          foldMap (expressionLevels (if top then depth else depth + 1)) (body : map snd bindings)
+        _ -> case ABT.out node of
+          ABT.Abs _ body -> expressionLevels (depth + 1) body
+          other -> foldMap (expressionLevels depth) other
     renamings = Map.fromList $
       flip evalState (Set.fromList (ABT.allVars original)) $
         for locals \(site, v) -> state $ \used ->

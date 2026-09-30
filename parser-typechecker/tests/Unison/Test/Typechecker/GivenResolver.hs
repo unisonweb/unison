@@ -68,6 +68,17 @@ test =
           case resolve pool nat of
             Right name -> expectEqual (givenName inner) (resolvedGiven name)
             Left _ -> crash "expected the innermost matching binding",
+      scope "implicit-parameter-between-source-scopes" do
+        let outer = Given (Local (Var.named "outer")) [] [] nat (Lexical 0)
+            parameter = Given (Local (Var.named "parameter")) [] [] nat (Parameter 0 1)
+            later = Given (Local (Var.named "later")) [] [] nat (Parameter 0 2)
+            inner = Given (Local (Var.named "inner")) [] [] nat (Lexical 1)
+            picks expected pool = case resolve pool nat of
+              Right chosen -> expectEqual (givenName expected) (resolvedGiven chosen)
+              Left _ -> crash "expected lexical precedence"
+        for_ (permutations [outer, parameter]) (picks parameter)
+        for_ (permutations [outer, parameter, later]) (picks later)
+        for_ (permutations [outer, parameter, later, inner]) (picks inner),
       scope "nonmatching-inner-binding" $
         expectChoice "nat" (resolve [ambient "nat" nat, Given (Local (Var.named "inner")) [] [] text (Lexical 2)] nat),
       scope "binding-identity" do
