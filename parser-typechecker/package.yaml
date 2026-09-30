@@ -77,10 +77,14 @@ tests:
     ghc-options: -W -threaded -rtsopts "-with-rtsopts=-N -T" -v0
     dependencies:
       - base
+      - bytes
+      - bytestring
       - code-page
       - containers
       - easytest
       - text
+      - unison-codebase
+      - unison-codebase-sqlite
       - unison-core
       - unison-core1
       - unison-hash
