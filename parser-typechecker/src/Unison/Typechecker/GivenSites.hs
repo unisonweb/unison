@@ -7,6 +7,7 @@ module Unison.Typechecker.GivenSites
     renameLocals,
     binderDepths,
     expressionDepths,
+    visibleGivens,
   )
 where
 
@@ -76,6 +77,20 @@ prepare original = PreparedTerm numbered renamings (depths 0 numbered) (expressi
         for locals \(site, v) -> state $ \used ->
           let fresh = Var.freshIn used v
            in ((site, fresh), Set.insert fresh used)
+
+-- | Capture source scope before inference splits recursive blocks into dependency
+-- groups. A forward given remains visible even when its type is inferred later.
+visibleGivens :: PreparedTerm v -> Set SiteId -> Map SiteId (Set SiteId)
+visibleGivens PreparedTerm {preparedTerm} marked = go Set.empty preparedTerm
+  where
+    go visible node =
+      let here = siteId (ABT.annotation node)
+          entry = Map.fromList [(site, visible) | Just site <- [here]]
+       in entry <> case ABT.out node of
+            ABT.Abs _ body ->
+              let inside = maybe visible (\site -> if Set.member site marked then Set.insert site visible else visible) here
+               in go inside body
+            other -> foldMap (go visible) other
 
 -- | Use this after checking, so generated dictionary references can refer to
 -- unique local bindings without being captured by a same-named inner binder.
