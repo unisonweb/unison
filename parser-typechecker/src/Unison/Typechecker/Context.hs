@@ -3221,6 +3221,10 @@ subtype tx ty = scope (InSubtype tx ty) $ do
       subtype i2 i1
       ctx' <- getContext
       subtype (apply ctx' o1) (apply ctx' o2)
+    go _ (Type.ImplicitArrow' i1 o1) (Type.ImplicitArrow' i2 o2) = do
+      subtype i2 i1
+      ctx' <- getContext
+      subtype (apply ctx' o1) (apply ctx' o2)
     go _ (Type.App' x1 y1) (Type.App' x2 y2) = do
       -- analogue of `-->`
       subtype x1 x2
@@ -3333,6 +3337,11 @@ equate0 (Type.Arrow' i1 o1) (Type.Arrow' i2 o2) = do
   o1 <- applyM o1
   o2 <- applyM o2
   equate o1 o2
+equate0 (Type.ImplicitArrow' i1 o1) (Type.ImplicitArrow' i2 o2) = do
+  equate i1 i2
+  o1 <- applyM o1
+  o2 <- applyM o2
+  equate o1 o2
 equate0 (Type.Effect1' e1 a1) (Type.Effect1' e2 a2) = do
   equate e1 e2
   a1 <- applyM a1
@@ -3384,6 +3393,24 @@ instantiateL blank v (Type.stripIntroOuters -> t) =
                 v
                 ( Type.Monotype
                     ( Type.arrow
+                        (loc t)
+                        (existentialp (loc i) i')
+                        (existentialp (loc o) o')
+                    )
+                )
+        replaceContext
+          (existential v)
+          [existential o', existential i', s]
+        instantiateR i B.Blank i' -- todo: not sure about this, could also be `blank`
+        applyM o >>= instantiateL B.Blank o'
+      Type.ImplicitArrow' i o -> do
+        [i', o'] <- traverse freshenVar [nameFrom Var.inferInput i, nameFrom Var.inferOutput o]
+        let s =
+              Solved
+                blank
+                v
+                ( Type.Monotype
+                    ( Type.implicitArrow
                         (loc t)
                         (existentialp (loc i) i')
                         (existentialp (loc o) o')
@@ -3505,6 +3532,24 @@ instantiateR (Type.stripIntroOuters -> t) blank v =
                 v
                 ( Type.Monotype
                     ( Type.arrow
+                        (loc t)
+                        (existentialp (loc i) i')
+                        (existentialp (loc o) o')
+                    )
+                )
+        replaceContext
+          (existential v)
+          [existential o', existential i', s]
+        ctx <- instantiateL B.Blank i' i >> getContext
+        instantiateR (apply ctx o) B.Blank o'
+      Type.ImplicitArrow' i o -> do
+        [i', o'] <- traverse freshenVar [nameFrom Var.inferInput i, nameFrom Var.inferOutput o]
+        let s =
+              Solved
+                blank
+                v
+                ( Type.Monotype
+                    ( Type.implicitArrow
                         (loc t)
                         (existentialp (loc i) i')
                         (existentialp (loc o) o')

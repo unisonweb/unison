@@ -45,6 +45,7 @@ test =
                 _ -> crash "unArrows (a -> b) did not return a spine of [a,b]",
         scope "implicit-arrows" implicitArrows,
         scope "implicit-effects" implicitEffects,
+        scope "implicit-subtyping" implicitSubtyping,
         scope "subtype" $ do
           let v = Var.named "a"
               v2 = Var.named "b"
@@ -155,4 +156,33 @@ implicitEffects =
           scope "purify-preserves-explicit-effects" $
             let typ = implicitArrow () t explicitEffect
              in expectEqual (purifyArrows typ) typ
+        ]
+
+implicitSubtyping :: Test ()
+implicitSubtyping =
+  let a = Var.named "a" :: Symbol
+      av = var () a
+      n = nat ()
+      identity = forAll () a (arrow () av av)
+      monoIdentity = arrow () n n
+      implicit = implicitArrow ()
+      pairs ctor =
+        [ (ctor n n, ctor n n),
+          (ctor monoIdentity n, ctor identity n),
+          (ctor identity n, ctor monoIdentity n),
+          (ctor n identity, ctor n monoIdentity),
+          (ctor n monoIdentity, ctor n identity),
+          (forAll () a av, ctor identity n),
+          (ctor n identity, forAll () a av)
+        ]
+   in tests
+        [ scope "no-silent-coercion" $ do
+            expect (not (Typechecker.isSubtype (implicit n n) (arrow () n n)))
+            expect (not (Typechecker.isSubtype (arrow () n n) (implicit n n)))
+            expect (not (Typechecker.isSubtype (implicit n n) n))
+            expect (not (Typechecker.isSubtype n (implicit n n))),
+          scope "same-variance-as-functions" $
+            mapM_
+              (\((i, j), (x, y)) -> expectEqual (Typechecker.isSubtype i j) (Typechecker.isSubtype x y))
+              (zip (pairs implicit) (pairs (arrow ())))
         ]
