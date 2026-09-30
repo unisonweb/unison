@@ -14,6 +14,7 @@ module Unison.Syntax.Name
 
     -- * Name parsers
     nameP,
+    namePAllowingReserved,
     relativeNameP,
 
     -- * Name classifiers
@@ -43,6 +44,7 @@ import Unison.Syntax.NameSegment qualified as NameSegment
     isSymboly,
     renderParseErr,
     segmentP,
+    segmentPAllowingReserved,
     toEscapedTextBuilder,
   )
 import Unison.Var (Var)
@@ -51,7 +53,7 @@ import Unison.Var qualified as Var
 ------------------------------------------------------------------------------------------------------------------------
 -- String conversions
 
--- | Parse a name from a string literal.
+-- | Parse a namespace name, including segments reserved in source code.
 parseText :: Text -> Maybe Name
 parseText =
   eitherToMaybe . parseTextEither
@@ -59,7 +61,7 @@ parseText =
 -- | Parse a name from a string literal.
 parseTextEither :: Text -> Either Text Name
 parseTextEither s =
-  P.runParser (P.withParsecT (fmap NameSegment.renderParseErr) nameP <* P.eof) "" (Text.unpack s)
+  P.runParser (P.withParsecT (fmap NameSegment.renderParseErr) namePAllowingReserved <* P.eof) "" (Text.unpack s)
     & mapLeft (Text.pack . P.errorBundlePretty)
 
 -- | Unsafely parse a name from a string literal.
@@ -127,16 +129,26 @@ toVar =
 
 -- | A name parser.
 nameP :: (Monad m) => ParsecT (Token NameSegment.ParseErr) [Char] m Name
-nameP =
+nameP = namePWith NameSegment.segmentP
+
+-- | Parse namespace names without applying source-code keyword restrictions.
+namePAllowingReserved :: (Monad m) => ParsecT (Token NameSegment.ParseErr) [Char] m Name
+namePAllowingReserved = namePWith NameSegment.segmentPAllowingReserved
+
+namePWith :: (Monad m) => ParsecT (Token NameSegment.ParseErr) [Char] m NameSegment -> ParsecT (Token NameSegment.ParseErr) [Char] m Name
+namePWith segmentP =
   P.try do
     leadingDot <- isJust <$> P.optional (P.char '.')
-    name <- relativeNameP
+    name <- relativeNamePWith segmentP
     pure (if leadingDot then Name.makeAbsolute name else name)
 
 -- | A relative name parser.
 relativeNameP :: forall m. (Monad m) => ParsecT (Token NameSegment.ParseErr) [Char] m Name
-relativeNameP = do
-  Name.fromSegments <$> Monad.sepBy1 NameSegment.segmentP separatorP
+relativeNameP = relativeNamePWith NameSegment.segmentP
+
+relativeNamePWith :: forall m. (Monad m) => ParsecT (Token NameSegment.ParseErr) [Char] m NameSegment -> ParsecT (Token NameSegment.ParseErr) [Char] m Name
+relativeNamePWith segmentP = do
+  Name.fromSegments <$> Monad.sepBy1 segmentP separatorP
   where
     -- The separator between segments is just a dot, but we don't want to commit to parsing another segment unless the
     -- character after the dot can begin a segment.
