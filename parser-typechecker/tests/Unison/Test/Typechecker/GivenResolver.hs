@@ -159,7 +159,15 @@ test =
             generic = Given (Local a) [a] [] (app "C" (Type.var () a)) (Lexical 0)
         case resolve [generic, ambient "concrete" (app "C" nat)] (app "C" nat) of
           Right tree -> expectEqual (Local a) (resolvedGiven tree)
-          Left _ -> crash "the local generic dictionary must shadow the ambient concrete one"
+          Left _ -> crash "the local generic dictionary must shadow the ambient concrete one",
+      scope "exponentially-growing-goals" do
+        let a = Var.named "a"
+            va = Type.var () a
+            pair = Type.app () (app "Pair" va) va
+            grow = Given (Global (Reference.Builtin "grow")) [a] [app "C" pair] (app "C" va) Ambient
+        case resolve [grow] (app "C" nat) of
+          Left (SearchLimit chain) -> expect (length chain < 15)
+          _ -> crash "goal size must be bounded independently of recursion depth"
     ]
   where
     nat, text :: Type.Type Symbol ()

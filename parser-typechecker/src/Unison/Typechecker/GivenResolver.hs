@@ -12,7 +12,7 @@ module Unison.Typechecker.GivenResolver
 where
 
 import Control.Monad.Except (ExceptT (..), runExceptT)
-import Control.Monad.State.Strict (State, evalState, get, put)
+import Control.Monad.State.Strict (State, StateT, evalState, execStateT, get, put)
 import Data.List (mapAccumL)
 import Data.List.NonEmpty (NonEmpty (..))
 import Data.Map.Strict qualified as Map
@@ -71,6 +71,7 @@ resolveWith limits pool goal = evalState (search [] goal) 0
     scopes = map (reverse . snd) (Map.toDescList (Map.fromListWith (<>) [(givenScope g, [g]) | g <- candidates]))
     search :: [Type v loc] -> Type v loc -> State Int (Either (ResolveError v loc) (ResolutionTree v loc))
     search ancestors goal
+      | not (withinGoalSize 4096 goal) = pure (Left (SearchLimit (reverse ancestors)))
       | goal `elem` ancestors = pure (Left (NoGiven goal))
       | length ancestors > depthLimit limits = pure (Left (SearchLimit (reverse (goal : ancestors))))
       | otherwise = searchScopes ancestors goal scopes
@@ -107,6 +108,18 @@ moreSpecific a b = matches b a && not (matches a b)
   where
     matches candidate target =
       isJust (matchType (Set.fromList (givenTyVars candidate)) (givenConclusion candidate) (givenConclusion target))
+
+-- | A depth bound alone does not bound goals such as C a -> C (Pair a a).
+-- Stop after a bounded traversal, before matching or reporting the growing goal.
+withinGoalSize :: forall v loc. Int -> Type v loc -> Bool
+withinGoalSize budget goal = isJust (execStateT (walk goal) budget)
+  where
+    walk :: Type v loc -> StateT Int Maybe ()
+    walk term = do
+      remaining <- get
+      guard (remaining > 0)
+      put (remaining - 1)
+      traverse_ walk (ABT.out term)
 
 -- | Freshen candidate variables away from the goal before substitution.
 -- Every variable needed by a premise must be determined by head matching.
