@@ -25,6 +25,7 @@ import Unison.Test.Typechecker qualified as Typechecker
 import Unison.Test.Typechecker.Context qualified as Context
 import Unison.Test.Typechecker.GivenCore qualified as GivenCore
 import Unison.Test.Typechecker.GivenResolver qualified as GivenResolver
+import Unison.Test.Typechecker.GivenSites qualified as GivenSites
 import Unison.Test.Typechecker.TypeError qualified as TypeError
 import Unison.Test.Util.Relation qualified as Relation
 import Unison.Test.Util.Text qualified as Text
@@ -52,6 +53,7 @@ test =
       Context.test,
       GivenCore.test,
       GivenResolver.test,
+      GivenSites.test,
       Name.test,
       CodebaseInit.test,
       Branch.test
