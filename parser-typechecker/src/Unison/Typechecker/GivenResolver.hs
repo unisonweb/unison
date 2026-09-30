@@ -31,8 +31,17 @@ data GivenName v = Local v | Global TermReference
   deriving stock (Eq, Ord, Show)
 
 -- | Larger depths are more local. Namespace candidates have the lowest priority.
-data Scope = Ambient | Lexical Int
-  deriving stock (Eq, Ord, Show)
+data Scope = Ambient | Lexical Int | Parameter Int Word64
+  deriving stock (Eq, Show)
+
+-- | An implicit parameter belongs inside its source expression's enclosing
+-- scope but outside nested source bindings. Later parameter binders are deeper.
+instance Ord Scope where
+  compare a b = compare (key a) (key b)
+    where
+      key Ambient = Nothing
+      key (Lexical depth) = Just (depth, Nothing)
+      key (Parameter depth order) = Just (depth, Just order)
 
 data Given v loc = Given
   { givenName :: GivenName v,

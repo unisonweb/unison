@@ -43,6 +43,17 @@ test =
             scope "local-recursive-bindings-are-freshened" $ do
               let block = Term.letRec' False [(x, External, v y), (y, External, v x)] (v x)
               expectEqual (Map.size (binderRenamings (prepare block))) 2,
+            scope "expression-depths-enclose-generated-parameters" $ do
+              let p = prepare (Term.lam External (External, x) (Term.letRec' False [(y, External, v x)] (v y)))
+                  levels = expressionDepths p
+                  depth node = levels Map.! fromMaybe (error "test site missing") (siteId (ABT.annotation node))
+              case preparedTerm p of
+                lambda@(Term.LamNamed' _ block@(Term.LetRecNamed' [(_, binding)] body)) -> do
+                  expectEqual (depth lambda) 0
+                  expectEqual (depth block) 1
+                  expectEqual (depth binding) 2
+                  expectEqual (depth body) 2
+                _ -> crash "wrong scope fixture",
             scope "nested-lexical-depths" $
               expectEqual (Map.elems (binderDepths prepared)) [1, 2],
             scope "recursive-group-shares-one-depth" $ do
