@@ -64,6 +64,8 @@ collectVariance prev group = descend Positive
     descend pol = \case
       Arrow' i o ->
         Map.unionWith (++) (descend (inv pol) i) (descend pol o)
+      ImplicitArrow' i o ->
+        Map.unionWith (++) (descend (inv pol) i) (descend pol o)
       Effect1' e r ->
         Map.unionWith (++) (descend pol e) (descend pol r)
       Apps' f xs
