@@ -41,6 +41,7 @@ library
       Unison.Codebase.Editor.DisplayObject
       Unison.Codebase.Editor.RemoteRepo
       Unison.Codebase.FileCodebase
+      Unison.Codebase.Givens
       Unison.Codebase.Init
       Unison.Codebase.Init.CreateCodebaseError
       Unison.Codebase.Init.OpenCodebaseError
@@ -137,6 +138,11 @@ library
       Unison.Typechecker.Context
       Unison.Typechecker.Context.Structure
       Unison.Typechecker.Extractor
+      Unison.Typechecker.GivenApply
+      Unison.Typechecker.GivenCore
+      Unison.Typechecker.GivenGoal
+      Unison.Typechecker.GivenResolver
+      Unison.Typechecker.GivenSites
       Unison.Typechecker.TypeError
       Unison.Typechecker.TypeLookup
       Unison.Typechecker.TypeVar
@@ -263,6 +269,7 @@ test-suite parser-typechecker-tests
       Unison.Test.ABT
       Unison.Test.Codebase.Branch
       Unison.Test.Codebase.Causal
+      Unison.Test.Codebase.Givens
       Unison.Test.Codebase.Path
       Unison.Test.CodebaseInit
       Unison.Test.Common
@@ -276,6 +283,11 @@ test-suite parser-typechecker-tests
       Unison.Test.Typechecker
       Unison.Test.Typechecker.Components
       Unison.Test.Typechecker.Context
+      Unison.Test.Typechecker.GivenApply
+      Unison.Test.Typechecker.GivenCore
+      Unison.Test.Typechecker.GivenGoal
+      Unison.Test.Typechecker.GivenResolver
+      Unison.Test.Typechecker.GivenSites
       Unison.Test.Typechecker.TypeError
       Unison.Test.Util.Pretty
       Unison.Test.Util.Relation
@@ -317,6 +329,8 @@ test-suite parser-typechecker-tests
   ghc-options: -Wall -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures -W -threaded -rtsopts "-with-rtsopts=-N -T" -v0
   build-depends:
       base
+    , bytes
+    , bytestring
     , code-page
     , containers
     , easytest
@@ -325,6 +339,8 @@ test-suite parser-typechecker-tests
     , raw-strings-qq
     , temporary
     , text
+    , unison-codebase
+    , unison-codebase-sqlite
     , unison-core
     , unison-core1
     , unison-hash
