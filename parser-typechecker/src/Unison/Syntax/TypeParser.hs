@@ -2,6 +2,7 @@
 
 module Unison.Syntax.TypeParser
   ( computationType,
+    effectList,
     valueType,
     valueTypeLeaf,
   )

@@ -48,11 +48,13 @@ import Unison.Referent qualified as Referent
 import Unison.Server.Backend qualified as Backend
 import Unison.Server.NameSearch.FromNames qualified as NameSearch
 import Unison.Symbol (Symbol)
+import Unison.Syntax.DeclPrinter qualified as DeclPrinter
 import Unison.Syntax.Name qualified as Name (toVar)
 import Unison.Syntax.NamePrinter (SyntaxText)
 import Unison.Syntax.TermPrinter qualified as TermPrinter
 import Unison.Term (Term)
 import Unison.Type (Type)
+import Unison.TypeAlias (TypeAlias)
 import Unison.UnisonFile qualified as UnisonFile
 import Unison.Util.Defns (Defns (..))
 import Unison.Util.Pretty (Pretty)
@@ -106,7 +108,7 @@ handleShowDefinition outputLoc showDefinitionScope originalQuery = do
       let pped = PPED.makePPED (PPE.hqNamer 10 currentNames) (suffixify currentNames)
       pure (currentNames, pped)
   let pped = PPED.biasTo (mapMaybe HQ.toName (Set.toList query)) unbiasedPPED
-  Backend.DefinitionResults terms types misses0 <- do
+  Backend.DefinitionResults terms types typeAliases misses0 <- do
     let nameSearch = NameSearch.makeNameSearch 10 names
     Cli.runTransaction $
       Backend.definitionsByName
@@ -120,7 +122,7 @@ handleShowDefinition outputLoc showDefinitionScope originalQuery = do
         -- Unlikely that both original query list and misses list are both very long, but make a set out of original
         -- query anyway, to replace pathological O(n^2) with O(n log n)
         filter (`Set.member` originalQuerySet) misses0
-  showDefinitions outputLoc (`Set.member` originalQuerySet) pped terms types misses
+  showDefinitions outputLoc (`Set.member` originalQuerySet) pped terms types typeAliases misses
   where
     suffixify =
       case outputLoc of
@@ -144,17 +146,18 @@ showDefinitions ::
   PPED.PrettyPrintEnvDecl ->
   Map TermReference (DisplayObject (Type Symbol Ann) (Term Symbol Ann)) ->
   Map TypeReference (DisplayObject () (Decl Symbol Ann)) ->
+  Map TypeReference (DisplayObject () (TypeAlias Symbol Ann)) ->
   [HQ.HashQualified Name] ->
   Cli ()
-showDefinitions outputLoc nameInOriginalQuery pped terms types misses = do
+showDefinitions outputLoc nameInOriginalQuery pped terms types typeAliases misses = do
   Cli.Env {codebase, writeSource} <- ask
   outputPath <- getOutputPath
   case outputPath of
-    _ | null terms && null types -> pure ()
-    Nothing -> renderToConsole nameInOriginalQuery pped terms types
+    _ | null terms && null types && null typeAliases -> pure ()
+    Nothing -> renderToConsole nameInOriginalQuery pped terms types typeAliases
     Just (fp, relToFold) -> do
       mayTF <- use #latestTypecheckedFile
-      numRendered <- renderToFile codebase nameInOriginalQuery writeSource mayTF fp relToFold pped terms types
+      numRendered <- renderToFile codebase nameInOriginalQuery writeSource mayTF fp relToFold pped terms types typeAliases
 
       when (numRendered > 0) do
         -- We set latestFile to be programmatically generated, if we
@@ -184,10 +187,11 @@ renderCodePretty ::
   (TermReferenceId -> Bool) ->
   Map TermReference (DisplayObject (Type Symbol Ann) (Term Symbol Ann)) ->
   Map TypeReference (DisplayObject () (Decl Symbol Ann)) ->
+  Map TypeReference (DisplayObject () (TypeAlias Symbol Ann)) ->
   Defns (Set Symbol) (Set Symbol) ->
   -- Result is Nothing if nothing was rendered
   Maybe (Pretty Pretty.ColorText, Int)
-renderCodePretty nameInOriginalQuery pped isSourceFile isTest terms types excludeNames =
+renderCodePretty nameInOriginalQuery pped isSourceFile isTest terms types typeAliases excludeNames =
   let -- Associate each term and type with their best unsuffixified name
       namedTerms :: Map (HQ.HashQualified Name) (TermReference, DisplayObject (Type Symbol Ann) (Term Symbol Ann))
       namedTerms =
@@ -196,6 +200,10 @@ renderCodePretty nameInOriginalQuery pped isSourceFile isTest terms types exclud
       namedTypes :: Map (HQ.HashQualified Name) (TypeReference, DisplayObject () (Decl Symbol Ann))
       namedTypes =
         nameTypes pped.unsuffixifiedPPE excludeNames.types types
+
+      namedTypeAliases :: Map (HQ.HashQualified Name) (TypeReference, DisplayObject () (TypeAlias Symbol Ann))
+      namedTypeAliases =
+        nameTypes pped.unsuffixifiedPPE excludeNames.types typeAliases
 
       -- Partition those into two groups: those that end in a .doc segment, and those that don't
       -- Note that the doc-named terms aren't necessarily docs (though they they likely all are)
@@ -297,6 +305,17 @@ renderCodePretty nameInOriginalQuery pped isSourceFile isTest terms types exclud
             maybe mempty (<> Pretty.newline) maybeDoc
               <> Pretty.prettyType pped (name, ref, typ)
 
+      prettyTypeAliases :: [Pretty SyntaxText]
+      prettyTypeAliases =
+        namedTypeAliases
+          & Map.toList
+          & List.sortBy (\(n0, _) (n1, _) -> Name.compareAlphabetical n0 n1)
+          & map \(name, (_ref, displayObj)) -> case displayObj of
+            DisplayObject.UserObject ta ->
+              DeclPrinter.prettyTypeAlias pped name ta
+            DisplayObject.BuiltinObject {} -> mempty
+            DisplayObject.MissingObject _ -> mempty
+
       prettyTerms :: [Pretty SyntaxText]
       prettyTerms =
         termsWithMaybeDocs1
@@ -305,16 +324,17 @@ renderCodePretty nameInOriginalQuery pped isSourceFile isTest terms types exclud
           & map \(name, ((ref, term), maybeDoc)) ->
             maybe mempty (<> Pretty.newline) maybeDoc
               <> Pretty.prettyTerm pped isSourceFile (maybe False isTest (Reference.toId ref)) (name, ref, term)
-   in NEL.nonEmpty (prettyTypes ++ prettyTerms)
-        $> (Pretty.syntaxToColor (Pretty.sep "\n\n" (prettyTypes ++ prettyTerms)), length prettyTerms + length prettyTypes)
+   in NEL.nonEmpty (prettyTypes ++ prettyTypeAliases ++ prettyTerms)
+        $> (Pretty.syntaxToColor (Pretty.sep "\n\n" (prettyTypes ++ prettyTypeAliases ++ prettyTerms)), length prettyTerms + length prettyTypes + length prettyTypeAliases)
 
 renderToConsole ::
   (HQ.HashQualified Name -> Bool) ->
   PPED.PrettyPrintEnvDecl ->
   Map TermReference (DisplayObject (Type Symbol Ann) (Term Symbol Ann)) ->
   Map TypeReference (DisplayObject () (Decl Symbol Ann)) ->
+  Map TypeReference (DisplayObject () (TypeAlias Symbol Ann)) ->
   Cli ()
-renderToConsole nameInOriginalQuery pped terms types = do
+renderToConsole nameInOriginalQuery pped terms types typeAliases = do
   -- If we're writing to console we don't add test-watch syntax
   let isTest _ = False
   let isSourceFile = False
@@ -328,6 +348,7 @@ renderToConsole nameInOriginalQuery pped terms types = do
             isTest
             terms
             types
+            typeAliases
             (Defns Set.empty Set.empty)
   Cli.respond $ DisplayDefinitions (fromMaybe mempty renderedCodePretty)
 
@@ -345,8 +366,9 @@ renderToFile ::
   PPED.PrettyPrintEnvDecl ->
   Map TermReference (DisplayObject (Type Symbol Ann) (Term Symbol Ann)) ->
   Map TypeReference (DisplayObject () (Decl Symbol Ann)) ->
+  Map TypeReference (DisplayObject () (TypeAlias Symbol Ann)) ->
   (m Int)
-renderToFile codebase nameInOriginalQuery writeSource mayTF fp relToFold pped terms types = do
+renderToFile codebase nameInOriginalQuery writeSource mayTF fp relToFold pped terms types typeAliases = do
   -- Of all the names we were asked to show, if this is a `WithinFold` showing, then exclude the ones that are
   -- already bound in the file
   let excludeNames =
@@ -379,7 +401,7 @@ renderToFile codebase nameInOriginalQuery writeSource mayTF fp relToFold pped te
         (Map.keysSet terms & Set.mapMaybe Reference.toId)
   let isTest r = Set.member r testRefs
   let isSourceFile = True
-  let mayRenderedCodePretty = renderCodePretty nameInOriginalQuery pped isSourceFile isTest terms types excludeNames
+  let mayRenderedCodePretty = renderCodePretty nameInOriginalQuery pped isSourceFile isTest terms types typeAliases excludeNames
   case mayRenderedCodePretty of
     Just (renderedCodePretty, numRendered) -> do
       let (renderedCodeText) = Pretty.toPlain 80 renderedCodePretty

@@ -139,7 +139,8 @@ hashFieldAccessors ppe declName vars declRef dd = do
             TypeLookup
               { typeOfTerms = mempty,
                 dataDecls = Map.singleton declRef (void dd),
-                effectDecls = mempty
+                effectDecls = mempty,
+                typeAliases = mempty
               },
           termsByShortname = mempty,
           freeNameToFuzzyTermsByShortName = Map.empty,

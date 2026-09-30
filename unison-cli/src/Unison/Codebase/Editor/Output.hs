@@ -92,6 +92,7 @@ import Unison.SyncV2.Types qualified as SyncV2
 import Unison.Syntax.Parser qualified as Parser
 import Unison.Term (Term)
 import Unison.Type (Type)
+import Unison.TypeAlias (TypeAlias)
 import Unison.Typechecker.Context qualified as Context
 import Unison.Util.Conflicted (Conflicted)
 import Unison.Util.Defn (Defn)
@@ -303,6 +304,11 @@ data Output
       !PPE.PrettyPrintEnv
       !PPE.PrettyPrintEnv
       !(DefnsF (Map Name) SR.TermSlurp SR.TypeSlurp)
+      -- Type aliases declared in the file. They aren't tracked through the
+      -- diff-based slurp pipeline (which compares against existing codebase
+      -- decls); for now we just enumerate them from the file and display
+      -- the always-add form. Cross-file alias updates land later.
+      !(Map Symbol (TypeAlias Symbol Ann))
       !(Map Referent (NESet Name))
       !Bool -- merging? (can expand later to include: upgrading?)
   | DisplayRendered (Maybe FilePath) (P.Pretty P.ColorText)

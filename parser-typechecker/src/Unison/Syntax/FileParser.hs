@@ -5,7 +5,7 @@ where
 
 import Control.Lens
 import Control.Monad.Reader (asks, local)
-import Data.Foldable (foldlM)
+import Data.Graph (SCC (..), flattenSCC, stronglyConnComp)
 import Data.List qualified as List
 import Data.Map qualified as Map
 import Data.Set qualified as Set
@@ -14,16 +14,20 @@ import Text.Megaparsec qualified as P
 import Unison.ABT qualified as ABT
 import Unison.DataDeclaration (DataDeclaration (..), EffectDeclaration)
 import Unison.DataDeclaration qualified as DataDeclaration
+import Unison.DataDeclaration.Names qualified as DataDeclaration.Names
 import Unison.DataDeclaration.Records (generateRecordAccessors)
+import Unison.Hashing.V2.Convert qualified as Hashing
 import Unison.Name qualified as Name
 import Unison.NameSegment qualified as NameSegment
+import Unison.Names (Names)
 import Unison.Names qualified as Names
 import Unison.Names.ResolutionResult qualified as Names
 import Unison.Parser.Ann (Ann)
 import Unison.Parser.Ann qualified as Ann
 import Unison.Prelude
 import Unison.Reference (TypeReferenceId)
-import Unison.Syntax.DeclParser (SynDataDecl (..), SynDecl (..), SynEffectDecl (..), synDeclConstructors, synDeclName, synDeclsP)
+import Unison.Reference qualified as Reference
+import Unison.Syntax.DeclParser (SynDataDecl (..), SynDecl (..), SynEffectDecl (..), SynTypeAliasDecl (..), synDeclConstructors, synDeclName, synDeclsP)
 import Unison.Syntax.Lexer qualified as L
 import Unison.Syntax.Name qualified as Name (toText, toVar, unsafeParseVar)
 import Unison.Syntax.Parser
@@ -33,6 +37,9 @@ import Unison.Term (Term, Term2)
 import Unison.Term qualified as Term
 import Unison.Type (Type)
 import Unison.Type qualified as Type
+import Unison.Type.Names qualified as Type.Names
+import Unison.TypeAlias qualified
+import Unison.TypeAlias.Expand qualified as TypeAlias.Expand
 import Unison.UnisonFile (UnisonFile (..))
 import Unison.UnisonFile.Env qualified as UF
 import Unison.UnisonFile.Names qualified as UFN
@@ -83,12 +90,81 @@ file = do
   -- Apply the namespace directive (if there is one) to the decls
   let synDecls = maybe id applyNamespaceToSynDecls maybeNamespaceVar unNamespacedSynDecls
 
-  -- Compute an environment from the decls that we use to parse terms
-  env <- do
-    -- Make real data/effect decls from the "syntactic" ones
-    (dataDecls, effectDecls) <- synDeclsToDecls synDecls
-    result <- UFN.environmentFor namesStart dataDecls effectDecls & onLeft \errs -> resolutionFailures (toList errs)
-    result & onLeft \errs -> P.customFailure (TypeDeclarationErrors errs)
+  -- Make real data/effect decls from the "syntactic" ones, and capture the
+  -- file's type aliases (already cycle-checked, in dependency order).
+  (dataDecls, effectDecls, fileAliases) <- synDeclsToDecls synDecls
+
+  -- Resolve against the whole file before splitting it into components.
+  -- This preserves suffix ambiguities and turns local suffix references into
+  -- full names, so the dependency graph does not miss them.
+  let localTypes = Map.keysSet dataDecls <> Map.keysSet effectDecls <> Set.fromList (fst <$> fileAliases)
+      bindDecl = DataDeclaration.Names.bindNames Name.unsafeParseVar Name.toVar localTypes namesStart
+  dataDecls <- traverse bindDecl dataDecls & onLeft (resolutionFailures . toList)
+  effectDecls <- traverse (DataDeclaration.withEffectDeclM bindDecl) effectDecls & onLeft (resolutionFailures . toList)
+  fileAliases <- for fileAliases \(v, alias) -> do
+    body <-
+      Type.Names.bindNames Name.unsafeParseVar Name.toVar (localTypes <> Set.fromList alias.paramNames) namesStart alias.body
+        & onLeft (resolutionFailures . toList)
+    pure (v, alias {Unison.TypeAlias.body = body})
+
+  -- Hash declarations and aliases in dependency order. A declaration can
+  -- depend on an alias of another local declaration, so a fixed sequence
+  -- of aliases/decls/aliases is insufficient. Recursive declaration groups
+  -- are hashed together; any cycle containing an alias is rejected.
+  let aliasMap = Map.fromList fileAliases
+      declDependencies decl =
+        foldMap ABT.freeVars (DataDeclaration.constructorTypes decl)
+          `Set.difference` Set.fromList (DataDeclaration.bound decl)
+      dependencies =
+        Map.unions
+          [ declDependencies <$> dataDecls,
+            declDependencies . DataDeclaration.toDataDecl <$> effectDecls,
+            (\alias -> ABT.freeVars alias.body `Set.difference` Set.fromList alias.paramNames) <$> aliasMap
+          ]
+      components = stronglyConnComp [(v, v, Set.toList deps) | (v, deps) <- Map.toList dependencies]
+      resolveComponent (accNames, accEnv, accAliases) component = do
+        let members = Set.fromList (flattenSCC component)
+            aliases = Map.restrictKeys aliasMap members
+        case component of
+          CyclicSCC vs
+            | not (Map.null aliases) ->
+                P.customFailure (TypeAliasCycle (ABT.annotation (snd (Map.findMin aliases)).body) vs)
+          _ -> pure ()
+        case Map.toList aliases of
+          [(v, alias)] -> do
+            resolvedBody <-
+              Type.Names.bindNames
+                Name.unsafeParseVar
+                Name.toVar
+                (Set.fromList alias.paramNames)
+                accNames
+                alias.body
+                & onLeft (resolutionFailures . toList)
+            let resolved = alias {Unison.TypeAlias.body = resolvedBody}
+                refId = Hashing.hashTypeAlias resolved
+                newNames = Names.fromTermsAndTypes [] [(Name.unsafeParseVar v, Reference.DerivedId refId)]
+            pure (Names.shadowing newNames accNames, accEnv, Map.insert v (refId, resolved) accAliases)
+          _ -> do
+            result <-
+              UFN.environmentFor accNames (Map.restrictKeys dataDecls members) (Map.restrictKeys effectDecls members)
+                & onLeft (resolutionFailures . toList)
+            env <- result & onLeft (P.customFailure . TypeDeclarationErrors)
+            let combined =
+                  UF.Env
+                    (UF.datasId accEnv <> UF.datasId env)
+                    (UF.effectsId accEnv <> UF.effectsId env)
+                    (UF.names accEnv <> UF.names env)
+            pure (Names.shadowing (UF.names env) accNames, combined, accAliases)
+  (_, env, fileAliasesWithHashes) <-
+    foldM resolveComponent (namesStart, UF.Env Map.empty Map.empty mempty, Map.empty) components
+
+  let aliasNamesForDecls :: Names
+      aliasNamesForDecls =
+        Names.fromTermsAndTypes
+          []
+          [ (Name.unsafeParseVar v, Reference.DerivedId rid)
+          | (v, (rid, _)) <- Map.toList fileAliasesWithHashes
+          ]
 
   -- Generate the record accessors with *un-namespaced* names below, because we need to know these names in order to
   -- perform rewriting. As an example,
@@ -140,12 +216,14 @@ file = do
             Just namespace -> over (mapped . _1) (Var.namespaced2 namespace)
 
   -- At this stage of the file parser, we've parsed all the type and ability
-  -- declarations.
+  -- declarations. File-local alias names are visible during term parsing
+  -- so type-position references to them resolve to alias refs.
+  let envNamesWithAliases = aliasNamesForDecls <> UF.names env
   let updateEnvForTermParsing e =
         e
-          { names = Names.shadowing (UF.names env) namesStart,
+          { names = Names.shadowing envNamesWithAliases namesStart,
             maybeNamespace,
-            localNamespacePrefixedTypesAndConstructors = UF.names env
+            localNamespacePrefixedTypesAndConstructors = envNamesWithAliases
           }
   local updateEnvForTermParsing do
     names <- asks names
@@ -194,10 +272,12 @@ file = do
     watches <- case List.validate (traverseOf (traversed . _3) bindNames) watches of
       Left es -> resolutionFailures (toList es)
       Right ws -> pure ws
+
     validateUnisonFile
       maybeAnnotatedNamespace
       (UF.datasId env)
       (UF.effectsId env)
+      fileAliasesWithHashes
       (terms <> accessors)
       (List.multimap watches)
 
@@ -238,6 +318,12 @@ applyNamespaceToSynDecls namespace decls =
                 & over (#constructors . mapped) applyToConstructor
                 & over (#name . mapped) (Var.namespaced2 namespace)
             )
+        SynDecl'TypeAlias decl ->
+          SynDecl'TypeAlias
+            ( decl
+                & over #body (ABT.substsInheritAnnotation typeReplacements)
+                & over (#name . mapped) (Var.namespaced2 namespace)
+            )
     )
     decls
   where
@@ -256,20 +342,70 @@ applyNamespaceToSynDecls namespace decls =
         & Set.toList
         & map (\v -> (v, Type.var () (Var.namespaced2 namespace v)))
 
-synDeclsToDecls :: (Monad m, Var v) => [SynDecl v] -> P v m (Map v (DataDeclaration v Ann), Map v (EffectDeclaration v Ann))
-synDeclsToDecls = do
-  foldlM
-    ( \(datas, effects) -> \case
-        SynDecl'Data decl -> do
-          let decl1 = DataDeclaration decl.modifier decl.annotation decl.tyvars decl.constructors
-          let !datas1 = Map.insert decl.name.payload decl1 datas
-          pure (datas1, effects)
-        SynDecl'Effect decl -> do
-          let decl1 = DataDeclaration.mkEffectDecl' decl.modifier decl.annotation decl.tyvars decl.constructors
-          let !effects1 = Map.insert decl.name.payload decl1 effects
-          pure (datas, effects1)
+synDeclsToDecls ::
+  forall m v.
+  (Monad m, Var v) =>
+  [SynDecl v] ->
+  P
+    v
+    m
+    ( Map v (DataDeclaration v Ann),
+      Map v (EffectDeclaration v Ann),
+      [(v, Unison.TypeAlias.TypeAlias v Ann)]
     )
-    (Map.empty, Map.empty)
+synDeclsToDecls decls = do
+  let (datasRaw, effectsRaw, aliasesRaw) = partitionDecls decls
+
+  -- Cycle-check aliases and order them so each appears after the aliases
+  -- it references — callers downstream resolve and hash in this order.
+  aliases <-
+    case TypeAlias.Expand.inDependencyOrder aliasesRaw of
+      Right ordered -> pure ordered
+      Left (TypeAlias.Expand.AliasCycle names) ->
+        let anns =
+              names
+                & Set.toList
+                & mapMaybe (\v -> (\a -> (v, a)) . ABT.annotation . Unison.TypeAlias.body <$> Map.lookup v aliasesRaw)
+            firstAnn = case anns of
+              ((_, a) : _) -> a
+              _ -> Ann.External
+         in P.customFailure (TypeAliasCycle firstAnn (map fst anns))
+
+  let datas =
+        Map.fromList
+          [ (decl.name.payload, DataDeclaration decl.modifier decl.annotation decl.tyvars decl.constructors)
+          | decl <- datasRaw
+          ]
+
+  let effects =
+        Map.fromList
+          [ (decl.name.payload, DataDeclaration.mkEffectDecl' decl.modifier decl.annotation decl.tyvars decl.constructors)
+          | decl <- effectsRaw
+          ]
+
+  pure (datas, effects, aliases)
+
+-- | Split a parsed decl list into data, effect, and alias maps.
+partitionDecls ::
+  (Ord v) =>
+  [SynDecl v] ->
+  ([SynDataDecl v], [SynEffectDecl v], Map v (Unison.TypeAlias.TypeAlias v Ann))
+partitionDecls = foldr step ([], [], Map.empty)
+  where
+    step (SynDecl'Data d) (ds, es, as) = (d : ds, es, as)
+    step (SynDecl'Effect d) (ds, es, as) = (ds, d : es, as)
+    step (SynDecl'TypeAlias d) (ds, es, as) =
+      ( ds,
+        es,
+        Map.insert
+          d.name.payload
+          ( Unison.TypeAlias.TypeAlias
+              { Unison.TypeAlias.paramNames = d.tyvars,
+                Unison.TypeAlias.body = d.body
+              }
+          )
+          as
+      )
 
 applyNamespaceToStanza ::
   forall a v.
@@ -330,11 +466,12 @@ validateUnisonFile ::
   Maybe (Ann, Name.Name) ->
   Map v (TypeReferenceId, DataDeclaration v Ann) ->
   Map v (TypeReferenceId, EffectDeclaration v Ann) ->
+  Map v (TypeReferenceId, Unison.TypeAlias.TypeAlias v Ann) ->
   [(v, Ann, Term v Ann)] ->
   Map WatchKind [(v, Ann, Term v Ann)] ->
   P v m (UnisonFile v Ann)
-validateUnisonFile fn datas effects terms watches =
-  checkForDuplicateTermsAndConstructors fn datas effects terms watches
+validateUnisonFile fn datas effects aliases terms watches =
+  checkForDuplicateTermsAndConstructors fn datas effects aliases terms watches
 
 -- | Because types and abilities can introduce their own constructors and fields it's difficult
 -- to detect all duplicate terms during parsing itself. Here we collect all terms and
@@ -345,10 +482,11 @@ checkForDuplicateTermsAndConstructors ::
   Maybe (Ann, Name.Name) ->
   Map v (TypeReferenceId, DataDeclaration v Ann) ->
   Map v (TypeReferenceId, EffectDeclaration v Ann) ->
+  Map v (TypeReferenceId, Unison.TypeAlias.TypeAlias v Ann) ->
   [(v, Ann, Term v Ann)] ->
   Map WatchKind [(v, Ann, Term v Ann)] ->
   P v m (UnisonFile v Ann)
-checkForDuplicateTermsAndConstructors fn datas effects terms watches = do
+checkForDuplicateTermsAndConstructors fn datas effects aliases terms watches = do
   when (not . null $ duplicates) $ do
     let dupeList :: [(v, [Ann])]
         dupeList =
@@ -361,6 +499,7 @@ checkForDuplicateTermsAndConstructors fn datas effects terms watches = do
       { fileNamespace = fn,
         dataDeclarationsId = datas,
         effectDeclarationsId = effects,
+        typeAliasesId = aliases,
         terms = List.foldl (\acc (v, ann, term) -> Map.insert v (ann, term) acc) Map.empty terms,
         watches
       }

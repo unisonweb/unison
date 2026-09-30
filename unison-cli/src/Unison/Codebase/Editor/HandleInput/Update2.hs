@@ -27,7 +27,7 @@ import Unison.Cli.Monad qualified as Cli
 import Unison.Cli.MonadUtils qualified as Cli
 import Unison.Cli.Pretty qualified as Pretty
 import Unison.Cli.ProjectUtils qualified as ProjectUtils
-import Unison.Cli.UpdateUtils (getNamespaceDependentsOf, hydrateRefs, makeUniqueTypeGuids, nameHydratedRefIds, parseAndTypecheck, subtractDependents)
+import Unison.Cli.UpdateUtils (getNamespaceDependentsOf, hydrateAliases, hydrateRefs, makeUniqueTypeGuids, nameHydratedRefIds, parseAndTypecheck, subtractDependents)
 import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Branch (Branch, Branch0)
 import Unison.Codebase.Branch qualified as Branch
@@ -64,6 +64,7 @@ import Unison.Sqlite (Transaction)
 import Unison.Symbol (Symbol)
 import Unison.Syntax.FilePrinter (renderDefnsForUnisonFile)
 import Unison.Syntax.Name qualified as Name
+import Unison.TypeAlias (TypeAlias)
 import Unison.UnconflictedLocalDefnsView (UnconflictedLocalDefnsView (..))
 import Unison.UnisonFile qualified as UF
 import Unison.UnisonFile.Names qualified as UF
@@ -157,7 +158,7 @@ handleUpdate2 = do
         respondRegion $
           Output.Literal (Pretty.wrap "Okay, I'm searching the branch for code that needs to be updated...")
 
-        (dependents, dependentsRefs, hydratedDependents) <-
+        (dependents, dependentsRefs, hydratedDependents, aliasDependents) <-
           Cli.runTransaction do
             -- Get all dependents of things being updated
             dependents0 <-
@@ -182,14 +183,16 @@ handleUpdate2 = do
                 dependentsRefs =
                   bimap (Set.fromList . Map.elems) (Set.fromList . Map.elems) dependents1
 
-            -- Hydrate the dependents for rendering
-            hydratedDependents0 <-
-              hydrateRefs env.codebase dependentsRefs
-
-            let hydratedDependents1 =
-                  nameHydratedRefIds dependents1 hydratedDependents0
-
-            pure (dependents1, dependentsRefs, hydratedDependents1)
+            -- Alias dependents must be rendered and re-typechecked together
+            -- with terms and declarations. Re-hashing them only after checking
+            -- terms would leave those terms checked against stale alias bodies.
+            aliasBodies <- hydrateAliases env.codebase dependentsRefs.types
+            let aliasDependentsByName :: Map Name (TypeReferenceId, TypeAlias Symbol Ann)
+                aliasDependentsByName =
+                  Map.mapMaybe (\ref -> (ref,) <$> Map.lookup ref aliasBodies) dependents1.types
+            hydratedDependents0 <- hydrateRefs env.codebase dependentsRefs
+            let hydratedDependents1 = nameHydratedRefIds dependents1 hydratedDependents0
+            pure (dependents1, dependentsRefs, hydratedDependents1, aliasDependentsByName)
 
         secondTuf <- do
           case defnsAreEmpty dependents of
@@ -200,14 +203,19 @@ handleUpdate2 = do
 
               let prettyUnisonFile =
                     let ppe = makePPE 10 namesIncludingLibdeps (UF.typecheckedToNames tuf) dependents
+                        renderedDependents =
+                          renderDefnsForUnisonFile
+                            declNameLookup
+                            ppe
+                            Set.empty
+                            (over (#terms . mapped) snd hydratedDependents)
+                        renderedAliases =
+                          Map.mapWithKey
+                            (\name alias -> Pretty.prettyUnisonFile ppe (UF.emptyUnisonFile {UF.typeAliasesId = Map.singleton (Name.toVar name) alias}))
+                            aliasDependents
                      in makePrettyUnisonFile
                           (Pretty.prettyUnisonFile ppe (UF.discardTypes tuf))
-                          ( renderDefnsForUnisonFile
-                              declNameLookup
-                              ppe
-                              Set.empty
-                              (over (#terms . mapped) snd hydratedDependents)
-                          )
+                          (renderedDependents {types = renderedDependents.types <> renderedAliases})
 
               parsingEnv <-
                 Cli.makeParsingEnv pp namesIncludingLibdeps
@@ -297,6 +305,7 @@ handleUpdate2 = do
               abort
               (\typeName -> Right (Map.lookup typeName declNameLookup.declToConstructors))
               secondTuf
+
         Cli.stepAt "update" (path, Branch.batchUpdates branchUpdates)
         #latestTypecheckedFile .= Nothing
 
@@ -375,7 +384,17 @@ typecheckedUnisonFileToBranchUpdates abort getConstructors tuf = do
     makeDeclUpdates abort = do
       dataDeclUpdates <- Monoid.foldMapM makeDataDeclUpdates (Map.toList $ UF.dataDeclarationsId' tuf)
       effectDeclUpdates <- Monoid.foldMapM makeEffectDeclUpdates (Map.toList $ UF.effectDeclarationsId' tuf)
-      pure $ dataDeclUpdates <> effectDeclUpdates
+      -- Aliases have no constructors, so just rebind the name.
+      let aliasUpdates =
+            foldMap
+              ( \(symbol, (typeRefId, _alias)) ->
+                  let split = splitVar symbol
+                   in [ BranchUtil.makeAnnihilateTypeName split,
+                        BranchUtil.makeAddTypeName split (Reference.fromId typeRefId)
+                      ]
+              )
+              (Map.toList (UF.typeAliasesId' tuf))
+      pure $ dataDeclUpdates <> effectDeclUpdates <> aliasUpdates
       where
         makeDataDeclUpdates (symbol, (typeRefId, dataDecl)) = makeDeclUpdates (symbol, (typeRefId, Right dataDecl))
         makeEffectDeclUpdates (symbol, (typeRefId, effectDecl)) = makeDeclUpdates (symbol, (typeRefId, Left effectDecl))

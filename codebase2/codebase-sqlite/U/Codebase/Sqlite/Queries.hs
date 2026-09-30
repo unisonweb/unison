@@ -61,7 +61,10 @@ module U.Codebase.Sqlite.Queries
     expectPrimaryHashIdForObject,
     expectObjectWithHashIdAndType,
     expectDeclObject,
+    expectObjectWithType,
+    expectTypeAliasObject,
     loadDeclObject,
+    loadTypeAliasObject,
     expectNamespaceObject,
     loadNamespaceObject,
     expectPatchObject,
@@ -275,6 +278,7 @@ module U.Codebase.Sqlite.Queries
     addDerivedDependentsByDependencyIndex,
     addUpgradeBranchTable,
     addHistoryComments,
+    addTypeAliasSupport,
     addHistoryCommentHashing,
     historyCommentHashingCleanup,
 
@@ -297,7 +301,9 @@ module U.Codebase.Sqlite.Queries
     localIdsToLookups,
     s2cDecl,
     s2cTermWithType,
+    s2cTypeAlias,
     saveDeclComponent,
+    saveTypeAlias,
     saveReferenceH,
     saveSyncEntity,
     saveTermComponent,
@@ -404,7 +410,7 @@ import U.Codebase.Sqlite.LocalIds
     LocalTextId (..),
   )
 import U.Codebase.Sqlite.LocalIds qualified as LocalIds
-import U.Codebase.Sqlite.ObjectType (ObjectType (DeclComponent, Namespace, Patch, TermComponent))
+import U.Codebase.Sqlite.ObjectType (ObjectType (DeclComponent, Namespace, Patch, TermComponent, TypeAliasComponent))
 import U.Codebase.Sqlite.ObjectType qualified as ObjectType
 import U.Codebase.Sqlite.Orphans ()
 import U.Codebase.Sqlite.Patch.Format qualified as PatchFormat
@@ -424,9 +430,12 @@ import U.Codebase.Sqlite.TempEntityType (TempEntityType)
 import U.Codebase.Sqlite.TempEntityType qualified as TempEntityType
 import U.Codebase.Sqlite.Term.Format qualified as S.Term
 import U.Codebase.Sqlite.Term.Format qualified as TermFormat
+import U.Codebase.Sqlite.TypeAlias.Format qualified as S.TypeAlias
+import U.Codebase.Sqlite.TypeAlias.Format qualified as TypeAliasFormat
 import U.Codebase.Term qualified as C
 import U.Codebase.Term qualified as C.Term
 import U.Codebase.Type qualified as C.Type
+import U.Codebase.TypeAlias qualified as C.TypeAlias
 import U.Codebase.WatchKind (WatchKind)
 import U.Core.ABT qualified as ABT
 import U.Util.Serialization qualified as S
@@ -465,7 +474,7 @@ type TextPathSegments = [Text]
 -- * main squeeze
 
 currentSchemaVersion :: SchemaVersion
-currentSchemaVersion = 26
+currentSchemaVersion = 27
 
 runCreateSql :: Transaction ()
 runCreateSql =
@@ -562,6 +571,10 @@ addHistoryCommentHashing =
 historyCommentHashingCleanup :: Transaction ()
 historyCommentHashingCleanup =
   executeStatements $(embedProjectStringFile "sql/022-hash-history-comments-cleanup.sql")
+
+addTypeAliasSupport :: Transaction ()
+addTypeAliasSupport =
+  executeStatements $(embedProjectStringFile "sql/023-add-type-alias-support.sql")
 
 schemaVersion :: Transaction SchemaVersion
 schemaVersion =
@@ -824,6 +837,16 @@ loadDeclObject oid =
 expectDeclObject :: (SqliteExceptionReason e) => ObjectId -> (ByteString -> Either e a) -> Transaction a
 expectDeclObject oid =
   expectObjectOfType oid DeclComponent
+
+-- | Load a type alias object.
+loadTypeAliasObject :: (SqliteExceptionReason e) => ObjectId -> (ByteString -> Either e a) -> Transaction (Maybe a)
+loadTypeAliasObject oid =
+  loadObjectOfType oid TypeAliasComponent
+
+-- | Expect a type alias object.
+expectTypeAliasObject :: (SqliteExceptionReason e) => ObjectId -> (ByteString -> Either e a) -> Transaction a
+expectTypeAliasObject oid =
+  expectObjectOfType oid TypeAliasComponent
 
 -- | Load a namespace object.
 loadNamespaceObject :: (SqliteExceptionReason e) => ObjectId -> (ByteString -> Either e a) -> Transaction (Maybe a)
@@ -1141,6 +1164,7 @@ expectEntity hash = do
           DeclComponent -> Entity.DC <$> decodeSyncDeclFormat bytes
           Namespace -> Entity.N <$> decodeSyncNamespaceFormat bytes
           Patch -> Entity.P <$> decodeSyncPatchFormat bytes
+          TypeAliasComponent -> Entity.TA <$> decodeSyncTypeAliasFormat bytes
 
 -- | Read an entity out of temp storage.
 expectTempEntity :: Hash32 -> Transaction TempEntity
@@ -1158,6 +1182,7 @@ expectTempEntity hash = do
         TempEntityType.NamespaceType -> Entity.N <$> decodeTempNamespaceFormat blob
         TempEntityType.PatchType -> Entity.P <$> decodeTempPatchFormat blob
         TempEntityType.CausalType -> Entity.C <$> decodeTempCausalFormat blob
+        TempEntityType.TypeAliasComponentType -> Entity.TA <$> decodeTempTypeAliasFormat blob
 
 -- | look up all of the input entity's dependencies in the main table, to convert it to a sync entity
 tempToSyncEntity :: TempEntity -> Transaction SyncEntity
@@ -1167,7 +1192,18 @@ tempToSyncEntity = \case
   Entity.N namespace -> Entity.N <$> tempToSyncNamespace namespace
   Entity.P patch -> Entity.P <$> tempToSyncPatch patch
   Entity.C causal -> Entity.C <$> tempToSyncCausal causal
+  Entity.TA ta -> Entity.TA <$> tempToSyncTypeAlias ta
   where
+    tempToSyncTypeAlias :: TempEntity.TempTypeAliasFormat -> Transaction TypeAliasFormat.SyncTypeAliasFormat
+    tempToSyncTypeAlias = \case
+      TypeAliasFormat.SyncTypeAlias LocalIds.LocalIds {textLookup, defnLookup} bs ->
+        TypeAliasFormat.SyncTypeAlias
+          <$> ( LocalIds.LocalIds
+                  <$> saveTexts textLookup
+                  <*> traverse expectObjectIdForHash32 defnLookup
+              )
+          <*> pure bs
+
     tempToSyncCausal :: TempEntity.TempCausalFormat -> Transaction Causal.SyncCausalFormat
     tempToSyncCausal Causal.SyncCausalFormat {valueHash, parents} =
       Causal.SyncCausalFormat
@@ -1248,7 +1284,18 @@ syncToTempEntity = \case
   Entity.N namespace -> Entity.N <$> syncToTempNamespace namespace
   Entity.P patch -> Entity.P <$> syncToTempPatch patch
   Entity.C causal -> Entity.C <$> syncToTempCausal causal
+  Entity.TA ta -> Entity.TA <$> syncToTempTypeAlias ta
   where
+    syncToTempTypeAlias :: TypeAliasFormat.SyncTypeAliasFormat -> Transaction TempEntity.TempTypeAliasFormat
+    syncToTempTypeAlias = \case
+      TypeAliasFormat.SyncTypeAlias LocalIds.LocalIds {textLookup, defnLookup} bs ->
+        TypeAliasFormat.SyncTypeAlias
+          <$> ( LocalIds.LocalIds
+                  <$> traverse expectText textLookup
+                  <*> traverse expectPrimaryHash32ByObjectId defnLookup
+              )
+          <*> pure bs
+
     syncToTempCausal :: Causal.SyncCausalFormat -> Transaction TempEntity.TempCausalFormat
     syncToTempCausal Causal.SyncCausalFormat {valueHash, parents} =
       Causal.SyncCausalFormat
@@ -2100,13 +2147,15 @@ getTransitiveDependentsWithinScope scope query = do
   execute [sql| DROP TABLE $scopeTableName |]
   execute [sql| DROP TABLE $queryTableName |]
 
-  -- Post-process the query result
+  -- Post-process the query result. Aliases share the types slot with
+  -- decls — both produce type-position dependents.
   let result1 =
         List.foldl'
           ( \deps -> \case
               dep :. Only TermComponent -> let !terms = Set.insert dep deps.terms in Defns terms deps.types
               dep :. Only DeclComponent -> let !types = Set.insert dep deps.types in Defns deps.terms types
-              _ -> deps -- impossible; could error here
+              dep :. Only TypeAliasComponent -> let !types = Set.insert dep deps.types in Defns deps.terms types
+              _ -> deps -- namespaces and patches have no dependents we'd track here
           )
           (Defns Set.empty Set.empty)
           result0
@@ -2554,6 +2603,15 @@ saveSyncEntity hh hash entity = do
       hashId <- saveHash hash
       let bytes = runPutS (Serialization.recomposePatchFormat spf)
       Right <$> saveObject hh hashId ObjectType.Patch bytes
+    Entity.TA staf -> do
+      taf :: TypeAliasFormat.TypeAliasFormat <-
+        either (unsafeIO . UnliftIO.throwIO) pure $ unsyncTypeAliasFormat staf
+      case taf of
+        TypeAliasFormat.TypeAlias localIds entry -> do
+          cta <- s2cTypeAlias localIds entry
+          let bytes = runPutS (Serialization.recomposeTypeAliasFormat staf)
+          objId <- saveTypeAlias hh (Just bytes) (Hash32.toHash hash) cta
+          pure (Right objId)
     Entity.C scf -> case scf of
       Sqlite.Causal.SyncCausalFormat {valueHash, parents} -> do
         hashId <- saveHash hash
@@ -2667,6 +2725,73 @@ saveDeclComponent hh@HashHandle {toReferenceDecl, toReferenceDeclMentions} maybe
       addTypeToIndexForTerm self typeForIndexing
       addTypeMentionsToIndexForTerm self typeMentionsForIndexing
 
+  pure oId
+
+-- | Unlocalize a type alias.
+s2cTypeAlias :: LocalIds -> S.TypeAlias.TypeAlias -> Transaction (C.TypeAlias.TypeAlias Symbol)
+s2cTypeAlias ids (C.TypeAlias.TypeAliasR params body) = do
+  (substText, substHash) <- localIdsToLookups expectText expectPrimaryHashByObjectId ids
+  pure $ C.TypeAlias.TypeAliasR params (C.Type.rmap (bimap substText substHash) body)
+
+c2sTypeAlias ::
+  forall m t d.
+  (Monad m) =>
+  (Text -> m t) ->
+  (Hash -> m d) ->
+  C.TypeAlias.TypeAlias Symbol ->
+  m (LocalIds' t d, S.TypeAlias.TypeAlias)
+c2sTypeAlias saveText saveDefn (C.TypeAlias.TypeAliasR params body) = do
+  done =<< (runWriterT . flip evalStateT mempty) do
+    body' <- ABT.transformM goType body
+    pure (C.TypeAlias.TypeAliasR params body')
+  where
+    goType ::
+      forall mm a.
+      (MonadWriter (Seq Text, Seq Hash) mm, MonadState (Map Text LocalTextId, Map Hash LocalDefnId) mm) =>
+      C.Type.F' C.Reference a ->
+      mm (C.Type.F' S.TypeAlias.TypeRef a)
+    goType = \case
+      C.Type.Ref r -> C.Type.Ref <$> bitraverse lookupText lookupDefn r
+      C.Type.Arrow i o -> pure $ C.Type.Arrow i o
+      C.Type.Ann a k -> pure $ C.Type.Ann a k
+      C.Type.App f a -> pure $ C.Type.App f a
+      C.Type.Effect e a -> pure $ C.Type.Effect e a
+      C.Type.Effects es -> pure $ C.Type.Effects es
+      C.Type.Forall a -> pure $ C.Type.Forall a
+      C.Type.IntroOuter a -> pure $ C.Type.IntroOuter a
+    done :: (S.TypeAlias.TypeAlias, (Seq Text, Seq Hash)) -> m (LocalIds' t d, S.TypeAlias.TypeAlias)
+    done (ta, (localTextValues, localDefnValues)) = do
+      textIds <- traverse saveText localTextValues
+      defnIds <- traverse saveDefn localDefnValues
+      let ids =
+            LocalIds
+              (Vector.fromList (Foldable.toList textIds))
+              (Vector.fromList (Foldable.toList defnIds))
+      pure (ids, ta)
+
+saveTypeAlias ::
+  HashHandle ->
+  Maybe ByteString ->
+  Hash ->
+  C.TypeAlias.TypeAlias Symbol ->
+  Transaction ObjectId
+saveTypeAlias hh maybeEncodedBytes h ta = do
+  (localIds, sta) <- c2sTypeAlias saveText expectObjectIdForPrimaryHash ta
+  hashId <- saveHashHash h
+  let bytes = fromMaybe mkByteString maybeEncodedBytes
+      mkByteString =
+        S.putBytes Serialization.putTypeAliasFormat $
+          S.TypeAlias.TypeAlias localIds sta
+  oId <- saveObject hh hashId ObjectType.TypeAliasComponent bytes
+  -- populate dependents index
+  let LocalIds tIds oIds = localIds
+      self = C.Reference.Id oId 0
+      dependencies :: Set S.TypeAlias.TypeRef = C.TypeAlias.dependencies sta
+      getSRef :: C.Reference.Reference' LocalTextId LocalDefnId -> S.Reference.Reference
+      getSRef = \case
+        ReferenceBuiltin t -> ReferenceBuiltin (tIds Vector.! fromIntegral t)
+        C.Reference.Derived h' i -> C.Reference.Derived (oIds Vector.! fromIntegral h') i
+  addToDependentsIndex (Set.toList (Set.map getSRef dependencies)) self
   pure oId
 
 -- | implementation detail of {s,w}2c*Term* & s2cDecl

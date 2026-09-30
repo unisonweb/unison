@@ -62,6 +62,10 @@ test =
       signatureNeedsAccompanyingBodyTest,
       emptyBlockTest,
       expectedBlockOpenTest,
+      typeAliasExpandsInDataDeclTest,
+      typeAliasExpandsInTermSignatureTest,
+      abilityRowAliasTest,
+      typeAliasCycleTest,
       patternInFunctionDeclarationTest,
       patternInFunctionDeclarationWithTypeSigTest
     ]
@@ -117,6 +121,51 @@ expectedBlockOpenTest =
     expectation e = case e of
       P.ExpectedBlockOpen _ _ -> ok
       _ -> crash "Error wasn't ExpectedBlockOpen"
+
+-- | A @type alias@ used inside a data declaration constructor type expands
+-- correctly and the file parses without error.
+typeAliasExpandsInDataDeclTest :: Test ()
+typeAliasExpandsInDataDeclTest =
+  scope "typeAliasExpandsInDataDeclTest" . parses $
+    unlines
+      [ "type alias Endo a = a -> a",
+        "type Box = Box (Endo Nat)"
+      ]
+
+-- | A @type alias@ used inside a term type signature expands correctly.
+typeAliasExpandsInTermSignatureTest :: Test ()
+typeAliasExpandsInTermSignatureTest =
+  scope "typeAliasExpandsInTermSignatureTest" . parses $
+    unlines
+      [ "type alias Endo a = a -> a",
+        "f : Endo Nat",
+        "f x = x"
+      ]
+
+-- | An ability-row alias splices its body into surrounding @Effects@ lists.
+abilityRowAliasTest :: Test ()
+abilityRowAliasTest =
+  scope "abilityRowAliasTest" . parses $
+    unlines
+      [ "structural ability Foo where foo : ()",
+        "structural ability Bar where bar : ()",
+        "type alias Web = {Foo, Bar}",
+        "f : Nat ->{Web} Nat",
+        "f x = x"
+      ]
+
+-- | Mutually-recursive aliases are rejected with 'TypeAliasCycle'.
+typeAliasCycleTest :: Test ()
+typeAliasCycleTest =
+  scope "typeAliasCycleTest" $
+    expectFileParseFailure
+      (unlines ["type alias A = B", "type alias B = A"])
+      expectation
+  where
+    expectation :: (Var e) => P.Error e -> Test ()
+    expectation e = case e of
+      P.TypeAliasCycle {} -> ok
+      _ -> crash "Error wasn't TypeAliasCycle"
 
 patternInFunctionDeclarationTest :: Test ()
 patternInFunctionDeclarationTest =

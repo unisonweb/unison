@@ -8,6 +8,7 @@ module Unison.Hashing.V2.Convert2
     v2ToH2Branch,
     v2ToH2Term,
     v2ToH2Decl,
+    v2ToH2TypeAlias,
     hashBranchFormatToH2Branch,
     hashPatchFormatToH2Patch,
   )
@@ -33,6 +34,7 @@ import U.Codebase.Sqlite.Patch.TypeEdit qualified as Memory.TypeEdit
 import U.Codebase.Term qualified as V2 (TypeRef)
 import U.Codebase.Term qualified as V2.Term
 import U.Codebase.Type qualified as V2.Type
+import U.Codebase.TypeAlias qualified as V2.TypeAlias
 import U.Core.ABT qualified as ABT
 import Unison.Hash (Hash)
 import Unison.Hashing.V2 qualified as H2
@@ -245,3 +247,11 @@ v2ToH2Decl (V2.Decl.DataDeclaration {declType, modifier, bound, constructorTypes
     v2ToH2Modifier = \case
       V2.Decl.Structural -> H2.Structural
       V2.Decl.Unique t -> H2.Unique t
+
+v2ToH2TypeAlias :: V2.TypeAlias.TypeAlias Unison.Symbol -> H2.TypeAlias Unison.Symbol ()
+v2ToH2TypeAlias (V2.TypeAlias.TypeAliasR params body) =
+  H2.TypeAlias
+    { H2.aliasAnnotation = (),
+      H2.paramNames = params,
+      H2.body = v2ToH2Type body
+    }

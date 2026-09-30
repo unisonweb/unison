@@ -22,6 +22,8 @@ import Unison.ShortHash (ShortHash)
 import Unison.Sqlite qualified as Sqlite
 import Unison.Term (Term)
 import Unison.Type (Type)
+import Unison.TypeAlias (TypeAlias)
+import Unison.TypeEntry (TypeEntry)
 import Unison.UnconflictedLocalDefnsView (UnconflictedLocalDefnsView)
 import Unison.WatchKind qualified as WK
 
@@ -43,6 +45,16 @@ data Codebase m v a = Codebase
     -- semantics of 'putTypeDeclaration'.
     getTypeDeclaration :: TypeReferenceId -> Sqlite.Transaction (Maybe (Decl v a)),
     getTypeDeclarationComponent :: Hash -> Sqlite.Transaction (Maybe [Decl v a]),
+    -- | Get a type alias entry. Returns @Nothing@ if no such alias exists or
+    -- if the reference points to a regular type declaration.
+    getTypeAlias :: TypeReferenceId -> Sqlite.Transaction (Maybe (TypeAlias v a)),
+    -- | Get either a data\/effect declaration or a type alias for the given
+    -- type reference. Aliases share the namespace's types slot with decls;
+    -- this is the single dispatch point that distinguishes them. Returns
+    -- @Nothing@ if the reference points at neither.
+    getTypeEntry :: TypeReferenceId -> Sqlite.Transaction (Maybe (TypeEntry v a)),
+    -- | Check whether a type-position reference resolves to an alias.
+    isTypeAlias :: TypeReference -> Sqlite.Transaction Bool,
     -- | Get the type of a given decl.
     getDeclType :: TypeReference -> Sqlite.Transaction CT.ConstructorType,
     expectDeclNumConstructors :: TypeReferenceId -> Sqlite.Transaction Int,
@@ -55,6 +67,10 @@ data Codebase m v a = Codebase
     -- choose to delay the put until all of the type declaration's references are stored as well.
     putTypeDeclaration :: TypeReferenceId -> Decl v a -> Sqlite.Transaction (),
     putTypeDeclarationComponent :: Hash -> [Decl v a] -> Sqlite.Transaction (),
+    -- | Save a type alias. Its body's dependencies must already be in the
+    -- codebase; aliases cannot be enqueued for deferred persistence the way
+    -- recursive decl components can, because aliases are non-recursive.
+    putTypeAlias :: TypeReferenceId -> TypeAlias v a -> Sqlite.Transaction (),
     -- getTermComponent :: Hash -> m (Maybe [Term v a]),
     getTermComponentWithTypes :: Hash -> Sqlite.Transaction (Maybe [(Term v a, Type v a)]),
     getBranchForHash :: CausalHash -> m (Maybe (Branch m)),

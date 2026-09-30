@@ -28,6 +28,7 @@ import Unison.Symbol (Symbol)
 import Unison.Syntax.Parser qualified as Parser
 import Unison.Term qualified as Term
 import Unison.Typechecker qualified as Typechecker
+import Unison.Typechecker.TypeLookup qualified as TypeLookup
 import Unison.UnisonFile qualified as UF
 import Unison.Util.Monoid (intercalateMap)
 import Unison.Util.Pretty qualified as Pretty
@@ -52,7 +53,7 @@ typecheckingEnv =
     computeTypecheckingEnvironment
       (ShouldUseTndr'Yes parsingEnv)
       []
-      (\_ -> pure (External <$ Builtin.typeLookup))
+      (\_ -> pure (TypeLookup.amap (const External) Builtin.typeLookup))
       parsedFile
 
 parsedFile :: UF.UnisonFile Symbol Ann

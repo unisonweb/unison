@@ -47,6 +47,12 @@ module Unison.Codebase
     isType,
     expectDeclNumConstructors,
 
+    -- * Type aliases
+    getTypeAlias,
+    getTypeEntry,
+    isTypeAlias,
+    putTypeAlias,
+
     -- * Branches
     SqliteCodebase.Operations.branchExists,
     getBranchForHash,
@@ -127,6 +133,7 @@ module Unison.Codebase
 where
 
 import Control.Monad.Except (ExceptT)
+import Data.Graph (flattenSCC, stronglyConnComp)
 import Data.Map qualified as Map
 import Data.Set qualified as Set
 import Data.Text qualified as Text
@@ -174,6 +181,7 @@ import Unison.Term (Term)
 import Unison.Term qualified as Term
 import Unison.Type (Type)
 import Unison.Type qualified as Type
+import Unison.TypeAlias qualified as TypeAlias
 import Unison.Typechecker.TypeLookup (TypeLookup (TypeLookup))
 import Unison.Typechecker.TypeLookup qualified as TL
 import Unison.UnisonFile qualified as UF
@@ -343,6 +351,7 @@ installUcmDependencies c = do
         ( UF.typecheckedUnisonFile
             (Map.fromList Builtin.builtinDataDecls)
             (Map.fromList Builtin.builtinEffectDecls)
+            mempty
             [Builtin.builtinTermsSrc Parser.Intrinsic]
             mempty
         )
@@ -357,16 +366,26 @@ addDefsToCodebase ::
   UF.TypecheckedUnisonFile v a ->
   Sqlite.Transaction ()
 addDefsToCodebase c uf = do
-  traverse_ (goType Right) (UF.dataDeclarationsId' uf)
-  traverse_ (goType Left) (UF.effectDeclarationsId' uf)
+  -- Alias storage needs its referenced objects to exist already. Order
+  -- aliases and declarations together, retaining recursive decl groups.
+  let types =
+        Map.fromList $
+          [(ref, Left (Right decl)) | (ref, decl) <- Map.elems (UF.dataDeclarationsId' uf)]
+            ++ [(ref, Left (Left decl)) | (ref, decl) <- Map.elems (UF.effectDeclarationsId' uf)]
+            ++ [(ref, Right alias) | (ref, alias) <- Map.elems (UF.typeAliasesId' uf)]
+      dependencies = either (DD.typeDependencies . either DD.toDataDecl id) TypeAlias.dependencies
+      components =
+        stronglyConnComp
+          [ ((ref, definition), Reference.fromId ref, Set.toList (dependencies definition))
+          | (ref, definition) <- Map.toList types
+          ]
+  for_ (concatMap flattenSCC components) \(ref, definition) ->
+    either (putTypeDeclaration c ref) (putTypeAlias c ref) definition
   -- put terms
   traverse_ goTerm (UF.hashTermsId uf)
   where
     goTerm t | debug && trace ("Codebase.addDefsToCodebase.goTerm " ++ show t) False = undefined
     goTerm (_, r, wk, tm, tp) = when (WK.watchKindShouldBeStoredInDatabase wk) (putTerm c r tm tp)
-    goType :: (Show t) => (t -> Decl v a) -> (Reference.Id, t) -> Sqlite.Transaction ()
-    goType _f pair | debug && trace ("Codebase.addDefsToCodebase.goType " ++ show pair) False = undefined
-    goType f (ref, decl) = putTypeDeclaration c ref (f decl)
 
 getTypeOfConstructor :: (Ord v) => Codebase m v a -> ConstructorReference -> Sqlite.Transaction (Maybe (Type v a))
 getTypeOfConstructor codebase (ConstructorReference r0 cid) =
@@ -435,20 +454,25 @@ typeLookupForDependencies codebase s = do
     goTerm tl ref =
       getTypeOfTerm codebase ref >>= \case
         Just typ ->
-          let z = tl <> TypeLookup (Map.singleton ref typ) mempty mempty
+          let z = tl <> TypeLookup (Map.singleton ref typ) mempty mempty mempty
            in depthFirstAccumTypes z (Type.dependencies typ)
         Nothing -> pure tl
 
     goType :: TypeLookup Symbol Ann -> TypeReference -> Sqlite.Transaction (TypeLookup Symbol Ann)
     goType tl ref@(Reference.DerivedId id) =
-      getTypeDeclaration codebase id >>= \case
-        Just (Left ed) ->
-          let z = tl <> TypeLookup mempty mempty (Map.singleton ref ed)
-           in depthFirstAccumTypes z (DD.typeDependencies $ DD.toDataDecl ed)
-        Just (Right dd) ->
-          let z = tl <> TypeLookup mempty (Map.singleton ref dd) mempty
-           in depthFirstAccumTypes z (DD.typeDependencies dd)
-        Nothing -> pure tl
+      getTypeAlias codebase id >>= \case
+        Just ta ->
+          let z = tl <> TypeLookup mempty mempty mempty (Map.singleton ref ta)
+           in depthFirstAccumTypes z (Type.dependencies (TypeAlias.body ta))
+        Nothing ->
+          getTypeDeclaration codebase id >>= \case
+            Just (Left ed) ->
+              let z = tl <> TypeLookup mempty mempty (Map.singleton ref ed) mempty
+               in depthFirstAccumTypes z (DD.typeDependencies $ DD.toDataDecl ed)
+            Just (Right dd) ->
+              let z = tl <> TypeLookup mempty (Map.singleton ref dd) mempty mempty
+               in depthFirstAccumTypes z (DD.typeDependencies dd)
+            Nothing -> pure tl
     goType tl Reference.Builtin {} = pure tl -- codebase isn't consulted for builtins
     unseen :: TL.TypeLookup Symbol a -> Reference -> Bool
     unseen tl r =
@@ -456,6 +480,7 @@ typeLookupForDependencies codebase s = do
         ( Map.lookup r (TL.dataDecls tl) $> ()
             <|> Map.lookup r (TL.typeOfTerms tl) $> ()
             <|> Map.lookup r (TL.effectDecls tl) $> ()
+            <|> Map.lookup r (TL.typeAliases tl) $> ()
         )
 
 -- | Get the type of a term.

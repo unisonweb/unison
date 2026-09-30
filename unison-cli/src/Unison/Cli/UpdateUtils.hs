@@ -9,6 +9,7 @@ module Unison.Cli.UpdateUtils
 
     -- * Hydrating definitions
     hydrateRefs,
+    hydrateAliases,
     nameHydratedRefIds,
     nameHydratedRefIds2,
 
@@ -55,6 +56,7 @@ import Unison.Symbol (Symbol)
 import Unison.Syntax.Parser qualified as Parser
 import Unison.Term (Term)
 import Unison.Type (Type)
+import Unison.TypeAlias (TypeAlias)
 import Unison.UnisonFile (TypecheckedUnisonFile)
 import Unison.Util.BiMultimap (BiMultimap)
 import Unison.Util.BiMultimap qualified as BiMultimap
@@ -110,15 +112,36 @@ subtractDependents dependents =
 ------------------------------------------------------------------------------------------------------------------------
 -- Hydrating definitions
 
--- | Hydrate term/type references to actual terms/types.
+-- | Hydrate term/type references to actual terms/types. Alias type refs
+-- are silently skipped — callers that need to handle alias dependents
+-- should load them via 'hydrateAliases'.
 hydrateRefs ::
-  Codebase m v a ->
+  Codebase m Symbol Ann ->
   DefnsF Set TermReferenceId TypeReferenceId ->
-  Transaction (Defns (Map TermReferenceId (Term v a, Type v a)) (Map TypeReferenceId (Decl v a)))
-hydrateRefs codebase =
+  Transaction (Defns (Map TermReferenceId (Term Symbol Ann, Type Symbol Ann)) (Map TypeReferenceId (Decl Symbol Ann)))
+hydrateRefs codebase refs = do
+  declRefs <- Set.foldCommutativeM keepDecl Set.empty refs.types
   bitraverse
     (hydrateRefs1 (Codebase.unsafeGetTermComponent codebase))
     (hydrateRefs1 (Codebase.expectTypeDeclarationComponent codebase))
+    Defns {terms = refs.terms, types = declRefs}
+  where
+    keepDecl ref acc =
+      Codebase.isTypeAlias codebase (Reference.fromId ref) <&> \case
+        True -> acc
+        False -> Set.insert ref acc
+
+-- | Hydrate type alias references. Decl refs are silently skipped.
+hydrateAliases ::
+  Codebase m Symbol Ann ->
+  Set TypeReferenceId ->
+  Transaction (Map TypeReferenceId (TypeAlias Symbol Ann))
+hydrateAliases codebase = Set.foldCommutativeM step Map.empty
+  where
+    step ref acc =
+      Codebase.getTypeAlias codebase ref <&> \case
+        Just ta -> Map.insert ref ta acc
+        Nothing -> acc
 
 hydrateRefs1 ::
   forall defn m.
@@ -190,10 +213,16 @@ makeUniqueTypeGuids :: Map Name TypeReference -> Transaction (Map Name Text)
 makeUniqueTypeGuids types = do
   let step :: Map TypeReferenceId Text -> TypeReferenceId -> Transaction (Map TypeReferenceId Text)
       step acc refId = do
-        decl <- Operations.expectDeclByReference refId
-        pure case decl.modifier of
-          V2.Decl.Unique guid -> Map.insert refId guid acc
-          V2.Decl.Structural -> acc
+        -- Type aliases share the type namespace slot with decls but have
+        -- no unique-type guid. Skip them.
+        isAlias <- Operations.isTypeAliasReference (Reference.fromId refId)
+        if isAlias
+          then pure acc
+          else do
+            decl <- Operations.expectDeclByReference refId
+            pure case decl.modifier of
+              V2.Decl.Unique guid -> Map.insert refId guid acc
+              V2.Decl.Structural -> acc
 
   uniqueTypeGuidsByRef <-
     Foldable.foldlM step Map.empty (foldMap toRefIds types)

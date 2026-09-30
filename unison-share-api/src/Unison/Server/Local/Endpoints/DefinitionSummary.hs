@@ -23,6 +23,7 @@ import Servant.OpenApi ()
 import U.Codebase.HashTags (CausalHash)
 import Unison.Codebase (Codebase)
 import Unison.Codebase qualified as Codebase
+import Unison.Codebase.Editor.DisplayObject qualified as DisplayObject
 import Unison.Codebase.Path qualified as Path
 import Unison.Codebase.ShortCausalHash (ShortCausalHash)
 import Unison.HashQualified qualified as HQ
@@ -102,7 +103,7 @@ serveTypeSummary codebase reference mayName _mayRoot _relativeTo mayWidth = do
     lift do
       Codebase.runTransaction codebase do
         tag <- Backend.getTypeTag codebase reference
-        displayDecl <- Backend.displayType codebase reference
+        displayDecl <- fromMaybe (DisplayObject.MissingObject shortHash) <$> Backend.displayType codebase reference
         pure (tag, displayDecl)
   let syntaxHeader = Backend.typeToSyntaxHeader width displayName displayDecl
   pure $

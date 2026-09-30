@@ -82,7 +82,7 @@ prettyDefinitionsForHQName perspective shallowRoot renderWidth suffixifyBindings
   (localNamesOnly, unbiasedPPED) <- namesAtPathFromRootBranchHash codebase shallowRoot $ Path.unabsolute namesRoot
   let pped = PPED.biasTo biases unbiasedPPED
   let nameSearch = makeNameSearch hqLength localNamesOnly
-  (DefinitionResults terms types misses) <- liftIO $ Codebase.runTransaction codebase do
+  (DefinitionResults terms types _typeAliases misses) <- liftIO $ Codebase.runTransaction codebase do
     definitionsByName codebase nameSearch DontIncludeCycles Names.ExactName (Set.singleton query)
   let width = mayDefaultWidth renderWidth
   let docResults :: Name -> IO [(HashQualifiedName, UnisonHash, Doc.Doc)]
@@ -152,7 +152,8 @@ typeDisplayObjectByName :: Codebase m Symbol Ann -> NameSearch Sqlite.Transactio
 typeDisplayObjectByName codebase nameSearch name = runMaybeT do
   refs <- lift $ NameSearch.lookupRelativeHQRefs' (NS.typeSearch nameSearch) NS.ExactName (HQ'.NameOnly name)
   ref <- fmap NESet.findMin . hoistMaybe $ NESet.nonEmptySet refs
-  fmap (ref,) . lift $ Backend.displayType codebase ref
+  obj <- MaybeT $ Backend.displayType codebase ref
+  pure (ref, obj)
 
 typeDefinitionByName ::
   Codebase IO Symbol Ann ->
