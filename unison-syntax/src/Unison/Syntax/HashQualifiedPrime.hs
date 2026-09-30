@@ -20,7 +20,7 @@ import Unison.HashQualifiedPrime qualified as HQ'
 import Unison.Name (Name)
 import Unison.Prelude hiding (fromString)
 import Unison.Syntax.Lexer.Token (Token)
-import Unison.Syntax.Name qualified as Name (nameP, toText)
+import Unison.Syntax.Name qualified as Name (namePAllowingReserved, toText)
 import Unison.Syntax.NameSegment qualified as NameSegment
 import Unison.Syntax.ShortHash qualified as ShortHash (shortHashP)
 
@@ -32,7 +32,7 @@ parseText text =
   eitherToMaybe (P.runParser parser "" (Text.unpack text))
   where
     parser =
-      hashQualifiedP (P.withParsecT (fmap NameSegment.renderParseErr) Name.nameP) <* P.eof
+      hashQualifiedP (P.withParsecT (fmap NameSegment.renderParseErr) Name.namePAllowingReserved) <* P.eof
 
 unsafeParseText :: (HasCallStack) => Text -> HQ'.HashQualified Name
 unsafeParseText txt = fromMaybe msg (parseText txt)
