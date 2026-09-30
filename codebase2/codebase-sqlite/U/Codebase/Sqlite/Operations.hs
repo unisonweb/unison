@@ -1210,10 +1210,15 @@ transitiveDependentsGraphWithinScope isBuiltinType scope0 query0
               case (dependentType, dependencyType) of
                 (ObjectType.TermComponent, Just ObjectType.TermComponent) -> TermDependsOnTerm
                 (ObjectType.TermComponent, Just ObjectType.DeclComponent) -> TermDependsOnType
+                (ObjectType.TermComponent, Just ObjectType.TypeAliasComponent) -> TermDependsOnType
                 (ObjectType.TermComponent, Nothing) | isBuiltinType dependency -> TermDependsOnType
                 (ObjectType.TermComponent, Nothing) -> TermDependsOnTerm
                 (ObjectType.DeclComponent, Just ObjectType.DeclComponent) -> TypeDependsOnType
+                (ObjectType.DeclComponent, Just ObjectType.TypeAliasComponent) -> TypeDependsOnType
                 (ObjectType.DeclComponent, Nothing) | isBuiltinType dependency -> TypeDependsOnType
+                (ObjectType.TypeAliasComponent, Just ObjectType.DeclComponent) -> TypeDependsOnType
+                (ObjectType.TypeAliasComponent, Just ObjectType.TypeAliasComponent) -> TypeDependsOnType
+                (ObjectType.TypeAliasComponent, Nothing) | isBuiltinType dependency -> TypeDependsOnType
                 (ObjectType.TermComponent, Just _) -> error ("term depends on " ++ show dependency)
                 (ObjectType.DeclComponent, Just _) -> error ("type depends on " ++ show dependency)
                 (ty, _) -> error ("dependent is " ++ show ty)

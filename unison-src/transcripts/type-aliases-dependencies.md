@@ -32,6 +32,7 @@ unwrap b = match b with
 > add
 > view Twice
 > view Outer
+> debug.dependents-graph
 ```
 
 Stored alias chains must also kindcheck and expand in a later file.

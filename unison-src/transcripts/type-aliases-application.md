@@ -44,3 +44,14 @@ main = do
 > add
 > run main
 ```
+
+Editing an alias must trigger the normal stale-dependency warning when
+running a definition that still depends on its previous version.
+
+```unison
+type alias Endo a = Nat -> a
+```
+
+```ucm:error
+> run main
+```

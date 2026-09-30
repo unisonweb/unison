@@ -64,6 +64,8 @@ unwrap b = match b with
 > view Outer
 
   structural type Outer = Outer Twice
+
+> debug.dependents-graph
 ```
 
 Stored alias chains must also kindcheck and expand in a later file.

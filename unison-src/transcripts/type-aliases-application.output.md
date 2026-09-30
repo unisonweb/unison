@@ -108,3 +108,37 @@ main = do
 
   ()
 ```
+
+Editing an alias must trigger the normal stale-dependency warning when
+running a definition that still depends on its previous version.
+
+``` unison
+type alias Endo a = Nat -> a
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  + type alias Endo a = Nat -> a
+
+  Run `update` to apply these changes to your codebase.
+```
+
+``` ucm :error
+> run main
+
+  Sorry, I don't want to run main because it depends on
+  something that hasn't been committed to the codebase yet:
+
+    main (in codebase)
+    └ increment (in codebase)
+      └ Endo (in file)
+
+  You can `update` to save and propagate these changes into your
+  branch.
+
+  If you don't want that, you can run `edit main` to add main to
+  the scratch file without performing an `update`.
+
+  Then, you can try `run main` again for an up-to-date result.
+```
