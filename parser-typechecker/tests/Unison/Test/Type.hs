@@ -24,6 +24,7 @@ import Unison.Syntax.TypePrinter qualified as TypePrinter
 import Unison.Term qualified as Term
 import Unison.Type
 import Unison.Typechecker qualified as Typechecker
+import Unison.Typechecker.Variance qualified as Variance
 import Unison.Var qualified as Var
 
 infixr 1 -->
@@ -83,6 +84,22 @@ implicitArrows =
           scope "multiple-premises" $ expectEqual (printType (implicitArrow () av (implicitArrow () bv cv))) "(a, b) => c",
           scope "argument-printing" $ expectEqual (printType (arrow () (implicitArrow () av bv) cv)) "(a => b) -> c",
           scope "explicit-spine" $ expectEqual (unArrows mixed) (Just [av, implicitArrow () bv cv]),
+          scope "physical-arity" $ expectEqual (arity mixed) 2,
+          scope "effectful-arity" $ expectEqual (arityIgnoringEffects (implicitArrow () av (effect () [bv] (arrow () bv cv)))) 2,
+          scope "is-function" $ expect (isArrow (forAll () a qualified)),
+          scope "function-result" $ expectEqual (functionResult mixed) (Just cv),
+          scope "edit-function-result" $ expectEqual (editFunctionResult (const av) mixed) (arrow () av (implicitArrow () bv av)),
+          scope "variance" $
+            expectEqual
+              (Variance.collectVariance mempty mempty mixed)
+              (Map.fromList [(a, [Variance.Negative]), (b, [Variance.Negative]), (c, [Variance.Positive])]),
+          scope "positive-effects" $
+            expectEqual
+              (removePureEffects False (forAll () b (implicitArrow () av (effect () [bv] cv))))
+              (implicitArrow () av cv),
+          scope "negative-effects" $
+            let typ = forAll () b (implicitArrow () (effect () [bv] av) cv)
+             in expectEqual (removePureEffects False typ) typ,
           scope "hashing-roundtrip" $
             let term = Term.lam () ((), a) (Term.lam () ((), b) (Term.var () a))
                 (warnings, hashed) = Hashing.hashTermComponents (Map.singleton c (term, concrete, ()))
