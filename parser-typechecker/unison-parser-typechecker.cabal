@@ -287,6 +287,7 @@ test-suite parser-typechecker-tests
       Unison.Test.Typechecker.GivenCore
       Unison.Test.Typechecker.GivenGoal
       Unison.Test.Typechecker.GivenGoals
+      Unison.Test.Typechecker.GivenLexical
       Unison.Test.Typechecker.GivenResolver
       Unison.Test.Typechecker.GivenSites
       Unison.Test.Typechecker.TypeError
