@@ -140,6 +140,7 @@ library
       Unison.Typechecker.Extractor
       Unison.Typechecker.GivenCore
       Unison.Typechecker.GivenResolver
+      Unison.Typechecker.GivenSites
       Unison.Typechecker.TypeError
       Unison.Typechecker.TypeLookup
       Unison.Typechecker.TypeVar
@@ -282,6 +283,7 @@ test-suite parser-typechecker-tests
       Unison.Test.Typechecker.Context
       Unison.Test.Typechecker.GivenCore
       Unison.Test.Typechecker.GivenResolver
+      Unison.Test.Typechecker.GivenSites
       Unison.Test.Typechecker.TypeError
       Unison.Test.Util.Pretty
       Unison.Test.Util.Relation
