@@ -6,6 +6,7 @@ module Unison.Typechecker.GivenResolver
     ResolveError (..),
     ResolutionTree (..),
     Limits (..),
+    givenFromType,
     resolve,
     resolveWith,
   )
@@ -21,6 +22,7 @@ import Unison.ABT qualified as ABT
 import Unison.Prelude
 import Unison.Reference (TermReference)
 import Unison.Type (Type)
+import Unison.Type qualified as Type
 import Unison.Var (Var)
 import Unison.Var qualified as Var
 
@@ -55,6 +57,19 @@ data ResolutionTree v loc = ResolutionTree
   deriving stock (Show)
 
 data Limits = Limits {depthLimit :: Int, workLimit :: Int}
+
+-- | Extract a candidate's quantified variables and dictionary premises.
+-- Freshening preserves the identity of shadowed type variables, including
+-- quantifiers between premises. Free variables remain rigid.
+givenFromType :: (Var v) => GivenName v -> Scope -> Type v loc -> Given v loc
+givenFromType name scope typ = go (Set.fromList (ABT.allVars typ)) [] [] typ
+  where
+    go used vars premises typ = case typ of
+      Type.ForallNamed' v body ->
+        let fresh = Var.freshIn used v
+         in go (Set.insert fresh used) (fresh : vars) premises (ABT.rename v fresh body)
+      Type.ImplicitArrow' premise body -> go used vars (premise : premises) body
+      _ -> Given name (reverse vars) (reverse premises) typ scope
 
 -- | Only matching candidates participate in shadowing. Repeated namespace
 -- aliases identify the same dictionary and do not create ambiguity.
