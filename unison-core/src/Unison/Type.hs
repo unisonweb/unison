@@ -48,6 +48,7 @@ data F a
   | IntroOuter a -- binder like ∀, used to introduce variables that are
   -- bound by outer type signatures, to support scoped type
   -- variables
+  | ImplicitArrow a a
   deriving (Foldable, Functor, Generic, Generic1, Eq, Ord, Traversable)
 
 _Ref :: Prism' (F a) TypeReference
@@ -120,6 +121,9 @@ pattern Ref' r <- ABT.Tm' (Ref r)
 
 pattern Arrow' :: ABT.Term F v a -> ABT.Term F v a -> ABT.Term F v a
 pattern Arrow' i o <- ABT.Tm' (Arrow i o)
+
+pattern ImplicitArrow' :: ABT.Term F v a -> ABT.Term F v a -> ABT.Term F v a
+pattern ImplicitArrow' i o <- ABT.Tm' (ImplicitArrow i o)
 
 pattern Arrow'' :: (Ord v) => ABT.Term F v a -> [Type v a] -> Type v a -> ABT.Term F v a
 pattern Arrow'' i es o <- Arrow' i (Effect'' es o)
@@ -505,6 +509,13 @@ arrow a i o = ABT.tm' a (Arrow i o)
 
 arrow' :: (Semigroup a, Ord v) => Type v a -> Type v a -> Type v a
 arrow' i o = arrow (ABT.annotation i <> ABT.annotation o) i o
+
+-- | A dictionary parameter, distinguished from an explicit function argument.
+implicitArrow :: (Ord v) => a -> Type v a -> Type v a -> Type v a
+implicitArrow a i o = ABT.tm' a (ImplicitArrow i o)
+
+implicitArrow' :: (Semigroup a, Ord v) => Type v a -> Type v a -> Type v a
+implicitArrow' i o = implicitArrow (ABT.annotation i <> ABT.annotation o) i o
 
 ann :: (Ord v) => a -> Type v a -> K.Kind -> Type v a
 ann a e t = ABT.tm' a (Ann e t)
@@ -906,6 +917,8 @@ instance (Show a) => Show (F a) where
       go _ (Ref r) = shows r
       go p (Arrow i o) =
         showParen (p > 0) $ showsPrec (p + 1) i <> s " -> " <> showsPrec p o
+      go p (ImplicitArrow i o) =
+        showParen (p > 0) $ showsPrec (p + 1) i <> s " => " <> showsPrec p o
       go p (Ann t k) =
         showParen (p > 1) $ shows t <> s ":" <> shows k
       go p (App f x) =
