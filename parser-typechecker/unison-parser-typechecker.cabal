@@ -141,6 +141,7 @@ library
       Unison.Typechecker.GivenApply
       Unison.Typechecker.GivenCore
       Unison.Typechecker.GivenGoal
+      Unison.Typechecker.GivenPlan
       Unison.Typechecker.GivenResolver
       Unison.Typechecker.GivenSites
       Unison.Typechecker.TypeError
@@ -289,6 +290,7 @@ test-suite parser-typechecker-tests
       Unison.Test.Typechecker.GivenGoals
       Unison.Test.Typechecker.GivenLexical
       Unison.Test.Typechecker.GivenParameters
+      Unison.Test.Typechecker.GivenPlan
       Unison.Test.Typechecker.GivenResolver
       Unison.Test.Typechecker.GivenSites
       Unison.Test.Typechecker.TypeError
