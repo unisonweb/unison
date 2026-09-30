@@ -319,6 +319,8 @@ test-suite parser-typechecker-tests
   ghc-options: -Wall -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures -W -threaded -rtsopts "-with-rtsopts=-N -T" -v0
   build-depends:
       base
+    , bytes
+    , bytestring
     , code-page
     , containers
     , easytest
@@ -327,6 +329,8 @@ test-suite parser-typechecker-tests
     , raw-strings-qq
     , temporary
     , text
+    , unison-codebase
+    , unison-codebase-sqlite
     , unison-core
     , unison-core1
     , unison-hash
