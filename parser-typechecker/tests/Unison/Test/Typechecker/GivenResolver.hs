@@ -130,7 +130,36 @@ test =
             local = Given (Local a) [] [] (app "C" nat) (Lexical 0)
         case resolveWith (Limits 5 1) [grow, local] (app "C" nat) of
           Right tree -> expectEqual (Local a) (resolvedGiven tree)
-          Left _ -> crash "a matching local dictionary must shadow the unbounded ambient search"
+          Left _ -> crash "a matching local dictionary must shadow the unbounded ambient search",
+      scope "more-specific-declared-conclusion" do
+        let a = Var.named "a"
+            va = Type.var () a
+            generic = Given (Global (Reference.Builtin "generic")) [a] [] (app "C" va) Ambient
+            concrete = ambient "concrete" (app "C" nat)
+        for_ (permutations [generic, concrete]) \pool ->
+          expectChoice "concrete" (resolve pool (app "C" nat)),
+      scope "equivalent-patterns-stay-ambiguous" do
+        let a = Var.named "a"
+            b = Var.named "b"
+            generic name v = Given (Global (Reference.Builtin name)) [v] [] (app "C" (Type.var () v)) Ambient
+        case resolve [generic "first" a, generic "second" b] (app "C" nat) of
+          Left (Ambiguous _ names) -> expectEqual 2 (length names)
+          _ -> crash "alpha-equivalent patterns must tie",
+      scope "incomparable-patterns-stay-ambiguous" do
+        let a = Var.named "a"
+            va = Type.var () a
+            pair x y = Type.app () (app "Pair" x) y
+            repeated = Given (Global (Reference.Builtin "repeated")) [a] [] (pair va va) Ambient
+            fixed = Given (Global (Reference.Builtin "fixed")) [a] [] (pair va nat) Ambient
+        case resolve [repeated, fixed] (pair nat nat) of
+          Left (Ambiguous _ _) -> ok
+          _ -> crash "overlapping patterns need not be ordered by specificity",
+      scope "lexical-scope-precedes-specificity" do
+        let a = Var.named "a"
+            generic = Given (Local a) [a] [] (app "C" (Type.var () a)) (Lexical 0)
+        case resolve [generic, ambient "concrete" (app "C" nat)] (app "C" nat) of
+          Right tree -> expectEqual (Local a) (resolvedGiven tree)
+          Left _ -> crash "the local generic dictionary must shadow the ambient concrete one"
     ]
   where
     nat, text :: Type.Type Symbol ()
