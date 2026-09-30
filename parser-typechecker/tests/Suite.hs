@@ -24,6 +24,7 @@ import Unison.Test.Type qualified as Type
 import Unison.Test.Typechecker qualified as Typechecker
 import Unison.Test.Typechecker.Context qualified as Context
 import Unison.Test.Typechecker.GivenApply qualified as GivenApply
+import Unison.Test.Typechecker.GivenBindings qualified as GivenBindings
 import Unison.Test.Typechecker.GivenCore qualified as GivenCore
 import Unison.Test.Typechecker.GivenGoal qualified as GivenGoal
 import Unison.Test.Typechecker.GivenGoals qualified as GivenGoals
@@ -58,6 +59,7 @@ test =
       Typechecker.test,
       Context.test,
       GivenApply.test,
+      GivenBindings.test,
       GivenCore.test,
       GivenGoal.test,
       GivenGoals.test,

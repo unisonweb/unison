@@ -422,6 +422,7 @@ data InfoNote v loc
     -- Its type retains unsolved existentials across generalization.
     ConstraintGoal SiteId Int loc (Type v loc) [(v, Given.Scope, Type v loc)]
   | DictionaryParameter SiteId loc v
+  | GivenBinding SiteId loc v Given.Scope (Type v loc)
   deriving (Show)
 
 topLevelComponent :: (Var v) => [(v, Type.Type v loc, RedundantTypeAnnotation)] -> InfoNote v loc
@@ -447,6 +448,7 @@ substituteSolved ::
 substituteSolved ctx = \case
   (SolvedBlank b v t) -> SolvedBlank b v (apply ctx t)
   VarBinding v loc t -> VarBinding v loc (apply ctx t)
+  GivenBinding site loc v scope typ -> GivenBinding site loc v scope (apply ctx typ)
   ConstraintGoal site slot loc t givens -> ConstraintGoal site slot loc (apply ctx t) [(v, depth, apply ctx typ) | (v, depth, typ) <- givens]
   i -> i
 
@@ -1179,6 +1181,16 @@ noteTopLevelType e binding typ = case binding of
       topLevelComponent
         [(Var.reset (ABT.variable e), generalizeAndUnTypeVar typ, True)]
 
+-- | Record the completed scheme separately from the types visible during
+-- inference, so forward given references can use the final binding type.
+noteGivenBinding :: loc -> Type v loc -> M v loc ()
+noteGivenBinding location typ = do
+  identify <- gets implicitSite
+  marked <- gets givenBindings
+  for_ (identify >>= (\f -> f location)) \site ->
+    for_ (Map.lookup site marked) \(identity, depth) ->
+      btw (GivenBinding site location identity (Given.Lexical depth) typ)
+
 -- | Take note of the types and locations of all bindings, including let bindings, letrec
 -- bindings, lambda argument bindings and top-level bindings.
 -- This information is used to provide information to the LSP after typechecking.
@@ -1334,6 +1346,7 @@ synthesizeWanted tm@(Term.Request' r) =
     =<< getEffectConstructorType r
 synthesizeWanted (Term.Let1Top' top binding boundVarAnn e) = do
   (tbinding, wb) <- synthesizeBinding top binding
+  noteGivenBinding boundVarAnn tbinding
   v' <- ABT.freshen e freshenVar
   when (Var.isAction (ABT.variable e)) . scope InActionRestriction $
     -- enforce that actions in a block have type ()
@@ -2368,6 +2381,7 @@ withoutImplicitGoals :: M v loc a -> M v loc a
 withoutImplicitGoals (MT action) = MT \ppe pmcSwitch vars datas effects defs env ->
   let keep ConstraintGoal {} = False
       keep DictionaryParameter {} = False
+      keep GivenBinding {} = False
       keep _ = True
    in case action ppe pmcSwitch vars datas effects defs env of
         Success notes (result, after) -> Success (Seq.filter keep notes) (result, after {implicitSlots = implicitSlots env})
@@ -2485,6 +2499,9 @@ annotateLetRecBindings' letrec useAnn = do
         zip (bndVars ubnds) gbndTyps
           ++ zip (bndVars abnds) (bndTyps abnds)
 
+  for_ allAnns \case
+    Ann _ location typ -> noteGivenBinding location typ
+    _ -> pure ()
   pure (body, vTypes)
   where
     closed = Set.null . ABT.freeVars
@@ -3202,6 +3219,7 @@ checkWanted exact want tm@(Term.Var' _) ty@(Type.Arrow'' i es o) =
       coalesceWanted wnew want
 checkWanted exact want (Term.Let1Top' top binding boundVarAnn m) t = do
   (tbinding, wbinding) <- synthesizeBinding top binding
+  noteGivenBinding boundVarAnn tbinding
   want <- coalesceWanted wbinding want
   v <- ABT.freshen m freshenVar
   markThenRetractWanted v $ do
