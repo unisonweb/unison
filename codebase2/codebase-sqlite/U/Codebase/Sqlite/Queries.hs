@@ -2738,6 +2738,7 @@ c2sDecl saveText saveDefn (C.Decl.DataDeclaration dt m b cts) = do
       C.Type.Effects es -> pure $ C.Type.Effects es
       C.Type.Forall a -> pure $ C.Type.Forall a
       C.Type.IntroOuter a -> pure $ C.Type.IntroOuter a
+      C.Type.ImplicitArrow i o -> pure $ C.Type.ImplicitArrow i o
     done :: (S.Decl.Decl Symbol, (Seq Text, Seq Hash)) -> m (LocalIds' t d, S.Decl.Decl Symbol)
     done (decl, (localTextValues, localDefnValues)) = do
       textIds <- traverse saveText localTextValues
@@ -2806,6 +2807,7 @@ c2xTerm saveText saveDefn tm tp =
       C.Type.Effects es -> pure $ C.Type.Effects es
       C.Type.Forall a -> pure $ C.Type.Forall a
       C.Type.IntroOuter a -> pure $ C.Type.IntroOuter a
+      C.Type.ImplicitArrow i o -> pure $ C.Type.ImplicitArrow i o
     goCase ::
       forall m w s a.
       ( MonadState s m,
