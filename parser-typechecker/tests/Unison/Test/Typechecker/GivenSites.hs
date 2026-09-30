@@ -92,6 +92,40 @@ test =
                   expect (local /= x)
                   expectEqual local localUse
                 _ -> crash "unexpected file",
+            scope "recursive-givens-visible-in-every-rhs" $ do
+              let p = prepare (Term.letRec' False [(x, External, v y), (y, External, v x)] (v x))
+                  marked = Map.keysSet (binderRenamings p)
+                  visible = visibleGivens p marked
+              case preparedTerm p of
+                Term.LetRecNamed' bindings body ->
+                  for_ (body : map snd bindings) \node ->
+                    expectEqual (Map.lookup ((fromMaybe (error "test site missing")) (siteId (ABT.annotation node))) visible) (Just marked)
+                _ -> crash "wrong recursive fixture",
+            scope "nonrecursive-given-only-visible-in-body" $ do
+              let p = prepare (Term.let1' False [(x, v y)] (v x))
+                  marked = Map.keysSet (binderRenamings p)
+                  visible = visibleGivens p marked
+              case preparedTerm p of
+                Term.Let1Named' _ rhs body -> do
+                  expectEqual (Map.lookup ((fromMaybe (error "test site missing")) (siteId (ABT.annotation rhs))) visible) (Just Set.empty)
+                  expectEqual (Map.lookup ((fromMaybe (error "test site missing")) (siteId (ABT.annotation body))) visible) (Just marked)
+                _ -> crash "wrong nonrecursive fixture",
+            scope "givens-do-not-leak-to-siblings" $ do
+              let p = prepare (Term.app External (Term.lam External (External, x) (v x)) (Term.lam External (External, y) (v y)))
+                  marked = Map.keysSet (binderRenamings p)
+                  visible = visibleGivens p marked
+              case preparedTerm p of
+                Term.App' (Term.LamNamed' _ left) (Term.LamNamed' _ right) -> do
+                  let at node = visible Map.! (fromMaybe (error "test site missing")) (siteId (ABT.annotation node))
+                  expectEqual (Set.size (at left)) 1
+                  expectEqual (Set.size (at right)) 1
+                  expect (Set.disjoint (at left) (at right))
+                _ -> crash "wrong sibling fixture",
+            scope "unmarked-shadow-does-not-replace-given" $ do
+              let marked = Set.singleton (fst (Map.findMin (binderRenamings prepared)))
+                  visible = visibleGivens prepared marked
+                  innermost = last (nodes (preparedTerm prepared))
+              expectEqual (Map.lookup ((fromMaybe (error "test site missing")) (siteId (ABT.annotation innermost))) visible) (Just marked),
             scope "deterministic-and-replaces-old-identities" $ do
               let stale = ABT.amap (atSite (SiteId 99)) nested
               expectEqual (identities (prepare stale)) (identities prepared)
