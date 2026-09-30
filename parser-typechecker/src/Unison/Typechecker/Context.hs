@@ -6,6 +6,7 @@
 
 module Unison.Typechecker.Context
   ( synthesizeClosed,
+    synthesizeClosedWithImplicits,
     ErrorNote (..),
     CompilerBug (..),
     InfoNote (..),
@@ -88,6 +89,7 @@ import Unison.DataDeclaration qualified as DD
 import Unison.DataDeclaration.ConstructorId (ConstructorId)
 import Unison.KindInference qualified as KindInference
 import Unison.Name (Name)
+import Unison.Parser.Ann (SiteId)
 import Unison.Pattern (Pattern)
 import Unison.Pattern qualified as Pattern
 import Unison.PatternMatchCoverage (checkMatch)
@@ -147,7 +149,12 @@ universal' :: (Ord v) => a -> v -> Type.Type (TypeVar v loc) a
 universal' a v = ABT.annotatedVar a (TypeVar.Universal v)
 
 -- The typechecking state
-data Env v loc = Env {freshId :: Word64, ctx :: Context v loc}
+data Env v loc = Env
+  { freshId :: Word64,
+    ctx :: Context v loc,
+    implicitSite :: Maybe (loc -> Maybe SiteId),
+    implicitSlots :: Map SiteId Int
+  }
 
 type DataDeclarations v loc = Map Reference (DataDeclaration v loc)
 
@@ -398,6 +405,9 @@ data InfoNote v loc
     VarBinding v loc (Type v loc)
   | -- | The usage of a particular variable. We report the variable and its location so we can match a given source location with a specific symbol later in the LSP.
     VarMention v loc
+  | -- A dictionary argument at an identified expression and positional slot.
+    -- Its type retains unsolved existentials across generalization.
+    ConstraintGoal SiteId Int loc (Type v loc)
   deriving (Show)
 
 topLevelComponent :: (Var v) => [(v, Type.Type v loc, RedundantTypeAnnotation)] -> InfoNote v loc
@@ -423,6 +433,7 @@ substituteSolved ::
 substituteSolved ctx = \case
   (SolvedBlank b v t) -> SolvedBlank b v (apply ctx t)
   VarBinding v loc t -> VarBinding v loc (apply ctx t)
+  ConstraintGoal site slot loc t -> ConstraintGoal site slot loc (apply ctx t)
   i -> i
 
 -- The typechecker generates synthetic type variables as part of type inference.
@@ -1054,6 +1065,21 @@ synthesizeApp fun (Type.stripIntroOuters -> Type.Effect'' es ft) argp@(arg, argN
       appendContext [existential v]
       let ft2 = ABT.bindInheritAnnotation body (existential' () B.Blank v)
       synthesizeApp fun ft2 argp
+    go ft@(Type.ImplicitArrow' _ _) = do
+      enabled <- gets (isJust . implicitSite)
+      if not enabled
+        then getContext >>= \ctx -> failWith (TypeMismatch ctx)
+        else do
+          -- Each prefix has its own identity: f x and f x y are different sites.
+          let prefixes node = case node of
+                Term.App' head _ -> prefixes head ++ [node]
+                _ -> [node]
+          prefix <- case drop (argNum - 1) (prefixes fun) of
+            prefix : _ -> pure prefix
+            [] -> compilerCrash (OtherBug "implicit application prefix is missing")
+          (ft, implicitWant) <- peelImplicits prefix ft
+          (result, want) <- synthesizeApp fun ft argp
+          (result,) <$> coalesceWanted implicitWant want
     go (Type.Arrow' i o0) = do
       -- ->App
       defs <- getCurrentDefs
@@ -1122,7 +1148,7 @@ noteTopLevelType ::
   M v loc ()
 noteTopLevelType e binding typ = case binding of
   Term.Ann' strippedBinding _ -> do
-    inferred <- (Just <$> synthesizeTop strippedBinding) `orElse` pure Nothing
+    inferred <- withoutImplicitGoals $ (Just <$> synthesizeTop strippedBinding) `orElse` pure Nothing
     case inferred of
       Nothing -> do
         btw $
@@ -1178,9 +1204,34 @@ synthesize e = scope (InSynthesize e) $
   case minimize' e of
     Left es -> failWith (DuplicateDefinitions es)
     Right e -> do
-      (Type.Effect'' es t, want) <- synthesizeWanted e
+      (typ, want) <- synthesizeWanted e
+      (Type.Effect'' es t, implicitWant) <- peelImplicits e typ
+      want <- if null implicitWant then pure want else coalesceWanted implicitWant want
       want <- coalesceWanted (fmap (Just e,) es) want
       pure (t, want)
+
+-- | Consume leading dictionary parameters only in the explicit elaboration API.
+-- The normal checker remains unchanged until the caller can resolve every goal,
+-- insert its term, and verify the rewritten core against its stored signature.
+peelImplicits :: (Var v, Ord loc, Semigroup loc) => Term v loc -> Type v loc -> M v loc (Type v loc, Wanted v loc)
+peelImplicits term typ =
+  gets implicitSite >>= \case
+    Nothing -> pure (typ, [])
+    Just identify -> go identify typ
+  where
+    go identify typ = case typ of
+      Type.Forall' _ -> ungeneralize typ >>= go identify
+      Type.Effect' effects result -> do
+        (typ, want) <- go identify result
+        (typ,) <$> coalesceWanted ((Just term,) <$> effects) want
+      Type.ImplicitArrow' premise result -> do
+        site <- maybe (compilerCrash (OtherBug "implicit expression has no site identity")) pure (identify (loc term))
+        slots <- gets implicitSlots
+        let slot = Map.findWithDefault 0 site slots
+        modEnv (\env -> env {implicitSlots = Map.insert site (slot + 1) slots})
+        btw . ConstraintGoal site slot (loc term) =<< applyM premise
+        go identify result
+      _ -> pure (typ, [])
 
 -- | Helper function for turning an ability request's type into the
 -- results used by type checking.
@@ -2256,8 +2307,9 @@ annotateLetRecBindings isTop letrec =
       -- This will infer whatever type.  If it altogether fails to typecheck here
       -- then, ...(1)
       withoutAnnotations <-
-        resetContextAfter Nothing $
-          Just <$> annotateLetRecBindings' letrec False
+        withoutImplicitGoals $
+          resetContextAfter Nothing $
+            Just <$> annotateLetRecBindings' letrec False
       -- convert from typechecker TypeVar back to regular `v` vars
       let unTypeVar (v, t) = (v, generalizeAndUnTypeVar t)
       case withoutAnnotations of
@@ -2273,6 +2325,17 @@ annotateLetRecBindings isTop letrec =
       -- If this isn't a top-level letrec, then we don't have to do anything special
       (body, _vts) <- annotateLetRecBindings' letrec True
       pure body
+
+-- Probing whether annotations are redundant must not elaborate the source
+-- a second time. Preserve ordinary diagnostics but discard speculative goals.
+withoutImplicitGoals :: M v loc a -> M v loc a
+withoutImplicitGoals (MT action) = MT \ppe pmcSwitch vars datas effects defs env ->
+  let keep ConstraintGoal {} = False
+      keep _ = True
+   in case action ppe pmcSwitch vars datas effects defs env of
+        Success notes (result, after) -> Success (Seq.filter keep notes) (result, after {implicitSlots = implicitSlots env})
+        TypeError errors notes -> TypeError errors (Seq.filter keep notes)
+        CompilerBug bug errors notes -> CompilerBug bug errors (Seq.filter keep notes)
 
 -- A wrapper type for demuxed binding information in a let. Only used
 -- locally.
@@ -3986,7 +4049,34 @@ synthesizeClosed ::
   TL.TypeLookup v loc ->
   Term v loc ->
   Result v loc (Type v loc)
-synthesizeClosed ppe pmcSwitch vars abilities lookupType term0 =
+synthesizeClosed = synthesizeClosedUsing Nothing
+
+-- | Internal elaboration entry point. A successful result is provisional until
+-- every ConstraintGoal has a determined type and inserted dictionaries pass
+-- GivenCore.verifyBindings. This API does not store or evaluate terms.
+synthesizeClosedWithImplicits ::
+  (BuiltinAnnotation loc, Var v, Ord loc, Show loc, Semigroup loc) =>
+  (loc -> Maybe SiteId) ->
+  PrettyPrintEnv ->
+  PatternMatchCoverageCheckAndKindInferenceSwitch ->
+  Map Reference [Variance] ->
+  [Type v loc] ->
+  TL.TypeLookup v loc ->
+  Term v loc ->
+  Result v loc (Type v loc)
+synthesizeClosedWithImplicits identify = synthesizeClosedUsing (Just identify)
+
+synthesizeClosedUsing ::
+  (BuiltinAnnotation loc, Var v, Ord loc, Show loc, Semigroup loc) =>
+  Maybe (loc -> Maybe SiteId) ->
+  PrettyPrintEnv ->
+  PatternMatchCoverageCheckAndKindInferenceSwitch ->
+  Map Reference [Variance] ->
+  [Type v loc] ->
+  TL.TypeLookup v loc ->
+  Term v loc ->
+  Result v loc (Type v loc)
+synthesizeClosedUsing identify ppe pmcSwitch vars abilities lookupType term0 =
   let datas = TL.dataDecls lookupType
       effects = TL.effectDecls lookupType
       term = annotateRefs (TL.typeOfTerm' lookupType) term0
@@ -3994,6 +4084,7 @@ synthesizeClosed ppe pmcSwitch vars abilities lookupType term0 =
         Left missingRef ->
           compilerCrashResult (UnknownTermReference missingRef)
         Right term -> run ppe pmcSwitch vars datas effects $ do
+          modEnv (\env -> env {implicitSite = identify})
           liftResult $
             verifyDataDeclarations datas
               *> verifyDataDeclarations (DD.toDataDecl <$> effects)
@@ -4066,7 +4157,7 @@ run ::
 run ppe pmcSwitch vars datas effects m =
   fmap fst
     . runM m ppe pmcSwitch vars datas effects []
-    $ Env 1 context0
+    $ Env 1 context0 Nothing Map.empty
 
 synthesizeClosed' ::
   (Var v, Ord loc, Semigroup loc) =>
