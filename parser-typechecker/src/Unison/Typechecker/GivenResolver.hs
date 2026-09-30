@@ -1,13 +1,19 @@
--- | Dictionary selection for already determined, monomorphic goals.
+-- | Bounded dictionary search for already determined goals.
 module Unison.Typechecker.GivenResolver
   ( GivenName (..),
     Scope (..),
     Given (..),
     ResolveError (..),
+    ResolutionTree (..),
+    Limits (..),
     resolve,
+    resolveWith,
   )
 where
 
+import Control.Monad.Except (ExceptT (..), runExceptT)
+import Control.Monad.State.Strict (State, evalState, get, put)
+import Data.List (mapAccumL)
 import Data.List.NonEmpty (NonEmpty (..))
 import Data.Map.Strict qualified as Map
 import Data.Set qualified as Set
@@ -29,6 +35,7 @@ data Scope = Ambient | Lexical Int
 data Given v loc = Given
   { givenName :: GivenName v,
     givenTyVars :: [v],
+    givenPremises :: [Type v loc],
     givenConclusion :: Type v loc,
     givenScope :: Scope
   }
@@ -37,28 +44,76 @@ data Given v loc = Given
 data ResolveError v loc
   = NoGiven (Type v loc)
   | Ambiguous (Type v loc) (NonEmpty (GivenName v))
+  | SearchLimit [Type v loc]
   deriving stock (Show)
+
+data ResolutionTree v loc = ResolutionTree
+  { resolvedGiven :: GivenName v,
+    resolvedType :: Type v loc,
+    resolvedPremises :: [ResolutionTree v loc]
+  }
+  deriving stock (Show)
+
+data Limits = Limits {depthLimit :: Int, workLimit :: Int}
 
 -- | Only matching candidates participate in shadowing. Repeated namespace
 -- aliases identify the same dictionary and do not create ambiguity.
-resolve :: (Var v) => [Given v loc] -> Type v loc -> Either (ResolveError v loc) (GivenName v)
-resolve pool goal =
-  case Map.toAscList matches of
-    [] -> Left (NoGiven goal)
-    candidates@((_, firstScope) : rest) ->
-      let depth = foldl' max firstScope (map snd rest)
-       in case [name | (name, scope) <- candidates, scope == depth] of
-            [name] -> Right name
-            name : names -> Left (Ambiguous goal (name :| names))
-            [] -> Left (NoGiven goal)
+resolve :: (Var v) => [Given v loc] -> Type v loc -> Either (ResolveError v loc) (ResolutionTree v loc)
+resolve = resolveWith (Limits 50 10000)
+
+-- | A search limit is inconclusive, so it cannot be treated as a failed
+-- candidate when deciding that another candidate is the unique winner.
+resolveWith :: forall v loc. (Var v) => Limits -> [Given v loc] -> Type v loc -> Either (ResolveError v loc) (ResolutionTree v loc)
+resolveWith limits pool goal = evalState (search [] goal) 0
   where
-    matches =
-      Map.fromListWith
-        max
-        [ (givenName, givenScope)
-        | Given {givenName, givenTyVars, givenConclusion, givenScope} <- pool,
-          isJust (matchType (Set.fromList givenTyVars) givenConclusion goal)
-        ]
+    candidates = Map.elems (Map.fromListWith deeperGiven [(givenName g, g) | g <- pool])
+    deeperGiven g h = if givenScope g >= givenScope h then g else h
+    scopes = map (reverse . snd) (Map.toDescList (Map.fromListWith (<>) [(givenScope g, [g]) | g <- candidates]))
+    search :: [Type v loc] -> Type v loc -> State Int (Either (ResolveError v loc) (ResolutionTree v loc))
+    search ancestors goal
+      | goal `elem` ancestors = pure (Left (NoGiven goal))
+      | length ancestors > depthLimit limits = pure (Left (SearchLimit (reverse (goal : ancestors))))
+      | otherwise = searchScopes ancestors goal scopes
+
+    searchScopes _ goal [] = pure (Left (NoGiven goal))
+    searchScopes ancestors goal (scope : rest) = do
+      attempts <- traverse (attempt (goal : ancestors) goal) scope
+      case [chain | Left (SearchLimit chain) <- attempts] of
+        chain : _ -> pure (Left (SearchLimit chain))
+        [] -> case [(given, tree) | Right (given, tree) <- attempts] of
+          [] -> searchScopes ancestors goal rest
+          successes -> pure (select goal successes)
+
+    attempt ancestors goal given = do
+      work <- get
+      put (work + 1)
+      if work >= workLimit limits
+        then pure (Left (SearchLimit (reverse ancestors)))
+        else case instantiate goal given of
+          Nothing -> pure (Left (NoGiven goal))
+          Just premises -> do
+            children <- runExceptT (traverse (ExceptT . search ancestors) premises)
+            pure ((\trees -> (given, ResolutionTree (givenName given) goal trees)) <$> children)
+
+    select goal successes = case successes of
+      [] -> Left (NoGiven goal)
+      [(_, tree)] -> Right tree
+      (g, _) : gs -> Left (Ambiguous goal (givenName g :| map (givenName . fst) gs))
+
+-- | Freshen candidate variables away from the goal before substitution.
+-- Every variable needed by a premise must be determined by head matching.
+instantiate :: (Var v) => Type v loc -> Given v loc -> Maybe [Type v loc]
+instantiate goal Given {givenTyVars, givenPremises, givenConclusion} = do
+  let used = Set.fromList (givenTyVars <> concatMap ABT.allVars (goal : givenConclusion : givenPremises))
+      freshen seen v = let v' = Var.freshIn seen v in (Set.insert v' seen, v')
+      (_, fresh) = mapAccumL freshen used givenTyVars
+      rename = ABT.substsInheritAnnotation (zip givenTyVars (map ABT.var fresh))
+      conclusion = rename givenConclusion
+      premises = map rename givenPremises
+  substitution <- matchType (Set.fromList fresh) conclusion goal
+  let needed = Set.fromList fresh `Set.intersection` Set.unions (map ABT.freeVars premises)
+  guard (needed `Set.isSubsetOf` Map.keysSet substitution)
+  pure (map (ABT.substsInheritAnnotation (Map.toList substitution)) premises)
 
 -- | Instantiate only candidate variables. Goal variables remain rigid, even
 -- when they have the same names as variables quantified by the candidate.
