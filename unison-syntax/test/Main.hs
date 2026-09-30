@@ -4,13 +4,17 @@ import EasyTest
 import System.Environment (getArgs)
 import System.IO
 import System.IO.CodePage (withCP65001)
+import Unison.Test.AnnotationSites qualified as AnnotationSites
 import Unison.Test.Doc qualified as Doc
+import Unison.Test.NamespaceNames qualified as NamespaceNames
 import Unison.Test.Unison qualified as Unison
 
 test :: Test ()
 test =
   tests
-    [ Doc.test,
+    [ AnnotationSites.test,
+      Doc.test,
+      NamespaceNames.test,
       Unison.test
     ]
 
