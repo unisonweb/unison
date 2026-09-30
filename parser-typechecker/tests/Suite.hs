@@ -11,6 +11,7 @@ import Unison.Core.Test.Name qualified as Name
 import Unison.Test.ABT qualified as ABT
 import Unison.Test.Codebase.Branch qualified as Branch
 import Unison.Test.Codebase.Causal qualified as Causal
+import Unison.Test.Codebase.Givens qualified as Givens
 import Unison.Test.Codebase.Path qualified as Path
 import Unison.Test.CodebaseInit qualified as CodebaseInit
 import Unison.Test.DataDeclaration qualified as DataDeclaration
@@ -43,6 +44,7 @@ test =
       Relation.test,
       Path.test,
       Causal.test,
+      Givens.test,
       Referent.test,
       ABT.test,
       Var.test,
