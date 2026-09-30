@@ -101,6 +101,7 @@ monotype t = Monotype <$> ABT.visit isMono t
 arity :: Type v a -> Int
 arity (ForallNamed' _ body) = arity body
 arity (Arrow' _ o) = 1 + arity o
+arity (ImplicitArrow' _ o) = 1 + arity o
 arity (Ann' a _) = arity a
 arity _ = 0
 
@@ -111,6 +112,7 @@ arity _ = 0
 arityIgnoringEffects :: Type v a -> Int
 arityIgnoringEffects (ForallNamed' _ body) = arityIgnoringEffects body
 arityIgnoringEffects (Arrow' _ o) = 1 + arityIgnoringEffects o
+arityIgnoringEffects (ImplicitArrow' _ o) = 1 + arityIgnoringEffects o
 arityIgnoringEffects (Ann' a _) = arityIgnoringEffects a
 arityIgnoringEffects (Effect' _ o) = arityIgnoringEffects o
 arityIgnoringEffects _ = 0
@@ -264,6 +266,7 @@ unEffects1 _ = Nothing
 isArrow :: (ABT.Var v) => Type v a -> Bool
 isArrow (ForallNamed' _ t) = isArrow t
 isArrow (Arrow' _ _) = True
+isArrow (ImplicitArrow' _ _) = True
 isArrow _ = False
 
 -- some smart constructors
@@ -778,6 +781,8 @@ removePureEffects keepEmptied t
 
     keepVarsT pos (Arrow' i o) =
       keepVarsT (not pos) i <> keepVarsT pos o
+    keepVarsT pos (ImplicitArrow' i o) =
+      keepVarsT (not pos) i <> keepVarsT pos o
     keepVarsT pos (Effect1' e o) =
       keepVarsT pos e <> keepVarsT pos o
     keepVarsT pos (Effects' es) = foldMap (keepVarsE pos) es
@@ -806,6 +811,8 @@ editFunctionResult f = go
         (\x -> ABT.Term (s <> freeVars x) a . ABT.Tm $ Forall x) $ go t
       ABT.Tm (Arrow i o) ->
         (\x -> ABT.Term (s <> freeVars x) a . ABT.Tm $ Arrow i x) $ go o
+      ABT.Tm (ImplicitArrow i o) ->
+        (\x -> ABT.Term (s <> freeVars x) a . ABT.Tm $ ImplicitArrow i x) $ go o
       ABT.Abs v r ->
         (\x -> ABT.Term (s <> freeVars x) a $ ABT.Abs v x) $ go r
       _ -> f (ABT.Term s a t)
@@ -815,6 +822,7 @@ functionResult = go False
   where
     go inArr (ForallNamed' _ body) = go inArr body
     go _inArr (Arrow' _i o) = go True o
+    go _inArr (ImplicitArrow' _i o) = go True o
     go _inArr (Effect1' _e body) = go True body
     go inArr t = if inArr then Just t else Nothing
 
