@@ -95,10 +95,18 @@ resolveWith limits pool goal = evalState (search [] goal) 0
             children <- runExceptT (traverse (ExceptT . search ancestors) premises)
             pure ((\trees -> (given, ResolutionTree (givenName given) goal trees)) <$> children)
 
-    select goal successes = case successes of
+    select goal successes = case filter (\(g, _) -> not (any (\(h, _) -> moreSpecific h g) successes)) successes of
       [] -> Left (NoGiven goal)
       [(_, tree)] -> Right tree
       (g, _) : gs -> Left (Ambiguous goal (givenName g :| map (givenName . fst) gs))
+
+-- | Compare declared conclusions, before specializing either to the goal.
+-- Equivalent or incomparable patterns remain ambiguous.
+moreSpecific :: (Var v) => Given v loc -> Given v loc -> Bool
+moreSpecific a b = matches b a && not (matches a b)
+  where
+    matches candidate target =
+      isJust (matchType (Set.fromList (givenTyVars candidate)) (givenConclusion candidate) (givenConclusion target))
 
 -- | Freshen candidate variables away from the goal before substitution.
 -- Every variable needed by a premise must be determined by head matching.
