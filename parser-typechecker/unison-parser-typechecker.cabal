@@ -41,6 +41,7 @@ library
       Unison.Codebase.Editor.DisplayObject
       Unison.Codebase.Editor.RemoteRepo
       Unison.Codebase.FileCodebase
+      Unison.Codebase.Givens
       Unison.Codebase.Init
       Unison.Codebase.Init.CreateCodebaseError
       Unison.Codebase.Init.OpenCodebaseError
@@ -265,6 +266,7 @@ test-suite parser-typechecker-tests
       Unison.Test.ABT
       Unison.Test.Codebase.Branch
       Unison.Test.Codebase.Causal
+      Unison.Test.Codebase.Givens
       Unison.Test.Codebase.Path
       Unison.Test.CodebaseInit
       Unison.Test.Common
