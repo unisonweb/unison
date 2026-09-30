@@ -11,6 +11,7 @@ import Unison.Core.Test.Name qualified as Name
 import Unison.Test.ABT qualified as ABT
 import Unison.Test.Codebase.Branch qualified as Branch
 import Unison.Test.Codebase.Causal qualified as Causal
+import Unison.Test.Codebase.Givens qualified as Givens
 import Unison.Test.Codebase.Path qualified as Path
 import Unison.Test.CodebaseInit qualified as CodebaseInit
 import Unison.Test.DataDeclaration qualified as DataDeclaration
@@ -22,6 +23,16 @@ import Unison.Test.Term qualified as Term
 import Unison.Test.Type qualified as Type
 import Unison.Test.Typechecker qualified as Typechecker
 import Unison.Test.Typechecker.Context qualified as Context
+import Unison.Test.Typechecker.GivenApply qualified as GivenApply
+import Unison.Test.Typechecker.GivenBindings qualified as GivenBindings
+import Unison.Test.Typechecker.GivenCore qualified as GivenCore
+import Unison.Test.Typechecker.GivenGoal qualified as GivenGoal
+import Unison.Test.Typechecker.GivenGoals qualified as GivenGoals
+import Unison.Test.Typechecker.GivenLexical qualified as GivenLexical
+import Unison.Test.Typechecker.GivenParameters qualified as GivenParameters
+import Unison.Test.Typechecker.GivenPlan qualified as GivenPlan
+import Unison.Test.Typechecker.GivenResolver qualified as GivenResolver
+import Unison.Test.Typechecker.GivenSites qualified as GivenSites
 import Unison.Test.Typechecker.TypeError qualified as TypeError
 import Unison.Test.Util.Relation qualified as Relation
 import Unison.Test.Util.Text qualified as Text
@@ -41,11 +52,22 @@ test =
       Relation.test,
       Path.test,
       Causal.test,
+      Givens.test,
       Referent.test,
       ABT.test,
       Var.test,
       Typechecker.test,
       Context.test,
+      GivenApply.test,
+      GivenBindings.test,
+      GivenCore.test,
+      GivenGoal.test,
+      GivenGoals.test,
+      GivenLexical.test,
+      GivenParameters.test,
+      GivenPlan.test,
+      GivenResolver.test,
+      GivenSites.test,
       Name.test,
       CodebaseInit.test,
       Branch.test
