@@ -7,6 +7,7 @@
 module Unison.Typechecker.Context
   ( synthesizeClosed,
     synthesizeClosedWithImplicits,
+    synthesizeClosedWithGivens,
     ErrorNote (..),
     CompilerBug (..),
     InfoNote (..),
@@ -153,7 +154,8 @@ data Env v loc = Env
   { freshId :: Word64,
     ctx :: Context v loc,
     implicitSite :: Maybe (loc -> Maybe SiteId),
-    implicitSlots :: Map SiteId Int
+    implicitSlots :: Map SiteId Int,
+    givenBindings :: Map SiteId (v, Int)
   }
 
 type DataDeclarations v loc = Map Reference (DataDeclaration v loc)
@@ -407,7 +409,7 @@ data InfoNote v loc
     VarMention v loc
   | -- A dictionary argument at an identified expression and positional slot.
     -- Its type retains unsolved existentials across generalization.
-    ConstraintGoal SiteId Int loc (Type v loc)
+    ConstraintGoal SiteId Int loc (Type v loc) [(v, Int, Type v loc)]
   deriving (Show)
 
 topLevelComponent :: (Var v) => [(v, Type.Type v loc, RedundantTypeAnnotation)] -> InfoNote v loc
@@ -433,7 +435,7 @@ substituteSolved ::
 substituteSolved ctx = \case
   (SolvedBlank b v t) -> SolvedBlank b v (apply ctx t)
   VarBinding v loc t -> VarBinding v loc (apply ctx t)
-  ConstraintGoal site slot loc t -> ConstraintGoal site slot loc (apply ctx t)
+  ConstraintGoal site slot loc t givens -> ConstraintGoal site slot loc (apply ctx t) [(v, depth, apply ctx typ) | (v, depth, typ) <- givens]
   i -> i
 
 -- The typechecker generates synthetic type variables as part of type inference.
@@ -1229,7 +1231,15 @@ peelImplicits term typ =
         slots <- gets implicitSlots
         let slot = Map.findWithDefault 0 site slots
         modEnv (\env -> env {implicitSlots = Map.insert site (slot + 1) slots})
-        btw . ConstraintGoal site slot (loc term) =<< applyM premise
+        context <- getContext
+        marked <- gets givenBindings
+        let givens =
+              [ (identity, depth, apply context typ)
+              | (bindingLocation, typ) <- Map.elems (termVarAnnotations (info context)),
+                Just bindingSite <- [identify bindingLocation],
+                Just (identity, depth) <- [Map.lookup bindingSite marked]
+              ]
+        btw (ConstraintGoal site slot (loc term) (apply context premise) givens)
         go identify result
       _ -> pure (typ, [])
 
@@ -4049,7 +4059,7 @@ synthesizeClosed ::
   TL.TypeLookup v loc ->
   Term v loc ->
   Result v loc (Type v loc)
-synthesizeClosed = synthesizeClosedUsing Nothing
+synthesizeClosed = synthesizeClosedUsing Nothing Map.empty
 
 -- | Internal elaboration entry point. A successful result is provisional until
 -- every ConstraintGoal has a determined type and inserted dictionaries pass
@@ -4064,11 +4074,14 @@ synthesizeClosedWithImplicits ::
   TL.TypeLookup v loc ->
   Term v loc ->
   Result v loc (Type v loc)
-synthesizeClosedWithImplicits identify = synthesizeClosedUsing (Just identify)
+synthesizeClosedWithImplicits identify = synthesizeClosedUsing (Just identify) Map.empty
 
-synthesizeClosedUsing ::
+-- | Associate marked binder sites with their post-checking identities and
+-- lexical depths. Only bindings actually present in the context are visible.
+synthesizeClosedWithGivens ::
   (BuiltinAnnotation loc, Var v, Ord loc, Show loc, Semigroup loc) =>
-  Maybe (loc -> Maybe SiteId) ->
+  (loc -> Maybe SiteId) ->
+  Map SiteId (v, Int) ->
   PrettyPrintEnv ->
   PatternMatchCoverageCheckAndKindInferenceSwitch ->
   Map Reference [Variance] ->
@@ -4076,7 +4089,20 @@ synthesizeClosedUsing ::
   TL.TypeLookup v loc ->
   Term v loc ->
   Result v loc (Type v loc)
-synthesizeClosedUsing identify ppe pmcSwitch vars abilities lookupType term0 =
+synthesizeClosedWithGivens identify = synthesizeClosedUsing (Just identify)
+
+synthesizeClosedUsing ::
+  (BuiltinAnnotation loc, Var v, Ord loc, Show loc, Semigroup loc) =>
+  Maybe (loc -> Maybe SiteId) ->
+  Map SiteId (v, Int) ->
+  PrettyPrintEnv ->
+  PatternMatchCoverageCheckAndKindInferenceSwitch ->
+  Map Reference [Variance] ->
+  [Type v loc] ->
+  TL.TypeLookup v loc ->
+  Term v loc ->
+  Result v loc (Type v loc)
+synthesizeClosedUsing identify marked ppe pmcSwitch vars abilities lookupType term0 =
   let datas = TL.dataDecls lookupType
       effects = TL.effectDecls lookupType
       term = annotateRefs (TL.typeOfTerm' lookupType) term0
@@ -4084,7 +4110,8 @@ synthesizeClosedUsing identify ppe pmcSwitch vars abilities lookupType term0 =
         Left missingRef ->
           compilerCrashResult (UnknownTermReference missingRef)
         Right term -> run ppe pmcSwitch vars datas effects $ do
-          modEnv (\env -> env {implicitSite = identify})
+          modEnv (\env -> env {implicitSite = identify, givenBindings = marked})
+          unless (Map.null marked) (reserveAll (fst <$> Map.elems marked))
           liftResult $
             verifyDataDeclarations datas
               *> verifyDataDeclarations (DD.toDataDecl <$> effects)
@@ -4157,7 +4184,7 @@ run ::
 run ppe pmcSwitch vars datas effects m =
   fmap fst
     . runM m ppe pmcSwitch vars datas effects []
-    $ Env 1 context0 Nothing Map.empty
+    $ Env 1 context0 Nothing Map.empty Map.empty
 
 synthesizeClosed' ::
   (Var v, Ord loc, Semigroup loc) =>

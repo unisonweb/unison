@@ -29,7 +29,7 @@ test =
             lookup = TL.TypeLookup (Map.singleton fun typ) Map.empty Map.empty
             result = Context.synthesizeClosedWithImplicits siteId PPE.empty Context.PatternMatchCoverageCheckAndKindInferenceSwitch'Disabled Map.empty [] lookup (TV.liftTerm numbered)
          in (numbered, result)
-      goals notes = [(site, slot, ty) | Context.ConstraintGoal site slot _ ty <- toList notes]
+      goals notes = [(site, slot, ty) | Context.ConstraintGoal site slot _ ty _ <- toList notes]
    in scope "given-goal-checker" $
         tests
           [ scope "goal-at-reference-site" $
