@@ -14,7 +14,47 @@ import Unison.Var qualified as Var
 test :: Test ()
 test =
   scope "given-selection" . tests $
-    [ scope "no-candidate" $
+    [ scope "candidate-type-decomposition" do
+        let a = Var.named "a"
+            va = Type.var () a
+            candidate =
+              givenFromType
+                (Global (Reference.Builtin "generic"))
+                Ambient
+                (Type.forAll () a (Type.implicitArrow () (app "C" va) (app "R" va)))
+        expectChoice "generic" (resolve [candidate, ambient "cNat" (app "C" nat)] (app "R" nat))
+        expectMissing (resolve [candidate, ambient "cText" (app "C" text)] (app "R" nat)),
+      scope "shadowed-quantifier-is-not-the-same-variable" do
+        let a = Var.named "a"
+            va = Type.var () a
+            candidate =
+              givenFromType
+                (Global (Reference.Builtin "generic"))
+                Ambient
+                (Type.forAll () a (Type.implicitArrow () (app "C" va) (Type.forAll () a (app "R" va))))
+        expectEqual 2 (Set.size (Set.fromList (givenTyVars candidate)))
+        expectMissing (resolve [candidate, ambient "cNat" (app "C" nat)] (app "R" nat)),
+      scope "quantifiers-between-premises" do
+        let a = Var.named "a"
+            b = Var.named "b"
+            va = Type.var () a
+            vb = Type.var () b
+            pair x y = Type.app () (app "Pair" x) y
+            candidate =
+              givenFromType
+                (Global (Reference.Builtin "generic"))
+                Ambient
+                ( Type.forAll
+                    ()
+                    a
+                    ( Type.implicitArrow
+                        ()
+                        (app "C" va)
+                        (Type.forAll () b (Type.implicitArrow () (app "D" vb) (pair va vb)))
+                    )
+                )
+        expectChoice "generic" (resolve [candidate, ambient "cNat" (app "C" nat), ambient "dText" (app "D" text)] (pair nat text)),
+      scope "no-candidate" $
         expectMissing (resolve [] nat),
       scope "exact-type" do
         expectChoice "nat" (resolve [ambient "text" text, ambient "nat" nat] nat)
