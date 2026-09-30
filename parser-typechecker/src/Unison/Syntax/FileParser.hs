@@ -14,6 +14,7 @@ import Text.Megaparsec qualified as P
 import Unison.ABT qualified as ABT
 import Unison.DataDeclaration (DataDeclaration (..), EffectDeclaration)
 import Unison.DataDeclaration qualified as DataDeclaration
+import Unison.DataDeclaration.Names qualified as DataDeclaration.Names
 import Unison.DataDeclaration.Records (generateRecordAccessors)
 import Unison.Hashing.V2.Convert qualified as Hashing
 import Unison.Name qualified as Name
@@ -92,6 +93,19 @@ file = do
   -- Make real data/effect decls from the "syntactic" ones, and capture the
   -- file's type aliases (already cycle-checked, in dependency order).
   (dataDecls, effectDecls, fileAliases) <- synDeclsToDecls synDecls
+
+  -- Resolve against the whole file before splitting it into components.
+  -- This preserves suffix ambiguities and turns local suffix references into
+  -- full names, so the dependency graph does not miss them.
+  let localTypes = Map.keysSet dataDecls <> Map.keysSet effectDecls <> Set.fromList (fst <$> fileAliases)
+      bindDecl = DataDeclaration.Names.bindNames Name.unsafeParseVar Name.toVar localTypes namesStart
+  dataDecls <- traverse bindDecl dataDecls & onLeft (resolutionFailures . toList)
+  effectDecls <- traverse (DataDeclaration.withEffectDeclM bindDecl) effectDecls & onLeft (resolutionFailures . toList)
+  fileAliases <- for fileAliases \(v, alias) -> do
+    body <-
+      Type.Names.bindNames Name.unsafeParseVar Name.toVar (localTypes <> Set.fromList alias.paramNames) namesStart alias.body
+        & onLeft (resolutionFailures . toList)
+    pure (v, alias {Unison.TypeAlias.body = body})
 
   -- Hash declarations and aliases in dependency order. A declaration can
   -- depend on an alias of another local declaration, so a fixed sequence

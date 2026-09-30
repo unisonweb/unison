@@ -17,6 +17,13 @@ type alias Zebra = Nat
 type alias AlphabeticalFirst = Zebra
 structural type Box = Box Nat
 
+-- Suffix references must resolve before dependency ordering.
+structural type Named.Widget = Widget Text
+type alias Named.WrappedWidget = Widget
+type alias ChainedWidget = WrappedWidget
+widget : ChainedWidget
+widget = Named.Widget.Widget "suffix"
+
 value : Twice
 value = Box.Box 42
 outer = Outer.Outer value
@@ -26,6 +33,8 @@ unwrap b = match b with
   Box.Box n -> n
 
 > unwrap value
+> match widget with
+    Named.Widget.Widget n -> n
 ```
 
 ```ucm

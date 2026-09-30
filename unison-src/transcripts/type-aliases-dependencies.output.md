@@ -17,6 +17,13 @@ type alias Zebra = Nat
 type alias AlphabeticalFirst = Zebra
 structural type Box = Box Nat
 
+-- Suffix references must resolve before dependency ordering.
+structural type Named.Widget = Widget Text
+type alias Named.WrappedWidget = Widget
+type alias ChainedWidget = WrappedWidget
+widget : ChainedWidget
+widget = Named.Widget.Widget "suffix"
+
 value : Twice
 value = Box.Box 42
 outer = Outer.Outer value
@@ -26,27 +33,37 @@ unwrap b = match b with
   Box.Box n -> n
 
 > unwrap value
+> match widget with
+    Named.Widget.Widget n -> n
 ```
 
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   + type alias AlphabeticalFirst = Zebra
+  + type alias ChainedWidget = WrappedWidget
+  + type alias Named.WrappedWidget = Widget
   + type alias Twice = Wrapped
   + type alias Wrapped = Box
   + type alias Zebra = Nat
   + structural type Box
+  + structural type Named.Widget
   + structural type Outer
 
   + outer  : Outer
   + unwrap : Twice -> Nat
   + value  : Twice
+  + widget : ChainedWidget
 
   Run `update` to apply these changes to your codebase.
 
-    18 | > unwrap value
+    25 | > unwrap value
            ⧩
            42
+
+    26 | > match widget with
+           ⧩
+           "suffix"
 ```
 
 ``` ucm
