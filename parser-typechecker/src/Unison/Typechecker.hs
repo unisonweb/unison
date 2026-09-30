@@ -5,6 +5,7 @@
 module Unison.Typechecker
   ( synthesize,
     synthesizeAndResolve,
+    synthesizeAndResolveWith,
     check,
     wellTyped,
     isEqual,
@@ -214,16 +215,43 @@ synthesizeAndResolve ::
   PrettyPrintEnv ->
   Env v loc ->
   TDNR f v loc (Type v loc)
-synthesizeAndResolve ppe env = do
+synthesizeAndResolve ppe = synthesizeAndResolveUsing False (synthesize ppe Context.PatternMatchCoverageCheckAndKindInferenceSwitch'Enabled) ppe
+
+-- | Run a provisional checker through TDNR, retaining elaboration decisions and
+-- component signatures only from the final successful pass. The state contains
+-- the resolved source term; callers must still verify dictionary insertion.
+synthesizeAndResolveWith ::
+  (Monad f, Var v, Monoid loc, BuiltinAnnotation loc, Ord loc, Show loc) =>
+  (Env v loc -> Term v loc -> ResultT (Notes v loc) f (Type v loc)) ->
+  PrettyPrintEnv ->
+  Env v loc ->
+  TDNR f v loc (Type v loc)
+synthesizeAndResolveWith = synthesizeAndResolveUsing True
+
+synthesizeAndResolveUsing ::
+  (Monad f, Var v, Monoid loc, BuiltinAnnotation loc, Ord loc, Show loc) =>
+  Bool ->
+  (Env v loc -> Term v loc -> ResultT (Notes v loc) f (Type v loc)) ->
+  PrettyPrintEnv ->
+  Env v loc ->
+  TDNR f v loc (Type v loc)
+synthesizeAndResolveUsing finalOnly check ppe env = do
   tm <- get
-  (tp, notes) <-
-    listen . lift $
-      synthesize
-        ppe
-        Context.PatternMatchCoverageCheckAndKindInferenceSwitch'Enabled
-        env
-        tm
-  filterWarnings $ typeDirectedNameResolution ppe notes tp env
+  let retain note = not (finalOnly && elaborationNote note)
+      screen notes = notes {infos = Seq.filter retain (infos notes)}
+  (tp, notes) <- censor screen (listen (lift (check env tm)))
+  let done = do
+        when finalOnly (lift (tell (mempty {infos = Seq.filter elaborationNote (infos notes)})))
+        pure tp
+  filterWarnings $ typeDirectedNameResolution (synthesizeAndResolveUsing finalOnly check ppe) retain done notes env
+
+elaborationNote :: Context.InfoNote v loc -> Bool
+elaborationNote = \case
+  Context.ConstraintGoal {} -> True
+  Context.DictionaryParameter {} -> True
+  Context.GivenBinding {} -> True
+  Context.TopLevelComponent {} -> True
+  _ -> False
 
 filterWarnings :: (Monad f) => TDNR f v loc a -> TDNR f v loc a
 filterWarnings act = pass $ (,screen) <$> act
@@ -262,12 +290,13 @@ liftResult = lift . MaybeT . WriterT . pure . runIdentity . runResultT
 typeDirectedNameResolution ::
   forall v loc f.
   (Monad f, Var v, BuiltinAnnotation loc, Ord loc, Monoid loc, Show loc) =>
-  PrettyPrintEnv ->
+  (Env v loc -> TDNR f v loc (Type v loc)) ->
+  (Context.InfoNote v loc -> Bool) ->
+  TDNR f v loc (Type v loc) ->
   Notes v loc ->
-  Type v loc ->
   Env v loc ->
   TDNR f v loc (Type v loc)
-typeDirectedNameResolution ppe oldNotes oldType env = do
+typeDirectedNameResolution recheck retain done oldNotes env = do
   -- Add typed components (local definitions) to the TDNR environment.
   let tdnrEnv = execState (traverse_ addTypedComponent $ infos oldNotes) env
   -- Resolve blanks in the notes and generate some resolutions
@@ -275,15 +304,15 @@ typeDirectedNameResolution ppe oldNotes oldType env = do
     liftResult . traverse (resolveNote tdnrEnv) . toList $
       infos oldNotes
   case catMaybes resolutions of
-    [] -> pure oldType
+    [] -> done
     resolutions -> do
       substituted <- traverse substSuggestion resolutions
       case or substituted of
-        True -> synthesizeAndResolve ppe tdnrEnv
+        True -> recheck tdnrEnv
         False -> do
           -- The type hasn't changed
           liftResult $ suggest resolutions
-          pure oldType
+          done
   where
     addTypedComponent :: Context.InfoNote v loc -> State (Env v loc) ()
     addTypedComponent (Context.TopLevelComponent vtts) =
@@ -387,7 +416,7 @@ typeDirectedNameResolution ppe oldNotes oldType env = do
       Context.SolvedBlank (B.MissingResultPlaceholder loc) v it ->
         pure . Just $ Resolution "_" it loc v []
       note -> do
-        btw note
+        when (retain note) (btw note)
         pure Nothing
       where
         findExactMatches :: Env v loc -> Name.Name -> [NamedReference v loc]
