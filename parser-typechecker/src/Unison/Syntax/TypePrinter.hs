@@ -124,6 +124,17 @@ prettyRaw im p tp = go im p tp
             if p < 0 && not Settings.debugRevealForalls && all Var.universallyQuantifyIfFree vs
               then ifM (willCaptureType vs) (prettyForall p) (go im p body)
               else paren (p >= 0) <$> prettyForall (-1)
+      -- Preserve each explicit/implicit boundary instead of flattening the spine.
+      t@(ImplicitArrow' _ _) ->
+        let (cs, conclusion) = splitImplicitConstraints t
+            renderConstraints = case cs of
+              [c] -> go im 0 c
+              _ -> PP.parenthesizeCommas <$> traverse (go im 0) cs
+         in PP.parenthesizeIf (p >= 0)
+              <$> ( (\lhs rhs -> lhs <> " " <> fmt S.TypeOperator "=>" <> " " <> rhs)
+                      <$> renderConstraints
+                      <*> go im (-1) conclusion
+                  )
       t@(Arrow' _ _) -> case t of
         EffectfulArrows' (Ref' DD.UnitRef) rest ->
           PP.parenthesizeIf (p >= 10) <$> arrows True True rest
@@ -183,6 +194,14 @@ prettyRaw im p tp = go im p tp
 
     parenNoGroup True s = fmt S.Parenthesis "(" <> s <> fmt S.Parenthesis ")"
     parenNoGroup False s = s
+
+-- | Collect one leading constraint context, stopping at explicit arrows.
+splitImplicitConstraints :: Type v a -> ([Type v a], Type v a)
+splitImplicitConstraints t = case t of
+  ImplicitArrow' c rest ->
+    let (cs, conclusion) = splitImplicitConstraints rest
+     in (c : cs, conclusion)
+  _ -> ([], t)
 
 fmt :: S.Element r -> Pretty (S.SyntaxText' r) -> Pretty (S.SyntaxText' r)
 fmt = PP.withSyntax
