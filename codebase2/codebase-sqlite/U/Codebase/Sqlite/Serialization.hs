@@ -452,6 +452,9 @@ getType getReference = getABT getSymbol getUnit go
         5 -> Type.Effects <$> getList getChild
         6 -> Type.Forall <$> getChild
         7 -> Type.IntroOuter <$> getChild
+        -- Tag for implicit arrows. Distinct from the regular 'Arrow'
+        -- tag (1).
+        8 -> Type.ImplicitArrow <$> getChild <*> getChild
         tag -> unknownTag "getType" tag
     getKind :: (MonadGet m) => m Kind
     getKind =
@@ -1128,6 +1131,9 @@ putType putReference putVar = putABT putVar putUnit go
       Type.Effects es -> putWord8 5 *> putFoldable putChild es
       Type.Forall body -> putWord8 6 *> putChild body
       Type.IntroOuter body -> putWord8 7 *> putChild body
+      -- Tag for implicit arrows. Distinct from the regular 'Arrow'
+      -- tag (1).
+      Type.ImplicitArrow i o -> putWord8 8 *> putChild i *> putChild o
     putKind :: (MonadPut m) => Kind -> m ()
     putKind k = case k of
       Kind.Star -> putWord8 0
