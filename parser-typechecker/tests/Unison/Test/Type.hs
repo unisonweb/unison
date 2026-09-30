@@ -2,6 +2,7 @@
 
 module Unison.Test.Type where
 
+import Control.Monad.State.Strict (runState, state)
 import Data.ByteString qualified as BS
 import Data.Bytes.Get (runGetS)
 import Data.Bytes.Put (runPutS)
@@ -43,6 +44,7 @@ test =
                   expect (i == builtin () "a" && o == builtin () "b")
                 _ -> crash "unArrows (a -> b) did not return a spine of [a,b]",
         scope "implicit-arrows" implicitArrows,
+        scope "implicit-effects" implicitEffects,
         scope "subtype" $ do
           let v = Var.named "a"
               v2 = Var.named "b"
@@ -122,3 +124,35 @@ implicitArrows =
       Stored.ReferenceBuiltin 0 -> Reference.Builtin "Nat"
       Stored.ReferenceBuiltin 1 -> Reference.Builtin "Text"
       r -> error ("Unexpected fixture reference: " <> show r)
+
+implicitEffects :: Test ()
+implicitEffects =
+  let n = nat () :: Type Symbol ()
+      t = text ()
+      chain = implicitArrow () n (implicitArrow () t n)
+      fresh = state (\next -> (Var.freshenId next (Var.named "e"), next + 1))
+      addEffects typ = runState (existentializeArrows fresh typ) 0
+      explicitEffect = effect () [builtin () "Test.Ability"] n
+   in tests
+        [ scope "one-effect-row-per-constraint-context" $ do
+            let (result, count) = addEffects chain
+            expectEqual count 1
+            expectEqual (removeAllEffectVars result) chain
+            case result of
+              ImplicitArrow' _ (ImplicitArrow' _ (Effect1' _ _)) -> ok
+              _ -> crash "effect rows must not split the constraint context",
+          scope "mixed-spine" $ do
+            let typ = arrow () t chain
+                (result, count) = addEffects typ
+            expectEqual count 2
+            expectEqual (removeAllEffectVars result) typ,
+          scope "explicit-effects-preserved" $ do
+            let typ = implicitArrow () t explicitEffect
+            expectEqual (addEffects typ) (typ, 0),
+          scope "purify-constraint-context" $ do
+            expectEqual (purifyArrows chain) (implicitArrow () n (implicitArrow () t (effect () [] n)))
+            expectEqual (removeEmptyEffects (purifyArrows chain)) chain,
+          scope "purify-preserves-explicit-effects" $
+            let typ = implicitArrow () t explicitEffect
+             in expectEqual (purifyArrows typ) typ
+        ]

@@ -708,6 +708,18 @@ existentializeArrows newVar t = ABT.visit go t
         b <- existentializeArrows newVar b
         let ann = ABT.annotation t
         pure $ arrow ann a (effect ann [var ann e] b)
+    go t@(ImplicitArrow' a b) = Just $ do
+      let ann = ABT.annotation t
+          -- A constraint context introduces one computation after its last
+          -- dictionary, without effect wrappers between its premises.
+          needsEffect = case b of
+            Effect1' _ _ -> False
+            ImplicitArrow' _ _ -> False
+            _ -> True
+      es <- if needsEffect then (: []) <$> newVar else pure []
+      a <- existentializeArrows newVar a
+      b <- existentializeArrows newVar b
+      pure $ implicitArrow ann a (if needsEffect then effect ann (var ann <$> es) b else b)
     go _ = Nothing
 
 purifyArrows :: (Ord v) => Type v a -> Type v a
@@ -718,6 +730,10 @@ purifyArrows = ABT.visitPure go
       _ -> Just $ arrow ann a (effect ann [] b)
       where
         ann = ABT.annotation t
+    go t@(ImplicitArrow' a b) = case b of
+      Effect1' _ _ -> Nothing
+      ImplicitArrow' _ _ -> Nothing
+      _ -> Just $ implicitArrow (ABT.annotation t) a (effect (ABT.annotation t) [] b)
     go _ = Nothing
 
 -- Remove free effect variables from the type that are in the set
