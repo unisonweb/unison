@@ -92,6 +92,7 @@ test-suite syntax-tests
   type: exitcode-stdio-1.0
   main-is: Main.hs
   other-modules:
+      Unison.Test.AnnotationSites
       Unison.Test.Doc
       Unison.Test.NamespaceNames
       Unison.Test.Unison
