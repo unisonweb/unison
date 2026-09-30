@@ -133,6 +133,7 @@ module Unison.Codebase
 where
 
 import Control.Monad.Except (ExceptT)
+import Data.Graph (flattenSCC, stronglyConnComp)
 import Data.Map qualified as Map
 import Data.Set qualified as Set
 import Data.Text qualified as Text
@@ -180,7 +181,6 @@ import Unison.Term (Term)
 import Unison.Term qualified as Term
 import Unison.Type (Type)
 import Unison.Type qualified as Type
-import Unison.TypeAlias (TypeAlias)
 import Unison.TypeAlias qualified as TypeAlias
 import Unison.Typechecker.TypeLookup (TypeLookup (TypeLookup))
 import Unison.Typechecker.TypeLookup qualified as TL
@@ -366,19 +366,26 @@ addDefsToCodebase ::
   UF.TypecheckedUnisonFile v a ->
   Sqlite.Transaction ()
 addDefsToCodebase c uf = do
-  traverse_ (goType Right) (UF.dataDeclarationsId' uf)
-  traverse_ (goType Left) (UF.effectDeclarationsId' uf)
-  traverse_ goAlias (UF.typeAliasesId' uf)
+  -- Alias storage needs its referenced objects to exist already. Order
+  -- aliases and declarations together, retaining recursive decl groups.
+  let types =
+        Map.fromList $
+          [(ref, Left (Right decl)) | (ref, decl) <- Map.elems (UF.dataDeclarationsId' uf)]
+            ++ [(ref, Left (Left decl)) | (ref, decl) <- Map.elems (UF.effectDeclarationsId' uf)]
+            ++ [(ref, Right alias) | (ref, alias) <- Map.elems (UF.typeAliasesId' uf)]
+      dependencies = either (DD.typeDependencies . either DD.toDataDecl id) TypeAlias.dependencies
+      components =
+        stronglyConnComp
+          [ ((ref, definition), Reference.fromId ref, Set.toList (dependencies definition))
+          | (ref, definition) <- Map.toList types
+          ]
+  for_ (concatMap flattenSCC components) \(ref, definition) ->
+    either (putTypeDeclaration c ref) (putTypeAlias c ref) definition
   -- put terms
   traverse_ goTerm (UF.hashTermsId uf)
   where
     goTerm t | debug && trace ("Codebase.addDefsToCodebase.goTerm " ++ show t) False = undefined
     goTerm (_, r, wk, tm, tp) = when (WK.watchKindShouldBeStoredInDatabase wk) (putTerm c r tm tp)
-    goType :: (Show t) => (t -> Decl v a) -> (Reference.Id, t) -> Sqlite.Transaction ()
-    goType _f pair | debug && trace ("Codebase.addDefsToCodebase.goType " ++ show pair) False = undefined
-    goType f (ref, decl) = putTypeDeclaration c ref (f decl)
-    goAlias :: (Reference.Id, TypeAlias v a) -> Sqlite.Transaction ()
-    goAlias (ref, ta) = putTypeAlias c ref ta
 
 getTypeOfConstructor :: (Ord v) => Codebase m v a -> ConstructorReference -> Sqlite.Transaction (Maybe (Type v a))
 getTypeOfConstructor codebase (ConstructorReference r0 cid) =

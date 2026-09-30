@@ -467,10 +467,12 @@ checkCacheability ::
   IO (IntermediateReference, Code Reference)
 checkCacheability cl ctx (r, sg) =
   getTermType mayCodebaseRef >>= \case
-    -- A term's result is cacheable iff it has no arrows in its type,
-    -- this is sufficient since top-level definitions can't have effects without a delay.
+    -- Only evaluate closed values ahead of time. Aliases can hide arrows in
+    -- the stored type, so also check that the compiled entry takes no arguments.
+    -- Top-level definitions can't have effects without a delay.
     Just typ
-      | not (Rec.cata hasArrows typ) ->
+      | null (conventions (entry sg)),
+        not (Rec.cata hasArrows typ) ->
           pure (r, CodeRep sg Cacheable)
     _ -> pure (r, CodeRep sg Uncacheable)
   where

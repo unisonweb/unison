@@ -17,6 +17,7 @@ module Unison.KindInference
   ( inferDecls,
     inferDeclsFromState,
     inferAliases,
+    inferDeclsAndAliases,
     kindCheckAnnotations,
     initialState,
     kindEnv,
@@ -39,6 +40,7 @@ import Unison.PrettyPrintEnv qualified as PrettyPrintEnv
 import Unison.Reference
 import Unison.Term qualified as Term
 import Unison.TypeAlias (TypeAlias)
+import Unison.TypeAlias qualified as TypeAlias
 import Unison.Var qualified as Var
 
 -- | Build a 'Env' used by the solver from a 'PrettyPrintEnv'.
@@ -127,3 +129,29 @@ inferAliases ppe st0 aliasMap
        in do
             (cs, st) <- mapLeft (Nel.singleton . SolveError) $ runSolve env st0 (runGen $ aliasComponentConstraints aliases)
             step env st cs
+
+-- | Infer local and codebase aliases alongside declarations in dependency
+-- order. In particular, an alias can depend transitively on a declaration
+-- and itself occur in another declaration's constructor type.
+inferDeclsAndAliases ::
+  forall v loc.
+  (Var.Var v, BuiltinAnnotation loc, Ord loc, Show loc) =>
+  PrettyPrintEnv.PrettyPrintEnv ->
+  Map Reference (Decl v loc) ->
+  Map Reference (TypeAlias v loc) ->
+  Either (NonEmpty (KindError v loc)) (SolveState v loc)
+inferDeclsAndAliases ppe decls aliases = do
+  let env = Env ppe
+      entries =
+        [(Left decl, ref, toList (typeDependencies (asDataDecl decl))) | (ref, decl) <- Map.toList decls]
+          ++ [(Right alias, ref, toList (TypeAlias.dependencies alias)) | (ref, alias) <- Map.toList aliases]
+      components = flattenSCC <$> stronglyConnCompR entries
+      handleComponent st component = do
+        let decls = [(ref, decl) | (Left decl, ref, _) <- component]
+            aliases = [(ref, alias) | (Right alias, ref, _) <- component]
+        (constraints, st') <-
+          mapLeft (Nel.singleton . SolveError) $
+            runSolve env st (runGen ((<>) <$> declComponentConstraints decls <*> aliasComponentConstraints aliases))
+        step env st' constraints
+  st <- foldlM handleComponent (initialState env) components
+  defaultUnconstrainedVars <$> verify st

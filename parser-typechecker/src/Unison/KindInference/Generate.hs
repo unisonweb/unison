@@ -219,15 +219,9 @@ declComponentConstraints ::
   Gen v loc [GeneratedConstraint v loc]
 declComponentConstraints decls = flatten bottomUp <$> declComponentConstraintTree decls
 
--- | Generate kind constraints for a batch of type aliases. Each alias's
--- body is treated as having kind @*@ with the alias parameters as the
--- only free type variables. The alias's ref is registered with kind
--- @k_p1 -> ... -> k_pN -> *@ where N is the arity and each @k_pi@ is the
--- inferred kind of the corresponding parameter.
---
--- Aliases must already be normalized (no aliases of aliases) and depend
--- only on decls or other already-inferred aliases, otherwise lookups in
--- the body will fail with a ref-lookup error.
+-- | Generate kind constraints for aliases, inferring each body's kind.
+-- Ability-row aliases have kind Ability rather than Type. Dependencies
+-- outside this batch must already be registered in the kind environment.
 aliasComponentConstraints ::
   forall v loc.
   (Var v, Ord loc) =>
@@ -252,10 +246,9 @@ aliasComponentConstraintTree aliases = do
       let varTyp = Type.var bodyAnn v
       k <- pushType varTyp
       pure (k, varTyp)
-    -- Generate body constraints with the body required to have kind *.
+    -- Infer the body kind, including Ability for ability-row aliases.
     bodyKind <- freshVar ta.body
     bodyConstraints <- typeConstraintTree bodyKind ta.body
-    let bodyAtStar = ParentConstraint (IsType bodyKind (Provenance DeclDefinition bodyAnn)) bodyConstraints
     -- Chain the alias kind: aliasKind = paramKind1 -> ... -> paramKindN -> bodyKind.
     aliasChainConstraints <-
       let phi (currentKind, cts) (paramKind, _) = do
@@ -264,11 +257,11 @@ aliasComponentConstraintTree aliases = do
             pure (v, cts')
        in foldlM phi (aliasKind, Node []) paramKinds
     let (fullyAppliedKind, declConstraints) = aliasChainConstraints
-    -- Unify the fully applied alias kind with the body's kind (both *).
+    -- Unify the fully applied alias kind with the body's inferred kind.
     let unify = Constraint (Unify (Provenance DeclDefinition bodyAnn) fullyAppliedKind bodyKind) declConstraints
     -- Drop the parameter var registrations now that we're done with the body.
     for_ paramKinds \(_, varTyp) -> popType varTyp
-    pure $ StrictOrder bodyAtStar unify
+    pure $ StrictOrder bodyConstraints unify
 
 declComponentConstraintTree ::
   forall v loc.

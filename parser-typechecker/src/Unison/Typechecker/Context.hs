@@ -1097,8 +1097,9 @@ synthesizeApp tm ft arg
       undefined
 synthesizeApp fun (Type.stripIntroOuters -> Type.Effect'' es ft) argp@(arg, argNum) =
   scope (InSynthesizeApp ft arg argNum) $ do
-    (t, w) <- go ft
-    (t,) <$> coalesceWanted ((Just fun,) <$> es) w
+    Type.Effect'' aliasEffects expanded <- whnfAlias ft
+    (t, w) <- go expanded
+    (t,) <$> coalesceWanted ((Just fun,) <$> (es ++ aliasEffects)) w
   where
     go (Type.Forall' body) = do
       -- Forall1App
@@ -3065,7 +3066,7 @@ checkWantedScoped ::
   Type v loc ->
   M v loc (Wanted v loc)
 checkWantedScoped exact want m ty =
-  scope (InCheck m ty) $ checkWanted mexact want m ty
+  scope (InCheck m ty) $ whnfAlias ty >>= checkWanted mexact want m
   where
     mexact | exact = Just m | otherwise = Nothing
 
@@ -3640,14 +3641,16 @@ solve ctx v t = case lookupSolved ctx v of
 
 expandAbilities ::
   (Var v) => (Ord loc) => [Type v loc] -> M v loc [Type v loc]
-expandAbilities =
-  fmap (concatMap Type.flattenEffects) . traverse applyM
+expandAbilities = fmap concat . traverse expand
+  where
+    expand t =
+      applyM t >>= whnfAlias >>= \case
+        Type.Effects' es -> expandAbilities es
+        t -> pure [t]
 
 expandWanted ::
   (Var v) => (Ord loc) => Wanted v loc -> M v loc (Wanted v loc)
-expandWanted =
-  (fmap . concatMap) (\(l, es) -> (,) l <$> Type.flattenEffects es)
-    . (traverse . traverse) applyM
+expandWanted = fmap concat . traverse (\(l, e) -> fmap (l,) <$> expandAbilities [e])
 
 matchConcrete ::
   (Var v) =>
@@ -3966,12 +3969,10 @@ abilityCheck' ambient0 requested0 = go ambient0 requested0
   where
     go _ [] = pure ()
     go ambient0 (r0 : rs) =
-      applyM r0 >>= \case
+      applyM r0 >>= whnfAlias >>= \case
         Type.Effects' es -> go ambient0 (es ++ rs)
         r -> do
-          ambient <-
-            concatMap Type.flattenEffects
-              <$> traverse applyM ambient0
+          ambient <- expandAbilities ambient0
           abilityCheckSingle die ambient r
           go ambient rs
 
@@ -4032,18 +4033,8 @@ doKindInference ppe datas effects aliases term = do
     PatternMatchCoverageCheckAndKindInferenceSwitch'Enabled -> do
       let kindInferRes = do
             let decls = (Left <$> effects) <> (Right <$> datas)
-            -- Aliases get split: bodies that don't reference any of the
-            -- file's decls go BEFORE inferDecls (so decl ctors can find
-            -- them); the rest go AFTER (so they can find decl refs).
-            let declRefs = Map.keysSet datas <> Map.keysSet effects
-            let (aliasesBefore, aliasesAfter) =
-                  Map.partition
-                    (\ta -> Set.null (Set.intersection declRefs (TypeAlias.dependencies ta)))
-                    aliases
-            st0 <- KindInference.inferAliases ppe (KindInference.initialState (KindInference.kindEnv ppe)) aliasesBefore
-            st1 <- KindInference.inferDeclsFromState ppe st0 decls
-            st2 <- KindInference.inferAliases ppe st1 aliasesAfter
-            KindInference.kindCheckAnnotations ppe st2 (TypeVar.lowerTerm term)
+            st <- KindInference.inferDeclsAndAliases ppe decls aliases
+            KindInference.kindCheckAnnotations ppe st (TypeVar.lowerTerm term)
       case kindInferRes of
         Left (ke Nel.:| _kes) -> failWith (KindInferenceFailure ke)
         Right () -> pure ()

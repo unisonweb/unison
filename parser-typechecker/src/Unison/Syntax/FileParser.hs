@@ -5,6 +5,7 @@ where
 
 import Control.Lens
 import Control.Monad.Reader (asks, local)
+import Data.Graph (SCC (..), flattenSCC, stronglyConnComp)
 import Data.List qualified as List
 import Data.Map qualified as Map
 import Data.Set qualified as Set
@@ -92,69 +93,56 @@ file = do
   -- file's type aliases (already cycle-checked, in dependency order).
   (dataDecls, effectDecls, fileAliases) <- synDeclsToDecls synDecls
 
-  -- Decls and aliases can reference each other but not cyclically. We
-  -- hash in two passes around 'environmentFor':
-  --
-  -- 1. Aliases whose bodies only reference codebase types or other
-  --    aliases earlier in the list. Their refs feed into the decl env.
-  -- 2. 'environmentFor' produces decl refs.
-  -- 3. Remaining aliases — those whose bodies reference file decls —
-  --    are hashed against the now-populated decl env.
-  --
-  -- A body that references something not yet available falls into phase
-  -- 3 automatically; if phase 3 still can't resolve it, that surfaces
-  -- the real error.
-  let fileDeclNames :: Set Name.Name
-      fileDeclNames =
-        Set.fromList
-          [ Name.unsafeParseVar v
-          | v <- Map.keys dataDecls ++ Map.keys effectDecls
+  -- Hash declarations and aliases in dependency order. A declaration can
+  -- depend on an alias of another local declaration, so a fixed sequence
+  -- of aliases/decls/aliases is insufficient. Recursive declaration groups
+  -- are hashed together; any cycle containing an alias is rejected.
+  let aliasMap = Map.fromList fileAliases
+      declDependencies decl =
+        foldMap ABT.freeVars (DataDeclaration.constructorTypes decl)
+          `Set.difference` Set.fromList (DataDeclaration.bound decl)
+      dependencies =
+        Map.unions
+          [ declDependencies <$> dataDecls,
+            declDependencies . DataDeclaration.toDataDecl <$> effectDecls,
+            (\alias -> ABT.freeVars alias.body `Set.difference` Set.fromList alias.paramNames) <$> aliasMap
           ]
-  let mentionsFileDecl :: Unison.TypeAlias.TypeAlias v Ann -> Bool
-      mentionsFileDecl alias =
-        any
-          (\fv -> Set.member (Name.unsafeParseVar fv) fileDeclNames)
-          (ABT.freeVars alias.body)
-  let (aliasesBeforeDecls, aliasesAfterDecls) =
-        List.partition (\(_v, ta) -> not (mentionsFileDecl ta)) fileAliases
-
-  let resolveAlias accNames alias = do
-        resolvedBody <-
-          Type.Names.bindNames
-            Name.unsafeParseVar
-            Name.toVar
-            (Set.fromList alias.paramNames)
-            accNames
-            alias.body
-            & onLeft \errs -> resolutionFailures (toList errs)
-        let resolvedAlias = alias {Unison.TypeAlias.body = resolvedBody}
-        pure (Hashing.hashTypeAlias resolvedAlias, resolvedAlias)
-  let aliasStep (accNames, acc) (v, alias) = do
-        (refId, resolved) <- resolveAlias accNames alias
-        let accNames' =
-              Names.fromTermsAndTypes
-                []
-                [(Name.unsafeParseVar v, Reference.DerivedId refId)]
-                <> accNames
-        pure (accNames', Map.insert v (refId, resolved) acc)
-
-  -- Phase 1: aliases that don't reference file decls.
-  (envNamesAfterPhase1, aliasesPhase1) <-
-    foldM aliasStep (namesStart, Map.empty) aliasesBeforeDecls
-
-  -- Phase 2: hash decls. Their constructor types can resolve any
-  -- phase-1 alias name to its ref.
-  env <- do
-    result <- UFN.environmentFor envNamesAfterPhase1 dataDecls effectDecls & onLeft \errs -> resolutionFailures (toList errs)
-    result & onLeft \errs -> P.customFailure (TypeDeclarationErrors errs)
-
-  -- Phase 3: aliases that reference file decls.
-  let envNamesAfterPhase2 = Names.shadowing (UF.names env) envNamesAfterPhase1
-  (_, aliasesPhase3) <-
-    foldM aliasStep (envNamesAfterPhase2, Map.empty) aliasesAfterDecls
-
-  let fileAliasesWithHashes :: Map v (TypeReferenceId, Unison.TypeAlias.TypeAlias v Ann)
-      fileAliasesWithHashes = aliasesPhase1 <> aliasesPhase3
+      components = stronglyConnComp [(v, v, Set.toList deps) | (v, deps) <- Map.toList dependencies]
+      resolveComponent (accNames, accEnv, accAliases) component = do
+        let members = Set.fromList (flattenSCC component)
+            aliases = Map.restrictKeys aliasMap members
+        case component of
+          CyclicSCC vs
+            | not (Map.null aliases) ->
+                P.customFailure (TypeAliasCycle (ABT.annotation (snd (Map.findMin aliases)).body) vs)
+          _ -> pure ()
+        case Map.toList aliases of
+          [(v, alias)] -> do
+            resolvedBody <-
+              Type.Names.bindNames
+                Name.unsafeParseVar
+                Name.toVar
+                (Set.fromList alias.paramNames)
+                accNames
+                alias.body
+                & onLeft (resolutionFailures . toList)
+            let resolved = alias {Unison.TypeAlias.body = resolvedBody}
+                refId = Hashing.hashTypeAlias resolved
+                newNames = Names.fromTermsAndTypes [] [(Name.unsafeParseVar v, Reference.DerivedId refId)]
+            pure (Names.shadowing newNames accNames, accEnv, Map.insert v (refId, resolved) accAliases)
+          _ -> do
+            result <-
+              UFN.environmentFor accNames (Map.restrictKeys dataDecls members) (Map.restrictKeys effectDecls members)
+                & onLeft (resolutionFailures . toList)
+            env <- result & onLeft (P.customFailure . TypeDeclarationErrors)
+            let combined =
+                  UF.Env
+                    (UF.datasId accEnv <> UF.datasId env)
+                    (UF.effectsId accEnv <> UF.effectsId env)
+                    (UF.names accEnv <> UF.names env)
+            pure (Names.shadowing (UF.names env) accNames, combined, accAliases)
+  (_, env, fileAliasesWithHashes) <-
+    foldM resolveComponent (namesStart, UF.Env Map.empty Map.empty mempty, Map.empty) components
 
   let aliasNamesForDecls :: Names
       aliasNamesForDecls =

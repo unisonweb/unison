@@ -13,10 +13,6 @@ module Unison.Cli.UpdateUtils
     nameHydratedRefIds,
     nameHydratedRefIds2,
 
-    -- * Alias-to-alias update propagation
-    aliasDependentsInOrder,
-    propagateAliasUpdates,
-
     -- * Unique type guids
     makeUniqueTypeGuids,
 
@@ -40,16 +36,11 @@ import Unison.Cli.Monad qualified as Cli
 import Unison.Cli.TypeCheck (computeTypecheckingEnvironment)
 import Unison.Codebase (Codebase)
 import Unison.Codebase qualified as Codebase
-import Unison.Codebase.Branch (Branch0)
-import Unison.Codebase.BranchUtil qualified as BranchUtil
-import Unison.Codebase.Path (Path)
-import Unison.Codebase.Path qualified as Path
 import Unison.ConstructorReference (GConstructorReference (..))
 import Unison.DataDeclaration (Decl)
 import Unison.Debug qualified as Debug
 import Unison.FileParsers qualified as FileParsers
 import Unison.Hash (Hash)
-import Unison.Hashing.V2.Convert qualified as Hashing
 import Unison.Name (Name)
 import Unison.Names qualified as Names
 import Unison.Parser.Ann (Ann)
@@ -65,9 +56,7 @@ import Unison.Symbol (Symbol)
 import Unison.Syntax.Parser qualified as Parser
 import Unison.Term (Term)
 import Unison.Type (Type)
-import Unison.Type qualified as Type
 import Unison.TypeAlias (TypeAlias)
-import Unison.TypeAlias qualified as TypeAlias
 import Unison.UnisonFile (TypecheckedUnisonFile)
 import Unison.Util.BiMultimap (BiMultimap)
 import Unison.Util.BiMultimap qualified as BiMultimap
@@ -166,74 +155,6 @@ hydrateRefs1 getComponent =
     f :: Hash -> Map Reference.Id defn -> m (Map Reference.Id defn)
     f hash acc =
       List.foldl' Map.thenInsertPair acc . Reference.componentFor hash <$> getComponent hash
-
--- | Re-emit alias dependents whose bodies reference a ref that's being
--- updated. Walks the aliases in dependency order: for each, substitutes
--- known old refs with their new versions, re-hashes, and persists the
--- new alias. The accumulated old-to-new substitutions cascade so an
--- alias that depends on another updated alias picks up the new ref.
---
--- Returns @(substitutions, branchUpdates)@ where @branchUpdates@ rebinds
--- each alias name to its new ref. @substitutions@ extends the initial
--- map with each new (oldRef, newRef) pair.
-propagateAliasUpdates ::
-  forall m.
-  Codebase IO Symbol Ann ->
-  -- | (alias name, old ref id, alias body)
-  [(Name, TypeReferenceId, TypeAlias Symbol Ann)] ->
-  -- | Initial old-to-new substitutions (typically from the user's file).
-  Map TypeReference TypeReference ->
-  Transaction (Map TypeReference TypeReference, [(Path, Branch0 m -> Branch0 m)])
-propagateAliasUpdates codebase aliases initialSubsts =
-  foldM step (initialSubsts, []) aliases
-  where
-    step ::
-      (Map TypeReference TypeReference, [(Path, Branch0 m -> Branch0 m)]) ->
-      (Name, TypeReferenceId, TypeAlias Symbol Ann) ->
-      Transaction (Map TypeReference TypeReference, [(Path, Branch0 m -> Branch0 m)])
-    step (substs, updates) (name, oldRefId, oldAlias) = do
-      let newBody = Type.updateDependencies substs oldAlias.body
-          newAlias = oldAlias {TypeAlias.body = newBody}
-          newRefId = Hashing.hashTypeAlias newAlias
-          oldRef = Reference.fromId oldRefId
-          newRef = Reference.fromId newRefId
-          split = Path.splitFromName name
-      Codebase.putTypeAlias codebase newRefId newAlias
-      pure
-        ( Map.insert oldRef newRef substs,
-          updates
-            ++ [ BranchUtil.makeAnnihilateTypeName split,
-                 BranchUtil.makeAddTypeName split newRef
-               ]
-        )
-
--- | Sort alias dependents in dependency order so each appears after the
--- aliases it references. Dependents that don't reference any other
--- alias in the input are first.
-aliasDependentsInOrder ::
-  Map TypeReferenceId (Name, TypeAlias Symbol Ann) ->
-  [(Name, TypeReferenceId, TypeAlias Symbol Ann)]
-aliasDependentsInOrder aliases =
-  reverse (snd (List.foldl' (visit Set.empty) (Set.empty, []) (Map.keys aliases)))
-  where
-    refsHere :: Set TypeReferenceId
-    refsHere = Map.keysSet aliases
-
-    visit ::
-      Set TypeReferenceId ->
-      (Set TypeReferenceId, [(Name, TypeReferenceId, TypeAlias Symbol Ann)]) ->
-      TypeReferenceId ->
-      (Set TypeReferenceId, [(Name, TypeReferenceId, TypeAlias Symbol Ann)])
-    visit inProgress (done, acc) ref
-      | Set.member ref done || Set.member ref inProgress = (done, acc)
-      | otherwise =
-          case Map.lookup ref aliases of
-            Nothing -> (done, acc)
-            Just (name, alias) ->
-              let inProgress' = Set.insert ref inProgress
-                  deps = Set.toList (Set.intersection refsHere (Set.mapMaybe Reference.toId (TypeAlias.dependencies alias)))
-                  (done', acc') = List.foldl' (visit inProgress') (done, acc) deps
-               in (Set.insert ref done', (name, ref, alias) : acc')
 
 -- | Associate names with hydrated terms/types.
 nameHydratedRefIds ::
