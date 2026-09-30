@@ -758,6 +758,7 @@ wellformedType c t = case t of
   Type.Var' (TypeVar.Universal v) -> Set.member v (universals c)
   Type.Ref' _ -> True
   Type.Arrow' i o -> wellformedType c i && wellformedType c o
+  Type.ImplicitArrow' i o -> wellformedType c i && wellformedType c o
   Type.Ann' t' _ -> wellformedType c t'
   Type.App' x y -> wellformedType c x && wellformedType c y
   Type.Effect1' e a -> wellformedType c e && wellformedType c a

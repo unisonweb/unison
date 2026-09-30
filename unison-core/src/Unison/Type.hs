@@ -48,6 +48,7 @@ data F a
   | IntroOuter a -- binder like ∀, used to introduce variables that are
   -- bound by outer type signatures, to support scoped type
   -- variables
+  | ImplicitArrow a a
   deriving (Foldable, Functor, Generic, Generic1, Eq, Ord, Traversable)
 
 _Ref :: Prism' (F a) TypeReference
@@ -100,6 +101,7 @@ monotype t = Monotype <$> ABT.visit isMono t
 arity :: Type v a -> Int
 arity (ForallNamed' _ body) = arity body
 arity (Arrow' _ o) = 1 + arity o
+arity (ImplicitArrow' _ o) = 1 + arity o
 arity (Ann' a _) = arity a
 arity _ = 0
 
@@ -110,6 +112,7 @@ arity _ = 0
 arityIgnoringEffects :: Type v a -> Int
 arityIgnoringEffects (ForallNamed' _ body) = arityIgnoringEffects body
 arityIgnoringEffects (Arrow' _ o) = 1 + arityIgnoringEffects o
+arityIgnoringEffects (ImplicitArrow' _ o) = 1 + arityIgnoringEffects o
 arityIgnoringEffects (Ann' a _) = arityIgnoringEffects a
 arityIgnoringEffects (Effect' _ o) = arityIgnoringEffects o
 arityIgnoringEffects _ = 0
@@ -120,6 +123,9 @@ pattern Ref' r <- ABT.Tm' (Ref r)
 
 pattern Arrow' :: ABT.Term F v a -> ABT.Term F v a -> ABT.Term F v a
 pattern Arrow' i o <- ABT.Tm' (Arrow i o)
+
+pattern ImplicitArrow' :: ABT.Term F v a -> ABT.Term F v a -> ABT.Term F v a
+pattern ImplicitArrow' i o <- ABT.Tm' (ImplicitArrow i o)
 
 pattern Arrow'' :: (Ord v) => ABT.Term F v a -> [Type v a] -> Type v a -> ABT.Term F v a
 pattern Arrow'' i es o <- Arrow' i (Effect'' es o)
@@ -260,6 +266,7 @@ unEffects1 _ = Nothing
 isArrow :: (ABT.Var v) => Type v a -> Bool
 isArrow (ForallNamed' _ t) = isArrow t
 isArrow (Arrow' _ _) = True
+isArrow (ImplicitArrow' _ _) = True
 isArrow _ = False
 
 -- some smart constructors
@@ -505,6 +512,13 @@ arrow a i o = ABT.tm' a (Arrow i o)
 
 arrow' :: (Semigroup a, Ord v) => Type v a -> Type v a -> Type v a
 arrow' i o = arrow (ABT.annotation i <> ABT.annotation o) i o
+
+-- | A dictionary parameter, distinguished from an explicit function argument.
+implicitArrow :: (Ord v) => a -> Type v a -> Type v a -> Type v a
+implicitArrow a i o = ABT.tm' a (ImplicitArrow i o)
+
+implicitArrow' :: (Semigroup a, Ord v) => Type v a -> Type v a -> Type v a
+implicitArrow' i o = implicitArrow (ABT.annotation i <> ABT.annotation o) i o
 
 ann :: (Ord v) => a -> Type v a -> K.Kind -> Type v a
 ann a e t = ABT.tm' a (Ann e t)
@@ -767,6 +781,8 @@ removePureEffects keepEmptied t
 
     keepVarsT pos (Arrow' i o) =
       keepVarsT (not pos) i <> keepVarsT pos o
+    keepVarsT pos (ImplicitArrow' i o) =
+      keepVarsT (not pos) i <> keepVarsT pos o
     keepVarsT pos (Effect1' e o) =
       keepVarsT pos e <> keepVarsT pos o
     keepVarsT pos (Effects' es) = foldMap (keepVarsE pos) es
@@ -795,6 +811,8 @@ editFunctionResult f = go
         (\x -> ABT.Term (s <> freeVars x) a . ABT.Tm $ Forall x) $ go t
       ABT.Tm (Arrow i o) ->
         (\x -> ABT.Term (s <> freeVars x) a . ABT.Tm $ Arrow i x) $ go o
+      ABT.Tm (ImplicitArrow i o) ->
+        (\x -> ABT.Term (s <> freeVars x) a . ABT.Tm $ ImplicitArrow i x) $ go o
       ABT.Abs v r ->
         (\x -> ABT.Term (s <> freeVars x) a $ ABT.Abs v x) $ go r
       _ -> f (ABT.Term s a t)
@@ -804,6 +822,7 @@ functionResult = go False
   where
     go inArr (ForallNamed' _ body) = go inArr body
     go _inArr (Arrow' _i o) = go True o
+    go _inArr (ImplicitArrow' _i o) = go True o
     go _inArr (Effect1' _e body) = go True body
     go inArr t = if inArr then Just t else Nothing
 
@@ -906,6 +925,8 @@ instance (Show a) => Show (F a) where
       go _ (Ref r) = shows r
       go p (Arrow i o) =
         showParen (p > 0) $ showsPrec (p + 1) i <> s " -> " <> showsPrec p o
+      go p (ImplicitArrow i o) =
+        showParen (p > 0) $ showsPrec (p + 1) i <> s " => " <> showsPrec p o
       go p (Ann t k) =
         showParen (p > 1) $ shows t <> s ":" <> shows k
       go p (App f x) =

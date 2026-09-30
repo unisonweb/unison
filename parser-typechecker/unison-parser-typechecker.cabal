@@ -137,6 +137,7 @@ library
       Unison.Typechecker.Context
       Unison.Typechecker.Context.Structure
       Unison.Typechecker.Extractor
+      Unison.Typechecker.GivenResolver
       Unison.Typechecker.TypeError
       Unison.Typechecker.TypeLookup
       Unison.Typechecker.TypeVar
@@ -276,6 +277,7 @@ test-suite parser-typechecker-tests
       Unison.Test.Typechecker
       Unison.Test.Typechecker.Components
       Unison.Test.Typechecker.Context
+      Unison.Test.Typechecker.GivenResolver
       Unison.Test.Typechecker.TypeError
       Unison.Test.Util.Pretty
       Unison.Test.Util.Relation
@@ -317,6 +319,8 @@ test-suite parser-typechecker-tests
   ghc-options: -Wall -fno-warn-name-shadowing -fno-warn-missing-pattern-synonym-signatures -W -threaded -rtsopts "-with-rtsopts=-N -T" -v0
   build-depends:
       base
+    , bytes
+    , bytestring
     , code-page
     , containers
     , easytest
@@ -325,6 +329,8 @@ test-suite parser-typechecker-tests
     , raw-strings-qq
     , temporary
     , text
+    , unison-codebase
+    , unison-codebase-sqlite
     , unison-core
     , unison-core1
     , unison-hash
