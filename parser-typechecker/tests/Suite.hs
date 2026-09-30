@@ -29,6 +29,7 @@ import Unison.Test.Typechecker.GivenGoal qualified as GivenGoal
 import Unison.Test.Typechecker.GivenGoals qualified as GivenGoals
 import Unison.Test.Typechecker.GivenLexical qualified as GivenLexical
 import Unison.Test.Typechecker.GivenParameters qualified as GivenParameters
+import Unison.Test.Typechecker.GivenPlan qualified as GivenPlan
 import Unison.Test.Typechecker.GivenResolver qualified as GivenResolver
 import Unison.Test.Typechecker.GivenSites qualified as GivenSites
 import Unison.Test.Typechecker.TypeError qualified as TypeError
@@ -62,6 +63,7 @@ test =
       GivenGoals.test,
       GivenLexical.test,
       GivenParameters.test,
+      GivenPlan.test,
       GivenResolver.test,
       GivenSites.test,
       Name.test,
