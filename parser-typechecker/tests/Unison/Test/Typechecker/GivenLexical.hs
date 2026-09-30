@@ -47,10 +47,10 @@ test =
               success
                 ( \case
                     [givens] -> do
-                      expectEqual (Set.fromList [(v, d) | (v, d, _) <- givens]) (Set.fromList (Map.elems marked))
-                      expectEqual (Set.fromList [d | (_, d, _) <- givens]) (Set.fromList [1, 2])
+                      expectEqual (Set.fromList [(v, d) | (v, Given.Lexical d, _) <- givens]) (Set.fromList (Map.elems marked))
+                      expectEqual (Set.fromList [d | (_, Given.Lexical d, _) <- givens]) (Set.fromList [1, 2])
                       expect (all (\(_, _, t) -> TV.lowerType t == n) givens)
-                      let pool = [Given.givenFromType (Given.Local v) (Given.Lexical d) (TV.lowerType t) | (v, d, t) <- givens]
+                      let pool = [Given.givenFromType (Given.Local v) d (TV.lowerType t) | (v, d, t) <- givens]
                       case Given.resolve pool n of
                         Right tree -> expectEqual (Given.resolvedGiven tree) (Given.Local (fst (last (Map.elems marked))))
                         other -> crash (show other)
@@ -61,7 +61,7 @@ test =
               let (marked, result) = run (take 1) (block 1 (block 2 reference))
               success
                 ( \case
-                    [givens] -> expectEqual [(v, d) | (v, d, _) <- givens] (Map.elems marked)
+                    [givens] -> expectEqual [(v, d) | (v, Given.Lexical d, _) <- givens] (Map.elems marked)
                     _ -> crash "expected one goal"
                 )
                 result,
