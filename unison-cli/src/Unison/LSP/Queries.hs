@@ -160,6 +160,7 @@ refInType typ = case ABT.out typ of
   ABT.Tm f -> case f of
     Type.Ref ref -> Just ref
     Type.Arrow _a _b -> Nothing
+    Type.ImplicitArrow _a _b -> Nothing
     Type.Effect _a _b -> Nothing
     Type.App _a _b -> Nothing
     Type.Forall _r -> Nothing
@@ -365,6 +366,7 @@ findSmallestEnclosingTypeMatching pos pred typ
             ABT.Tm f -> case f of
               Type.Ref {} -> guardInFile *> pred typ
               Type.Arrow a b -> findSmallestEnclosingTypeMatching pos pred a <|> findSmallestEnclosingTypeMatching pos pred b
+              Type.ImplicitArrow a b -> findSmallestEnclosingTypeMatching pos pred a <|> findSmallestEnclosingTypeMatching pos pred b
               Type.Effect effs rhs ->
                 -- There's currently a bug in the annotations for effects which cause them to
                 -- span larger than they should. As  a workaround for now we just make sure to

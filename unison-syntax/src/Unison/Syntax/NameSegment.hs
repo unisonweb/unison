@@ -13,6 +13,7 @@ module Unison.Syntax.NameSegment
     ParseErr (..),
     renderParseErr,
     segmentP,
+    segmentPAllowingReserved,
     symbolyP,
     wordyP,
 
@@ -96,6 +97,12 @@ segmentP =
   P.withParsecT (fmap ReservedOperator) symbolyP
     <|> P.withParsecT (fmap ReservedWord) wordyP
 
+-- | Namespace names can contain words that are reserved in source code.
+segmentPAllowingReserved :: (Monad m) => ParsecT (Token ParseErr) [Char] m NameSegment
+segmentPAllowingReserved =
+  P.withParsecT (fmap ReservedOperator) (symbolyPWith Set.empty)
+    <|> P.withParsecT (fmap ReservedWord) (wordyPWith Set.empty)
+
 -- | A symboly name segment parser, which consists only of symboly characters.
 --
 -- A symboly name segment can optionally be escaped by surrounding it with backticks, which expands the list of allowed
@@ -103,7 +110,10 @@ segmentP =
 --
 -- Throws the parsed name segment as an error if it's unescaped and reserved, e.g. "=".
 symbolyP :: ParsecT (Token Text) [Char] m NameSegment
-symbolyP = do
+symbolyP = symbolyPWith reservedOperators
+
+symbolyPWith :: Set Text -> ParsecT (Token Text) [Char] m NameSegment
+symbolyPWith reserved = do
   start <- posP
   asum
     [ do
@@ -119,7 +129,7 @@ symbolyP = do
       NameSegment . Text.pack <$> P.takeWhile1P (Just name) predicate
 
     check start (NameSegment symbol) =
-      when (Set.member symbol reservedOperators) do
+      when (Set.member symbol reserved) do
         end <- posP
         P.customFailure (Token symbol start end)
 
@@ -130,7 +140,10 @@ symbolyP = do
 --
 -- Throws the parsed name segment as an error if it's an unescaped keyword, e.g. "match".
 wordyP :: ParsecT (Token Text) [Char] m NameSegment
-wordyP = do
+wordyP = wordyPWith keywords
+
+wordyPWith :: Set Text -> ParsecT (Token Text) [Char] m NameSegment
+wordyPWith reserved = do
   start <- posP
   asum
     [ do
@@ -148,7 +161,7 @@ wordyP = do
       pure (NameSegment (Text.pack (ch : rest)))
 
     check start (NameSegment word) =
-      when (Set.member word keywords) do
+      when (Set.member word reserved) do
         end <- posP
         P.customFailure (Token word start end)
 
