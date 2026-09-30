@@ -34,6 +34,7 @@ import Unison.Test.Typechecker.GivenParameters qualified as GivenParameters
 import Unison.Test.Typechecker.GivenPlan qualified as GivenPlan
 import Unison.Test.Typechecker.GivenResolver qualified as GivenResolver
 import Unison.Test.Typechecker.GivenSites qualified as GivenSites
+import Unison.Test.Typechecker.GivenTdnr qualified as GivenTdnr
 import Unison.Test.Typechecker.TypeError qualified as TypeError
 import Unison.Test.Util.Relation qualified as Relation
 import Unison.Test.Util.Text qualified as Text
@@ -70,6 +71,7 @@ test =
       GivenPlan.test,
       GivenResolver.test,
       GivenSites.test,
+      GivenTdnr.test,
       Name.test,
       CodebaseInit.test,
       Branch.test
