@@ -2,7 +2,18 @@
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE ViewPatterns #-}
 
-module Unison.Parser.Ann where
+module Unison.Parser.Ann
+  ( Ann (Intrinsic, External, GeneratedFrom, Ann, start, end),
+    SiteId (..),
+    siteId,
+    atSite,
+    isFileAnn,
+    startingLine,
+    contains,
+    encompasses,
+    Annotated (..),
+  )
+where
 
 import Control.Comonad.Cofree (Cofree ((:<)))
 import Data.List.NonEmpty (NonEmpty)
@@ -10,16 +21,62 @@ import Data.Void (absurd)
 import Unison.Lexer.Pos qualified as L
 import Unison.Prelude
 
-data Ann
-  = -- Used for things like Builtins which don't have a source position.
-    Intrinsic -- { sig :: String, start :: L.Pos, end :: L.Pos }
-  | External
-  | -- Indicates that the term was generated from something at this location.
-    -- E.g. generated record field accessors (get, modify, etc.) are generated from their field definition, so are tagged
-    -- with @GeneratedFrom <field position>@
-    GeneratedFrom Ann
-  | Ann {start :: L.Pos, end :: L.Pos}
-  deriving (Eq, Ord, Show)
+-- | Expression identity is separate from source location: several AST nodes
+-- may occupy the same source range. Location comparisons intentionally ignore it.
+newtype SiteId = SiteId Word64
+  deriving stock (Eq, Ord, Show)
+
+data Ann = AnnData (Maybe SiteId) Location
+
+data Location
+  = IntrinsicLocation
+  | ExternalLocation
+  | GeneratedLocation Ann
+  | FileLocation L.Pos L.Pos
+  deriving stock (Eq, Ord)
+
+pattern Intrinsic :: Ann
+pattern Intrinsic <- AnnData _ IntrinsicLocation
+  where
+    Intrinsic = AnnData Nothing IntrinsicLocation
+
+pattern External :: Ann
+pattern External <- AnnData _ ExternalLocation
+  where
+    External = AnnData Nothing ExternalLocation
+
+pattern GeneratedFrom :: Ann -> Ann
+pattern GeneratedFrom a <- AnnData _ (GeneratedLocation a)
+  where
+    GeneratedFrom a = AnnData Nothing (GeneratedLocation a)
+
+pattern Ann :: L.Pos -> L.Pos -> Ann
+pattern Ann {start, end} <- AnnData _ (FileLocation start end)
+  where
+    Ann s e = AnnData Nothing (FileLocation s e)
+
+{-# COMPLETE Intrinsic, External, GeneratedFrom, Ann #-}
+
+instance Eq Ann where
+  AnnData _ a == AnnData _ b = a == b
+
+instance Ord Ann where
+  compare (AnnData _ a) (AnnData _ b) = compare a b
+
+-- Keep diagnostics independent of transient expression identities.
+instance Show Ann where
+  showsPrec p = \case
+    Intrinsic -> showString "Intrinsic"
+    External -> showString "External"
+    GeneratedFrom a -> showParen (p > 10) (showString "GeneratedFrom " . showsPrec 11 a)
+    Ann s e -> showParen (p > 10) (showString "Ann {start = " . shows s . showString ", end = " . shows e . showString "}")
+
+siteId :: Ann -> Maybe SiteId
+siteId (AnnData site _) = site
+
+-- | Replace the identity of this node, leaving its source location unchanged.
+atSite :: SiteId -> Ann -> Ann
+atSite site (AnnData _ location) = AnnData (Just site) location
 
 -- | Checks whether an annotation has a concrete position in a file.
 isFileAnn :: Ann -> Bool
