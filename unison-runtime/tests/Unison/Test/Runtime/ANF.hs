@@ -5,6 +5,7 @@ module Unison.Test.Runtime.ANF where
 
 import Control.Monad.Reader (ReaderT (..))
 import Control.Monad.State (evalState)
+import Control.Monad.State.Strict qualified as State.Strict
 import Data.Map qualified as Map
 import Data.Set qualified as Set
 import Data.Word (Word64)
@@ -15,7 +16,7 @@ import Unison.ConstructorReference (GConstructorReference (..))
 import Unison.Pattern qualified as P
 import Unison.Reference (Reference, Reference' (Builtin))
 import Unison.Runtime.ANF as ANF
-import Unison.Runtime.MCode (RefNums (..), emitCombs)
+import Unison.Runtime.MCode (RefNums (..), emitCombs, emptyRecordFieldMappings)
 import Unison.Term qualified as Term
 import Unison.Test.Common
 import Unison.Type as Ty
@@ -53,7 +54,10 @@ testLift :: String -> Test ()
 testLift s = case cs of !_ -> ok
   where
     cs =
-      emitCombs (RN (const 0) (const 0) (const Nothing)) (Builtin "Test") 0
+      flip State.Strict.evalState emptyRecordFieldMappings
+        -- Not `emptyRNs`: every one of its lookups throws, and `emitCombs`
+        -- calls them. These stubs are total.
+        . emitCombs (RN (const 0) (const 0) (const Nothing) (const (RecordRef 0))) (Builtin "Test") 0
         . superNormalize
         . (\(ll, _, _, _, _) -> ll)
         . lamLift mempty
@@ -94,6 +98,10 @@ denormalize (TApp f args)
     r `elem` [Ty.natRef, Ty.intRef],
     [v] <- args =
       Term.var () v
+denormalize (TApp (FRec (RecordSchema fields)) args) =
+  -- Unlike every other `Func`, a record isn't applied to its arguments: the
+  -- arguments are the field values, in ascending field-name order.
+  Term.record () . Map.fromList . zip (Set.toAscList fields) $ Term.var () <$> args
 denormalize (TApp f args) = Term.apps' df (Term.var () <$> args)
   where
     df = case f of
@@ -105,6 +113,8 @@ denormalize (TApp f args) = Term.apps' df (Term.var () <$> args)
         Term.request () (ConstructorReference r (fromIntegral $ rawTag n))
       FPrim _ -> error "FPrim"
       FCont _ -> error "denormalize FCont"
+      -- Handled by the equation above; the `case` can't see that.
+      FRec _ -> error "denormalize FRec"
 denormalize (TFrc _) = error "denormalize TFrc"
 denormalize (TDiscard _) = error "denormalize TDiscard"
 denormalize (TLocal _ _) = error "denormalize TLocal"
@@ -147,6 +157,16 @@ denormalizeMatch b
   | MatchNumeric _ cs df <- b =
       (dcase (ipat @Word64 @Integer Ty.intRef) <$> mapToList cs) ++ dfcase df
   | MatchSum _ <- b = error "MatchSum not a compilation target"
+  | MatchRec (RecordSchema fields) br <- b =
+      -- A record match is a single irrefutable case binding one variable per
+      -- field, in ascending field-name order -- the order `AccumRec` pushes
+      -- them in.
+      let (_, dbr) = denormalizeBranch @Int br
+       in [ Term.MatchCase
+              (P.RecordLiteral () (Map.fromSet (const (P.Var ())) fields))
+              Nothing
+              dbr
+          ]
   where
     dfcase (Just d) =
       [Term.MatchCase (P.Unbound ()) Nothing $ denormalize d]
@@ -229,6 +249,11 @@ test =
             "1 + match x with\n\
             \  +1 -> foo\n\
             \  +2 -> bar",
-          testANF "(match x with +3 -> foo) + (match x with +2 -> foo)"
+          testANF "(match x with +3 -> foo) + (match x with +2 -> foo)",
+          testANF "{a: x}",
+          -- Fields are laid out in ascending name order, not source order.
+          testANF "{b: x, a: y}",
+          testANF "match x with {a: y} -> y",
+          testANF "match x with {b: y, a: z} -> y"
         ]
     ]

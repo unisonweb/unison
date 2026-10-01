@@ -4,6 +4,7 @@ module Unison.Hashing.V2.Pattern
   )
 where
 
+import Data.Map qualified as Map
 import Unison.DataDeclaration.ConstructorId (ConstructorId)
 import Unison.Hashing.V2.Reference (Reference)
 import Unison.Hashing.V2.Tokenizable qualified as H
@@ -22,6 +23,7 @@ data Pattern loc
   | PatternChar loc !Char
   | PatternBytes loc !Bytes
   | PatternConstructor loc !Reference !ConstructorId [Pattern loc]
+  | PatternRecord loc (Map Text (Pattern loc))
   | PatternAs loc (Pattern loc)
   | PatternEffectPure loc (Pattern loc)
   | PatternEffectBind loc !Reference !ConstructorId [Pattern loc] (Pattern loc)
@@ -58,6 +60,13 @@ instance H.Tokenizable (Pattern p) where
   tokens (PatternSequenceOp _ l op r) = H.Tag 12 : H.tokens op ++ H.tokens l ++ H.tokens r
   tokens (PatternChar _ c) = H.Tag 13 : H.tokens c
   tokens (PatternBytes _ b) = [H.Tag 14, H.Bytes (Bytes.toByteString b)]
+  -- The field count is hashed so that the flat name/pattern run is explicitly
+  -- delimited, rather than relying on every element happening to be
+  -- self-delimiting.
+  tokens (PatternRecord _ fields) =
+    H.Tag 15
+      : (H.Nat . fromIntegral $ Map.size fields)
+      : foldMap (\(fieldName, p) -> H.tokens fieldName ++ H.tokens p) (Map.toAscList fields)
 
 instance Eq (Pattern loc) where
   PatternUnbound _ == PatternUnbound _ = True
@@ -71,6 +80,7 @@ instance Eq (Pattern loc) where
   PatternEffectBind _ r ctor ps k == PatternEffectBind _ r2 ctor2 ps2 k2 = r == r2 && ctor == ctor2 && ps == ps2 && k == k2
   PatternAs _ p == PatternAs _ q = p == q
   PatternText _ t == PatternText _ t2 = t == t2
+  PatternRecord _ fs == PatternRecord _ fs2 = fs == fs2
   PatternBytes _ b == PatternBytes _ b2 = b == b2
   PatternSequenceLiteral _ ps == PatternSequenceLiteral _ ps2 = ps == ps2
   PatternSequenceOp _ ph op pt == PatternSequenceOp _ ph2 op2 pt2 = ph == ph2 && op == op2 && pt == pt2

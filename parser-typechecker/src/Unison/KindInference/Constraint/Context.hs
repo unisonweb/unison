@@ -3,6 +3,7 @@ module Unison.KindInference.Constraint.Context
   )
 where
 
+import Data.Text (Text)
 import Unison.KindInference.UVar (UVar)
 import Unison.Type (Type)
 
@@ -19,4 +20,6 @@ data ConstraintContext v loc
   | DeclDefinition
   | Builtin
   | ContextLookup
+  | Record
+  | RecordField Text
   deriving stock (Show, Eq, Ord)

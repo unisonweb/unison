@@ -30,7 +30,7 @@ import Unison.PatternMatchCoverage.UFMap qualified as UFMap
 import Unison.Prelude
 import Unison.PrettyPrintEnv qualified as PPE
 import Unison.Syntax.TypePrinter qualified as TypePrinter
-import Unison.Type (Type, booleanRef, bytesRef, charRef, effectRef, floatRef, intRef, listRef, natRef, textRef, pattern App', pattern Apps', pattern Ref')
+import Unison.Type (Type, booleanRef, bytesRef, charRef, effectRef, floatRef, intRef, listRef, natRef, textRef, pattern App', pattern Apps', pattern Record', pattern Ref')
 import Unison.Util.Bytes (Bytes)
 import Unison.Util.Pretty
 import Unison.Var (Var)
@@ -185,6 +185,10 @@ mkVarInfo v t =
       vi_typ = t,
       vi_con = case t of
         Apps' (Ref' r) _ | r == effectRef -> Vc'Effect Nothing mempty
+        -- A record is a product with exactly one constructor, so there is no
+        -- negative information to track: the only thing we can learn is which
+        -- variables stand for its fields.
+        Record' _fb _fields -> Vc'Record Nothing
         App' (Ref' r) t
           | r == listRef -> Vc'ListRoot t Empty Empty (IntervalSet.singleton (0, maxBound))
         Ref' r
@@ -220,6 +224,11 @@ data VarConstraints vt v loc
   | Vc'Effect
       (Maybe (EffectHandler, [(v, Type vt loc)]))
       (Set EffectHandler)
+  | -- | Records have a single constructor, so the only constraint we can
+    -- carry is the positive one naming a variable per matched field. Fields
+    -- the match hasn't mentioned are simply absent from the map.
+    Vc'Record
+      (Maybe (Map Text (v, Type vt loc)))
   | Vc'Boolean (Maybe Bool) (Set Bool)
   | Vc'Int (Maybe Int64) (Set Int64)
   | Vc'Nat (Maybe Word64) (Set Word64)
@@ -269,6 +278,8 @@ prettyNormalizedConstraints ppe (NormalizedConstraints {constraintMap}) = sep " 
               (\x -> [PosLit kcanon (PmLit.Char x)]) <$> pos
             Vc'Bytes pos _neg ->
               (\x -> [PosLit kcanon (PmLit.Bytes x)]) <$> pos
+            Vc'Record pos ->
+              (\fields -> [PosRecordLiteral kcanon fields]) <$> pos
             Vc'ListRoot _typ posCons posSnoc _iset ->
               let consConstraints = fmap (\(i, x) -> PosListHead kcanon i x) (zip [0 ..] (toList posCons))
                   snocConstraints = fmap (\(i, x) -> PosListTail kcanon i x) (zip [0 ..] (toList posSnoc))
@@ -285,6 +296,8 @@ prettyNormalizedConstraints ppe (NormalizedConstraints {constraintMap}) = sep " 
             Vc'Text _pos neg -> negConK neg (\v a -> NegLit v (PmLit.Text a))
             Vc'Char _pos neg -> negConK neg (\v a -> NegLit v (PmLit.Char a))
             Vc'Bytes _pos neg -> negConK neg (\v a -> NegLit v (PmLit.Bytes a))
+            -- Records have no negative constraints.
+            Vc'Record _pos -> []
             Vc'ListRoot _typ _posCons _posSnoc iset -> [NegListInterval kcanon (IntervalSet.complement iset)]
           botCon = case vi_eff vi of
             IsNotEffectful -> []

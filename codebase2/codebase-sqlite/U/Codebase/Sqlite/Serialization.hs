@@ -58,6 +58,7 @@ import Data.Bytes.Put (MonadPut, putByteString, putWord8)
 import Data.Bytes.Serial (SerialEndian (serializeBE), deserialize, deserializeBE, serialize)
 import Data.Bytes.VarInt (VarInt (VarInt), unVarInt)
 import Data.List (elemIndex)
+import Data.Map qualified as Map
 import Data.Set qualified as Set
 import Data.Vector (Vector)
 import U.Codebase.Decl (Modifier)
@@ -281,6 +282,8 @@ putSingleTerm t = putABT putSymbol putUnit putF t
         putWord8 20 *> putReferent' putRecursiveReference putReference r
       Term.TypeLink r ->
         putWord8 21 *> putReference r
+      Term.Record fields ->
+        putWord8 22 *> putFoldable (\(name, val) -> putText name *> putChild val) (Map.toList fields)
     putMatchCase :: (MonadPut m) => (a -> m ()) -> Term.MatchCase LocalTextId TermFormat.TypeRef a -> m ()
     putMatchCase putChild (Term.MatchCase pat guard body) =
       putPattern pat *> putMaybe putChild guard *> putChild body
@@ -317,6 +320,10 @@ putSingleTerm t = putABT putSymbol putUnit putF t
       Term.PBytes b ->
         let bs = Bytes.toByteString b
          in putWord8 14 *> putVarInt (BS.length bs) *> putByteString bs
+      Term.PRecord fields ->
+        putWord8 15
+          *> putFoldable (\(name, pat) -> putText name *> putPattern pat) (Map.toList fields)
+
     putSeqOp :: (MonadPut m) => Term.SeqOp -> m ()
     putSeqOp Term.PCons = putWord8 0
     putSeqOp Term.PSnoc = putWord8 1
@@ -368,6 +375,10 @@ getSingleTerm = getABT getSymbol getUnit getF
         19 -> Term.Char <$> getChar
         20 -> Term.TermLink <$> getReferent
         21 -> Term.TypeLink <$> getReference
+        22 ->
+          getList
+            ((,) <$> getText <*> getChild)
+            <&> Term.Record . Map.fromList
         tag -> unknownTag "getSingleTerm" tag
       where
         getReferent :: (MonadGet m) => m (Referent' TermFormat.TermRef TermFormat.TypeRef)
@@ -406,6 +417,7 @@ getSingleTerm = getABT getSymbol getUnit getF
               n <- getVarInt
               bs <- getByteString n
               pure $ Term.PBytes (Bytes.fromByteString bs)
+            15 -> Term.PRecord . Map.fromList <$> (getList ((,) <$> getText <*> getPattern))
             x -> unknownTag "Pattern" x
           where
             getSeqOp :: (MonadGet m) => m Term.SeqOp
@@ -452,6 +464,7 @@ getType getReference = getABT getSymbol getUnit go
         5 -> Type.Effects <$> getList getChild
         6 -> Type.Forall <$> getChild
         7 -> Type.IntroOuter <$> getChild
+        8 -> Type.Record <$> getEnum @Type.FieldBehavior <*> (Map.fromList <$> getList (getPair getText getChild))
         tag -> unknownTag "getType" tag
     getKind :: (MonadGet m) => m Kind
     getKind =
@@ -1128,6 +1141,7 @@ putType putReference putVar = putABT putVar putUnit go
       Type.Effects es -> putWord8 5 *> putFoldable putChild es
       Type.Forall body -> putWord8 6 *> putChild body
       Type.IntroOuter body -> putWord8 7 *> putChild body
+      Type.Record fb fields -> putWord8 8 *> putEnum @Type.FieldBehavior fb *> putFoldable (\(l, t) -> putText l *> putChild t) (Map.toAscList fields)
     putKind :: (MonadPut m) => Kind -> m ()
     putKind k = case k of
       Kind.Star -> putWord8 0
@@ -1154,3 +1168,9 @@ getMaybe getA =
 unknownTag :: (MonadGet m, Show a) => String -> a -> m x
 unknownTag msg tag =
   fail $ "unknown tag " ++ show tag ++ " while deserializing: " ++ msg
+
+putEnum :: forall e m. (MonadPut m, Enum e) => e -> m ()
+putEnum e = putVarInt (fromEnum e)
+
+getEnum :: forall e m. (MonadGet m, Enum e) => m e
+getEnum = toEnum <$> getVarInt

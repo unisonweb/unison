@@ -625,3 +625,39 @@ fixity = do
     zzzz = 1 * 2 + 3 * 3 < 4 + 5 * 6 && 7 + 8 * 9 > 10 + 11 * 12 === 1 + 3 * 3 < 4 + 5 * 6 && 7 + 8 * 9 > 10 + 11 * 12
     ()
     ) |> id
+
+-- Anonymous records: literals, types, patterns and field projections
+
+record_literal = { name : "Alice", age : 30 }
+
+record_nested = { a : { b : { c : 42 } } }
+
+record_empty = { }
+
+record_open_type : { x : Nat, y : Text | ... } -> Nat
+record_open_type = cases { x : x } -> x
+
+record_closed_type : { x : Nat, y : Text } -> Nat
+record_closed_type = cases { x : x, y : _ } -> x
+
+record_refutable : { x : Nat | ... } -> Text
+record_refutable = cases
+  { x : 0 } -> "zero"
+  _ -> "other"
+
+record_destructure : { x : Nat, y : Nat | ... } -> Nat
+record_destructure r =
+  { x : x, y : y } = r
+  x Nat.+ y
+
+record_projection : { a : Nat | ... } -> Nat
+record_projection r = r@a
+
+record_projection_chain : { a : { b : { c : Nat } } | ... } -> Nat
+record_projection_chain r = r@a@b@c
+
+record_projection_applied : { a : Nat | ... } -> Nat
+record_projection_applied r = Nat.increment r@a
+
+record_projection_of_expr : Nat -> Nat
+record_projection_of_expr n = ({ v : n })@v

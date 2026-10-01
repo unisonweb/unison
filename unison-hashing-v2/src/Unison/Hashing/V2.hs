@@ -27,6 +27,7 @@ module Unison.Hashing.V2
     Type,
     TypeEdit (..),
     TypeF (..),
+    FieldBehavior (..),
     HashingWarning (..),
     crashOnHashingWarning,
     hashClosedTerm,
@@ -57,5 +58,5 @@ import Unison.Hashing.V2.Reference (Reference (..), ReferenceId (..), pattern Re
 import Unison.Hashing.V2.Referent (Referent (..))
 import Unison.Hashing.V2.Term (MatchCase (..), Term, TermF (..), hashClosedTerm, hashTermComponents, hashTermComponentsWithoutTypes)
 import Unison.Hashing.V2.TermEdit (TermEdit (..))
-import Unison.Hashing.V2.Type (Type, TypeF (..), typeToReference, typeToReferenceMentions)
+import Unison.Hashing.V2.Type (FieldBehavior (..), Type, TypeF (..), typeToReference, typeToReferenceMentions)
 import Unison.Hashing.V2.TypeEdit (TypeEdit (..))

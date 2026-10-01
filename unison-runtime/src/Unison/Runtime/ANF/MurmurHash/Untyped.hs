@@ -30,7 +30,7 @@ import Unison.Runtime.TypeTags (mapBinTag, mapTipTag)
 import Unison.Util.Bytes (Bytes)
 import Unison.Util.Bytes qualified as B
 import Unison.Util.EnumContainers qualified as EC
-import Unison.Util.Text as UT hiding (reverse, pattern Text)
+import Unison.Util.Text qualified as UT hiding (reverse, pattern Text)
 import Unison.Var (Var)
 
 hash64ValueUntyped :: Referenced Value -> Hash64
@@ -52,6 +52,9 @@ data HRefs r = HRefs
 
 hash64AddShort :: SBS.ShortByteString -> Hash64 -> Hash64
 hash64AddShort = flip $ SBS.foldl (flip $ hash64AddInt . fromIntegral)
+
+hash64AddText :: DT.Text -> Hash64 -> Hash64
+hash64AddText t h = DT.foldl' (flip hash64Add) h t
 
 hash64AddRef :: Reference -> Hash64 -> Hash64
 hash64AddRef (ReferenceBuiltin tx) h =
@@ -97,6 +100,10 @@ hash64AddValue rs = \case
     hash64AddUMap rs (M.fromDistinctAscList assocs)
   BLit lit ->
     hash64AddInt 4 `combine` hash64AddBLit rs lit
+  Record (RecordSchema recSchema) vs ->
+    hash64AddInt 5
+      `combine` hash64AddFoldable (hash64AddText) recSchema
+      `combine` hash64AddValues rs vs
 
 hash64AddGroupRef :: HRefs r -> GroupRef r -> Hash64 -> Hash64
 hash64AddGroupRef rs (GR i k) =
@@ -308,6 +315,9 @@ hash64AddFunc rf ctx = \case
   FPrim ins ->
     hash64AddInt 6
       `combine` hash64AddEither hash64AddPOp hash64AddForeign ins
+  FRec (RecordSchema rs) ->
+    hash64AddInt 7
+      `combine` hash64AddFoldable (hash64AddText) rs
 
 hash64AddLit :: HRefs r -> Lit r -> Hash64 -> Hash64
 hash64AddLit rs = \case
@@ -356,6 +366,10 @@ hash64AddBranches rs ctx = \case
     hash64AddInt 8
       `combine` hash64AddMap (hash64AddYAssoc rs ctx) bs
       `combine` hash64AddMaybe (hash64AddNormal rs ctx) df
+  MatchRec (RecordSchema recSchema) bd ->
+    hash64AddInt 9
+      `combine` hash64AddFoldable (hash64AddText) recSchema
+      `combine` hash64AddNormal rs ctx bd
 
 hash64AddNAssoc ::
   (Show r) =>
@@ -464,6 +478,14 @@ hash64AddEMap f = flip $ EC.foldlWithKey (rot f)
 hash64AddMap ::
   (k -> v -> Hash64 -> Hash64) -> M.Map k v -> Hash64 -> Hash64
 hash64AddMap f = flip $ M.foldlWithKey' (rot f)
+
+hash64AddFoldable ::
+  (Foldable f) =>
+  (a -> Hash64 -> Hash64) ->
+  f a ->
+  Hash64 ->
+  Hash64
+hash64AddFoldable f = flip $ foldl' (flip f)
 
 -- Serializes a map as if it were a unison data type
 hash64AddUMap ::

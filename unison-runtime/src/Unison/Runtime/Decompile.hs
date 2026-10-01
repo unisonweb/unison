@@ -14,6 +14,7 @@ where
 import Data.Map qualified as Map
 import Data.Set (singleton)
 import Data.Text qualified as DT
+import Data.Vector qualified as V
 import Numeric.Natural (Natural)
 import Unison.ABT (substs)
 import Unison.Builtin.Decls qualified as DD
@@ -25,7 +26,7 @@ import Unison.Referent qualified as Referent
 import Unison.Runtime.ANF (maskTags)
 import Unison.Runtime.Array (byteArrayToList)
 import Unison.Runtime.IOSource (iarrayFromListRef, ibarrayFromBytesRef)
-import Unison.Runtime.MCode (CombIx (..))
+import Unison.Runtime.MCode (CombIx (..), shapeFields)
 import Unison.Runtime.Stack
   ( Closure (..),
     Foreign (..),
@@ -111,6 +112,12 @@ decompile backref topTerms = \case
           app () (builtin () "Any.Any") <$> decompile backref topTerms b
     (DataC rf (maskTags -> ct) vs) ->
       apps' (con rf ct) <$> traverse (decompile backref topTerms) vs
+    (RecordC shape vals) -> do
+      vs' <- traverse (decompile backref topTerms) vals
+      -- The field names are carried by the record's shape, in the same
+      -- ascending order as its slots.
+      pure . Term.record () . Map.fromList $
+        zip (V.toList (shapeFields shape)) (V.toList vs')
     (PApV (CIx rf rt k) _ vs)
       | rf == Builtin "jumpCont" ->
           err Cont $ bug "<Continuation>"

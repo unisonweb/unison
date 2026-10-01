@@ -331,6 +331,36 @@ analyseNotes codebase fileUri ppe src notes = do
               TypeError.UncoveredPatterns loc _pats -> singleRange loc
               TypeError.KindInferenceFailure ke -> singleRange (KindInference.lspLoc ke)
               TypeError.RunWatchTypeMismatch _ watchSite _ -> singleRange watchSite
+              TypeError.MissingRecordField {fieldType, recordWithoutField, recordWithField} ->
+                do
+                  r1 <- aToR (ABT.annotation recordWithoutField)
+                  r2 <- aToR (ABT.annotation fieldType)
+                  r3 <- aToR (ABT.annotation recordWithField)
+                  pure
+                    ( r1,
+                      [ ("expected field type", r2),
+                        ("expected record type", r3)
+                      ]
+                    )
+              TypeError.UnexpectedRecordField {recordWithoutField, recordWithField} ->
+                do
+                  r1 <- aToR (ABT.annotation recordWithField)
+                  r2 <- aToR (ABT.annotation recordWithoutField)
+                  pure
+                    ( r1,
+                      [ ("expected record type", r2)
+                      ]
+                    )
+              TypeError.PatternMatchedMissingField {recordPatternLoc, scrutineeRecordType} ->
+                do
+                  r1 <- aToR recordPatternLoc
+                  r2 <- aToR (ABT.annotation scrutineeRecordType)
+                  pure (r1, [("record type", r2)])
+              TypeError.RecordPatternMatchOnNonRecordType {recordPatternLoc, scrutineeNonRecordType} ->
+                do
+                  r1 <- aToR recordPatternLoc
+                  r2 <- aToR (ABT.annotation scrutineeNonRecordType)
+                  pure (r1, [("not a record type", r2)])
               -- These type errors don't have custom type error conversions, but some
               -- still have valid diagnostics.
               TypeError.Other e@(Context.ErrorNote {cause}) -> case cause of
@@ -353,6 +383,29 @@ analyseNotes codebase fileUri ppe src notes = do
                 Context.InaccessiblePattern loc -> singleRange loc
                 Context.KindInferenceFailure {} -> shouldHaveBeenHandled e
                 Context.RunWatchTypeMismatch loc _typ -> singleRange loc
+                Context.MissingRecordField _fieldName fieldType recordWithoutField recordWithField -> do
+                  r1 <- aToR (ABT.annotation recordWithoutField)
+                  r2 <- aToR (ABT.annotation fieldType)
+                  r3 <- aToR (ABT.annotation recordWithField)
+                  pure
+                    ( r1,
+                      [ ("expected field type", r2),
+                        ("expected record type", r3)
+                      ]
+                    )
+                Context.UnexpectedRecordField _fieldName fieldType actualRecordType expectedRecordType -> do
+                  r1 <- aToR (ABT.annotation actualRecordType)
+                  r2 <- aToR (ABT.annotation fieldType)
+                  r3 <- aToR (ABT.annotation expectedRecordType)
+                  pure
+                    ( r1,
+                      [ ("expected field type", r2),
+                        ("expected record type", r3)
+                      ]
+                    )
+                Context.PatternMatchedMissingField {} -> shouldHaveBeenHandled e
+                Context.RecordPatternMatchOnNonRecordType {} -> shouldHaveBeenHandled e
+
             shouldHaveBeenHandled e = do
               Debug.debugM Debug.LSP "This diagnostic should have been handled by a previous case but was not" e
               empty
@@ -651,3 +704,4 @@ expressionLeafNodes abt =
       Term.Match _a cases -> cases & foldMap \(Term.MatchCase {matchBody}) -> expressionLeafNodes matchBody
       Term.TermLink {} -> [abt]
       Term.TypeLink {} -> [abt]
+      Term.Record fields -> fields & foldMap expressionLeafNodes

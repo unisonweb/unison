@@ -146,6 +146,27 @@ data TypeError v loc
   | RedundantPattern loc
   | KindInferenceFailure (KindError v loc)
   | RunWatchTypeMismatch (Type v loc) loc (C.ErrorNote v loc)
+  | MissingRecordField
+      { missingFieldName :: Text,
+        fieldType :: C.Type v loc,
+        recordWithField :: C.Type v loc,
+        recordWithoutField :: C.Type v loc
+      }
+  | UnexpectedRecordField
+      { unexpectedFieldName :: Text,
+        fieldType :: C.Type v loc,
+        recordWithoutField :: C.Type v loc,
+        recordWithField :: C.Type v loc
+      }
+  | PatternMatchedMissingField
+      { matchedFieldName :: Text,
+        recordPatternLoc :: loc,
+        scrutineeRecordType :: C.Type v loc
+      }
+  | RecordPatternMatchOnNonRecordType
+      { recordPatternLoc :: loc,
+        scrutineeNonRecordType :: C.Type v loc
+      }
   | Other (C.ErrorNote v loc)
   deriving (Show)
 
@@ -181,6 +202,10 @@ allErrors =
       ifBody,
       listBody,
       matchBody,
+      missingRecordField,
+      unexpectedReccordField,
+      patternMatchedMissingField,
+      recordPatternMatchOnNonRecordType,
       applyingFunction,
       applyingNonFunction,
       generalMismatch,
@@ -421,6 +446,55 @@ existentialMismatch0 em getExpectedLoc = do
       mismatchSite
       -- todo : save type leaves too
       n
+
+missingRecordField ::
+  (Var v, Ord loc) =>
+  Ex.ErrorExtractor v loc (TypeError v loc)
+missingRecordField = do
+  (missingFieldName, fieldType, recordWithoutField, recordWithField) <- Ex.missingRecordField
+  pure $
+    MissingRecordField
+      { missingFieldName,
+        fieldType,
+        recordWithoutField,
+        recordWithField
+      }
+
+unexpectedReccordField ::
+  (Var v, Ord loc) =>
+  Ex.ErrorExtractor v loc (TypeError v loc)
+unexpectedReccordField = do
+  (unexpectedFieldName, fieldType, recordWithoutField, recordWithField) <- Ex.unexpectedRecordField
+  pure $
+    UnexpectedRecordField
+      { unexpectedFieldName,
+        fieldType,
+        recordWithoutField,
+        recordWithField
+      }
+
+patternMatchedMissingField ::
+  (Var v, Ord loc) =>
+  Ex.ErrorExtractor v loc (TypeError v loc)
+patternMatchedMissingField = do
+  (matchedFieldName, recordPatternLoc, scrutineeRecordType) <- Ex.patternMatchedMissingField
+  pure $
+    PatternMatchedMissingField
+      { matchedFieldName,
+        recordPatternLoc,
+        scrutineeRecordType
+      }
+
+recordPatternMatchOnNonRecordType ::
+  (Var v, Ord loc) =>
+  Ex.ErrorExtractor v loc (TypeError v loc)
+recordPatternMatchOnNonRecordType = do
+  (recordPatternLoc, scrutineeNonRecordType) <- Ex.recordPatternMatchOnNonRecordType
+  pure $
+    RecordPatternMatchOnNonRecordType
+      { recordPatternLoc,
+        scrutineeNonRecordType
+      }
 
 actionRestriction ::
   (Var v, Ord loc) =>

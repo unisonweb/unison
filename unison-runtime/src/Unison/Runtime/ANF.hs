@@ -61,6 +61,9 @@ module Unison.Runtime.ANF
     CTag,
     PackedTag (..),
     Tag (..),
+    RecordRef (..),
+    RecordSchema (..),
+    FieldName,
     GroupRef (..),
     Code (..),
     ValList,
@@ -86,6 +89,7 @@ module Unison.Runtime.ANF
     replaceFunctions,
     foldGroup,
     foldGroupLinks,
+    groupRecordSchemas,
     overGroup,
     overGroupLinks,
     traverseGroup,
@@ -131,7 +135,7 @@ import Unison.Runtime.TypeTags (CTag (..), PackedTag (..), RTag (..), Tag (..), 
 import Unison.ShortHash (shortenTo)
 import Unison.Symbol (Symbol)
 import Unison.Syntax.NamePrinter (prettyHashQualified, prettyShortHash)
-import Unison.Term hiding (Char, Float, List, Ref, Text, arity, float, fresh, resolve)
+import Unison.Term hiding (Char, Float, List, Record, Ref, Text, arity, float, fresh, record, resolve)
 import Unison.Type qualified as Ty
 import Unison.Typechecker.Components (minimize')
 import Unison.Util.Bytes (Bytes)
@@ -994,6 +998,8 @@ alignFunc _ (FReq rl tl) (FReq rr tr)
   | rl == rr, tl == tr = Just . pure $ FReq rl tl
 alignFunc _ (FPrim ol) (FPrim or)
   | ol == or = Just . pure $ FPrim ol
+alignFunc _ (FRec rl) (FRec rr)
+  | rl == rr = Just . pure $ FRec rl
 alignFunc _ _ _ = Nothing
 
 alignBranch ::
@@ -1041,6 +1047,8 @@ alignBranch f (MatchData rfl bl dl) (MatchData rfr br dr)
     all (\t -> fst (bl ! t) == fst (br ! t)) (keys bl),
     Just ds <- alignMaybe f dl dr =
       Just $ MatchData rfl <$> interverse (alignCCs f) bl br <*> ds
+alignBranch f (MatchRec rsl bdl) (MatchRec rsr bdr)
+  | rsl == rsr = Just $ MatchRec rsl <$> f bdl bdr
 alignBranch f (MatchSum bl) (MatchSum br)
   | keysSet bl == keysSet br,
     all (\w -> fst (bl ! w) == fst (br ! w)) (keys bl) =
@@ -1185,6 +1193,13 @@ pattern TCon ::
   [v] ->
   ANormal ref v
 pattern TCon r t args = TApp (FCon r t) args
+
+pattern TRec ::
+  (ABT.Var v) =>
+  RecordSchema ->
+  [v] ->
+  ANormal ref v
+pattern TRec rs args = TApp (FRec rs) args
 
 pattern AKon :: v -> [v] -> ANormalF ref v e
 pattern AKon v args = AApp (FCont v) args
@@ -1358,6 +1373,7 @@ data Branched ref e
   | MatchRequest [(ref, (EnumMap CTag ([Mem], e)))] e
   | MatchEmpty
   | MatchData ref (EnumMap CTag ([Mem], e)) (Maybe e)
+  | MatchRec RecordSchema e
   | MatchSum (EnumMap Word64 ([Mem], e))
   | MatchNumeric ref (EnumMap Word64 e) (Maybe e)
   deriving (Show, Eq, Functor, Foldable, Traversable)
@@ -1388,6 +1404,7 @@ data BranchAccum v
       Reference
       (Maybe (ANormal Reference v))
       (EnumMap CTag ([Mem], ANormal Reference v))
+  | AccumRec RecordSchema (ANormal Reference v)
   | AccumSeqEmpty (ANormal Reference v)
   | AccumSeqView
       SeqEnd
@@ -1463,6 +1480,14 @@ instance Semigroup (BranchAccum v) where
 instance Monoid (BranchAccum e) where
   mempty = AccumEmpty
 
+newtype RecordRef = RecordRef Word64
+  deriving (Show, Eq, Ord)
+
+newtype RecordSchema = RecordSchema (Set FieldName)
+  deriving (Show, Eq, Ord)
+
+type FieldName = Text
+
 data Func ref v
   = -- variable
     FVar v
@@ -1476,6 +1501,8 @@ data Func ref v
     FReq !ref !CTag
   | -- prim op
     FPrim (Either POp ForeignFunc)
+  | -- record constructor
+    FRec RecordSchema
   deriving (Show, Eq, Functor, Foldable, Traversable)
 
 data Lit ref
@@ -1602,6 +1629,7 @@ type ValList ref = [Value ref]
 data Value ref
   = Partial (GroupRef ref) (ValList ref)
   | Data ref Word64 (ValList ref)
+  | Record RecordSchema (ValList ref)
   | Cont (ValList ref) (Cont ref)
   | BLit (BLit ref)
   deriving (Show, Eq)
@@ -1992,6 +2020,8 @@ anfBlock (Match' scrut cas) = do
       pure (sctx <> cx, pure $ TMatch v $ MatchNumeric r cs df)
     AccumData r df cs ->
       pure (sctx <> cx, pure . TMatch v $ MatchData r cs df)
+    AccumRec rs bd -> do
+      pure (sctx <> cx, pure $ TMatch v $ MatchRec rs bd)
     AccumSeqEmpty _ ->
       internalBug [] "anfBlock: non-exhaustive AccumSeqEmpty"
     AccumSeqView en (Just em) bd -> do
@@ -2105,6 +2135,10 @@ anfBlock (TypeLink' r) = pure (mempty, pure . TLit $ LY r)
 anfBlock (List' as) = fmap (pure . TPrm BLDS) <$> anfArgs tms
   where
     tms = toList as
+anfBlock (Record' fields) = fmap (pure . TRec recSchema) <$> anfArgs tms
+  where
+    recSchema = RecordSchema (Map.keysSet fields)
+    tms = toList fields
 anfBlock t = internalBug [] $ "anf: unhandled term: " ++ show t
 
 type ReqBranches ref v =
@@ -2164,6 +2198,11 @@ anfInitCase u (MatchCase p guard (ABT.AbsN' vs bd))
         <*> anfBody bd
         <&> \(us, bd) ->
           AccumData r Nothing . EC.mapSingleton (fromIntegral t) . (BX <$ us,) $ ABTN.TAbss us bd
+  | P.RecordLiteral _ fields <- p = do
+      (,)
+        <$> expandBindings (Map.elems fields) vs
+        <*> anfBody bd
+        <&> \(us, bd) -> AccumRec (RecordSchema $ Map.keysSet fields) $ ABTN.TAbss us bd
   | P.EffectPure _ q <- p =
       (,)
         <$> expandBindings [q] vs
@@ -2229,6 +2268,7 @@ valueLinks f = go
     go (Data dr _ vs) = f True dr <> foldMap go vs
     go (Cont vs k) = foldMap go vs <> contLinks f k
     go (BLit l) = blitLinks f l
+    go (Record _rs vs) = foldMap go vs
 {-# INLINE valueLinks #-}
 
 -- Traversals of _all_ references in a `Value`, for e.g.
@@ -2242,12 +2282,14 @@ instance Referential Value where
     Cont vs k ->
       Cont (fmap (overRefs h) vs) (overRefs h k)
     BLit l -> BLit (overRefs h l)
+    Record rs vs -> Record rs (fmap (overRefs h) vs)
 
   foldMapRefs h = \case
     Partial (GR r _) vs -> h False r <> foldMap (foldMapRefs h) vs
     Data r _ vs -> h True r <> foldMap (foldMapRefs h) vs
     Cont vs k -> foldMap (foldMapRefs h) vs <> foldMapRefs h k
     BLit l -> foldMapRefs h l
+    Record _rs vs -> foldMap (foldMapRefs h) vs
 
   traverseRefs h = \case
     Partial gr vs ->
@@ -2263,6 +2305,7 @@ instance Referential Value where
         <$> traverse (traverseRefs h) vs
         <*> traverseRefs h k
     BLit l -> BLit <$> traverseRefs h l
+    Record rs vs -> Record rs <$> traverse (traverseRefs h) vs
 
 contLinks :: (Monoid a) => (Bool -> ref -> a) -> Cont ref -> a
 contLinks f = go
@@ -2400,6 +2443,33 @@ foldGroupLinks ::
   r
 foldGroupLinks f = getConst . traverseGroupLinks (\b -> Const . f b)
 
+-- | Every record schema constructed or matched on anywhere in a group.
+--
+-- Record schemas are interned by the runtime like type and term references
+-- are, so this is the analogue of 'foldGroupLinks' for them: it tells the code
+-- cache which schemas a group needs before its code is emitted.
+groupRecordSchemas :: SuperGroup ref v -> Set RecordSchema
+groupRecordSchemas (Rec bs e) =
+  foldMap (normalRecordSchemas . snd) bs <> normalRecordSchemas e
+
+normalRecordSchemas :: SuperNormal ref v -> Set RecordSchema
+normalRecordSchemas (Lambda _ e) = anfRecordSchemas e
+
+anfRecordSchemas :: ANormal ref v -> Set RecordSchema
+anfRecordSchemas = \case
+  ABTN.Term _ (ABTN.Abs _ e) -> anfRecordSchemas e
+  ABTN.Term _ (ABTN.Tm e) -> case e of
+    AApp (FRec rs) _ -> Set.singleton rs
+    AMatch _ bs -> branchRecordSchemas bs
+    -- Everything else just recurses; `ANormalF` is Foldable in its
+    -- subexpressions, and no other constructor mentions a schema.
+    _ -> foldMap anfRecordSchemas e
+
+branchRecordSchemas :: Branched ref (ANormal ref v) -> Set RecordSchema
+branchRecordSchemas = \case
+  MatchRec rs e -> Set.insert rs (anfRecordSchemas e)
+  bs -> foldMap anfRecordSchemas bs
+
 normalLinks ::
   (Applicative f, Var v) =>
   (Bool -> ref0 -> f ref1) ->
@@ -2478,6 +2548,8 @@ branchLinks f g (MatchNumeric r m e) =
   MatchNumeric <$> f r <*> traverse g m <*> traverse g e
 branchLinks _ g (MatchSum m) =
   MatchSum <$> (traverse . traverse) g m
+branchLinks _ g (MatchRec rs e) =
+  MatchRec rs <$> g e
 branchLinks _ _ MatchEmpty = pure MatchEmpty
 
 funcLinks ::
@@ -2491,6 +2563,7 @@ funcLinks f (FReq r t) = flip FReq t <$> f True r
 funcLinks _ (FVar v) = pure $ FVar v
 funcLinks _ (FCont v) = pure $ FCont v
 funcLinks _ (FPrim e) = pure $ FPrim e
+funcLinks _ (FRec rr) = pure $ FRec rr
 
 expandBindings' ::
   (Var v) =>
@@ -2687,6 +2760,8 @@ prettyFunc (FReq r t) =
     . shows t
     . showString ")"
 prettyFunc (FPrim op) = either shows shows op . showString " "
+prettyFunc (FRec r) =
+  showString "REC(" . shows r . showString ") "
 
 showsShort :: Reference -> ShowS
 showsShort =
@@ -2711,6 +2786,12 @@ prettyBranches ind bs = case bs of
         (uncurry $ prettyCase ind . prettyTag r)
         id
         (mapToList $ snd <$> bs)
+  MatchRec (RecordSchema rs) bd ->
+    let fields =
+          Set.toList rs
+            & Text.intercalate ", "
+            & Text.unpack
+     in prettyCase ind (showString "REC{" . showString fields . showString "}") bd id
   MatchRequest bs df ->
     foldr
       ( \(r, m) s ->

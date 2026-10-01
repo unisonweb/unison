@@ -79,6 +79,7 @@ import Unison.Runtime.ANF.Optimize qualified as ANF
 import Unison.Runtime.ANF.Serialize (serializeCode, deserializeCode)
 #endif
 import Data.Text qualified as Text
+import Data.Vector qualified as V
 import Unison.Runtime.Array as PA
 import Unison.Runtime.Builtin hiding (unitValue)
 import Unison.Runtime.Exception (RuntimeExn (BU, PE), die, exn)
@@ -101,6 +102,7 @@ import Unison.Runtime.Stack
 import Unison.Runtime.TypeTags qualified as TT
 import Unison.Symbol (Symbol)
 import Unison.Type qualified as Rf
+import Unison.Util.BiMap qualified as BM
 import Unison.Util.Bytes qualified as Bytes
 import Unison.Util.EnumContainers as EC
 import Unison.Util.Pretty qualified as P
@@ -426,6 +428,25 @@ exec _ henv !_activeThreads !stk !k _ (Pack r t args) = do
   stk <- bump stk
   bpoke stk clo
   pure (False, henv, stk, k)
+exec _ henv !_activeThreads !stk !k _ (RecPack shape args) = do
+  clo <- buildRec stk shape args
+  stk <- bump stk
+  bpoke stk clo
+  pure (False, henv, stk, k)
+exec _ henv !_activeThreads !stk !k _ (RecUnpack desiredFields recIndex) = do
+  bpeekOff stk recIndex >>= \case
+    RecordG shape vals -> do
+      -- The slot a field sits in depends on the *value's* shape, not the
+      -- pattern's: one pattern matches records of several shapes, in which a
+      -- given field may sit at a different slot.
+      let positions = shapePositions shape
+      let seg =
+            V.toList desiredFields
+              <&> (\f -> vals V.! (positions EC.! f))
+              & segFromList
+      stk' <- dumpSeg stk seg S
+      pure (False, henv, stk', k)
+    _ -> die [] "RecUnpack called on non-record value"
 exec _ henv !_activeThreads !stk !k _ (Print i) = do
   t <- peekOffBi stk i
   Tx.putStrLn (Util.Text.toText t)
@@ -1125,6 +1146,15 @@ buildData !stk !r !t (VArgV i) = do
     l = fsize stk - i
 {-# INLINE buildData #-}
 
+-- | Pack some number of args into a record value of the given shape. The args
+-- are emitted in ascending field-name order, which is the shape's slot order,
+-- so this is a straight copy.
+buildRec :: Stack -> RecordShape -> Args -> IO Closure
+buildRec !stk shape args = do
+  seg <- augSeg I stk nullSeg (Just $ argsToArgs' args)
+  pure . RecordG shape . V.fromList $ segToList seg
+{-# INLINE buildRec #-}
+
 dumpDataValNoTag ::
   Stack ->
   Val ->
@@ -1407,6 +1437,7 @@ dataBranchClosureError mrf clo =
       UnboxedTypeTag NatTag -> "a natural number"
       Foreign (foreignRef -> rf) ->
         "a builtin value of type `" <> prettyRef rf <> "`"
+      RecordC {} -> "a record"
 
 dataBranchBranchError :: MBranch -> IO a
 dataBranchBranchError br =
@@ -1593,8 +1624,12 @@ cacheAdd0 ::
   IO ()
 cacheAdd0 ntys0 (normalizeCodes -> termSuperGroups) sands cc = do
   let toAdd = M.fromList (termSuperGroups <&> second codeGroup)
+  -- Which record schemas this code needs is a property of the code, so read it
+  -- off the groups rather than making every caller work it out.
+  let recSchemas = foldMap (ANF.groupRecordSchemas . codeGroup . snd) termSuperGroups
   (unresolvedCacheableCombs, unresolvedNonCacheableCombs) <- atomically $ do
     have <- readTVar (intermed cc)
+    haveRecSchemas <- readTVar (recordRefs cc)
     let new = M.difference toAdd have
     let sz = fromIntegral $ M.size new
     let rs = M.keys new
@@ -1608,12 +1643,20 @@ cacheAdd0 ntys0 (normalizeCodes -> termSuperGroups) sands cc = do
       stateTVar (optInfos cc) $ haff . ANF.optimize (fmap replace new)
     rty <- addRefs (freshTy cc) (refTy cc) (tagRefs cc) ntys0
     ntm <- stateTVar (freshTm cc) $ \i -> (i, i + sz)
+    let newRecSchemas = recSchemas `Set.difference` (BM.keysSetL haveRecSchemas)
+    let numNewRecSchemas = fromIntegral $ Set.size newRecSchemas
+    nrs <- stateTVar (freshRecSchema cc) $ \i -> (i, i + numNewRecSchemas)
+    let newRecSchemaMap = BM.fromList $ zip (Set.toList newRecSchemas) (ANF.RecordRef <$> [nrs ..])
     rtm <- updateMap (M.fromList $ zip rs [ntm ..]) (refTm cc)
+    rrLookup <- updateMap newRecSchemaMap (recordRefs cc)
+    -- Field names no longer need pre-registering here: building a record's
+    -- shape during emit interns any name it hasn't seen.
+    oldRfms <- readTVar (recordFieldMappings cc)
     -- check for missing references
     let arities = fmap (head . ANF.arities) int <> builtinArities
-        rns = RN (refLookup "ty" rty) (refLookup "tm" rtm) (flip M.lookup arities)
-        combinate :: Word64 -> (Reference, SuperGroup Reference Symbol) -> (Word64, EnumMap Word64 Comb)
-        combinate n (r, g) = (n, emitCombs rns r n g)
+        rns = RN (refLookup "ty" rty) (refLookup "tm" rtm) (flip M.lookup arities) (recordRefLookup rrLookup)
+        combinate :: Word64 -> (Reference, SuperGroup Reference Symbol) -> State RecordFieldMappings (Word64, EnumMap Word64 Comb)
+        combinate n (r, g) = (n,) <$> emitCombs rns r n g
     let combRefUpdates = (mapFromList $ zip [ntm ..] rs)
     let combIdFromRefMap = (M.fromList $ zip rs [ntm ..])
     let newCacheableCombs =
@@ -1626,13 +1669,17 @@ cacheAdd0 ntys0 (normalizeCodes -> termSuperGroups) sands cc = do
               )
             & EC.setFromList
     newCombRefs <- updateMap combRefUpdates (combRefs cc)
-    (unresolvedNewCombs, unresolvedCacheableCombs, unresolvedNonCacheableCombs, updatedCombs) <- stateTVar (combs cc) \oldCombs ->
-      let unresolvedNewCombs :: EnumMap Word64 (GCombs any CombIx)
+    (newRFMs, unresolvedNewCombs, unresolvedCacheableCombs, unresolvedNonCacheableCombs, updatedCombs) <- stateTVar (combs cc) \oldCombs ->
+      let (emittedCombs, newRFMs) =
+            zipWith combinate [ntm ..] (M.toList opt)
+              & sequenceA
+              & flip runState oldRfms
+          unresolvedNewCombs :: EnumMap Word64 (GCombs any CombIx)
           unresolvedNewCombs =
-            absurdCombs
-              . sanitizeCombsOfForeignFuncs (sandboxed cc) sandboxedForeignFuncs
-              . mapFromList
-              $ zipWith combinate [ntm ..] (M.toList opt)
+            emittedCombs
+              & mapFromList
+              & sanitizeCombsOfForeignFuncs (sandboxed cc) sandboxedForeignFuncs
+              & absurdCombs
           (unresolvedCacheableCombs, unresolvedNonCacheableCombs) =
             EC.mapToList unresolvedNewCombs & foldMap \(w, gcombs) ->
               if EC.member w newCacheableCombs
@@ -1641,10 +1688,11 @@ cacheAdd0 ntys0 (normalizeCodes -> termSuperGroups) sands cc = do
           newCombs :: EnumMap Word64 MCombs
           newCombs = resolveCombs (Just oldCombs) $ unresolvedNewCombs
           updatedCombs = newCombs <> oldCombs
-       in ((unresolvedNewCombs, unresolvedCacheableCombs, unresolvedNonCacheableCombs, updatedCombs), updatedCombs)
+       in ((newRFMs, unresolvedNewCombs, unresolvedCacheableCombs, unresolvedNonCacheableCombs, updatedCombs), updatedCombs)
     nsc <- updateMap unresolvedNewCombs (srcCombs cc)
     nsn <- updateMap (M.fromList sands) (sandbox cc)
     ncc <- updateMap newCacheableCombs (cacheableCombs cc)
+    writeTVar (recordFieldMappings cc) newRFMs
     -- Now that the code cache is primed with everything we need,
     -- we can pre-evaluate the top-level constants.
     pure $ int `seq` rtm `seq` newCombRefs `seq` updatedCombs `seq` nsn `seq` ncc `seq` nsc `seq` (unresolvedCacheableCombs, unresolvedNonCacheableCombs)
@@ -1885,6 +1933,11 @@ reflectValue0 rty rtm = goV0
           DataG _ t seg -> do
             r <- resolveTy rty $ TT.typeTag t
             ANF.Data r (maskTags t) <$> goVs seg
+          RecordC shape vals ->
+            -- The shape carries the field names, in the same ascending order
+            -- as the slots, which is also the order `reifyValue` expects.
+            ANF.Record (ANF.RecordSchema (S.fromList (V.toList (shapeFields shape))))
+              <$> traverse goV (V.toList vals)
           Captured k _ segs ->
             ANF.Cont <$> goVs segs <*> goK k
           Foreign f -> ANF.BLit <$> goF f
@@ -1953,22 +2006,24 @@ reifyValue cc val = do
     atomically $ do
       combs <- readTVar (combs cc)
       rtm <- readTVar (refTm cc)
+      recRefLookup <- readTVar (recordRefs cc)
+      rfms <- readTVar (recordFieldMappings cc)
       case S.toList $ S.filter (`M.notMember` rtm) tmLinks of
         [] -> do
           newTy <- addRefs (freshTy cc) (refTy cc) (tagRefs cc) tyLinks
-          pure . Right $ (combs, newTy, rtm)
+          pure . Right $ (combs, newTy, rtm, recRefLookup, rfms)
         l -> pure (Left l)
   traverse (\rfs -> reifyValue1 rfs val) erc
 
 reifyValue1 ::
-  (EnumMap Word64 MCombs, M.Map Reference Word64, M.Map Reference Word64) ->
+  (EnumMap Word64 MCombs, M.Map Reference Word64, M.Map Reference Word64, BM.BiMap ANF.RecordSchema ANF.RecordRef, RecordFieldMappings) ->
   Referenced ANF.Value ->
   IO Val
 reifyValue1 tup (Plain v) = reifyValue0 tup v
-reifyValue1 (combs, rty0, rtm0) (WithRefs tys tms v) = do
+reifyValue1 (combs, rty0, rtm0, rrLookup, rfms) (WithRefs tys tms v) = do
   let rty = HM.fromList . mapMaybe procTypeRefs $ zip [0 ..] tys
       rtm = HM.fromList . mapMaybe procTermRefs $ zip [0 ..] tms
-  reifyValue0Canon combs tys tms rty rtm v
+  reifyValue0Canon combs tys tms rty rtm rrLookup rfms v
   where
     procTypeRefs (i, r) = (RefNum i,) <$> M.lookup r rty0
     procTermRefs (i, r) =
@@ -1981,9 +2036,11 @@ reifyValue0Canon ::
   [Reference] ->
   HM.HashMap RefNum Word64 ->
   HM.HashMap RefNum Word64 ->
+  BM.BiMap ANF.RecordSchema ANF.RecordRef ->
+  RecordFieldMappings ->
   ANF.Value RefNum ->
   IO Val
-reifyValue0Canon combs tys tms rty rtm = goV
+reifyValue0Canon combs tys tms rty rtm rrLookup rfms = goV
   where
     err s = "reifyValue: cannot restore value: " ++ s
 
@@ -2040,6 +2097,17 @@ reifyValue0Canon combs tys tms rty rtm = goV
       t <- flip packTags (fromIntegral t0) . fromIntegral <$> refTy rn
       rf <- ixTy rn
       boxedVal . formDataReplaced rf t <$> goVs vs
+    goV (ANF.Record rs vals) = do
+      rref <- case BM.lookupL rs rrLookup of
+        Just r -> pure r
+        Nothing -> die [] . err $ "unknown record schema reference: " ++ show rs
+      shape <- case recordShapeFrom rfms rref rs of
+        Just shape -> pure shape
+        Nothing -> die [] . err $ "record schema with un-interned fields: " ++ show rs
+      -- `putValue` writes the values in ascending field-name order, which is
+      -- the shape's slot order, so no reordering is needed.
+      vals' <- goVs vals
+      pure . boxedVal . RecordG shape . V.fromList $ segToList vals'
     goV (ANF.Cont vs k) = do
       k' <- goK k
       vs' <- goVs vs
@@ -2098,10 +2166,10 @@ reifyValue0Canon combs tys tms rty rtm = goV
     goL (ANF.BigNat n) = pure $ encodeVal n
 
 reifyValue0 ::
-  (EnumMap Word64 MCombs, M.Map Reference Word64, M.Map Reference Word64) ->
+  (EnumMap Word64 MCombs, M.Map Reference Word64, M.Map Reference Word64, BM.BiMap ANF.RecordSchema ANF.RecordRef, RecordFieldMappings) ->
   ANF.Value Reference ->
   IO Val
-reifyValue0 (combs, rty, rtm) = goV
+reifyValue0 (combs, rty, rtm, rrLookup, rfms) = goV
   where
     err s = "reifyValue: cannot restore value: " ++ s
     refTy r
@@ -2137,6 +2205,17 @@ reifyValue0 (combs, rty, rtm) = goV
     goV (ANF.Data r t0 vs) = do
       t <- flip packTags (fromIntegral t0) . fromIntegral <$> refTy r
       boxedVal . formDataReplaced r t <$> goVs vs
+    goV (ANF.Record rs vals) = do
+      rref <- case BM.lookupL rs rrLookup of
+        Just r -> pure r
+        Nothing -> die [] . err $ "unknown record schema reference: " ++ show rs
+      shape <- case recordShapeFrom rfms rref rs of
+        Just shape -> pure shape
+        Nothing -> die [] . err $ "record schema with un-interned fields: " ++ show rs
+      -- `putValue` writes the values in ascending field-name order, which is
+      -- the shape's slot order, so no reordering is needed.
+      vals' <- goVs vals
+      pure . boxedVal . RecordG shape . V.fromList $ segToList vals'
     goV (ANF.Cont vs k) = do
       k' <- goK k
       vs' <- goVs vs

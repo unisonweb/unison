@@ -15,6 +15,7 @@ module Unison.Var
     inferPatternPureV,
     inferTypeConstructor,
     inferTypeConstructorArg,
+    inferRecordFieldType,
     isAction,
     missingResult,
     name,
@@ -74,6 +75,7 @@ rawName typ = case typ of
   Inference PatternBindV -> "𝕧"
   Inference TypeConstructor -> "𝕗"
   Inference TypeConstructorArg -> "𝕦"
+  Inference RecordFieldType -> "𝕤" -- "s" for "struct"
   MissingResult -> "_"
   Blank -> "_"
   Eta -> "_eta"
@@ -122,6 +124,7 @@ missingResult,
   inferPatternBindV,
   inferTypeConstructor,
   inferTypeConstructorArg,
+  inferRecordFieldType,
   inferOther ::
     (Var v) => v
 missingResult = typed MissingResult
@@ -135,6 +138,7 @@ inferPatternBindE = typed (Inference PatternBindE)
 inferPatternBindV = typed (Inference PatternBindV)
 inferTypeConstructor = typed (Inference TypeConstructor)
 inferTypeConstructorArg = typed (Inference TypeConstructorArg)
+inferRecordFieldType = typed (Inference RecordFieldType)
 inferOther = typed (Inference Other)
 
 unnamedRef :: (Var v) => Reference.Id -> v
@@ -188,6 +192,7 @@ data InferenceType
   | PatternBindV
   | TypeConstructor
   | TypeConstructorArg
+  | RecordFieldType
   | Other
   deriving (Eq, Ord, Show)
 

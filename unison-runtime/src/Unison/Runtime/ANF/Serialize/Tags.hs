@@ -24,6 +24,7 @@ data FnTag
   | FReqT
   | FPrimT
   | FForeignT
+  | FRecT
 
 data MtTag
   = MIntT
@@ -34,6 +35,7 @@ data MtTag
   | MSumT
   | MNumT
   | MBytesT
+  | MRecT
 
 data LtTag
   = IT
@@ -63,7 +65,7 @@ data BLTag
   | BigIntT
   | BigNatT
 
-data VaTag = PartialT | DataT | ContT | BLitT
+data VaTag = PartialT | DataT | ContT | BLitT | RecordT
 
 data CoTag = KET | MarkT | PushT
 
@@ -105,6 +107,7 @@ instance Tag FnTag where
     FReqT -> 4
     FPrimT -> 5
     FForeignT -> 6
+    FRecT -> 7
 
   word2tag = \case
     0 -> pure FVarT
@@ -114,6 +117,7 @@ instance Tag FnTag where
     4 -> pure FReqT
     5 -> pure FPrimT
     6 -> pure FForeignT
+    7 -> pure FRecT
     n -> unknownTag "FnTag" n
 
 instance Tag MtTag where
@@ -126,6 +130,7 @@ instance Tag MtTag where
     MSumT -> 5
     MNumT -> 6
     MBytesT -> 7
+    MRecT -> 8
 
   word2tag = \case
     0 -> pure MIntT
@@ -136,6 +141,7 @@ instance Tag MtTag where
     5 -> pure MSumT
     6 -> pure MNumT
     7 -> pure MBytesT
+    8 -> pure MRecT
     n -> unknownTag "MtTag" n
 
 instance Tag LtTag where
@@ -206,6 +212,7 @@ instance Tag VaTag where
     DataT -> 1
     ContT -> 2
     BLitT -> 3
+    RecordT -> 4
   {-# INLINE tag2word #-}
 
   word2tag = \case
@@ -213,6 +220,7 @@ instance Tag VaTag where
     1 -> pure DataT
     2 -> pure ContT
     3 -> pure BLitT
+    4 -> pure RecordT
     t -> unknownTag "VaTag" t
   {-# INLINE word2tag #-}
 

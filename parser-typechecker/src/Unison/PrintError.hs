@@ -46,6 +46,7 @@ import Unison.Names qualified as Names
 import Unison.Names.ResolutionResult qualified as Names
 import Unison.Parser.Ann (Ann (..))
 import Unison.Pattern (Pattern)
+import Unison.Pattern qualified as Pattern
 import Unison.Prelude
 import Unison.PrettyPrintEnv qualified as PPE
 import Unison.PrettyPrintEnv.Names qualified as PPE
@@ -1023,6 +1024,83 @@ renderTypeError e env src = case e of
         case defns of
           _ Nel.:| [] -> "name"
           _ -> "names"
+  MissingRecordField {missingFieldName, fieldType, recordWithField, recordWithoutField} ->
+    Pr.lines
+      [ Pr.wrap "I expected this record: ",
+        "",
+        annotatedAsErrorSite src recordWithoutField,
+        "",
+        "to have the field",
+        Pr.indentN 2 $
+          ( style Type2 $
+              (Text.unpack missingFieldName)
+                <> ": "
+                <> (renderType' env fieldType)
+          ),
+        "",
+        "so that it would match the type:",
+        Pr.indentN 2 $
+          ( Pr.lines
+              [ "",
+                style Type2 (renderType' env recordWithField),
+                ""
+              ]
+          ),
+        "",
+        Pr.wrap "from here: ",
+        "",
+        annotatedAsStyle Type1 src fieldType
+      ]
+  UnexpectedRecordField {unexpectedFieldName, fieldType, recordWithoutField, recordWithField} ->
+    Pr.lines
+      [ Pr.wrap "I didn't expect this record: ",
+        "",
+        annotatedAsErrorSite src recordWithField,
+        "",
+        "to have the field",
+        Pr.indentN 2 $
+          ( style Type1 $
+              (Text.unpack unexpectedFieldName)
+                <> ": "
+                <> (renderType' env fieldType)
+          ),
+        "",
+        "because it should have the type:",
+        Pr.indentN 2 $
+          ( Pr.lines
+              [ "",
+                style Type1 (renderType' env recordWithoutField),
+                ""
+              ]
+          ),
+        "",
+        Pr.wrap "derived from here: ",
+        "",
+        annotatedAsStyle Type2 src recordWithoutField
+      ]
+  PatternMatchedMissingField {matchedFieldName, recordPatternLoc, scrutineeRecordType} ->
+    Pr.lines
+      [ Pr.wrap $
+          "This record has no field called "
+            <> style ErrorSite (Text.unpack matchedFieldName)
+            <> " here:",
+        "",
+        annotatedAsErrorSite src recordPatternLoc,
+        "",
+        "It has type:",
+        Pr.indentN 2 (style Type1 (renderType' env scrutineeRecordType)),
+        ""
+      ]
+  RecordPatternMatchOnNonRecordType {recordPatternLoc, scrutineeNonRecordType} ->
+    Pr.lines
+      [ Pr.wrap "This isn't a record, so there are no fields to read from it:",
+        "",
+        annotatedAsErrorSite src recordPatternLoc,
+        "",
+        "It has type:",
+        Pr.indentN 2 (style Type1 (renderType' env scrutineeNonRecordType)),
+        ""
+      ]
   Other (C.cause -> C.HandlerOfUnexpectedType loc typ) ->
     Pr.lines
       [ Pr.wrap "The handler used here",
@@ -1321,6 +1399,61 @@ renderTypeError e env src = case e of
             "  reference=",
             showTypeRef env rf
           ]
+      C.MissingRecordField fieldName expectedFieldType recordMissingTheField expectedRecordType ->
+        mconcat
+          [ "Expected this record: ",
+            renderType'
+              env
+              recordMissingTheField,
+            "\n",
+            "to have the field: \n",
+            Pr.indent "  " $
+              fromString (Text.unpack fieldName)
+                <> " : "
+                <> renderType' env expectedFieldType,
+            "\n",
+            "so it would match this record: \n",
+            Pr.indent "  " $
+              renderType' env expectedRecordType,
+            "but it was missing."
+          ]
+      C.UnexpectedRecordField fieldName unexpectedFieldType actualRecordType expectedRecordType ->
+        mconcat
+          [ "Did not expect this record to have the field: \n",
+            Pr.indent "  " $
+              fromString (Text.unpack fieldName)
+                <> " : "
+                <> renderType' env unexpectedFieldType,
+            "\n",
+            "because it would not match the type of this record: \n",
+            Pr.indent "  " $
+              renderType' env expectedRecordType,
+            "\n",
+            "but it was present in this record: \n",
+            Pr.indent "  " $
+              renderType' env actualRecordType
+          ]
+      C.PatternMatchedMissingField fieldName fieldPat missingFieldTyp ->
+        mconcat
+          [ "PatternMatchedMissingField:\n",
+            "  field=",
+            Pr.text fieldName,
+            "\n",
+            "  loc=",
+            annotatedToEnglish (Pattern.loc fieldPat),
+            "\n",
+            "  typ=",
+            renderType' env missingFieldTyp
+          ]
+      C.RecordPatternMatchOnNonRecordType recordPat nonRecordTyp ->
+        mconcat
+          [ "RecordPatternMatchOnNonRecordType:\n",
+            "  loc=",
+            annotatedToEnglish (Pattern.loc recordPat),
+            "\n",
+            "  typ=",
+            renderType' env nonRecordTyp
+          ]
 
 renderCompilerBug ::
   (Var v, Annotated loc, Ord loc, Show loc) =>
@@ -1431,7 +1564,14 @@ renderPattern env =
   Pr.render 0
     . Pr.syntaxToColor
     . fst
-    . TermPrinter.prettyPattern env TermPrinter.emptyAc Precedence.Annotation ([] :: [Symbol])
+    . TermPrinter.prettyPattern env TermPrinter.emptyAc Precedence.Annotation placeholders
+  where
+    -- `prettyPattern` draws a name from this list for every `Pattern.Var` it
+    -- meets and errors if it runs dry. Callers here render patterns that came
+    -- from the coverage checker, which uses `Unbound` rather than `Var`, but
+    -- an empty list would turn any future var-bearing pattern into a crash.
+    placeholders :: [Symbol]
+    placeholders = Var.named . ("_p" <>) . tShow <$> [(0 :: Int) ..]
 
 -- | renders a type with no special styling
 renderType' :: (IsString s, Var v) => Env -> Type v loc -> s
@@ -1473,6 +1613,20 @@ renderType env f t = renderType0 env f (0 :: Int) (cleanup t)
             then go 0 body
             else "forall " <> spaces renderVar vs <> " . " <> go 1 body
       Type.Var' v -> renderVar v
+      Type.Record' fb fields ->
+        let fbs = case fb of
+              Type.AllowExtraFields -> " | ..."
+              Type.RequireExactFields -> ""
+         in curly
+              (p >= 3)
+              "{"
+              <> commas
+                ( \(label, fieldType) ->
+                    fromString (Text.unpack label) <> ": " <> go 0 fieldType
+                )
+                (Map.toList fields)
+              <> fbs
+              <> "}"
       _ -> error $ "pattern match failure in PrintError.renderType " ++ show t
       where
         go = renderType0 env f
@@ -2200,6 +2354,19 @@ renderParseErrors s = \case
                 tokenAsErrorSite s $ HQ.toText <$> tok
               ]
        in (msg, [rangeForToken tok])
+    go (Parser.DuplicateRecordField ann1 ann2 name) =
+      let msg =
+            Pr.lines
+              [ Pr.wrap $
+                  "I found the field "
+                    <> style ErrorSite (Text.unpack name)
+                    <> " twice in the same record:",
+                "",
+                annotatedsAsErrorSite s [ann1, ann2],
+                "",
+                Pr.wrap "Each field can only be named once."
+              ]
+       in (msg, mapMaybe rangeForAnnotated [ann1, ann2])
     go (Parser.DuplicateBinders ann1 ann2 var) =
       let msg =
             Pr.lines

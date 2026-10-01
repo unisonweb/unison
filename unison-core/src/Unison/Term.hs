@@ -101,6 +101,9 @@ data F typeVar typeAnn patternAnn a
     Match a [MatchCase patternAnn a]
   | TermLink Referent
   | TypeLink Reference
+  | -- | Field names carry no annotation of their own, so errors about a field
+    -- are reported at the field value's location.
+    Record (Map Text a)
   deriving (Ord, Foldable, Functor, Generic, Generic1, Traversable)
 
 _Ref :: Prism' (F tv ta pa a) Reference
@@ -285,6 +288,7 @@ extraMap vtf atf apf = \case
   Blank x -> Blank (fmap atf x)
   Ref x -> Ref x
   Constructor x -> Constructor x
+  Record fields -> Record fields
   Request x -> Request x
   Handle x y -> Handle x y
   App x y -> App x y
@@ -524,6 +528,9 @@ pattern Match' scrutinee branches <- (ABT.out -> ABT.Tm (Match scrutinee branche
 
 pattern Constructor' :: ConstructorReference -> ABT.Term (F typeVar typeAnn patternAnn) v a
 pattern Constructor' ref <- (ABT.out -> ABT.Tm (Constructor ref))
+
+pattern Record' :: Map Text (ABT.Term (F typeVar typeAnn patternAnn) v a) -> ABT.Term (F typeVar typeAnn patternAnn) v a
+pattern Record' fields <- (ABT.out -> ABT.Tm (Record fields))
 
 pattern Request' :: ConstructorReference -> ABT.Term (F typeVar typeAnn patternAnn) v a
 pattern Request' ref <- (ABT.out -> ABT.Tm (Request ref))
@@ -768,6 +775,7 @@ unReferent :: Term2 vt at ap v a -> Maybe Referent
 unReferent (Ref' r) = Just $ Referent.Ref r
 unReferent (Constructor' r) = Just $ Referent.Con r CT.Data
 unReferent (Request' r) = Just $ Referent.Con r CT.Effect
+unReferent (Record' _fields) = Nothing
 unReferent _ = Nothing
 
 refId :: (Ord v) => a -> Reference.Id -> Term2 vt at ap v a
@@ -825,6 +833,9 @@ constructor a ref = ABT.tm' a (Constructor ref)
 
 request :: (Ord v) => a -> ConstructorReference -> Term2 vt at ap v a
 request a ref = ABT.tm' a (Request ref)
+
+record :: (Ord v) => a -> Map Text (Term2 vt at ap v a) -> Term2 vt at ap v a
+record a fields = ABT.tm' a (Record fields)
 
 -- todo: delete and rename app' to app
 app_ :: (Ord v) => Term0' vt v -> Term0' vt v -> Term0' vt v
@@ -1534,6 +1545,13 @@ toPattern tm = case tm of
   Apps' (Request' r) args -> Pattern.EffectBind loc r <$> traverse toPattern args <*> pure (Pattern.Unbound loc)
   Apps' (Constructor' r) args -> Pattern.Constructor loc r <$> traverse toPattern args
   Constructor' r -> pure $ Pattern.Constructor loc r []
+  -- A record literal is never applied to arguments, so unlike a constructor there's
+  -- no `Apps'` case here; `{x = ...} y` isn't a term that could have been a pattern.
+  --
+  -- `traverse` over a `Map Text` visits fields in ascending key order, which is the
+  -- order `intop` assigns pattern variables in and the order `ABT.allVars` recovers
+  -- them in, so the variables of the rebuilt pattern line up with the abs chain.
+  Record' fields -> Pattern.RecordLiteral loc <$> traverse toPattern fields
   Request' r -> pure $ Pattern.EffectBind loc r [] (Pattern.Unbound loc)
   Int' i -> pure $ Pattern.Int loc i
   Nat' n -> pure $ Pattern.Nat loc n
@@ -1596,6 +1614,7 @@ matchCaseToTerm (MatchCase pat guard (ABT.unabsA -> (avs, body))) =
         pure $
           app loc (builtin loc "Bytes.fromList") (list loc (nat loc . fromIntegral <$> Bytes.toWord8s b))
       Pattern.Constructor loc r ps -> apps' (constructor loc r) <$> traverse intop ps
+      Pattern.RecordLiteral loc ps -> record loc <$> traverse intop ps
       Pattern.As loc p -> do
         avs <- State.get
         case avs of
@@ -1634,6 +1653,7 @@ instance (ABT.Var vt, Eq at, Eq a) => Eq (F vt at p a) where
   TypeLink x == TypeLink y = x == y
   Constructor r == Constructor r2 = r == r2
   Request r == Request r2 = r == r2
+  Record fields == Record fields2 = fields == fields2
   Handle h b == Handle h2 b2 = h == h2 && b == b2
   App f a == App f2 a2 = f == f2 && a == a2
   Ann e t == Ann e2 t2 = e == e2 && t == t2
@@ -1680,6 +1700,10 @@ instance (Show v, Show a) => Show (F v a0 p a) where
           True
           (s "handle " <> shows b <> s " in " <> shows body)
       go _ (Constructor (ConstructorReference r n)) = s "Con" <> shows r <> s "#" <> shows n
+      go _ (Record fields) =
+        showParen
+          True
+          (s "{" <> shows fields <> s " }")
       go _ (Match scrutinee cases) =
         showParen
           True
