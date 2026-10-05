@@ -347,6 +347,7 @@ data PathElement v loc
   | InMatchGuard
   | InMatchBody
   | InActionRestriction
+  | InPatternApply ConstructorReference
   deriving (Show)
 
 type ExpectedArgCount = Int
@@ -1917,7 +1918,7 @@ checkPattern scrutineeType p =
             -- refinement then fails on its own (the branches disagree), which is
             -- the signal that the scrutinee needs a type annotation.
             overallGen <- generalizeIndex overall0
-            subtype st0 overallGen
+            scope (InPatternApply ref) $ subtype st0 overallGen
           else
             if gadtConstructorPinsIndex dct
               then do
@@ -1936,12 +1937,12 @@ checkPattern scrutineeType p =
                     appendContext refs
                     st <- applyM scrutineeType
                     ov <- applyM overall
-                    subtype st ov
+                    scope (InPatternApply ref) $ subtype st ov
               else do
                 -- Ordinary (non-pinning) ADT constructor: no index to refine, so
                 -- behavior is unchanged.
                 st <- applyM scrutineeType
-                subtype st overall
+                scope (InPatternApply ref) $ subtype st overall
       pure vs
     Pattern.As loc p' -> do
       v <- getAdvance p

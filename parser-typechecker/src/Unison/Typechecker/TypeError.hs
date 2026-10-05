@@ -4,6 +4,7 @@ module Unison.Typechecker.TypeError where
 
 import Data.List.NonEmpty (NonEmpty)
 import Unison.ABT qualified as ABT
+import Unison.ConstructorReference (ConstructorReference)
 import Unison.KindInference (KindError)
 import Unison.Pattern (Pattern)
 import Unison.Prelude hiding (whenM)
@@ -67,7 +68,8 @@ data TypeError v loc
         expectedType :: C.Type v loc,
         leafs :: Maybe (C.Type v loc, C.Type v loc), -- found, expected
         solvedVars :: [(v, C.Type v loc)],
-        note :: C.ErrorNote v loc
+        note :: C.ErrorNote v loc,
+        patternCtor :: Maybe ConstructorReference
       }
   | NotFunctionApplication
       { f :: C.Term v loc,
@@ -181,6 +183,7 @@ allErrors =
       ifBody,
       listBody,
       matchBody,
+      applyingPatternConstructor,
       applyingFunction,
       applyingNonFunction,
       generalMismatch,
@@ -500,6 +503,7 @@ applyingFunction = do
         ((\(a, b) -> (cleanup a, cleanup b)) <$> leafs)
         (second cleanup <$> solvedVars)
         n
+        Nothing
 
 inSubtypes ::
   Ex.SubseqExtractor
@@ -516,3 +520,42 @@ inSubtypes = do
         [(found, expected)] -> ((found, expected), Nothing)
         _ -> (last subtypes, Just $ head subtypes)
   pure (found, expected, leaves)
+
+-- | Like 'applyingFunction', but for type mismatches in pattern constructor
+-- arguments. The error path contains 'InPatternApply' between 'InSubtype' and
+-- 'InCheck', which breaks the adjacency chain of 'applyingFunction'.
+--
+-- Path: InSubtype → InPatternApply → InCheck → InSynthesizeApp → InFunctionCall
+applyingPatternConstructor :: forall v loc. (Var v) => Ex.ErrorExtractor v loc (TypeError v loc)
+applyingPatternConstructor = do
+  n <- Ex.errorNote
+  ctx <- Ex.typeMismatch
+  Ex.unique $ do
+    Ex.pathStart
+    (found, expected, leafs) <- inSubtypes
+    ref <- Ex.inPatternApply
+    arg <- fst . head <$> Ex.some Ex.inCheck
+    (_, _, argIndex) <- Ex.inSynthesizeApp
+    (typeVars, f, ft, _args) <- Ex.inFunctionCall
+    let go :: v -> Maybe (v, C.Type v loc)
+        go v = (v,) . Type.getPolytype <$> C.lookupSolved ctx v
+        solvedVars = catMaybes (go <$> typeVars)
+    let vm =
+          Type.cleanupVarsMap $
+            [ft, found, expected]
+              <> (fst <$> toList leafs)
+              <> (snd <$> toList leafs)
+              <> (snd <$> solvedVars)
+        cleanup = Type.cleanupVars1' vm . Type.cleanupAbilityLists
+    pure $
+      FunctionApplication
+        f
+        (cleanup ft)
+        arg
+        argIndex
+        (cleanup found)
+        (cleanup expected)
+        ((\(a, b) -> (cleanup a, cleanup b)) <$> leafs)
+        (second cleanup <$> solvedVars)
+        n
+        (Just ref)

@@ -441,13 +441,16 @@ renderTypeError e env src = case e of
         fteFreeVars = Set.map TypeVar.underlying $ ABT.freeVars fte
         showVar (v, _t) = Set.member v fteFreeVars
         solvedVars' = filter showVar solvedVars
+        fname = case patternCtor of
+          Just ref -> showConstructor env ref
+          Nothing -> renderTerm env f
      in mconcat
           [ Pr.lines
               [ Pr.wrap $
                   "The "
                     <> ordinal argNum
                     <> " argument to "
-                    <> Pr.backticked (style ErrorSite (renderTerm env f)),
+                    <> Pr.backticked (style ErrorSite fname),
                 "",
                 "          has type:  " <> style Type2 (renderType' env foundType),
                 "    but I expected:  " <> style Type1 (renderType' env expectedType),
