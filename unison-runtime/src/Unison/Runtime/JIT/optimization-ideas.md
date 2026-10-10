@@ -116,7 +116,10 @@ than deleting it.
      [backend profile](benchmarks/2026-10-10-backend-profile.md). Instruction selection,
      register allocation and the machine passes in proportion to the code, no fixed cost
      (linking under 1%), no single pass to target. The levers left for compile time are
-     upstream: fewer lines reaching the backend, fewer modules compiled.
+     upstream: fewer lines reaching the backend, fewer modules compiled. Tried the same day
+     and not taken: GlobalISel and the basic register allocator,
+     [backend options](benchmarks/2026-10-10-backend-options.md), 7–10% of code generation
+     each for 4–8% on the hot loops.
   4. Build the module through the C API or as bitcode instead of text (saves the parse;
      no risk; large change to the generator). After 1 to 3 the suite's 1.38 s splits into
      generating the IR 0.10 s, LLVM's parse and `O2` 0.68 s (of which the parse is about a

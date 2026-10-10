@@ -31,3 +31,4 @@ against.
 | [2026-10-09 pipeline](2026-10-09-pipeline.md) | a pass pipeline that produces the same code as `default<O2>` on the suite in 60% of the pass time; what each left-out pass turned out to do |
 | [2026-10-09 exit call](2026-10-09-exit-call.md) | exits write the frame back through one C call per site instead of generated blocks: IR 3.8 → 2.9 MB, compile time 1.03–1.14 → 0.88–0.93 s, hot code unchanged or faster; why not `llvm.experimental.deoptimize` |
 | [2026-10-10 backend profile](2026-10-10-backend-profile.md) | where code generation's time goes: instruction selection, register allocation and the machine passes in proportion to code; no fixed cost, no single pass |
+| [2026-10-10 backend options](2026-10-10-backend-options.md) | GlobalISel and the basic register allocator: each saves 7–10% of code generation and costs the hot loops 4–8%; not taken |
