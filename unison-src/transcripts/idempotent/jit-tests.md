@@ -2102,6 +2102,159 @@ scratch/main> run casTest
   49995000
 ```
 
+Byte reads and writes at the edge of the array: each width and byte order at the last
+in-bounds index, then one past it, then an index so large that adding the width wraps.
+These take the generated checks' both branches (see "Data representations and the C
+helpers" in internals.md).
+
+``` unison
+use Nat + - * / == < > <= >=
+
+catchE : '{IO, Exception} a ->{IO} Either Text a
+catchE c = handle c() with cases
+  { a } -> Right a
+  { Exception.raise f -> _ } -> match f with Failure _ msg _ -> Left msg
+
+byteEdges : '{IO} ([Either Text Nat], [Either Text Nat], [Either Text ()], Either Text [Nat])
+byteEdges = do
+  b = IO.bytearrayOf 255 16
+  f = MutableByteArray.freeze (IO.bytearrayOf 255 16) 0 16
+  big = 18446744073709551615
+  rd : (Nat, MutableByteArray {IO} -> Nat ->{IO, Exception} Nat) ->{IO} Either Text Nat
+  rd = cases (i, k) -> catchE '(k b i)
+  ri : (Nat, ImmutableByteArray -> Nat ->{Exception} Nat) ->{IO} Either Text Nat
+  ri = cases (i, k) -> catchE '(k f i)
+  wr : (Nat, MutableByteArray {IO} -> Nat -> Nat ->{IO, Exception} ()) ->{IO} Either Text ()
+  wr = cases (i, k) -> catchE '(k b i 0)
+  mut = List.map rd [ (15, MutableByteArray.read8), (16, MutableByteArray.read8),
+      (14, MutableByteArray.read16be), (15, MutableByteArray.read16be),
+      (14, MutableByteArray.read16le), (15, MutableByteArray.read16le),
+      (13, MutableByteArray.read24be), (14, MutableByteArray.read24be),
+      (13, MutableByteArray.read24le), (14, MutableByteArray.read24le),
+      (12, MutableByteArray.read32be), (13, MutableByteArray.read32be),
+      (12, MutableByteArray.read32le), (13, MutableByteArray.read32le),
+      (11, MutableByteArray.read40be), (12, MutableByteArray.read40be),
+      (11, MutableByteArray.read40le), (12, MutableByteArray.read40le),
+      (8, MutableByteArray.read64be), (9, MutableByteArray.read64be),
+      (8, MutableByteArray.read64le), (9, MutableByteArray.read64le),
+      (big, MutableByteArray.read8), (big, MutableByteArray.read64le) ]
+  imm = List.map ri [ (15, ImmutableByteArray.read8), (16, ImmutableByteArray.read8),
+      (14, ImmutableByteArray.read16be), (15, ImmutableByteArray.read16le),
+      (13, ImmutableByteArray.read24le), (14, ImmutableByteArray.read24be),
+      (12, ImmutableByteArray.read32le), (13, ImmutableByteArray.read32be),
+      (11, ImmutableByteArray.read40be), (12, ImmutableByteArray.read40le),
+      (8, ImmutableByteArray.read64le), (9, ImmutableByteArray.read64be),
+      (big, ImmutableByteArray.read16be) ]
+  writes = List.map wr [ (15, MutableByteArray.write8), (16, MutableByteArray.write8),
+      (14, MutableByteArray.write16be), (15, MutableByteArray.write16le),
+      (12, MutableByteArray.write32le), (13, MutableByteArray.write32be),
+      (8, MutableByteArray.write64be), (9, MutableByteArray.write64le),
+      (big, MutableByteArray.write16be) ]
+  -- the writes above zeroed bytes 8..15; a mixed-endian round trip over the zeros
+  after = catchE do
+    MutableByteArray.write32be b 8 2864434397
+    MutableByteArray.write16le b 12 51966
+    [ MutableByteArray.read64le b 8, MutableByteArray.read32le b 8, MutableByteArray.read16be b 12,
+      MutableByteArray.read24be b 9, MutableByteArray.read40le b 7, MutableByteArray.read8 b 15 ]
+  (mut, imm, writes, after)
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  + byteEdges : '{IO} ( [Either Text Nat],
+                  [Either Text Nat],
+                  [Either Text ()],
+                  Either Text [Nat])
+  + catchE    : '{IO, Exception} a ->{IO} Either Text a
+
+  Run `update` to apply these changes to your codebase.
+```
+
+``` ucm
+scratch/main> run byteEdges
+
+  ( [ Right 255
+    , Left "MutableByteArray.read8: array index out of bounds"
+    , Right 65535
+    , Left
+        "MutableByteArray.read16be: array index out of bounds"
+    , Right 65535
+    , Left
+        "MutableByteArray.read16le: array index out of bounds"
+    , Right 16777215
+    , Left
+        "MutableByteArray.read24be: array index out of bounds"
+    , Right 16777215
+    , Left
+        "MutableByteArray.read24le: array index out of bounds"
+    , Right 4294967295
+    , Left
+        "MutableByteArray.read32be: array index out of bounds"
+    , Right 4294967295
+    , Left
+        "MutableByteArray.read32le: array index out of bounds"
+    , Right 1099511627775
+    , Left
+        "MutableByteArray.read40be: array index out of bounds"
+    , Right 1099511627775
+    , Left
+        "MutableByteArray.read40le: array index out of bounds"
+    , Right 18446744073709551615
+    , Left
+        "MutableByteArray.read64be: array index out of bounds"
+    , Right 18446744073709551615
+    , Left
+        "MutableByteArray.read64le: array index out of bounds"
+    , Left "MutableByteArray.read8: array index out of bounds"
+    , Left
+        "MutableByteArray.read64le: array index out of bounds"
+    ]
+  , [ Right 255
+    , Left "ImmutableByteArray.read8: array index out of bounds"
+    , Right 65535
+    , Left
+        "ImmutableByteArray.read16le: array index out of bounds"
+    , Right 16777215
+    , Left
+        "ImmutableByteArray.read24be: array index out of bounds"
+    , Right 4294967295
+    , Left
+        "ImmutableByteArray.read32be: array index out of bounds"
+    , Right 1099511627775
+    , Left
+        "ImmutableByteArray.read40le: array index out of bounds"
+    , Right 18446744073709551615
+    , Left
+        "ImmutableByteArray.read64be: array index out of bounds"
+    , Left
+        "ImmutableByteArray.read16be: array index out of bounds"
+    ]
+  , [ Right()
+    , Left "MutableByteArray.write8: array index out of bounds"
+    , Right()
+    , Left
+        "MutableByteArray.write16le: array index out of bounds"
+    , Right()
+    , Left
+        "MutableByteArray.write32be: array index out of bounds"
+    , Right()
+    , Left
+        "MutableByteArray.write64le: array index out of bounds"
+    , Left
+        "MutableByteArray.write16be: array index out of bounds"
+    ]
+  , Right
+      [ 223195991686058
+      , 3721182122
+      , 65226
+      , 12307677
+      , 952622623487
+      , 0
+      ]
+  )
+```
+
 ## Universal.murmurHashUntyped
 
 The hash walks the closures natively for numbers, characters, data constructors, text, bytes,

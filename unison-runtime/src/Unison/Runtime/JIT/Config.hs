@@ -129,7 +129,9 @@ data Config = Config
     -- (universal comparison), @list@, @text@, @bytes@ (the C helpers for
     -- those), @callout@ (call-outs become resumes), @direct@ (calls within a
     -- module go through cells), @worker@ (no workers with register arguments),
-    -- @copy@ (no private copies of compiled callees), @hash@ (the murmur hash)
+    -- @copy@ (no private copies of compiled callees), @hash@ (the murmur hash),
+    -- @irhelpers@ (the helpers compiled from IR: generated code calls the C
+    -- copies instead)
     disabled :: [String]
   }
   deriving (Show)

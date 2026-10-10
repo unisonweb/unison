@@ -16,7 +16,8 @@ import Control.Exception (SomeException, evaluate, try)
 import Control.Monad (foldM, forM, forM_, unless, void, when)
 import Data.IORef
 import Data.Set qualified as Set
-import Foreign.Ptr (Ptr, nullPtr)
+import Data.Functor ((<&>))
+import Foreign.Ptr (Ptr, castFunPtrToPtr, nullPtr)
 import System.Timeout (timeout)
 import GHC.Clock (getMonotonicTimeNSec)
 import Data.Map.Strict qualified as Map
@@ -29,9 +30,10 @@ import Unison.Runtime.JIT.Compile
 import Unison.Runtime.JIT.Config
 import Unison.Runtime.JIT.Estimate (Estimate (..), judge)
 import Unison.Runtime.JIT.Exits
+import Unison.Runtime.JIT.Helpers (helpersIR)
 import Unison.Runtime.JIT.LLVM
 import Unison.Runtime.JIT.Layout (probeArrays, probeBytes, probeLayouts, probeLists, probeMurmur, probeNames, probeTexts)
-import Unison.Runtime.JIT.Native (configureNative, ctxLayout, rtsFacts)
+import Unison.Runtime.JIT.Native (configureNative, ctxLayout, murmurCAddress, rtsFacts, tableAddresses)
 import Unison.Runtime.MCode (CombIx (..), GComb (..), GCombInfo (..), NativeCell, claimNativeCell, combDeps, nativeCellRequested, noNativeCell, prettyIns, prettySection, readNativeCode, readNativeCount, releaseNativeCell, takeNativeCell, writeNativeCount)
 import Unison.Runtime.Machine.Types (CCache (combRefs, combs, sandboxed), MCombs)
 import Unison.Util.EnumContainers qualified as EC
@@ -150,11 +152,40 @@ initJIT' = do
             -- unison_jit_alloc_words by name, and the JIT resolves it from the process
             [arrWordsInfo, arrPtrsInfo, bytesHdr, bytesCount, ptrsHdr, ptrsCount, ptrsSize, cardBits, _allocator, mutVarVar, _barrier, arrPtrsDirtyInfo] -> do
               let rts = RtsFacts arrWordsInfo arrPtrsInfo bytesHdr bytesCount ptrsHdr ptrsCount ptrsSize cardBits mutVarVar arrPtrsDirtyInfo
-              writeIORef jitState (Just (JITState ls (CtxOffsets a b c d e f g h i j k l m n o p q r s t u) rts))
-              triple <- targetTriple
-              pure (Right ("mode " ++ show (mode config) ++ ", LLVM " ++ version ++ " from " ++ path ++ ", target " ++ triple))
+              -- the helpers written as IR (cbits/jit_helpers.ll) go in as a
+              -- module of their own, ahead of any module that calls them;
+              -- their definitions shadow the C copies for generated code
+              helpers <-
+                if "irhelpers" `elem` disabled config
+                  then pure (Right ())
+                  else timed "IR helpers" addHelpers >>= \case
+                    Left e -> pure (Left ("could not be added: " ++ e))
+                    Right _ ->
+                      -- the module's definition must be the one generated code
+                      -- gets, not the C copy the process also has
+                      timed "IR helpers compiled" (lookupSymbol "unison_jit_murmur") <&> \case
+                        Left e -> Left ("not found after adding: " ++ e)
+                        Right p
+                          | castFunPtrToPtr p == castFunPtrToPtr murmurCAddress -> Left "did not shadow the C copies"
+                          | otherwise -> Right ()
+              case helpers of
+                Left e -> pure (Left ["the IR helpers (cbits/jit_helpers.ll) " ++ e ++ "; the JIT is off"])
+                Right () -> do
+                  writeIORef jitState (Just (JITState ls (CtxOffsets a b c d e f g h i j k l m n o p q r s t u) rts))
+                  triple <- targetTriple
+                  pure (Right ("mode " ++ show (mode config) ++ ", LLVM " ++ version ++ " from " ++ path ++ ", target " ++ triple))
             _ -> pure (Left ["unexpected runtime facts; the JIT is off"])
         _ -> pure (Left ["unexpected Ctx layout; the JIT is off"])
+
+-- | Adds the IR helpers' module, after defining the names of the runtime's
+-- tables it refers to ("The IR helpers" in internals.md).
+addHelpers :: IO (Either String ())
+addHelpers = do
+  tables <- tableAddresses
+  defined <- sequence_ <$> traverse (uncurry defineSymbol) tables
+  case defined of
+    Left e -> pure (Left e)
+    Right () -> void <$> addModule False (passes config) helpersIR
 
 -- | The oldest LLVM the shim works with (why: cbits/jit_llvm.c).
 minLLVM :: Int

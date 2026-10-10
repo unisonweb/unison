@@ -190,7 +190,9 @@ enforce.
 [in the suite](benchmarks/2026-10-02-native-lists-in-the-suite.md)). Open on the native
 side: every operation is a call into C, including push and pop, which are a dozen
 instructions and could be generated inline for the common cases (the digit has room; the
-digit keeps an item); a list literal is one call per element plus one to wrap, where a
+digit keeps an item) the way byte array reads and writes are (`byteArray` in `Codegen.hs`,
+[measured](benchmarks/2026-10-10-helpers.md)); `List.size`, `Text.size` and `Bytes.size`
+are a field load or two by the same recipe; a list literal is one call per element plus one to wrap, where a
 helper taking the elements from the stack would build the tree in one pass; `SPLL`/`SPLR` do
 a take and a drop, two walks to the same place; the list operations that are foreign
 functions (`List.sort`, conversions from `Text` and `Bytes`) are call-outs.

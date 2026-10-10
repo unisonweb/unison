@@ -43,6 +43,12 @@ when:
   - condition: flag(dumpcore)
     ghc-options: -ddump-simpl -ddump-stg-final -ddump-to-file -dsuppress-coercions -dsuppress-idinfo -dsuppress-module-prefixes -ddump-str-signatures -ddump-simpl-stats # -dsuppress-type-applications -dsuppress-type-signatures
 
+# The LLVM IR of the helpers generated code calls as IR (cbits/gen-helpers.sh),
+# embedded by src/Unison/Runtime/JIT/Helpers.hs; listed so that a change to it
+# rebuilds that module.
+extra-source-files:
+  - cbits/jit_helpers.ll
+
 library:
   source-dirs: src
   when:
@@ -57,6 +63,8 @@ library:
     # The JIT (src/Unison/Runtime/JIT/design.md). LLVM isn't linked: jit_llvm.c
     # loads it at run time when the JIT is turned on, so building needs no LLVM.
     - cbits/jit_llvm.c
+    # jit_rt.c includes cbits/jit_helpers.c, which is also compiled to IR for
+    # the JIT (cbits/gen-helpers.sh, jit_helpers.ll)
     - cbits/jit_rt.c
 
   dependencies:
@@ -111,6 +119,7 @@ library:
     - unison-pretty-printer
     - unison-syntax
     - unison-util-bytes
+    - unison-util-file-embed
     - unison-util-recursion
     - unison-util-rope
     - unliftio

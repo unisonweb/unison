@@ -227,9 +227,6 @@ modulePrelude =
       "declare i64 @unison_jit_pow(i64, i64)",
       "declare double @unison_jit_atan2(double, double)",
       -- arrays and refs (see "Arrays and Refs" in jit_rt.c); the pair is (ok, value)
-      "declare { i64, i64 } @unison_jit_barray_size(ptr, i64)",
-      "declare { i64, i64 } @unison_jit_barray_read(ptr, i64, i64, i64, i64)",
-      "declare i64 @unison_jit_barray_write(ptr, i64, i64, i64, i64)",
       "declare i64 @unison_jit_barray_copy(ptr, i64, ptr, i64, i64, i64)",
       "declare ptr @unison_jit_barray_freeze(ptr, ptr, i64, i64, i64)",
       "declare ptr @unison_jit_barray_to_bytes(ptr, ptr, i64, i64)",
@@ -293,6 +290,7 @@ modulePrelude =
       "declare i64 @llvm.ctlz.i64(i64, i1)",
       "declare i64 @llvm.cttz.i64(i64, i1)",
       "declare i64 @llvm.ctpop.i64(i64)",
+      "declare i64 @llvm.bswap.i64(i64)",
       -- branch weights: the first target is the cold one, or the hot one
       "!0 = !{!\"branch_weights\", i32 1, i32 4000}",
       "!1 = !{!\"branch_weights\", i32 4000, i32 1}"
@@ -3964,17 +3962,47 @@ genArrayForeign fe d op srcs instr sect = do
         Nothing -> emit ("br label %" <> slow) >> startBlock "unreachable.unit" >> pure ()
   case (op, srcs) of
     (BSize kind, ka :<| Empty) -> do
-      a <- loadB ka
-      natHelper fe d slow ("@unison_jit_barray_size(ptr " <> a <> ", i64 " <> tshow kind <> ")")
+      Pair _ size <- byteArray fe slow ka kind
+      result fe d (feTagNat fe) size
     (BRead width be kind, ka :<| ki :<| Empty) -> do
-      a <- loadB ka
+      Pair arr size <- byteArray fe slow ka kind
       i <- loadU ki
-      natHelper fe d slow ("@unison_jit_barray_read(ptr " <> a <> ", i64 " <> i <> ", i64 " <> tshow width <> ", i64 " <> bool be <> ", i64 " <> tshow kind <> ")")
-    (BWrite width be, ka :<| ki :<| kv :<| Empty) -> do
-      a <- loadB ka
+      p <- byteArrayElem fe slow arr size i width
+      let ity = "i" <> tshow (8 * width)
+      raw <- fresh "raw"
+      emit (raw <> " = load " <> ity <> ", ptr " <> p <> ", align 1")
+      v <-
+        if width == 8
+          then if be then bswap "i64" raw else pure raw
+          else do
+            -- an odd width has no bswap of its own: swap the 64-bit extension
+            -- and shift the bytes down
+            wide <- fresh "wide"
+            emit (wide <> " = zext " <> ity <> " " <> raw <> " to i64")
+            if not be
+              then pure wide
+              else do
+                swapped <- bswap "i64" wide
+                binop "lshr" swapped (tshow (64 - 8 * width))
+      result fe d (feTagNat fe) v
+    (BWrite width be, ka :<| ki :<| kv :<| Empty) | Just ux <- unitIx -> do
+      Pair arr size <- byteArray fe slow ka 0
       i <- loadU ki
       v <- loadU kv
-      unitResult ("@unison_jit_barray_write(ptr " <> a <> ", i64 " <> i <> ", i64 " <> tshow width <> ", i64 " <> bool be <> ", i64 " <> v <> ")")
+      p <- byteArrayElem fe slow arr size i width
+      let ity = "i" <> tshow (8 * width)
+          trunc x = do
+            n <- fresh "narrow"
+            emit (n <> " = trunc i64 " <> x <> " to " <> ity)
+            pure n
+      -- the low `width` bytes of the value, swapped to the front for big-endian
+      narrow <- case (be, width) of
+        (False, 8) -> pure v
+        (False, _) -> trunc v
+        (True, 8) -> bswap "i64" v
+        (True, _) -> bswap "i64" v >>= \sw -> binop "lshr" sw (tshow (64 - 8 * width)) >>= trunc
+      emit ("store " <> ity <> " " <> narrow <> ", ptr " <> p <> ", align 1")
+      poolConstant fe d ux
     (PCopy kind, kd :<| kdo :<| ks :<| kso :<| kl :<| Empty) -> do
       dst <- loadB kd
       doff <- loadU kdo
@@ -4050,20 +4078,52 @@ genArrayForeign fe d op srcs instr sect = do
       emit ("br label %" <> slow)
       startBlock "unreachable.array"
 
--- | Calls a helper that returns (ok, value) for a Nat result; the call-out
--- when not ok.
-natHelper :: FnEnv -> Int -> Text -> Text -> Gen ()
-natHelper fe d slow call = do
-  r <- fresh "pair"
-  emit (r <> " = call { i64, i64 } " <> call)
-  ok <- fresh "ok"
-  emit (ok <> " = extractvalue { i64, i64 } " <> r <> ", 0")
-  miss <- fresh "miss"
-  emit (miss <> " = icmp eq i64 " <> ok <> ", 0")
-  branchIf "helper" miss slow
-  v <- fresh "v"
-  emit (v <> " = extractvalue { i64, i64 } " <> r <> ", 1")
-  result fe d (feTagNat fe) v
+-- | The @ByteArray#@ (kind 1) or @MutableByteArray#@ (kind 0) wrapped by the
+-- closure in the slot, as its untagged address and its byte count; anything
+-- else (a closure that isn't @Foreign (Wrap arr)@ for the right wrapper)
+-- goes to @slow@. What the C helpers' @barray_of@ does, as generated code.
+byteArray :: FnEnv -> Text -> Int -> Int -> Gen (Pair Text Text)
+byteArray fe slow ka kind = do
+  let ls = envLayouts (feEnv fe)
+      rts = envRts (feEnv fe)
+      wrap = if kind == 0 then lMutableByteArrayWrap ls else lByteArrayWrap ls
+  p <- loadB ka
+  raw <- fresh "raw"
+  emit (raw <> " = ptrtoint ptr " <> p <> " to i64")
+  fo <- taggedObject "foreign" raw (lForeignInfo ls) slow
+  wrapped <- loadAt fo "wrap" "i64" (lHeaderBytes ls)
+  w <- taggedObjectTag "barray" wrapped wrap slow
+  arr <- loadAt w "arr" "i64" (lHeaderBytes ls)
+  size <- loadAt arr "bytes" "i64" (8 * rBytesCount rts)
+  pure (Pair arr size)
+
+-- | A pointer to byte @i@ of the array, once @width@ bytes from there are
+-- within its @size@ bytes (else @slow@). The check is the one the Haskell
+-- primitives make: @i + width > size@ or, should that sum wrap, @i > size@.
+byteArrayElem :: FnEnv -> Text -> Text -> Text -> Text -> Int -> Gen Text
+byteArrayElem fe slow arr size i width = do
+  let rts = envRts (feEnv fe)
+  end <- binop "add" i (tshow width)
+  past <- fresh "past"
+  emit (past <> " = icmp ugt i64 " <> end <> ", " <> size)
+  wrapped <- fresh "wrapped"
+  emit (wrapped <> " = icmp ugt i64 " <> i <> ", " <> size)
+  oob <- fresh "oob"
+  emit (oob <> " = or i1 " <> past <> ", " <> wrapped)
+  branchIf "inbounds" oob slow
+  arrP <- fresh "arr.p"
+  emit (arrP <> " = inttoptr i64 " <> arr <> " to ptr")
+  off <- binop "add" i (tshow (8 * rBytesHeader rts))
+  ep <- fresh "elem.p"
+  emit (ep <> " = getelementptr i8, ptr " <> arrP <> ", i64 " <> off)
+  pure ep
+
+-- | @llvm.bswap@ of the value, at the given integer type.
+bswap :: Text -> Text -> Gen Text
+bswap ty v = do
+  r <- fresh "swapped"
+  emit (r <> " = call " <> ty <> " @llvm.bswap." <> ty <> "(" <> ty <> " " <> v <> ")")
+  pure r
 
 -- | Calls a helper that returns 1 when it did the job and gives unit; the
 -- call-out otherwise.

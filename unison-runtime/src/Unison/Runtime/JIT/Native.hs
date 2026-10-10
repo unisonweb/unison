@@ -30,6 +30,8 @@ module Unison.Runtime.JIT.Native
     arrayInit,
     murmurInit,
     murmurTest,
+    murmurCAddress,
+    tableAddresses,
     bytesCheck,
     bytesTest,
     closureInit,
@@ -45,9 +47,11 @@ import GHC.Exts (Any, RealWorld)
 import Unison.Runtime.Stack (Closure)
 
 import Data.Int (Int64)
+import Control.Monad (forM)
 import Data.Word (Word64)
+import Foreign.C.String (CString, peekCString)
 import Foreign.Marshal.Alloc (allocaBytes, free)
-import Foreign.Ptr (Ptr, WordPtr (..), wordPtrToPtr)
+import Foreign.Ptr (Ptr, WordPtr (..), ptrToWordPtr, wordPtrToPtr)
 import Foreign.Storable (peek, peekElemOff, pokeElemOff)
 import GHC.Exts (MutableArray#, MutableByteArray#)
 
@@ -107,6 +111,18 @@ rtsFacts :: IO [Int]
 rtsFacts = allocaBytes (8 * 16) $ \out -> do
   n <- c_rtsFacts out 16
   map fromIntegral <$> mapM (peekElemOff out) [0 .. fromIntegral n - 1]
+
+foreign import ccall unsafe "unison_jit_table_addresses" c_tableAddresses :: Ptr CString -> Ptr (Ptr ()) -> Int64 -> IO Int64
+
+-- | The names the IR helpers refer to the runtime's tables by, with the
+-- tables' addresses, for the JIT to define before the helpers are added.
+tableAddresses :: IO [(String, Word64)]
+tableAddresses = allocaBytes (8 * 16) $ \names -> allocaBytes (8 * 16) $ \addrs -> do
+  n <- c_tableAddresses names addrs 16
+  forM [0 .. fromIntegral n - 1] $ \i -> do
+    name <- peekElemOff names i >>= peekCString
+    addr <- peekElemOff addrs i
+    pure (name, fromIntegral (ptrToWordPtr addr))
 
 foreign import ccall unsafe "unison_jit_ctx_layout" c_ctxLayout :: Ptr Int64 -> Int64 -> IO Int64
 
@@ -235,6 +251,13 @@ foreign import ccall unsafe "unison_jit_murmur_init" c_murmurInit :: MutableArra
 -- the C side returns a pair (ok, hash) by value; the FFI can't, so this
 -- wrapper writes it through a pointer
 foreign import ccall unsafe "unison_jit_murmur_test_ffi" c_murmurTest :: MutableArray# RealWorld Any -> Int64 -> Int64 -> Ptr Int64 -> IO Int64
+
+foreign import ccall "&unison_jit_murmur" c_murmurAddr :: FunPtr (Int64 -> Ptr () -> IO ())
+
+-- | Where the C copy of @unison_jit_murmur@ is: what the JIT's own
+-- definition of the name (the IR copy) must not be.
+murmurCAddress :: FunPtr (Int64 -> Ptr () -> IO ())
+murmurCAddress = c_murmurAddr
 
 -- | Hands the hash helper the type-tag closure in element 0 and the Enum
 -- and DataG info pointers.

@@ -3,6 +3,8 @@
 
 #include "Rts.h"
 #include "jit_rt.h"
+#define UNISON_JIT_TABLES_HERE
+#include "jit_internal.h"
 
 #include <pthread.h>
 #include <stdio.h>
@@ -161,10 +163,6 @@ void *unison_jit_bytes_to_base(UnisonJitCtx *ctx, void *bytes, int64_t base);
 void *unison_jit_bytes_from_base(UnisonJitCtx *ctx, void *bytes, int64_t base, void *either, int64_t right_tag);
 int64_t unison_jit_pow(int64_t m, int64_t n);
 double unison_jit_atan2(double y, double x);
-typedef struct { int64_t ok, v; } JitNat;
-JitNat unison_jit_barray_size(void *x, int64_t kind);
-JitNat unison_jit_barray_read(void *x, int64_t i, int64_t width, int64_t be, int64_t kind);
-int64_t unison_jit_barray_write(void *x, int64_t i, int64_t width, int64_t be, int64_t v);
 int64_t unison_jit_barray_copy(void *dst, int64_t doff, void *src, int64_t soff, int64_t l, int64_t kind);
 void *unison_jit_barray_freeze(UnisonJitCtx *ctx, void *x, int64_t off, int64_t len, int64_t in_place);
 void *unison_jit_barray_to_bytes(UnisonJitCtx *ctx, void *x, int64_t off, int64_t len);
@@ -180,6 +178,17 @@ int64_t unison_jit_ref_cas(UnisonJitCtx *ctx, void *ref, void *ticket, int64_t u
 JitNat unison_jit_murmur(int64_t u, void *b);
 void *unison_jit_name(UnisonJitCtx *ctx, void *fun, int64_t n, int64_t u0, void *b0, int64_t u1, void *b1, int64_t u2,
                       void *b2, int64_t u3, void *b3);
+// The tables the IR helpers (jit_helpers.ll) refer to by name: the JIT
+// defines each name at its address before adding the module. Fills up to n
+// entries and returns how many there are.
+int64_t unison_jit_table_addresses(const char **names, void **addrs, int64_t n) {
+  static const char *const tnames[] = {"unison_jit_LF", "unison_jit_TK", "unison_jit_BK", "unison_jit_AK", "unison_jit_HK"};
+  void *taddrs[] = {&unison_jit_LF, &unison_jit_TK, &unison_jit_BK, &unison_jit_AK, &unison_jit_HK};
+  int64_t count = sizeof taddrs / sizeof taddrs[0];
+  for (int64_t i = 0; i < n && i < count; i++) names[i] = tnames[i], addrs[i] = taddrs[i];
+  return count;
+}
+
 void *unison_jit_helpers[] = {
     (void *)&unison_jit_alloc_words, (void *)&unison_jit_write_mutvar, (void *)&unison_jit_list_size,
     (void *)&unison_jit_list_view,   (void *)&unison_jit_list_push,    (void *)&unison_jit_list_index,
@@ -197,12 +206,14 @@ void *unison_jit_helpers[] = {
     (void *)&unison_jit_text_from_utf8, (void *)&unison_jit_bytes_decode_nat, (void *)&unison_jit_bytes_encode_nat,
     (void *)&unison_jit_bytes_read_ok, (void *)&unison_jit_bytes_read_at,   (void *)&unison_jit_bytes_to_base,
     (void *)&unison_jit_bytes_from_base, (void *)&unison_jit_pow,              (void *)&unison_jit_atan2,
-    (void *)&unison_jit_barray_size,     (void *)&unison_jit_barray_read,      (void *)&unison_jit_barray_write,
     (void *)&unison_jit_barray_copy,     (void *)&unison_jit_barray_freeze,    (void *)&unison_jit_barray_to_bytes,
     (void *)&unison_jit_barray_from_bytes, (void *)&unison_jit_barray_new,     (void *)&unison_jit_barray_contents,
     (void *)&unison_jit_parray_new,      (void *)&unison_jit_parray_copy,      (void *)&unison_jit_parray_freeze,
     (void *)&unison_jit_ref_new,         (void *)&unison_jit_ref_read_for_cas, (void *)&unison_jit_ref_cas,
     (void *)&unison_jit_murmur,         (void *)&unison_jit_exit_frame,
+    // what the IR helpers (jit_helpers.c) call from their module
+    (void *)&unison_jit_settle,         (void *)&unison_jit_rope_chunk_at, (void *)&unison_jit_lv_each,
+    (void *)&unison_jit_murmur_fail,    (void *)&unison_jit_table_addresses,
 };
 
 void unison_jit_configure(int64_t poll_every, int64_t callee_every, int64_t cstack, int64_t alloc,
@@ -411,22 +422,10 @@ int64_t unison_jit_rts_facts(int64_t *out, int64_t n) {
 // unison_jit_list_init and unison_jit_list_check, and then every helper is
 // run against the Haskell operation; if anything is off the JIT stays off.
 
-typedef struct {
-  StgWord foreign_info, wrapseq_info, wrapseq_tag;
-  StgWord deep_info, mdeep_info, scons_info, n8_info, na_info;
-  StgWord val_info, data1_info, data2_info;
-  StgClosure *nil, *mnil, *snil; // the constructors without fields (tagged)
-} ListFacts;
-static ListFacts LF;
 
-#define LTAG(p) GET_CLOSURE_TAG((StgClosure *)(p))
-#define LUN(p) UNTAG_CLOSURE((StgClosure *)(p))
-#define LP(c, i) (LUN(c)->payload[i])
-#define LW(c, i) ((StgInt)LUN(c)->payload[i])
 
 // the most items in a digit (Deque.maxD)
 #define MAXD 10
-#define TSIZE(t) ((t) >> 8)
 #define TPC(t) ((t)&15)
 #define TSC(t) (((t) >> 4) & 15)
 #define MK(n, p, s) (((StgInt)(n) << 8) | ((StgInt)(s) << 4) | (StgInt)(p))
@@ -457,14 +456,6 @@ static inline StgInt node_arity(StgClosure *nd) {
   return LTAG(nd) == 1 ? 8 : (StgInt)((StgSmallMutArrPtrs *)LP(nd, 0))->ptrs;
 }
 static inline StgInt node_size(StgClosure *nd) { return LTAG(nd) == 1 ? 8 : LW(nd, 1); }
-
-// The deque inside a list value (tagged), or NULL if the closure isn't a list.
-static inline StgClosure *deque_of(void *list) {
-  if (LTAG(list) != 7 || (StgWord)LUN(list)->header.info != LF.foreign_info) return NULL;
-  StgClosure *w = LP(list, 0);
-  if (LTAG(w) != LF.wrapseq_tag || (StgWord)LUN(w)->header.info != LF.wrapseq_info) return NULL;
-  return LP(w, 0);
-}
 
 // Everything allocated is written in full before the helper returns: the
 // heap must have no gaps.
@@ -1200,7 +1191,7 @@ void *unison_jit_list_append(UnisonJitCtx *ctx, void *x, void *y) {
 // and tags the pointer the way a field holding it would be. Values on the
 // Unison stack don't need this: the helpers decline a pointer without its
 // tag, and the interpreter handles it.
-static void *settle(void *p) {
+void *unison_jit_settle(void *p) {
   StgClosure *c = (StgClosure *)p;
   for (;;) {
     if (GET_CLOSURE_TAG(c) != 0) return c;
@@ -1297,7 +1288,7 @@ static StgInt check_digit(StgClosure *l, int depth, StgInt count, int64_t *kinds
 // set of bits saying which constructors it met: 1 for a Deep, 2 and 4 for
 // the two kinds of node, 8 for an MDeep.
 int64_t unison_jit_list_check(void **elems) {
-  StgClosure *c = deque_of(settle(elems[0]));
+  StgClosure *c = deque_of(unison_jit_settle(elems[0]));
   if (c == NULL) return -1;
   if (LTAG(c) == 1) return same_con0(c, LF.nil) ? 0 : -1;
   int64_t kinds = 1;
@@ -1340,7 +1331,7 @@ int64_t unison_jit_list_check(void **elems) {
 // Foreign, Val, Data1 and Data2. Returns 1 if everything is as this file
 // assumes, else a number saying which check failed.
 int64_t unison_jit_list_init(void **raw, int64_t *info) {
-  void *elems[4] = {settle(raw[0]), settle(raw[1]), settle(raw[2]), settle(raw[3])};
+  void *elems[4] = {unison_jit_settle(raw[0]), unison_jit_settle(raw[1]), unison_jit_settle(raw[2]), unison_jit_settle(raw[3])};
   memset(&LF, 0, sizeof LF);
   LF.foreign_info = info[0];
   LF.val_info = info[1];
@@ -1408,7 +1399,7 @@ int64_t unison_jit_list_test(void **elems, int64_t op, int64_t arg, int64_t arg2
   UnisonJitCtx tmp = {0}, *ctx = &tmp;
   ctx->cap = rts_unsafeGetMyCapability();
   void *res = NULL;
-  void *e0 = settle(elems[0]), *e1 = settle(elems[1]);
+  void *e0 = unison_jit_settle(elems[0]), *e1 = unison_jit_settle(elems[1]);
   switch (op) {
     case 0:
     case 1:
@@ -1479,48 +1470,13 @@ int64_t unison_jit_list_test(void **elems, int64_t op, int64_t arg, int64_t arg2
 // Checked at startup like the list layouts (unison_jit_text_init,
 // unison_jit_bytes_init).
 
-typedef struct {
-  StgWord foreign_info, wrap_info, wrap_tag; // Foreign (WrapText rope) or (WrapBytes rope)
-  StgWord one_info, deep_info, chunk_info;
-  StgClosure *empty; // Rope's Empty (tagged)
-  // the most elements two chunks may have between them to be made one
-  // (Rope.threshold, handed to the init function)
-  StgInt threshold;
-  StgInt chunk_words;           // a chunk's payload words
-  int ix_count, ix_off, ix_len; // the chunk's element count, byte offset and byte length; field 0 is the array
-  int utf8;                     // the elements are characters in UTF-8 (else they are the bytes)
-} RopeKind;
-static RopeKind TK, BK; // text, bytes
 
 #define ROPE_THRESHOLD (K->threshold)
-
-static inline StgClosure *rope_of(const RopeKind *K, void *x) {
-  if (LTAG(x) != 7 || (StgWord)LUN(x)->header.info != K->foreign_info) return NULL;
-  StgClosure *w = LP(x, 0);
-  if (LTAG(w) != K->wrap_tag || (StgWord)LUN(w)->header.info != K->wrap_info) return NULL;
-  return LP(w, 0);
-}
-
-static inline StgInt chunk_size(const RopeKind *K, StgClosure *c) { return LW(c, K->ix_count); }
-static inline StgInt chunk_len(const RopeKind *K, StgClosure *c) { return LW(c, K->ix_len); }
-static inline StgInt chunk_off(const RopeKind *K, StgClosure *c) { return LW(c, K->ix_off); }
 
 // the fields of a Deep (which lv_read doesn't take: its tag isn't a list level's)
 static inline void rope_read(StgClosure *c, Lv *v) {
   v->pr = LP(c, 0), v->m = LP(c, 1), v->sf = LP(c, 2);
   v->t = LW(c, 3), v->ps = LW(c, 4);
-}
-
-static inline StgInt rope_size(const RopeKind *K, StgClosure *r) {
-  switch (LTAG(r)) {
-    case 2: return chunk_size(K, LP(r, 0));
-    case 3: return TSIZE(LW(r, 3));
-    default: return 0;
-  }
-}
-
-static inline const unsigned char *chunk_bytes(const RopeKind *K, StgClosure *c) {
-  return (const unsigned char *)((StgArrBytes *)LP(c, 0))->payload + chunk_off(K, c);
 }
 
 // the elements under a list of chunks
@@ -1889,7 +1845,7 @@ static StgClosure *rope_append(UnisonJitCtx *ctx, const RopeKind *K, StgClosure 
 // --- finding the chunk that holds a character (chunkAt) ---
 
 // The chunk holding character i, 0 <= i < size, and i's offset in it.
-static StgClosure *rope_chunk_at(const RopeKind *K, StgClosure *r, StgInt i, StgInt *off) {
+StgClosure *unison_jit_rope_chunk_at(const RopeKind *K, StgClosure *r, StgInt i, StgInt *off) {
   if (LTAG(r) == 2) {
     *off = i;
     return LP(r, 0);
@@ -1992,11 +1948,11 @@ static int64_t rope_h_eq(const RopeKind *K, void *x, void *y) {
   StgInt na = 0, nb = 0, ia = 0, ib = 0, off; // bytes left in each side's chunk; elements before the next one
   for (;;) {
     if (na == 0 && ia < n) {
-      StgClosure *c = rope_chunk_at(K, a, ia, &off);
+      StgClosure *c = unison_jit_rope_chunk_at(K, a, ia, &off);
       pa = chunk_bytes(K, c), na = chunk_len(K, c), ia += chunk_size(K, c);
     }
     if (nb == 0 && ib < n) {
-      StgClosure *c = rope_chunk_at(K, b, ib, &off);
+      StgClosure *c = unison_jit_rope_chunk_at(K, b, ib, &off);
       pb = chunk_bytes(K, c), nb = chunk_len(K, c), ib += chunk_size(K, c);
     }
     if (na == 0 || nb == 0) return na == nb;
@@ -2039,7 +1995,7 @@ void *unison_jit_bytes_index(UnisonJitCtx *ctx, void *bytes, int64_t i, void *no
   if (r == NULL) return NULL;
   if (i < 0 || i >= rope_size(&BK, r)) return none;
   StgInt off;
-  StgClosure *c = rope_chunk_at(&BK, r, i, &off);
+  StgClosure *c = unison_jit_rope_chunk_at(&BK, r, i, &off);
   // Data1 ref tag v: pointers ref, v's; words tag, v's
   StgWord *p = list_alloc(ctx, 5);
   p[0] = LF.data1_info;
@@ -2059,7 +2015,7 @@ void *unison_jit_bytes_flatten(UnisonJitCtx *ctx, void *bytes) {
   StgInt n = rope_size(&BK, r), off;
   StgArrBytes *arr = new_arr(ctx, n);
   for (StgInt i = 0; i < n;) {
-    StgClosure *c = rope_chunk_at(&BK, r, i, &off);
+    StgClosure *c = unison_jit_rope_chunk_at(&BK, r, i, &off);
     StgInt s = chunk_size(&BK, c);
     memcpy((char *)arr->payload + i, chunk_bytes(&BK, c), s);
     i += s;
@@ -2108,7 +2064,7 @@ static StgInt check_rope_digit(const RopeKind *K, StgClosure *l, int depth, StgI
 // at every level, each chunk's element count against its bytes, and the
 // rope's invariants. 1 if all is as assumed.
 static int64_t rope_check(const RopeKind *K, void **elems) {
-  StgClosure *r = rope_of(K, settle(elems[0]));
+  StgClosure *r = rope_of(K, unison_jit_settle(elems[0]));
   if (r == NULL) return 0;
   if (LTAG(r) == 1) return same_con0(r, K->empty);
   if (LTAG(r) == 2) return (StgWord)LUN(r)->header.info == K->one_info && check_chunk(K, LP(r, 0)) > 0;
@@ -2140,7 +2096,7 @@ static int64_t rope_check(const RopeKind *K, void **elems) {
   // no two chunks next to each other are small enough to be one
   StgInt n = rope_size(K, r), prev = ROPE_THRESHOLD + 1, off;
   for (StgInt i = 0; i < n;) {
-    StgClosure *ch = rope_chunk_at(K, r, i, &off);
+    StgClosure *ch = unison_jit_rope_chunk_at(K, r, i, &off);
     StgInt s = chunk_size(K, ch);
     if (off != 0 || prev + s <= ROPE_THRESHOLD) return 0;
     prev = s, i += s;
@@ -2161,7 +2117,7 @@ int64_t unison_jit_bytes_check(void **elems) { return rope_check(&BK, elems); }
 // digits and of the levels below are the list's (unison_jit_list_init has
 // run). Returns 1, or the number of the check that failed.
 static int64_t rope_init(RopeKind *K, void **raw, int64_t *info) {
-  void *elems[3] = {settle(raw[0]), settle(raw[1]), settle(raw[2])};
+  void *elems[3] = {unison_jit_settle(raw[0]), unison_jit_settle(raw[1]), unison_jit_settle(raw[2])};
   K->foreign_info = info[0];
   K->threshold = info[1];
   if (K->threshold < 1) return 14;
@@ -2225,12 +2181,12 @@ static int64_t rope_test(const RopeKind *K, void **elems, int64_t op, int64_t ar
   if (trace_test) fprintf(stderr, "[test] %s op %lld arg %lld %lld %lld\n", K == &TK ? "text" : "bytes", (long long)op, (long long)arg, (long long)arg2, (long long)arg3);
   ctx->cap = rts_unsafeGetMyCapability();
   void *res = NULL;
-  void *e0 = settle(elems[0]), *e1 = settle(elems[1]);
+  void *e0 = unison_jit_settle(elems[0]), *e1 = unison_jit_settle(elems[1]);
   // the constructors the results need: elems[4] None, [5] the Tuple
   // enumeration, [6] (), [7] the Either enumeration, [8..11] the Char, Nat,
   // Int and Float type tags
-  void *none = settle(elems[4]), *pair = settle(elems[5]), *unit = settle(elems[6]), *either = settle(elems[7]);
-  void *ctag = settle(elems[8]), *ntag = settle(elems[9]), *itag = settle(elems[10]), *ftag = settle(elems[11]);
+  void *none = unison_jit_settle(elems[4]), *pair = unison_jit_settle(elems[5]), *unit = unison_jit_settle(elems[6]), *either = unison_jit_settle(elems[7]);
+  void *ctag = unison_jit_settle(elems[8]), *ntag = unison_jit_settle(elems[9]), *itag = unison_jit_settle(elems[10]), *ftag = unison_jit_settle(elems[11]);
   if (K == &TK) switch (op) {
       case 0: res = rope_h_append(ctx, K, e0, e1); break;
       case 1: res = rope_h_cut(ctx, K, e0, arg, 1); break;
@@ -2459,13 +2415,13 @@ static const unsigned char *rope_flat(const RopeKind *K, StgClosure *r, StgInt *
   }
   StgInt n = rope_size(K, r), total = 0, off;
   for (StgInt i = 0; i < n;) {
-    StgClosure *c = rope_chunk_at(K, r, i, &off);
+    StgClosure *c = unison_jit_rope_chunk_at(K, r, i, &off);
     total += chunk_len(K, c), i += chunk_size(K, c);
   }
   unsigned char *buf = malloc(total > 0 ? total : 1);
   StgInt at = 0;
   for (StgInt i = 0; i < n;) {
-    StgClosure *c = rope_chunk_at(K, r, i, &off);
+    StgClosure *c = unison_jit_rope_chunk_at(K, r, i, &off);
     memcpy(buf + at, chunk_bytes(K, c), chunk_len(K, c));
     at += chunk_len(K, c), i += chunk_size(K, c);
   }
@@ -2474,8 +2430,6 @@ static const unsigned char *rope_flat(const RopeKind *K, StgClosure *r, StgInt *
 }
 
 // --- walking a list ---
-
-typedef void (*ItemFn)(StgClosure *item, void *env);
 
 static void node_each(StgClosure *nd, int depth, ItemFn fn, void *env) {
   StgClosure **k = node_kids(nd);
@@ -2492,11 +2446,11 @@ static inline void item_each(StgClosure *x, int depth, ItemFn fn, void *env) {
 
 // the elements of a deque level in order: `depth` is how many levels of
 // nodes its items hold (0 at the top)
-static void lv_each(StgClosure *c, int top, int depth, ItemFn fn, void *env) {
+void unison_jit_lv_each(StgClosure *c, int top, int depth, ItemFn fn, void *env) {
   Lv v;
   if (!lv_read(c, top, &v)) return;
   for (StgClosure *l = v.pr; IS_CONS(l); l = TAIL(l)) item_each(HEAD(l), depth, fn, env);
-  lv_each(v.m, 0, depth + 1, fn, env);
+  unison_jit_lv_each(v.m, 0, depth + 1, fn, env);
   StgClosure *k[MAXD];
   StgInt n = s_items(v.sf, k);
   for (StgInt i = n - 1; i >= 0; i--) item_each(k[i], depth, fn, env);
@@ -2515,11 +2469,11 @@ void *unison_jit_text_uncons(UnisonJitCtx *ctx, void *text, void *none, int64_t 
   StgInt n = rope_size(K, r), off, clen, cp;
   StgClosure *c, *rest;
   if (front) {
-    c = rope_chunk_at(K, r, 0, &off);
+    c = unison_jit_rope_chunk_at(K, r, 0, &off);
     cp = utf8_decode(chunk_bytes(K, c), &clen);
     rest = rope_drop(ctx, K, 1, r);
   } else {
-    c = rope_chunk_at(K, r, n - 1, &off);
+    c = unison_jit_rope_chunk_at(K, r, n - 1, &off);
     const unsigned char *p = chunk_bytes(K, c);
     cp = utf8_decode(p + utf8_last_start(p, chunk_len(K, c)), &clen);
     rest = rope_take(ctx, K, n - 1, r);
@@ -2643,7 +2597,7 @@ void *unison_jit_text_to_num(UnisonJitCtx *ctx, void *text, void *none, int64_t 
   unsigned char buf[65 * 4];
   StgInt len = 0, off;
   for (StgInt i = 0; i < n;) {
-    StgClosure *c = rope_chunk_at(K, r, i, &off);
+    StgClosure *c = unison_jit_rope_chunk_at(K, r, i, &off);
     memcpy(buf + len, chunk_bytes(K, c), chunk_len(K, c));
     len += chunk_len(K, c), i += chunk_size(K, c);
   }
@@ -2724,12 +2678,12 @@ void *unison_jit_text_pack(UnisonJitCtx *ctx, void *list, void *char_tag) {
   StgClosure *dq = deque_of(list);
   if (dq == NULL) return NULL;
   PackEnv e = {char_tag, 0, 0, 0, NULL, 0x10FFFF};
-  lv_each(dq, 1, 0, pack_measure, &e);
+  unison_jit_lv_each(dq, 1, 0, pack_measure, &e);
   if (e.bad) return NULL;
   if (e.count == 0) return wrap_rope(ctx, &TK, TK.empty, NULL);
   StgArrBytes *arr = new_arr(ctx, e.bytes);
   e.out = (unsigned char *)arr->payload, e.bytes = 0;
-  lv_each(dq, 1, 0, pack_write, &e);
+  unison_jit_lv_each(dq, 1, 0, pack_write, &e);
   return wrap_rope(ctx, &TK, text_over(ctx, arr, 0, e.bytes), NULL);
 }
 
@@ -2739,12 +2693,12 @@ void *unison_jit_bytes_pack(UnisonJitCtx *ctx, void *list, void *nat_tag) {
   StgClosure *dq = deque_of(list);
   if (dq == NULL) return NULL;
   PackEnv e = {nat_tag, 0, 0, 0, NULL, 255};
-  lv_each(dq, 1, 0, pack_measure, &e);
+  unison_jit_lv_each(dq, 1, 0, pack_measure, &e);
   if (e.bad) return NULL;
   if (e.count == 0) return wrap_rope(ctx, &BK, BK.empty, NULL);
   StgArrBytes *arr = new_arr(ctx, e.count);
   e.out = (unsigned char *)arr->payload, e.count = 0;
-  lv_each(dq, 1, 0, pack_write, &e);
+  unison_jit_lv_each(dq, 1, 0, pack_write, &e);
   StgInt n = e.count;
   return wrap_rope(ctx, &BK, rope_one(ctx, &BK, new_chunk(ctx, &BK, arr, n, 0, n)), NULL);
 }
@@ -2757,7 +2711,7 @@ static void *rope_unpack(UnisonJitCtx *ctx, const RopeKind *K, void *x, void *ta
   StgClosure *acc = LF.nil;
   StgInt n = rope_size(K, r), off;
   for (StgInt i = 0; i < n;) {
-    StgClosure *c = rope_chunk_at(K, r, i, &off);
+    StgClosure *c = unison_jit_rope_chunk_at(K, r, i, &off);
     const unsigned char *p = chunk_bytes(K, c), *end = p + chunk_len(K, c);
     while (p < end) {
       StgInt v, l = 1;
@@ -2821,11 +2775,11 @@ static int64_t rope_cmp(const RopeKind *K, void *x, void *y) {
   StgInt na = 0, nb = 0, ia = 0, ib = 0, off;
   for (;;) {
     if (na == 0 && ia < n) {
-      StgClosure *c = rope_chunk_at(K, a, ia, &off);
+      StgClosure *c = unison_jit_rope_chunk_at(K, a, ia, &off);
       pa = chunk_bytes(K, c), na = chunk_len(K, c), ia += chunk_size(K, c);
     }
     if (nb == 0 && ib < m) {
-      StgClosure *c = rope_chunk_at(K, b, ib, &off);
+      StgClosure *c = unison_jit_rope_chunk_at(K, b, ib, &off);
       pb = chunk_bytes(K, c), nb = chunk_len(K, c), ib += chunk_size(K, c);
     }
     if (na == 0 || nb == 0) return na == nb ? 0 : na == 0 ? -1 : 1;
@@ -2909,7 +2863,7 @@ void *unison_jit_text_reverse(UnisonJitCtx *ctx, void *text) {
   StgClosure *acc = K->empty;
   StgInt n = rope_size(K, r), off;
   for (StgInt i = 0; i < n;) {
-    StgClosure *c = rope_chunk_at(K, r, i, &off);
+    StgClosure *c = unison_jit_rope_chunk_at(K, r, i, &off);
     acc = rope_cons(ctx, K, chunk_size(K, c), chunk_reverse(ctx, c), acc);
     i += chunk_size(K, c);
   }
@@ -2926,13 +2880,13 @@ void *unison_jit_text_case(UnisonJitCtx *ctx, void *text, int64_t upper) {
   if (r == NULL) return NULL;
   StgInt n = rope_size(K, r), off;
   for (StgInt i = 0; i < n;) {
-    StgClosure *c = rope_chunk_at(K, r, i, &off);
+    StgClosure *c = unison_jit_rope_chunk_at(K, r, i, &off);
     if (chunk_len(K, c) != chunk_size(K, c)) return NULL;
     i += chunk_size(K, c);
   }
   StgClosure *acc = K->empty;
   for (StgInt i = 0; i < n;) {
-    StgClosure *c = rope_chunk_at(K, r, i, &off);
+    StgClosure *c = unison_jit_rope_chunk_at(K, r, i, &off);
     StgInt len = chunk_len(K, c);
     const unsigned char *p = chunk_bytes(K, c);
     StgArrBytes *arr = new_arr(ctx, len);
@@ -2951,7 +2905,7 @@ void *unison_jit_text_to_utf8(UnisonJitCtx *ctx, void *text) {
   StgClosure *acc = BK.empty;
   StgInt n = rope_size(&TK, r), off;
   for (StgInt i = 0; i < n;) {
-    StgClosure *c = rope_chunk_at(&TK, r, i, &off);
+    StgClosure *c = unison_jit_rope_chunk_at(&TK, r, i, &off);
     StgInt len = chunk_len(&TK, c);
     acc = rope_snoc(ctx, &BK, acc, len, new_chunk(ctx, &BK, LP(c, 0), len, chunk_off(&TK, c), len));
     i += chunk_size(&TK, c);
@@ -2980,7 +2934,7 @@ void *unison_jit_text_from_utf8(UnisonJitCtx *ctx, void *bytes, void *either, in
 // the byte at position i of a rope of bytes
 static inline unsigned char byte_at(StgClosure *r, StgInt i) {
   StgInt off;
-  StgClosure *c = rope_chunk_at(&BK, r, i, &off);
+  StgClosure *c = unison_jit_rope_chunk_at(&BK, r, i, &off);
   return chunk_bytes(&BK, c)[off];
 }
 
@@ -3038,7 +2992,7 @@ void *unison_jit_bytes_to_base(UnisonJitCtx *ctx, void *bytes, int64_t base) {
     StgClosure *acc = BK.empty;
     StgInt n = rope_size(&BK, r), off;
     for (StgInt i = 0; i < n;) {
-      StgClosure *c = rope_chunk_at(&BK, r, i, &off);
+      StgClosure *c = unison_jit_rope_chunk_at(&BK, r, i, &off);
       StgInt len = chunk_len(&BK, c);
       const unsigned char *p = chunk_bytes(&BK, c);
       StgArrBytes *arr = new_arr(ctx, 2 * len);
@@ -3381,33 +3335,14 @@ int64_t unison_jit_enter(UnisonNativeFn fn, int64_t *ustk, void **bstk, void **p
 // or the ticket's value) as its one field: Data.Primitive's boxes are
 // unpacked into the strict field. WrapPtr holds an Addr#, a non-pointer.
 
-typedef struct {
-  StgWord info;
-  StgWord tag;
-} WrapInfo;
-
-static struct {
-  WrapInfo marray, array, mbarray, barray, ioref, ticket, ptr;
-  StgClosure *empty_val; // what Scope.array fills a new array with
-  int ok;
-} AK;
 
 int64_t unison_jit_array_init(void **raw, int64_t *info) {
   WrapInfo *ws[] = {&AK.marray, &AK.array, &AK.mbarray, &AK.barray, &AK.ioref, &AK.ticket, &AK.ptr};
   for (int i = 0; i < 7; i++) ws[i]->info = info[2 * i], ws[i]->tag = info[2 * i + 1];
-  AK.empty_val = settle(raw[0]);
+  AK.empty_val = unison_jit_settle(raw[0]);
   AK.ok = LF.foreign_info != 0;
   return AK.ok;
 }
-
-// The wrapper's field, or NULL if x isn't Foreign (that wrapper ...).
-static inline StgWord wrapped_word(void *x, const WrapInfo *w) {
-  if (!AK.ok || LTAG(x) != 7 || (StgWord)LUN(x)->header.info != LF.foreign_info) return 0;
-  StgClosure *wr = LP(x, 0);
-  if (LTAG(wr) != (int)w->tag || (StgWord)LUN(wr)->header.info != w->info) return 0;
-  return LW(wr, 0);
-}
-static inline void *wrapped_of(void *x, const WrapInfo *w) { return (void *)wrapped_word(x, w); }
 
 // Foreign (Wrap field), in four words.
 static void *wrap_word(UnisonJitCtx *ctx, const WrapInfo *w, StgWord field) {
@@ -3429,48 +3364,9 @@ static inline StgArrBytes *barray_of(void *x, int64_t kind) {
   return (StgArrBytes *)wrapped_of(x, kind == 0 ? &AK.mbarray : &AK.barray);
 }
 
-JitNat unison_jit_barray_size(void *x, int64_t kind) {
-  StgArrBytes *a = barray_of(x, kind);
-  if (a == NULL) return (JitNat){0, 0};
-  return (JitNat){1, (int64_t)a->bytes};
-}
+// Byte array size, reads and writes are generated code (Codegen.byteArray,
+// byteArrayElem): a wrapper check, a bounds check and a load or store.
 
-static inline uint64_t load_be(const unsigned char *p, int n) {
-  uint64_t v = 0;
-  for (int i = 0; i < n; i++) v = (v << 8) | p[i];
-  return v;
-}
-static inline uint64_t load_le(const unsigned char *p, int n) {
-  uint64_t v = 0;
-  for (int i = n - 1; i >= 0; i--) v = (v << 8) | p[i];
-  return v;
-}
-
-// Reads `width` bytes (1, 2, 3, 4, 5 or 8) at byte offset i, big- or
-// little-endian, as the Haskell read*/index* functions do (the 24- and
-// 40-bit reads are a 16- or 32-bit read plus a byte, which is the same
-// as a plain big- or little-endian read of that many bytes).
-JitNat unison_jit_barray_read(void *x, int64_t i, int64_t width, int64_t be, int64_t kind) {
-  StgArrBytes *a = barray_of(x, kind);
-  if (a == NULL || !bytes_ok(a->bytes, (StgWord)i, (StgWord)width)) return (JitNat){0, 0};
-  const unsigned char *p = (const unsigned char *)a->payload + i;
-  return (JitNat){1, (int64_t)(be ? load_be(p, (int)width) : load_le(p, (int)width))};
-}
-
-int64_t unison_jit_barray_write(void *x, int64_t i, int64_t width, int64_t be, int64_t v) {
-  StgArrBytes *a = barray_of(x, 0);
-  if (a == NULL || !bytes_ok(a->bytes, (StgWord)i, (StgWord)width)) return 0;
-  unsigned char *p = (unsigned char *)a->payload + i;
-  uint64_t u = (uint64_t)v;
-  for (int k = 0; k < width; k++) {
-    int shift = be ? 8 * (int)(width - 1 - k) : 8 * k;
-    p[k] = (unsigned char)(u >> shift);
-  }
-  return 1;
-}
-
-// copyTo!: dst a MutableByteArray, src mutable (kind 0) or immutable (1).
-// A copy of length 0 is fine whatever the offsets.
 int64_t unison_jit_barray_copy(void *dst, int64_t doff, void *src, int64_t soff, int64_t l, int64_t kind) {
   StgArrBytes *d = barray_of(dst, 0), *s = barray_of(src, kind);
   if (d == NULL || s == NULL) return 0;
@@ -3656,61 +3552,12 @@ int64_t unison_jit_ref_cas(UnisonJitCtx *ctx, void *ref, void *ticket, int64_t u
 }
 
 // ---------------------------------------------------------------------------
-// Universal.murmurHashUntyped
-//
-// The interpreter reflects the value into an ANF Value tree (Value.value) and
-// hashes the tree with MurmurHash64A, one 64-bit word at a time, a small
-// constructor number ahead of each node (Unison.Runtime.ANF.MurmurHash.Untyped).
-// This walks the closures directly and feeds the same words to the same
-// accumulator, so it gives the same hash without building the tree. Data
-// constructors hash their tag (the low 16 bits of the packed tag) and fields,
-// not their type reference; unboxed values hash as the literals the reflection
-// turns them into; Text, Bytes, lists, arrays and byte arrays hash their
-// contents. Anything else (a function, a map, a link, quoted code, a
-// continuation, a big number, an unevaluated pointer) is left to the
-// interpreter: the helper says "not handled".
-//
-// The seed (0xdeadbeef) and the finalization are the murmur-hash library's
-// (Data.Digest.Murmur64: hash64 = hash64End . hash64Add x . Hash64 defaultSeed).
+// Universal.murmurHashUntyped: the hash itself is in jit_helpers.c (compiled
+// to IR for generated code, and into the library for the startup check);
+// here are its table, its trace output and the startup functions.
 
-#define MURMUR_M 0xc6a4a7935bd1e995ULL
-
-// the library's step: the accumulator is multiplied, then xored with the
-// mixed word (Data.Digest.Murmur64.hash64AddWord64)
-static inline uint64_t mm_add(uint64_t h, uint64_t k) {
-  k *= MURMUR_M;
-  k ^= k >> 47;
-  k *= MURMUR_M;
-  return (h * MURMUR_M) ^ k;
-}
-
-static inline uint64_t mm_end(uint64_t h) {
-  h ^= h >> 47;
-  h *= MURMUR_M;
-  h ^= h >> 47;
-  return h;
-}
-
-#define MURMUR_SEED 0xdeadbeefULL
-
-static struct {
-  StgWord utag_info; // the closure that marks an unboxed value's type
-  StgWord enum_info, datag_info;
-  int ok;
-} MK;
-
-typedef struct {
-  uint64_t h;
-  int ok;
-} MH;
-
-static inline void mh_word(MH *s, uint64_t k) { s->h = mm_add(s->h, k); }
-
-static void mh_closure(MH *s, StgClosure *c);
-
-// a Val's two halves: an unboxed value (b is a type tag) or a boxed one
 // why a value was left to the interpreter, under UNISON_JIT_TRACE_TEST
-static void mh_fail(const char *what, StgClosure *c) {
+void unison_jit_murmur_fail(const char *what, StgClosure *c) {
   static int trace_test = -1;
   if (trace_test < 0) trace_test = getenv("UNISON_JIT_TRACE_TEST") != NULL;
   if (trace_test) {
@@ -3720,178 +3567,24 @@ static void mh_fail(const char *what, StgClosure *c) {
   }
 }
 
-static void mh_val(MH *s, StgWord u, StgClosure *b) {
-  if (!s->ok) return;
-  if (LTAG(b) == 0) {
-    mh_fail("untagged value", b);
-    s->ok = 0;
-    return;
-  }
-  if ((StgWord)LUN(b)->header.info == MK.utag_info) {
-    // the literal the reflection makes of it: BLit (Pos/Neg/Char/Float)
-    int kind = LTAG(LP(b, 0)); // CharTag 1, FloatTag 2, IntTag 3, NatTag 4
-    mh_word(s, 4);
-    switch (kind) {
-      case 1: mh_word(s, 12); mh_word(s, u); break;
-      case 2: mh_word(s, 13); mh_word(s, u); break;
-      case 3:
-        if ((int64_t)u >= 0) mh_word(s, 10), mh_word(s, u);
-        else mh_word(s, 11), mh_word(s, (uint64_t)(-(int64_t)u));
-        break;
-      case 4: mh_word(s, 10); mh_word(s, u); break;
-      default: mh_fail("type tag", b); s->ok = 0;
-    }
-    return;
-  }
-  mh_closure(s, b);
-}
-
-// a Val closure (a list or array element)
-static void mh_val_closure(StgClosure *item, void *env) {
-  MH *s = env;
-  if (LTAG(item) != 1 || (StgWord)LUN(item)->header.info != LF.val_info) {
-    mh_fail("list element", item);
-    s->ok = 0;
-    return;
-  }
-  mh_val(s, LW(item, 1), LP(item, 0));
-}
-
-// the code points of a text, chunk by chunk
-static void mh_text(MH *s, StgClosure *r) {
-  const RopeKind *K = &TK;
-  StgInt n = rope_size(K, r), off;
-  for (StgInt i = 0; i < n;) {
-    StgClosure *c = rope_chunk_at(K, r, i, &off);
-    const unsigned char *p = chunk_bytes(K, c), *e = p + chunk_len(K, c);
-    while (p < e) {
-      uint64_t cp;
-      if (p[0] < 0x80) cp = p[0], p += 1;
-      else if (p[0] < 0xE0) cp = ((p[0] & 0x1Fu) << 6) | (p[1] & 0x3Fu), p += 2;
-      else if (p[0] < 0xF0) cp = ((p[0] & 0x0Fu) << 12) | ((p[1] & 0x3Fu) << 6) | (p[2] & 0x3Fu), p += 3;
-      else cp = ((p[0] & 0x07u) << 18) | ((p[1] & 0x3Fu) << 12) | ((p[2] & 0x3Fu) << 6) | (p[3] & 0x3Fu), p += 4;
-      mh_word(s, cp);
-    }
-    i += chunk_size(K, c);
-  }
-}
-
-static void mh_bytes(MH *s, StgClosure *r) {
-  const RopeKind *K = &BK;
-  StgInt n = rope_size(K, r), off;
-  for (StgInt i = 0; i < n;) {
-    StgClosure *c = rope_chunk_at(K, r, i, &off);
-    const unsigned char *p = chunk_bytes(K, c);
-    StgInt len = chunk_len(K, c);
-    for (StgInt k = 0; k < len; k++) mh_word(s, p[k]);
-    i += chunk_size(K, c);
-  }
-}
-
-static void mh_closure(MH *s, StgClosure *c) {
-  if (!s->ok) return;
-  int tag = LTAG(c);
-  if (tag == 0) {
-    mh_fail("untagged closure", c);
-    s->ok = 0;
-    return;
-  }
-  StgWord info = (StgWord)LUN(c)->header.info;
-  if (info == MK.enum_info) {
-    mh_word(s, 2);
-    mh_word(s, LW(c, 1) & 0xFFFF);
-  } else if (info == LF.data1_info) {
-    // Data1 ref tag (Val u b): pointers ref, b; words tag, u
-    mh_word(s, 2);
-    mh_word(s, LW(c, 2) & 0xFFFF);
-    mh_val(s, LW(c, 3), LP(c, 1));
-  } else if (info == LF.data2_info) {
-    mh_word(s, 2);
-    mh_word(s, LW(c, 3) & 0xFFFF);
-    mh_val(s, LW(c, 4), LP(c, 1));
-    mh_val(s, LW(c, 5), LP(c, 2));
-  } else if (info == MK.datag_info) {
-    // DataG ref tag (useg, bseg): the segments hold the fields in reverse
-    // the segments' boxes may be static indirections (a constant array GHC
-    // floated to a CAF): follow them; an unevaluated one is the interpreter's
-    StgClosure *ubox = settle(LP(c, 1)), *bbox = settle(LP(c, 2));
-    if (LTAG(ubox) == 0 || LTAG(bbox) == 0) {
-      mh_fail("segment box", LTAG(ubox) == 0 ? ubox : bbox);
-      s->ok = 0;
-      return;
-    }
-    mh_word(s, 2);
-    mh_word(s, LW(c, 3) & 0xFFFF);
-    StgArrBytes *us = (StgArrBytes *)LP(ubox, 0);
-    StgMutArrPtrs *bs = (StgMutArrPtrs *)LP(bbox, 0);
-    StgWord n = bs->ptrs;
-    for (StgWord j = 0; j < n && s->ok; j++) {
-      StgWord i = n - 1 - j;
-      mh_val(s, ((StgWord *)us->payload)[i], bs->payload[i]);
-    }
-  } else if (info == LF.foreign_info) {
-    StgClosure *r;
-    if ((r = rope_of(&TK, c)) != NULL) {
-      mh_word(s, 4);
-      mh_word(s, 1);
-      mh_text(s, r);
-    } else if ((r = rope_of(&BK, c)) != NULL) {
-      mh_word(s, 4);
-      mh_word(s, 5);
-      mh_bytes(s, r);
-    } else if ((r = deque_of(c)) != NULL) {
-      mh_word(s, 4);
-      mh_word(s, 2);
-      lv_each(r, 1, 0, mh_val_closure, s);
-    } else if (AK.ok && wrapped_of(c, &AK.barray) != NULL) {
-      StgArrBytes *a = wrapped_of(c, &AK.barray);
-      mh_word(s, 4);
-      mh_word(s, 8);
-      for (StgWord i = 0; i < a->bytes; i++) mh_word(s, ((unsigned char *)a->payload)[i]);
-    } else if (AK.ok && wrapped_of(c, &AK.array) != NULL) {
-      StgMutArrPtrs *a = wrapped_of(c, &AK.array);
-      mh_word(s, 4);
-      mh_word(s, 9);
-      for (StgWord i = 0; i < a->ptrs && s->ok; i++) mh_val_closure(a->payload[i], s);
-    } else {
-      mh_fail("foreign", c);
-      s->ok = 0; // a map, a link, a big number, quoted code...: the interpreter's
-    }
-  } else {
-    mh_fail("closure kind", c);
-    s->ok = 0; // a function, a continuation, a black hole
-  }
-}
-
-static JitNat mh_run(StgWord u, StgClosure *b) {
-  if (!MK.ok) return (JitNat){0, 0};
-  MH s = {MURMUR_SEED, 1};
-  mh_val(&s, u, b);
-  if (!s.ok) return (JitNat){0, 0};
-  return (JitNat){1, (int64_t)mm_end(s.h)};
-}
-
-// Generated code calls this with a stack slot's two halves.
-JitNat unison_jit_murmur(int64_t u, void *b) { return mh_run((StgWord)u, (StgClosure *)b); }
-
 // Startup: elems[0] is a type tag closure (for its info pointer); info[0],
 // info[1] the Enum and DataG info pointers.
 int64_t unison_jit_murmur_init(void **elems, int64_t *info) {
-  MK.ok = 0;
-  StgClosure *t = settle(elems[0]);
+  HK.ok = 0;
+  StgClosure *t = unison_jit_settle(elems[0]);
   if (LTAG(t) == 0) return 0;
-  MK.utag_info = (StgWord)LUN(t)->header.info;
-  MK.enum_info = info[0];
-  MK.datag_info = info[1];
-  MK.ok = LF.foreign_info != 0;
-  return MK.ok;
+  HK.utag_info = (StgWord)LUN(t)->header.info;
+  HK.enum_info = info[0];
+  HK.datag_info = info[1];
+  HK.ok = LF.foreign_info != 0;
+  return HK.ok;
 }
 
 // Startup check: the hash of the value in elems[0] (boxed), or of the unboxed
 // value `u` with the type tag in elems[0] when `unboxed` is set. Writes the
 // hash through `out` and returns whether the helper handled the value.
 int64_t unison_jit_murmur_test_ffi(void **elems, int64_t u, int64_t unboxed, int64_t *out) {
-  StgClosure *b = settle(elems[0]);
+  StgClosure *b = unison_jit_settle(elems[0]);
   static int trace_test = -1;
   if (trace_test < 0) trace_test = getenv("UNISON_JIT_TRACE_TEST") != NULL;
   if (trace_test) {
@@ -3901,7 +3594,7 @@ int64_t unison_jit_murmur_test_ffi(void **elems, int64_t u, int64_t unboxed, int
             LTAG(b) ? (void *)LUN(b)->header.info : NULL, (long long)unboxed, (long long)u);
     fflush(stderr);
   }
-  JitNat r = mh_run(unboxed ? (StgWord)u : (StgWord)-1, b);
+  JitNat r = unison_jit_murmur(unboxed ? u : -1, b);
   *out = r.v;
   return r.ok;
 }
@@ -3992,3 +3685,8 @@ EXIT_FRAME_CC void unison_jit_exit_frame(UnisonJitCtx *ctx, const int64_t *d, in
   }
   ctx->n_frames += nrecs;
 }
+
+// The helpers that generated code calls as IR, compiled here into the
+// library as well (they read the tables above, which are private to this
+// file); cbits/gen-helpers.sh compiles the same file on its own to IR.
+#include "jit_helpers.c"

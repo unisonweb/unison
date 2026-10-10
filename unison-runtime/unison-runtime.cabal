@@ -12,6 +12,8 @@ copyright:      Copyright (C) 2013-2024 Unison Computing, PBC and contributors
 license:        MIT
 license-file:   LICENSE
 build-type:     Simple
+extra-source-files:
+    cbits/jit_helpers.ll
 
 source-repository head
   type: git
@@ -72,6 +74,7 @@ library
       Unison.Runtime.JIT.Estimate
       Unison.Runtime.JIT.Exits
       Unison.Runtime.JIT.Frames
+      Unison.Runtime.JIT.Helpers
       Unison.Runtime.JIT.Layout
       Unison.Runtime.JIT.LLVM
       Unison.Runtime.JIT.Native
@@ -185,6 +188,7 @@ library
     , unison-pretty-printer
     , unison-syntax
     , unison-util-bytes
+    , unison-util-file-embed
     , unison-util-recursion
     , unison-util-rope
     , unliftio
