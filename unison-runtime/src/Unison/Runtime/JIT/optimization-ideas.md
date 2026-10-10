@@ -112,6 +112,11 @@ than deleting it.
      size), saving only the slots live across the call, or a helper call for a frame spill
      (medium to large gain across all three phases, and smaller code; medium risk at hot
      call sites, none on exits).
+     Where the backend's time goes, profiled 2026-10-10 after this:
+     [backend profile](benchmarks/2026-10-10-backend-profile.md). Instruction selection,
+     register allocation and the machine passes in proportion to the code, no fixed cost
+     (linking under 1%), no single pass to target. The levers left for compile time are
+     upstream: fewer lines reaching the backend, fewer modules compiled.
   4. Build the module through the C API or as bitcode instead of text (saves the parse;
      no risk; large change to the generator). After 1 to 3 the suite's 1.38 s splits into
      generating the IR 0.10 s, LLVM's parse and `O2` 0.68 s (of which the parse is about a

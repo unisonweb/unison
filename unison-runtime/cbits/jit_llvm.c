@@ -364,6 +364,17 @@ int unison_jit_init(void) {
       argv[argc++] = inl;
     }
     if (argc > 1) LLVMParseCommandLineOptions(argc, argv, NULL);
+    // UNISON_JIT_LLVM_OPTS: further LLVM command line options, space
+    // separated (-time-passes, -debug-pass-manager, ...), for measurement.
+    const char *extra = getenv("UNISON_JIT_LLVM_OPTS");
+    if (extra && *extra) {
+      static char buf[1024];
+      snprintf(buf, sizeof buf, "%s", extra);
+      const char *xargv[64] = {"unison"};
+      int xargc = 1;
+      for (char *w = strtok(buf, " "); w && xargc < 64; w = strtok(NULL, " ")) xargv[xargc++] = w;
+      LLVMParseCommandLineOptions(xargc, xargv, NULL);
+    }
   }
 
   // A target machine of our own, used only to run the optimization passes,

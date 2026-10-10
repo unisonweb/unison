@@ -197,8 +197,10 @@ corruption, so the debug RTS checks the heap.
   fallback should the call form misbehave somewhere.
 - `UNISON_JIT_INLINE_THRESHOLD=N` sets LLVM's inliner threshold (default 225), for
   measurement; `UNISON_JIT_SCHED=1` keeps LLVM's machine schedulers on (off by default,
-  [2026-10-09 compile time](benchmarks/2026-10-09-compile-time.md)). Both go through
-  `LLVMParseCommandLineOptions` at startup, in `jit_llvm.c`.
+  [2026-10-09 compile time](benchmarks/2026-10-09-compile-time.md)); `UNISON_JIT_LLVM_OPTS`
+  is any further LLVM command line options, space separated. All go through
+  `LLVMParseCommandLineOptions` at startup, in `jit_llvm.c`. To see where the backend's
+  time goes, sample the harness: [2026-10-10 backend profile](benchmarks/2026-10-10-backend-profile.md).
 - `UNISON_JIT_STATS=1` prints exit counts per site after each evaluation, with the compile
   totals first (modules, functions, auxiliary functions, re-entry functions generated on
   demand and never asked for, IR size, time, and the time split into generating the IR,
