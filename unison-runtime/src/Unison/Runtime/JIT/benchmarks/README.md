@@ -35,3 +35,4 @@ against.
 | [2026-10-10 helpers](2026-10-10-helpers.md) | byte array sizes, reads and writes generated inline (the array row 4.18 → 0.49 ms); murmur compiled from C to an IR module the JIT adds at startup, so no C helper returns a two-word pair; exporting the layout tables cost the rope rows 6% and was undone |
 | [2026-10-11 requests](2026-10-11-requests.md) | ability requests of affine handlers native: Counter 16.2 → 3.81 ms, Store 32.8 → 9.44 ms; 35 ns per request against 160; other rows unchanged, 23 more functions compile |
 | [2026-10-11 local](2026-10-11-local.md) | handler cases that request an outer ability run natively: Store with an outer Counter request 38.3 → 10.4 ms, Ask relayed 3 deep 37.2 → 10.3 ms; nesting past 8 handlers costs one call-out per request |
+| [2026-10-11 ptr](2026-10-11-ptr.md) | FFI.Ptr reads and writes inline: 28.9 ms → 0.54 ms for 100000 iterations of ten accesses; an interpreter bug in the sized Int conventions fixed |
