@@ -43,7 +43,6 @@ where
 
 import Data.Primitive.Array (MutableArray (..), sizeofMutableArray)
 import Data.Primitive.ByteArray (MutableByteArray (..), readByteArray)
-import Data.Primitive.SmallArray (SmallMutableArray (..))
 import Foreign.Ptr (FunPtr)
 import GHC.Exts (Any, RealWorld)
 import Unison.Runtime.Stack (Closure)
@@ -55,7 +54,7 @@ import Foreign.C.String (CString, peekCString)
 import Foreign.Marshal.Alloc (allocaBytes, free)
 import Foreign.Ptr (Ptr, WordPtr (..), ptrToWordPtr, wordPtrToPtr)
 import Foreign.Storable (peek, peekElemOff, pokeElemOff)
-import GHC.Exts (MutableArray#, MutableByteArray#, SmallMutableArray#)
+import GHC.Exts (MutableArray#, MutableByteArray#)
 
 -- | The uniform signature of compiled code: @(ctx, ap, fp, sp) -> status@.
 data NativeFn
@@ -64,7 +63,10 @@ type Status = Int
 
 -- | What a native caller writes down when its callee exits: which @Let@
 -- body to continue with (an index into the frame table), and the two sizes
--- a @Push@ frame needs.
+-- a @Push@ frame needs. A negative index, @-1 - i@, is a @Local@ frame
+-- instead: the environment to switch back to is in the boxed out-area at
+-- @i@ past the first pointer, and the pending-argument count is as for a
+-- @Push@.
 data FrameRecord = FrameRecord {frIndex :: !Int, frFrameSize :: !Int, frPendingArgs :: !Int}
   deriving (Show)
 
@@ -97,7 +99,6 @@ foreign import ccall unsafe "unison_jit_enter"
     MutableByteArray# RealWorld ->
     MutableArray# RealWorld Closure ->
     MutableArray# RealWorld Closure ->
-    SmallMutableArray# RealWorld Closure ->
     Int64 ->
     Int64 ->
     Int64 ->
@@ -140,23 +141,22 @@ foreign import ccall unsafe "unison_jit_probe" c_probe :: MutableArray# RealWorl
 
 -- | Runs native code with the given stacks (and their size in slots) and
 -- pointers, and returns its status. Where it stopped and the frame records
--- it wrote are read with 'outAp' and the rest. The one-element array holds
--- the handler environment (an @HEnv@, coerced), which native code reads
--- through its context: an array so that the collector keeps the pointer
--- right while Haskell code runs around the call.
+-- it wrote are read with 'outAp' and the rest. The handler environment (an
+-- @HEnv@, coerced) goes in and comes back in the boxed stack's out-area
+-- (see 'Unison.Runtime.Stack.nativeOutPtrs'), so that the collector keeps
+-- the pointer right while Haskell code runs around the call.
 enterNative ::
   FunPtr NativeFn ->
   MutableByteArray RealWorld ->
   MutableArray RealWorld Closure ->
   MutableArray RealWorld Closure ->
-  SmallMutableArray RealWorld Closure ->
   Int ->
   Int ->
   Int ->
   Int ->
   IO Status
-enterNative fn (MutableByteArray ustk) (MutableArray bstk) (MutableArray pool) (SmallMutableArray henv) size ap fp sp = do
-  status <- c_enter fn ustk bstk pool henv (fromIntegral size) (fromIntegral ap) (fromIntegral fp) (fromIntegral sp)
+enterNative fn (MutableByteArray ustk) (MutableArray bstk) (MutableArray pool) size ap fp sp = do
+  status <- c_enter fn ustk bstk pool (fromIntegral size) (fromIntegral ap) (fromIntegral fp) (fromIntegral sp)
   pure $! fromIntegral status
 {-# INLINE enterNative #-}
 
@@ -193,7 +193,7 @@ configureNative pollEvery calleeEvery cstack alloc tr =
 ctxLayout :: IO ([Int], Int)
 ctxLayout = allocaBytes (8 * 32) $ \out -> do
   size <- c_ctxLayout out 32
-  offs <- mapM (peekElemOff out) [0 .. 21]
+  offs <- mapM (peekElemOff out) [0 .. 22]
   pure (map fromIntegral offs, fromIntegral size)
 
 -- | Inspects a closure. Element 0 of the array is the sample, the rest are

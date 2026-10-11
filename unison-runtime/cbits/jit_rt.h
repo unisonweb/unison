@@ -55,11 +55,18 @@ typedef struct UnisonJitCtx {
   // call.
   void *hp;
   void *hp_lim;
-  // The handler environment (HEnv) the interpreter entered with: read by
-  // ability requests to find their handler. Set by the trampoline from the
-  // one-element array the Haskell side passes, so that the collector sees
-  // the pointer while Haskell runs; never kept by native code past a return.
+  // The current handler environment (HEnv): read by ability requests to
+  // find their handler, switched by an affine handler case's InLocal and
+  // switched back by its Yield. The trampoline copies it in from the boxed
+  // stack's out-area at entry and back there on return, so that the
+  // collector sees the pointer while Haskell runs; native code never keeps
+  // one past a return.
   void *henv;
+  // How many environment switches native code has in force (an InLocal
+  // without its Yield yet): zero at entry; an InLocal takes the slow path
+  // when it has reached UNISON_JIT_LOCALS, so that an exit never needs
+  // more out-area pointers than there are.
+  int64_t n_locals;
 
   // Not read by generated code (and so not in the layout the Haskell side
   // checks): the lowest address of this thread's C stack, plus the reserve.
@@ -68,6 +75,9 @@ typedef struct UnisonJitCtx {
   // path handed out (which allocate() has already accounted for).
   int64_t bump;
   int64_t slow_words;
+  // Pointers unison_jit_exit_frame has stored in the boxed out-area for
+  // Local frame records since entry.
+  int64_t n_local_ptrs;
 } UnisonJitCtx;
 
 // unison_jit_enter hands its results back in spare words past the last slot
@@ -76,6 +86,13 @@ typedef struct UnisonJitCtx {
 // many go in a malloc'd copy.
 #define UNISON_JIT_INLINE_FRAMES 8
 #define UNISON_JIT_OUT_WORDS (4 + 3 * UNISON_JIT_INLINE_FRAMES)
+
+// The boxed stack's out-area (nativeOutPtrs in Stack.hs): the handler
+// environment, in at entry and out at return, then one environment per
+// Local frame record (at most UNISON_JIT_LOCALS switches are in force at
+// once, see n_locals).
+#define UNISON_JIT_LOCALS 8
+#define UNISON_JIT_OUT_PTRS (1 + UNISON_JIT_LOCALS)
 
 // Status values returned by native code. Positive values are exit indices.
 #define UNISON_JIT_OK 0

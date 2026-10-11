@@ -31,6 +31,7 @@ int64_t unison_jit_ctx_layout(int64_t *out, int64_t n) {
       offsetof(UnisonJitCtx, cstack_limit), offsetof(UnisonJitCtx, cap),
       offsetof(UnisonJitCtx, budget_end),  offsetof(UnisonJitCtx, hp),
       offsetof(UnisonJitCtx, hp_lim),      offsetof(UnisonJitCtx, henv),
+      offsetof(UnisonJitCtx, n_locals),
   };
   int64_t count = sizeof offs / sizeof offs[0];
   for (int64_t i = 0; i < n && i < count; i++) out[i] = offs[i];
@@ -190,9 +191,10 @@ int64_t unison_jit_table_addresses(const char **names, void **addrs, int64_t n) 
 }
 
 int64_t unison_jit_set_aff(UnisonJitCtx *ctx, void *aff, void *v);
+void *unison_jit_local_env(UnisonJitCtx *ctx, void *aff);
 
 void *unison_jit_helpers[] = {
-    (void *)&unison_jit_set_aff,     (void *)&unison_jit_resolve_dyn,
+    (void *)&unison_jit_set_aff,     (void *)&unison_jit_resolve_dyn,  (void *)&unison_jit_local_env,
     (void *)&unison_jit_alloc_words, (void *)&unison_jit_write_mutvar, (void *)&unison_jit_list_size,
     (void *)&unison_jit_list_view,   (void *)&unison_jit_list_push,    (void *)&unison_jit_list_index,
     (void *)&unison_jit_text_size,   (void *)&unison_jit_text_append,  (void *)&unison_jit_text_cut,
@@ -3210,12 +3212,16 @@ typedef int64_t (*UnisonNativeFn)(UnisonJitCtx *ctx, int64_t ap, int64_t fp, int
 // the last slot of the unboxed stack: out[0..2] hold the new ap, fp and sp, and
 // out[3] the number of frame records. Up to UNISON_JIT_INLINE_FRAMES records
 // follow from out[4] on, three words each; if there are more, out[4] is instead
-// a malloc'd copy of them all, which the caller frees. Returns the status.
+// a malloc'd copy of them all, which the caller frees. The boxed stack's spare
+// slots hold the handler environment: bstk[stack_size] is the one to run with,
+// and holds the current one when this returns; the slots after it hold the
+// environments of the Local frame records (see unison_jit_exit_frame). Returns
+// the status.
 //
 // This is the round trip's fixed cost, so it does as little as it can: one
 // thread-local lookup for the context, one for the capability, no allocation.
-int64_t unison_jit_enter(UnisonNativeFn fn, int64_t *ustk, void **bstk, void **pool, void **henv,
-                         int64_t stack_size, int64_t ap, int64_t fp, int64_t sp) {
+int64_t unison_jit_enter(UnisonNativeFn fn, int64_t *ustk, void **bstk, void **pool, int64_t stack_size,
+                         int64_t ap, int64_t fp, int64_t sp) {
   int64_t *out = ustk + stack_size;
   {
     StgArrBytes *arr = (StgArrBytes *)((StgWord *)ustk - sizeofW(StgArrBytes));
@@ -3224,13 +3230,22 @@ int64_t unison_jit_enter(UnisonNativeFn fn, int64_t *ustk, void **bstk, void **p
               (long long)arr->bytes, (long long)stack_size);
       abort();
     }
+    StgMutArrPtrs *barr = (StgMutArrPtrs *)((StgWord *)bstk - sizeofW(StgMutArrPtrs));
+    if (__builtin_expect(barr->ptrs < (StgWord)(stack_size + UNISON_JIT_OUT_PTRS), 0)) {
+      fprintf(stderr, "[jit] the boxed stack has no room for results (%lld elements, %lld slots)\n",
+              (long long)barr->ptrs, (long long)stack_size);
+      abort();
+    }
   }
   UnisonJitCtx *ctx = get_ctx();
   Capability *cap = rts_unsafeGetMyCapability();
+  void *henv_in = bstk[stack_size];
   ctx->ustk = ustk;
   ctx->bstk = bstk;
   ctx->pool = pool;
-  ctx->henv = henv[0];
+  ctx->henv = henv_in;
+  ctx->n_locals = 0;
+  ctx->n_local_ptrs = 0;
   ctx->stack_size = stack_size;
   ctx->hplim = hplim_of(cap);
   ctx->max_sp = sp;
@@ -3320,6 +3335,12 @@ int64_t unison_jit_enter(UnisonNativeFn fn, int64_t *ustk, void **bstk, void **p
   // parts changed, once, now that it is about to be allowed to run again.
   int64_t hi = ctx->max_sp < stack_size - 1 ? ctx->max_sp : stack_size - 1;
   if (hi >= fp + 1) unison_jit_mark_bstk(bstk, fp + 1 < 0 ? 0 : fp + 1, hi);
+  // The environment native code was running with (switched, after an exit
+  // from inside a handler case), and the ones its Local records refer to.
+  if (ctx->henv != henv_in || ctx->n_local_ptrs > 0) {
+    bstk[stack_size] = ctx->henv;
+    unison_jit_mark_bstk(bstk, stack_size, stack_size + ctx->n_local_ptrs);
+  }
   return status;
 }
 
@@ -3659,6 +3680,9 @@ int64_t unison_jit_env_init(void **elems) {
   if (LUN(LP(aff, 0)) != LUN(set) || LUN(LP(aff, 1)) != LUN(aenv) || LP(aff, 2) != LP(box, 0)) return 13;
   EK.affine_info = (StgWord)LUN(aff)->header.info;
   EK.affine_tag = LTAG(aff);
+  // the empty map is a nullary constructor, so its static closure, which
+  // an InLocal's new HEnv can refer to without allocating it
+  EK.empty_denv = empty;
   EK.ok = 1;
   // the lookups, through the walk itself
   StgClosure *f;
@@ -3682,6 +3706,24 @@ int64_t unison_jit_set_aff(UnisonJitCtx *ctx, void *aff, void *v) {
   if (LTAG(a) != EK.affine_tag || (StgWord)LUN(a)->header.info != EK.affine_info) return 0;
   unison_jit_write_mutvar(ctx, (StgMutVar *)LP(a, 2), (StgClosure *)v);
   return 1;
+}
+
+// InLocal: the environment an affine handler's case runs in, HEnv of the
+// Affine closure's aenv and the empty denv, as the interpreter builds it
+// (Machine.hs). NULL when `aff` isn't an Affine closure (the interpreter
+// runs the instruction then). The generated code stores the result in
+// ctx->henv, and the old one in a register for the Yield and for the Local
+// record of an exit in between.
+void *unison_jit_local_env(UnisonJitCtx *ctx, void *aff) {
+  StgClosure *a = aff;
+  if (!EK.ok) return NULL;
+  if (LTAG(a) == 0) a = unison_jit_settle(a);
+  if (LTAG(a) != EK.affine_tag || (StgWord)LUN(a)->header.info != EK.affine_info) return NULL;
+  StgWord *h = nat_alloc(ctx, 3);
+  h[0] = EK.henv_info;
+  h[1] = (StgWord)LP(a, 1);
+  h[2] = (StgWord)EK.empty_denv;
+  return (void *)((StgWord)h | (StgWord)EK.henv_tag);
 }
 
 // ---------------------------------------------------------------------------
@@ -3736,8 +3778,13 @@ int64_t unison_jit_hplim_value(void) { return (int64_t)*unison_jit_hplim_address
 // the argument order of the offsets. Each record is three words (frame
 // table index, frame size, pending arguments), written after the frame
 // records already there; a negative pending count means fp + fbase - ap,
-// the count of the outermost frame. The site returns the status itself
-// (a constant there, which LLVM would lose if this handed it back).
+// the count of the outermost frame. A record whose index is negative is a
+// Local frame (an affine handler case's environment switch, in force at
+// the exit): the environment to switch back to is one more pointer
+// argument, after the slots, which goes in the boxed stack's out-area
+// (a collector root) and the record's index becomes -1 - its position
+// there. The site returns the status itself (a constant there, which LLVM
+// would lose if this handed it back).
 //
 // preserve_most: generated code calls this with that convention (every
 // register but x0-x8 and x16-x18 preserved by the callee), so that a site
@@ -3755,7 +3802,6 @@ EXIT_FRAME_CC void unison_jit_exit_frame(UnisonJitCtx *ctx, const int64_t *d, in
     ustk[k] = va_arg(va, int64_t);
     bstk[k] = va_arg(va, void *);
   }
-  va_end(va);
   if (flags & 1) {
     ctx->ap = (flags & 2) ? ap : fp + base;
     ctx->fp = fp + base;
@@ -3764,10 +3810,22 @@ EXIT_FRAME_CC void unison_jit_exit_frame(UnisonJitCtx *ctx, const int64_t *d, in
   }
   int64_t *fr = ctx->frames + 3 * ctx->n_frames;
   for (int64_t i = 0; i < nrecs; i++, recs += 3, fr += 3) {
-    fr[0] = recs[0];
-    fr[1] = recs[1];
+    if (recs[0] < 0) {
+      int64_t idx = ctx->n_local_ptrs++;
+      if (__builtin_expect(idx >= UNISON_JIT_LOCALS, 0)) {
+        fprintf(stderr, "[jit] more Local frame records than the out-area holds\n");
+        abort();
+      }
+      bstk[ctx->stack_size + 1 + idx] = va_arg(va, void *);
+      fr[0] = -1 - idx;
+      fr[1] = 0;
+    } else {
+      fr[0] = recs[0];
+      fr[1] = recs[1];
+    }
     fr[2] = recs[2] < 0 ? fp + fbase - ap : recs[2];
   }
+  va_end(va);
   ctx->n_frames += nrecs;
 }
 

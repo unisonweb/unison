@@ -132,6 +132,8 @@ module Unison.Runtime.Stack
     dumpFP,
     alloc,
     nativeOutWords,
+    nativeOutPtrs,
+    bstkSlots,
     peek,
     upeek,
     bpeek,
@@ -1039,16 +1041,29 @@ type Seg = (USeg, BSeg)
 nativeOutWords :: Int
 nativeOutWords = 28
 
+-- | Pointers past the last slot of the boxed stack, where native code
+-- hands heap pointers back so that the collector sees them: the handler
+-- environment it was running with when it returned, then one environment
+-- per @Local@ frame record it wrote (see @pushRecord@ in Machine.hs). Must
+-- match UNISON_JIT_OUT_PTRS in jit_rt.h.
+nativeOutPtrs :: Int
+nativeOutPtrs = 9
+
+-- | The slots of a boxed stack: its size less the out-area.
+bstkSlots :: MutableArray RealWorld Closure -> Int
+bstkSlots bstk = sizeofMutableArray bstk - nativeOutPtrs
+{-# INLINE bstkSlots #-}
+
 alloc :: IO Stack
 alloc = do
   -- The JIT's `ustack` stress mode starts with a tiny stack, so that
   -- growing it is exercised constantly.
   let slots = fromMaybe 512 (JIT.stressStack JIT.config)
-  -- the unboxed stack has a few words to spare past its last slot, where
+  -- both stacks have a few words to spare past their last slot, where
   -- the JIT's trampoline gets its results back (see JIT.Native); growing
   -- and duplicating the stack keep them
   ustk <- newByteArray (bytes (slots + nativeOutWords))
-  bstk <- newArray slots BlackHole
+  bstk <- newArray (slots + nativeOutPtrs) BlackHole
   pure $ Stack {ap = -1, fp = -1, sp = -1, ustk, bstk}
 {-# INLINE alloc #-}
 
@@ -1233,13 +1248,13 @@ ensure stk@(Stack ap fp sp ustk bstk) sze
   | sze <= 0 = pure stk
   | sp + sze + 1 < bsz = pure stk
   | otherwise = do
-      bstk' <- newArray (bsz + bext) BlackHole
+      bstk' <- newArray (bsz + bext + nativeOutPtrs) BlackHole
       copyMutableArray bstk' 0 bstk 0 (sp + 1)
       usz <- getSizeofMutableByteArray ustk
       ustk' <- resizeMutableByteArray ustk (usz + uext)
       pure $ Stack ap fp sp ustk' bstk'
   where
-    bsz = sizeofMutableArray bstk
+    bsz = bstkSlots bstk
     bext
       | sze > 1280 = sze + 512
       | otherwise = 1280
@@ -1254,7 +1269,7 @@ ensure stk@(Stack ap fp sp ustk bstk) sze
 ensureGenerously :: Stack -> SZ -> IO Stack
 ensureGenerously stk@(Stack _ _ _ _ bstk) sze
   | sze <= 0 = pure stk
-  | otherwise = ensure stk (max sze (sizeofMutableArray bstk))
+  | otherwise = ensure stk (max sze (bstkSlots bstk))
 {-# INLINE ensureGenerously #-}
 
 bump :: Stack -> IO Stack

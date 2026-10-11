@@ -168,7 +168,7 @@ initJIT' = do
       (offs, _) <- ctxLayout
       case (layouts, offs) of
         (Left e, _) -> pure (Left [e ++ "; the JIT is off"])
-        (Right ls, [a, b, c, d, e, f, g, h, i, j, k, l, m, n, o, p, q, r, s, t, u, v]) -> do
+        (Right ls, [a, b, c, d, e, f, g, h, i, j, k, l, m, n, o, p, q, r, s, t, u, v, w]) -> do
           configureNative (stressPoll config) (stressCallee config) (stressCStack config) (stressAlloc config) (trace config)
           facts <- rtsFacts
           case facts of
@@ -195,7 +195,7 @@ initJIT' = do
               case helpers of
                 Left e -> pure (Left ["the IR helpers (cbits/jit_helpers.ll) " ++ e ++ "; the JIT is off"])
                 Right () -> do
-                  writeIORef jitState (Just (JITState ls (CtxOffsets a b c d e f g h i j k l m n o p q r s t u v) rts))
+                  writeIORef jitState (Just (JITState ls (CtxOffsets a b c d e f g h i j k l m n o p q r s t u v w) rts))
                   triple <- targetTriple
                   pure (Right ("mode " ++ show (mode config) ++ ", LLVM " ++ version ++ " from " ++ path ++ ", target " ++ triple))
             _ -> pure (Left ["unexpected runtime facts; the JIT is off"])

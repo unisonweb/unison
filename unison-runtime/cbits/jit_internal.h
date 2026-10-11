@@ -172,6 +172,7 @@ typedef struct {
   StgWord affine_info;
   int affine_tag; // GAffine ps aenv ref: the set, the map, the MutVar#
   int ok;
+  void *empty_denv; // the static closure of the empty map, for an InLocal's HEnv
 } EnvFacts;
 UNISON_JIT_TABLE EnvFacts unison_jit_EK;
 #define EK unison_jit_EK

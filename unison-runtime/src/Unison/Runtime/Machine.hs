@@ -57,7 +57,6 @@ import Unison.Runtime.JIT.Frames
 import Unison.Runtime.JIT.Native
 import Unison.Runtime.JIT.Pool (currentPool)
 import Foreign.Storable qualified as Store
-import Data.Primitive.SmallArray (newSmallArray)
 import GHC.Conc as STM (unsafeIOToSTM)
 import GHC.Float (double2Float, float2Double)
 import GHC.Stack
@@ -973,13 +972,14 @@ runNative !yld env henv0 !activeThreads !stk0 !k0 fn0 = go fn0 henv0 stk0 k0
     !counting = jitStats
     go fn henv (Stack ap fp sp ustk bstk) k = do
       pool <- currentPool
-      let !size = sizeofMutableArray bstk
+      let !size = bstkSlots bstk
       when counting $ countEntry (castFunPtrToPtr fn)
-      -- the handler environment, in a box the collector knows about; forced
-      -- here, since native code can read a constructor but not a thunk
+      -- the handler environment goes in the boxed stack's out-area, where
+      -- the collector sees it; forced here, since native code can read a
+      -- constructor but not a thunk
       let !henvC = unsafeCoerce henv :: Closure
-      henvBox <- newSmallArray 1 henvC
-      status <- enterNative fn ustk bstk pool henvBox size ap fp sp
+      writeArray bstk size henvC
+      status <- enterNative fn ustk bstk pool size ap fp sp
       ap' <- outAp ustk size
       fp' <- outFp ustk size
       sp' <- outSp ustk size
@@ -1004,11 +1004,20 @@ runNative !yld env henv0 !activeThreads !stk0 !k0 fn0 = go fn0 henv0 stk0 k0
                 when (every > 0 && total `mod` every == 0) printJITStats
               -- Records are written innermost caller first; K has the
               -- innermost frame on top, so build from the last record.
-              k <- if n == 0 then pure k else foldM pushRecord k (reverse records)
-              act henv stk k =<< lookupExit status
-    pushRecord k (FrameRecord i fsz asz) = do
-      Frame cix f sect cell <- lookupFrame i
-      pure (Push fsz asz cix f sect cell k)
+              k <- if n == 0 then pure k else foldM (pushRecord bstk size) k (reverse records)
+              -- the environment native code was running with: switched,
+              -- when it exited from inside a handler case
+              henv' <- unsafeCoerce <$> readArray bstk size
+              act henv' stk k =<< lookupExit status
+    pushRecord bstk size k (FrameRecord i fsz asz)
+      | i < 0 = do
+          -- an affine handler case's environment switch, in force at the
+          -- exit: the frame that switches back (see exec's InLocal)
+          henv0 <- unsafeCoerce <$> readArray bstk (size + 1 + (-1 - i))
+          pure (Local henv0 asz k)
+      | otherwise = do
+          Frame cix f sect cell <- lookupFrame i
+          pure (Push fsz asz cix f sect cell k)
     act henv stk k = \case
       Named _ e -> act henv stk k e
       Resume cix sect -> do

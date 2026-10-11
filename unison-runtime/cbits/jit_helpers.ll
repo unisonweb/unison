@@ -1,6 +1,6 @@
 ; Generated from jit_helpers.c by gen-helpers.sh. Do not edit.
 
-%struct.EnvFacts = type { i64, i32, i32, i32, i32, i64, i64, i32, i32 }
+%struct.EnvFacts = type { i64, i32, i32, i32, i32, i64, i64, i32, i32, ptr }
 %struct.HashFacts = type { i64, i64, i64, i32 }
 %struct.MH = type { i64, i32 }
 %struct.ListFacts = type { i64, i64, i64, i64, i64, i64, i64, i64, i64, i64, i64, ptr, ptr, ptr }
