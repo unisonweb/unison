@@ -33,3 +33,4 @@ against.
 | [2026-10-10 backend profile](2026-10-10-backend-profile.md) | where code generation's time goes: instruction selection, register allocation and the machine passes in proportion to code; no fixed cost, no single pass |
 | [2026-10-10 backend options](2026-10-10-backend-options.md) | GlobalISel and the basic register allocator: each saves 7–10% of code generation and costs the hot loops 4–8%; not taken |
 | [2026-10-10 helpers](2026-10-10-helpers.md) | byte array sizes, reads and writes generated inline (the array row 4.18 → 0.49 ms); murmur compiled from C to an IR module the JIT adds at startup, so no C helper returns a two-word pair; exporting the layout tables cost the rope rows 6% and was undone |
+| [2026-10-11 requests](2026-10-11-requests.md) | ability requests of affine handlers native: Counter 16.2 → 3.81 ms, Store 32.8 → 9.44 ms; 35 ns per request against 160; other rows unchanged, 23 more functions compile |
