@@ -33,6 +33,8 @@ module Unison.Runtime.JIT.Codegen
     startsSupported,
     callOutWorthwhile,
     instrNative,
+    instrNativeIn,
+    requestsOn,
     unitForeign,
     workerShape,
   )
@@ -49,6 +51,7 @@ import Data.Primitive.PrimArray (primArrayToList)
 import Data.Word (Word64)
 import Foreign.Ptr (Ptr, WordPtr (..), ptrToWordPtr)
 import GHC.Float (castDoubleToWord64)
+import Unison.Runtime.JIT.Config (config, disabled)
 import Unison.Runtime.JIT.Exits (Exit (..))
 import Unison.Runtime.JIT.Frames (Frame (..))
 import Unison.Runtime.JIT.Layout
@@ -112,6 +115,9 @@ data Env = Env
     envRts :: !RtsFacts,
     -- | constructor arities of the data types loaded so far
     envTypes :: !(Map.Map Reference (Deque Int)),
+    -- | the same by type number, for request matches, which name the
+    -- ability by its number
+    envAbilities :: !(EC.EnumMap Word64 (Deque Int)),
     -- | cells for the auxiliary functions (re-entry points), taken in order
     envCells :: !Cells,
     -- | features turned off for debugging (see Config)
@@ -240,6 +246,8 @@ modulePrelude =
       "declare ptr @unison_jit_ref_read_for_cas(ptr, ptr)",
       "declare i64 @unison_jit_ref_cas(ptr, ptr, ptr, i64, ptr)",
       "declare { i64, i64 } @unison_jit_murmur(i64, ptr)",
+      "declare ptr @unison_jit_resolve_dyn(ptr, i64)",
+      "declare i64 @unison_jit_set_aff(ptr, ptr, ptr)",
       "declare ptr @unison_jit_alloc_words(ptr, i64)",
       "declare preserve_mostcc void @unison_jit_exit_frame(ptr, ptr, i64, i64, ...)",
       "declare void @unison_jit_write_mutvar(ptr, ptr, ptr)",
@@ -725,7 +733,12 @@ liveAt env base = go
       Match i br -> slotAt d i <+> arms d br
       NMatch _ i br -> slotAt d i <+> arms d br
       DMatch mr i br -> slotAt d i <+> dataArms d (mr >>= \r -> Map.lookup r (envTypes env)) br
-      RMatch {} -> Nothing
+      -- the pure request has one field, the value; a request arm pushes
+      -- its constructor's fields
+      RMatch i pu br ->
+        slotAt d i
+          <+> go (d + 1) pu
+          <+> foldr (\(e, gb) acc -> dataArms d (EC.lookup e (envAbilities env)) gb <+> acc) (Just IS.empty) (EC.mapToList br)
       Yield args -> argReads base d args
       Ins i rest -> instrReads base d i <+> (pushCount i >>= \n -> go (d + n) rest)
       Let b (CIx _ _ w) _ body _ -> case EC.lookup w (envCombs env) of
@@ -1541,13 +1554,15 @@ genAuxFunction later fe loaded base body = do
 -- decided before this, in JIT.Estimate.)
 startsSupported :: MSection -> Bool
 startsSupported = \case
-  Ins i rest -> instrNative i || callOutWorthwhile i rest
+  Ins i rest -> instrNativeIn i rest || callOutWorthwhile i rest
   Match {} -> True
   DMatch {} -> True
   NMatch {} -> True
+  RMatch {} -> requestsOn
   Call {} -> True
   App _ (MCode.Env _ _) _ -> True
   App _ (Stk _) _ -> True
+  App _ (Dyn _) _ -> requestsOn
   Yield {} -> True
   Let b _ _ _ _ -> startsSupported b
   _ -> False
@@ -1765,6 +1780,7 @@ genSectionFull fe d sect = case sect of
     x <- loadU (d - i)
     genBranch fe d x br sect
   Let binding bcix f body cell -> genLet fe d binding bcix f body cell sect
+  RMatch i pu br | on "requests" -> genRMatch fe d i pu br sect
   _ -> exitResume fe d sect
   where
     on = enabled fe
@@ -2188,6 +2204,68 @@ genDMatchClosure fe d i mr br sect = do
             genSection fe (d + n) body
   genBranchWith fe d tag br sect arm
 
+-- | A match on a request closure (an affine handler's @RMatch@). The
+-- closure is a data constructor like any other; its packed tag is
+-- @ability << 16 | constructor@, and zero for the pure request, @Data1
+-- effectRef 0 v@, whose one field is the handled computation's value. The
+-- branches are keyed by ability number, then constructor, and an arm
+-- pushes its constructor's fields as a data match does; their counts come
+-- from the ability's declaration ('envAbilities'). An ability or
+-- constructor without an arm, or a closure of another kind, is the
+-- interpreter's (it dies with "unhandled ability").
+genRMatch :: FnEnv -> Int -> Int -> MSection -> EC.EnumMap Word64 (GBranch (RComb Val)) -> MSection -> Gen ()
+genRMatch fe d i pu br sect = do
+  let env = feEnv fe
+      ls = envLayouts env
+      kinds = D.fromList [lEnum ls, lData1 ls, lData2 ls, lDataG ls]
+  p <- loadB (d - i)
+  raw <- fresh "raw"
+  emit (raw <> " = ptrtoint ptr " <> p <> " to i64")
+  tagBits <- fresh "ptrtag"
+  emit (tagBits <> " = and i64 " <> raw <> ", 7")
+  base <- fresh "base"
+  emit (base <> " = sub i64 " <> raw <> ", " <> tagBits)
+  other <- exitBlock fe d (Resume (feCix fe) sect)
+  dispatch <- freshLabel "dispatch"
+  loads <- forM kinds $ \layout -> do
+    l <- freshLabel "kind"
+    packed <- fresh "packed"
+    sideBlockNamed l $ do
+      addr <- fresh "tag.a"
+      emit (addr <> " = add i64 " <> base <> ", " <> tshow (lFieldOffset layout (lPtrs layout)))
+      ptr <- fresh "tag.p"
+      emit (ptr <> " = inttoptr i64 " <> addr <> " to ptr")
+      emit (packed <> " = load i64, ptr " <> ptr)
+      emit ("br label %" <> dispatch)
+    pure (Triple layout l packed)
+  emit ("switch i64 " <> tagBits <> ", label %" <> other <> " [ " <> intercalateT " " (fmap (\(Triple layout l _) -> " i64 " <> tshow (lPtrTag layout) <> ", label %" <> l) loads) <> " ]")
+  startBlock dispatch
+  packed <- fresh "packed"
+  emit (packed <> " = phi i64 " <> intercalateT ", " (fmap (\(Triple _ l v) -> "[ " <> v <> ", %" <> l <> " ]") loads))
+  let PackedTag pureTag = TT.pureEffectTag
+  isPure <- fresh "pure"
+  emit (isPure <> " = icmp eq i64 " <> packed <> ", " <> tshow pureTag)
+  pureL <- freshLabel "pure"
+  reqL <- freshLabel "request"
+  emit ("br i1 " <> isPure <> ", label %" <> pureL <> ", label %" <> reqL)
+  okPure <- attempt (withKinds (sideBlockNamed pureL (pushFields fe d base 1 other >> genSection fe (d + 1) pu)))
+  unless okPure $ sideBlockNamed pureL (exitResume fe d sect)
+  startBlock reqL
+  ability <- fresh "ability"
+  emit (ability <> " = lshr i64 " <> packed <> ", 16")
+  ctor <- fresh "ctor"
+  emit (ctor <> " = and i64 " <> packed <> ", 65535") -- maskTags
+  arms <- forM (EC.mapToList br) $ \(e, gb) -> do
+    l <- freshLabel "ability"
+    let arities = EC.lookup e (envAbilities env)
+        arm u body = case arities >>= D.lookup (fromIntegral u) of
+          Nothing -> exitResume fe d sect
+          Just 0 -> genSection fe d body
+          Just n -> pushFields fe d base n other >> genSection fe (d + n) body
+    sideBlockNamed l (genBranchWith fe d ctor gb sect arm)
+    pure (Pair e l)
+  emit ("switch i64 " <> ability <> ", label %" <> other <> " [ " <> intercalateT " " (D.fromList (map (\(Pair e l) -> "i64 " <> tshow e <> ", label %" <> l) arms)) <> " ]")
+
 -- | Pushes the @n@ fields of the constructor closure at untagged address
 -- @base@ onto slots d+1..d+n, first field on top. A @DataG@ whose
 -- segment boxes aren't evaluated branches to @slow@.
@@ -2419,31 +2497,61 @@ genApp fe d r args sect = case r of
         genYield fe (d + 1) (VArg1 0) sect
   Stk i
     | e :<| _ <- feEnclosing fe ->
-        genClosureCall fe d (enBase e) (d - i) (argSources fe d args) (enResults e) sect Nothing $
+        genClosureCall fe d (enBase e) (d - i) srcs (enResults e) sect Nothing $
           emit ("br label %" <> enBody e)
-    | otherwise -> do
-        let srcs = argSources fe d args
-            base = feBase fe
-            n = D.size srcs
-        -- pending arguments would be applied to the result; the interpreter's job
-        pending <- fresh "pending"
-        emit (pending <> " = icmp ne i64 %ap, %fpb")
-        Pair fnp skip0 <- closureCallee fe d (d - i) n
-        skip <- fresh "skip"
-        emit (skip <> " = or i1 " <> skip0 <> ", " <> pending)
-        slow <- exitBlock fe d (Resume (feCix fe) sect)
-        go <- freshLabel "tail"
-        emit ("br i1 " <> skip <> ", label %" <> slow <> ", label %" <> go <> unlikely)
-        startBlock go
-        vals <- loadSources srcs
-        iforM_ vals $ \j (Pair u b) -> do
-          ua <- stackAddrU (base + n - j)
-          emit ("store i64 " <> u <> ", ptr " <> ua)
-          ba <- stackAddrB (base + n - j)
-          emit ("store ptr " <> b <> ", ptr " <> ba)
-        top <- copyCaptured fe (base + n)
-        tailCallThroughStack fe fnp top
+    | otherwise -> genTailClosureCall fe d (closureCallee fe d (d - i) n) srcs sect
+  -- An ability request: the handler is the closure the environment maps
+  -- the ability's number to (see "Ability requests" in internals.md), and
+  -- it is called like any other function value, with the request as its
+  -- argument and this frame as its continuation. A number the environment
+  -- doesn't map to an affine handler is the interpreter's.
+  Dyn key
+    | enabled fe "requests", e :<| _ <- feEnclosing fe ->
+        genNonTailCallWith fe d (enBase e) (dynCallee fe key n) (copyCaptured fe (enBase e + n)) srcs (enResults e) sect Nothing $
+          emit ("br label %" <> enBody e)
+    | enabled fe "requests" -> genTailClosureCall fe d (dynCallee fe key n) srcs sect
   _ -> exitResume fe d sect
+  where
+    srcs = argSources fe d args
+    n = D.size srcs
+
+-- | A tail call to a function value whose callee is given by @getCallee@
+-- (see 'closureCallee'): the arguments go above the frame base, the
+-- captured ones above them, and the call goes through the stack.
+genTailClosureCall :: FnEnv -> Int -> Gen (Pair Text Text) -> Deque Int -> MSection -> Gen ()
+genTailClosureCall fe d getCallee srcs sect = do
+  let base = feBase fe
+      n = D.size srcs
+  -- pending arguments would be applied to the result; the interpreter's job
+  pending <- fresh "pending"
+  emit (pending <> " = icmp ne i64 %ap, %fpb")
+  Pair fnp skip0 <- getCallee
+  skip <- fresh "skip"
+  emit (skip <> " = or i1 " <> skip0 <> ", " <> pending)
+  slow <- exitBlock fe d (Resume (feCix fe) sect)
+  go <- freshLabel "tail"
+  emit ("br i1 " <> skip <> ", label %" <> slow <> ", label %" <> go <> unlikely)
+  startBlock go
+  vals <- loadSources srcs
+  iforM_ vals $ \j (Pair u b) -> do
+    ua <- stackAddrU (base + n - j)
+    emit ("store i64 " <> u <> ", ptr " <> ua)
+    ba <- stackAddrB (base + n - j)
+    emit ("store ptr " <> b <> ", ptr " <> ba)
+  top <- copyCaptured fe (base + n)
+  tailCallThroughStack fe fnp top
+
+-- | The callee of an ability request: the handler the environment in the
+-- context maps the ability number to, examined like a closure in a slot
+-- (null when it isn't an affine handler's, which fails the closure check).
+dynCallee :: FnEnv -> Word64 -> Int -> Gen (Pair Text Text)
+dynCallee fe key n = do
+  ha <- ctxField (feEnv fe) oHenv
+  henv <- fresh "henv"
+  emit (henv <> " = load ptr, ptr " <> ha)
+  h <- fresh "handler"
+  emit (h <> " = call ptr @unison_jit_resolve_dyn(ptr " <> henv <> ", i64 " <> tshow key <> ")")
+  closureCalleeFrom fe h n
 
 -- | A top-level value that was evaluated when it was loaded: its unboxed
 -- word and the pool index of its boxed part.
@@ -2486,7 +2594,11 @@ genClosureCall fe d base k srcs m sect ownFrame continue =
 -- @%cap.n@ and the segment arrays in @%cap.u@ and @%cap.b@ for
 -- 'copyCaptured' (registers named per call site through the suffix).
 closureCallee :: FnEnv -> Int -> Int -> Int -> Gen (Pair Text Text)
-closureCallee fe _d k n = do
+closureCallee fe _d k n = loadB k >>= \p -> closureCalleeFrom fe p n
+
+-- | 'closureCallee' for the closure pointer in register @p@.
+closureCalleeFrom :: FnEnv -> Text -> Int -> Gen (Pair Text Text)
+closureCalleeFrom fe p n = do
   let env = feEnv fe
       ls = envLayouts env
       layout = lPAp ls
@@ -2499,7 +2611,6 @@ closureCallee fe _d k n = do
         v <- fresh what
         emit (v <> " = load " <> ty <> ", ptr " <> pp)
         pure v
-  p <- loadB k
   raw <- fresh "raw"
   emit (raw <> " = ptrtoint ptr " <> p <> " to i64")
   tagBits <- fresh "ptrtag"
@@ -2526,8 +2637,10 @@ closureCallee fe _d k n = do
   isNull <- fresh "isnull"
   emit (isNull <> " = icmp eq ptr " <> fnp0 <> ", null")
   -- the segment's boxes must be evaluated (pointer tag 1) to be read
-  -- through; a lazily built one is left to the interpreter
-  let unbox what off = do
+  -- through; a lazily built one (a thunk, whose payload is not an array
+  -- pointer) is left to the interpreter, so nothing is loaded through a
+  -- box before its tag has been checked
+  let boxOf what off = do
         box <- loadFrom base what "ptr" (lFieldOffset layout off)
         boxI <- fresh (what <> ".box")
         emit (boxI <> " = ptrtoint ptr " <> box <> " to i64")
@@ -2537,10 +2650,16 @@ closureCallee fe _d k n = do
         emit (boxBad <> " = icmp ne i64 " <> boxTag <> ", 1")
         untagged <- fresh (what <> ".un")
         emit (untagged <> " = and i64 " <> boxI <> ", -8")
-        arr <- loadFrom untagged what "i64" (lHeaderBytes ls)
-        pure (Pair arr boxBad)
-  Pair useg usegBad <- unbox "useg" 2
-  Pair bseg bsegBad <- unbox "bseg" 3
+        pure (Pair untagged boxBad)
+  Pair usegBox usegBad <- boxOf "useg" 2
+  Pair bsegBox bsegBad <- boxOf "bseg" 3
+  boxesBad <- fresh "lazy"
+  emit (boxesBad <> " = or i1 " <> usegBad <> ", " <> bsegBad)
+  segL <- freshLabel "pap.seg"
+  emit ("br i1 " <> boxesBad <> ", label %" <> joinL <> ", label %" <> segL <> unlikely)
+  startBlock segL
+  useg <- loadFrom usegBox "useg" "i64" (lHeaderBytes ls)
+  bseg <- loadFrom bsegBox "bseg" "i64" (lHeaderBytes ls)
   count <- loadFrom bseg "count" "i64" (8 * rPtrsCount rts)
   need <- fresh "need"
   emit (need <> " = add i64 " <> count <> ", " <> tshow n)
@@ -2555,24 +2674,20 @@ closureCallee fe _d k n = do
   emit (noRoom <> " = icmp sge i64 " <> limit <> ", %stack.size")
   bad0 <- fresh "bad"
   emit (bad0 <> " = or i1 " <> isNull <> ", " <> wrong)
-  bad1 <- fresh "bad"
-  emit (bad1 <> " = or i1 " <> bad0 <> ", " <> noRoom)
-  bad2 <- fresh "bad"
-  emit (bad2 <> " = or i1 " <> bad1 <> ", " <> usegBad)
   bad <- fresh "bad"
-  emit (bad <> " = or i1 " <> bad2 <> ", " <> bsegBad)
+  emit (bad <> " = or i1 " <> bad0 <> ", " <> noRoom)
   emit ("br label %" <> joinL)
   startBlock joinL
   skip0 <- fresh "skip"
-  emit (skip0 <> " = phi i1 [ true, %" <> cur <> " ], [ " <> bad <> ", %" <> okL <> " ]")
+  emit (skip0 <> " = phi i1 [ true, %" <> cur <> " ], [ true, %" <> okL <> " ], [ " <> bad <> ", %" <> segL <> " ]")
   fnp <- fresh "fn"
-  emit (fnp <> " = phi ptr [ null, %" <> cur <> " ], [ " <> fnp0 <> ", %" <> okL <> " ]")
+  emit (fnp <> " = phi ptr [ null, %" <> cur <> " ], [ null, %" <> okL <> " ], [ " <> fnp0 <> ", %" <> segL <> " ]")
   usegR <- fresh "cap.u"
-  emit (usegR <> " = phi i64 [ 0, %" <> cur <> " ], [ " <> useg <> ", %" <> okL <> " ]")
+  emit (usegR <> " = phi i64 [ 0, %" <> cur <> " ], [ 0, %" <> okL <> " ], [ " <> useg <> ", %" <> segL <> " ]")
   bsegR <- fresh "cap.b"
-  emit (bsegR <> " = phi i64 [ 0, %" <> cur <> " ], [ " <> bseg <> ", %" <> okL <> " ]")
+  emit (bsegR <> " = phi i64 [ 0, %" <> cur <> " ], [ 0, %" <> okL <> " ], [ " <> bseg <> ", %" <> segL <> " ]")
   countR <- fresh "cap.n"
-  emit (countR <> " = phi i64 [ 0, %" <> cur <> " ], [ " <> count <> ", %" <> okL <> " ]")
+  emit (countR <> " = phi i64 [ 0, %" <> cur <> " ], [ 0, %" <> okL <> " ], [ " <> count <> ", %" <> segL <> " ]")
   modify' (\st -> st {gsCaptured = Just $! Captured usegR bsegR countR})
   skip <-
     if envStressCallee env
@@ -2749,7 +2864,52 @@ instrNative = \case
   ForeignCall _ f _ -> f `elem` ([MutableArray_size, MutableArray_read, MutableArray_write, ImmutableArray_size, ImmutableArray_read, Universal_murmurHashUntyped] <> textForeign <> bytesForeign) || isJust (arrayForeign f)
   -- (up to four arguments; more is rare, and then it is a call-out)
   Name r _ -> case r of Dyn _ -> False; _ -> True
+  -- storing an affine handler's next state (see 'genInstr'); with the
+  -- environment update it is the interpreter's
+  SetAff False _ _ -> requestsOn
   _ -> False
+
+-- | 'instrNative' for an instruction in its section: an affine handler's
+-- @InLocal@ is native (a no-op) when the rest of its case can't tell the
+-- environment wasn't switched, see 'localUnobserved'.
+instrNativeIn :: GInstr (RComb Val) -> MSection -> Bool
+instrNativeIn i rest =
+  instrNative i || case i of
+    InLocal _ -> requestsOn && localUnobserved rest
+    _ -> False
+
+-- | Ability requests and the affine handler instructions are generated
+-- (off under @UNISON_JIT_DISABLE=requests@).
+requestsOn :: Bool
+requestsOn = "requests" `notElem` disabled config
+
+-- | Whether a section, the rest of an affine handler's case after its
+-- @InLocal@, can run without the environment switch the instruction makes
+-- in the interpreter. The switch is observed by requests, @Reset@,
+-- @Capture@, @Discard@, @SetAff@ with the environment update, raising an
+-- exception (a failing foreign call, @THRO@), and by any exit that resumes
+-- the interpreter ahead of one of those. So: straight-line code to the
+-- @Yield@, made of literals, constructors, partial applications of known
+-- functions, the handler's own state update, and the native primitives,
+-- none of which look at the environment. Even an exit in such a body (a
+-- lazy field found by a @Pack@, say) is harmless: the interpreter finishes
+-- the case in the requester's environment, which nothing left in it reads,
+-- and the @Yield@ pops the requester's frame, which is what the @Local@
+-- frame would have left it with.
+localUnobserved :: MSection -> Bool
+localUnobserved = \case
+  Yield _ -> True
+  Ins i rest -> harmless i && localUnobserved rest
+  _ -> False
+  where
+    harmless = \case
+      Lit _ -> True
+      Pack {} -> True
+      Name r _ -> case r of Dyn _ -> False; _ -> True
+      SetAff False _ _ -> True
+      Prim1 op _ -> prim1Supported op
+      Prim2 op _ _ -> prim2Supported op
+      _ -> False
 
 -- | An instruction at depth @d@; continues with the depth after it.
 genInstr :: FnEnv -> Int -> GInstr (RComb Val) -> MSection -> (Int -> Gen ()) -> Gen ()
@@ -2777,6 +2937,23 @@ genInstr fe d instr sect k = case instr of
         slow <- exitBlock fe d (Resume (feCix fe) sect)
         genPack fe d refIx t fields slow
         k (d + 1)
+  -- An affine handler's switch to its own environment: nothing left in
+  -- the case can tell (see 'localUnobserved'), so nothing is done; the
+  -- interpreter's Local frame would only restore what was never changed.
+  InLocal _ | enabled fe "requests", Ins _ rest <- sect, localUnobserved rest -> k d
+  -- The handler's next state goes into the ref inside the Affine closure
+  -- in slot i, through the runtime's barrier; the helper refuses anything
+  -- that isn't an Affine closure, and the interpreter runs it then.
+  SetAff False i j | enabled fe "requests" -> do
+    slow <- callOutExit True fe d instr sect
+    aff <- loadB (d - i)
+    v <- loadB (d - j)
+    r <- fresh "setaff"
+    emit (r <> " = call i64 @unison_jit_set_aff(ptr %ctx, ptr " <> aff <> ", ptr " <> v <> ")")
+    miss <- fresh "miss"
+    emit (miss <> " = icmp eq i64 " <> r <> ", 0")
+    branchIf "setaff" miss slow
+    k d
   Prim1 op i | prim1Supported op -> do
     x <- loadU (d - i)
     genPrim1 fe d op x sect

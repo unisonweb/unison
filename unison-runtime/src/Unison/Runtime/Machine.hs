@@ -50,7 +50,7 @@ import Foreign.LibFFI.Internal
 import Foreign.Marshal (alloca)
 import Foreign.Marshal.Array (allocaArray)
 import Foreign.Ptr
-import Unison.Runtime.JIT (jitCompileGroup, jitRequestCell, jitRequestGroup, printJITStats)
+import Unison.Runtime.JIT (jitCompileGroup, jitRequestCell, jitRequestGroup, printJITStats, registerTypeNumbers)
 import Unison.Runtime.JIT.Config qualified as JIT
 import Unison.Runtime.JIT.Exits
 import Unison.Runtime.JIT.Frames
@@ -454,7 +454,9 @@ exec _ henv !_activeThreads !stk !k _ (Reset ps nhi mah)
       ahv0 <- peekOff stk ahi
       r <- newIORef BlackHole
       let ar = ARef r
-      ahv <- extendPAp ahv0 . BoxedVal $ Affine ps aenv0 ar
+          -- evaluated: the JIT's handler code reads it from the stack
+          !aff = Affine ps aenv0 ar
+      ahv <- extendPAp ahv0 (BoxedVal aff)
       writeIORef r ahv
       aenv <- evaluate $ EC.unionWith const (mapFromSet ps ar) aenv0
       henv <- evaluate $ henv {aenv = aenv}
@@ -973,8 +975,10 @@ runNative !yld env henv0 !activeThreads !stk0 !k0 fn0 = go fn0 henv0 stk0 k0
       pool <- currentPool
       let !size = sizeofMutableArray bstk
       when counting $ countEntry (castFunPtrToPtr fn)
-      -- the handler environment, in a box the collector knows about
-      henvBox <- newSmallArray 1 (unsafeCoerce henv :: Closure)
+      -- the handler environment, in a box the collector knows about; forced
+      -- here, since native code can read a constructor but not a thunk
+      let !henvC = unsafeCoerce henv :: Closure
+      henvBox <- newSmallArray 1 henvC
       status <- enterNative fn ustk bstk pool henvBox size ap fp sp
       ap' <- outAp ustk size
       fp' <- outFp ustk size
@@ -1076,14 +1080,15 @@ extendPAp (BoxedVal (PAp cix comb (useg0, bseg0))) new = do
   ucop <- newByteArray $ ussz + 8
   copyByteArray ucop 8 useg0 0 ussz
   writeByteArray ucop 0 $ getUnboxedVal new
-  useg <- unsafeFreezeByteArray ucop
+  !useg <- unsafeFreezeByteArray ucop
 
   bcop <- newArray (bssz + 1) BlackHole
   copyArray bcop 1 bseg0 0 bssz
-  writeArray bcop 0 $ getBoxedVal new
-  bseg <- unsafeFreezeArray bcop
+  writeArray bcop 0 $! getBoxedVal new
+  !bseg <- unsafeFreezeArray bcop
 
-  pure $ PAp cix comb (useg, bseg)
+  -- evaluated: the JIT's request code reads the ref this goes into
+  pure $! PAp cix comb (useg, bseg)
   where
     ussz = sizeofByteArray useg0
     bssz = sizeofArray bseg0
@@ -1780,6 +1785,7 @@ cacheAdd0 ntys0 (normalizeCodes -> termSuperGroups) sands cc = go
           atomically $ writeTVar (nativeCells cc) pool'
           go
         Right (unresolvedCacheableCombs, unresolvedNonCacheableCombs, newCombs, newCombRefs) -> do
+          readTVarIO (tagRefs cc) >>= registerTypeNumbers
           when (JIT.dumpMCode JIT.config) $
             for_ (EC.mapToList (unresolvedCacheableCombs <> unresolvedNonCacheableCombs)) \(w, cmbs) ->
               for_ (EC.mapToList cmbs) \(i, c) -> JIT.jitDump (prettyComb w i c "")

@@ -138,7 +138,8 @@ corruption, so the debug RTS checks the heap.
     `UNISON_JIT_EXIT_COST=0 UNISON_JIT_ENTRY_COST=0`, so that the rules don't hide code from
     the tests; `UNISON_JIT_DISABLE=list,text,bytes,name` for the fallback paths of the C
     helpers; `UNISON_JIT_DISABLE=irhelpers` (generated code calls the C copies of the IR
-    helpers) under the stress combination.
+    helpers) and `UNISON_JIT_DISABLE=requests` (every ability request exits) under the
+    stress combination.
   - The helper self-tests: `eager` with `UNISON_JIT_STRESS=lists=20000,texts=20000,bytes=200000`,
     which run that many random operations through the C helpers at startup, each on the
     results of earlier ones, checking every result's structure and elements against Haskell.

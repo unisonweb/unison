@@ -131,7 +131,8 @@ data Config = Config
     -- module go through cells), @worker@ (no workers with register arguments),
     -- @copy@ (no private copies of compiled callees), @hash@ (the murmur hash),
     -- @irhelpers@ (the helpers compiled from IR: generated code calls the C
-    -- copies instead)
+    -- copies instead), @requests@ (ability requests and the affine handler
+    -- instructions: every request exits)
     disabled :: [String]
   }
   deriving (Show)

@@ -230,6 +230,46 @@ branchCalls n =
   go acc i = if i == n then acc else go (acc + mostlyInline i) (i + 1)
   go 0 0
 
+-- Affine handlers: a request is a call of the handler found in the
+-- environment, and the handler's case returns to the requester.
+structural ability Counter where
+  next : Nat
+
+runCounter : Nat -> '{Counter, g} a ->{g} a
+runCounter start thunk =
+  h : Nat -> Request {Counter} a -> a
+  h n = cases
+    { a } -> a
+    { Counter.next -> k } -> handle k n with h (n + 1)
+  handle !thunk with h start
+
+sumNext : Nat -> Nat ->{Counter} Nat
+sumNext acc n = if n == 0 then acc else sumNext (acc + Counter.next) (n - 1)
+
+structural ability Store a where
+  get : a
+  put : a -> ()
+
+runStore : s -> '{Store s, g} a ->{g} a
+runStore s thunk =
+  h : s -> Request {Store s} a -> a
+  h s = cases
+    { a } -> a
+    { Store.get -> k } -> handle k s with h s
+    { Store.put s' -> k } -> handle k () with h s'
+  handle !thunk with h s
+
+loopStore : Nat ->{Store Nat} Nat
+loopStore n = if n == 0 then Store.get else
+  Store.put (Store.get + 1)
+  loopStore (n - 1)
+
+-- the handler itself is installed each time around: `handle` is the interpreter's
+handleLoop : Nat -> Nat -> Nat
+handleLoop acc n = if n == 0 then acc else
+  r = runStore 1 '(Store.get + Store.get)
+  handleLoop (acc + r) (n - 1)
+
 jitSuite : '{IO, Exception} ()
 jitSuite = do
   printTime "Sum 0 to 1 million" 1 (n -> repeat n do sumTo 1000000)
@@ -270,6 +310,9 @@ jitSuite = do
   printTime "MutableArray: fill, freeze and sum 10000 elements" 1 (n -> repeat n do arrayFillSum 10000)
   printTime "Ref.cas loop, 10000 times" 1 (n -> repeat n do casLoop 10000)
   printTime "murmurHashUntyped of Some (i, \"x\"), 10000 times" 1 (n -> repeat n do hashLoop 10000)
+  printTime "Counter: 100000 requests" 1 (n -> repeat n do runCounter 0 '(sumNext 0 100000))
+  printTime "Store: get and put, 100000 iterations" 1 (n -> repeat n do runStore 0 '(loopStore 100000))
+  printTime "handle installed per iteration, 10000 iterations" 1 (n -> repeat n do handleLoop 0 10000)
   printTime "Bytes: decodeNat64be walk over 80000 bytes" 1 let
     b = bytesAppend 40000 (Bytes.fromList [104, 105])
     n -> repeat n do bytesDecode b

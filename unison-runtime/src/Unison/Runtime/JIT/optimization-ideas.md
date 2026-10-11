@@ -102,23 +102,30 @@ verdicts reached through a cycle), so the likely cause is a function compiled in
 not the other, or a neighbour already native or not when its batch forms. Both regimes are
 within the criterion; a deterministic choice would be better than either.
 
-### Calls through dynamic-scope references
+### Handler cases that observe the environment
 
-Calling an ability handler (`Counter.next` inside `handle`) resolves the function through the
-handler environment, which lives in Haskell (`HEnv`), not on the Unison stack, so native code
-exits: one exit per handler call in the test transcript's ability loops. Passing the current
-`denv` into `Ctx` (or a pointer to it) would let native code resolve it with a map lookup in
-C, or a call-out could return the value.
+A request of an affine handler and the handler's case run natively when the case is
+straight-line code to its `Yield` ("Ability requests" in internals.md). A case that calls a
+function or makes a request of its own (a `Store` handler that logs through another ability;
+a state update that calls a function) exits at its `InLocal`, because the switch to the
+handler's own environment would have to be real there. The pieces: `ctx->henv` becomes the
+current environment rather than a copy, native `InLocal` writes the pair (the `Affine`
+closure's `aenv`, the empty `denv`), the request site saves the pair before the call and
+restores it on a normal return, and on an unwind writes a `Local` frame record (a new record
+kind, which `runNative` turns into `Local henv0 0 k`), with the saved pair and the record's
+pointers in boxed-stack slots so that a collection between the native return and the Haskell
+read is safe; on return `runNative` reads the current pair back instead of resuming with the
+one it entered with. The tests for it are in `jit-tests.md` already (`countingStore`,
+`boundedStore`): they pass through the exit today.
 
-### Native ability requests
+### `handle` itself
 
-A request (`App (Dyn i)`) is an exit, and so is everything a handler starts with (`RMatch`,
-`Capture`, `InLocal`, `SetAff`, `Reset`), because the handler environment and `K` belong to
-the interpreter. The affine case, where the handler runs and returns to the requester with no
-continuation captured, could be native: it needs the dynamic environment readable from native
-code, `RMatch` as a match on the request's closure, and `InLocal` and `SetAff` as updates to
-an environment native code can see. Until then the static rule keeps request-heavy code
-interpreted. Needs a plan of its own.
+`Reset` with an affine handler needs a `MutVar#`, an `Affine` closure and an extended partial
+application (allocations of known layouts), an insert into `aenv` (building `IntMap` nodes
+natively, or a helper), an `AMark` record kind, and the pure-case dispatch when the thunk
+returns (a closure call to the handler with `Data1 effectRef 0 v`). Worth it when `handle`
+runs per iteration: 445 ns per `handle` with two requests on the suite's row, against 35 ns
+per request. `Discard` (abort cases, caught exceptions) is a non-local exit and stays one.
 
 ### Partial applications of function values
 

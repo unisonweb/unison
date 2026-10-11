@@ -28,7 +28,7 @@ import Data.Map.Strict qualified as Map
 import Data.Maybe (catMaybes)
 import Data.Set qualified as Set
 import Foreign.Ptr (Ptr)
-import Unison.Runtime.JIT.Codegen (callOutWorthwhile, instrNative, pushCount, startsSupported)
+import Unison.Runtime.JIT.Codegen (callOutWorthwhile, instrNativeIn, pushCount, requestsOn, startsSupported)
 import Unison.Runtime.JIT.Config (config, entryCost, exitCost)
 import Unison.Runtime.MCode hiding (Env)
 import Unison.Runtime.MCode qualified as MCode (GRef (Env))
@@ -151,7 +151,7 @@ walk cx = \case
   Die _ -> pure Nothing
   Exit -> pure Nothing
   Ins i rest
-    | instrNative i -> fmap (plus simple) <$> walk cx rest
+    | instrNativeIn i rest -> fmap (plus simple) <$> walk cx rest
     -- a call-out: the interpreter runs the instruction, native code goes on
     | Just _ <- pushCount i, callOutWorthwhile i rest -> fmap (plus exit) <$> walk cx rest
     -- the interpreter takes the rest of the function
@@ -166,6 +166,11 @@ walk cx = \case
     | constant comb args -> pure (Just (plus simple simple))
     | otherwise -> tailCall comb
   App _ (Stk _) _ -> pure (Just call) -- a function value: nothing is known about it
+  -- a request: a call of the handler, a function value found at run time
+  App _ (Dyn _) _ | requestsOn -> pure (Just call)
+  -- a request match: the pure arm and every ability's arms
+  RMatch _ pu br
+    | requestsOn, Just arms <- traverse armsOf (map snd (EC.mapToList br)) -> weigh (pu : concat arms)
   Let b _ _ body _ ->
     binding b >>= \case
       Nothing -> pure Nothing
@@ -204,6 +209,7 @@ walk cx = \case
         | constant comb args -> pure (Just simple)
         | otherwise -> returningCall comb
       App _ (Stk _) _ -> pure (Just call)
+      App _ (Dyn _) _ | requestsOn -> pure (Just call)
       b
         | startsSupported b -> fmap (plus call) <$> walk cx b
         | otherwise -> pure (Just exit)
@@ -213,7 +219,8 @@ walk cx = \case
     -- don't (the way out, the base cases).
     branch br = case armsOf br of
       Nothing -> pure (Just exit)
-      Just sects -> do
+      Just sects -> weigh sects
+    weigh sects = do
         arms <- catMaybes <$> mapM (walk cx) sects
         pure $ case arms of
           [] -> Nothing

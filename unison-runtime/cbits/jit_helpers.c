@@ -241,7 +241,11 @@ static int im_find(StgClosure *m, int64_t key, StgClosure **out, int depth) {
 
 void *unison_jit_resolve_dyn(void *henv, int64_t key) {
   StgClosure *h = henv, *found;
-  if (!EK.ok || LTAG(h) != EK.henv_tag || (StgWord)LUN(h)->header.info != EK.henv_info) return NULL;
+  if (!EK.ok) return NULL;
+  // the interpreter hands over whatever pointer it holds: an evaluated
+  // record may be behind an indirection
+  if (LTAG(h) == 0) h = unison_jit_settle(h);
+  if (LTAG(h) != EK.henv_tag || (StgWord)LUN(h)->header.info != EK.henv_info) return NULL;
   // the record's fields are lazy: an evaluated one may still be reached
   // through an indirection (a CAF for the empty map, say)
   StgClosure *aenv = LP(h, 0), *denv = LP(h, 1);

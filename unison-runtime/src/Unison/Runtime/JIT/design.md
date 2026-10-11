@@ -28,7 +28,7 @@ Note that code for a definition never changes, so compiled code never needs inva
 
 **Non-goals, for now**
 
-- Compiling `Capture`, `Reset`, `Jump` or ability handlers natively.
+- Compiling `Capture`, `Reset`, `Jump` or `Discard` natively. (Requests of affine handlers, and the handlers' cases, are native: [Ability requests](internals.md#ability-requests).)
 - Making compiled code callable as an ordinary Haskell function, or making it follow GHC's calling conventions.
 - Compatibility with the Racket / `run.native` backend. This backend is defunct.
 - Caching compiled code on disk across runs. If compilation is fast enough, this may never be worth it.
@@ -92,7 +92,8 @@ data Exit
 | Situation | Exit kind |
 | --- | --- |
 | Any instruction without a native version | call-out, re-enter after the instruction |
-| Unsupported control *section* (`Jump`, `RMatch`, `Die`, …), or `Capture` / `Discard` | resume at that section |
+| Unsupported control *section* (`Jump`, `Die`, …), or `Capture` / `Discard` / `Reset` | resume at that section |
+| An ability request whose number the environment doesn't map to an affine handler, or an affine handler's `InLocal` whose case observes the environment ([Ability requests](internals.md#ability-requests)) | resume at the section |
 | A call native code can't make, in a `Let` binding: the callee isn't compiled, or it's an `App` of a function value in one of the [cases left to the interpreter](#calling-function-values) | record the `Push` frame for the `Let` body, resume at the binding. Native code is re-entered at the `Let` body when the callee returns. |
 | The same, in tail position | resume at the `App` / `Call` section |
 | Unison stack needs to grow | `GrowStack`: the function exits at its entry check, before doing anything else. The interpreter grows the stack and calls the same function again. See [Stack growth and preemption](#stack-growth-and-preemption). |

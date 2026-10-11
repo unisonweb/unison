@@ -6,6 +6,7 @@ module Unison.Runtime.JIT
     jitRequestGroup,
     jitRequestCell,
     registerDataTypes,
+    registerTypeNumbers,
     printJITStats,
   )
 where
@@ -51,6 +52,26 @@ registerDataTypes :: Map.Map Reference [Int] -> IO ()
 registerDataTypes m = case mode config of
   Off -> pure ()
   _ -> atomicModifyIORef' dataTypes (\old -> (Map.union m old, ()))
+
+-- | The numbers the code cache gives types (abilities among them), with
+-- their references. A request match names its ability by number, so the
+-- generator needs the arities by number too ('abilityArities').
+typeNumbers :: IORef (EC.EnumMap Word64 Reference)
+typeNumbers = unsafePerformIO (newIORef (EC.mapFromList []))
+{-# NOINLINE typeNumbers #-}
+
+-- | Records the type numbering of the code cache. Called when types are
+-- numbered: for the builtins at startup, and whenever code is loaded.
+registerTypeNumbers :: EC.EnumMap Word64 Reference -> IO ()
+registerTypeNumbers m = case mode config of
+  Off -> pure ()
+  _ -> atomicModifyIORef' typeNumbers (\old -> (m <> old, ()))
+
+-- | The constructor arities of the types known so far, by type number.
+abilityArities :: Map.Map Reference [Int] -> IO (EC.EnumMap Word64 [Int])
+abilityArities types = do
+  nums <- readIORef typeNumbers
+  pure (EC.mapFromList [(n, as) | (n, r) <- EC.mapToList nums, Just as <- [Map.lookup r types]])
 
 -- | Set once by 'startJIT' when everything checks out. Nothing means off.
 jitState :: IORef (Maybe JITState)
@@ -202,8 +223,9 @@ jitCompileGroup sandbox ref grp cmbs = case mode config of
       Nothing -> pure ()
       Just st -> do
         types <- readIORef dataTypes
+        abilities <- abilityArities types
         (now, _) <- groupUnits sandbox False ref grp cmbs
-        compileUnits st types ("unison_" ++ show grp) False now
+        compileUnits st types abilities ("unison_" ++ show grp) False now
   _ -> pure ()
 
 -- ---------------------------------------------------------------------------
@@ -365,9 +387,9 @@ compileThread = do
             loop held
       flush [] = pure ()
       flush held = do
-        r <- try (withState initialized $ \st types -> do
+        r <- try (withState initialized $ \st types abilities -> do
           let name = "unison_" ++ unitName (last held) ++ "_x" ++ show (length held)
-          guarded name (compileUnits st types name True (reverse held))
+          guarded name (compileUnits st types abilities name True (reverse held))
           forM_ held dropPending)
         case r of
           Left (e :: SomeException) -> jitLog ("compile thread: " ++ show e)
@@ -381,9 +403,10 @@ compileThread = do
         Nothing -> pure ()
         Just st -> do
           types <- readIORef dataTypes
-          k st types
+          abilities <- abilityArities types
+          k st types abilities
     serve initialized callersRef req =
-      withState initialized $ \st types -> do
+      withState initialized $ \st types abilities -> do
           case req of
             ReqGroup grp sandbox t0 find -> do
               when (logging config) $ do
@@ -407,9 +430,9 @@ compileThread = do
                 -- pending before the groups' code can exit to them
                 forM_ (concat later) addPending
                 copies <- copyCandidates sandbox cache refs members
-                guarded ("unison_" ++ show grp) (compileUnits st types ("unison_" ++ show grp) True (concat now ++ copies))
+                guarded ("unison_" ++ show grp) (compileUnits st types abilities ("unison_" ++ show grp) True (concat now ++ copies))
             ReqUnit u -> do
-              guarded (unitName u) (compileUnits st types ("unison_" ++ unitName u) True [u])
+              guarded (unitName u) (compileUnits st types abilities ("unison_" ++ unitName u) True [u])
               dropPending u
     -- The definitions to compile together with one that got hot, so that
     -- calls between them are direct and LLVM can inline across them. The

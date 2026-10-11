@@ -81,7 +81,7 @@ import Unison.Runtime.Decompile qualified as Decomp
 import Unison.Runtime.Exception (RuntimeExn (BU, PE), die)
 import Unison.Runtime.Foreign.Function (functionUnreplacements)
 import Unison.Runtime.InternalError (CompileExn (CE))
-import Unison.Runtime.JIT (jitCompileGroup, printJITStats, registerDataTypes, startJIT)
+import Unison.Runtime.JIT (jitCompileGroup, printJITStats, registerDataTypes, registerTypeNumbers, startJIT)
 import Unison.Runtime.MCode
   ( newNativeCellPool,
     Args (..),
@@ -882,6 +882,7 @@ startRuntime sandboxed runtimeHost version = do
   registerDataTypes (fmap (either id id) builtinDataSpec)
   -- Any is a builtin type, not a declaration: one constructor, one field
   registerDataTypes (Map.singleton Type.anyRef [1])
+  registerTypeNumbers (EC.mapFromList [(n, r) | (r, n) <- Map.toList builtinTypeNumbering])
   ctx <- baseContext sandboxed
   -- in the JIT's eager mode the builtin combinators are compiled now, like
   -- everything else is when it is loaded

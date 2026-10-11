@@ -189,7 +189,10 @@ int64_t unison_jit_table_addresses(const char **names, void **addrs, int64_t n) 
   return count;
 }
 
+int64_t unison_jit_set_aff(UnisonJitCtx *ctx, void *aff, void *v);
+
 void *unison_jit_helpers[] = {
+    (void *)&unison_jit_set_aff,     (void *)&unison_jit_resolve_dyn,
     (void *)&unison_jit_alloc_words, (void *)&unison_jit_write_mutvar, (void *)&unison_jit_list_size,
     (void *)&unison_jit_list_view,   (void *)&unison_jit_list_push,    (void *)&unison_jit_list_index,
     (void *)&unison_jit_text_size,   (void *)&unison_jit_text_append,  (void *)&unison_jit_text_cut,
@@ -3666,6 +3669,18 @@ int64_t unison_jit_env_init(void **elems) {
   if (unison_jit_resolve_dyn(h, 4) != NULL || unison_jit_resolve_dyn(h, 0) != NULL) return 18;
   if (unison_jit_resolve_dyn(h2, 10) != NULL || LUN(unison_jit_resolve_dyn(h2, 3)) != LUN(v3)) return 19;
   if (unison_jit_resolve_dyn(aenv, 3) != NULL) return 20;
+  return 1;
+}
+
+// SetAff: stores an affine handler's next state in the ref inside the
+// Affine closure, through the runtime's barrier. 0 when `aff` isn't an
+// Affine closure (the interpreter runs the instruction then).
+int64_t unison_jit_set_aff(UnisonJitCtx *ctx, void *aff, void *v) {
+  StgClosure *a = aff;
+  if (!EK.ok) return 0;
+  if (LTAG(a) == 0) a = unison_jit_settle(a);
+  if (LTAG(a) != EK.affine_tag || (StgWord)LUN(a)->header.info != EK.affine_info) return 0;
+  unison_jit_write_mutvar(ctx, (StgMutVar *)LP(a, 2), (StgClosure *)v);
   return 1;
 }
 

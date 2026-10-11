@@ -67,113 +67,124 @@ entry:
   call void @llvm.lifetime.start.p0(i64 8, ptr nonnull %found) #6
   %0 = load i32, ptr getelementptr inbounds (i8, ptr @unison_jit_EK, i64 44), align 4
   %tobool.not = icmp eq i32 %0, 0
-  br i1 %tobool.not, label %cleanup61, label %lor.lhs.false
+  br i1 %tobool.not, label %cleanup67, label %if.end
 
-lor.lhs.false:                                    ; preds = %entry
+if.end:                                           ; preds = %entry
   %1 = ptrtoint ptr %henv to i64
   %and.i = and i64 %1, 7
-  %2 = load i32, ptr getelementptr inbounds (i8, ptr @unison_jit_EK, i64 8), align 8
-  %conv = sext i32 %2 to i64
-  %cmp.not = icmp eq i64 %and.i, %conv
-  br i1 %cmp.not, label %lor.lhs.false2, label %cleanup61
+  %cmp = icmp eq i64 %and.i, 0
+  br i1 %cmp, label %if.then1, label %if.end3
 
-lor.lhs.false2:                                   ; preds = %lor.lhs.false
-  %and.i74 = and i64 %1, -8
-  %3 = inttoptr i64 %and.i74 to ptr
-  %4 = load ptr, ptr %3, align 8
-  %5 = ptrtoint ptr %4 to i64
-  %6 = load i64, ptr @unison_jit_EK, align 8
-  %cmp4.not = icmp eq i64 %6, %5
-  br i1 %cmp4.not, label %if.end, label %cleanup61
+if.then1:                                         ; preds = %if.end
+  %call2 = tail call ptr @unison_jit_settle(ptr noundef %henv) #6
+  br label %if.end3
 
-if.end:                                           ; preds = %lor.lhs.false2
-  %payload = getelementptr inbounds i8, ptr %3, i64 8
-  %7 = load ptr, ptr %payload, align 8
-  %arrayidx9 = getelementptr inbounds i8, ptr %3, i64 16
-  %8 = load ptr, ptr %arrayidx9, align 8
-  %9 = ptrtoint ptr %7 to i64
-  %and.i77 = and i64 %9, 7
-  %cmp11 = icmp eq i64 %and.i77, 0
-  br i1 %cmp11, label %if.then13, label %if.end15
+if.end3:                                          ; preds = %if.then1, %if.end
+  %h.0 = phi ptr [ %call2, %if.then1 ], [ %henv, %if.end ]
+  %2 = ptrtoint ptr %h.0 to i64
+  %and.i82 = and i64 %2, 7
+  %3 = load i32, ptr getelementptr inbounds (i8, ptr @unison_jit_EK, i64 8), align 8
+  %conv = sext i32 %3 to i64
+  %cmp5.not = icmp eq i64 %and.i82, %conv
+  br i1 %cmp5.not, label %lor.lhs.false, label %cleanup67
 
-if.then13:                                        ; preds = %if.end
-  %call14 = tail call ptr @unison_jit_settle(ptr noundef %7) #6
-  br label %if.end15
+lor.lhs.false:                                    ; preds = %if.end3
+  %and.i83 = and i64 %2, -8
+  %4 = inttoptr i64 %and.i83 to ptr
+  %5 = load ptr, ptr %4, align 8
+  %6 = ptrtoint ptr %5 to i64
+  %7 = load i64, ptr @unison_jit_EK, align 8
+  %cmp8.not = icmp eq i64 %7, %6
+  br i1 %cmp8.not, label %if.end11, label %cleanup67
 
-if.end15:                                         ; preds = %if.then13, %if.end
-  %aenv.0 = phi ptr [ %call14, %if.then13 ], [ %7, %if.end ]
+if.end11:                                         ; preds = %lor.lhs.false
+  %payload = getelementptr inbounds i8, ptr %4, i64 8
+  %8 = load ptr, ptr %payload, align 8
+  %arrayidx15 = getelementptr inbounds i8, ptr %4, i64 16
+  %9 = load ptr, ptr %arrayidx15, align 8
   %10 = ptrtoint ptr %8 to i64
-  %and.i78 = and i64 %10, 7
-  %cmp17 = icmp eq i64 %and.i78, 0
+  %and.i86 = and i64 %10, 7
+  %cmp17 = icmp eq i64 %and.i86, 0
   br i1 %cmp17, label %if.then19, label %if.end21
 
-if.then19:                                        ; preds = %if.end15
+if.then19:                                        ; preds = %if.end11
   %call20 = tail call ptr @unison_jit_settle(ptr noundef %8) #6
   br label %if.end21
 
-if.end21:                                         ; preds = %if.then19, %if.end15
-  %denv.0 = phi ptr [ %call20, %if.then19 ], [ %8, %if.end15 ]
-  %11 = ptrtoint ptr %denv.0 to i64
-  %and.i79 = and i64 %11, 7
-  %12 = load i32, ptr getelementptr inbounds (i8, ptr @unison_jit_EK, i64 20), align 4
-  %conv23 = sext i32 %12 to i64
-  %cmp24.not = icmp eq i64 %and.i79, %conv23
-  br i1 %cmp24.not, label %if.end30, label %land.lhs.true
+if.end21:                                         ; preds = %if.then19, %if.end11
+  %aenv.0 = phi ptr [ %call20, %if.then19 ], [ %8, %if.end11 ]
+  %11 = ptrtoint ptr %9 to i64
+  %and.i87 = and i64 %11, 7
+  %cmp23 = icmp eq i64 %and.i87, 0
+  br i1 %cmp23, label %if.then25, label %if.end27
 
-land.lhs.true:                                    ; preds = %if.end21
-  %call26 = call fastcc i32 @im_find(ptr noundef %denv.0, i64 noundef %key, ptr noundef nonnull %found, i32 noundef 0)
-  %cmp27.not = icmp eq i32 %call26, 0
-  br i1 %cmp27.not, label %if.end30, label %cleanup61
+if.then25:                                        ; preds = %if.end21
+  %call26 = tail call ptr @unison_jit_settle(ptr noundef %9) #6
+  br label %if.end27
 
-if.end30:                                         ; preds = %land.lhs.true, %if.end21
-  %call31 = call fastcc i32 @im_find(ptr noundef %aenv.0, i64 noundef %key, ptr noundef nonnull %found, i32 noundef 0)
-  %cmp32.not = icmp eq i32 %call31, 1
-  br i1 %cmp32.not, label %if.end35, label %cleanup61
+if.end27:                                         ; preds = %if.then25, %if.end21
+  %denv.0 = phi ptr [ %call26, %if.then25 ], [ %9, %if.end21 ]
+  %12 = ptrtoint ptr %denv.0 to i64
+  %and.i88 = and i64 %12, 7
+  %13 = load i32, ptr getelementptr inbounds (i8, ptr @unison_jit_EK, i64 20), align 4
+  %conv29 = sext i32 %13 to i64
+  %cmp30.not = icmp eq i64 %and.i88, %conv29
+  br i1 %cmp30.not, label %if.end36, label %land.lhs.true
 
-if.end35:                                         ; preds = %if.end30
-  %13 = load ptr, ptr %found, align 8
-  %14 = ptrtoint ptr %13 to i64
-  %and.i80 = and i64 %14, 7
-  %cmp37 = icmp eq i64 %and.i80, 0
-  br i1 %cmp37, label %if.then39, label %if.end41
+land.lhs.true:                                    ; preds = %if.end27
+  %call32 = call fastcc i32 @im_find(ptr noundef %denv.0, i64 noundef %key, ptr noundef nonnull %found, i32 noundef 0)
+  %cmp33.not = icmp eq i32 %call32, 0
+  br i1 %cmp33.not, label %if.end36, label %cleanup67
 
-if.then39:                                        ; preds = %if.end35
-  %call40 = call ptr @unison_jit_settle(ptr noundef %13) #6
-  store ptr %call40, ptr %found, align 8
-  br label %if.end41
+if.end36:                                         ; preds = %land.lhs.true, %if.end27
+  %call37 = call fastcc i32 @im_find(ptr noundef %aenv.0, i64 noundef %key, ptr noundef nonnull %found, i32 noundef 0)
+  %cmp38.not = icmp eq i32 %call37, 1
+  br i1 %cmp38.not, label %if.end41, label %cleanup67
 
-if.end41:                                         ; preds = %if.then39, %if.end35
-  %15 = load ptr, ptr %found, align 8
-  %16 = ptrtoint ptr %15 to i64
-  %and.i81 = and i64 %16, 7
-  %cmp43.not = icmp eq i64 %and.i81, 1
-  br i1 %cmp43.not, label %lor.lhs.false45, label %cleanup61
+if.end41:                                         ; preds = %if.end36
+  %14 = load ptr, ptr %found, align 8
+  %15 = ptrtoint ptr %14 to i64
+  %and.i89 = and i64 %15, 7
+  %cmp43 = icmp eq i64 %and.i89, 0
+  br i1 %cmp43, label %if.then45, label %if.end47
 
-lor.lhs.false45:                                  ; preds = %if.end41
-  %and.i82 = and i64 %16, -8
-  %17 = inttoptr i64 %and.i82 to ptr
-  %18 = load ptr, ptr %17, align 8
-  %19 = ptrtoint ptr %18 to i64
-  %20 = load i64, ptr getelementptr inbounds (i8, ptr @unison_jit_EK, i64 24), align 8
-  %cmp49.not = icmp eq i64 %20, %19
-  br i1 %cmp49.not, label %if.end52, label %cleanup61
+if.then45:                                        ; preds = %if.end41
+  %call46 = call ptr @unison_jit_settle(ptr noundef %14) #6
+  store ptr %call46, ptr %found, align 8
+  br label %if.end47
 
-if.end52:                                         ; preds = %lor.lhs.false45
-  %payload54 = getelementptr inbounds i8, ptr %17, i64 8
-  %21 = load ptr, ptr %payload54, align 8
-  %var = getelementptr inbounds i8, ptr %21, i64 8
-  %22 = load atomic i64, ptr %var acquire, align 8
-  %23 = inttoptr i64 %22 to ptr
-  %and.i84 = and i64 %22, 7
-  %cmp57 = icmp eq i64 %and.i84, 0
-  br i1 %cmp57, label %cond.true, label %cleanup61
+if.end47:                                         ; preds = %if.then45, %if.end41
+  %16 = load ptr, ptr %found, align 8
+  %17 = ptrtoint ptr %16 to i64
+  %and.i90 = and i64 %17, 7
+  %cmp49.not = icmp eq i64 %and.i90, 1
+  br i1 %cmp49.not, label %lor.lhs.false51, label %cleanup67
 
-cond.true:                                        ; preds = %if.end52
-  %call59 = call ptr @unison_jit_settle(ptr noundef %23) #6
-  br label %cleanup61
+lor.lhs.false51:                                  ; preds = %if.end47
+  %and.i91 = and i64 %17, -8
+  %18 = inttoptr i64 %and.i91 to ptr
+  %19 = load ptr, ptr %18, align 8
+  %20 = ptrtoint ptr %19 to i64
+  %21 = load i64, ptr getelementptr inbounds (i8, ptr @unison_jit_EK, i64 24), align 8
+  %cmp55.not = icmp eq i64 %21, %20
+  br i1 %cmp55.not, label %if.end58, label %cleanup67
 
-cleanup61:                                        ; preds = %land.lhs.true, %if.end30, %lor.lhs.false45, %if.end41, %if.end52, %cond.true, %entry, %lor.lhs.false, %lor.lhs.false2
-  %retval.1 = phi ptr [ null, %lor.lhs.false2 ], [ null, %lor.lhs.false ], [ null, %entry ], [ null, %land.lhs.true ], [ null, %if.end30 ], [ null, %lor.lhs.false45 ], [ null, %if.end41 ], [ %call59, %cond.true ], [ %23, %if.end52 ]
+if.end58:                                         ; preds = %lor.lhs.false51
+  %payload60 = getelementptr inbounds i8, ptr %18, i64 8
+  %22 = load ptr, ptr %payload60, align 8
+  %var = getelementptr inbounds i8, ptr %22, i64 8
+  %23 = load atomic i64, ptr %var acquire, align 8
+  %24 = inttoptr i64 %23 to ptr
+  %and.i93 = and i64 %23, 7
+  %cmp63 = icmp eq i64 %and.i93, 0
+  br i1 %cmp63, label %cond.true, label %cleanup67
+
+cond.true:                                        ; preds = %if.end58
+  %call65 = call ptr @unison_jit_settle(ptr noundef %24) #6
+  br label %cleanup67
+
+cleanup67:                                        ; preds = %land.lhs.true, %if.end36, %lor.lhs.false51, %if.end47, %if.end58, %cond.true, %if.end3, %lor.lhs.false, %entry
+  %retval.1 = phi ptr [ null, %entry ], [ null, %lor.lhs.false ], [ null, %if.end3 ], [ null, %land.lhs.true ], [ null, %if.end36 ], [ null, %lor.lhs.false51 ], [ null, %if.end47 ], [ %call65, %cond.true ], [ %24, %if.end58 ]
   call void @llvm.lifetime.end.p0(i64 8, ptr nonnull %found) #6
   ret ptr %retval.1
 }

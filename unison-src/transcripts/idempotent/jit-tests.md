@@ -645,6 +645,141 @@ picky n =
            ([215, 115], [130, 140])
 ```
 
+An affine handler (one that resumes the continuation at most once, in tail position) runs
+natively: the request finds the handler in the environment and calls it like any function,
+and the handler's case returns the value to the requester ("Ability requests" in internals.md).
+Requests with fields, in a let and in tail position; the same ability handled twice; a handler
+whose case performs an outer ability's operation, and one whose case raises an exception; a
+handler installed per iteration.
+
+``` unison
+use Nat + - * / == < > <= >=
+
+structural ability Counter where
+  next : Nat
+
+structural ability Store a where
+  get : a
+  put : a -> ()
+
+runCounter : Nat -> '{Counter, g} a ->{g} a
+runCounter start thunk =
+  h : Nat -> Request {Counter} a -> a
+  h n = cases
+    { a } -> a
+    { Counter.next -> k } -> handle k n with h (n + 1)
+  handle !thunk with h start
+
+runStore : s -> '{Store s, g} a ->{g} a
+runStore s thunk =
+  h : s -> Request {Store s} a -> a
+  h s = cases
+    { a } -> a
+    { Store.get -> k } -> handle k s with h s
+    { Store.put s' -> k } -> handle k () with h s'
+  handle !thunk with h s
+
+-- a request in a let and one in tail position
+loopStore : Nat ->{Store Nat} Nat
+loopStore n = if n == 0 then Store.get else
+  Store.put (Store.get + 1)
+  loopStore (n - 1)
+
+-- the same ability handled twice: the inner handler shadows the outer
+nested : '{Store Nat} Nat
+nested _ =
+  Store.put 5
+  inner = runStore 2 '(Store.get + Store.get)
+  inner + Store.get
+
+-- a handler whose case performs an operation of an outer ability
+countingStore : s -> '{Store s, Counter, g} a ->{Counter, g} a
+countingStore s thunk =
+  h : s -> Request {Store s} a ->{Counter} a
+  h s = cases
+    { a } -> a
+    { Store.get -> k } -> handle k s with h s
+    { Store.put s' -> k } ->
+      _ = Counter.next
+      handle k () with h s'
+  handle !thunk with h s
+
+-- a handler whose case raises an exception
+boundedStore : Nat -> '{Store Nat, g} a ->{Exception, g} a
+boundedStore s thunk =
+  h : Nat -> Request {Store Nat} a ->{Exception} a
+  h s = cases
+    { a } -> a
+    { Store.get -> k } -> handle k s with h s
+    { Store.put s' -> k } ->
+      if s' > 100 then Exception.raise (Failure (typeLink Store) "too big" (Any s'))
+      else handle k () with h s'
+  handle !thunk with h s
+
+catchE : '{Exception} a -> Either Text a
+catchE c = handle c() with cases
+  { a } -> Right a
+  { Exception.raise f -> _ } -> match f with Failure _ msg _ -> Left msg
+
+counted : '{Counter} (Nat, Nat)
+counted _ =
+  r = countingStore 0 '(loopStore 10)
+  (r, Counter.next)
+
+-- a handler installed per iteration
+handleLoop : Nat -> Nat -> Nat
+handleLoop acc n = if n == 0 then acc else
+  r = runStore 1 '(Store.get + Store.get)
+  handleLoop (acc + r) (n - 1)
+
+> runStore 0 '(loopStore 1000)
+> runStore 1 nested
+> runCounter 100 counted
+> (catchE '(boundedStore 0 '(loopStore 50)), catchE '(boundedStore 0 '(loopStore 200)))
+> handleLoop 0 100
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  + structural ability Counter
+  + structural ability Store a
+
+  + boundedStore  : Nat -> '{g, Store Nat} a ->{g, Exception} a
+  + catchE        : '{Exception} a -> Either Text a
+  + counted       : '{Counter} (Nat, Nat)
+  + countingStore : s
+                    -> '{g, Counter, Store s} a
+                    ->{g, Counter} a
+  + handleLoop    : Nat -> Nat -> Nat
+  + loopStore     : Nat ->{Store Nat} Nat
+  + nested        : '{Store Nat} Nat
+  + runCounter    : Nat -> '{g, Counter} a ->{g} a
+  + runStore      : s -> '{g, Store s} a ->{g} a
+
+  Run `update` to apply these changes to your codebase.
+
+    80 | > runStore 0 '(loopStore 1000)
+           ⧩
+           1000
+
+    81 | > runStore 1 nested
+           ⧩
+           9
+
+    82 | > runCounter 100 counted
+           ⧩
+           (10, 110)
+
+    83 | > (catchE '(boundedStore 0 '(loopStore 50)), catchE '(boundedStore 0 '(loopStore 200)))
+           ⧩
+           (Right 50, Left "too big")
+
+    84 | > handleLoop 0 100
+           ⧩
+           200
+```
+
 ## Preemption
 
 A thread stuck in a loop that never allocates must still be killable. Compiled code polls at
