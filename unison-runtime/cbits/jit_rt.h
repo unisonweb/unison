@@ -55,6 +55,11 @@ typedef struct UnisonJitCtx {
   // call.
   void *hp;
   void *hp_lim;
+  // The handler environment (HEnv) the interpreter entered with: read by
+  // ability requests to find their handler. Set by the trampoline from the
+  // one-element array the Haskell side passes, so that the collector sees
+  // the pointer while Haskell runs; never kept by native code past a return.
+  void *henv;
 
   // Not read by generated code (and so not in the layout the Haskell side
   // checks): the lowest address of this thread's C stack, plus the reserve.

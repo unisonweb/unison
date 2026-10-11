@@ -154,6 +154,35 @@ UNISON_JIT_TABLE HashFacts unison_jit_HK;
 // why a value was left to the interpreter, under UNISON_JIT_TRACE_TEST
 void unison_jit_murmur_fail(const char *what, StgClosure *c);
 
+// --- the handler environment (HEnv, Unison.Runtime.Stack) ---
+
+// HEnv is a record of two lazy pointer fields, `aenv` (ability number to
+// AffineRef, an IORef of the current affine handler) and `denv` (ability
+// number to the installed non-affine handler), both EnumMaps, newtypes over
+// IntMap. An IntMap is Bin (two subtree pointers, then the prefix word, or
+// prefix and mask before containers 0.7), Tip (the value pointer, then the
+// key word) or Nil, told apart by pointer tag. An AffineRef unpacks to its MutVar# where it is a strict field
+// (GAffine, -funbox-strict-fields) but is the STRef box in a Tip, whose
+// value field is lazy. All of this comes from unison_jit_env_init.
+typedef struct {
+  StgWord henv_info;
+  int henv_tag;
+  int bin_tag, tip_tag, nil_tag;
+  StgWord stref_info; // the box around a MutVar#: one pointer field, tag 1
+  StgWord affine_info;
+  int affine_tag; // GAffine ps aenv ref: the set, the map, the MutVar#
+  int ok;
+} EnvFacts;
+UNISON_JIT_TABLE EnvFacts unison_jit_EK;
+#define EK unison_jit_EK
+
+// The affine handler for ability `key` in the environment: the closure the
+// handler's ref holds, or NULL when the key is handled by a non-affine
+// handler (denv shadows aenv), unhandled, or anything on the way isn't
+// evaluated or isn't the expected shape; the interpreter then resolves it.
+// Defined in jit_helpers.c; generated code calls the IR copy.
+void *unison_jit_resolve_dyn(void *henv, int64_t key);
+
 // The hash of a stack slot's two halves, or "not handled". Defined in
 // jit_helpers.c; generated code calls the IR copy.
 JitNat unison_jit_murmur(int64_t u, void *b);

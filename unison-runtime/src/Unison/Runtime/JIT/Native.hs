@@ -30,6 +30,7 @@ module Unison.Runtime.JIT.Native
     arrayInit,
     murmurInit,
     murmurTest,
+    envInit,
     murmurCAddress,
     tableAddresses,
     bytesCheck,
@@ -42,6 +43,7 @@ where
 
 import Data.Primitive.Array (MutableArray (..), sizeofMutableArray)
 import Data.Primitive.ByteArray (MutableByteArray (..), readByteArray)
+import Data.Primitive.SmallArray (SmallMutableArray (..))
 import Foreign.Ptr (FunPtr)
 import GHC.Exts (Any, RealWorld)
 import Unison.Runtime.Stack (Closure)
@@ -53,7 +55,7 @@ import Foreign.C.String (CString, peekCString)
 import Foreign.Marshal.Alloc (allocaBytes, free)
 import Foreign.Ptr (Ptr, WordPtr (..), ptrToWordPtr, wordPtrToPtr)
 import Foreign.Storable (peek, peekElemOff, pokeElemOff)
-import GHC.Exts (MutableArray#, MutableByteArray#)
+import GHC.Exts (MutableArray#, MutableByteArray#, SmallMutableArray#)
 
 -- | The uniform signature of compiled code: @(ctx, ap, fp, sp) -> status@.
 data NativeFn
@@ -95,6 +97,7 @@ foreign import ccall unsafe "unison_jit_enter"
     MutableByteArray# RealWorld ->
     MutableArray# RealWorld Closure ->
     MutableArray# RealWorld Closure ->
+    SmallMutableArray# RealWorld Closure ->
     Int64 ->
     Int64 ->
     Int64 ->
@@ -137,19 +140,23 @@ foreign import ccall unsafe "unison_jit_probe" c_probe :: MutableArray# RealWorl
 
 -- | Runs native code with the given stacks (and their size in slots) and
 -- pointers, and returns its status. Where it stopped and the frame records
--- it wrote are read with 'outAp' and the rest.
+-- it wrote are read with 'outAp' and the rest. The one-element array holds
+-- the handler environment (an @HEnv@, coerced), which native code reads
+-- through its context: an array so that the collector keeps the pointer
+-- right while Haskell code runs around the call.
 enterNative ::
   FunPtr NativeFn ->
   MutableByteArray RealWorld ->
   MutableArray RealWorld Closure ->
   MutableArray RealWorld Closure ->
+  SmallMutableArray RealWorld Closure ->
   Int ->
   Int ->
   Int ->
   Int ->
   IO Status
-enterNative fn (MutableByteArray ustk) (MutableArray bstk) (MutableArray pool) size ap fp sp = do
-  status <- c_enter fn ustk bstk pool (fromIntegral size) (fromIntegral ap) (fromIntegral fp) (fromIntegral sp)
+enterNative fn (MutableByteArray ustk) (MutableArray bstk) (MutableArray pool) (SmallMutableArray henv) size ap fp sp = do
+  status <- c_enter fn ustk bstk pool henv (fromIntegral size) (fromIntegral ap) (fromIntegral fp) (fromIntegral sp)
   pure $! fromIntegral status
 {-# INLINE enterNative #-}
 
@@ -186,7 +193,7 @@ configureNative pollEvery calleeEvery cstack alloc tr =
 ctxLayout :: IO ([Int], Int)
 ctxLayout = allocaBytes (8 * 32) $ \out -> do
   size <- c_ctxLayout out 32
-  offs <- mapM (peekElemOff out) [0 .. 20]
+  offs <- mapM (peekElemOff out) [0 .. 21]
   pure (map fromIntegral offs, fromIntegral size)
 
 -- | Inspects a closure. Element 0 of the array is the sample, the rest are
@@ -251,6 +258,14 @@ foreign import ccall unsafe "unison_jit_murmur_init" c_murmurInit :: MutableArra
 -- the C side returns a pair (ok, hash) by value; the FFI can't, so this
 -- wrapper writes it through a pointer
 foreign import ccall unsafe "unison_jit_murmur_test_ffi" c_murmurTest :: MutableArray# RealWorld Any -> Int64 -> Int64 -> Ptr Int64 -> IO Int64
+
+foreign import ccall unsafe "unison_jit_env_init" c_envInit :: MutableArray# RealWorld Any -> IO Int64
+
+-- | Teaches the request helpers the handler environment's layout from
+-- samples and checks the lookup on them (see unison_jit_env_init). 1 if
+-- all is well, else the number of the check that failed.
+envInit :: MutableArray RealWorld Any -> IO Int
+envInit (MutableArray arr#) = fromIntegral <$> c_envInit arr#
 
 foreign import ccall "&unison_jit_murmur" c_murmurAddr :: FunPtr (Int64 -> Ptr () -> IO ())
 

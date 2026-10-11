@@ -1,5 +1,6 @@
 ; Generated from jit_helpers.c by gen-helpers.sh. Do not edit.
 
+%struct.EnvFacts = type { i64, i32, i32, i32, i32, i64, i64, i32, i32 }
 %struct.HashFacts = type { i64, i64, i64, i32 }
 %struct.MH = type { i64, i32 }
 %struct.ListFacts = type { i64, i64, i64, i64, i64, i64, i64, i64, i64, i64, i64, ptr, ptr, ptr }
@@ -7,6 +8,7 @@
 %struct.ArrayFacts = type { %struct.WrapInfo, %struct.WrapInfo, %struct.WrapInfo, %struct.WrapInfo, %struct.WrapInfo, %struct.WrapInfo, %struct.WrapInfo, ptr, i32 }
 %struct.WrapInfo = type { i64, i64 }
 
+@unison_jit_EK = external global %struct.EnvFacts, align 8
 @unison_jit_HK = external global %struct.HashFacts, align 8
 @__const.mh_run.s = private constant %struct.MH { i64 3735928559, i32 1 }, align 8
 @.str = private constant [15 x i8] c"untagged value\00", align 1
@@ -28,7 +30,7 @@ entry:
   br i1 %tobool.not.i, label %mh_run.exit, label %if.end.i
 
 if.end.i:                                         ; preds = %entry
-  call void @llvm.lifetime.start.p0(i64 16, ptr nonnull %s.i) #5
+  call void @llvm.lifetime.start.p0(i64 16, ptr nonnull %s.i) #6
   call void @llvm.memcpy.p0.p0.i64(ptr noundef nonnull align 8 dereferenceable(16) %s.i, ptr noundef nonnull align 8 dereferenceable(16) @__const.mh_run.s, i64 16, i1 false)
   call fastcc void @mh_val(ptr noundef nonnull %s.i, i64 noundef %u, ptr noundef %b)
   %ok1.i = getelementptr inbounds i8, ptr %s.i, i64 8
@@ -48,7 +50,7 @@ if.end6.i:                                        ; preds = %if.end.i
 cleanup.i:                                        ; preds = %if.end6.i, %if.end.i
   %retval.sroa.0.0.i = phi i64 [ 1, %if.end6.i ], [ 0, %if.end.i ]
   %retval.sroa.4.0.i = phi i64 [ %xor2.i.i, %if.end6.i ], [ 0, %if.end.i ]
-  call void @llvm.lifetime.end.p0(i64 16, ptr nonnull %s.i) #5
+  call void @llvm.lifetime.end.p0(i64 16, ptr nonnull %s.i) #6
   br label %mh_run.exit
 
 mh_run.exit:                                      ; preds = %entry, %cleanup.i
@@ -59,9 +61,191 @@ mh_run.exit:                                      ; preds = %entry, %cleanup.i
   ret { i64, i64 } %.fca.1.insert.i
 }
 
+define ptr @unison_jit_resolve_dyn(ptr noundef %henv, i64 noundef %key) #0 {
+entry:
+  %found = alloca ptr, align 8
+  call void @llvm.lifetime.start.p0(i64 8, ptr nonnull %found) #6
+  %0 = load i32, ptr getelementptr inbounds (i8, ptr @unison_jit_EK, i64 44), align 4
+  %tobool.not = icmp eq i32 %0, 0
+  br i1 %tobool.not, label %cleanup61, label %lor.lhs.false
+
+lor.lhs.false:                                    ; preds = %entry
+  %1 = ptrtoint ptr %henv to i64
+  %and.i = and i64 %1, 7
+  %2 = load i32, ptr getelementptr inbounds (i8, ptr @unison_jit_EK, i64 8), align 8
+  %conv = sext i32 %2 to i64
+  %cmp.not = icmp eq i64 %and.i, %conv
+  br i1 %cmp.not, label %lor.lhs.false2, label %cleanup61
+
+lor.lhs.false2:                                   ; preds = %lor.lhs.false
+  %and.i74 = and i64 %1, -8
+  %3 = inttoptr i64 %and.i74 to ptr
+  %4 = load ptr, ptr %3, align 8
+  %5 = ptrtoint ptr %4 to i64
+  %6 = load i64, ptr @unison_jit_EK, align 8
+  %cmp4.not = icmp eq i64 %6, %5
+  br i1 %cmp4.not, label %if.end, label %cleanup61
+
+if.end:                                           ; preds = %lor.lhs.false2
+  %payload = getelementptr inbounds i8, ptr %3, i64 8
+  %7 = load ptr, ptr %payload, align 8
+  %arrayidx9 = getelementptr inbounds i8, ptr %3, i64 16
+  %8 = load ptr, ptr %arrayidx9, align 8
+  %9 = ptrtoint ptr %7 to i64
+  %and.i77 = and i64 %9, 7
+  %cmp11 = icmp eq i64 %and.i77, 0
+  br i1 %cmp11, label %if.then13, label %if.end15
+
+if.then13:                                        ; preds = %if.end
+  %call14 = tail call ptr @unison_jit_settle(ptr noundef %7) #6
+  br label %if.end15
+
+if.end15:                                         ; preds = %if.then13, %if.end
+  %aenv.0 = phi ptr [ %call14, %if.then13 ], [ %7, %if.end ]
+  %10 = ptrtoint ptr %8 to i64
+  %and.i78 = and i64 %10, 7
+  %cmp17 = icmp eq i64 %and.i78, 0
+  br i1 %cmp17, label %if.then19, label %if.end21
+
+if.then19:                                        ; preds = %if.end15
+  %call20 = tail call ptr @unison_jit_settle(ptr noundef %8) #6
+  br label %if.end21
+
+if.end21:                                         ; preds = %if.then19, %if.end15
+  %denv.0 = phi ptr [ %call20, %if.then19 ], [ %8, %if.end15 ]
+  %11 = ptrtoint ptr %denv.0 to i64
+  %and.i79 = and i64 %11, 7
+  %12 = load i32, ptr getelementptr inbounds (i8, ptr @unison_jit_EK, i64 20), align 4
+  %conv23 = sext i32 %12 to i64
+  %cmp24.not = icmp eq i64 %and.i79, %conv23
+  br i1 %cmp24.not, label %if.end30, label %land.lhs.true
+
+land.lhs.true:                                    ; preds = %if.end21
+  %call26 = call fastcc i32 @im_find(ptr noundef %denv.0, i64 noundef %key, ptr noundef nonnull %found, i32 noundef 0)
+  %cmp27.not = icmp eq i32 %call26, 0
+  br i1 %cmp27.not, label %if.end30, label %cleanup61
+
+if.end30:                                         ; preds = %land.lhs.true, %if.end21
+  %call31 = call fastcc i32 @im_find(ptr noundef %aenv.0, i64 noundef %key, ptr noundef nonnull %found, i32 noundef 0)
+  %cmp32.not = icmp eq i32 %call31, 1
+  br i1 %cmp32.not, label %if.end35, label %cleanup61
+
+if.end35:                                         ; preds = %if.end30
+  %13 = load ptr, ptr %found, align 8
+  %14 = ptrtoint ptr %13 to i64
+  %and.i80 = and i64 %14, 7
+  %cmp37 = icmp eq i64 %and.i80, 0
+  br i1 %cmp37, label %if.then39, label %if.end41
+
+if.then39:                                        ; preds = %if.end35
+  %call40 = call ptr @unison_jit_settle(ptr noundef %13) #6
+  store ptr %call40, ptr %found, align 8
+  br label %if.end41
+
+if.end41:                                         ; preds = %if.then39, %if.end35
+  %15 = load ptr, ptr %found, align 8
+  %16 = ptrtoint ptr %15 to i64
+  %and.i81 = and i64 %16, 7
+  %cmp43.not = icmp eq i64 %and.i81, 1
+  br i1 %cmp43.not, label %lor.lhs.false45, label %cleanup61
+
+lor.lhs.false45:                                  ; preds = %if.end41
+  %and.i82 = and i64 %16, -8
+  %17 = inttoptr i64 %and.i82 to ptr
+  %18 = load ptr, ptr %17, align 8
+  %19 = ptrtoint ptr %18 to i64
+  %20 = load i64, ptr getelementptr inbounds (i8, ptr @unison_jit_EK, i64 24), align 8
+  %cmp49.not = icmp eq i64 %20, %19
+  br i1 %cmp49.not, label %if.end52, label %cleanup61
+
+if.end52:                                         ; preds = %lor.lhs.false45
+  %payload54 = getelementptr inbounds i8, ptr %17, i64 8
+  %21 = load ptr, ptr %payload54, align 8
+  %var = getelementptr inbounds i8, ptr %21, i64 8
+  %22 = load atomic i64, ptr %var acquire, align 8
+  %23 = inttoptr i64 %22 to ptr
+  %and.i84 = and i64 %22, 7
+  %cmp57 = icmp eq i64 %and.i84, 0
+  br i1 %cmp57, label %cond.true, label %cleanup61
+
+cond.true:                                        ; preds = %if.end52
+  %call59 = call ptr @unison_jit_settle(ptr noundef %23) #6
+  br label %cleanup61
+
+cleanup61:                                        ; preds = %land.lhs.true, %if.end30, %lor.lhs.false45, %if.end41, %if.end52, %cond.true, %entry, %lor.lhs.false, %lor.lhs.false2
+  %retval.1 = phi ptr [ null, %lor.lhs.false2 ], [ null, %lor.lhs.false ], [ null, %entry ], [ null, %land.lhs.true ], [ null, %if.end30 ], [ null, %lor.lhs.false45 ], [ null, %if.end41 ], [ %call59, %cond.true ], [ %23, %if.end52 ]
+  call void @llvm.lifetime.end.p0(i64 8, ptr nonnull %found) #6
+  ret ptr %retval.1
+}
+
 declare void @llvm.lifetime.start.p0(i64 immarg, ptr nocapture) #1
 
-declare void @llvm.memcpy.p0.p0.i64(ptr noalias nocapture writeonly, ptr noalias nocapture readonly, i64, i1 immarg) #2
+declare ptr @unison_jit_settle(ptr noundef)
+
+define internal fastcc i32 @im_find(ptr noundef %m, i64 noundef %key, ptr noundef %out, i32 noundef %depth) #3 {
+entry:
+  br label %tailrecurse
+
+tailrecurse:                                      ; preds = %if.end27, %entry
+  %m.tr = phi ptr [ %m, %entry ], [ %11, %if.end27 ]
+  %depth.tr = phi i32 [ %depth, %entry ], [ %add, %if.end27 ]
+  %0 = ptrtoint ptr %m.tr to i64
+  %1 = trunc i64 %0 to i32
+  %conv = and i32 %1, 7
+  %2 = load i32, ptr getelementptr inbounds (i8, ptr @unison_jit_EK, i64 20), align 4
+  %cmp = icmp eq i32 %2, %conv
+  br i1 %cmp, label %cleanup33, label %if.end
+
+if.end:                                           ; preds = %tailrecurse
+  %3 = load i32, ptr getelementptr inbounds (i8, ptr @unison_jit_EK, i64 16), align 8
+  %cmp2 = icmp eq i32 %3, %conv
+  br i1 %cmp2, label %if.then4, label %if.end13
+
+if.then4:                                         ; preds = %if.end
+  %and.i47 = and i64 %0, -8
+  %4 = inttoptr i64 %and.i47 to ptr
+  %arrayidx = getelementptr inbounds i8, ptr %4, i64 16
+  %5 = load ptr, ptr %arrayidx, align 8
+  %6 = ptrtoint ptr %5 to i64
+  %cmp6.not = icmp eq i64 %6, %key
+  br i1 %cmp6.not, label %if.end9, label %cleanup33
+
+if.end9:                                          ; preds = %if.then4
+  %payload11 = getelementptr inbounds i8, ptr %4, i64 8
+  %7 = load ptr, ptr %payload11, align 8
+  store ptr %7, ptr %out, align 8
+  br label %cleanup33
+
+if.end13:                                         ; preds = %if.end
+  %8 = load i32, ptr getelementptr inbounds (i8, ptr @unison_jit_EK, i64 12), align 4
+  %cmp14 = icmp ne i32 %8, %conv
+  %cmp16 = icmp sgt i32 %depth.tr, 64
+  %or.cond = or i1 %cmp16, %cmp14
+  br i1 %or.cond, label %cleanup33, label %if.end19
+
+if.end19:                                         ; preds = %if.end13
+  %and.i49 = and i64 %0, -8
+  %9 = inttoptr i64 %and.i49 to ptr
+  %payload21 = getelementptr inbounds i8, ptr %9, i64 8
+  %10 = load ptr, ptr %payload21, align 8
+  %add = add nsw i32 %depth.tr, 1
+  %call23 = tail call fastcc i32 @im_find(ptr noundef %10, i64 noundef %key, ptr noundef %out, i32 noundef %add)
+  %cmp24.not = icmp eq i32 %call23, 0
+  br i1 %cmp24.not, label %if.end27, label %cleanup33
+
+if.end27:                                         ; preds = %if.end19
+  %arrayidx30 = getelementptr inbounds i8, ptr %9, i64 16
+  %11 = load ptr, ptr %arrayidx30, align 8
+  br label %tailrecurse
+
+cleanup33:                                        ; preds = %if.end19, %if.end13, %if.then4, %tailrecurse, %if.end9
+  %retval.1 = phi i32 [ 1, %if.end9 ], [ 0, %tailrecurse ], [ 0, %if.then4 ], [ -1, %if.end13 ], [ %call23, %if.end19 ]
+  ret i32 %retval.1
+}
+
+declare void @llvm.lifetime.end.p0(i64 immarg, ptr nocapture) #1
+
+declare void @llvm.memcpy.p0.p0.i64(ptr noalias nocapture writeonly, ptr noalias nocapture readonly, i64, i1 immarg) #4
 
 define internal fastcc void @mh_val(ptr noundef %s, i64 noundef %u, ptr noundef %b) #0 {
 entry:
@@ -82,7 +266,7 @@ if.end:                                           ; preds = %tailrecurse
   br i1 %cmp, label %if.then1, label %if.end3
 
 if.then1:                                         ; preds = %if.end
-  tail call void @unison_jit_murmur_fail(ptr noundef nonnull @.str, ptr noundef %b.tr) #5
+  tail call void @unison_jit_murmur_fail(ptr noundef nonnull @.str, ptr noundef %b.tr) #6
   store i32 0, ptr %ok, align 8
   br label %return
 
@@ -176,7 +360,7 @@ sw.bb15:                                          ; preds = %if.then6
   br label %return
 
 sw.default:                                       ; preds = %if.then6
-  tail call void @unison_jit_murmur_fail(ptr noundef nonnull @.str.1, ptr noundef %b.tr) #5
+  tail call void @unison_jit_murmur_fail(ptr noundef nonnull @.str.1, ptr noundef %b.tr) #6
   store i32 0, ptr %ok, align 8
   br label %return
 
@@ -273,10 +457,10 @@ if.else44.i:                                      ; preds = %if.else24.i
 if.then47.i:                                      ; preds = %if.else44.i
   %arrayidx50.i = getelementptr inbounds i8, ptr %2, i64 16
   %32 = load ptr, ptr %arrayidx50.i, align 8
-  %call51.i = tail call ptr @unison_jit_settle(ptr noundef %32) #5
+  %call51.i = tail call ptr @unison_jit_settle(ptr noundef %32) #6
   %arrayidx54.i = getelementptr inbounds i8, ptr %2, i64 24
   %33 = load ptr, ptr %arrayidx54.i, align 8
-  %call55.i = tail call ptr @unison_jit_settle(ptr noundef %33) #5
+  %call55.i = tail call ptr @unison_jit_settle(ptr noundef %33) #6
   %34 = ptrtoint ptr %call51.i to i64
   %and.i121 = and i64 %34, 7
   %cmp57.i = icmp eq i64 %and.i121, 0
@@ -290,7 +474,7 @@ lor.lhs.false.i:                                  ; preds = %if.then47.i
 
 if.then62.i:                                      ; preds = %lor.lhs.false.i, %if.then47.i
   %cond.i = phi ptr [ %call55.i, %lor.lhs.false.i ], [ %call51.i, %if.then47.i ]
-  tail call void @unison_jit_murmur_fail(ptr noundef nonnull @.str.3, ptr noundef %cond.i) #5
+  tail call void @unison_jit_murmur_fail(ptr noundef nonnull @.str.3, ptr noundef %cond.i) #6
   store i32 0, ptr %ok, align 8
   br label %return
 
@@ -393,7 +577,7 @@ if.then105.i:                                     ; preds = %if.else101.i
   %mul2.i.i96 = mul i64 %xor3.i.i99, -4132994306676758123
   %xor3.i.i97 = xor i64 %mul2.i.i96, -8896591755956199400
   store i64 %xor3.i.i97, ptr %s, align 8
-  tail call void @unison_jit_lv_each(ptr noundef nonnull %call102.i, i32 noundef 1, i32 noundef 0, ptr noundef nonnull @mh_val_closure, ptr noundef nonnull %s) #5
+  tail call void @unison_jit_lv_each(ptr noundef nonnull %call102.i, i32 noundef 1, i32 noundef 0, ptr noundef nonnull @mh_val_closure, ptr noundef nonnull %s) #6
   br label %return
 
 if.else106.i:                                     ; preds = %if.else101.i
@@ -477,12 +661,12 @@ for.body146.i:                                    ; preds = %land.rhs141.i
   br i1 %cmp139.i, label %land.rhs141.i, label %return
 
 if.else153.i:                                     ; preds = %if.else106.i, %land.lhs.true129.i
-  tail call void @unison_jit_murmur_fail(ptr noundef nonnull @.str.4, ptr noundef %b.tr) #5
+  tail call void @unison_jit_murmur_fail(ptr noundef nonnull @.str.4, ptr noundef %b.tr) #6
   store i32 0, ptr %ok, align 8
   br label %return
 
 if.else160.i:                                     ; preds = %if.else88.i
-  tail call void @unison_jit_murmur_fail(ptr noundef nonnull @.str.5, ptr noundef %b.tr) #5
+  tail call void @unison_jit_murmur_fail(ptr noundef nonnull @.str.5, ptr noundef %b.tr) #6
   store i32 0, ptr %ok, align 8
   br label %return
 
@@ -490,13 +674,9 @@ return:                                           ; preds = %for.body118.i, %for
   ret void
 }
 
-declare void @llvm.lifetime.end.p0(i64 immarg, ptr nocapture) #1
-
 declare void @unison_jit_murmur_fail(ptr noundef, ptr noundef)
 
-declare ptr @unison_jit_settle(ptr noundef)
-
-define internal fastcc ptr @rope_of(ptr nocapture noundef readonly %K, ptr noundef %x) #4 {
+define internal fastcc ptr @rope_of(ptr nocapture noundef readonly %K, ptr noundef %x) #5 {
 entry:
   %0 = ptrtoint ptr %x to i64
   %and.i = and i64 %0, 7
@@ -579,17 +759,17 @@ sw.bb3.i:                                         ; preds = %entry
 
 rope_size.exit:                                   ; preds = %entry, %sw.bb.i, %sw.bb3.i
   %retval.0.i = phi i64 [ %shr.i, %sw.bb3.i ], [ %7, %sw.bb.i ], [ 0, %entry ]
-  call void @llvm.lifetime.start.p0(i64 8, ptr nonnull %off) #5
+  call void @llvm.lifetime.start.p0(i64 8, ptr nonnull %off) #6
   %cmp107 = icmp sgt i64 %retval.0.i, 0
   br i1 %cmp107, label %for.body, label %for.cond.cleanup
 
 for.cond.cleanup:                                 ; preds = %while.end, %rope_size.exit
-  call void @llvm.lifetime.end.p0(i64 8, ptr nonnull %off) #5
+  call void @llvm.lifetime.end.p0(i64 8, ptr nonnull %off) #6
   ret void
 
 for.body:                                         ; preds = %rope_size.exit, %while.end
   %i.0108 = phi i64 [ %add, %while.end ], [ 0, %rope_size.exit ]
-  %call1 = call ptr @unison_jit_rope_chunk_at(ptr noundef nonnull @unison_jit_TK, ptr noundef %r, i64 noundef %i.0108, ptr noundef nonnull %off) #5
+  %call1 = call ptr @unison_jit_rope_chunk_at(ptr noundef nonnull @unison_jit_TK, ptr noundef %r, i64 noundef %i.0108, ptr noundef nonnull %off) #6
   %11 = ptrtoint ptr %call1 to i64
   %and.i.i94 = and i64 %11, -8
   %12 = inttoptr i64 %and.i.i94 to ptr
@@ -742,17 +922,17 @@ sw.bb3.i:                                         ; preds = %entry
 
 rope_size.exit:                                   ; preds = %entry, %sw.bb.i, %sw.bb3.i
   %retval.0.i = phi i64 [ %shr.i, %sw.bb3.i ], [ %7, %sw.bb.i ], [ 0, %entry ]
-  call void @llvm.lifetime.start.p0(i64 8, ptr nonnull %off) #5
+  call void @llvm.lifetime.start.p0(i64 8, ptr nonnull %off) #6
   %cmp34 = icmp sgt i64 %retval.0.i, 0
   br i1 %cmp34, label %for.body, label %for.cond.cleanup
 
 for.cond.cleanup:                                 ; preds = %for.cond.cleanup6, %rope_size.exit
-  call void @llvm.lifetime.end.p0(i64 8, ptr nonnull %off) #5
+  call void @llvm.lifetime.end.p0(i64 8, ptr nonnull %off) #6
   ret void
 
 for.body:                                         ; preds = %rope_size.exit, %for.cond.cleanup6
   %i.035 = phi i64 [ %add, %for.cond.cleanup6 ], [ 0, %rope_size.exit ]
-  %call1 = call ptr @unison_jit_rope_chunk_at(ptr noundef nonnull @unison_jit_BK, ptr noundef %r, i64 noundef %i.035, ptr noundef nonnull %off) #5
+  %call1 = call ptr @unison_jit_rope_chunk_at(ptr noundef nonnull @unison_jit_BK, ptr noundef %r, i64 noundef %i.035, ptr noundef nonnull %off) #6
   %11 = ptrtoint ptr %call1 to i64
   %and.i.i21 = and i64 %11, -8
   %12 = inttoptr i64 %and.i.i21 to ptr
@@ -805,7 +985,7 @@ for.body7:                                        ; preds = %for.body7.lr.ph, %f
   br i1 %exitcond.not, label %for.cond.cleanup6, label %for.body7
 }
 
-define internal fastcc ptr @deque_of(ptr noundef %list) #4 {
+define internal fastcc ptr @deque_of(ptr noundef %list) #5 {
 entry:
   %0 = ptrtoint ptr %list to i64
   %and.i = and i64 %0, 7
@@ -868,7 +1048,7 @@ lor.lhs.false:                                    ; preds = %entry
   br i1 %cmp2.not, label %if.end, label %if.then
 
 if.then:                                          ; preds = %lor.lhs.false, %entry
-  tail call void @unison_jit_murmur_fail(ptr noundef nonnull @.str.6, ptr noundef %item) #5
+  tail call void @unison_jit_murmur_fail(ptr noundef nonnull @.str.6, ptr noundef %item) #6
   %ok = getelementptr inbounds i8, ptr %env, i64 8
   store i32 0, ptr %ok, align 8
   br label %cleanup
@@ -886,7 +1066,7 @@ cleanup:                                          ; preds = %if.end, %if.then
   ret void
 }
 
-define internal fastcc ptr @wrapped_of(ptr noundef %x, ptr nocapture noundef readonly %w) #4 {
+define internal fastcc ptr @wrapped_of(ptr noundef %x, ptr nocapture noundef readonly %w) #5 {
 entry:
   %0 = load i32, ptr getelementptr inbounds (i8, ptr @unison_jit_AK, i64 120), align 8
   %tobool.not.i = icmp eq i32 %0, 0
@@ -942,6 +1122,7 @@ declare ptr @unison_jit_rope_chunk_at(ptr noundef, ptr noundef, i64 noundef, ptr
 
 attributes #0 = { nounwind }
 attributes #1 = { mustprogress nocallback nofree nosync nounwind willreturn memory(argmem: readwrite) }
-attributes #2 = { mustprogress nocallback nofree nounwind willreturn memory(argmem: readwrite) }
-attributes #4 = { inlinehint mustprogress nofree norecurse nosync nounwind willreturn memory(read, inaccessiblemem: none) }
-attributes #5 = { nounwind }
+attributes #3 = { nofree nosync nounwind memory(readwrite, inaccessiblemem: none) }
+attributes #4 = { mustprogress nocallback nofree nounwind willreturn memory(argmem: readwrite) }
+attributes #5 = { inlinehint mustprogress nofree norecurse nosync nounwind willreturn memory(read, inaccessiblemem: none) }
+attributes #6 = { nounwind }

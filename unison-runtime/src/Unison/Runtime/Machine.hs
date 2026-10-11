@@ -57,9 +57,11 @@ import Unison.Runtime.JIT.Frames
 import Unison.Runtime.JIT.Native
 import Unison.Runtime.JIT.Pool (currentPool)
 import Foreign.Storable qualified as Store
+import Data.Primitive.SmallArray (newSmallArray)
 import GHC.Conc as STM (unsafeIOToSTM)
 import GHC.Float (double2Float, float2Double)
 import GHC.Stack
+import Unsafe.Coerce (unsafeCoerce)
 import Unison.Builtin.Decls (exceptionRef)
 import Unison.Builtin.Decls qualified as Rf
 import Unison.Prelude hiding (Text)
@@ -173,7 +175,7 @@ topAEnv combs rfTy rfTm
       ahv <- extendPAp clo . BoxedVal $ Affine (setSingleton n) mempty ar
       writeIORef r ahv
       pure (EC.mapSingleton n ar, AMark 0 mempty ar)
-topAEnv _ _ _ = pure (mempty, id)
+topAEnv _ _ _ = pure (emptyAEnv, id)
 
 topHEnv ::
   EnumMap Word64 MCombs ->
@@ -181,7 +183,7 @@ topHEnv ::
   M.Map Reference Word64 ->
   IO (HEnv, K -> K)
 topHEnv combs rfTy rfTm =
-  first (flip HEnv mempty) <$> topAEnv combs rfTy rfTm
+  first (flip HEnv emptyDEnv) <$> topAEnv combs rfTy rfTm
 
 -- Entry point for evaluating a numbered combinator.
 -- An optional callback for the base of the stack may be supplied.
@@ -252,7 +254,7 @@ apply1 ::
 apply1 callback env threadTracker clo = do
   stk <- alloc
   (tick, cancelTicks) <- startTicker $ profiler env
-  apply tick env mempty threadTracker stk k0 True ZArgs clo
+  apply tick env (HEnv emptyAEnv emptyDEnv) threadTracker stk k0 True ZArgs clo
     `finally` cancelTicks
   where
     k0 = CB $ Hook (\stk -> callback $ packXStack stk)
@@ -344,14 +346,14 @@ exec _ _henv !_activeThreads !stk !k _ (Discard i) = do
   bpeekOff stk i >>= \case
     Affine _ _ r -> do
       (aenv, stk, k) <- abortCont stk k r
-      henv <- evaluate $ HEnv aenv mempty
+      henv <- evaluate $ HEnv aenv emptyDEnv
       pure (False, henv, stk, k)
     _ -> die [] "Discard called with bad handler reference"
 exec _env henv0 !_activeThreads !stk !k _ (InLocal i) = do
   bpeekOff stk i >>= \case
     Affine _ aenv _ -> do
       (stk, a) <- saveArgs stk
-      henv <- evaluate $ HEnv aenv mempty
+      henv <- evaluate $ HEnv aenv emptyDEnv
       pure (False, henv, stk, Local henv0 a k)
     v -> die [] $ "InLocal called with bad handler reference\n" ++ show v
 exec env henv !_activeThreads !stk !k _ (Prim1 CACH i)
@@ -971,7 +973,9 @@ runNative !yld env henv0 !activeThreads !stk0 !k0 fn0 = go fn0 henv0 stk0 k0
       pool <- currentPool
       let !size = sizeofMutableArray bstk
       when counting $ countEntry (castFunPtrToPtr fn)
-      status <- enterNative fn ustk bstk pool size ap fp sp
+      -- the handler environment, in a box the collector knows about
+      henvBox <- newSmallArray 1 (unsafeCoerce henv :: Closure)
+      status <- enterNative fn ustk bstk pool henvBox size ap fp sp
       ap' <- outAp ustk size
       fp' <- outFp ustk size
       sp' <- outSp ustk size
@@ -1373,7 +1377,7 @@ yield !yld env henv0 !activeThreads !stk = leap
       stk <- bump stk
       bpoke stk $ Data1 Rf.effectRef (PackedTag 0) v
       stk <- adjustArgs stk a
-      henv <- evaluate $ HEnv aenv mempty
+      henv <- evaluate $ HEnv aenv emptyDEnv
       apply yld env henv activeThreads stk k False (VArg1 0) h
     leap (Push fsz asz cix f nx cell k) = do
       stk <- restoreFrame stk fsz asz

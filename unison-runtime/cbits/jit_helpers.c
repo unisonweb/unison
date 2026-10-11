@@ -215,3 +215,47 @@ static JitNat mh_run(StgWord u, StgClosure *b) {
 // Generated code calls this with a stack slot's two halves.
 JitNat unison_jit_murmur(int64_t u, void *b) { return mh_run((StgWord)u, (StgClosure *)b); }
 
+
+// ---------------------------------------------------------------------------
+// Ability requests: the handler for an ability number, from the handler
+// environment ("The handler environment" in internals.md).
+
+// Whether `key` is in the map: 1 and the value through `out`, 0 when it is
+// absent, -1 when a node on the way isn't an evaluated IntMap constructor.
+// Every node is visited rather than following the prefix bits, which makes
+// the walk independent of the prefix encoding (it changed in containers
+// 0.7); the maps hold a handful of handlers.
+static int im_find(StgClosure *m, int64_t key, StgClosure **out, int depth) {
+  int t = LTAG(m);
+  if (t == EK.nil_tag) return 0;
+  if (t == EK.tip_tag) {
+    if (LW(m, 1) != key) return 0;
+    *out = LP(m, 0);
+    return 1;
+  }
+  if (t != EK.bin_tag || depth > 64) return -1;
+  int r = im_find(LP(m, 0), key, out, depth + 1);
+  if (r != 0) return r;
+  return im_find(LP(m, 1), key, out, depth + 1);
+}
+
+void *unison_jit_resolve_dyn(void *henv, int64_t key) {
+  StgClosure *h = henv, *found;
+  if (!EK.ok || LTAG(h) != EK.henv_tag || (StgWord)LUN(h)->header.info != EK.henv_info) return NULL;
+  // the record's fields are lazy: an evaluated one may still be reached
+  // through an indirection (a CAF for the empty map, say)
+  StgClosure *aenv = LP(h, 0), *denv = LP(h, 1);
+  if (LTAG(aenv) == 0) aenv = unison_jit_settle(aenv);
+  if (LTAG(denv) == 0) denv = unison_jit_settle(denv);
+  // a non-affine handler for the key shadows an affine one
+  if (LTAG(denv) != EK.nil_tag && im_find(denv, key, &found, 0) != 0) return NULL;
+  if (im_find(aenv, key, &found, 0) != 1) return NULL;
+  // the Tip's value field is lazy: the pointer to the ref may be untagged
+  if (LTAG(found) == 0) found = unison_jit_settle(found);
+  if (LTAG(found) != 1 || (StgWord)LUN(found)->header.info != EK.stref_info) return NULL;
+  StgMutVar *mv = (StgMutVar *)LP(found, 0);
+  StgClosure *v = (StgClosure *)__atomic_load_n((StgWord *)&mv->var, __ATOMIC_ACQUIRE);
+  // the interpreter writes the ref with whatever pointer it holds, which
+  // may be an untagged pointer to an evaluated closure, or an indirection
+  return LTAG(v) == 0 ? unison_jit_settle(v) : v;
+}

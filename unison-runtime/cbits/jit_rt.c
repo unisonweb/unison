@@ -30,7 +30,7 @@ int64_t unison_jit_ctx_layout(int64_t *out, int64_t n) {
       offsetof(UnisonJitCtx, n_frames),    offsetof(UnisonJitCtx, max_frames),
       offsetof(UnisonJitCtx, cstack_limit), offsetof(UnisonJitCtx, cap),
       offsetof(UnisonJitCtx, budget_end),  offsetof(UnisonJitCtx, hp),
-      offsetof(UnisonJitCtx, hp_lim),
+      offsetof(UnisonJitCtx, hp_lim),      offsetof(UnisonJitCtx, henv),
   };
   int64_t count = sizeof offs / sizeof offs[0];
   for (int64_t i = 0; i < n && i < count; i++) out[i] = offs[i];
@@ -182,8 +182,8 @@ void *unison_jit_name(UnisonJitCtx *ctx, void *fun, int64_t n, int64_t u0, void 
 // defines each name at its address before adding the module. Fills up to n
 // entries and returns how many there are.
 int64_t unison_jit_table_addresses(const char **names, void **addrs, int64_t n) {
-  static const char *const tnames[] = {"unison_jit_LF", "unison_jit_TK", "unison_jit_BK", "unison_jit_AK", "unison_jit_HK"};
-  void *taddrs[] = {&unison_jit_LF, &unison_jit_TK, &unison_jit_BK, &unison_jit_AK, &unison_jit_HK};
+  static const char *const tnames[] = {"unison_jit_LF", "unison_jit_TK", "unison_jit_BK", "unison_jit_AK", "unison_jit_HK", "unison_jit_EK"};
+  void *taddrs[] = {&unison_jit_LF, &unison_jit_TK, &unison_jit_BK, &unison_jit_AK, &unison_jit_HK, &unison_jit_EK};
   int64_t count = sizeof taddrs / sizeof taddrs[0];
   for (int64_t i = 0; i < n && i < count; i++) names[i] = tnames[i], addrs[i] = taddrs[i];
   return count;
@@ -3211,7 +3211,7 @@ typedef int64_t (*UnisonNativeFn)(UnisonJitCtx *ctx, int64_t ap, int64_t fp, int
 //
 // This is the round trip's fixed cost, so it does as little as it can: one
 // thread-local lookup for the context, one for the capability, no allocation.
-int64_t unison_jit_enter(UnisonNativeFn fn, int64_t *ustk, void **bstk, void **pool,
+int64_t unison_jit_enter(UnisonNativeFn fn, int64_t *ustk, void **bstk, void **pool, void **henv,
                          int64_t stack_size, int64_t ap, int64_t fp, int64_t sp) {
   int64_t *out = ustk + stack_size;
   {
@@ -3227,6 +3227,7 @@ int64_t unison_jit_enter(UnisonNativeFn fn, int64_t *ustk, void **bstk, void **p
   ctx->ustk = ustk;
   ctx->bstk = bstk;
   ctx->pool = pool;
+  ctx->henv = henv[0];
   ctx->stack_size = stack_size;
   ctx->hplim = hplim_of(cap);
   ctx->max_sp = sp;
@@ -3597,6 +3598,75 @@ int64_t unison_jit_murmur_test_ffi(void **elems, int64_t u, int64_t unboxed, int
   JitNat r = unison_jit_murmur(unboxed ? u : -1, b);
   *out = r.v;
   return r.ok;
+}
+
+// ---------------------------------------------------------------------------
+// The handler environment: learns HEnv, IntMap, STRef and GAffine from
+// samples and checks unison_jit_resolve_dyn on them. elems: [0] an HEnv
+// whose aenv has keys 3, 10 and 77 and an empty denv, [1] that aenv, [2] an
+// HEnv with the same aenv and key 10 in denv, [3] the STRef box of key 3's
+// ref, [4] the value that ref holds, [5] the value key 10's ref holds,
+// [6] an empty map, [7] an Affine closure over key 3's ref, [8] its set.
+// Returns 1, or the number of the check that failed.
+
+static int im_find(StgClosure *m, int64_t key, StgClosure **out, int depth); // jit_helpers.c, included below
+
+static int is_mutvar(StgClosure *c) {
+  if (c == NULL || LTAG(c) != 0) return 0;
+  const StgInfoTable *info = GET_INFO(c);
+  return info == &stg_MUT_VAR_CLEAN_info || info == &stg_MUT_VAR_DIRTY_info;
+}
+
+int64_t unison_jit_env_init(void **elems) {
+  EK.ok = 0;
+  StgClosure *h = unison_jit_settle(elems[0]), *aenv = unison_jit_settle(elems[1]), *h2 = unison_jit_settle(elems[2]);
+  StgClosure *box = unison_jit_settle(elems[3]), *v3 = unison_jit_settle(elems[4]), *v10 = unison_jit_settle(elems[5]);
+  StgClosure *empty = unison_jit_settle(elems[6]), *aff = unison_jit_settle(elems[7]), *set = unison_jit_settle(elems[8]);
+  if (LTAG(h) == 0 || LTAG(aenv) == 0 || LTAG(h2) == 0 || LTAG(box) == 0 || LTAG(empty) == 0 || LTAG(aff) == 0 || LTAG(set) == 0) return 2;
+  const StgInfoTable *hi = get_itbl(LUN(h));
+  if (hi->layout.payload.ptrs != 2 || hi->layout.payload.nptrs != 0) return 3;
+  if (LUN(LP(h, 0)) != LUN(aenv)) return 4;
+  EK.henv_info = (StgWord)LUN(h)->header.info;
+  EK.henv_tag = LTAG(h);
+  // the constructors: the empty map is Nil (no fields; GHC pads a nullary
+  // constructor with one non-pointer word); the root of a three-key map is
+  // a Bin (the two subtrees, then the prefix word, or prefix and mask
+  // before containers 0.7); its leftmost descendant is a Tip
+  const StgInfoTable *ni = get_itbl(LUN(empty));
+  if (ni->layout.payload.ptrs != 0 || ni->layout.payload.nptrs > 1) return 5;
+  EK.nil_tag = LTAG(empty);
+  const StgInfoTable *bi = get_itbl(LUN(aenv));
+  if (bi->layout.payload.ptrs != 2 || bi->layout.payload.nptrs < 1 || bi->layout.payload.nptrs > 2) return 6;
+  EK.bin_tag = LTAG(aenv);
+  StgClosure *t = aenv;
+  for (int i = 0; i < 64 && LTAG(t) == EK.bin_tag; i++) t = unison_jit_settle(LP(t, 0));
+  if (LTAG(t) == 0 || LTAG(t) == EK.bin_tag) return 7;
+  const StgInfoTable *ti = get_itbl(LUN(t));
+  if (ti->layout.payload.ptrs != 1 || ti->layout.payload.nptrs != 1) return 8;
+  EK.tip_tag = LTAG(t);
+  if (EK.tip_tag == EK.bin_tag || EK.tip_tag == EK.nil_tag || EK.bin_tag == EK.nil_tag) return 9;
+  // the ref: an STRef box around a MutVar#
+  const StgInfoTable *si = get_itbl(LUN(box));
+  if (LTAG(box) != 1 || si->layout.payload.ptrs != 1 || si->layout.payload.nptrs != 0) return 10;
+  if (!is_mutvar(LP(box, 0))) return 11;
+  EK.stref_info = (StgWord)LUN(box)->header.info;
+  // the Affine closure: the set, the map, the MutVar# itself
+  const StgInfoTable *ai = get_itbl(LUN(aff));
+  if (ai->layout.payload.ptrs != 3 || ai->layout.payload.nptrs != 0) return 12;
+  if (LUN(LP(aff, 0)) != LUN(set) || LUN(LP(aff, 1)) != LUN(aenv) || LP(aff, 2) != LP(box, 0)) return 13;
+  EK.affine_info = (StgWord)LUN(aff)->header.info;
+  EK.affine_tag = LTAG(aff);
+  EK.ok = 1;
+  // the lookups, through the walk itself
+  StgClosure *f;
+  if (im_find(aenv, 3, &f, 0) != 1 || LUN(f) != LUN(box)) return 14;
+  if (im_find(aenv, 10, &f, 0) != 1 || im_find(aenv, 77, &f, 0) != 1) return 15;
+  if (im_find(aenv, 1, &f, 0) != 0 || im_find(aenv, 11, &f, 0) != 0 || im_find(aenv, 100, &f, 0) != 0 || im_find(empty, 3, &f, 0) != 0) return 16;
+  if (LUN(unison_jit_resolve_dyn(h, 3)) != LUN(v3) || LUN(unison_jit_resolve_dyn(h, 10)) != LUN(v10)) return 17;
+  if (unison_jit_resolve_dyn(h, 4) != NULL || unison_jit_resolve_dyn(h, 0) != NULL) return 18;
+  if (unison_jit_resolve_dyn(h2, 10) != NULL || LUN(unison_jit_resolve_dyn(h2, 3)) != LUN(v3)) return 19;
+  if (unison_jit_resolve_dyn(aenv, 3) != NULL) return 20;
+  return 1;
 }
 
 // ---------------------------------------------------------------------------

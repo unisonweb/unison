@@ -36,6 +36,8 @@ module Unison.Runtime.Stack
     AffineRef (..),
     AEnv,
     DEnv,
+    emptyDEnv,
+    emptyAEnv,
     HEnv (..),
     closureTag,
     formDataReplaced,
@@ -363,6 +365,19 @@ type AEnv = EnumMap Word64 AffineRef
 
 -- dynamic environment
 type DEnv = EnumMap Word64 Val
+
+-- The empty dynamic environment, as one shared value. HEnv's fields are
+-- lazy, so `HEnv aenv mempty` would store a thunk for the map in an
+-- unoptimized build; the JIT's request code reads the environment from
+-- native code and leaves a request to the interpreter when a field isn't
+-- an evaluated map, so the interpreter builds its environments with this.
+emptyDEnv :: DEnv
+emptyDEnv = EC.mapFromList []
+{-# NOINLINE emptyDEnv #-}
+
+emptyAEnv :: AEnv
+emptyAEnv = EC.mapFromList []
+{-# NOINLINE emptyAEnv #-}
 
 -- Handler environment.
 --

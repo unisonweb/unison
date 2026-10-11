@@ -15,6 +15,7 @@ module Unison.Runtime.JIT.Layout
     probeNames,
     probeArrays,
     probeMurmur,
+    probeEnv,
   )
 where
 
@@ -27,6 +28,8 @@ import Text.Read (readMaybe)
 import Data.Bits (shiftR, xor, (.&.), (.|.))
 import Data.Primitive.Array (MutableArray, arrayFromList, newArray, readArray, writeArray)
 import Data.IORef (newIORef)
+import GHC.IORef (IORef (..))
+import Unison.Util.EnumContainers qualified as EC
 import Data.Sequence qualified as Seq
 import Data.Primitive.ByteArray (byteArrayFromList, newByteArray)
 import Data.Atomics qualified as Atomic
@@ -41,7 +44,7 @@ import Unison.Runtime.ANF.MurmurHash.Untyped (hash64ValueUntyped)
 import Unison.Runtime.Referenced (Referenced (Plain))
 import Unison.Reference (Reference)
 import Unison.Runtime.JIT.Strict (Pair (..))
-import Unison.Runtime.JIT.Native (arrayInit, bytesCheck, bytesInit, bytesTest, closureInit, listCheck, listInit, listTest, murmurInit, murmurTest, nameTest, probeClosure, textCheck, textInit, textTest)
+import Unison.Runtime.JIT.Native (envInit, arrayInit, bytesCheck, bytesInit, bytesTest, closureInit, listCheck, listInit, listTest, murmurInit, murmurTest, nameTest, probeClosure, textCheck, textInit, textTest)
 import Unison.Runtime.MCode (CombIx (..), GCombInfo (..), GSection (..), noNativeCell)
 import Unison.Runtime.Stack
 import Unison.Runtime.TypeTags qualified as TT
@@ -297,6 +300,50 @@ probeMurmur ls = do
       pure $ case catMaybes (rs ++ rs2) of
         [] -> Right ()
         e : _ -> Left e
+
+-- | The handler environment: teaches the request helpers the layouts of
+-- @HEnv@, the @IntMap@ under @EnumMap@, the @STRef@ box inside an
+-- @AffineRef@ and the @Affine@ closure, from samples, and checks the
+-- native lookup against what the interpreter's @resolve@ would find
+-- (see unison_jit_env_init in jit_rt.c).
+probeEnv :: IO (Either String ())
+probeEnv = do
+  let !ref = Ty.booleanRef
+      !v3 = Enum ref (PackedTag 3)
+      !v10 = Enum ref (PackedTag 10)
+      !v77 = Enum ref (PackedTag 77)
+  r3 <- newIORef v3
+  r10 <- newIORef v10
+  r77 <- newIORef v77
+  let IORef box3 = r3
+      !aenv = EC.mapFromList [(3 :: Word64, ARef r3), (10, ARef r10), (77, ARef r77)]
+      !denv2 = EC.mapFromList [(10 :: Word64, BoxedVal v10)]
+      !empty = EC.mapFromList [] :: EC.EnumMap Word64 AffineRef
+      !set3 = EC.setSingleton (3 :: Word64)
+  _ <- evaluate emptyDEnv
+  h1 <- evaluate (HEnv aenv emptyDEnv)
+  h2 <- evaluate (HEnv aenv denv2)
+  aff <- evaluate (Affine set3 aenv (ARef r3))
+  arr <- newArray 9 (any' h1) :: IO (MutableArray RealWorld Any)
+  let put i v = evaluate v >>= writeArray arr i
+  put 0 (any' h1)
+  put 1 (any' aenv)
+  put 2 (any' h2)
+  put 3 (any' box3)
+  put 4 (any' v3)
+  put 5 (any' v10)
+  put 6 (any' empty)
+  put 7 (any' aff)
+  put 8 (any' set3)
+  ok <- envInit arr
+  if ok == 1
+    then pure (Right ())
+    else do
+      dbg <- forM [any' empty, any' aenv, any' box3, any' h1] $ \x -> do
+        a <- newArray 1 x :: IO (MutableArray RealWorld Any)
+        evaluate x >>= writeArray a 0
+        probeClosure a
+      pure (Left ("the handler environment is not what the request helpers expect (check " ++ show ok ++ "; " ++ show dbg ++ ")"))
 
 -- | Lists: teaches the C helpers (jit_rt.c) the constructors of
 -- Unison.Util.Deque from samples, checks the structure of a range of lists
