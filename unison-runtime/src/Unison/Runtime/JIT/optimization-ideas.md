@@ -118,15 +118,6 @@ read is safe; on return `runNative` reads the current pair back instead of resum
 one it entered with. The tests for it are in `jit-tests.md` already (`countingStore`,
 `boundedStore`): they pass through the exit today.
 
-### `handle` itself
-
-`Reset` with an affine handler needs a `MutVar#`, an `Affine` closure and an extended partial
-application (allocations of known layouts), an insert into `aenv` (building `IntMap` nodes
-natively, or a helper), an `AMark` record kind, and the pure-case dispatch when the thunk
-returns (a closure call to the handler with `Data1 effectRef 0 v`). Worth it when `handle`
-runs per iteration: 445 ns per `handle` with two requests on the suite's row, against 35 ns
-per request. `Discard` (abort cases, caught exceptions) is a non-local exit and stays one.
-
 ### Partial applications of function values
 
 A partial application is built natively when the function is known at code generation. A
@@ -213,6 +204,17 @@ cell by cell, so digits that are one object (an array with an offset so pops don
 the thing to try. `Unison.Util.Skews` (two skew binary lists back to back) is in the same
 package as a possible alternative: it compiles, nothing uses it, and it hasn't been measured.
 Any change has to be made in the C helpers too (`UNISON_JIT_STRESS=lists=N`).
+
+### `handle` itself
+
+Low priority (decided 2026-10-11): `Reset` runs once per evaluation of a `handle`, affine or
+not, and only shows when the `handle` itself is in a hot loop; the ceiling is a few hundred
+nanoseconds per iteration. `Reset` with an affine handler needs a `MutVar#`, an `Affine` closure and an extended partial
+application (allocations of known layouts), an insert into `aenv` (building `IntMap` nodes
+natively, or a helper), an `AMark` record kind, and the pure-case dispatch when the thunk
+returns (a closure call to the handler with `Data1 effectRef 0 v`). Worth it when `handle`
+runs per iteration: 445 ns per `handle` with two requests on the suite's row, against 35 ns
+per request. `Discard` (abort cases, caught exceptions) is a non-local exit and stays one.
 
 ### Open measurements
 
