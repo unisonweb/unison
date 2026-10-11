@@ -270,6 +270,18 @@ handleLoop acc n = if n == 0 then acc else
   r = runStore 1 '(Store.get + Store.get)
   handleLoop (acc + r) (n - 1)
 
+-- a handler whose put case performs a request of an outer ability
+countingStore : s -> '{Store s, Counter, g} a ->{Counter, g} a
+countingStore s thunk =
+  h : s -> Request {Store s} a ->{Counter} a
+  h s = cases
+    { a } -> a
+    { Store.get -> k } -> handle k s with h s
+    { Store.put s' -> k } ->
+      _ = Counter.next
+      handle k () with h s'
+  handle !thunk with h s
+
 jitSuite : '{IO, Exception} ()
 jitSuite = do
   printTime "Sum 0 to 1 million" 1 (n -> repeat n do sumTo 1000000)
@@ -313,6 +325,7 @@ jitSuite = do
   printTime "Counter: 100000 requests" 1 (n -> repeat n do runCounter 0 '(sumNext 0 100000))
   printTime "Store: get and put, 100000 iterations" 1 (n -> repeat n do runStore 0 '(loopStore 100000))
   printTime "handle installed per iteration, 10000 iterations" 1 (n -> repeat n do handleLoop 0 10000)
+  printTime "Store whose put requests an outer Counter, 100000 iterations" 1 (n -> repeat n do runCounter 0 '(countingStore 0 '(loopStore 100000)))
   printTime "Bytes: decodeNat64be walk over 80000 bytes" 1 let
     b = bytesAppend 40000 (Bytes.fromList [104, 105])
     n -> repeat n do bytesDecode b

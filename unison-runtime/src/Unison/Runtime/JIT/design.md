@@ -93,7 +93,9 @@ data Exit
 | --- | --- |
 | Any instruction without a native version | call-out, re-enter after the instruction |
 | Unsupported control *section* (`Jump`, `Die`, …), or `Capture` / `Discard` / `Reset` | resume at that section |
-| An ability request whose number the environment doesn't map to an affine handler, or an affine handler's `InLocal` whose case observes the environment ([Ability requests](internals.md#ability-requests)) | resume at the section |
+| An ability request whose number the environment doesn't map to an affine handler ([Ability requests](internals.md#ability-requests)) | resume at the section |
+| An affine handler's `InLocal` when the helper refuses the closure or as many environment switches are in force as an exit can hand back | call-out, re-enter after the instruction (the `Local` frame is then the interpreter's) |
+| An exit of either kind inside a handler case whose environment switch is native | the exiting function also writes a `Local` frame record carrying the environment to switch back to, which the interpreter rebuilds as a `Local` frame |
 | A call native code can't make, in a `Let` binding: the callee isn't compiled, or it's an `App` of a function value in one of the [cases left to the interpreter](#calling-function-values) | record the `Push` frame for the `Let` body, resume at the binding. Native code is re-entered at the `Let` body when the callee returns. |
 | The same, in tail position | resume at the `App` / `Call` section |
 | Unison stack needs to grow | `GrowStack`: the function exits at its entry check, before doing anything else. The interpreter grows the stack and calls the same function again. See [Stack growth and preemption](#stack-growth-and-preemption). |
