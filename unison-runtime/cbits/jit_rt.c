@@ -1,5 +1,9 @@
 // Runtime helpers for JIT-compiled code, and the pieces of the GHC runtime it needs.
 // See unison-runtime/src/Unison/Runtime/JIT/design.md.
+//
+// The build doesn't know this file depends on jit_rt.h and jit_internal.h (Cabal tracks C
+// sources by content, not their includes): after changing a header, change this file too,
+// or the stale object stays in the binary (see development.md).
 
 #include "Rts.h"
 #include "jit_rt.h"

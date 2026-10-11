@@ -1047,7 +1047,7 @@ nativeOutWords = 28
 -- per @Local@ frame record it wrote (see @pushRecord@ in Machine.hs). Must
 -- match UNISON_JIT_OUT_PTRS in jit_rt.h.
 nativeOutPtrs :: Int
-nativeOutPtrs = 9
+nativeOutPtrs = 33
 
 -- | The slots of a boxed stack: its size less the out-area.
 bstkSlots :: MutableArray RealWorld Closure -> Int

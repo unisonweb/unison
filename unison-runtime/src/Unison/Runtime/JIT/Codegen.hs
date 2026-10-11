@@ -2998,7 +2998,7 @@ genInLocal fe d i rest sect = do
 -- | Switches in force at once that an exit can hand back; must match
 -- UNISON_JIT_LOCALS in jit_rt.h.
 nativeLocals :: Int
-nativeLocals = 8
+nativeLocals = 32
 
 -- | The end of an environment switch, at the case's @Yield@: the old
 -- environment goes back into @Ctx@ and the switch count down.

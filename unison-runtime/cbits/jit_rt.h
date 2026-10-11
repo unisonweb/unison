@@ -91,7 +91,7 @@ typedef struct UnisonJitCtx {
 // environment, in at entry and out at return, then one environment per
 // Local frame record (at most UNISON_JIT_LOCALS switches are in force at
 // once, see n_locals).
-#define UNISON_JIT_LOCALS 8
+#define UNISON_JIT_LOCALS 32
 #define UNISON_JIT_OUT_PTRS (1 + UNISON_JIT_LOCALS)
 
 // Status values returned by native code. Positive values are exit indices.

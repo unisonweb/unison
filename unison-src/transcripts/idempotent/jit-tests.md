@@ -786,7 +786,7 @@ chooseAsk thunk =
   handle !thunk with h
 
 > constAsk 5 '(nestAsk 3 '(Ask.ask))
-> constAsk 5 '(nestAsk 12 '(sumAsk 0 100))
+> constAsk 5 '(nestAsk 40 '(sumAsk 0 100))
 > constAsk 0 '(runChoose '(chooseAsk '(Ask.ask + Ask.ask)))
 > runStore 0 '(loopStore 1000)
 > runStore 1 nested
@@ -827,9 +827,9 @@ chooseAsk thunk =
             ⧩
             8
 
-    134 | > constAsk 5 '(nestAsk 12 '(sumAsk 0 100))
+    134 | > constAsk 5 '(nestAsk 40 '(sumAsk 0 100))
             ⧩
-            1700
+            4500
 
     135 | > constAsk 0 '(runChoose '(chooseAsk '(Ask.ask + Ask.ask)))
             ⧩
