@@ -178,6 +178,28 @@ byteArrayLoop n =
       go (acc + mutable.ByteArray.Raw.read64le b 8 + mutable.ByteArray.Raw.read32be b 0 + mutable.ByteArray.Raw.read24be b 1 + mutable.ByteArray.Raw.read40le b 16 + mutable.ByteArray.Raw.read16le b 20 + mutable.ByteArray.Raw.read8 b 30) (i + 1)
   go 0 0
 
+-- the same through FFI pointers
+ptrLoop : Nat ->{IO} Nat
+ptrLoop n =
+  p = FFI.Ptr.Nat.allocate 4
+  p32 : Ptr Nat32
+  p32 = FFI.Ptr.cast p
+  p16 : Ptr Nat16
+  p16 = FFI.Ptr.cast p
+  p8 : Ptr Nat8
+  p8 = FFI.Ptr.cast p
+  go acc i =
+    if i == n then acc
+    else
+      FFI.Ptr.Nat.setAt p 1 i
+      FFI.Ptr.Nat32.set p32 i
+      FFI.Ptr.Nat16.setAt p16 10 i
+      FFI.Ptr.Nat8.setAt p8 30 i
+      go (acc + FFI.Ptr.Nat.getAt p 1 + FFI.Ptr.Nat32.get p32 + FFI.Ptr.Nat8.getAt p8 1 + FFI.Ptr.Nat.getAt p 2 + FFI.Ptr.Nat16.getAt p16 10 + FFI.Ptr.Nat8.getAt p8 30) (i + 1)
+  r = go 0 0
+  FFI.Ptr.free p
+  r
+
 arrayFillSum : Nat ->{IO, Exception} Nat
 arrayFillSum n =
   arr = IO.Raw.arrayOf 0 n
@@ -319,6 +341,7 @@ jitSuite = do
   printTime "Nat.toText and Nat.fromText, 10000 times" 1 (n -> repeat n do natRound 10000)
   printTime "Float: sqrt, sin, cos, arithmetic and conversions, 100000 times" 1 (n -> repeat n do floatWalk 100000)
   printTime "MutableByteArray: 4 writes and 6 reads, both byte orders, 100000 times" 1 (n -> repeat n do byteArrayLoop 100000)
+  printTime "FFI.Ptr: 4 writes and 6 reads, 100000 times" 1 (n -> repeat n do ptrLoop 100000)
   printTime "MutableArray: fill, freeze and sum 10000 elements" 1 (n -> repeat n do arrayFillSum 10000)
   printTime "Ref.cas loop, 10000 times" 1 (n -> repeat n do casLoop 10000)
   printTime "murmurHashUntyped of Some (i, \"x\"), 10000 times" 1 (n -> repeat n do hashLoop 10000)

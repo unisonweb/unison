@@ -174,6 +174,7 @@ void *unison_jit_barray_to_bytes(UnisonJitCtx *ctx, void *x, int64_t off, int64_
 void *unison_jit_barray_from_bytes(UnisonJitCtx *ctx, void *bytes);
 void *unison_jit_barray_new(UnisonJitCtx *ctx, int64_t n, int64_t fill, int64_t pinned);
 void *unison_jit_barray_contents(UnisonJitCtx *ctx, void *x);
+void *unison_jit_wrap_ptr(UnisonJitCtx *ctx, int64_t addr);
 void *unison_jit_parray_new(UnisonJitCtx *ctx, int64_t n, int64_t has_init, int64_t u, void *b);
 int64_t unison_jit_parray_copy(void *dst, int64_t doff, void *src, int64_t soff, int64_t l, int64_t kind);
 void *unison_jit_parray_freeze(UnisonJitCtx *ctx, void *x, int64_t off, int64_t len, int64_t in_place);
@@ -216,7 +217,7 @@ void *unison_jit_helpers[] = {
     (void *)&unison_jit_bytes_read_ok, (void *)&unison_jit_bytes_read_at,   (void *)&unison_jit_bytes_to_base,
     (void *)&unison_jit_bytes_from_base, (void *)&unison_jit_pow,              (void *)&unison_jit_atan2,
     (void *)&unison_jit_barray_copy,     (void *)&unison_jit_barray_freeze,    (void *)&unison_jit_barray_to_bytes,
-    (void *)&unison_jit_barray_from_bytes, (void *)&unison_jit_barray_new,     (void *)&unison_jit_barray_contents,
+    (void *)&unison_jit_barray_from_bytes, (void *)&unison_jit_barray_new,     (void *)&unison_jit_barray_contents, (void *)&unison_jit_wrap_ptr,
     (void *)&unison_jit_parray_new,      (void *)&unison_jit_parray_copy,      (void *)&unison_jit_parray_freeze,
     (void *)&unison_jit_ref_new,         (void *)&unison_jit_ref_read_for_cas, (void *)&unison_jit_ref_cas,
     (void *)&unison_jit_murmur,         (void *)&unison_jit_exit_frame,
@@ -3480,6 +3481,9 @@ void *unison_jit_barray_contents(UnisonJitCtx *ctx, void *x) {
   if (a == NULL) return NULL;
   return wrap_word(ctx, &AK.ptr, (StgWord)a->payload);
 }
+
+// FFI.Ptr.Ptr.get and getAt: an address read through a pointer, as a Ptr.
+void *unison_jit_wrap_ptr(UnisonJitCtx *ctx, int64_t addr) { return wrap_word(ctx, &AK.ptr, (StgWord)addr); }
 
 // --- pointer arrays ---
 

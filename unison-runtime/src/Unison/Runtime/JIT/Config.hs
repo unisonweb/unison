@@ -132,7 +132,8 @@ data Config = Config
     -- @copy@ (no private copies of compiled callees), @hash@ (the murmur hash),
     -- @irhelpers@ (the helpers compiled from IR: generated code calls the C
     -- copies instead), @requests@ (ability requests and the affine handler
-    -- instructions: every request exits)
+    -- instructions: every request exits), @ptr@ (the FFI pointer reads and
+    -- writes)
     disabled :: [String]
   }
   deriving (Show)

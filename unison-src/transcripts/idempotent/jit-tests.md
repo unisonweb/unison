@@ -286,7 +286,7 @@ area = cases
 shapes : Nat -> Nat
 shapes n =
   go acc i =
-    if i == n then acc
+    if Nat.eq i n then acc
     else
       s = match Nat.mod i 4 with
         0 -> Shape.Circle i
@@ -1156,7 +1156,7 @@ use Nat + - * / == < > <= >=
 bits : Nat -> Nat
 bits n =
   go acc i =
-    if i == n then acc
+    if Nat.eq i n then acc
     else go (acc + Nat.leadingZeros i + Nat.trailingZeros i + Nat.popCount i) (i + 1)
   go 0 0
 
@@ -1166,7 +1166,7 @@ countFlags : Nat -> Nat
 countFlags n =
   step = cases Flags a b -> Flags (Boolean.not b) a
   go f acc i =
-    if i == n then acc
+    if Nat.eq i n then acc
     else match f with
       Flags a b -> go (step f) (if Boolean.not a then acc + 1 else if b then acc + 2 else acc) (i + 1)
   go (Flags true false) 0 0
@@ -1285,7 +1285,7 @@ sumAt : [Nat] -> Nat
 sumAt l =
   n = List.size l
   go acc i =
-    if i == n then acc
+    if Nat.eq i n then acc
     else match List.at i l with
       Some x -> go (acc + x * (Nat.mod i 3)) (i + 1)
       None -> acc
@@ -1309,7 +1309,7 @@ edges n =
     [x] -> x
     x +: (rest :+ y) -> x * 2 + y + List.size rest
   go acc i =
-    if i == n then acc
+    if Nat.eq i n then acc
     else
       l = build (Nat.mod i 13)
       missing = match List.at i l with
@@ -2543,4 +2543,175 @@ scratch/main> run hashes
   , 9566300282615928163
   , 12727184073911490092
   ]
+```
+
+## FFI pointers
+
+Reads and writes through `Ptr` values: every element type, at the pointer and at an index,
+with the sign extension, zero extension and truncation of the interpreter; a pointer stored
+in and read back from a pointer to pointers; a pointer into a pinned byte array, whose writes
+the array sees; and a cast pointer that reads the bytes of what another one wrote.
+
+``` unison :hide
+ptrInts : '{IO} [Int]
+ptrInts = do
+  i8 = FFI.Ptr.Int8.allocate 4
+  FFI.Ptr.Int8.set i8 -5
+  FFI.Ptr.Int8.setAt i8 1 +127
+  FFI.Ptr.Int8.setAt i8 2 +200
+  FFI.Ptr.Int8.setAt i8 3 -129
+  i16 = FFI.Ptr.Int16.allocate 2
+  FFI.Ptr.Int16.set i16 -300
+  FFI.Ptr.Int16.setAt i16 1 +70000
+  i32 = FFI.Ptr.Int32.allocate 2
+  FFI.Ptr.Int32.set i32 -70000
+  FFI.Ptr.Int32.setAt i32 1 +5000000000
+  i64 = FFI.Ptr.Int.allocate 2
+  FFI.Ptr.Int.set i64 -9000000000
+  FFI.Ptr.Int.setAt i64 1 +42
+  r = [ FFI.Ptr.Int8.get i8, FFI.Ptr.Int8.getAt i8 1, FFI.Ptr.Int8.getAt i8 2, FFI.Ptr.Int8.getAt i8 3,
+        FFI.Ptr.Int16.get i16, FFI.Ptr.Int16.getAt i16 1,
+        FFI.Ptr.Int32.get i32, FFI.Ptr.Int32.getAt i32 1,
+        FFI.Ptr.Int.get i64, FFI.Ptr.Int.getAt i64 1 ]
+  FFI.Ptr.free i8
+  FFI.Ptr.free i16
+  FFI.Ptr.free i32
+  FFI.Ptr.free i64
+  r
+
+ptrNats : '{IO} [Nat]
+ptrNats = do
+  n8 = FFI.Ptr.Nat8.allocate 3
+  FFI.Ptr.Nat8.set n8 255
+  FFI.Ptr.Nat8.setAt n8 1 300
+  FFI.Ptr.Nat8.setAt n8 2 18446744073709551615
+  n16 = FFI.Ptr.Nat16.allocate 2
+  FFI.Ptr.Nat16.set n16 65535
+  FFI.Ptr.Nat16.setAt n16 1 70000
+  n32 = FFI.Ptr.Nat32.allocate 2
+  FFI.Ptr.Nat32.set n32 4294967295
+  FFI.Ptr.Nat32.setAt n32 1 5000000000
+  n64 = FFI.Ptr.Nat.allocate 2
+  FFI.Ptr.Nat.set n64 18446744073709551615
+  FFI.Ptr.Nat.setAt n64 1 42
+  r = [ FFI.Ptr.Nat8.get n8, FFI.Ptr.Nat8.getAt n8 1, FFI.Ptr.Nat8.getAt n8 2,
+        FFI.Ptr.Nat16.get n16, FFI.Ptr.Nat16.getAt n16 1,
+        FFI.Ptr.Nat32.get n32, FFI.Ptr.Nat32.getAt n32 1,
+        FFI.Ptr.Nat.get n64, FFI.Ptr.Nat.getAt n64 1 ]
+  FFI.Ptr.free n8
+  FFI.Ptr.free n16
+  FFI.Ptr.free n32
+  FFI.Ptr.free n64
+  r
+
+ptrFloats : '{IO} [Float]
+ptrFloats = do
+  f32 = FFI.Ptr.Float32.allocate 3
+  FFI.Ptr.Float32.set f32 1.5
+  FFI.Ptr.Float32.setAt f32 1 0.1
+  FFI.Ptr.Float32.setAt f32 2 -3.0e38
+  f64 = FFI.Ptr.Float.allocate 2
+  FFI.Ptr.Float.set f64 2.25
+  FFI.Ptr.Float.setAt f64 1 -0.1
+  r = [ FFI.Ptr.Float32.get f32, FFI.Ptr.Float32.getAt f32 1, FFI.Ptr.Float32.getAt f32 2,
+        FFI.Ptr.Float.get f64, FFI.Ptr.Float.getAt f64 1 ]
+  FFI.Ptr.free f32
+  FFI.Ptr.free f64
+  r
+
+ptrPtrs : '{IO} (Nat, Nat, Nat, Nat)
+ptrPtrs = do
+  a = FFI.Ptr.Nat.allocate 2
+  FFI.Ptr.Nat.set a 7
+  FFI.Ptr.Nat.setAt a 1 8
+  b = FFI.Ptr.Nat.allocate 1
+  FFI.Ptr.Nat.set b 9
+  pp = FFI.Ptr.Ptr.allocate 2
+  FFI.Ptr.Ptr.set pp a
+  FFI.Ptr.Ptr.setAt pp 1 b
+  a' = FFI.Ptr.Ptr.get pp
+  b' = FFI.Ptr.Ptr.getAt pp 1
+  r = (FFI.Ptr.Nat.get a', FFI.Ptr.Nat.getAt a' 1, FFI.Ptr.Nat.get b', FFI.Ptr.Nat.getAt (FFI.Ptr.Ptr.get pp) 1)
+  FFI.Ptr.free a
+  FFI.Ptr.free b
+  FFI.Ptr.free pp
+  r
+
+-- a pointer into a pinned byte array, and a cast pointer: the two views
+-- see the same bytes (little-endian on the machines this runs on)
+ptrViews : '{IO, Exception} ([Nat], Nat, Nat, Int)
+ptrViews = do
+  arr = IO.pinnedByteArrayOf 0 8
+  p = PinnedByteArray.contents arr
+  FFI.Ptr.Nat8.setAt p 0 1
+  FFI.Ptr.Nat8.setAt p 1 2
+  p32 : Ptr Nat32
+  p32 = FFI.Ptr.cast p
+  FFI.Ptr.Nat32.setAt p32 1 16909060
+  bytes = [ MutableByteArray.read8 (PinnedByteArray.cast arr) 0, MutableByteArray.read8 (PinnedByteArray.cast arr) 1,
+            MutableByteArray.read8 (PinnedByteArray.cast arr) 4, MutableByteArray.read8 (PinnedByteArray.cast arr) 7 ]
+  p16 : Ptr Nat16
+  p16 = FFI.Ptr.cast p
+  pi8 : Ptr Int8
+  pi8 = FFI.Ptr.cast p
+  (bytes, FFI.Ptr.Nat16.get p16, FFI.Ptr.Nat32.getAt p32 1, FFI.Ptr.Int8.getAt pi8 7)
+
+-- the loop the benchmark runs, small
+ptrLoop : Nat ->{IO} Nat
+ptrLoop n =
+  p = FFI.Ptr.Nat.allocate 4
+  go acc i =
+    if Nat.eq i n then acc
+    else
+      FFI.Ptr.Nat.setAt p 1 i
+      FFI.Ptr.Nat.setAt p 2 (i + 1)
+      go (acc + FFI.Ptr.Nat.getAt p 1 + FFI.Ptr.Nat.getAt p 2) (i + 1)
+  r = go 0 0
+  FFI.Ptr.free p
+  r
+
+catchP : '{IO, Exception} a ->{IO} Either Text a
+catchP c = handle c() with cases
+  { a } -> Right a
+  { Exception.raise f -> _ } -> match f with Failure _ msg _ -> Left msg
+
+pointers : '{IO} ([Int], [Nat], [Float], (Nat, Nat, Nat, Nat), Either Text ([Nat], Nat, Nat, Int), Nat)
+pointers = do
+  (ptrInts(), ptrNats(), ptrFloats(), ptrPtrs(), catchP ptrViews, ptrLoop 1000)
+```
+
+``` ucm
+scratch/main> run pointers
+
+  ( [ -5
+    , +127
+    , -56
+    , +127
+    , -300
+    , +4464
+    , -70000
+    , +705032704
+    , -9000000000
+    , +42
+    ]
+  , [ 255
+    , 44
+    , 255
+    , 65535
+    , 4464
+    , 4294967295
+    , 705032704
+    , 18446744073709551615
+    , 42
+    ]
+  , [ 1.5
+    , 0.10000000149011612
+    , -3.0000000054977558e38
+    , 2.25
+    , -0.1
+    ]
+  , (7, 8, 9, 8)
+  , Right ([1, 2, 4, 1], 513, 16909060, +1)
+  , 1000000
+  )
 ```

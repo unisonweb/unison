@@ -2945,7 +2945,7 @@ instance ForeignConvention Int8 where
   encodeVal w = IntVal $ fromIntegral w
 
   readAtIndex stk i = fromIntegral <$> peekOffN stk i
-  writeBack stk v = pokeN stk $ fromIntegral v
+  writeBack stk v = pokeI stk $ fromIntegral v
 
 instance ForeignConvention Int16 where
   decodeVal (IntVal v) = pure $ fromIntegral v
@@ -2953,7 +2953,7 @@ instance ForeignConvention Int16 where
   encodeVal w = IntVal $ fromIntegral w
 
   readAtIndex stk i = fromIntegral <$> peekOffN stk i
-  writeBack stk v = pokeN stk $ fromIntegral v
+  writeBack stk v = pokeI stk $ fromIntegral v
 
 instance ForeignConvention Int32 where
   decodeVal (IntVal v) = pure $ fromIntegral v
@@ -2961,7 +2961,7 @@ instance ForeignConvention Int32 where
   encodeVal w = IntVal $ fromIntegral w
 
   readAtIndex stk i = fromIntegral <$> upeekOff stk i
-  writeBack stk v = pokeN stk $ fromIntegral v
+  writeBack stk v = pokeI stk $ fromIntegral v
 
 instance ForeignConvention Int64 where
   decodeVal (IntVal v) = pure $ fromIntegral v
@@ -2969,7 +2969,7 @@ instance ForeignConvention Int64 where
   encodeVal w = IntVal $ fromIntegral w
 
   readAtIndex stk i = fromIntegral <$> upeekOff stk i
-  writeBack stk v = pokeN stk $ fromIntegral v
+  writeBack stk v = pokeI stk $ fromIntegral v
 
 instance ForeignConvention Char where
   decodeVal (CharVal c) = pure c

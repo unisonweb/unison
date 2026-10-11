@@ -36,6 +36,11 @@ when reading it:
   (`MutableByteArray.read8` and the like), `Ref.cas`, `Scope.ref`, the hashes, and the
   big-number arithmetic. (The array reads and writes, `Ref.cas`, `Scope.ref` and the untyped
   hash are native since 2026-10-05.)
+- The `FFI.Ptr` reads and writes (`get`, `getAt`, `set`, `setAt` of every element type,
+  including pointers) are native since 2026-10-11: a load or store through the address in the
+  `Ptr`'s wrapper, with the conventions' sign and zero extension and truncation. Allocation,
+  freeing, `cast`, `null`, the `ForeignPtr`s and the calls themselves (`getDLLSym`,
+  `FFI.base`) stay call-outs. See the internals, "Arrays and refs".
 - The five bare names `==`, `<`, `<=`, `>`, `>=` in `Unison.Builtin` are a rename list
   (`Int.==` is also `Int.eq`, and so on), not builtins, and are left out.
 
@@ -69,8 +74,8 @@ To regenerate after adding native versions: the lists this reads are `prim1Suppo
 | Clock | 0 | 7 |
 | Sandboxing | 0 | 2 |
 | Integer and Natural | 0 | 55 |
-| FFI | 1 | 93 |
-| **All** | **238** | **602** |
+| FFI | 45 | 93 |
+| **All** | **282** | **602** |
 
 ## Int (31 of 31)
 
@@ -647,7 +652,7 @@ To regenerate after adding native versions: the lists this reads are `prim1Suppo
 - [ ] `Natural.isEven` (foreign Natural_isEven)
 - [ ] `Natural.isOdd` (foreign Natural_isOdd)
 
-## FFI (1 of 93)
+## FFI (45 of 93)
 
 - [ ] `FFI.openDLL` (foreign FFI_openDLL)
 - [ ] `FFI.int8` (foreign FFI_int8)
@@ -678,51 +683,51 @@ To regenerate after adding native versions: the lists this reads are `prim1Suppo
 - [ ] `FFI.Ptr.Nat.allocate` (foreign FFI_Ptr_Nat_allocate)
 - [ ] `FFI.Ptr.Float32.allocate` (foreign FFI_Ptr_Float32_allocate)
 - [ ] `FFI.Ptr.Float.allocate` (foreign FFI_Ptr_Float_allocate)
-- [ ] `FFI.Ptr.Int8.get` (foreign FFI_Ptr_Int8_get)
-- [ ] `FFI.Ptr.Int16.get` (foreign FFI_Ptr_Int16_get)
-- [ ] `FFI.Ptr.Int32.get` (foreign FFI_Ptr_Int32_get)
-- [ ] `FFI.Ptr.Int.get` (foreign FFI_Ptr_Int_get)
-- [ ] `FFI.Ptr.Nat8.get` (foreign FFI_Ptr_Nat8_get)
-- [ ] `FFI.Ptr.Nat16.get` (foreign FFI_Ptr_Nat16_get)
-- [ ] `FFI.Ptr.Nat32.get` (foreign FFI_Ptr_Nat32_get)
-- [ ] `FFI.Ptr.Nat.get` (foreign FFI_Ptr_Nat_get)
-- [ ] `FFI.Ptr.Float32.get` (foreign FFI_Ptr_Float32_get)
-- [ ] `FFI.Ptr.Float.get` (foreign FFI_Ptr_Float_get)
-- [ ] `FFI.Ptr.Int8.getAt` (foreign FFI_Ptr_Int8_getAt)
-- [ ] `FFI.Ptr.Int16.getAt` (foreign FFI_Ptr_Int16_getAt)
-- [ ] `FFI.Ptr.Int32.getAt` (foreign FFI_Ptr_Int32_getAt)
-- [ ] `FFI.Ptr.Int.getAt` (foreign FFI_Ptr_Int_getAt)
-- [ ] `FFI.Ptr.Nat8.getAt` (foreign FFI_Ptr_Nat8_getAt)
-- [ ] `FFI.Ptr.Nat16.getAt` (foreign FFI_Ptr_Nat16_getAt)
-- [ ] `FFI.Ptr.Nat32.getAt` (foreign FFI_Ptr_Nat32_getAt)
-- [ ] `FFI.Ptr.Nat.getAt` (foreign FFI_Ptr_Nat_getAt)
-- [ ] `FFI.Ptr.Float32.getAt` (foreign FFI_Ptr_Float32_getAt)
-- [ ] `FFI.Ptr.Float.getAt` (foreign FFI_Ptr_Float_getAt)
-- [ ] `FFI.Ptr.Int8.set` (foreign FFI_Ptr_Int8_set)
-- [ ] `FFI.Ptr.Int16.set` (foreign FFI_Ptr_Int16_set)
-- [ ] `FFI.Ptr.Int32.set` (foreign FFI_Ptr_Int32_set)
-- [ ] `FFI.Ptr.Int.set` (foreign FFI_Ptr_Int_set)
-- [ ] `FFI.Ptr.Nat8.set` (foreign FFI_Ptr_Nat8_set)
-- [ ] `FFI.Ptr.Nat16.set` (foreign FFI_Ptr_Nat16_set)
-- [ ] `FFI.Ptr.Nat32.set` (foreign FFI_Ptr_Nat32_set)
-- [ ] `FFI.Ptr.Nat.set` (foreign FFI_Ptr_Nat_set)
-- [ ] `FFI.Ptr.Float32.set` (foreign FFI_Ptr_Float32_set)
-- [ ] `FFI.Ptr.Float.set` (foreign FFI_Ptr_Float_set)
-- [ ] `FFI.Ptr.Int8.setAt` (foreign FFI_Ptr_Int8_setAt)
-- [ ] `FFI.Ptr.Int16.setAt` (foreign FFI_Ptr_Int16_setAt)
-- [ ] `FFI.Ptr.Int32.setAt` (foreign FFI_Ptr_Int32_setAt)
-- [ ] `FFI.Ptr.Int.setAt` (foreign FFI_Ptr_Int_setAt)
-- [ ] `FFI.Ptr.Nat8.setAt` (foreign FFI_Ptr_Nat8_setAt)
-- [ ] `FFI.Ptr.Nat16.setAt` (foreign FFI_Ptr_Nat16_setAt)
-- [ ] `FFI.Ptr.Nat32.setAt` (foreign FFI_Ptr_Nat32_setAt)
-- [ ] `FFI.Ptr.Nat.setAt` (foreign FFI_Ptr_Nat_setAt)
-- [ ] `FFI.Ptr.Float32.setAt` (foreign FFI_Ptr_Float32_setAt)
-- [ ] `FFI.Ptr.Float.setAt` (foreign FFI_Ptr_Float_setAt)
+- [x] `FFI.Ptr.Int8.get` (foreign FFI_Ptr_Int8_get)
+- [x] `FFI.Ptr.Int16.get` (foreign FFI_Ptr_Int16_get)
+- [x] `FFI.Ptr.Int32.get` (foreign FFI_Ptr_Int32_get)
+- [x] `FFI.Ptr.Int.get` (foreign FFI_Ptr_Int_get)
+- [x] `FFI.Ptr.Nat8.get` (foreign FFI_Ptr_Nat8_get)
+- [x] `FFI.Ptr.Nat16.get` (foreign FFI_Ptr_Nat16_get)
+- [x] `FFI.Ptr.Nat32.get` (foreign FFI_Ptr_Nat32_get)
+- [x] `FFI.Ptr.Nat.get` (foreign FFI_Ptr_Nat_get)
+- [x] `FFI.Ptr.Float32.get` (foreign FFI_Ptr_Float32_get)
+- [x] `FFI.Ptr.Float.get` (foreign FFI_Ptr_Float_get)
+- [x] `FFI.Ptr.Int8.getAt` (foreign FFI_Ptr_Int8_getAt)
+- [x] `FFI.Ptr.Int16.getAt` (foreign FFI_Ptr_Int16_getAt)
+- [x] `FFI.Ptr.Int32.getAt` (foreign FFI_Ptr_Int32_getAt)
+- [x] `FFI.Ptr.Int.getAt` (foreign FFI_Ptr_Int_getAt)
+- [x] `FFI.Ptr.Nat8.getAt` (foreign FFI_Ptr_Nat8_getAt)
+- [x] `FFI.Ptr.Nat16.getAt` (foreign FFI_Ptr_Nat16_getAt)
+- [x] `FFI.Ptr.Nat32.getAt` (foreign FFI_Ptr_Nat32_getAt)
+- [x] `FFI.Ptr.Nat.getAt` (foreign FFI_Ptr_Nat_getAt)
+- [x] `FFI.Ptr.Float32.getAt` (foreign FFI_Ptr_Float32_getAt)
+- [x] `FFI.Ptr.Float.getAt` (foreign FFI_Ptr_Float_getAt)
+- [x] `FFI.Ptr.Int8.set` (foreign FFI_Ptr_Int8_set)
+- [x] `FFI.Ptr.Int16.set` (foreign FFI_Ptr_Int16_set)
+- [x] `FFI.Ptr.Int32.set` (foreign FFI_Ptr_Int32_set)
+- [x] `FFI.Ptr.Int.set` (foreign FFI_Ptr_Int_set)
+- [x] `FFI.Ptr.Nat8.set` (foreign FFI_Ptr_Nat8_set)
+- [x] `FFI.Ptr.Nat16.set` (foreign FFI_Ptr_Nat16_set)
+- [x] `FFI.Ptr.Nat32.set` (foreign FFI_Ptr_Nat32_set)
+- [x] `FFI.Ptr.Nat.set` (foreign FFI_Ptr_Nat_set)
+- [x] `FFI.Ptr.Float32.set` (foreign FFI_Ptr_Float32_set)
+- [x] `FFI.Ptr.Float.set` (foreign FFI_Ptr_Float_set)
+- [x] `FFI.Ptr.Int8.setAt` (foreign FFI_Ptr_Int8_setAt)
+- [x] `FFI.Ptr.Int16.setAt` (foreign FFI_Ptr_Int16_setAt)
+- [x] `FFI.Ptr.Int32.setAt` (foreign FFI_Ptr_Int32_setAt)
+- [x] `FFI.Ptr.Int.setAt` (foreign FFI_Ptr_Int_setAt)
+- [x] `FFI.Ptr.Nat8.setAt` (foreign FFI_Ptr_Nat8_setAt)
+- [x] `FFI.Ptr.Nat16.setAt` (foreign FFI_Ptr_Nat16_setAt)
+- [x] `FFI.Ptr.Nat32.setAt` (foreign FFI_Ptr_Nat32_setAt)
+- [x] `FFI.Ptr.Nat.setAt` (foreign FFI_Ptr_Nat_setAt)
+- [x] `FFI.Ptr.Float32.setAt` (foreign FFI_Ptr_Float32_setAt)
+- [x] `FFI.Ptr.Float.setAt` (foreign FFI_Ptr_Float_setAt)
 - [ ] `FFI.Ptr.Ptr.allocate` (foreign FFI_Ptr_Ptr_allocate)
-- [ ] `FFI.Ptr.Ptr.get` (foreign FFI_Ptr_Ptr_get)
-- [ ] `FFI.Ptr.Ptr.set` (foreign FFI_Ptr_Ptr_set)
-- [ ] `FFI.Ptr.Ptr.getAt` (foreign FFI_Ptr_Ptr_getAt)
-- [ ] `FFI.Ptr.Ptr.setAt` (foreign FFI_Ptr_Ptr_setAt)
+- [x] `FFI.Ptr.Ptr.get` (foreign FFI_Ptr_Ptr_get)
+- [x] `FFI.Ptr.Ptr.set` (foreign FFI_Ptr_Ptr_set)
+- [x] `FFI.Ptr.Ptr.getAt` (foreign FFI_Ptr_Ptr_getAt)
+- [x] `FFI.Ptr.Ptr.setAt` (foreign FFI_Ptr_Ptr_setAt)
 - [ ] `FFI.Ptr.free` (foreign FFI_Ptr_free)
 - [x] `FFI.Ptr.cast`
 - [ ] `FFI.Ptr.null` (foreign FFI_Ptr_null)

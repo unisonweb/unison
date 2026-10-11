@@ -249,6 +249,7 @@ modulePrelude =
       "declare ptr @unison_jit_resolve_dyn(ptr, i64)",
       "declare i64 @unison_jit_set_aff(ptr, ptr, ptr)",
       "declare ptr @unison_jit_local_env(ptr, ptr)",
+      "declare ptr @unison_jit_wrap_ptr(ptr, i64)",
       "declare ptr @unison_jit_alloc_words(ptr, i64)",
       "declare preserve_mostcc void @unison_jit_exit_frame(ptr, ptr, i64, i64, ...)",
       "declare void @unison_jit_write_mutvar(ptr, ptr, ptr)",
@@ -2899,7 +2900,7 @@ instrNative = \case
   Prim2 op _ _ -> prim2Supported op || op `elem` [REFW, EQLU, LEQU, LESU, CMPU, ANDB, IORB, CONS, SNOC, IDXS, CATS, TAKS, DRPS, SPLL, SPLR, CATT, TAKT, DRPT, EQLT, CATB, TAKB, DRPB, IDXB, IXOT, IXOB, LEQT, LEST]
   Seq _ -> True
   RefCAS {} -> True
-  ForeignCall _ f _ -> f `elem` ([MutableArray_size, MutableArray_read, MutableArray_write, ImmutableArray_size, ImmutableArray_read, Universal_murmurHashUntyped] <> textForeign <> bytesForeign) || isJust (arrayForeign f)
+  ForeignCall _ f _ -> f `elem` ([MutableArray_size, MutableArray_read, MutableArray_write, ImmutableArray_size, ImmutableArray_read, Universal_murmurHashUntyped] <> textForeign <> bytesForeign) || isJust (arrayForeign f) || isJust (ptrForeign f)
   -- (up to four arguments; more is rare, and then it is a call-out)
   Name r _ -> case r of Dyn _ -> False; _ -> True
   -- storing an affine handler's next state (see 'genInstr'); with the
@@ -3478,6 +3479,10 @@ genInstr fe d instr sect k = case instr of
   ForeignCall _ f args
     | enabled fe "array", Just op <- arrayForeign f -> do
         genArrayForeign fe d op (argSources fe d args) instr sect
+        k (d + 1)
+  ForeignCall _ f args
+    | enabled fe "ptr", Just op <- ptrForeign f -> do
+        genPtrOp fe d op (argSources fe d args) instr sect
         k (d + 1)
   -- Universal.murmurHashUntyped is Value.value (VALU) followed by the
   -- foreign hash of the reflected value. The two together are one C helper
@@ -4220,13 +4225,188 @@ arrayForeign = \case
 
 -- | The foreign functions whose result is unit (they need the constant).
 unitForeign :: [ForeignFunc]
-unitForeign = [f | f <- [minBound .. maxBound], Just op <- [arrayForeign f], givesUnit op]
+unitForeign =
+  [f | f <- [minBound .. maxBound], Just op <- [arrayForeign f], givesUnit op]
+    <> [f | f <- [minBound .. maxBound], Just (PtrOp _ _ True) <- [ptrForeign f]]
   where
     givesUnit = \case
       BWrite {} -> True
       PCopy _ -> True
       BCopy _ -> True
       _ -> False
+
+-- ---------------------------------------------------------------------------
+-- FFI pointers
+
+-- | What a @Ptr@ element is: a signed or unsigned integer of so many bytes,
+-- a 32- or 64-bit float, or another pointer.
+data PtrElem = PInt Int | PNat Int | PFloat32 | PFloat64 | PPtr
+
+-- | A read or write (the last flag) through a @Ptr@, at an element index
+-- (the middle flag) or at the pointer itself.
+data PtrOp = PtrOp !PtrElem !Bool !Bool
+
+-- | The @FFI.Ptr@ reads and writes: the loads and stores the Haskell
+-- @peek@/@poke@ and @peekElemOff@/@pokeElemOff@ make, with the same
+-- widening and narrowing as the foreign conventions (sign extension for
+-- the @Int@s, zero extension for the @Nat@s, truncation on a write,
+-- @Float32@ through a double). Allocation and freeing stay call-outs.
+ptrForeign :: ForeignFunc -> Maybe PtrOp
+ptrForeign = \case
+  FFI_Ptr_Int8_get -> Just (PtrOp (PInt 1) False False)
+  FFI_Ptr_Int8_getAt -> Just (PtrOp (PInt 1) True False)
+  FFI_Ptr_Int8_set -> Just (PtrOp (PInt 1) False True)
+  FFI_Ptr_Int8_setAt -> Just (PtrOp (PInt 1) True True)
+  FFI_Ptr_Int16_get -> Just (PtrOp (PInt 2) False False)
+  FFI_Ptr_Int16_getAt -> Just (PtrOp (PInt 2) True False)
+  FFI_Ptr_Int16_set -> Just (PtrOp (PInt 2) False True)
+  FFI_Ptr_Int16_setAt -> Just (PtrOp (PInt 2) True True)
+  FFI_Ptr_Int32_get -> Just (PtrOp (PInt 4) False False)
+  FFI_Ptr_Int32_getAt -> Just (PtrOp (PInt 4) True False)
+  FFI_Ptr_Int32_set -> Just (PtrOp (PInt 4) False True)
+  FFI_Ptr_Int32_setAt -> Just (PtrOp (PInt 4) True True)
+  FFI_Ptr_Int_get -> Just (PtrOp (PInt 8) False False)
+  FFI_Ptr_Int_getAt -> Just (PtrOp (PInt 8) True False)
+  FFI_Ptr_Int_set -> Just (PtrOp (PInt 8) False True)
+  FFI_Ptr_Int_setAt -> Just (PtrOp (PInt 8) True True)
+  FFI_Ptr_Nat8_get -> Just (PtrOp (PNat 1) False False)
+  FFI_Ptr_Nat8_getAt -> Just (PtrOp (PNat 1) True False)
+  FFI_Ptr_Nat8_set -> Just (PtrOp (PNat 1) False True)
+  FFI_Ptr_Nat8_setAt -> Just (PtrOp (PNat 1) True True)
+  FFI_Ptr_Nat16_get -> Just (PtrOp (PNat 2) False False)
+  FFI_Ptr_Nat16_getAt -> Just (PtrOp (PNat 2) True False)
+  FFI_Ptr_Nat16_set -> Just (PtrOp (PNat 2) False True)
+  FFI_Ptr_Nat16_setAt -> Just (PtrOp (PNat 2) True True)
+  FFI_Ptr_Nat32_get -> Just (PtrOp (PNat 4) False False)
+  FFI_Ptr_Nat32_getAt -> Just (PtrOp (PNat 4) True False)
+  FFI_Ptr_Nat32_set -> Just (PtrOp (PNat 4) False True)
+  FFI_Ptr_Nat32_setAt -> Just (PtrOp (PNat 4) True True)
+  FFI_Ptr_Nat_get -> Just (PtrOp (PNat 8) False False)
+  FFI_Ptr_Nat_getAt -> Just (PtrOp (PNat 8) True False)
+  FFI_Ptr_Nat_set -> Just (PtrOp (PNat 8) False True)
+  FFI_Ptr_Nat_setAt -> Just (PtrOp (PNat 8) True True)
+  FFI_Ptr_Float32_get -> Just (PtrOp (PFloat32) False False)
+  FFI_Ptr_Float32_getAt -> Just (PtrOp (PFloat32) True False)
+  FFI_Ptr_Float32_set -> Just (PtrOp (PFloat32) False True)
+  FFI_Ptr_Float32_setAt -> Just (PtrOp (PFloat32) True True)
+  FFI_Ptr_Float_get -> Just (PtrOp (PFloat64) False False)
+  FFI_Ptr_Float_getAt -> Just (PtrOp (PFloat64) True False)
+  FFI_Ptr_Float_set -> Just (PtrOp (PFloat64) False True)
+  FFI_Ptr_Float_setAt -> Just (PtrOp (PFloat64) True True)
+  FFI_Ptr_Ptr_get -> Just (PtrOp (PPtr) False False)
+  FFI_Ptr_Ptr_getAt -> Just (PtrOp (PPtr) True False)
+  FFI_Ptr_Ptr_set -> Just (PtrOp (PPtr) False True)
+  FFI_Ptr_Ptr_setAt -> Just (PtrOp (PPtr) True True)
+  _ -> Nothing
+
+-- | A pointer read or write. The pointer is the address inside the
+-- @WrapPtr@ wrapper of the @Foreign@ closure in the first slot (unwrapped
+-- as the array wrappers are); the element address is that plus the index
+-- times the width. A read of a pointer wraps the address it loads through
+-- a C helper that allocates the two closures. Nothing is checked about the
+-- address, as nothing is in the interpreter.
+genPtrOp :: FnEnv -> Int -> PtrOp -> Deque Int -> GInstr (RComb Val) -> MSection -> Gen ()
+genPtrOp fe d (PtrOp el indexed write) srcs instr sect = do
+  slow <- callOutExit True fe d instr sect
+  let width = case el of
+        PInt w -> w
+        PNat w -> w
+        PFloat32 -> 4
+        PFloat64 -> 8
+        PPtr -> 8
+      ity = "i" <> tshow (8 * width)
+      unitIx = Map.lookup (KeyEnum Ty.unitRef TT.unitTag) (envPool (feEnv fe))
+      shape = case (D.toList srcs, indexed, write) of
+        ([kp], False, False) -> Just (kp, Nothing, Nothing)
+        ([kp, ki], True, False) -> Just (kp, Just ki, Nothing)
+        ([kp, kv], False, True) -> Just (kp, Nothing, Just kv)
+        ([kp, ki, kv], True, True) -> Just (kp, Just ki, Just kv)
+        _ -> Nothing
+  case shape of
+    Just (kp, mki, mkv) | not write || isJust unitIx -> do
+      addr <- ptrAddress fe slow kp
+      ea <- case mki of
+        Nothing -> pure addr
+        Just ki -> do
+          ix <- loadU ki
+          off <- binop "mul" ix (tshow width)
+          binop "add" addr off
+      ep <- fresh "elem.p"
+      emit (ep <> " = inttoptr i64 " <> ea <> " to ptr")
+      case mkv of
+        Nothing -> case el of
+          PPtr -> do
+            a <- fresh "addr"
+            emit (a <> " = load i64, ptr " <> ep <> ", align 1")
+            listHelper d slow ("@unison_jit_wrap_ptr(ptr %ctx, i64 " <> a <> ")")
+          PFloat32 -> do
+            f <- fresh "f32"
+            emit (f <> " = load float, ptr " <> ep <> ", align 1")
+            f64 <- fresh "f64"
+            emit (f64 <> " = fpext float " <> f <> " to double")
+            v <- fresh "bits"
+            emit (v <> " = bitcast double " <> f64 <> " to i64")
+            result fe d (feTagFloat fe) v
+          PFloat64 -> do
+            v <- fresh "bits"
+            emit (v <> " = load i64, ptr " <> ep <> ", align 1")
+            result fe d (feTagFloat fe) v
+          PInt w -> do
+            v <- loadInt ep w "sext"
+            result fe d (feTagInt fe) v
+          PNat w -> do
+            v <- loadInt ep w "zext"
+            result fe d (feTagNat fe) v
+        Just kv -> do
+          case el of
+            PPtr -> do
+              a <- ptrAddress fe slow kv
+              emit ("store i64 " <> a <> ", ptr " <> ep <> ", align 1")
+            PFloat32 -> do
+              u <- loadU kv
+              f64 <- fresh "f64"
+              emit (f64 <> " = bitcast i64 " <> u <> " to double")
+              f <- fresh "f32"
+              emit (f <> " = fptrunc double " <> f64 <> " to float")
+              emit ("store float " <> f <> ", ptr " <> ep <> ", align 1")
+            _ -> do
+              u <- loadU kv
+              v <-
+                if width == 8
+                  then pure u
+                  else do
+                    t <- fresh "narrow"
+                    emit (t <> " = trunc i64 " <> u <> " to " <> ity)
+                    pure t
+              emit ("store " <> ity <> " " <> v <> ", ptr " <> ep <> ", align 1")
+          forM_ unitIx (poolConstant fe d)
+    _ -> do
+      emit ("br label %" <> slow)
+      startBlock "unreachable.ptr"
+  where
+    loadInt ep w ext = do
+      let ity = "i" <> tshow (8 * w)
+      raw <- fresh "raw"
+      emit (raw <> " = load " <> ity <> ", ptr " <> ep <> ", align 1")
+      if w == 8
+        then pure raw
+        else do
+          v <- fresh "wide"
+          emit (v <> " = " <> ext <> " " <> ity <> " " <> raw <> " to i64")
+          pure v
+
+-- | The address held by the @Ptr@ in slot @k@: a @Foreign@ closure around
+-- a @WrapPtr@ whose one field is the address. Anything else goes to @slow@.
+ptrAddress :: FnEnv -> Text -> Int -> Gen Text
+ptrAddress fe slow k = do
+  let ls = envLayouts (feEnv fe)
+  p <- loadB k
+  raw <- fresh "raw"
+  emit (raw <> " = ptrtoint ptr " <> p <> " to i64")
+  fo <- taggedObject "foreign" raw (lForeignInfo ls) slow
+  wrapped <- loadAt fo "wrap" "i64" (lHeaderBytes ls)
+  w <- taggedObjectTag "ptr" wrapped (lPtrWrap ls) slow
+  loadAt w "addr" "i64" (lHeaderBytes ls)
 
 -- | Generates one of the array builtins above from its argument slots. A
 -- helper that says "not handled" (a wrong closure, an index out of bounds,
