@@ -732,6 +732,62 @@ handleLoop acc n = if n == 0 then acc else
   r = runStore 1 '(Store.get + Store.get)
   handleLoop (acc + r) (n - 1)
 
+unique ability Ask where
+  ask : Nat
+
+-- the outermost handler answers with a constant
+constAsk : Nat -> '{Ask, g} a ->{g} a
+constAsk v thunk =
+  h : Request {Ask} a -> a
+  h = cases
+    { a } -> a
+    { Ask.ask -> k } -> handle k v with h
+  handle !thunk with h
+
+-- a handler whose case asks the handler outside it and adds one: nested
+-- n deep, n environment switches are in force at the innermost request
+relay : '{Ask, g} a ->{Ask, g} a
+relay thunk =
+  h : Request {Ask} a ->{Ask} a
+  h = cases
+    { a } -> a
+    { Ask.ask -> k } ->
+      v = Ask.ask + 1
+      handle k v with h
+  handle !thunk with h
+
+nestAsk : Nat -> '{Ask, g} a ->{Ask, g} a
+nestAsk n thunk = if n == 0 then !thunk else relay '(nestAsk (n - 1) thunk)
+
+sumAsk : Nat -> Nat ->{Ask} Nat
+sumAsk acc n = if n == 0 then acc else sumAsk (acc + Ask.ask) (n - 1)
+
+structural ability Choose where
+  choose : Boolean
+
+runChoose : '{Choose, g} a ->{g} [a]
+runChoose thunk =
+  h : Request {Choose} a -> [a]
+  h = cases
+    { a } -> [a]
+    { Choose.choose -> k } -> (handle k true with h) List.++ (handle k false with h)
+  handle !thunk with h
+
+-- a case whose switch is in force when something exits to the
+-- interpreter: a request to a non-affine handler (Choose resumes twice)
+chooseAsk : '{Ask, g} a ->{Ask, Choose, g} a
+chooseAsk thunk =
+  h : Request {Ask} a ->{Ask, Choose} a
+  h = cases
+    { a } -> a
+    { Ask.ask -> k } ->
+      v = if Choose.choose then Ask.ask else Ask.ask + 10
+      handle k v with h
+  handle !thunk with h
+
+> constAsk 5 '(nestAsk 3 '(Ask.ask))
+> constAsk 5 '(nestAsk 12 '(sumAsk 0 100))
+> constAsk 0 '(runChoose '(chooseAsk '(Ask.ask + Ask.ask)))
 > runStore 0 '(loopStore 1000)
 > runStore 1 nested
 > runCounter 100 counted
@@ -742,42 +798,62 @@ handleLoop acc n = if n == 0 then acc else
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
+  + ability Ask
+  + structural ability Choose
   + structural ability Counter
   + structural ability Store a
 
   + boundedStore  : Nat -> '{g, Store Nat} a ->{g, Exception} a
   + catchE        : '{Exception} a -> Either Text a
+  + chooseAsk     : '{g, Ask} a ->{g, Choose, Ask} a
+  + constAsk      : Nat -> '{g, Ask} a ->{g} a
   + counted       : '{Counter} (Nat, Nat)
   + countingStore : s
                     -> '{g, Counter, Store s} a
                     ->{g, Counter} a
   + handleLoop    : Nat -> Nat -> Nat
   + loopStore     : Nat ->{Store Nat} Nat
+  + nestAsk       : Nat -> '{g, Ask} a ->{g, Ask} a
   + nested        : '{Store Nat} Nat
+  + relay         : '{g, Ask} a ->{g, Ask} a
+  + runChoose     : '{g, Choose} a ->{g} [a]
   + runCounter    : Nat -> '{g, Counter} a ->{g} a
   + runStore      : s -> '{g, Store s} a ->{g} a
+  + sumAsk        : Nat -> Nat ->{Ask} Nat
 
   Run `update` to apply these changes to your codebase.
 
-    80 | > runStore 0 '(loopStore 1000)
-           ⧩
-           1000
+    133 | > constAsk 5 '(nestAsk 3 '(Ask.ask))
+            ⧩
+            8
 
-    81 | > runStore 1 nested
-           ⧩
-           9
+    134 | > constAsk 5 '(nestAsk 12 '(sumAsk 0 100))
+            ⧩
+            1700
 
-    82 | > runCounter 100 counted
-           ⧩
-           (10, 110)
+    135 | > constAsk 0 '(runChoose '(chooseAsk '(Ask.ask + Ask.ask)))
+            ⧩
+            [0, 10, 10, 20]
 
-    83 | > (catchE '(boundedStore 0 '(loopStore 50)), catchE '(boundedStore 0 '(loopStore 200)))
-           ⧩
-           (Right 50, Left "too big")
+    136 | > runStore 0 '(loopStore 1000)
+            ⧩
+            1000
 
-    84 | > handleLoop 0 100
-           ⧩
-           200
+    137 | > runStore 1 nested
+            ⧩
+            9
+
+    138 | > runCounter 100 counted
+            ⧩
+            (10, 110)
+
+    139 | > (catchE '(boundedStore 0 '(loopStore 50)), catchE '(boundedStore 0 '(loopStore 200)))
+            ⧩
+            (Right 50, Left "too big")
+
+    140 | > handleLoop 0 100
+            ⧩
+            200
 ```
 
 ## Preemption

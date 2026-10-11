@@ -44,14 +44,14 @@ import Control.Monad (foldM, forM, forM_, unless, void, when)
 import Control.Monad.State.Strict hiding (put)
 import Control.Monad.State.Strict qualified as State
 import Data.Char (ord)
-import Data.Maybe (isJust)
+import Data.Maybe (isJust, isNothing)
 import Data.Bits (shiftL, shiftR)
 import Data.Int (Int64)
 import Data.Primitive.PrimArray (primArrayToList)
 import Data.Word (Word64)
 import Foreign.Ptr (Ptr, WordPtr (..), ptrToWordPtr)
 import GHC.Float (castDoubleToWord64)
-import Unison.Runtime.JIT.Config (config, disabled)
+import Unison.Runtime.JIT.Config (config, disabled, exitCall)
 import Unison.Runtime.JIT.Exits (Exit (..))
 import Unison.Runtime.JIT.Frames (Frame (..))
 import Unison.Runtime.JIT.Layout
@@ -248,6 +248,7 @@ modulePrelude =
       "declare { i64, i64 } @unison_jit_murmur(i64, ptr)",
       "declare ptr @unison_jit_resolve_dyn(ptr, i64)",
       "declare i64 @unison_jit_set_aff(ptr, ptr, ptr)",
+      "declare ptr @unison_jit_local_env(ptr, ptr)",
       "declare ptr @unison_jit_alloc_words(ptr, i64)",
       "declare preserve_mostcc void @unison_jit_exit_frame(ptr, ptr, i64, i64, ...)",
       "declare void @unison_jit_write_mutvar(ptr, ptr, ptr)",
@@ -679,8 +680,29 @@ data FnEnv = FnEnv
     feSym :: !Text,
     -- | the function gets internal linkage (see 'envInternal'); only the
     -- function the cell points to, not its auxiliary functions
-    feInternal :: !Bool
+    feInternal :: !Bool,
+    -- | an affine handler case's environment switch this code is inside
+    -- of (see 'genInLocal'): the switch is in force until the case's
+    -- @Yield@, and every exit until then writes a @Local@ frame record
+    feLocal :: !(Maybe Local)
   }
+
+-- | An environment switch in force (a native @InLocal@): the register
+-- holding the environment to switch back to, and how many inline bindings
+-- the code was inside of when the switch was made, which says where its
+-- @Local@ frame goes among the bindings' records and which @Yield@ ends it.
+data Local = Local
+  { loHenv0 :: !Text,
+    loDepth :: !Int
+  }
+
+-- | Whether a @Yield@ here ends the environment switch in force: it is at
+-- the depth the switch was made at. A tail call here would leave the
+-- switch in force with nothing to end it, so tail calls are exits then.
+localEnds :: FnEnv -> Bool
+localEnds fe = case feLocal fe of
+  Just lo -> loDepth lo == D.size (feEnclosing fe)
+  Nothing -> False
 
 -- | An inline @Let@ binding being generated. Inside it, the interpreter's
 -- view is a fresh frame starting at @enBase@ (its @ap = fp = sp0@), so
@@ -1010,23 +1032,27 @@ joinCall :: FnEnv -> Int -> Maybe IS.IntSet -> Bool -> Maybe (Pair Int Int) -> T
 joinCall fe d live isExit ownFrame status = do
   let slots = liveSlots d live
       base = feBase fe
+      es = D.toList (feEnclosing fe)
       -- the records, as 'flushShared' writes them: the binding being
-      -- unwound, then the enclosing bindings innermost first; a pending
-      -- count of -1 is "fpb - ap", computed by the routine
-      own = case (ownFrame, feEnclosing fe) of
-        (Nothing, _) -> []
-        (Just (Pair ix fdepth), Empty) -> [[ix, fdepth - base, -1]]
-        (Just (Pair ix fdepth), e :<| _) -> [[ix, fdepth - enBase e, 0]]
-      enclosing = go (feEnclosing fe)
-        where
-          go Empty = []
-          go (e :<| outer) = case outer of
-            Empty -> [enIndex e, enBase e - base, -1] : go outer
-            o :<| _ -> [enIndex e, enBase e - enBase o, 0] : go outer
-      recs = own ++ enclosing
-      flags = (if isExit then 1 else 0) + (if null (feEnclosing fe) then 2 else 0) :: Int
+      -- unwound, then the enclosing bindings innermost first, each with
+      -- its frame size relative to the next binding out, and the Local
+      -- frame of an environment switch in force (see 'genInLocal') where
+      -- the switch was made, after the bindings entered since. The pending
+      -- count of the outermost record is -1 ("fpb - ap", computed by the
+      -- routine) and 0 for the rest.
+      own = case ownFrame of
+        Nothing -> []
+        Just (Pair ix fdepth) -> [[ix, fdepth - currentBase fe]]
+      enclosing = zipWith (\e outer -> [enIndex e, enBase e - maybe base enBase outer]) es (map Just (drop 1 es) ++ [Nothing])
+      ordered = case feLocal fe of
+        Nothing -> own ++ enclosing
+        Just lo -> let inner = length es - loDepth lo in own ++ take inner enclosing ++ [[-1, 0]] ++ drop inner enclosing
+      recs = zipWith (\r pending -> r ++ [pending]) ordered (replicate (length ordered - 1) 0 ++ [-1 :: Int])
+      flags = (if isExit then 1 else 0) + (if null es && isNothing (feLocal fe) then 2 else 0) :: Int
       header = [flags, currentBase fe, base, d, length slots, length recs]
       contents = intercalateT ", " (D.fromList (map (("i64 " <>) . tshow) (header ++ slots ++ concat recs)))
+      -- the environment a Local record switches back to, one more argument
+      localArg = maybe "" (\lo -> ", ptr " <> loHenv0 lo) (feLocal fe)
   when isExit (useK d)
   vals <- forM slots $ \k -> useK k >> (Pair <$> loadU k <*> loadB k)
   descs <- gets gsDescs
@@ -1044,13 +1070,15 @@ joinCall fe d live isExit ownFrame status = do
   -- the routine doesn't hand the status back: returning what was passed
   -- keeps it a constant here, so that LLVM still knows the function's
   -- range of statuses (a caller folds its checks of them with it)
-  emit ("call preserve_mostcc void (ptr, ptr, i64, i64, ...) @unison_jit_exit_frame(ptr %ctx, ptr " <> name <> ", i64 %fp, i64 %ap" <> argList (D.fromList vals) <> ")")
+  emit ("call preserve_mostcc void (ptr, ptr, i64, i64, ...) @unison_jit_exit_frame(ptr %ctx, ptr " <> name <> ", i64 %fp, i64 %ap" <> argList (D.fromList vals) <> localArg <> ")")
   retStatus fe status
 
 -- | 'joinShared' with generated write-back blocks (@UNISON_JIT_EXITS=blocks@).
 joinBlock :: FnEnv -> Int -> Maybe IS.IntSet -> Bool -> Maybe (Pair Int Int) -> Text -> Gen ()
 joinBlock fe d live isExit ownFrame status = do
   let slots = liveSlots d live
+  -- (the observing InLocal isn't generated in this mode, see 'localObservingOn')
+  when (isJust (feLocal fe)) $ failWith "an environment switch with generated write-back blocks"
   kinds <- gets gsKinds
   forM_ (IM.keys kinds) $ \k -> when (k `elem` slots) $ do
     b <- loadB k
@@ -1259,7 +1287,7 @@ runFunction env name cix arity frameSize cell headL base worker body =
         | fast = name <> "_wf"
         | worker = workerName name
         | otherwise = name
-      fe = FnEnv env name cix arity frameSize cell headL base "%tag.char" "%tag.float" "%tag.int" "%tag.nat" D.empty worker Nothing sym (envInternal env)
+      fe = FnEnv env name cix arity frameSize cell headL base "%tag.char" "%tag.float" "%tag.int" "%tag.nat" D.empty worker Nothing sym (envInternal env) Nothing
       gs0 = initialState arity (envCells env) (envKnown env) worker
       -- a worker comes with the function the cell points to, the wrapper,
       -- and maybe with a fast entry
@@ -1525,7 +1553,8 @@ genAuxFunction later fe loaded base body = do
     (_, Just (Pair cell cells)) -> do
       let name = feName fe <> "_r" <> tshow (gsNAux s)
           known = Pair name cell
-          fe' = fe {feName = name, feArity = loaded, feCell = cell, feHead = Nothing, feBase = base, feEnclosing = D.empty, feWorker = False, feFast = Nothing, feSym = name, feInternal = False}
+          -- (an environment switch in force at the exit this re-enters after has become a Local frame in K)
+          fe' = fe {feName = name, feArity = loaded, feCell = cell, feHead = Nothing, feBase = base, feEnclosing = D.empty, feWorker = False, feFast = Nothing, feSym = name, feInternal = False, feLocal = Nothing}
           gs0 = s {gsFresh = 0, gsBlocks = D.empty, gsCur = Pair "head" D.empty, gsMaxK = loaded, gsKinds = IM.empty, gsFailed = Nothing, gsCells = cells, gsNAux = gsNAux s + 1, gsCaptured = Nothing, gsMaxPool = -1, gsWorker = False, gsShared = Map.empty, gsDescs = Map.empty, gsDescText = D.empty}
           !(text, gs) = runState (genFunctionText fe' body) gs0
       case gsFailed gs of
@@ -1768,8 +1797,15 @@ genSection fe d sect = case feFast fe of
 
 genSectionFull :: FnEnv -> Int -> MSection -> Gen ()
 genSectionFull fe d sect = case sect of
+  -- an affine handler's switch to its own environment, in the form the
+  -- rest of the case can observe (the other form is a no-op, in 'genInstr')
+  Ins (InLocal i) rest
+    | on "requests", localObservingOn, not (localUnobserved rest) -> genInLocal fe d i rest sect
   Ins i rest -> genInstr fe d i sect (\d' -> genSection fe d' rest)
   Yield args -> genYield fe d args sect
+  -- a tail call would leave an environment switch in force (see 'localEnds')
+  Call {} | localEnds fe -> exitResume fe d sect
+  App {} | localEnds fe -> exitResume fe d sect
   Call _ cix comb args -> genCall fe d cix comb args sect
   App _ r args | on "app" -> genApp fe d r args sect
   Match i br -> do
@@ -2350,6 +2386,7 @@ genYield fe d args _sect
       if n /= enResults e
         then failWith "binding yields the wrong number of values"
         else do
+          when (localEnds fe) (endLocal fe)
           vals <- loadSources srcs
           iforM_ vals $ \j (Pair u b) -> do
             storeU (enBase e + n - j) u
@@ -2364,6 +2401,7 @@ genYield fe d args sect = do
   fast <- freshLabel "yield"
   emit ("br i1 " <> pending <> ", label %" <> slow <> ", label %" <> fast <> unlikely)
   startBlock fast
+  when (localEnds fe) (endLocal fe)
   let srcs = argSources fe d args
       n = D.size srcs
   vals <- loadSources srcs
@@ -2875,8 +2913,14 @@ instrNative = \case
 instrNativeIn :: GInstr (RComb Val) -> MSection -> Bool
 instrNativeIn i rest =
   instrNative i || case i of
-    InLocal _ -> requestsOn && localUnobserved rest
+    InLocal _ -> requestsOn && (localUnobserved rest || localObservingOn)
     _ -> False
+
+-- | The observing form of @InLocal@ is generated (see 'genInLocal'): its
+-- Local frame record is written by the exit routine, which the generated
+-- write-back blocks of @UNISON_JIT_EXITS=blocks@ don't have.
+localObservingOn :: Bool
+localObservingOn = requestsOn && exitCall config
 
 -- | Ability requests and the affine handler instructions are generated
 -- (off under @UNISON_JIT_DISABLE=requests@).
@@ -2910,6 +2954,65 @@ localUnobserved = \case
       Prim1 op _ -> prim1Supported op
       Prim2 op _ _ -> prim2Supported op
       _ -> False
+
+-- | An affine handler's @InLocal@ when the rest of the case observes the
+-- environment (a request of its own, a call): the switch the interpreter
+-- makes, reproduced. The helper builds the case's environment (@HEnv@ of
+-- the @Affine@ closure's @aenv@ and the empty @denv@); the old one goes
+-- in a register and the new one in @Ctx@, where every request site reads
+-- it, and the switch count goes up. The rest of the case is generated
+-- with the switch in force ('feLocal'): its @Yield@ switches back
+-- ('endLocal'), and every exit or unwind before that writes a @Local@
+-- frame record with the old environment ('joinCall'), so the interpreter
+-- continues as it would after its own @InLocal@, with the current
+-- environment it reads back from the trampoline. The slow path is a
+-- call-out: the interpreter runs the instruction and the rest of the case
+-- re-enters with the @Local@ frame in @K@. Taken when the helper refuses
+-- the closure, or when as many switches are in force as the out-area that
+-- an exit hands their environments back in has room for.
+genInLocal :: FnEnv -> Int -> Int -> MSection -> MSection -> Gen ()
+genInLocal fe d i rest sect = do
+  let env = feEnv fe
+  slow <- callOutExit True fe d (InLocal i) sect
+  nla <- ctxField env oNLocals
+  nl <- fresh "nlocals"
+  emit (nl <> " = load i64, ptr " <> nla)
+  full <- fresh "full"
+  emit (full <> " = icmp sge i64 " <> nl <> ", " <> tshow nativeLocals)
+  branchIf "local" full slow
+  aff <- loadB (d - i)
+  h <- fresh "local"
+  emit (h <> " = call ptr @unison_jit_local_env(ptr %ctx, ptr " <> aff <> ")")
+  miss <- fresh "miss"
+  emit (miss <> " = icmp eq ptr " <> h <> ", null")
+  branchIf "local" miss slow
+  ha <- ctxField env oHenv
+  h0 <- fresh "henv0"
+  emit (h0 <> " = load ptr, ptr " <> ha)
+  emit ("store ptr " <> h <> ", ptr " <> ha)
+  nl' <- fresh "nlocals"
+  emit (nl' <> " = add i64 " <> nl <> ", 1")
+  emit ("store i64 " <> nl' <> ", ptr " <> nla)
+  genSection fe {feLocal = Just (Local h0 (D.size (feEnclosing fe)))} d rest
+
+-- | Switches in force at once that an exit can hand back; must match
+-- UNISON_JIT_LOCALS in jit_rt.h.
+nativeLocals :: Int
+nativeLocals = 8
+
+-- | The end of an environment switch, at the case's @Yield@: the old
+-- environment goes back into @Ctx@ and the switch count down.
+endLocal :: FnEnv -> Gen ()
+endLocal fe = forM_ (feLocal fe) $ \lo -> do
+  let env = feEnv fe
+  ha <- ctxField env oHenv
+  emit ("store ptr " <> loHenv0 lo <> ", ptr " <> ha)
+  nla <- ctxField env oNLocals
+  nl <- fresh "nlocals"
+  emit (nl <> " = load i64, ptr " <> nla)
+  nl' <- fresh "nlocals"
+  emit (nl' <> " = add i64 " <> nl <> ", -1")
+  emit ("store i64 " <> nl' <> ", ptr " <> nla)
 
 -- | An instruction at depth @d@; continues with the depth after it.
 genInstr :: FnEnv -> Int -> GInstr (RComb Val) -> MSection -> (Int -> Gen ()) -> Gen ()
