@@ -276,9 +276,8 @@ void *unison_jit_resolve_dyn(void *henv, int64_t key) {
 //   never equal to a boxed one and orders below it. Int/Int is signed,
 //   Nat/Nat unsigned, a Nat against a negative Int is greater and otherwise
 //   unsigned, Float/Float is compareAsFloat on the bits (signed when either
-//   is positive, else backwards; its `clearBit 64` is a no-op, so -0.0 is
-//   above +0.0), and any other pair is signed on the words, after the tags
-//   only under tyEq.
+//   is positive, else with the sign bits cleared and backwards), and any
+//   other pair is signed on the words, after the tags only under tyEq.
 // - Data orders by constructor index (the low 16 bits of the packed tag),
 //   then field count, then fields; equality compares the whole packed tag,
 //   type included, except that one-field constructors with the boxed Int
@@ -391,9 +390,11 @@ static int64_t uc_unboxed(StgWord u1, int k1, StgWord u2, int k2, int tyeq) {
   if (k1 == 4 && k2 == 3) return (int64_t)u2 < 0 ? 1 : cmp_u(u1, u2);
   if (k1 == 3 && k2 == 4) return (int64_t)u1 < 0 ? -1 : cmp_u(u1, u2);
   if (k1 == 2 && k2 == 2) {
-    // compareAsFloat, as the interpreter has it
+    // compareAsFloat: positive floats order as their bits; two non-positive
+    // ones by magnitude, backwards (-0.0 and 0.0 both clear to 0)
     int64_t i = (int64_t)u1, j = (int64_t)u2;
-    return (i > 0 || j > 0) ? cmp_i(i, j) : cmp_i(j, i);
+    if (i > 0 || j > 0) return cmp_i(i, j);
+    return cmp_i(j & 0x7FFFFFFFFFFFFFFFLL, i & 0x7FFFFFFFFFFFFFFFLL);
   }
   if (tyeq && k1 != k2) return cmp_i(k1, k2);
   return cmp_i((int64_t)u1, (int64_t)u2);

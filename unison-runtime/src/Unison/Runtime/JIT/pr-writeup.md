@@ -62,3 +62,19 @@ The JIT modules by size:
 | `LLVM.hs` | 126 |
 | `Frames.hs` | 69 |
 | `Strict.hs` | 50 |
+
+## Interpreter bugs found by the native code and fixed on both sides
+
+Every native path is checked against the interpreter, so a disagreement is a bug in one of them;
+twice it was the interpreter's.
+
+- **The sized Int foreign conventions tagged their results Nat** (2026-10-11): the
+  `ForeignConvention` instances for `Int8`, `Int16`, `Int32` and `Int64` wrote their results back
+  with `pokeN`, so an `FFI.Ptr.Int8.get` returned a value whose type tag said Nat. Found by the
+  pointer tests; now `pokeI`.
+- **Universal ordering of floats around zero** (2026-10-11): `compareAsFloat` in `Stack.hs` clears
+  the sign bit before comparing two non-positive floats backwards, but cleared bit 64, which on a
+  64-bit `Int` is a no-op, so `Universal.compare 0.0 -1.0` was `-1`, every negative float ordered
+  above `0.0`, and `-0.0` ordered above every negative float and below `0.0`. The native comparison
+  reproduced it at first (outputs must match), then both were fixed to clear bit 63;
+  `runtime-tests.md` had recorded the wrong answers for `compare +0.0 (-0.0)` and its mirror.

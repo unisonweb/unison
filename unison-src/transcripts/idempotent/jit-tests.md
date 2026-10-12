@@ -2722,8 +2722,8 @@ scratch/main> run pointers
 the same type inline, everything else through a walker over the closures (`unison_jit_ueq`,
 `unison_jit_ucmp`) that gives the interpreter's answer, including its quirks: a `Nat` and an
 `Int` of the same value are equal, ordering compares constructor indices only while equality
-compares the type too, `-0.0` orders above `0.0`. Functions of different definitions and maps
-are still left to the interpreter.
+compares the type too, `-0.0` and `0.0` are equal under ordering but not under equality (the
+bits differ). Functions of different definitions and maps are still left to the interpreter.
 
 ``` unison
 use Nat + - * / == < > <= >=
@@ -2778,6 +2778,8 @@ countBelow n =
 > cmpAll -1.0 -2.0
 > cmpAll -1.0 2.0
 > cmpAll 0.0 -0.0
+> cmpAll 0.0 -1.0
+> cmpAll -1.0e10 0.0
 > cmpAll (0.0 Float./ 0.0) (0.0 Float./ 0.0)
 > cmpAll ?a ?b
 > cmpAll true false
@@ -2911,73 +2913,81 @@ cmpArrays = do
 
     52 | > cmpAll 0.0 -0.0
            ⧩
-           (false, true, true, false, false, -1)
+           (false, false, true, false, true, +0)
 
-    53 | > cmpAll (0.0 Float./ 0.0) (0.0 Float./ 0.0)
-           ⧩
-           (true, false, true, false, true, +0)
-
-    54 | > cmpAll ?a ?b
-           ⧩
-           (false, true, true, false, false, -1)
-
-    55 | > cmpAll true false
+    53 | > cmpAll 0.0 -1.0
            ⧩
            (false, false, false, true, true, +1)
 
-    56 | > cmpAll false false
+    54 | > cmpAll -1.0e10 0.0
+           ⧩
+           (false, true, true, false, false, -1)
+
+    55 | > cmpAll (0.0 Float./ 0.0) (0.0 Float./ 0.0)
            ⧩
            (true, false, true, false, true, +0)
 
-    57 | > cmpAll +3 -3
+    56 | > cmpAll ?a ?b
+           ⧩
+           (false, true, true, false, false, -1)
+
+    57 | > cmpAll true false
            ⧩
            (false, false, false, true, true, +1)
 
-    58 | > cmpAll 18446744073709551615 1
+    58 | > cmpAll false false
+           ⧩
+           (true, false, true, false, true, +0)
+
+    59 | > cmpAll +3 -3
            ⧩
            (false, false, false, true, true, +1)
 
-    59 | > cmpAll "abc" "abd"
+    60 | > cmpAll 18446744073709551615 1
+           ⧩
+           (false, false, false, true, true, +1)
+
+    61 | > cmpAll "abc" "abd"
            ⧩
            (false, true, true, false, false, -1)
 
-    60 | > cmpAll 0xs01 0xs0100
+    62 | > cmpAll 0xs01 0xs0100
            ⧩
            (false, true, true, false, false, -1)
 
-    61 | > cmpAll (1, 0xs01, "a", ?c, 2.0) (1, 0xs01, "a", ?c, 2.0)
+    63 | > cmpAll (1, 0xs01, "a", ?c, 2.0) (1, 0xs01, "a", ?c, 2.0)
            ⧩
            (true, false, true, false, true, +0)
 
-    62 | > cmpAll addOne addOne
+    64 | > cmpAll addOne addOne
            ⧩
            (true, false, true, false, true, +0)
 
-    63 | > cmpAll (addN 1) (addN 2)
+    65 | > cmpAll (addN 1) (addN 2)
            ⧩
            (false, true, true, false, false, -1)
 
-    64 | > cmpAll (addN 2) (addN 2)
+    66 | > cmpAll (addN 2) (addN 2)
            ⧩
            (true, false, true, false, true, +0)
 
-    65 | > sortU [(3, "c"), (1, "b"), (2, "a"), (1, "a"), (3, "a")]
+    67 | > sortU [(3, "c"), (1, "b"), (2, "a"), (1, "a"), (3, "a")]
            ⧩
            [(1, "a"), (1, "b"), (2, "a"), (3, "a"), (3, "c")]
 
-    66 | > sortU [Some 3, None, Some 1, None, Some 2]
+    68 | > sortU [Some 3, None, Some 1, None, Some 2]
            ⧩
            [Some 1, Some 2, Some 3, None, None]
 
-    67 | > sortU [[2, 1], [1, 2, 3], [], [1, 2]]
+    69 | > sortU [[2, 1], [1, 2, 3], [], [1, 2]]
            ⧩
            [[], [1, 2], [1, 2, 3], [2, 1]]
 
-    68 | > sortU [-1.5, 2.0, -0.0, 0.0, 1e10, -1e10]
+    70 | > sortU [-1.5, 2.0, -0.0, 0.0, 1e10, -1e10]
            ⧩
-           [0.0, -1.0e10, -1.5, -0.0, 2.0, 1.0e10]
+           [-1.0e10, -1.5, 0.0, -0.0, 2.0, 1.0e10]
 
-    69 | > countBelow 100000
+    71 | > countBelow 100000
            ⧩
            50001
 ```

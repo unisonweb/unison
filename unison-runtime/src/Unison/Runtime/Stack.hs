@@ -1735,7 +1735,8 @@ compareAsFloat i j
   | i > 0 || j > 0 = compare i j
   | otherwise = compare (clear j) (clear i)
   where
-    clear k = clearBit k 64
+    -- the sign bit
+    clear k = clearBit k 63
 
 compareVal :: Bool -> Val -> Val -> Ordering
 compareVal tyEq = \cases
