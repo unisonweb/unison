@@ -118,12 +118,11 @@ the rest replaced). The last column is the third over the second: below 1, nativ
   the two `toList`s and compares them with `===`, and comparing a pair of tuples is an exit
   (next point). These improve in base or with helpers over `DataG` nodes, not in the code the
   JIT generates for the current definitions.
-- **Universal comparison of structured values exits.** The all-native run's hottest exit
-  site was `Universal.<=` leaving at its `LEQU`, 78 million times, with every caller unwinding
-  behind it: the generator compares numbers inline and texts and bytes through a helper, and
-  anything else goes to the interpreter. This is what makes `Map.==` 1.2 to 4.6 µs per key
-  natively and sorting pairs slow; an entry in optimization-ideas.md ("Universal comparison of
-  structured values").
+- **Universal comparison of structured values exited** (fixed later the same day, below). The
+  all-native run's hottest exit site was `Universal.<=` leaving at its `LEQU`, 78 million
+  times, with every caller unwinding behind it: the generator compared numbers inline and
+  texts and bytes through a helper, and anything else went to the interpreter. This is what
+  made `Map.==` 1.2 to 4.6 µs per key natively.
 - **`Map.union` and `Set.union` are not replaced in this base.** The call-out column is slower
   than the interpreter's on them and the native one 3× faster, so the hash in
   `functionReplacementList` isn't base 7.19.2's `Map.union`; what runs is base's
@@ -140,3 +139,28 @@ Native code wins at the sizes a program commonly uses, the replacement goes
 wins at smallish sizes then I would not do the replacement. And for larger sizes we can
 improve the JIT." The `Map` family's large-size loss is the `DataG` representation, listed in
 optimization-ideas.md as the next step for it.
+
+## Later the same day: universal comparison native for every value
+
+After `unison_jit_ueq` and `unison_jit_ucmp` (internals, "Universal comparison"), the rows
+the exits had touched, same setup, one run each:
+
+| row | JIT, none replaced, before | after | JIT, tagged, before | after |
+| --- | --- | --- | --- | --- |
+| Map.==: two equal maps of 10 keys | 1197 ns | 590 ns | 297 ns | 296 ns |
+| Map.==: two equal maps of 1000 keys | 3026 ns | 1209 ns | 278 ns | 278 ns |
+| Map.==: two equal maps of 100000 keys | 4567 ns | 2074 ns | 683 ns | 651 ns |
+| Map.insert: 10 Text keys | 139 ns | 157 ns | 140 ns | 157 ns |
+| Map.insert: 1000 Text keys | 502 ns | 556 ns | 504 ns | (not rerun) |
+| List.sort: 10 scrambled Texts | 232 ns | 245 ns | 54 ns | 54 ns |
+| List.sort: 10 sorted Nats | 176 ns | 175 ns | 31 ns | 30 ns |
+
+`Map.==` halves with everything native; what remains is base's `sortWith` on tuples, a merge
+sort calling its comparison as a closure, whose cost was never the comparison itself (the
+`List.sort` rows on Nats, whose comparisons were inline all along, are unchanged at 175 ns per
+element). Under the tagged default `Map.==` doesn't move: `List.sort` is a call-out there, so
+the exit rule leaves `Map.==` interpreted and the final `===` ran in the interpreter before
+and after. The two text rows show the one cost: two texts now reach the rope comparison through
+the walker (a kind check, then the rope helper's own), 13% on Text-keyed inserts and 5% on
+sorting texts; a direct rope path ahead of the walker would take it back if it matters. Every
+other row is within noise. The tagged default's decisions above stand.
