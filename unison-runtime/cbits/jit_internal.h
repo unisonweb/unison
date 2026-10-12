@@ -154,6 +154,37 @@ UNISON_JIT_TABLE HashFacts unison_jit_HK;
 // why a value was left to the interpreter, under UNISON_JIT_TRACE_TEST
 void unison_jit_murmur_fail(const char *what, StgClosure *c);
 
+// --- Universal.== and Universal.compare ---
+
+// What the comparison walkers need beyond LF, TK, BK, AK and HK; from
+// unison_jit_cmp_init.
+typedef struct {
+  StgWord pap_info;         // PAp (CIx ref grp w) comb (useg, bseg): pointers ref, entry, useg, bseg; words grp, w, ...
+  StgWord int_tag, nat_tag; // the packed tags of boxed Int and Nat literals, which match each other under equality
+  StgWord any_type;         // the type part (above bit 16) of Any's packed tag: its fields compare with types
+  int ok;
+} CmpFacts;
+UNISON_JIT_TABLE CmpFacts unison_jit_CK;
+#define CK unison_jit_CK
+
+// The Val closure at index i of a deque (0 <= i < its size), or NULL.
+StgClosure *unison_jit_list_at(StgClosure *dq, StgInt i);
+
+// Universal equality and ordering on two texts or two bytes (bit 0 of
+// `kinds` takes texts, bit 1 bytes): 1 or 0, or -1 for anything else;
+// -1, 0 or 1, or 2 for anything else.
+int64_t unison_jit_foreign_eq(void *x, void *y, int64_t kinds);
+int64_t unison_jit_foreign_cmp(void *x, void *y, int64_t kinds);
+
+// why a comparison was left to the interpreter, under UNISON_JIT_TRACE_TEST
+void unison_jit_cmp_fail(const char *what, StgClosure *c);
+
+// Universal.== and Universal.compare of two stack slots: (ok, 0 or 1) and
+// (ok, -1, 0 or 1), or "not handled". Defined in jit_helpers.c; generated
+// code calls the IR copies.
+JitNat unison_jit_ueq(int64_t u1, void *b1, int64_t u2, void *b2, int64_t kinds);
+JitNat unison_jit_ucmp(int64_t u1, void *b1, int64_t u2, void *b2, int64_t kinds);
+
 // --- the handler environment (HEnv, Unison.Runtime.Stack) ---
 
 // HEnv is a record of two lazy pointer fields, `aenv` (ability number to

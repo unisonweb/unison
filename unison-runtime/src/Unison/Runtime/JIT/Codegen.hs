@@ -246,6 +246,8 @@ modulePrelude =
       "declare ptr @unison_jit_ref_read_for_cas(ptr, ptr)",
       "declare i64 @unison_jit_ref_cas(ptr, ptr, ptr, i64, ptr)",
       "declare { i64, i64 } @unison_jit_murmur(i64, ptr)",
+      "declare { i64, i64 } @unison_jit_ueq(i64, ptr, i64, ptr, i64)",
+      "declare { i64, i64 } @unison_jit_ucmp(i64, ptr, i64, ptr, i64)",
       "declare ptr @unison_jit_resolve_dyn(ptr, i64)",
       "declare i64 @unison_jit_set_aff(ptr, ptr, ptr)",
       "declare ptr @unison_jit_local_env(ptr, ptr)",
@@ -3932,43 +3934,43 @@ genUniversal fe d op ki kj instr sect = do
   fast <- fresh "fast"
   emit (fast <> " = and i1 " <> same <> ", " <> known)
   go <- freshLabel "univ"
-  -- which kinds of rope the helpers are to take: texts, bytes
+  -- which kinds of rope the helper is to take: texts, bytes
   let kinds = (if enabled fe "text" then 1 else 0) + (if enabled fe "bytes" then 2 else 0) :: Int
       isCmp = op == CMPU
       deliver c = if isCmp then result fe d (feTagInt fe) c else resultBool fe d c
-  if kinds /= 0
-    then do
-      -- two texts or two bytes are compared by a helper; anything else
-      -- that isn't a pair of numbers goes to the interpreter
-      feq <- freshLabel "feq"
-      emit ("br i1 " <> fast <> ", label %" <> go <> ", label %" <> feq <> likely)
-      startBlock feq
-      r <- fresh "cmp"
-      let !(Pair helper missVal) = if op == EQLU then Pair "unison_jit_foreign_eq" "-1" else Pair "unison_jit_foreign_cmp" "2"
-      emit (r <> " = call i64 @" <> helper <> "(ptr " <> bi <> ", ptr " <> bj <> ", i64 " <> tshow kinds <> ")")
-      miss <- fresh "miss"
-      emit (miss <> " = icmp eq i64 " <> r <> ", " <> missVal)
-      ok <- freshLabel "feq.ok"
-      emit ("br i1 " <> miss <> ", label %" <> slow <> ", label %" <> ok <> unlikely)
-      startBlock ok
-      c2 <- case op of
-        EQLU -> cmp "ne" r "0"
-        LEQU -> cmp "sle" r "0"
-        LESU -> cmp "slt" r "0"
-        _ -> pure r
-      join <- freshLabel "univ.join"
-      emit ("br label %" <> join)
-      startBlock go
-      c1 <- genUniversalValue op isInt ui uj
-      emit ("br label %" <> join)
-      startBlock join
-      c <- fresh "c"
-      emit (c <> " = phi " <> (if isCmp then "i64" else "i1") <> " [ " <> c1 <> ", %" <> go <> " ], [ " <> c2 <> ", %" <> ok <> " ]")
-      deliver c
-    else do
-      emit ("br i1 " <> fast <> ", label %" <> go <> ", label %" <> slow <> likely)
-      startBlock go
-      genUniversalValue op isInt ui uj >>= deliver
+  -- anything but two numbers of the same type goes to the IR helper, which
+  -- walks the two values ("Universal.== and Universal.compare" in
+  -- jit_helpers.c) and answers "not handled" for what it leaves to the
+  -- interpreter: functions of different references, maps, mismatched kinds
+  feq <- freshLabel "feq"
+  emit ("br i1 " <> fast <> ", label %" <> go <> ", label %" <> feq <> likely)
+  startBlock feq
+  r <- fresh "pair"
+  let helper = if op == EQLU then "unison_jit_ueq" else "unison_jit_ucmp"
+  emit (r <> " = call { i64, i64 } @" <> helper <> "(i64 " <> ui <> ", ptr " <> bi <> ", i64 " <> uj <> ", ptr " <> bj <> ", i64 " <> tshow kinds <> ")")
+  okv <- fresh "ok"
+  emit (okv <> " = extractvalue { i64, i64 } " <> r <> ", 0")
+  miss <- fresh "miss"
+  emit (miss <> " = icmp eq i64 " <> okv <> ", 0")
+  ok <- freshLabel "feq.ok"
+  emit ("br i1 " <> miss <> ", label %" <> slow <> ", label %" <> ok <> unlikely)
+  startBlock ok
+  v <- fresh "v"
+  emit (v <> " = extractvalue { i64, i64 } " <> r <> ", 1")
+  c2 <- case op of
+    EQLU -> cmp "ne" v "0"
+    LEQU -> cmp "sle" v "0"
+    LESU -> cmp "slt" v "0"
+    _ -> pure v
+  join <- freshLabel "univ.join"
+  emit ("br label %" <> join)
+  startBlock go
+  c1 <- genUniversalValue op isInt ui uj
+  emit ("br label %" <> join)
+  startBlock join
+  c <- fresh "c"
+  emit (c <> " = phi " <> (if isCmp then "i64" else "i1") <> " [ " <> c1 <> ", %" <> go <> " ], [ " <> c2 <> ", %" <> ok <> " ]")
+  deliver c
 
 -- | The comparison of two words of the same numeric type: an i1 for the
 -- boolean operations, the Int -1, 0 or 1 for compare.

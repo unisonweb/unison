@@ -30,8 +30,11 @@ module Unison.Runtime.JIT.Native
     arrayInit,
     murmurInit,
     murmurTest,
+    cmpInit,
+    cmpTest,
     envInit,
     murmurCAddress,
+    ucmpCAddress,
     tableAddresses,
     bytesCheck,
     bytesTest,
@@ -268,6 +271,32 @@ envInit :: MutableArray RealWorld Any -> IO Int
 envInit (MutableArray arr#) = fromIntegral <$> c_envInit arr#
 
 foreign import ccall "&unison_jit_murmur" c_murmurAddr :: FunPtr (Int64 -> Ptr () -> IO ())
+
+foreign import ccall "&unison_jit_ucmp" c_ucmpAddr :: FunPtr (Int64 -> Ptr () -> Int64 -> Ptr () -> Int64 -> IO ())
+
+foreign import ccall unsafe "unison_jit_cmp_init" c_cmpInit :: Ptr Int64 -> IO Int64
+
+foreign import ccall unsafe "unison_jit_cmp_test_ffi" c_cmpTest :: MutableArray# RealWorld Any -> Int64 -> Int64 -> Int64 -> Ptr Int64 -> IO Int64
+
+-- | Where the C copy of @unison_jit_ucmp@ is, for the same check.
+ucmpCAddress :: FunPtr (Int64 -> Ptr () -> Int64 -> Ptr () -> Int64 -> IO ())
+ucmpCAddress = c_ucmpAddr
+
+-- | Hands the comparison helpers the PAp info pointer, the packed tags of
+-- boxed Int and Nat, and the type part of Any's packed tag.
+cmpInit :: [Int] -> IO Int
+cmpInit infos = allocaBytes (8 * length infos) $ \p -> do
+  mapM_ (\(i, v) -> pokeElemOff p i (fromIntegral v)) (zip [0 ..] infos)
+  fromIntegral <$> c_cmpInit p
+
+-- | The native comparison (or equality, with the flag) of the values in
+-- elements 0 and 1, whose unboxed halves are the two ints and whose boxed
+-- halves are the elements; Nothing when the helper leaves the pair to the
+-- interpreter.
+cmpTest :: MutableArray RealWorld Any -> Int -> Int -> Bool -> IO (Maybe Int)
+cmpTest (MutableArray arr#) u1 u2 eq = allocaBytes 8 $ \p -> do
+  ok <- c_cmpTest arr# (fromIntegral u1) (fromIntegral u2) (if eq then 4 else 0) p
+  if ok == 1 then Just . fromIntegral <$> peek p else pure Nothing
 
 -- | Where the C copy of @unison_jit_murmur@ is: what the JIT's own
 -- definition of the name (the IR copy) must not be.

@@ -21,19 +21,6 @@ loses to the Haskell map above a few thousand keys while winning below
 change (`GClosure`, `dataBranch`, `buildData`, value serialization), not a JIT one, and needs
 a plan of its own.
 
-### Universal comparison of structured values
-
-`genUniversal` compares numbers inline and two texts or two bytes through a C helper; a pair
-of anything else (two tuples, two lists, two constructors of a user type, two characters or
-floats under an ordering) is an exit, and every native caller unwinds with it. `List.sort` on
-a list of pairs and base's `Map.==` (which sorts the two `toList`s) pay a round trip per
-comparison: in [2026-10-11 replacements](benchmarks/2026-10-11-replacements.md) `Map.==` ran
-at 1.2 to 4.6 µs per key natively against 30 to 60 ns through the Haskell replacement, and the
-`Universal.<=` exit was the hottest site of the run (78 million). The fix is a walker like the
-murmur IR helper: compare constructor tags and fields recursively, with the numeric and rope
-cases inline, answering "not handled" for functions, maps and the other closures the
-interpreter's `Ord` knows. Any map or set keyed by a tuple hits this on every operation.
-
 ### One allocation for several `Pack`s
 
 Consecutive `Pack`s in a straight-line run, and the arithmetic between them, could share one

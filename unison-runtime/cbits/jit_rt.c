@@ -188,8 +188,8 @@ void *unison_jit_name(UnisonJitCtx *ctx, void *fun, int64_t n, int64_t u0, void 
 // defines each name at its address before adding the module. Fills up to n
 // entries and returns how many there are.
 int64_t unison_jit_table_addresses(const char **names, void **addrs, int64_t n) {
-  static const char *const tnames[] = {"unison_jit_LF", "unison_jit_TK", "unison_jit_BK", "unison_jit_AK", "unison_jit_HK", "unison_jit_EK"};
-  void *taddrs[] = {&unison_jit_LF, &unison_jit_TK, &unison_jit_BK, &unison_jit_AK, &unison_jit_HK, &unison_jit_EK};
+  static const char *const tnames[] = {"unison_jit_LF", "unison_jit_TK", "unison_jit_BK", "unison_jit_AK", "unison_jit_HK", "unison_jit_EK", "unison_jit_CK"};
+  void *taddrs[] = {&unison_jit_LF, &unison_jit_TK, &unison_jit_BK, &unison_jit_AK, &unison_jit_HK, &unison_jit_EK, &unison_jit_CK};
   int64_t count = sizeof taddrs / sizeof taddrs[0];
   for (int64_t i = 0; i < n && i < count; i++) names[i] = tnames[i], addrs[i] = taddrs[i];
   return count;
@@ -221,9 +221,11 @@ void *unison_jit_helpers[] = {
     (void *)&unison_jit_parray_new,      (void *)&unison_jit_parray_copy,      (void *)&unison_jit_parray_freeze,
     (void *)&unison_jit_ref_new,         (void *)&unison_jit_ref_read_for_cas, (void *)&unison_jit_ref_cas,
     (void *)&unison_jit_murmur,         (void *)&unison_jit_exit_frame,
+    (void *)&unison_jit_ueq,            (void *)&unison_jit_ucmp,
     // what the IR helpers (jit_helpers.c) call from their module
     (void *)&unison_jit_settle,         (void *)&unison_jit_rope_chunk_at, (void *)&unison_jit_lv_each,
     (void *)&unison_jit_murmur_fail,    (void *)&unison_jit_table_addresses,
+    (void *)&unison_jit_list_at,        (void *)&unison_jit_cmp_fail,
 };
 
 void unison_jit_configure(int64_t poll_every, int64_t callee_every, int64_t cstack, int64_t alloc,
@@ -1151,6 +1153,19 @@ void *unison_jit_list_index(UnisonJitCtx *ctx, void *list, int64_t i, void *none
   p[3] = some_tag;
   p[4] = (StgWord)LP(x, 1);
   return (void *)((StgWord)p | 3);
+}
+
+// The Val closure at index i of a deque, for the comparison walkers.
+StgClosure *unison_jit_list_at(StgClosure *dq, StgInt i) {
+  if (LTAG(dq) != 2) return NULL;
+  StgInt t = LW(dq, 3), n = TSIZE(t), pc = TPC(t);
+  if (i < 0 || i >= n) return NULL;
+  StgInt j = n - 1 - i;
+  if (i < pc) return s_nth(LP(dq, 0), i);
+  if (j < TSC(t)) return s_nth(LP(dq, 2), j);
+  StgInt off;
+  StgClosure *nd = mid_look(LP(dq, 1), 0, i - pc, &off);
+  return node_kids(nd)[off];
 }
 
 // List.take (take != 0) or List.drop of n, as TAKS and DRPS do them: a
@@ -3628,6 +3643,42 @@ int64_t unison_jit_murmur_test_ffi(void **elems, int64_t u, int64_t unboxed, int
     fflush(stderr);
   }
   JitNat r = unison_jit_murmur(unboxed ? u : -1, b);
+  *out = r.v;
+  return r.ok;
+}
+
+// ---------------------------------------------------------------------------
+// Universal.== and Universal.compare (jit_helpers.c): the facts table, the
+// trace output and the startup functions.
+
+void unison_jit_cmp_fail(const char *what, StgClosure *c) {
+  static int trace_test = -1;
+  if (trace_test < 0) trace_test = getenv("UNISON_JIT_TRACE_TEST") != NULL;
+  if (trace_test) {
+    const StgInfoTable *it = c != NULL && LTAG(c) ? get_itbl(LUN(c)) : NULL;
+    fprintf(stderr, "[test] compare: not handled: %s, closure %p tag %d type %d\n", what, (void *)c, c ? LTAG(c) : -1,
+            it ? (int)it->type : -1);
+  }
+}
+
+// Startup: info[0] the PAp info pointer, info[1] and info[2] the packed
+// tags of boxed Int and Nat, info[3] the type part of Any's packed tag.
+int64_t unison_jit_cmp_init(int64_t *info) {
+  CK.pap_info = info[0];
+  CK.int_tag = info[1];
+  CK.nat_tag = info[2];
+  CK.any_type = info[3];
+  CK.ok = HK.ok && LF.foreign_info != 0 && LF.val_info != 0;
+  return CK.ok;
+}
+
+// Startup check: the two values are elems[0] and elems[1] (type tag closures
+// with u1, u2 for unboxed ones: bits 0 and 1 of `flags`); bit 2 asks for
+// equality instead of ordering. Writes the answer and returns whether the
+// helper handled the pair.
+int64_t unison_jit_cmp_test_ffi(void **elems, int64_t u1, int64_t u2, int64_t flags, int64_t *out) {
+  StgClosure *b1 = unison_jit_settle(elems[0]), *b2 = unison_jit_settle(elems[1]);
+  JitNat r = (flags & 4) ? unison_jit_ueq(u1, b1, u2, b2, 3) : unison_jit_ucmp(u1, b1, u2, b2, 3);
   *out = r.v;
   return r.ok;
 }

@@ -19,8 +19,14 @@ when reading it:
   coercions behind `Nat.toInt`, `Char.toNat`, `Float.toRepresentation` and the like, and every
   Float operation). The Float results are the interpreter's bit for bit; the internals ("Numbers") say
   what that took.
-- `Text`, `List` and `Universal` comparison are complete. `Bytes` is complete except the
-  compression functions. The Text patterns were skipped on purpose (Paul, 2026-10-03).
+- `Text` and `List` are complete. `Bytes` is complete except the compression functions. The
+  Text patterns were skipped on purpose (Paul, 2026-10-03).
+- `Universal.==`, `<`, `<=`, `>`, `>=` and `compare` are native for every kind of value since
+  2026-10-11 (before that, only for two numbers of the same type and two texts or bytes; a
+  tuple, a list or a constructor exited): numbers inline, everything else through the
+  comparison walkers (internals, "Universal comparison"). What still goes to the interpreter:
+  two functions of different definitions, maps, two foreign values of different kinds (which
+  the interpreter rejects with an error).
 - Arrays and Refs are complete (2026-10-05): every `MutableArray`, `ImmutableArray`,
   `MutableByteArray`, `ImmutableByteArray` and `PinnedByteArray` builtin, the `Scope` and `IO`
   constructors for them, `Scope.ref`/`IO.ref`, `Ref.readForCas`, `Ticket.read` and `Ref.cas`.

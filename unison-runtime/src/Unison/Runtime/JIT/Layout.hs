@@ -15,6 +15,7 @@ module Unison.Runtime.JIT.Layout
     probeNames,
     probeArrays,
     probeMurmur,
+    probeCompare,
     probeEnv,
   )
 where
@@ -31,6 +32,7 @@ import Data.IORef (newIORef)
 import GHC.IORef (IORef (..))
 import Unison.Util.EnumContainers qualified as EC
 import Data.Sequence qualified as Seq
+import Data.Map.Strict qualified as M
 import Data.Primitive.ByteArray (byteArrayFromList, newByteArray)
 import Data.Atomics qualified as Atomic
 import Foreign.Ptr (nullPtr)
@@ -44,7 +46,7 @@ import Unison.Runtime.ANF.MurmurHash.Untyped (hash64ValueUntyped)
 import Unison.Runtime.Referenced (Referenced (Plain))
 import Unison.Reference (Reference)
 import Unison.Runtime.JIT.Strict (Pair (..))
-import Unison.Runtime.JIT.Native (envInit, arrayInit, bytesCheck, bytesInit, bytesTest, closureInit, listCheck, listInit, listTest, murmurInit, murmurTest, nameTest, probeClosure, textCheck, textInit, textTest)
+import Unison.Runtime.JIT.Native (envInit, arrayInit, bytesCheck, bytesInit, bytesTest, closureInit, cmpInit, cmpTest, listCheck, listInit, listTest, murmurInit, murmurTest, nameTest, probeClosure, textCheck, textInit, textTest)
 import Unison.Runtime.MCode (CombIx (..), GCombInfo (..), GSection (..), noNativeCell)
 import Unison.Runtime.Stack
 import Unison.Runtime.TypeTags qualified as TT
@@ -298,6 +300,128 @@ probeMurmur ls = do
         got <- murmurTest arr u True
         check name got (expected v)
       pure $ case catMaybes (rs ++ rs2) of
+        [] -> Right ()
+        e : _ -> Left e
+
+-- | Universal equality and ordering: hands the comparison helpers what
+-- they need beyond the other tables (see unison_jit_cmp_init), then runs
+-- pairs of every kind of value through the C copies and the interpreter's
+-- @Eq Val@ and @Ord Val@; any difference, or a pair the helper should
+-- handle and doesn't, turns the JIT off.
+probeCompare :: Layouts -> IO (Either String ())
+probeCompare ls = do
+  let PackedTag intTag = TT.intTag
+      PackedTag natTag = TT.natTag
+  ok <- cmpInit [lInfo (lPAp ls), fromIntegral intTag, fromIntegral natTag, fromIntegral (TT.typeTag TT.anyTag)]
+  if ok /= 1
+    then pure (Left "the comparison helpers could not be initialized")
+    else do
+      let PackedTag someTag = TT.someTag
+          PackedTag noneTag = TT.noneTag
+          PackedTag pairTag = TT.pairTag
+          !unit = BoxedVal (Enum Ty.unitRef (PackedTag 0))
+          !none = BoxedVal (Enum Ty.optionalRef (PackedTag noneTag))
+          some v = BoxedVal (Data1 Ty.optionalRef (PackedTag someTag) v)
+          pair a b = BoxedVal (Data2 Ty.pairRef (PackedTag pairTag) a (BoxedVal (Data2 Ty.pairRef (PackedTag pairTag) b unit)))
+          -- a three-field constructor: the segments hold the fields in reverse
+          !nat = natTypeTag
+          -- the fields are (word, evaluated tag closure) pairs: a thunk in the array is "not handled"
+          dg :: [Int] -> Val
+          dg us = let !u = byteArrayFromList (reverse us); !b = arrayFromList (replicate (length us) nat) in BoxedVal (DataG Ty.failureRef (PackedTag 5) (u, b))
+          anyOf v = BoxedVal (Data1 Ty.anyRef TT.anyTag v)
+          text t = BoxedVal (Foreign (WrapText (UText.pack t)))
+          bytes bs = BoxedVal (Foreign (WrapBytes (By.fromWord8s bs)))
+          list vs = BoxedVal (Foreign (WrapSeq (Sq.fromList vs)))
+          -- an array's elements are lazy: evaluate them first, as the runtime's arrays hold values
+          array :: [Val] -> IO Val
+          array vs = traverse evaluate vs >>= \vs' -> pure (BoxedVal (Foreign (WrapArray (arrayFromList vs'))))
+          barray bs = BoxedVal (Foreign (WrapByteArray (byteArrayFromList (bs :: [Word8]))))
+          !ref = Ty.booleanRef
+          !cix = CIx ref 21 22
+          !comb = LamI 5 7 Exit noNativeCell
+          pap us n = let !u = byteArrayFromList (us :: [Int]); !b = arrayFromList (replicate n nat) in BoxedVal (PAp cix comb (u, b))
+          !cix2 = CIx Ty.unitRef 21 22
+          pap2 = BoxedVal (PAp cix2 comb (byteArrayFromList ([] :: [Int]), arrayFromList []))
+          dbl = DoubleVal
+      arr12 <- array [NatVal 1, NatVal 2]
+      arr12' <- array [NatVal 1, NatVal 2]
+      arr13 <- array [NatVal 1, NatVal 3]
+      let -- (name, left, right, whether the helper must handle the pair for ordering and for equality)
+          pairs :: [(String, Val, Val, (Bool, Bool))]
+          both = (True, True)
+          neither = (False, False)
+          pairs =
+            [ ("Nat Nat", NatVal 3, NatVal 5, both),
+              ("Nat max against 1", NatVal maxBound, NatVal 1, both),
+              ("Int Int", IntVal (-1), IntVal 1, both),
+              ("Nat against negative Int", NatVal 1, IntVal (-1), both),
+              ("negative Int against Nat", IntVal (-1), NatVal 1, both),
+              ("Nat against equal Int", NatVal 7, IntVal 7, both),
+              ("Char against Nat", CharVal 'a', NatVal 97, both),
+              ("Char Char", CharVal 'a', CharVal 'b', both),
+              ("Float Float", dbl 1.5, dbl 2.5, both),
+              ("negative Floats", dbl (-1.0), dbl (-2.0), both),
+              ("negative against positive Float", dbl (-1.0), dbl 2.0, both),
+              ("zero against negative zero", dbl 0.0, dbl (-0.0), both),
+              ("NaN NaN", dbl (0 / 0), dbl (0 / 0), both),
+              ("Float against Nat", dbl 1.0, NatVal 1, both),
+              ("unboxed against boxed", NatVal 1, none, both),
+              ("None None", none, none, both),
+              ("None Some", none, some (NatVal 1), both),
+              ("Some Some", some (NatVal 1), some (NatVal 2), both),
+              ("Some Int against Some Nat", some (IntVal 1), some (NatVal 1), both),
+              ("pairs differing late", pair (NatVal 1) (NatVal 2), pair (NatVal 1) (NatVal 3), both),
+              ("equal pairs", pair (NatVal 1) (NatVal 2), pair (NatVal 1) (NatVal 2), both),
+              ("DataG DataG", dg [1, 2, 3], dg [1, 2, 4], both),
+              ("equal DataG", dg [1, 2, 3], dg [1, 2, 3], both),
+              ("unit against None", unit, none, both),
+              ("false against true", BoxedVal (Enum Ty.booleanRef (PackedTag 0)), BoxedVal (Enum Ty.booleanRef (PackedTag 1)), both),
+              ("true against true", BoxedVal (Enum Ty.booleanRef (PackedTag 1)), BoxedVal (Enum Ty.booleanRef (PackedTag 1)), both),
+              ("Some against pair", some (NatVal 1), pair (NatVal 1) (NatVal 1), both),
+              ("Any Any", anyOf (NatVal 1), anyOf (NatVal 2), both),
+              ("Any Nat against Any Char", anyOf (NatVal 97), anyOf (CharVal 'a'), both),
+              ("Any Some against Any None", anyOf (some (NatVal 1)), anyOf none, (False, True)),
+              ("texts", text "abc", text "abd", both),
+              ("equal texts", text "abc", text "abc", both),
+              ("bytes", bytes [1, 2, 3], bytes [1, 2], both),
+              ("prefix list", list [NatVal 1, NatVal 2], list [NatVal 1, NatVal 2, NatVal 3], both),
+              ("equal lists", list [NatVal 1, NatVal 2, NatVal 3], list [NatVal 1, NatVal 2, NatVal 3], both),
+              ("lists differing early", list [NatVal 1, NatVal 3], list [NatVal 1, NatVal 2, NatVal 5], both),
+              ("empty lists", list [], list [], both),
+              ("empty against list", list [], list [NatVal 0], both),
+              ("nested lists", list [some (NatVal 1), text "a"], list [some (NatVal 1), text "b"], both),
+              ("long lists", list (map NatVal [1 .. 300]), list (map NatVal ([1 .. 299] ++ [0])), both),
+              ("arrays", arr12, arr13, both),
+              ("equal arrays", arr12, arr12', both),
+              ("byte arrays", barray [1, 2], barray [1, 2, 0], both),
+              ("equal byte arrays", barray [1, 2], barray [1, 2], both),
+              ("text against list", text "a", list [], neither),
+              ("data against text", none, text "a", both),
+              ("functions differing in an argument", pap [1] 1, pap [2] 1, both),
+              ("equal functions", pap [1] 1, pap [1] 1, both),
+              ("function against data", pap [] 0, some (NatVal 1), both),
+              ("functions of different references", pap [] 0, pap2, neither),
+              -- two different maps: identical samples would be one closure at -O2, and the same object is equal to itself
+              ("maps", BoxedVal (Foreign (WrapMap (M.singleton (NatVal 1) (NatVal 1)))), BoxedVal (Foreign (WrapMap (M.singleton (NatVal 2) (NatVal 2)))), neither)
+            ]
+      arr <- newArray 2 (any' natTypeTag) :: IO (MutableArray RealWorld Any)
+      let put :: Int -> Any -> IO ()
+          put i v = evaluate v >>= writeArray arr i
+          toInt o = fromEnum o - 1
+      rs <- forM pairs $ \(name, l, r, (handledC, handledE)) -> do
+        put 0 (any' (getBoxedVal l))
+        put 1 (any' (getBoxedVal r))
+        gotC <- cmpTest arr (getUnboxedVal l) (getUnboxedVal r) False
+        gotE <- cmpTest arr (getUnboxedVal l) (getUnboxedVal r) True
+        let wantC = toInt (compare l r)
+            wantE = fromEnum (l == r)
+            okC = if handledC then gotC == Just wantC else gotC == Nothing
+            okE = if handledE then gotE == Just wantE else gotE == Nothing
+        pure $
+          if okC && okE
+            then Nothing
+            else Just ("universal comparison of " ++ name ++ ": native " ++ show (gotC, gotE) ++ ", Haskell " ++ show (wantC, wantE) ++ ", expected handled " ++ show (handledC, handledE))
+      pure $ case catMaybes rs of
         [] -> Right ()
         e : _ -> Left e
 

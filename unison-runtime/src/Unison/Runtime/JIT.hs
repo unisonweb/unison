@@ -33,8 +33,8 @@ import Unison.Runtime.JIT.Estimate (Estimate (..), judge)
 import Unison.Runtime.JIT.Exits
 import Unison.Runtime.JIT.Helpers (helpersIR)
 import Unison.Runtime.JIT.LLVM
-import Unison.Runtime.JIT.Layout (probeArrays, probeBytes, probeEnv, probeLayouts, probeLists, probeMurmur, probeNames, probeTexts)
-import Unison.Runtime.JIT.Native (configureNative, ctxLayout, murmurCAddress, rtsFacts, tableAddresses)
+import Unison.Runtime.JIT.Layout (probeArrays, probeBytes, probeCompare, probeEnv, probeLayouts, probeLists, probeMurmur, probeNames, probeTexts)
+import Unison.Runtime.JIT.Native (configureNative, ctxLayout, murmurCAddress, rtsFacts, tableAddresses, ucmpCAddress)
 import Unison.Runtime.MCode (CombIx (..), GComb (..), GCombInfo (..), NativeCell, claimNativeCell, combDeps, nativeCellRequested, noNativeCell, prettyIns, prettySection, readNativeCode, readNativeCount, releaseNativeCell, takeNativeCell, writeNativeCount)
 import Unison.Runtime.Machine.Types (CCache (combRefs, combs, sandboxed), MCombs)
 import Unison.Util.EnumContainers qualified as EC
@@ -162,9 +162,12 @@ initJIT' = do
                           probeMurmur ls >>= \case
                             Left e -> pure (Left e)
                             Right () ->
-                              probeEnv >>= \case
+                              probeCompare ls >>= \case
                                 Left e -> pure (Left e)
-                                Right () -> fmap (const ls) <$> probeNames ls
+                                Right () ->
+                                  probeEnv >>= \case
+                                    Left e -> pure (Left e)
+                                    Right () -> fmap (const ls) <$> probeNames ls
       (offs, _) <- ctxLayout
       case (layouts, offs) of
         (Left e, _) -> pure (Left [e ++ "; the JIT is off"])
@@ -187,10 +190,11 @@ initJIT' = do
                     Right _ ->
                       -- the module's definition must be the one generated code
                       -- gets, not the C copy the process also has
-                      timed "IR helpers compiled" (lookupSymbol "unison_jit_murmur") <&> \case
-                        Left e -> Left ("not found after adding: " ++ e)
-                        Right p
-                          | castFunPtrToPtr p == castFunPtrToPtr murmurCAddress -> Left "did not shadow the C copies"
+                      timed "IR helpers compiled" ((,) <$> lookupSymbol "unison_jit_murmur" <*> lookupSymbol "unison_jit_ucmp") <&> \case
+                        (Left e, _) -> Left ("not found after adding: " ++ e)
+                        (_, Left e) -> Left ("not found after adding: " ++ e)
+                        (Right p, Right q)
+                          | castFunPtrToPtr p == castFunPtrToPtr murmurCAddress || castFunPtrToPtr q == castFunPtrToPtr ucmpCAddress -> Left "did not shadow the C copies"
                           | otherwise -> Right ()
               case helpers of
                 Left e -> pure (Left ["the IR helpers (cbits/jit_helpers.ll) " ++ e ++ "; the JIT is off"])

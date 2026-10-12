@@ -3,8 +3,8 @@
 // This file is compiled twice: into the library as part of jit_rt.c, which
 // includes it at its end, and by clang on its own into cbits/jit_helpers.ll
 // (cbits/gen-helpers.sh), which the JIT adds as a module of its own at
-// startup. Generated code resolves `unison_jit_murmur`
-// to the IR copy, which the JIT compiles for the same target as the caller,
+// startup. Generated code resolves `unison_jit_murmur`, `unison_jit_ueq`
+// and `unison_jit_ucmp` to the IR copies, which the JIT compiles for the same target as the caller,
 // so the two agree on how the `{ i64, i64 }` result comes back on every
 // platform; the C copy is what the startup self-check runs and the fallback
 // under UNISON_JIT_DISABLE=irhelpers. Whatever is here must keep the IR
@@ -262,4 +262,394 @@ void *unison_jit_resolve_dyn(void *henv, int64_t key) {
   // the interpreter writes the ref with whatever pointer it holds, which
   // may be an untagged pointer to an evaluated closure, or an indirection
   return LTAG(v) == 0 ? unison_jit_settle(v) : v;
+}
+
+// ---------------------------------------------------------------------------
+// Universal.== and Universal.compare
+//
+// The interpreter's `Eq Val` and `Ord Val` (compareVal False, Unison.Runtime.Stack),
+// quirks included, since the output must be the same:
+//
+// - A Val is unboxed (its boxed half is a type tag closure: Char 1, Float 2,
+//   Int 3, Nat 4 by pointer tag) or boxed. Equal unboxed values have matching
+//   tags (Int and Nat match each other) and equal words; an unboxed value is
+//   never equal to a boxed one and orders below it. Int/Int is signed,
+//   Nat/Nat unsigned, a Nat against a negative Int is greater and otherwise
+//   unsigned, Float/Float is compareAsFloat on the bits (signed when either
+//   is positive, else backwards; its `clearBit 64` is a no-op, so -0.0 is
+//   above +0.0), and any other pair is signed on the words, after the tags
+//   only under tyEq.
+// - Data orders by constructor index (the low 16 bits of the packed tag),
+//   then field count, then fields; equality compares the whole packed tag,
+//   type included, except that one-field constructors with the boxed Int
+//   and Nat tags match each other. The fields of an Any compare with tyEq;
+//   under tyEq, different packed tags compare the type references, which
+//   is left to the interpreter.
+// - Different closure kinds order as closureNum (PAp 0, data 1, Foreign 3)
+//   and are never equal. A PAp compares its CombIx (reference pointer,
+//   group, index) then its arguments; different reference pointers are left
+//   to the interpreter.
+// - Foreign values: two texts or two bytes through the rope helpers, two
+//   lists or two arrays element by element with a prefix smaller, two byte
+//   arrays by their bytes then their lengths, two refs or mutable arrays
+//   equal when they are the same object and not orderable. A map, two
+//   different foreign kinds, anything else: the interpreter's.
+// - The same closure is equal to itself (the interpreter compares bits).
+
+typedef struct {
+  int ok;
+  int64_t kinds; // bit 0: texts handled here, bit 1: bytes (UNISON_JIT_DISABLE=text,bytes)
+} UC;
+
+#define UK_PAP 0
+#define UK_DATA 1
+#define UK_FOREIGN 3
+
+static int uc_kind(UC *s, StgClosure *c) {
+  StgWord info = (StgWord)LUN(c)->header.info;
+  if (info == HK.enum_info || info == LF.data1_info || info == LF.data2_info || info == HK.datag_info) return UK_DATA;
+  if (info == LF.foreign_info) return UK_FOREIGN;
+  if (CK.pap_info != 0 && info == CK.pap_info) return UK_PAP;
+  unison_jit_cmp_fail("closure kind", c);
+  s->ok = 0;
+  return -1;
+}
+
+// a constructor's (or a PAp's) tag and fields: the words and pointers of
+// the fields in order, or in reverse when they come from segments
+typedef struct {
+  StgWord tag, n;
+  const StgWord *us;
+  StgClosure *const *bs;
+  int rev;
+  StgWord uw[2];
+  StgClosure *bp[2];
+} Fields;
+
+static int uc_segs(UC *s, StgClosure *ubox0, StgClosure *bbox0, Fields *f) {
+  StgClosure *ubox = unison_jit_settle(ubox0), *bbox = unison_jit_settle(bbox0);
+  if (LTAG(ubox) == 0 || LTAG(bbox) == 0) {
+    unison_jit_cmp_fail("segment box", LTAG(ubox) == 0 ? ubox : bbox);
+    s->ok = 0;
+    return 0;
+  }
+  StgArrBytes *us = (StgArrBytes *)LP(ubox, 0);
+  StgMutArrPtrs *bs = (StgMutArrPtrs *)LP(bbox, 0);
+  f->n = bs->ptrs;
+  f->us = (const StgWord *)us->payload;
+  f->bs = (StgClosure *const *)bs->payload;
+  f->rev = 1;
+  return 1;
+}
+
+static int uc_fields(UC *s, StgClosure *c, Fields *f) {
+  StgWord info = (StgWord)LUN(c)->header.info;
+  f->us = f->uw;
+  f->bs = f->bp;
+  f->rev = 0;
+  if (info == HK.enum_info) {
+    f->tag = LW(c, 1);
+    f->n = 0;
+    return 1;
+  }
+  if (info == LF.data1_info) {
+    f->tag = LW(c, 2);
+    f->n = 1;
+    f->uw[0] = LW(c, 3);
+    f->bp[0] = LP(c, 1);
+    return 1;
+  }
+  if (info == LF.data2_info) {
+    f->tag = LW(c, 3);
+    f->n = 2;
+    f->uw[0] = LW(c, 4);
+    f->bp[0] = LP(c, 1);
+    f->uw[1] = LW(c, 5);
+    f->bp[1] = LP(c, 2);
+    return 1;
+  }
+  // DataG ref tag (useg, bseg)
+  f->tag = LW(c, 3);
+  return uc_segs(s, LP(c, 1), LP(c, 2), f);
+}
+
+static inline StgWord fld_u(const Fields *f, StgWord i) { return f->us[f->rev ? f->n - 1 - i : i]; }
+static inline StgClosure *fld_b(const Fields *f, StgWord i) { return f->bs[f->rev ? f->n - 1 - i : i]; }
+
+static inline int64_t cmp_i(int64_t a, int64_t b) { return a < b ? -1 : a > b ? 1 : 0; }
+static inline int64_t cmp_u(StgWord a, StgWord b) { return a < b ? -1 : a > b ? 1 : 0; }
+
+// the kind of an unboxed value's type tag closure, or 0 for a boxed value
+static inline int utag_kind(StgClosure *b) {
+  if ((StgWord)LUN(b)->header.info != HK.utag_info) return 0;
+  return LTAG(LP(b, 0));
+}
+
+static int64_t uc_unboxed(StgWord u1, int k1, StgWord u2, int k2, int tyeq) {
+  if (k1 == 3 && k2 == 3) return cmp_i((int64_t)u1, (int64_t)u2);
+  if (k1 == 4 && k2 == 4) return cmp_u(u1, u2);
+  if (k1 == 4 && k2 == 3) return (int64_t)u2 < 0 ? 1 : cmp_u(u1, u2);
+  if (k1 == 3 && k2 == 4) return (int64_t)u1 < 0 ? -1 : cmp_u(u1, u2);
+  if (k1 == 2 && k2 == 2) {
+    // compareAsFloat, as the interpreter has it
+    int64_t i = (int64_t)u1, j = (int64_t)u2;
+    return (i > 0 || j > 0) ? cmp_i(i, j) : cmp_i(j, i);
+  }
+  if (tyeq && k1 != k2) return cmp_i(k1, k2);
+  return cmp_i((int64_t)u1, (int64_t)u2);
+}
+
+static int64_t uc_closure(UC *s, StgClosure *c1, StgClosure *c2, int tyeq);
+
+static int64_t uc_val(UC *s, StgWord u1, StgClosure *b1, StgWord u2, StgClosure *b2, int tyeq) {
+  if (!s->ok) return 0;
+  if (LTAG(b1) == 0 || LTAG(b2) == 0) {
+    unison_jit_cmp_fail("untagged value", LTAG(b1) == 0 ? b1 : b2);
+    s->ok = 0;
+    return 0;
+  }
+  int k1 = utag_kind(b1), k2 = utag_kind(b2);
+  if (k1 && k2) return uc_unboxed(u1, k1, u2, k2, tyeq);
+  if (k1) return -1;
+  if (k2) return 1;
+  if (b1 == b2) return 0;
+  return uc_closure(s, b1, b2, tyeq);
+}
+
+// a Val closure (a list or array element): pointer b, then word u
+static int uc_elem(UC *s, StgClosure *item, StgWord *u, StgClosure **b) {
+  if (LTAG(item) != 1 || (StgWord)LUN(item)->header.info != LF.val_info) {
+    unison_jit_cmp_fail("list element", item);
+    s->ok = 0;
+    return 0;
+  }
+  *u = LW(item, 1);
+  *b = LP(item, 0);
+  return 1;
+}
+
+static int64_t uc_elems(UC *s, StgClosure *x1, StgClosure *x2, int tyeq) {
+  StgWord u1, u2;
+  StgClosure *b1, *b2;
+  if (!uc_elem(s, x1, &u1, &b1) || !uc_elem(s, x2, &u2, &b2)) return 0;
+  return uc_val(s, u1, b1, u2, b2, tyeq);
+}
+
+static int64_t uc_fieldwise(UC *s, const Fields *f1, const Fields *f2, int tyeq) {
+  if (f1->n != f2->n) return cmp_u(f1->n, f2->n);
+  for (StgWord i = 0; i < f1->n && s->ok; i++) {
+    int64_t r = uc_val(s, fld_u(f1, i), fld_b(f1, i), fld_u(f2, i), fld_b(f2, i), tyeq);
+    if (r != 0) return r;
+  }
+  return 0;
+}
+
+// the two deques element by element, then by length (liftCompare)
+static int64_t uc_lists(UC *s, StgClosure *d1, StgClosure *d2, int tyeq) {
+  StgInt n1 = LTAG(d1) == 2 ? TSIZE(LW(d1, 3)) : 0, n2 = LTAG(d2) == 2 ? TSIZE(LW(d2, 3)) : 0;
+  StgInt n = n1 < n2 ? n1 : n2;
+  for (StgInt i = 0; i < n && s->ok; i++) {
+    int64_t r = uc_elems(s, unison_jit_list_at(d1, i), unison_jit_list_at(d2, i), tyeq);
+    if (r != 0) return r;
+  }
+  return cmp_i(n1, n2);
+}
+
+static int64_t uc_arrays(UC *s, StgMutArrPtrs *a1, StgMutArrPtrs *a2, int tyeq) {
+  StgWord n = a1->ptrs < a2->ptrs ? a1->ptrs : a2->ptrs;
+  for (StgWord i = 0; i < n && s->ok; i++) {
+    int64_t r = uc_elems(s, a1->payload[i], a2->payload[i], tyeq);
+    if (r != 0) return r;
+  }
+  return cmp_u(a1->ptrs, a2->ptrs);
+}
+
+// Data.Primitive's Ord ByteArray: the common prefix, then the lengths
+static int64_t uc_barrays(StgArrBytes *a1, StgArrBytes *a2) {
+  const unsigned char *p1 = (const unsigned char *)a1->payload, *p2 = (const unsigned char *)a2->payload;
+  StgWord n = a1->bytes < a2->bytes ? a1->bytes : a2->bytes;
+  for (StgWord i = 0; i < n; i++)
+    if (p1[i] != p2[i]) return p1[i] < p2[i] ? -1 : 1;
+  return cmp_u(a1->bytes, a2->bytes);
+}
+
+static int64_t uc_closure(UC *s, StgClosure *c1, StgClosure *c2, int tyeq) {
+  int k1 = uc_kind(s, c1), k2 = s->ok ? uc_kind(s, c2) : -1;
+  if (!s->ok) return 0;
+  if (k1 != k2) return cmp_i(k1, k2);
+  if (k1 == UK_DATA) {
+    Fields f1, f2;
+    if (!uc_fields(s, c1, &f1) || !uc_fields(s, c2, &f2)) return 0;
+    if (tyeq && f1.tag != f2.tag) {
+      unison_jit_cmp_fail("type references", c1);
+      s->ok = 0;
+      return 0;
+    }
+    int64_t r = cmp_u(f1.tag & 0xFFFF, f2.tag & 0xFFFF);
+    if (r != 0) return r;
+    return uc_fieldwise(s, &f1, &f2, tyeq || (f1.tag >> 16) == CK.any_type);
+  }
+  if (k1 == UK_PAP) {
+    // PAp (CIx ref grp w) comb (useg, bseg): pointers ref, entry, useg, bseg; words grp, w
+    if (LP(c1, 0) != LP(c2, 0)) {
+      unison_jit_cmp_fail("function references", c1);
+      s->ok = 0;
+      return 0;
+    }
+    int64_t r = cmp_u(LW(c1, 4), LW(c2, 4));
+    if (r != 0) return r;
+    r = cmp_u(LW(c1, 5), LW(c2, 5));
+    if (r != 0) return r;
+    Fields f1, f2;
+    if (!uc_segs(s, LP(c1, 2), LP(c1, 3), &f1) || !uc_segs(s, LP(c2, 2), LP(c2, 3), &f2)) return 0;
+    return uc_fieldwise(s, &f1, &f2, tyeq);
+  }
+  // two foreign values
+  StgClosure *t1 = rope_of(&TK, c1), *t2 = rope_of(&TK, c2);
+  if (t1 != NULL || t2 != NULL) {
+    if (t1 != NULL && t2 != NULL && (s->kinds & 1)) return unison_jit_foreign_cmp(c1, c2, 1);
+    unison_jit_cmp_fail("text against something else", t1 != NULL ? c2 : c1);
+    s->ok = 0;
+    return 0;
+  }
+  StgClosure *y1 = rope_of(&BK, c1), *y2 = rope_of(&BK, c2);
+  if (y1 != NULL || y2 != NULL) {
+    if (y1 != NULL && y2 != NULL && (s->kinds & 2)) return unison_jit_foreign_cmp(c1, c2, 2);
+    unison_jit_cmp_fail("bytes against something else", y1 != NULL ? c2 : c1);
+    s->ok = 0;
+    return 0;
+  }
+  StgClosure *d1 = deque_of(c1), *d2 = deque_of(c2);
+  if (d1 != NULL && d2 != NULL) return uc_lists(s, d1, d2, tyeq);
+  if (AK.ok) {
+    StgMutArrPtrs *a1 = wrapped_of(c1, &AK.array), *a2 = wrapped_of(c2, &AK.array);
+    if (a1 != NULL && a2 != NULL) return uc_arrays(s, a1, a2, tyeq);
+    StgArrBytes *b1 = wrapped_of(c1, &AK.barray), *b2 = wrapped_of(c2, &AK.barray);
+    if (b1 != NULL && b2 != NULL) return uc_barrays(b1, b2);
+  }
+  unison_jit_cmp_fail("foreign", c1); // a map, a ref, two different kinds, ...
+  s->ok = 0;
+  return 0;
+}
+
+// --- equality ---
+
+static int ue_closure(UC *s, StgClosure *c1, StgClosure *c2);
+
+static int ue_val(UC *s, StgWord u1, StgClosure *b1, StgWord u2, StgClosure *b2) {
+  if (!s->ok) return 0;
+  if (LTAG(b1) == 0 || LTAG(b2) == 0) {
+    unison_jit_cmp_fail("untagged value", LTAG(b1) == 0 ? b1 : b2);
+    s->ok = 0;
+    return 0;
+  }
+  int k1 = utag_kind(b1), k2 = utag_kind(b2);
+  if (k1 && k2) return (k1 == k2 || (k1 == 3 && k2 == 4) || (k1 == 4 && k2 == 3)) && u1 == u2;
+  if (k1 || k2) return 0;
+  if (b1 == b2) return 1;
+  return ue_closure(s, b1, b2);
+}
+
+static int ue_elems(UC *s, StgClosure *x1, StgClosure *x2) {
+  StgWord u1, u2;
+  StgClosure *b1, *b2;
+  if (!uc_elem(s, x1, &u1, &b1) || !uc_elem(s, x2, &u2, &b2)) return 0;
+  return ue_val(s, u1, b1, u2, b2);
+}
+
+static int ue_fieldwise(UC *s, const Fields *f1, const Fields *f2) {
+  if (f1->n != f2->n) return 0;
+  for (StgWord i = 0; i < f1->n && s->ok; i++)
+    if (!ue_val(s, fld_u(f1, i), fld_b(f1, i), fld_u(f2, i), fld_b(f2, i))) return 0;
+  return s->ok;
+}
+
+static int ue_closure(UC *s, StgClosure *c1, StgClosure *c2) {
+  int k1 = uc_kind(s, c1), k2 = s->ok ? uc_kind(s, c2) : -1;
+  if (!s->ok) return 0;
+  if (k1 != k2) return 0;
+  if (k1 == UK_DATA) {
+    Fields f1, f2;
+    if (!uc_fields(s, c1, &f1) || !uc_fields(s, c2, &f2)) return 0;
+    if (f1.n == 1 && f2.n == 1) {
+      // matchTags: boxed Int and Nat literals match each other
+      if (!(f1.tag == f2.tag || (f1.tag == CK.int_tag && f2.tag == CK.nat_tag) || (f1.tag == CK.nat_tag && f2.tag == CK.int_tag)))
+        return 0;
+    } else if (f1.tag != f2.tag)
+      return 0;
+    return ue_fieldwise(s, &f1, &f2);
+  }
+  if (k1 == UK_PAP) {
+    if (LP(c1, 0) != LP(c2, 0)) {
+      unison_jit_cmp_fail("function references", c1);
+      s->ok = 0;
+      return 0;
+    }
+    if (LW(c1, 4) != LW(c2, 4) || LW(c1, 5) != LW(c2, 5)) return 0;
+    Fields f1, f2;
+    if (!uc_segs(s, LP(c1, 2), LP(c1, 3), &f1) || !uc_segs(s, LP(c2, 2), LP(c2, 3), &f2)) return 0;
+    return ue_fieldwise(s, &f1, &f2);
+  }
+  StgClosure *t1 = rope_of(&TK, c1), *t2 = rope_of(&TK, c2);
+  if (t1 != NULL || t2 != NULL) {
+    if (t1 != NULL && t2 != NULL && (s->kinds & 1)) return unison_jit_foreign_eq(c1, c2, 1) == 1;
+    unison_jit_cmp_fail("text against something else", t1 != NULL ? c2 : c1);
+    s->ok = 0;
+    return 0;
+  }
+  StgClosure *y1 = rope_of(&BK, c1), *y2 = rope_of(&BK, c2);
+  if (y1 != NULL || y2 != NULL) {
+    if (y1 != NULL && y2 != NULL && (s->kinds & 2)) return unison_jit_foreign_eq(c1, c2, 2) == 1;
+    unison_jit_cmp_fail("bytes against something else", y1 != NULL ? c2 : c1);
+    s->ok = 0;
+    return 0;
+  }
+  StgClosure *d1 = deque_of(c1), *d2 = deque_of(c2);
+  if (d1 != NULL && d2 != NULL) {
+    StgInt n1 = LTAG(d1) == 2 ? TSIZE(LW(d1, 3)) : 0, n2 = LTAG(d2) == 2 ? TSIZE(LW(d2, 3)) : 0;
+    if (n1 != n2) return 0;
+    for (StgInt i = 0; i < n1 && s->ok; i++)
+      if (!ue_elems(s, unison_jit_list_at(d1, i), unison_jit_list_at(d2, i))) return 0;
+    return s->ok;
+  }
+  if (AK.ok) {
+    StgMutArrPtrs *a1 = wrapped_of(c1, &AK.array), *a2 = wrapped_of(c2, &AK.array);
+    if (a1 != NULL && a2 != NULL) {
+      if (a1->ptrs != a2->ptrs) return 0;
+      for (StgWord i = 0; i < a1->ptrs && s->ok; i++)
+        if (!ue_elems(s, a1->payload[i], a2->payload[i])) return 0;
+      return s->ok;
+    }
+    StgArrBytes *b1 = wrapped_of(c1, &AK.barray), *b2 = wrapped_of(c2, &AK.barray);
+    if (b1 != NULL && b2 != NULL) {
+      if (b1->bytes != b2->bytes) return 0;
+      const unsigned char *p1 = (const unsigned char *)b1->payload, *p2 = (const unsigned char *)b2->payload;
+      for (StgWord i = 0; i < b1->bytes; i++)
+        if (p1[i] != p2[i]) return 0;
+      return 1;
+    }
+    // the same object: refs and mutable arrays
+    const WrapInfo *same[3] = {&AK.ioref, &AK.marray, &AK.mbarray};
+    for (int i = 0; i < 3; i++) {
+      StgWord w1 = wrapped_word(c1, same[i]), w2 = wrapped_word(c2, same[i]);
+      if (w1 != 0 && w2 != 0) return w1 == w2;
+    }
+  }
+  unison_jit_cmp_fail("foreign", c1);
+  s->ok = 0;
+  return 0;
+}
+
+JitNat unison_jit_ucmp(int64_t u1, void *b1, int64_t u2, void *b2, int64_t kinds) {
+  if (!CK.ok) return (JitNat){0, 0};
+  UC s = {1, kinds};
+  int64_t r = uc_val(&s, (StgWord)u1, (StgClosure *)b1, (StgWord)u2, (StgClosure *)b2, 0);
+  return s.ok ? (JitNat){1, r} : (JitNat){0, 0};
+}
+
+JitNat unison_jit_ueq(int64_t u1, void *b1, int64_t u2, void *b2, int64_t kinds) {
+  if (!CK.ok) return (JitNat){0, 0};
+  UC s = {1, kinds};
+  int r = ue_val(&s, (StgWord)u1, (StgClosure *)b1, (StgWord)u2, (StgClosure *)b2);
+  return s.ok ? (JitNat){1, r} : (JitNat){0, 0};
 }

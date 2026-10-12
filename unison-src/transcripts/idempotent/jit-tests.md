@@ -2715,3 +2715,275 @@ scratch/main> run pointers
   , 1000000
   )
 ```
+
+## Universal equality and ordering on every kind of value
+
+`Universal.==`, `<`, `<=`, `>`, `>=` and `compare` are native for every value: two numbers of
+the same type inline, everything else through a walker over the closures (`unison_jit_ueq`,
+`unison_jit_ucmp`) that gives the interpreter's answer, including its quirks: a `Nat` and an
+`Int` of the same value are equal, ordering compares constructor indices only while equality
+compares the type too, `-0.0` orders above `0.0`. Functions of different definitions and maps
+are still left to the interpreter.
+
+``` unison
+use Nat + - * / == < > <= >=
+
+structural type Shape = Dot | Line Nat Nat | Tri Nat Nat Nat
+
+cmpAll : a -> a -> (Boolean, Boolean, Boolean, Boolean, Boolean, Int)
+cmpAll x y = (x Universal.== y, x Universal.< y, x Universal.<= y, x Universal.> y, x Universal.>= y, Universal.compare x y)
+
+-- an insertion sort by Universal.<=, so that the comparisons are in compiled code
+insertSorted : a -> [a] -> [a]
+insertSorted x = cases
+  [] -> [x]
+  y +: ys -> if x Universal.<= y then x +: (y +: ys) else y +: insertSorted x ys
+
+sortU : [a] -> [a]
+sortU xs =
+  go acc = cases
+    [] -> acc
+    x +: rest -> go (insertSorted x acc) rest
+  go [] xs
+
+addOne : Nat -> Nat
+addOne x = x + 1
+
+addN : Nat -> Nat -> Nat
+addN a b = a + b
+
+-- how many of the pairs (i, i * 7 % 13) order below (n / 2, 6), n times
+countBelow : Nat -> Nat
+countBelow n =
+  go acc i = if i == n then acc else
+    go (if (i, Nat.mod (i * 7) 13) Universal.< (n / 2, 6) then acc + 1 else acc) (i + 1)
+  go 0 0
+
+> cmpAll (1, "a") (1, "b")
+> cmpAll (1, "b") (1, "a")
+> cmpAll (2, "a") (2, "a")
+> cmpAll (Line 1 2) (Line 1 3)
+> cmpAll (Tri 1 2 3) (Tri 1 2 3)
+> cmpAll Dot (Line 0 0)
+> cmpAll (Some 1) None
+> cmpAll (Some (Some 1)) (Some (Some 2))
+> cmpAll [1, 2, 3] [1, 2]
+> cmpAll [(1, "x"), (2, "y")] [(1, "x"), (2, "z")]
+> cmpAll ([] : [Nat]) []
+> cmpAll [Some "a", None] [Some "a", None]
+> cmpAll (Any +1) (Any 1)
+> cmpAll (Any -1) (Any 1)
+> cmpAll (Any ?a) (Any 97)
+> cmpAll 1.5 2.5
+> cmpAll -1.0 -2.0
+> cmpAll -1.0 2.0
+> cmpAll 0.0 -0.0
+> cmpAll (0.0 Float./ 0.0) (0.0 Float./ 0.0)
+> cmpAll ?a ?b
+> cmpAll true false
+> cmpAll false false
+> cmpAll +3 -3
+> cmpAll 18446744073709551615 1
+> cmpAll "abc" "abd"
+> cmpAll 0xs01 0xs0100
+> cmpAll (1, 0xs01, "a", ?c, 2.0) (1, 0xs01, "a", ?c, 2.0)
+> cmpAll addOne addOne
+> cmpAll (addN 1) (addN 2)
+> cmpAll (addN 2) (addN 2)
+> sortU [(3, "c"), (1, "b"), (2, "a"), (1, "a"), (3, "a")]
+> sortU [Some 3, None, Some 1, None, Some 2]
+> sortU [[2, 1], [1, 2, 3], [], [1, 2]]
+> sortU [-1.5, 2.0, -0.0, 0.0, 1e10, -1e10]
+> countBelow 100000
+
+cmpArrays : '{IO, Exception} (Boolean, Int, Boolean, Int, Boolean, Int)
+cmpArrays = do
+  a = IO.arrayOf 1 3
+  b = IO.arrayOf 1 3
+  MutableArray.write b 2 5
+  fa = MutableArray.freeze! a
+  fb = MutableArray.freeze! b
+  ba = IO.bytearrayOf 7 4
+  bb = IO.bytearrayOf 7 5
+  fba = MutableByteArray.freeze! ba
+  fbb = MutableByteArray.freeze! bb
+  (fa Universal.== fb, Universal.compare fa fb, fa Universal.== fa, Universal.compare fb fa, fba Universal.== fbb, Universal.compare fba fbb)
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  + structural type Shape
+
+  + addN         : Nat -> Nat -> Nat
+  + addOne       : Nat -> Nat
+  + cmpAll       : a
+                   -> a
+                   -> ( Boolean,
+                     Boolean,
+                     Boolean,
+                     Boolean,
+                     Boolean,
+                     Int)
+  + cmpArrays    : '{IO, Exception} ( Boolean,
+                     Int,
+                     Boolean,
+                     Int,
+                     Boolean,
+                     Int)
+  + countBelow   : Nat -> Nat
+  + insertSorted : a -> [a] -> [a]
+  + sortU        : [a] -> [a]
+
+  Run `update` to apply these changes to your codebase.
+
+    34 | > cmpAll (1, "a") (1, "b")
+           ⧩
+           (false, true, true, false, false, -1)
+
+    35 | > cmpAll (1, "b") (1, "a")
+           ⧩
+           (false, false, false, true, true, +1)
+
+    36 | > cmpAll (2, "a") (2, "a")
+           ⧩
+           (true, false, true, false, true, +0)
+
+    37 | > cmpAll (Line 1 2) (Line 1 3)
+           ⧩
+           (false, true, true, false, false, -1)
+
+    38 | > cmpAll (Tri 1 2 3) (Tri 1 2 3)
+           ⧩
+           (true, false, true, false, true, +0)
+
+    39 | > cmpAll Dot (Line 0 0)
+           ⧩
+           (false, true, true, false, false, -1)
+
+    40 | > cmpAll (Some 1) None
+           ⧩
+           (false, true, true, false, false, -1)
+
+    41 | > cmpAll (Some (Some 1)) (Some (Some 2))
+           ⧩
+           (false, true, true, false, false, -1)
+
+    42 | > cmpAll [1, 2, 3] [1, 2]
+           ⧩
+           (false, false, false, true, true, +1)
+
+    43 | > cmpAll [(1, "x"), (2, "y")] [(1, "x"), (2, "z")]
+           ⧩
+           (false, true, true, false, false, -1)
+
+    44 | > cmpAll ([] : [Nat]) []
+           ⧩
+           (true, false, true, false, true, +0)
+
+    45 | > cmpAll [Some "a", None] [Some "a", None]
+           ⧩
+           (true, false, true, false, true, +0)
+
+    46 | > cmpAll (Any +1) (Any 1)
+           ⧩
+           (true, false, true, false, true, +0)
+
+    47 | > cmpAll (Any -1) (Any 1)
+           ⧩
+           (false, true, true, false, false, -1)
+
+    48 | > cmpAll (Any ?a) (Any 97)
+           ⧩
+           (false, true, true, false, false, -1)
+
+    49 | > cmpAll 1.5 2.5
+           ⧩
+           (false, true, true, false, false, -1)
+
+    50 | > cmpAll -1.0 -2.0
+           ⧩
+           (false, false, false, true, true, +1)
+
+    51 | > cmpAll -1.0 2.0
+           ⧩
+           (false, true, true, false, false, -1)
+
+    52 | > cmpAll 0.0 -0.0
+           ⧩
+           (false, true, true, false, false, -1)
+
+    53 | > cmpAll (0.0 Float./ 0.0) (0.0 Float./ 0.0)
+           ⧩
+           (true, false, true, false, true, +0)
+
+    54 | > cmpAll ?a ?b
+           ⧩
+           (false, true, true, false, false, -1)
+
+    55 | > cmpAll true false
+           ⧩
+           (false, false, false, true, true, +1)
+
+    56 | > cmpAll false false
+           ⧩
+           (true, false, true, false, true, +0)
+
+    57 | > cmpAll +3 -3
+           ⧩
+           (false, false, false, true, true, +1)
+
+    58 | > cmpAll 18446744073709551615 1
+           ⧩
+           (false, false, false, true, true, +1)
+
+    59 | > cmpAll "abc" "abd"
+           ⧩
+           (false, true, true, false, false, -1)
+
+    60 | > cmpAll 0xs01 0xs0100
+           ⧩
+           (false, true, true, false, false, -1)
+
+    61 | > cmpAll (1, 0xs01, "a", ?c, 2.0) (1, 0xs01, "a", ?c, 2.0)
+           ⧩
+           (true, false, true, false, true, +0)
+
+    62 | > cmpAll addOne addOne
+           ⧩
+           (true, false, true, false, true, +0)
+
+    63 | > cmpAll (addN 1) (addN 2)
+           ⧩
+           (false, true, true, false, false, -1)
+
+    64 | > cmpAll (addN 2) (addN 2)
+           ⧩
+           (true, false, true, false, true, +0)
+
+    65 | > sortU [(3, "c"), (1, "b"), (2, "a"), (1, "a"), (3, "a")]
+           ⧩
+           [(1, "a"), (1, "b"), (2, "a"), (3, "a"), (3, "c")]
+
+    66 | > sortU [Some 3, None, Some 1, None, Some 2]
+           ⧩
+           [Some 1, Some 2, Some 3, None, None]
+
+    67 | > sortU [[2, 1], [1, 2, 3], [], [1, 2]]
+           ⧩
+           [[], [1, 2], [1, 2, 3], [2, 1]]
+
+    68 | > sortU [-1.5, 2.0, -0.0, 0.0, 1e10, -1e10]
+           ⧩
+           [0.0, -1.0e10, -1.5, -0.0, 2.0, 1.0e10]
+
+    69 | > countBelow 100000
+           ⧩
+           50001
+```
+
+``` ucm
+scratch/main> run cmpArrays
+
+  (false, -1, true, +1, false, -1)
+```
