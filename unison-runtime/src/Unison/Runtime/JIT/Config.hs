@@ -3,7 +3,10 @@
 -- variable. How to use these is in development.md next to this module.
 module Unison.Runtime.JIT.Config
   ( Mode (..),
+    Replacements (..),
+    ReplacementUse (..),
     Config (..),
+    replacementActive,
     config,
     jitLog,
     jitDump,
@@ -31,8 +34,40 @@ data Mode
     Eager
   deriving (Show, Eq)
 
+-- | Which of the Haskell replacements of base library definitions
+-- (@Unison.Runtime.Foreign.Function.functionReplacementList@) the runtime
+-- applies when it loads code.
+data Replacements
+  = -- | every entry of the list
+    AllReplacements
+  | -- | the entries tagged 'Always'; the ones tagged 'InterpreterOnly' are
+    -- left as the Unison code they would replace, for the JIT to compile
+    TaggedReplacements
+  | -- | none (for measuring an 'Always' entry against native code)
+    NoReplacements
+  deriving (Show, Eq)
+
+-- | The tag on an entry of the replacement list: whether it is applied
+-- under 'TaggedReplacements', the JIT's default.
+data ReplacementUse = Always | InterpreterOnly
+  deriving (Show, Eq)
+
+-- | Whether an entry with this tag is applied under the current settings.
+replacementActive :: ReplacementUse -> Bool
+replacementActive use = case replacements config of
+  AllReplacements -> True
+  NoReplacements -> False
+  TaggedReplacements -> use == Always
+
 data Config = Config
   { mode :: Mode,
+    -- | which Haskell replacements of base definitions are applied: all of
+    -- them when the JIT is off, the ones tagged 'Always' when it is on
+    -- (native code beats the others as call-outs at the sizes programs
+    -- commonly use; the measurements are in
+    -- benchmarks/2026-10-11-replacements.md), @UNISON_REPLACEMENTS=on@ for
+    -- all of them, @=off@ for none
+    replacements :: Replacements,
     -- | with 'On': interpreted calls before a definition is compiled
     -- (@UNISON_JIT_THRESHOLD@)
     threshold :: Int,
@@ -141,6 +176,7 @@ data Config = Config
 config :: Config
 config = unsafePerformIO $ do
   mode <- lookupEnv "UNISON_JIT"
+  repl <- lookupEnv "UNISON_REPLACEMENTS"
   logging <- lookupEnv "UNISON_JIT_LOG"
   dump <- lookupEnv "UNISON_JIT_DUMP_IR"
   stats <- lookupEnv "UNISON_JIT_STATS"
@@ -166,6 +202,12 @@ config = unsafePerformIO $ do
           "eager" -> Eager
           "on" -> On
           _ -> Off,
+        replacements = case (map toLower <$> repl, map toLower (fromMaybe "off" mode)) of
+          (Just "on", _) -> AllReplacements
+          (Just "off", _) -> NoReplacements
+          (_, "on") -> TaggedReplacements
+          (_, "eager") -> TaggedReplacements
+          _ -> AllReplacements,
         threshold = max 1 (fromMaybe 100 (thresh >>= readMaybe)),
         batch = max 1 (fromMaybe 32 (batchSize >>= readMaybe)),
         batchGate = max 1 (fromMaybe (max 1 (fromMaybe 100 (thresh >>= readMaybe)) `div` 4) (gate >>= readMaybe)),

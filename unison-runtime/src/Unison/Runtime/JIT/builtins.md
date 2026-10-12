@@ -43,6 +43,11 @@ when reading it:
   `FFI.base`) stay call-outs. See the internals, "Arrays and refs".
 - The five bare names `==`, `<`, `<=`, `>`, `>=` in `Unison.Builtin` are a rename list
   (`Int.==` is also `Int.eq`, and so on), not builtins, and are left out.
+- The Haskell replacements of base definitions (`Map`, `Set`, `List.sort`, the JSON parser,
+  ... in `functionReplacementList`) are not builtins and are not listed here. Under the JIT
+  only the ones that beat native code are applied; which, and the numbers, are in the
+  internals ("The Haskell replacements") and
+  [benchmarks/2026-10-11-replacements.md](benchmarks/2026-10-11-replacements.md).
 
 To regenerate after adding native versions: the lists this reads are `prim1Supported`,
 `prim2Supported` and the `elem` lists in `instrNative`, `textForeign` and `bytesForeign` in

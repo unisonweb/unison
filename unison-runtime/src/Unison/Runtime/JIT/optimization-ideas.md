@@ -14,8 +14,25 @@ A constructor with three or more fields holds a `Seg`, a tuple of a `ByteArray` 
 pointing at the real array. Reading a field is three dependent loads, and building the
 constructor allocates five objects and 15 + 2n words for n fields, where a flat closure would
 be one object of 3 + 2n words. The tree benchmark's `Node` has four fields, so this is on its
-hot path. It is an interpreter change (`GClosure`, `dataBranch`, `buildData`, value
-serialization), not a JIT one, and needs a plan of its own.
+hot path, and so is base's `Map`, whose `Bin` has five: a 100000-key map is about 13 MB of
+`DataG` nodes against 5 MB for the Haskell `Data.Map` it replaced, which is why native code
+loses to the Haskell map above a few thousand keys while winning below
+([2026-10-11 replacements](benchmarks/2026-10-11-replacements.md)). It is an interpreter
+change (`GClosure`, `dataBranch`, `buildData`, value serialization), not a JIT one, and needs
+a plan of its own.
+
+### Universal comparison of structured values
+
+`genUniversal` compares numbers inline and two texts or two bytes through a C helper; a pair
+of anything else (two tuples, two lists, two constructors of a user type, two characters or
+floats under an ordering) is an exit, and every native caller unwinds with it. `List.sort` on
+a list of pairs and base's `Map.==` (which sorts the two `toList`s) pay a round trip per
+comparison: in [2026-10-11 replacements](benchmarks/2026-10-11-replacements.md) `Map.==` ran
+at 1.2 to 4.6 µs per key natively against 30 to 60 ns through the Haskell replacement, and the
+`Universal.<=` exit was the hottest site of the run (78 million). The fix is a walker like the
+murmur IR helper: compare constructor tags and fields recursively, with the numeric and rope
+cases inline, answering "not handled" for functions, maps and the other closures the
+interpreter's `Ord` knows. Any map or set keyed by a tuple hits this on every operation.
 
 ### One allocation for several `Pack`s
 

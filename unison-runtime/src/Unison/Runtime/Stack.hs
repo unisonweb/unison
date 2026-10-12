@@ -41,6 +41,8 @@ module Unison.Runtime.Stack
     HEnv (..),
     closureTag,
     formDataReplaced,
+    mapFamily,
+    mapReplaced,
     unitClosure,
     UnboxedTypeTag (..),
     unboxedTypeTagToInt,
@@ -602,9 +604,24 @@ formDataSeg r t (usg, bsg) = case sizeofArray bsg of
   _ -> DataG r t (usg, bsg)
 {-# INLINE formDataSeg #-}
 
+-- | The tag of base's @Map@ type and of the functions on @Map@, @Set@ and
+-- @Multimap@, which take and return it (see JIT.Config.ReplacementUse):
+-- native code wins on maps below a few thousand keys, the common case,
+-- the Haskell map above (JIT/benchmarks/2026-10-11-replacements.md), so
+-- the family is left to the JIT.
+mapFamily :: JIT.ReplacementUse
+mapFamily = JIT.InterpreterOnly
+
+-- | Whether the @Map@ type is replaced by the Haskell 'WrapMap' under the
+-- current settings.
+mapReplaced :: Bool
+mapReplaced = JIT.replacementActive mapFamily
+{-# NOINLINE mapReplaced #-}
+
 -- Build a data type, but apply replacements
 formDataReplaced :: Reference -> PackedTag -> Seg -> Closure
 formDataReplaced r t sg@(usg, bsg)
+  | not mapReplaced = formDataSeg r t sg
   | t == TT.mapTipTag = case sizeofArray bsg of
       0 -> tipClosure
       _ -> error "formDataReplaced: bad `Map`"

@@ -90,6 +90,11 @@ past runs are in [benchmarks/](benchmarks/).
   [Config.hs](Config.hs): the threshold and batch size, the copy and re-entry-batch limits,
   the exit and entry costs, `UNISON_JIT_DISABLE` (features turned off for bisecting a bug)
   and `UNISON_JIT_STRESS` (see Testing).
+- `UNISON_REPLACEMENTS=on|off` forces all or none of the Haskell replacements of base
+  definitions (internals, "The Haskell replacements"); unset, the interpreter applies all of
+  them and the JIT the ones tagged `Always` in `functionReplacementList`. `on` under the JIT
+  is the escape hatch for a program with a huge `Map`; `off` under the interpreter shows what
+  the replaced Unison code costs there.
 - The transcripts, all run from the repo root with
   `stack exec unison -- -C jit_codebase transcript.fork <file>`. `transcript.fork` runs on a
   throwaway copy of the codebase, so `jit_codebase` itself is never modified. Running one
@@ -101,6 +106,7 @@ past runs are in [benchmarks/](benchmarks/).
   | `unison-src/transcripts/idempotent/jit-tests.md` | correctness tests with known answers, builtins only, prompt `scratch/main>`; the file contains its own expected output | any, including empty |
   | `unison-src/transcripts-manual/jit-benchmarks.md` | `jitSuite`, the benchmarks written for the JIT; prompt `jit-tests/main>`; timings print to the console, about a minute | `jit_codebase` |
   | `unison-src/transcripts-manual/jit-suite.md` | the older, broader `suite` (lists, maps, text, JSON, abilities), about 5.5 minutes per run; the test of whether the JIT is usable on library code | `jit_codebase` |
+  | `unison-src/transcripts-manual/jit-replacements.md` | `replacementSuite`, every replaced base operation at three sizes, meant to be run with `UNISON_JIT=off`, `UNISON_JIT=on UNISON_REPLACEMENTS=on` and `UNISON_JIT=on UNISON_REPLACEMENTS=off`; about 10 minutes per run (the `time` helper runs each row for several seconds whatever its work) | `jit_codebase` |
 
 - `jit_codebase/` (repo root) has a project `jit-tests`, branch `main`, with the
   `@pchiusano/misc-benchmarks` suite (`suite`, `fibsuite`, `fib1`, `time`, `printTime`,
@@ -166,6 +172,15 @@ corruption, so the debug RTS checks the heap.
 - The benchmark transcript is a test too, with the fast binary: base library code has
   shapes the builtins-only tests don't (a `Let` inside an inline binding was found by
   `printTime`, not by the tests).
+- **The base library transcripts** (`unison-src/transcripts-using-base/`) run through the
+  transcript runner, `stack exec transcripts -- <prefix>`, which runs every transcript whose
+  file name starts with the prefix with the `_base.md` prelude and checks its `.output.md`,
+  under `UNISON_JIT=off`, `on` and `eager`; the ones that use `Map`, `Value` and hashing are
+  `replacements`, `serial-test`, `all-base-hashes`, `hashing`, `codeops`, `binary-encoding`.
+  Known failure (2026-10-11, before and after the replacement tags): `serial-test-03` under
+  `eager` fails with "reflectValue: cannot prepare value for serialization: black hole"
+  serializing a value that holds a continuation captured by a non-affine handler
+  (`shift`); `on` and `off` pass it.
 - With the fast binary, `off` takes about 160 s and `on` or `eager` 10 to 25 s, because the
   tests are loops. A test run can go on a copy of the transcript in another directory, which
   lets several run at once; when several start at the same moment one can fail at once with

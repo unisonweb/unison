@@ -2113,13 +2113,18 @@ no'buf, line'buf, block'buf :: Closure
 read'mode, write'mode, append'mode, read'write'mode :: Closure
 absolute'seek, relative'seek, seek'from'end :: Closure
 std'in, std'out, std'err :: Closure
--- Built at the same time to attempt to share references.
+-- Built at the same time to attempt to share references. Only the entries
+-- active under the current settings (JIT.Config.Replacements) are in them.
 functionReplacements, functionUnreplacements :: Map Reference Reference
 (functionReplacements, functionUnreplacements) =
   (Map.fromList processed, Map.fromList $ swap <$> processed)
   where
     swap (x, y) = (y, x)
-    processed = process <$> functionReplacementList
+    processed =
+      [ process (str, pos, ff)
+        | (str, pos, ff, use) <- functionReplacementList,
+          JIT.replacementActive use
+      ]
 jsonNull = BoxedVal $ Enum Ty.jsonRef TT.jsonNullTag
 jsonTrue = BoxedVal . Data1 Ty.jsonRef TT.jsonBoolTag $ BoolVal True
 jsonFalse = BoxedVal . Data1 Ty.jsonRef TT.jsonBoolTag $ BoolVal False
@@ -2724,7 +2729,10 @@ avroEncodeValue = \case
   FromAvro.Map xs ->
     let m = HashMap.toList xs
         encoded = map (bimap textVal avroEncodeValue) m
-     in BoxedVal $ Data1 Ty.avroRef TT.avroMapTag $ BoxedVal $ Foreign (WrapMap (Map.fromList encoded))
+        -- the form the program's own maps have (see `mapReplaced`)
+        m' = Map.fromList encoded
+        clo = if mapReplaced then Foreign (WrapMap m') else inflateMap m'
+     in BoxedVal $ Data1 Ty.avroRef TT.avroMapTag $ BoxedVal clo
   FromAvro.Record schema fields ->
     BoxedVal $ Data2 Ty.avroRef TT.avroRecordTag (avroEncodeReadSchema schema) (encodeVal (map avroEncodeValue (Vector.toList fields)))
   FromAvro.Union schema tag v ->
@@ -3600,115 +3608,149 @@ instance {-# OVERLAPPABLE #-} (BuiltinForeign b) => ForeignConvention b where
 -- arguments to the foreign function and matching on the `Closure`
 -- cases and so on. This might not be pleasant, however.
 
+-- Empty when the `Map` type is not replaced (`mapReplaced`).
 pseudoConstructors :: Map Reference (Map TT.CTag ForeignFunc)
-pseudoConstructors =
-  Map.singleton Ty.mapRef $
-    Map.fromList
-      [ (fromIntegral Ty.mapTip, Map_tip),
-        (fromIntegral Ty.mapBin, Map_bin)
-      ]
+pseudoConstructors
+  | mapReplaced =
+      Map.singleton Ty.mapRef $
+        Map.fromList
+          [ (fromIntegral Ty.mapTip, Map_tip),
+            (fromIntegral Ty.mapBin, Map_bin)
+          ]
+  | otherwise = Map.empty
 
-functionReplacementList :: [(TS.Text, Pos, ForeignFunc)]
+-- The tag on each entry says whether it is applied when the JIT is on
+-- (see JIT.Config.ReplacementUse); with the JIT off every entry is. The
+-- functions on `Map`, `Set` and `Multimap` take and return the replaced
+-- type, so their tag is `mapFamily` (Unison.Runtime.Stack), decided with
+-- the type. The others were decided one by one by measurement, recorded
+-- in JIT/benchmarks/2026-10-11-replacements.md.
+functionReplacementList :: [(TS.Text, Pos, ForeignFunc, JIT.ReplacementUse)]
 functionReplacementList =
   [ ( "03hqp8knrcgdc733mitcunjlug4cpi9headkggu8h9d87nfgneo6e",
       0,
-      Map_insert
+      Map_insert,
+      mapFamily
     ),
     ( "03g44bb2bp3g5eld8eh07g6e8iq7oiqiplapeb6jerbs7ee3icq9s",
       0,
-      Map_lookup
+      Map_lookup,
+      mapFamily
     ),
     ( "005mc1fq7ojq72c238qlm2rspjgqo2furjodf28icruv316odu6du",
       0,
-      Map_fromList
+      Map_fromList,
+      mapFamily
     ),
     ( "01qqpul0ttlgjhr5i2gtmdr2uarns2hbtnjpipmk1575ipkrlug42",
       0,
-      Map_union
+      Map_union,
+      mapFamily
     ),
     ( "00c363e340il8q0fai6peiv3586o931nojj98qfek09hg1tjkm9ma",
       0,
-      Map_intersect
+      Map_intersect,
+      mapFamily
     ),
     ( "03pjq0jijrr7ebf6s3tuqi4d5hi5mrv19nagp7ql2j9ltm55c32ek",
       0,
-      Map_toList
+      Map_toList,
+      mapFamily
     ),
     ( "03putoun7i5n0lhf8iu990u9p08laklnp668i170dka2itckmadlq",
       0,
-      Multimap_fromList
+      Multimap_fromList,
+      mapFamily
     ),
     ( "03q6giac0qlva6u4mja29tr7mv0jqnsugk8paibatdrns8lhqqb92",
       0,
-      Set_fromList
+      Set_fromList,
+      mapFamily
     ),
     ( "03362vaalqq28lcrmmsjhha637is312j01jme3juj980ugd93up28",
       0,
-      Set_union
+      Set_union,
+      mapFamily
     ),
     ( "01lm6ejo31na1ti6u85bv0klliefll7q0c0da2qnefvcrq1l8rlqe",
       0,
-      Set_intersect
+      Set_intersect,
+      mapFamily
     ),
     ( "01p7ot36tg62na408mnk1psve6rc7fog30gv6n7thkrv6t3na2gdm",
       0,
-      Set_toList
+      Set_toList,
+      mapFamily
     ),
     ( "03c559iihi2vj0qps6cln48nv31ajup2srhas4pd05b9k46ds8jvk",
       0,
-      Map_eq
+      Map_eq,
+      mapFamily
     ),
     ( "01f446li3b0j5gcnj7fa99jfqir43shs0jqu779oo0npb7v8d3v22",
       0,
-      List_range
+      List_range,
+      JIT.InterpreterOnly
     ),
     ( "00jh7o3l67okqqalho1sqgl4ei9n2sdhrpqobgkf7j390v4e938km",
       0,
-      List_sort
+      List_sort,
+      JIT.Always
     ),
     ( "02n2eflppo81c4ako71f2ji347ljf1qoiij08q8tbid1p4k3n62k0",
       1,
-      Json_toText
+      Json_toText,
+      JIT.Always
     ),
     ( "02d659vubpd4m2cqbupec8qg3jpdfkgotpqtera3hh72bc3b9o6m6",
       0,
-      Json_unconsText
+      Json_unconsText,
+      JIT.Always
     ),
     ( "01pl56v6v0n2labp71cp6darcbftlj7d4h9t718mkfpj6lc905ro4",
       0,
-      Json_tryUnconsText
+      Json_tryUnconsText,
+      JIT.Always
     ),
     ( "01csmdujt5ot550j9t0o1gfop4ephtssv358rkfqdo2e01knekgds",
       0,
-      Avro_decodeBinary
+      Avro_decodeBinary,
+      JIT.Always
     ),
     ( "00g26ic9p19nioms4innabb2lth4c8dvvi83lualqdnfua4dvngfe",
       0,
-      Bytes_read
+      Bytes_read,
+      JIT.Always
     ),
     ( "03r6sk30dj5v0v0bk9bnpvh27io7aq9na6mjnepq129vilf757fag",
       0,
-      Bytes_read16le
+      Bytes_read16le,
+      JIT.Always
     ),
     ( "01fvfsabpu0vmp7tjlj6d9kupl9scoh3fn8cajl1gu9jc6nn977c2",
       0,
-      Bytes_read16be
+      Bytes_read16be,
+      JIT.Always
     ),
     ( "01q8h5knrvg7943q70i34m7hqh7sif5lc35b0p2ld7f3rqe92h1cm",
       0,
-      Bytes_read32le
+      Bytes_read32le,
+      JIT.Always
     ),
     ( "01vq0d62hiiljdh7ff1ui9nbs7tk7nte22kdisimeqsojakovv06g",
       0,
-      Bytes_read32be
+      Bytes_read32be,
+      JIT.Always
     ),
     ( "017fgcg3nje9visijeebaafetbv614orqn7ncc684kcifa11qsi5u",
       0,
-      Bytes_read64le
+      Bytes_read64le,
+      JIT.Always
     ),
     ( "036e5hmgb1hi689v6ptmmogtq128ofuj3n8oa1ij6huiv3qa4ovqu",
       0,
-      Bytes_read64be
+      Bytes_read64be,
+      JIT.Always
     )
   ]
 
