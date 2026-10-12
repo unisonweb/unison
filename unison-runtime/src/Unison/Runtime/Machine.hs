@@ -2037,6 +2037,31 @@ resolveTm rtm w =
             pure (rn, st)
         | otherwise -> throwIO $ ReflectExn "unknown term reference"
 
+-- | A map deserialized from the interchange form, in the form the
+-- program's own maps have: the Haskell 'WrapMap' when base's @Map@ type is
+-- replaced, the Unison tree otherwise (see `mapReplaced`).
+mapVal :: M.Map Val Val -> Val
+mapVal m
+  | mapReplaced = encodeVal m
+  | otherwise = boxedVal (inflateMap m)
+
+-- | The key/value pairs of base's @Map@ tree in key order, when the type
+-- isn't replaced and the tree has the shape `inflateMap` builds; the tree
+-- is serialized as the interchange `Map` node, as the Haskell map is, so
+-- that the bytes (and the typed hash) don't depend on the setting or on
+-- the tree's shape.
+nativeMapPairs :: Closure -> Maybe [(Val, Val)]
+nativeMapPairs = go []
+  where
+    go acc (Enum _ t) | t == TT.mapTipTag = Just acc
+    go acc (DataG _ t (usg, bsg))
+      | t == TT.mapBinTag,
+        sizeofArray bsg == 5 =
+          let k = Val (indexByteArray usg 3) (indexArray bsg 3)
+              v = Val (indexByteArray usg 2) (indexArray bsg 2)
+           in go acc (indexArray bsg 0) >>= \acc' -> go ((k, v) : acc') (indexArray bsg 1)
+    go _ _ = Nothing
+
 -- Reflects a runtime value into an interchange value, given a mapping
 -- from numberings to references.
 --
@@ -2090,9 +2115,11 @@ reflectValue0 rty rtm = goV0
         case clos of
           PAp cix _rComb args ->
             ANF.Partial <$> goIx cix <*> goVs args
-          Enum _ t -> do
-            r <- resolveTy rty $ TT.typeTag t
-            pure $ ANF.Data r (maskTags t) []
+          Enum _ t
+            | not mapReplaced, t == TT.mapTipTag -> pure $ ANF.BLit (ANF.Map [])
+            | otherwise -> do
+                r <- resolveTy rty $ TT.typeTag t
+                pure $ ANF.Data r (maskTags t) []
           Data1 _ t u -> do
             r <- resolveTy rty $ TT.typeTag t
             u <- goV u
@@ -2102,9 +2129,14 @@ reflectValue0 rty rtm = goV0
             u <- goV u
             v <- goV v
             pure $ ANF.Data r (maskTags t) [u, v]
-          DataG _ t seg -> do
-            r <- resolveTy rty $ TT.typeTag t
-            ANF.Data r (maskTags t) <$> goVs seg
+          DataG _ t seg
+            | not mapReplaced,
+              t == TT.mapBinTag,
+              Just kvs <- nativeMapPairs clos ->
+                ANF.BLit . ANF.Map <$> traverse (\(k, v) -> (,) <$> goV k <*> goV v) kvs
+            | otherwise -> do
+                r <- resolveTy rty $ TT.typeTag t
+                ANF.Data r (maskTags t) <$> goVs seg
           Captured k _ segs ->
             ANF.Cont <$> goVs segs <*> goK k
           Foreign f -> ANF.BLit <$> goF f
@@ -2312,7 +2344,7 @@ reifyValue0Canon combs tys tms rty rtm = goV
     goL (ANF.Neg w) = pure $ IntVal (negate (fromIntegral w :: Int))
     goL (ANF.Float d) = pure $ DoubleVal d
     goL (ANF.Arr a) = encodeVal <$> goVArr a
-    goL (ANF.Map l) = encodeVal . M.fromList <$> traverse goP l
+    goL (ANF.Map l) = mapVal . M.fromList <$> traverse goP l
       where
         goP (x, y) = (,) <$> goV x <*> goV y
     goL (ANF.BigInt i) = pure $ encodeVal i
@@ -2410,7 +2442,7 @@ reifyValue0 (combs, rty, rtm) = goV
     goL (ANF.Neg w) = pure $ IntVal (negate (fromIntegral w :: Int))
     goL (ANF.Float d) = pure $ DoubleVal d
     goL (ANF.Arr a) = encodeVal <$> goVArr a
-    goL (ANF.Map l) = encodeVal . M.fromList <$> traverse goP l
+    goL (ANF.Map l) = mapVal . M.fromList <$> traverse goP l
       where
         goP (x, y) = (,) <$> goV x <*> goV y
     goL (ANF.BigInt i) = pure $ encodeVal i
