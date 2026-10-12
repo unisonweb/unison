@@ -652,6 +652,15 @@ data GInstr comb
     RecUnpack
       !(Vector FieldRef {- fields to unpack -})
       !Int {- index of record on boxed stack -}
+  | -- Replace one field of a record on the boxed stack with a new value,
+    -- keeping the record's own field set (and so its shape).
+    --
+    -- `args` is the record and its new value. As with 'RecUnpack' the slot the
+    -- field sits in is read from the *value's* shape, so the same code works
+    -- for records built at any construction site.
+    RecSet
+      !FieldRef {- field to replace -}
+      !Args {- the record and the new value -}
   | -- Push a particular value onto the appropriate stack
     Lit !MLit -- value to push onto the stack
   | -- Print a value on the unboxed stack
@@ -1207,12 +1216,14 @@ emitSection _ _ grpn _ ctx (TFOp p args) =
     $ countBlock ctx
 emitSection rns grpr grpn rec ctx (TApp f args) =
   emitClosures grpr grpn rec ctx args $ \ctx as -> do
-    -- Record construction needs a shape, whose creation may intern new field
-    -- names, so it has to happen here rather than inside pure `emitFunction`.
-    mshape <- case f of
-      FRec rs -> Just <$> recordShape (recNum rns rs) rs
+    -- A record shape, or the reference for a field a record update replaces,
+    -- has to be interned into a shared table, which is why these are resolved
+    -- here rather than inside pure `emitFunction`.
+    mrec <- case f of
+      FRec rs -> Just . RecEmitShape <$> recordShape (recNum rns rs) rs
+      FRecSet field -> Just . RecEmitSet . V.head <$> convertFieldNamesToRefs (V.singleton field)
       _ -> pure Nothing
-    countCtx ctx $ emitFunction rns mshape grpr grpn rec ctx f as
+    countCtx ctx $ emitFunction rns mrec grpr grpn rec ctx f as
 emitSection rns grpr grpn rec ctx (TLocal v bo)
   | Just (i, BX) <- ctxResolve ctx v =
       Ins (InLocal i)
@@ -1333,11 +1344,21 @@ emitSection _ _ _ _ _ tm =
   internalBug [] $ "emitSection: unhandled code: " ++ show tm
 
 -- Emit the code for a function call
+-- | What a record-related function needs from the surrounding emit. Both cases
+-- intern a name into a shared table, which is why they can't be computed by
+-- the pure `emitFunction`.
+data RecEmit
+  = -- | the shape for a record construction
+    RecEmitShape RecordShape
+  | -- | the field reference for a record update
+    RecEmitSet FieldRef
+  deriving (Show)
+
 emitFunction ::
   (Var v) =>
   RefNums ->
-  -- | the record shape, when emitting a record construction
-  Maybe RecordShape ->
+  -- | extra information, when emitting a record construction or update
+  Maybe RecEmit ->
   Reference ->
   Word64 -> -- self combinator number
   RCtx v -> -- recursive binding group
@@ -1369,12 +1390,18 @@ emitFunction rns _mshape _grpr _ _ _ (FCon r t) as =
     $ VArg1 0
   where
     rt = toEnum . fromIntegral $ dnum rns r
-emitFunction _ mshape _grpr _ _ _ (FRec _rs) as
-  | Just shape <- mshape =
-      Ins (RecPack shape as)
-        . Yield
-        $ VArg1 0
-  | otherwise = internalBug [] "emitFunction: record construction without a shape"
+emitFunction _ (Just (RecEmitShape shape)) _grpr _ _ _ (FRec _rs) as =
+  Ins (RecPack shape as)
+    . Yield
+    $ VArg1 0
+emitFunction _ (Just (RecEmitSet field)) _grpr _ _ _ (FRecSet _field) as =
+  Ins (RecSet field as)
+    . Yield
+    $ VArg1 0
+emitFunction _ mrec _grpr _ _ _ f@(FRec _rs) _ =
+  internalBug [] $ "emitFunction: record construction without a shape: " ++ show (mrec, f)
+emitFunction _ mrec _grpr _ _ _ (FRecSet field) _ =
+  internalBug [] $ "emitFunction: record update of " ++ show field ++ " without a field reference: " ++ show mrec
 emitFunction rns _mshape _grpr _ _ _ (FReq r e) as =
   -- Currently implementing packed calling convention for abilities
   -- TODO ct is 16 bits, but a is 48 bits. This will be a problem if we have

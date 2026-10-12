@@ -76,6 +76,7 @@ x = a.#abc
   * newline or semicolon
   * or
   * quote
+  * record section
   * termLink
   * true
   * tuple

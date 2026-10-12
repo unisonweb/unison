@@ -484,6 +484,11 @@ data Warn v loc
 data Cause v loc
   = TypeMismatch (Context v loc)
   | IllFormedType (Context v loc)
+  | -- | An anonymous record row (@...@) was used in a positive position, where
+    -- it is meaningless: it says "accept whatever other fields the caller has",
+    -- which only makes sense for an argument. The row has to be named there
+    -- instead. Carries the offending type's location and the type itself.
+    AnonymousRowInPositivePosition loc (Type v loc)
   | UnknownSymbol loc v
   | UnknownTerm loc v [Suggestion v loc] (Type v loc)
   | AbilityCheckFailure [Type v loc] [Type v loc] (Context v loc) -- ambient, requested
@@ -792,8 +797,8 @@ wellformedType c t = case t of
   Type.Forall' t' ->
     let (v, ctx2) = extendUniversal c
      in wellformedType ctx2 (ABT.bind t' (universal' (ABT.annotation t) v))
-  Type.Record' _fb fields ->
-    all (wellformedType c) fields
+  Type.Record' fb fields ->
+    all (wellformedType c) fields && all (wellformedType c) fb
   _ -> error $ "Match failure in wellformedType: " ++ show t
   where
     -- Extend this `Context` with a single variable, guaranteed fresh
@@ -801,6 +806,39 @@ wellformedType c t = case t of
       let v = Var.freshIn (usedVars ctx) (Var.named "var")
           ctx' = fromRight (error "wellformedType: Expected Right") $ extend' (Universal v) ctx
        in (v, ctx')
+
+-- | Whether an anonymous row (@...@) occurs in a positive position.
+--
+-- `...` means "accept whatever other fields the caller provides", which is
+-- only sound for an argument. In a result the caller would get to choose the
+-- extra fields, so the row has to be named (@| r@) instead. This is what makes
+--
+--   @badRow : { x: Nat | ... } -> { x: Nat | ... }@
+--
+-- a type error, while @{ x: Nat | ... } -> Nat@ is fine.
+--
+-- Note that a row sits in the same position as the record that carries it, and
+-- can itself be a record (partial nesting), so both cases recurse.
+hasAnonymousRowInPositivePosition :: (Var v) => Type v loc -> Bool
+hasAnonymousRowInPositivePosition = go True
+  where
+    go :: (Var v) => Bool -> Type v loc -> Bool
+    go positive t = case t of
+      Type.Ann' t' _ -> go positive t'
+      -- A function's domain is contravariant, its codomain covariant.
+      Type.Arrow' i o -> go (not positive) i || go positive o
+      Type.Effect1' e a -> go positive e || go positive a
+      Type.App' f x -> go positive f || go positive x
+      Type.Effects' es -> any (go positive) es
+      Type.Forall' body -> go positive (ABT.bind body (Type.var (ABT.annotation t) (ABT.variable body)))
+      Type.IntroOuter' body -> go positive (ABT.bind body (Type.var (ABT.annotation t) (ABT.variable body)))
+      Type.Record' fb fields -> row positive fb || any (go positive) fields
+      _ -> False
+    row :: (Var v) => Bool -> Type.FieldBehavior (Type v loc) -> Bool
+    row positive = \case
+      Type.RequireExactFields -> False
+      Type.AllowExtraFields Nothing -> positive
+      Type.AllowExtraFields (Just r) -> go positive r
 
 addNotes :: (Var v) => CtxSegment v loc -> M v loc ()
 addNotes seg =
@@ -1401,6 +1439,33 @@ synthesizeWanted e
       -- Unify ability wants for the whole record
       wanteds <- foldM coalesceWanted [] (fold wantedSets)
       pure (Type.record l fb fieldTypes, wanteds)
+  | Term.RecordSet' fieldName record newValue <- e = scope (InRecordLiteral (ABT.annotation e)) $ do
+      -- These are created before the record is synthesized on purpose: the
+      -- record's type may still be an unbound variable, whose solution is
+      -- written in place in the context, and a solution can only mention
+      -- variables bound before it.
+      fieldV <- extendExistential Var.inferRecordFieldType
+      rowV <- extendExistential Var.inferRecordFieldType
+      -- The record must already have the field; an update changes only that
+      -- field's type, so a missing field is an error rather than an extension.
+      (recordType, wRecord) <- synthesize record
+      let wanted =
+            Type.record
+              l
+              (Type.AllowExtraFields (Just (existentialp l rowV)))
+              (Map.singleton fieldName (existentialp l fieldV))
+      subtype recordType wanted
+      -- Solving the constraint above fills the row in with the record's other
+      -- fields, so the result is the same record with one field replaced.
+      rowType <- applyM (existentialp l rowV)
+      (newFieldType, wValue) <- synthesize newValue
+      let result =
+            Type.normalize $
+              Type.record
+                l
+                (Type.AllowExtraFields (Just rowType))
+                (Map.singleton fieldName newFieldType)
+      (result,) <$> coalesceWanted wValue wRecord
   | Term.List' v <- e = do
       ft <- vectorConstructorOfArity l (Foldable.length v)
       case Foldable.toList v of
@@ -1892,7 +1957,7 @@ checkPattern scrutineeType p =
         appendContext [existential fieldTypeV]
         pure vt
       -- Record patterns allow extra unmatched fields
-      let fb = Type.AllowExtraFields
+      let fb = Type.AllowExtraFields Nothing
       -- Build the type of the pattern, filled with those unification variables
       let patternRecordType = Type.record recordLoc fb inferredFieldTypes
       lift $ subtype scrutineeType patternRecordType
@@ -2661,7 +2726,12 @@ tweakEffects v0 t0
           pure (vfs ++ vxs, Type.app (loc ty) f x)
       | Type.Record' fb fields <- ty = do
           (vs, fields') <- getCompose $ for fields (Compose . rewrite p)
-          pure (vs, Type.record (loc ty) fb fields')
+          (vfb, fb') <- case fb of
+            Type.AllowExtraFields (Just row) -> do
+              (v, row') <- rewrite p row
+              pure (v, Type.AllowExtraFields (Just row'))
+            _ -> pure ([], fb)
+          pure (vfb ++ vs, Type.record (loc ty) fb' fields')
       | otherwise = pure ([], ty)
       where
         a = loc ty
@@ -2690,7 +2760,7 @@ isVariant u = walk True
       walk var i && walk var o && all (walk var) es
     walk var (Type.App' f x) = walk var f && walk False x
     walk var (Type.Var' v) = u /= v || var
-    walk var (Type.Record' _fb fields) = all (walk var) fields
+    walk var (Type.Record' fb fields) = all (walk var) fb && all (walk var) fields
     walk _ _ = True
 
 skolemize ::
@@ -2992,8 +3062,8 @@ discardCovariant vars gens ty =
           keepVarsT pos f <> foldMap (keepVarsV pos) (zip vs xs)
     -- Records place no field in a negative position, so every field is
     -- treated the same way as the covariant part of an application.
-    keepVarsT pos (Type.Record' _fb fields) =
-      foldMap (keepVarsT pos) fields
+    keepVarsT pos (Type.Record' fb fields) =
+      foldMap (keepVarsT pos) fields <> foldMap (keepVarsT pos) fb
     keepVarsT _ t = foldMap exi $ Type.freeVars t
 
     exi (TypeVar.Existential _ v) = Set.singleton v
@@ -3104,6 +3174,7 @@ relax' vars nonArrow fv = rebuild True
           pure $ Type.app loc f x
       | Type.Record' fb fields <- t = do
           fields <- traverse (rebuild False) fields
+          fb <- traverse (rebuild False) fb
           pure $ Type.record loc fb fields
       | top, nonArrow = ftv loc <&> \tv -> Type.effect loc [tv] t
       | otherwise = pure t
@@ -3306,6 +3377,8 @@ check m0 t0 = scope (InCheck m0 t0) $ do
     Right m
       | not (wellformedType ctx t0) ->
           failWith $ IllFormedType ctx
+      | hasAnonymousRowInPositivePosition t0 ->
+          failWith $ AnonymousRowInPositivePosition (ABT.annotation t0) t0
       | Type.Var' TypeVar.Existential {} <- t0 ->
           applyM t0 >>= checkWanted Nothing [] m
       | otherwise ->
@@ -3379,21 +3452,32 @@ subtype tx ty = scope (InSubtype tx ty) $ do
           vars <- getVariances
           t <- relax' vars False (extendExistential Var.inferAbility) t
           instantiateR t b v
-    go _ r1@(Type.Record' _fb1 fields1) r2@(Type.Record' fb2 fields2) = do
-      Align.align fields1 fields2
-        & Map.traverseWithKey
-          ( \fieldName -> \case
-              -- r1 has a field r2 doesn't: an extra field, which is only an
-              -- error if r2 won't tolerate extras.
-              This t1 -> case fb2 of
-                Type.RequireExactFields -> failWith $ UnexpectedRecordField fieldName t1 r2 r1
-                Type.AllowExtraFields -> pure ()
-              -- r1 is missing a field r2 requires, so it can't be a subtype
-              -- regardless of the field behavior.
-              That t2 -> failWith $ MissingRecordField fieldName t2 r1 r2
-              These t1 t2 -> subtype t1 t2
-          )
-        & void
+    go _ r1@(Type.Record' fb1 fields1) r2@(Type.Record' fb2 fields2) = do
+      -- Fields r1 has that r2 does not are the "leftover" row: permitted
+      -- exactly when r2 tolerates extra fields, and they fix r2's row
+      -- variable if it has one.
+      leftovers <-
+        Align.align fields1 fields2
+          & Map.traverseWithKey
+            ( \fieldName -> \case
+                -- r1 has a field r2 doesn't: an extra field, which is only an
+                -- error if r2 won't tolerate extras.
+                This t1 -> case fb2 of
+                  Type.RequireExactFields -> failWith $ UnexpectedRecordField fieldName t1 r2 r1
+                  Type.AllowExtraFields _ -> pure (Just t1)
+                -- r1 is missing a field r2 requires, so it can't be a subtype
+                -- regardless of the field behavior.
+                That t2 -> failWith $ MissingRecordField fieldName t2 r1 r2
+                These t1 t2 -> subtype t1 t2 $> Nothing
+            )
+          <&> Map.mapMaybe id
+      -- `{x: Nat, y: Nat | r} <: {x: Nat | ...}` is fine, leaving the
+      -- anonymous row alone; when the row is a variable it is solved:
+      -- `{x: Nat, y: Nat | r} <: {x: Nat | r'}` gives `r' = {y: Nat | r}`.
+      case fb2 of
+        Type.AllowExtraFields (Just (Type.Var' (TypeVar.Existential b v))) ->
+          instantiateL b v (Type.normalize (Type.record (loc r1) fb1 leftovers))
+        _ -> pure ()
     go _ (Type.Effects' es1) (Type.Effects' es2) =
       void $ subAbilities ((,) Nothing <$> es1) es2
     go _ t t2@(Type.Effects' _) | expand t = subtype (Type.effects (loc t) [t]) t2
@@ -3480,9 +3564,17 @@ equate0 r1@(Type.Record' fb1 fields1) r2@(Type.Record' fb2 fields2) =
   do
     -- Equality is invariant, so unlike `subtype` an open record is not
     -- interchangeable with a closed one even when the fields line up.
-    when (fb1 /= fb2) do
-      ctx <- getContext
-      failWith $ TypeMismatch ctx
+    ctx <- getContext
+    case (fb1, fb2) of
+      (Type.RequireExactFields, Type.RequireExactFields) -> pure ()
+      (Type.AllowExtraFields row1, Type.AllowExtraFields row2) ->
+        case (row1, row2) of
+          (Nothing, Nothing) -> pure ()
+          (Just row1', Just row2') -> equate row1' row2'
+          -- `...` is an anonymous row and can't be named, so there's nothing
+          -- to equate it with.
+          _ -> failWith $ TypeMismatch ctx
+      _ -> failWith $ TypeMismatch ctx
     Align.align fields1 fields2
       & Map.traverseWithKey
         ( \fieldName -> \case
@@ -3500,6 +3592,20 @@ equate0 y1 y2 = do
   -- performing the subtype check in both directions means
   -- the types must be equal
   subtype y2 y1
+
+-- | Give an instantiated record its own row variable, mirroring how each field
+-- gets a fresh existential. Returns the fresh existential together with the row
+-- type it stands for, and the behavior to use in the instantiated record.
+freshenRow ::
+  (Var v, Ord loc) =>
+  loc ->
+  Type.FieldBehavior (Type v loc) ->
+  M v loc (Maybe (v, Type v loc), Type.FieldBehavior (Type v loc))
+freshenRow l fb = case fb of
+  Type.AllowExtraFields (Just row@(Type.Var' _)) -> do
+    rv <- freshenVar (nameFrom Var.inferRecordFieldType row)
+    pure (Just (rv, row), Type.AllowExtraFields (Just (existentialp l rv)))
+  _ -> pure (Nothing, fb)
 
 -- | Instantiate the given existential such that it is
 -- a subtype of the given type, updating the context
@@ -3571,17 +3677,20 @@ instantiateL blank v (Type.stripIntroOuters -> t) =
             )
             <&> Align.unzip
         let recordLoc = ABT.annotation t
+        (mRow, fb') <- freshenRow (loc t) fb
         -- We can assert that the result type is equal to the record filled with the existentials
-        let solved = Solved blank v (Type.Monotype (Type.record recordLoc fb fieldExistentials))
+        let solved = Solved blank v (Type.Monotype (Type.record recordLoc fb' fieldExistentials))
         -- Now, update the context, replacing the existential of the current var to
         -- include the new field existentials and the solved type, which depends on them.
         replaceContext
           (existential v)
-          ((existential <$> Map.elems fieldVars) <> [solved])
+          ((existential <$> Map.elems fieldVars) <> foldMap (\(rv, _) -> [existential rv]) mRow <> [solved])
         -- Finally, instantiate each field type to the corresponding existential
         -- Any missing fields are simply not instantiated
         for_ (Align.zip fields fieldVars) \(fieldTyp, fieldVar) ->
           applyM fieldTyp >>= instantiateL B.Blank fieldVar
+        for_ mRow \(rv, rowTyp) ->
+          applyM rowTyp >>= instantiateL B.Blank rv
       Type.Effect1' es vt -> do
         es' <- freshenVar Var.inferAbility
         vt' <- freshenVar Var.inferOther
@@ -3711,18 +3820,21 @@ instantiateR (Type.stripIntroOuters -> t) blank v =
             )
             <&> Align.unzip
         let recordLoc = ABT.annotation t
+        (mRow, fb') <- freshenRow (loc t) fb
         -- We can assert that the result type is equal to the record filled with the existentials
-        let solved = Solved blank v (Type.Monotype (Type.record recordLoc fb fieldExistentials))
+        let solved = Solved blank v (Type.Monotype (Type.record recordLoc fb' fieldExistentials))
         -- Now, update the context, replacing the existential of the current var to
         -- include the new field existentials and the solved type, which depends on them.
         replaceContext
           (existential v)
-          ((existential <$> Map.elems fieldVars) <> [solved])
+          ((existential <$> Map.elems fieldVars) <> foldMap (\(rv, _) -> [existential rv]) mRow <> [solved])
         -- Finally, instantiate each field type to the corresponding existential.
         -- Note this is the R direction, matching the surrounding function; the
         -- two agree for monotype fields but not for arrow- or forall-typed ones.
         for_ (Align.zip fields fieldVars) \(fieldTyp, fieldVar) ->
           applyM fieldTyp >>= \fieldTyp -> instantiateR fieldTyp B.Blank fieldVar
+        for_ mRow \(rv, rowTyp) ->
+          applyM rowTyp >>= \rowTyp -> instantiateR rowTyp B.Blank rv
       Type.Effect1' es vt -> do
         es' <- freshenVar (nameFrom Var.inferAbility es)
         vt' <- freshenVar (nameFrom Var.inferTypeConstructorArg vt)

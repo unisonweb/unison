@@ -42,10 +42,10 @@ import Unison.Var (Var)
 --   but:
 --   subtype (Record _ {a: Int, b: Nat}) (Record RequireExactFields {a: Int})
 -- fails.
-data FieldBehavior
-  = AllowExtraFields
+data FieldBehavior a
+  = AllowExtraFields (Maybe a) -- { a: Int | ...} or { a : Int | rest }
   | RequireExactFields
-  deriving (Eq, Ord, Show)
+  deriving (Eq, Ord, Show, Foldable, Functor, Traversable)
 
 -- | Base functor for types in the Unison language
 data TypeF a
@@ -59,7 +59,7 @@ data TypeF a
   | TypeIntroOuter a -- binder like ∀, used to introduce variables that are
   -- bound by outer type signatures, to support scoped type
   -- variables
-  | TypeRecord FieldBehavior (Map Text a)
+  | TypeRecord (FieldBehavior a) (Map Text a)
   deriving (Foldable, Functor, Traversable)
 
 -- | Types are represented as ABTs over the base functor F, with variables in `v`
@@ -166,10 +166,13 @@ instance Hashable1 TypeF where
             TypeIntroOuter a -> [tag 7, hashed (hash a)]
             TypeRecord fb fields ->
               let fbh = case fb of
-                    AllowExtraFields -> 0
-                    RequireExactFields -> 1
+                    AllowExtraFields Nothing -> [tag 0]
+                    -- An anonymous row (`...`) hashes like the row-less form, so
+                    -- existing hashes are unaffected; a named row contributes its hash.
+                    AllowExtraFields (Just row) -> [tag 0, hashed (hash row)]
+                    RequireExactFields -> [tag 1]
                   sortedFields = Map.toAscList fields
                   fieldHashes =
                     sortedFields & foldMap \(fieldName, fieldType) ->
                       [Hashable.accumulateToken fieldName, hashed (hash fieldType)]
-               in tag 8 : tag fbh : fieldHashes
+               in tag 8 : fbh <> fieldHashes

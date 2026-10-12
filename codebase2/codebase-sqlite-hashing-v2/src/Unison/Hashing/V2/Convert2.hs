@@ -85,8 +85,9 @@ v2ToH2Type' mkReference = ABT.transform convertF
       V2.Type.Forall a -> H2.TypeForall a
       V2.Type.IntroOuter a -> H2.TypeIntroOuter a
       V2.Type.Record fb fields -> H2.TypeRecord (convertFB fb) fields
+    convertFB :: V2.Type.FieldBehavior a -> H2.FieldBehavior a
     convertFB = \case
-      V2.Type.AllowExtraFields -> H2.AllowExtraFields
+      V2.Type.AllowExtraFields row -> H2.AllowExtraFields row
       V2.Type.RequireExactFields -> H2.RequireExactFields
 
 convertKind :: V2.Kind -> H2.Kind
@@ -184,6 +185,7 @@ v2ToH2Term = ABT.transform convertF
       V2.Term.Ref r -> H2.TermRef (v2ToH2Reference r)
       V2.Term.Constructor r cid -> H2.TermConstructor (v2ToH2Reference r) cid
       V2.Term.Record fields -> H2.TermRecord fields
+      V2.Term.RecordSet field r v -> H2.TermRecordSet field r v
       V2.Term.Request r cid -> H2.TermRequest (v2ToH2Reference r) cid
       V2.Term.Handle a b -> H2.TermHandle a b
       V2.Term.App a b -> H2.TermApp a b

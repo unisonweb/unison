@@ -104,6 +104,10 @@ data F typeVar typeAnn patternAnn a
   | -- | Field names carry no annotation of their own, so errors about a field
     -- are reported at the field value's location.
     Record (Map Text a)
+  | -- | @RecordSet fieldName record newValue@: @record@ with one field's value
+    -- replaced. The field must already exist, and the result has the record's
+    -- own field set (and so its shape at runtime).
+    RecordSet Text a a
   deriving (Ord, Foldable, Functor, Generic, Generic1, Traversable)
 
 _Ref :: Prism' (F tv ta pa a) Reference
@@ -289,6 +293,7 @@ extraMap vtf atf apf = \case
   Ref x -> Ref x
   Constructor x -> Constructor x
   Record fields -> Record fields
+  RecordSet field r v -> RecordSet field r v
   Request x -> Request x
   Handle x y -> Handle x y
   App x y -> App x y
@@ -531,6 +536,14 @@ pattern Constructor' ref <- (ABT.out -> ABT.Tm (Constructor ref))
 
 pattern Record' :: Map Text (ABT.Term (F typeVar typeAnn patternAnn) v a) -> ABT.Term (F typeVar typeAnn patternAnn) v a
 pattern Record' fields <- (ABT.out -> ABT.Tm (Record fields))
+
+-- | @RecordSet' field record newValue@: @record@ with @field@ replaced.
+pattern RecordSet' ::
+  Text ->
+  ABT.Term (F typeVar typeAnn patternAnn) v a ->
+  ABT.Term (F typeVar typeAnn patternAnn) v a ->
+  ABT.Term (F typeVar typeAnn patternAnn) v a
+pattern RecordSet' field r v <- (ABT.out -> ABT.Tm (RecordSet field r v))
 
 pattern Request' :: ConstructorReference -> ABT.Term (F typeVar typeAnn patternAnn) v a
 pattern Request' ref <- (ABT.out -> ABT.Tm (Request ref))
@@ -836,6 +849,10 @@ request a ref = ABT.tm' a (Request ref)
 
 record :: (Ord v) => a -> Map Text (Term2 vt at ap v a) -> Term2 vt at ap v a
 record a fields = ABT.tm' a (Record fields)
+
+-- | @recordSet a field r v@ is @r@ with @field@ replaced by @v@.
+recordSet :: (Ord v) => a -> Text -> Term2 vt at ap v a -> Term2 vt at ap v a -> Term2 vt at ap v a
+recordSet a field r v = ABT.tm' a (RecordSet field r v)
 
 -- todo: delete and rename app' to app
 app_ :: (Ord v) => Term0' vt v -> Term0' vt v -> Term0' vt v
@@ -1654,6 +1671,7 @@ instance (ABT.Var vt, Eq at, Eq a) => Eq (F vt at p a) where
   Constructor r == Constructor r2 = r == r2
   Request r == Request r2 = r == r2
   Record fields == Record fields2 = fields == fields2
+  RecordSet f r v == RecordSet f2 r2 v2 = f == f2 && r == r2 && v == v2
   Handle h b == Handle h2 b2 = h == h2 && b == b2
   App f a == App f2 a2 = f == f2 && a == a2
   Ann e t == Ann e2 t2 = e == e2 && t == t2
@@ -1704,6 +1722,10 @@ instance (Show v, Show a) => Show (F v a0 p a) where
         showParen
           True
           (s "{" <> shows fields <> s " }")
+      go _ (RecordSet field r v) =
+        showParen
+          True
+          (shows r <> s "@" <> s (Text.unpack field) <> s ".set " <> shows v)
       go _ (Match scrutinee cases) =
         showParen
           True

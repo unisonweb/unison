@@ -120,6 +120,7 @@ m2hTerm = ABT.transformM \case
   Memory.Term.Ref r -> pure (Hashing.TermRef (m2hReference r))
   Memory.Term.Constructor (Memory.ConstructorReference.ConstructorReference r i) -> pure (Hashing.TermConstructor (m2hReference r) i)
   Memory.Term.Record fields -> pure (Hashing.TermRecord fields)
+  Memory.Term.RecordSet field r v -> pure (Hashing.TermRecordSet field r v)
   Memory.Term.Request (Memory.ConstructorReference.ConstructorReference r i) -> pure (Hashing.TermRequest (m2hReference r) i)
   Memory.Term.Handle x y -> pure (Hashing.TermHandle x y)
   Memory.Term.App f x -> pure (Hashing.TermApp f x)
@@ -185,6 +186,7 @@ h2mTerm getCT = ABT.transform \case
   Hashing.TermConstructor r i -> Memory.Term.Constructor (Memory.ConstructorReference.ConstructorReference (h2mReference r) i)
   Hashing.TermRequest r i -> Memory.Term.Request (Memory.ConstructorReference.ConstructorReference (h2mReference r) i)
   Hashing.TermRecord fields -> Memory.Term.Record fields
+  Hashing.TermRecordSet field r v -> Memory.Term.RecordSet field r v
   Hashing.TermHandle x y -> Memory.Term.Handle x y
   Hashing.TermApp f x -> Memory.Term.App f x
   Hashing.TermAnn e t -> Memory.Term.Ann e (h2mType t)
@@ -286,10 +288,10 @@ m2hType = ABT.transform \case
   Memory.Type.IntroOuter a1 -> Hashing.TypeIntroOuter a1
   Memory.Type.Record fb a1 -> Hashing.TypeRecord (m2hFieldBehavior fb) a1
 
-m2hFieldBehavior :: Memory.Type.FieldBehavior -> Hashing.FieldBehavior
+m2hFieldBehavior :: Memory.Type.FieldBehavior a -> Hashing.FieldBehavior a
 m2hFieldBehavior = \case
   Memory.Type.RequireExactFields -> Hashing.RequireExactFields
-  Memory.Type.AllowExtraFields -> Hashing.AllowExtraFields
+  Memory.Type.AllowExtraFields row -> Hashing.AllowExtraFields row
 
 m2hKind :: Memory.Kind.Kind -> Hashing.Kind
 m2hKind = \case
@@ -330,10 +332,10 @@ h2mType = ABT.transform \case
   Hashing.TypeIntroOuter a1 -> Memory.Type.IntroOuter a1
   Hashing.TypeRecord fb a1 -> Memory.Type.Record (h2mFieldBehavior fb) a1
 
-h2mFieldBehavior :: Hashing.FieldBehavior -> Memory.Type.FieldBehavior
+h2mFieldBehavior :: Hashing.FieldBehavior a -> Memory.Type.FieldBehavior a
 h2mFieldBehavior = \case
   Hashing.RequireExactFields -> Memory.Type.RequireExactFields
-  Hashing.AllowExtraFields -> Memory.Type.AllowExtraFields
+  Hashing.AllowExtraFields row -> Memory.Type.AllowExtraFields row
 
 h2mKind :: Hashing.Kind -> Memory.Kind.Kind
 h2mKind = \case

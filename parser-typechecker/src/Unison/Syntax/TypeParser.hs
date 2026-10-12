@@ -116,13 +116,19 @@ recordType = do
   open <- openBlockWith "{"
   fields <- sepBy (reserved ",") recordField
   fb <-
-    optional (reserved "|" *> reserved "...") >>= \case
-      Just _ -> pure Type.AllowExtraFields
+    optional (reserved "|") >>= \case
       Nothing -> pure Type.RequireExactFields
+      Just _bar -> do
+        anonymous <- optional (reserved "...")
+        case anonymous of
+          Just _ -> pure (Type.AllowExtraFields Nothing)
+          Nothing -> Type.AllowExtraFields . Just <$> valueType
   close <- closeBlock
   checkForDuplicateRecordFields (fst <$> fields)
   let a = ann open <> ann close
-  pure $ Type.record a fb (Map.fromList (first L.payload <$> fields))
+  -- `{ a: Nat | { b: Text | r } }` is the same type as `{ a: Nat, b: Text | r }`,
+  -- so flatten it here to keep a single canonical form.
+  pure $ Type.normalize $ Type.record a fb (Map.fromList (first L.payload <$> fields))
   where
     recordField = do
       nameTok <- recordFieldName

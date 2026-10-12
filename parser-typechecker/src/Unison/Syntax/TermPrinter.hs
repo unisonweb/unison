@@ -387,6 +387,17 @@ pretty0
           LetBlock bs e ->
             let (im', uses) = calcImports im term
              in printLet a {imports = im'} bc bs e uses
+          -- `r@foo.set v` is a record update; it binds like a projection.
+          RecordSet' field r v -> do
+            pr <- goNormal Top r
+            pv <- goNormal Top v
+            pure $
+              pr
+                <> fmt S.DelimiterChar "@"
+                <> fmt (S.RecordFieldName field) (PP.text field)
+                <> fmt S.TypeOperator ".set"
+                <> " "
+                <> pv
           -- A single-field record match is what `base@field` desugars to, so
           -- print it back that way rather than as the underlying match.
           (asRecordProjection -> Just (base, field)) -> do

@@ -684,31 +684,58 @@ termLeaf :: forall m v. (Monad m, Var v) => TermP v m
 termLeaf = termLeafNoProjection >>= recordProjections
 
 -- | Parse a chain of record field projections onto an already-parsed term, so
--- that @r\@x@ reads the @x@ field of the record @r@.
+-- that @r\@x@ reads the @x@ field of the record @r@, and @r\@x.set v@ replaces
+-- it.
 --
--- The @\@@ must be adjacent to both sides -- @r\@x@, never @r \@ x@. That keeps
--- it from reading as an ordinary infix operator, and keeps it clear of the
--- @\@@ that introduces doc special forms.
+-- The @\@@ may be spaced on either side. The @\@@ of a doc special form is a
+-- distinct token, so a bare @\@@ in term position is unambiguously this
+-- operator.
 --
 -- Because this wraps a leaf, projection binds tighter than application:
 -- @f r\@x@ is @f (r\@x)@.
 recordProjections :: forall m v. (Monad m, Var v) => Term v Ann -> P v m (Term v Ann)
 recordProjections base = do
   mfield <- optional . P.try $ do
-    at <- reserved "@"
-    guard (adjacentAnns (ann base) (ann at))
-    field <- recordFieldName
-    guard (adjacentAnns (ann at) (ann field))
-    pure field
+    _at <- reserved "@"
+    -- `@x` projects, `@x.set` updates. `x.set` lexes as one qualified name, so
+    -- the two are told apart by which token parser matches.
+    (Left <$> P.try recordFieldName) <|> (Right <$> recordSetFieldName)
   case mfield of
     Nothing -> pure base
-    Just field -> recordProjections (recordProjection base field)
+    Just (Left field) -> recordProjections (recordProjection base field)
+    Just (Right field) -> do
+      -- The new value is an argument to the operator, so it is parsed as a
+      -- whole term rather than as a leaf.
+      value <- term
+      pure (Term.recordSet (ann base <> ann value) (L.payload field) base value)
 
--- | Whether the second annotation begins exactly where the first ends, meaning
--- there was no whitespace between the two tokens.
-adjacentAnns :: Ann -> Ann -> Bool
-adjacentAnns (Ann _ e) (Ann s _) = e == s
-adjacentAnns _ _ = False
+-- | The first-class form of the record operators: @(\@foo)@ is the getter
+-- @\\r -> r\@foo@ and @(\@foo.set)@ the setter @\\r v -> r \@foo.set v@, in the
+-- same way that @(+)@ is a first-class operator.
+--
+-- Any other parenthesized term is left to `tupleOrParenthesizedTerm`: this
+-- consumes the parens and then fails, so the enclosing `P.try` rewinds.
+recordSection :: forall m v. (Monad m, Var v) => TermP v m
+recordSection = label "record section" . P.try $ do
+  (spanAnn, es) <- seq' "(" (,) section
+  case es of
+    [tm] -> pure tm {ABT.annotation = ABT.annotation tm <> spanAnn}
+    _ -> P.failure Nothing mempty
+  where
+    section :: TermP v m
+    section = do
+      at <- reserved "@"
+      mfield <- (Left <$> recordFieldName) <|> (Right <$> recordSetFieldName)
+      -- The body mentions nothing but the bound variables, so a plain name
+      -- cannot capture anything.
+      let atAnn = ann at
+          r = Var.named "r"
+          v = Var.named "v"
+      pure $ case mfield of
+        Left field ->
+          Term.lam' atAnn [(atAnn, r)] (recordProjection (Term.var atAnn r) field)
+        Right field ->
+          Term.lam' atAnn [(atAnn, r), (atAnn, v)] (Term.recordSet atAnn (L.payload field) (Term.var atAnn r) (Term.var atAnn v))
 
 -- | @base\@field@ desugars to a single-field record match.
 --
@@ -743,6 +770,7 @@ termLeafNoProjection =
       boolean,
       link,
       recordLiteral,
+      recordSection,
       tupleOrParenthesizedTerm,
       keywordBlock,
       list term,

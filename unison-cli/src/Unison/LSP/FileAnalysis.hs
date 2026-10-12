@@ -368,6 +368,7 @@ analyseNotes codebase fileUri ppe src notes = do
                 Context.HandlerOfUnexpectedType loc _typ -> singleRange loc
                 Context.TypeMismatch {} -> shouldHaveBeenHandled e
                 Context.IllFormedType {} -> shouldHaveBeenHandled e
+                Context.AnonymousRowInPositivePosition loc _typ -> singleRange loc
                 Context.UnknownSymbol loc _ -> singleRange loc
                 Context.UnknownTerm loc _ _ _ -> singleRange loc
                 Context.AbilityCheckFailure {} -> shouldHaveBeenHandled e
@@ -705,3 +706,4 @@ expressionLeafNodes abt =
       Term.TermLink {} -> [abt]
       Term.TypeLink {} -> [abt]
       Term.Record fields -> fields & foldMap expressionLeafNodes
+      Term.RecordSet _field r v -> expressionLeafNodes r <> expressionLeafNodes v

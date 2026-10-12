@@ -171,6 +171,7 @@ builtinTypeForTermLiterals term =
       Term.TermLink {} -> Nothing
       Term.TypeLink {} -> Nothing
       Term.Record {} -> Nothing
+      Term.RecordSet {} -> Nothing
     ABT.Var {} -> Nothing
     ABT.Cycle {} -> Nothing
     ABT.Abs {} -> Nothing

@@ -61,6 +61,7 @@ module Unison.Syntax.Parser
     wordyDefinitionName,
     wordyPatternName,
     recordFieldName,
+    recordSetFieldName,
     checkForDuplicateRecordFields,
   )
 where
@@ -377,6 +378,15 @@ wordyDefinitionName = queryToken \case
 recordFieldName :: (Var v) => P v m (L.Token Text)
 recordFieldName = queryToken \case
   L.WordyId (HQ'.NameOnly (Name.segments -> (seg Nel.:| []))) -> Just (NameSegment.toUnescapedText seg)
+  _ -> Nothing
+
+-- | The @foo@ in @foo.set@, for the record-update operator @r\@foo.set v@.
+-- A field name is a single segment, so @foo.set@ lexes as one qualified name
+-- and is pulled apart here.
+recordSetFieldName :: (Var v) => P v m (L.Token Text)
+recordSetFieldName = queryToken \case
+  L.WordyId (HQ'.NameOnly (Name.segments -> (seg Nel.:| [setSeg])))
+    | NameSegment.toUnescapedText setSeg == "set" -> Just (NameSegment.toUnescapedText seg)
   _ -> Nothing
 
 -- | Reject a record type, literal, or pattern that names the same field twice.

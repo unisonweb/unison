@@ -144,9 +144,10 @@ prettyRaw im p tp = go im p tp
         let renderedFields =
               Map.toList renderedValues
                 <&> (\(k, v) -> fmt (S.RecordFieldName k) (PP.text k) <> fmt S.RecordFieldValueColon ": " <> v)
-        let renderedFB = case fb of
-              AllowExtraFields -> fmt S.RecordExtraFields " | ..."
-              RequireExactFields -> mempty
+        renderedFB <- case fb of
+          AllowExtraFields Nothing -> pure (fmt S.RecordExtraFields " | ...")
+          AllowExtraFields (Just row) -> (fmt S.RecordExtraFields " | " <>) <$> go im (-1) row
+          RequireExactFields -> pure mempty
         pure $
           PP.surroundCommas
             (fmt S.DelimiterChar "{")

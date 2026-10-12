@@ -25,6 +25,7 @@ data FnTag
   | FPrimT
   | FForeignT
   | FRecT
+  | FRecSetT
 
 data MtTag
   = MIntT
@@ -108,6 +109,7 @@ instance Tag FnTag where
     FPrimT -> 5
     FForeignT -> 6
     FRecT -> 7
+    FRecSetT -> 8
 
   word2tag = \case
     0 -> pure FVarT
@@ -118,6 +120,7 @@ instance Tag FnTag where
     5 -> pure FPrimT
     6 -> pure FForeignT
     7 -> pure FRecT
+    8 -> pure FRecSetT
     n -> unknownTag "FnTag" n
 
 instance Tag MtTag where

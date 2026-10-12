@@ -47,6 +47,8 @@ data TermF typeVar typeAnn patternAnn a
     -- second argument identifies the constructor
     TermConstructor Reference ConstructorId
   | TermRecord (Map Text a)
+  | -- | @TermRecordSet field record newValue@: @record@ with one field replaced
+    TermRecordSet Text a a
   | TermRequest Reference ConstructorId
   | TermHandle a a
   | TermApp a a
@@ -214,3 +216,5 @@ instance (Var v) => Hashable1 (TermF v a p) where
                               [accumulateToken name, hashed (hash val)]
                           )
                           (Map.toAscList fs)
+                  TermRecordSet field r v ->
+                    [tag 21, accumulateToken field, hashed (hash r), hashed (hash v)]

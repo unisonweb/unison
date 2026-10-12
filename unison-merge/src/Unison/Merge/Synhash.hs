@@ -360,6 +360,9 @@ hashTermFTokens ppe = \case
   Term.TermLink rf -> [H.Tag 19, hashReferentToken ppe rf]
   Term.TypeLink r -> [H.Tag 20, hashTypeReferenceToken ppe r]
   Term.Record fields -> H.Tag 21 : hashLengthToken fields : fieldNameTokens (Map.keys fields)
+  -- The two children are hashed by the caller; the token here only names the
+  -- field being replaced.
+  Term.RecordSet field _ _ -> [H.Tag 22, H.Text field]
 
 hashTypeTokens :: forall v a. (Var v) => PrettyPrintEnv -> [v] -> Type v a -> [Token]
 hashTypeTokens ppe = go
@@ -386,9 +389,10 @@ hashTypeFTokens ppe = \case
   Type.Record fb fields ->
     [H.Tag 8, hashLengthToken fields] <> fieldBehaviorTokens fb <> fieldNameTokens (Map.keys fields)
 
-fieldBehaviorTokens :: Type.FieldBehavior -> [Token]
+fieldBehaviorTokens :: Type.FieldBehavior () -> [Token]
 fieldBehaviorTokens = \case
-  Type.AllowExtraFields -> [H.Tag 0]
+  Type.AllowExtraFields Nothing -> [H.Tag 0]
+  Type.AllowExtraFields (Just ()) -> [H.Tag 0, H.Tag 2]
   Type.RequireExactFields -> [H.Tag 1]
 
 fieldNameTokens :: [Text] -> [Token]

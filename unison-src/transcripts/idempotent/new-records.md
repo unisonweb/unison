@@ -11,30 +11,66 @@ We should be able to write simple functions which construct record types, and ca
 ``` unison
 mkRec : a -> b -> c -> { x: a, y: b, z: c }
 mkRec a b c = { x: a, y: b, z: c }
+
 > mkRec 1 2 3
+
+> let r = { name : "Bob", age : 99 }
+      r@age
+
+List.map : (a ->{e} b) -> [a] ->{e} [b]
+List.map f =
+  use List :+
+  go acc = cases
+    a +: as -> go (acc :+ f a) as
+    []      -> acc
+  go []
+
+List.zipWith : (a -> b ->{e} c) -> [a] -> [b] ->{e} [c]
+List.zipWith f a b =
+  use List :+
+  go acc as bs = match (as, bs) with
+    (ah +: at, bh +: bt) -> go (acc :+ f ah bh) at bt
+    _                    -> acc
+  go [] a b
 
 addUpRec : { x: Nat, y: Nat, z: Nat | ... } -> Nat
 addUpRec = cases
   { x:x, y:y, z:z } -> x Nat.+ y Nat.+ z
 
+> List.map (@name) [{name: "Alice", age : 40}, {name: "Bob", age : 33}]
+> List.zipWith (@age.set) [{name: "Alice", age : 40}, {name: "Bob", age : 33}] [22, 23]
 > addUpRec (mkRec 1 2 3)
 ```
 
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  + addUpRec : {x: Nat, y: Nat, z: Nat | ...} -> Nat
-  + mkRec    : a -> b -> c -> {x: a, y: b, z: c}
+  + addUpRec     : {x: Nat, y: Nat, z: Nat | ...} -> Nat
+  + List.map     : (a ->{e} b) -> [a] ->{e} [b]
+  + List.zipWith : (a -> b ->{e} c) -> [a] -> [b] ->{e} [c]
+  + mkRec        : a -> b -> c -> {x: a, y: b, z: c}
 
   Run `update` to apply these changes to your codebase.
 
-    3 | > mkRec 1 2 3
+    4 | > mkRec 1 2 3
           ⧩
           {x: 1, y: 2, z: 3}
 
-    9 | > addUpRec (mkRec 1 2 3)
+    6 | > let r = { name : "Bob", age : 99 }
           ⧩
-          6
+          99
+
+    29 | > List.map (@name) [{name: "Alice", age : 40}, {name: "Bob", age : 33}]
+           ⧩
+           ["Alice", "Bob"]
+
+    30 | > List.zipWith (@age.set) [{name: "Alice", age : 40}, {name: "Bob", age : 33}] [22, 23]
+           ⧩
+           [{age: 22, name: "Alice"}, {age: 23, name: "Bob"}]
+
+    31 | > addUpRec (mkRec 1 2 3)
+           ⧩
+           6
 ```
 
 And can add them to the codebase;
@@ -49,9 +85,10 @@ scratch/main> update
 
 scratch/main> ls
 
-  1. addUpRec ({x: Nat, y: Nat, z: Nat | ...} -> Nat)
-  2. lib.     (775 terms, 120 types)
-  3. mkRec    (a -> b -> c -> {x: a, y: b, z: c})
+  1. List.    (2 terms)
+  2. addUpRec ({x: Nat, y: Nat, z: Nat | ...} -> Nat)
+  3. lib.     (775 terms, 120 types)
+  4. mkRec    (a -> b -> c -> {x: a, y: b, z: c})
 ```
 
 We should be able to create wrapper types which encapsulate records, and manipulate them.
@@ -121,16 +158,17 @@ scratch/main> update
 
 scratch/main> ls
 
-  1.  Point       (type)
-  2.  Point.      (1 term)
-  3.  addUpRec    ({x: Nat, y: Nat, z: Nat | ...} -> Nat)
-  4.  getX        (Point -> Nat)
-  5.  getY        (Point -> Nat)
-  6.  lib.        (775 terms, 120 types)
-  7.  mkPoint     (Nat -> Nat -> Point)
-  8.  mkRec       (a -> b -> c -> {x: a, y: b, z: c})
-  9.  p           (Point)
-  10. unpackPoint (Point -> (Nat, Nat))
+  1.  List.       (2 terms)
+  2.  Point       (type)
+  3.  Point.      (1 term)
+  4.  addUpRec    ({x: Nat, y: Nat, z: Nat | ...} -> Nat)
+  5.  getX        (Point -> Nat)
+  6.  getY        (Point -> Nat)
+  7.  lib.        (775 terms, 120 types)
+  8.  mkPoint     (Nat -> Nat -> Point)
+  9.  mkRec       (a -> b -> c -> {x: a, y: b, z: c})
+  10. p           (Point)
+  11. unpackPoint (Point -> (Nat, Nat))
 
 scratch/main> view Point
 
@@ -223,17 +261,18 @@ scratch/main> update
 
 scratch/main> ls
 
-  1.  Point       (type)
-  2.  Point.      (1 term)
-  3.  addUpRec    ({x: Nat, y: Nat, z: Nat | ...} -> Nat)
-  4.  getAddress  ({address: t | ...} -> t)
-  5.  getX        (Point -> Nat)
-  6.  getY        (Point -> Nat)
-  7.  lib.        (775 terms, 120 types)
-  8.  mkPoint     (Nat -> Nat -> Point)
-  9.  mkRec       (a -> b -> c -> {x: a, y: b, z: c})
-  10. p           (Point)
-  11. unpackPoint (Point -> (Nat, Nat))
+  1.  List.       (2 terms)
+  2.  Point       (type)
+  3.  Point.      (1 term)
+  4.  addUpRec    ({x: Nat, y: Nat, z: Nat | ...} -> Nat)
+  5.  getAddress  ({address: t | ...} -> t)
+  6.  getX        (Point -> Nat)
+  7.  getY        (Point -> Nat)
+  8.  lib.        (775 terms, 120 types)
+  9.  mkPoint     (Nat -> Nat -> Point)
+  10. mkRec       (a -> b -> c -> {x: a, y: b, z: c})
+  11. p           (Point)
+  12. unpackPoint (Point -> (Nat, Nat))
 ```
 
 ### Nested records
@@ -921,41 +960,27 @@ mkRec2 n = { v: n }
           9
 ```
 
-The `@` has to be adjacent to both sides, which is what keeps it from being
-confused with the `@` of an as-pattern.
+The `@` may be spaced on either side, so `r@a`, `r @a`, `r@ a` and `r @ a`
+are all the same projection. The `@` that introduces a doc special form is a
+distinct token, so there's no ambiguity.
 
-``` unison :error
+``` unison
 spaced : { a: Nat } -> Nat
 spaced r = r @ a
+
+> spaced { a: 7 }
 ```
 
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I got confused here:
+  + spaced : {a: Nat} -> Nat
 
-      2 | spaced r = r @ a
+  Run `update` to apply these changes to your codebase.
 
-
-  I was surprised to find a '@' here.
-  I was expecting one of these instead:
-
-  * and
-  * bang
-  * do
-  * false
-  * force
-  * handle
-  * if
-  * infixApp
-  * let
-  * newline or semicolon
-  * or
-  * quote
-  * termLink
-  * true
-  * tuple
-  * typeLink
+    4 | > spaced { a: 7 }
+          ⧩
+          7
 ```
 
 ``` unison
@@ -1440,4 +1465,227 @@ wildRule _w = @rewrite case {w: _w} ==> {w: 0}
 
 targetWild : {w: Nat} -> Nat
 targetWild = cases {w: 0} -> 7
+```
+
+## Rows
+
+A record type's trailing `| ...` can be given a name, which lets a function talk
+about a record's *other* fields:
+
+``` unison
+rowId : { x: Nat | r } -> { x: Nat | r }
+rowId r = r
+
+firstOf : { x: Nat | rest } -> Nat
+firstOf r = r@x
+
+> firstOf { x: 1, y: "hi" }
+> rowId { x: 1, y: "hi" }
+> rowId { x: 1 }
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  + firstOf : {x: Nat | rest} -> Nat
+  + rowId   : {x: Nat | r} -> {x: Nat | r}
+
+  Run `update` to apply these changes to your codebase.
+
+    7 | > firstOf { x: 1, y: "hi" }
+          ⧩
+          1
+
+    8 | > rowId { x: 1, y: "hi" }
+          ⧩
+          {x: 1, y: "hi"}
+
+    9 | > rowId { x: 1 }
+          ⧩
+          {x: 1}
+```
+
+The row is solved at the call site, so `firstOf`'s `rest` is `{y: Text}` above
+and empty in the last line. A row can itself be a record, and partial nesting is
+flattened, so `{ a: Nat | { b: Text | r } }` is the same type as
+`{ a: Nat, b: Text | r }`:
+
+``` unison
+flat : { a: Nat | { b: Text | rest } } -> { a: Nat, b: Text | rest }
+flat r = r
+
+> flat { a: 1, b: "hi" }
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  + flat : {a: Nat, b: Text | rest} -> {a: Nat, b: Text | rest}
+
+  Run `update` to apply these changes to your codebase.
+
+    4 | > flat { a: 1, b: "hi" }
+          ⧩
+          {a: 1, b: "hi"}
+```
+
+`...` still means "accept any extra fields", but only where the record is being
+*passed in*. In a result a caller would get to choose the extra fields, so the
+row has to be named instead:
+
+``` unison
+sumX : { x: Nat | ... } -> Nat
+sumX r = r@x
+
+> sumX { x: 1, y: true }
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  + sumX : {x: Nat | ...} -> Nat
+
+  Run `update` to apply these changes to your codebase.
+
+    4 | > sumX { x: 1, y: true }
+          ⧩
+          1
+```
+
+``` unison :error
+badRow : { x: Nat | ... } -> { x: Nat | ... }
+badRow r = r
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  I can't use `...` here.
+
+  `...` is an anonymous record row, which says "accept whatever
+  other fields the caller has". That only makes sense for an
+  argument: in a result it would let the caller choose the extra
+  fields, so the row has to be named instead, e.g. `{ x: Nat | r
+  }`.
+
+      1 | badRow : { x: Nat | ... } -> { x: Nat | ... }
+
+  type:
+    {x: Nat | ...} ->{𝕖3} {x: Nat | ...}
+```
+
+## Record updates
+
+`@foo.set` replaces a field instead of reading it. Unlike `@foo`, both sides of
+the `@` may be spaced out.
+
+``` unison
+setFoo : { foo: a | rest } -> b -> { foo: b | rest }
+setFoo r v = r @foo.set v
+
+> setFoo { foo: "hi", age: 29 } []
+> { foo: "hi", age: 29 } @foo.set [1, 2, 3]
+> { foo: 1, bar: true } @foo.set "hello"
+> { foo: "hi", age: 29 } @ foo
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  + setFoo : {foo: a | rest} -> b -> {foo: b | rest}
+
+  Run `update` to apply these changes to your codebase.
+
+    4 | > setFoo { foo: "hi", age: 29 } []
+          ⧩
+          {age: 29, foo: []}
+
+    5 | > { foo: "hi", age: 29 } @foo.set [1, 2, 3]
+          ⧩
+          {age: 29, foo: [1, 2, 3]}
+
+    6 | > { foo: 1, bar: true } @foo.set "hello"
+          ⧩
+          {bar: true, foo: "hello"}
+
+    7 | > { foo: "hi", age: 29 } @ foo
+          ⧩
+          "hi"
+```
+
+The field has to already be there, and the record has to be a record:
+
+``` unison :error
+noField : { a: Nat } -> Nat
+noField r = r @nope.set 0
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  I expected this record:
+
+      1 | noField : { a: Nat } -> Nat
+
+
+  to have the field
+    nope: 𝕤6
+
+  so that it would match the type:
+    
+    {nope: 𝕤6 | 𝕤7}
+    
+
+  from here:
+
+      2 | noField r = r @nope.set 0
+```
+
+``` unison :error
+notARecord : Nat -> Nat
+notARecord n = n @foo.set 0
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  I found a value  of type:  Nat
+  where I expected to find:  {foo: 𝕤 | 𝕤1}
+
+      2 | notARecord n = n @foo.set 0
+
+    from right here:
+
+      1 | notARecord : Nat -> Nat
+```
+
+Both operators also have a prefix form, `(@foo)` and `(@foo.set)`, so they can
+be defined once and passed around like any other function:
+
+``` unison
+getFoo : { foo: a | ... } -> a
+getFoo = (@foo)
+
+setFoo2 : { foo: a | rest } -> b -> { foo: b | rest }
+setFoo2 = (@foo.set)
+
+> getFoo { foo: 7, bar: true }
+> setFoo2 { foo: "hi", age: 29 } []
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  + getFoo  : {foo: a | ...} -> a
+  + setFoo2 : {foo: a | rest} -> b -> {foo: b | rest}
+
+  Run `update` to apply these changes to your codebase.
+
+    7 | > getFoo { foo: 7, bar: true }
+          ⧩
+          7
+
+    8 | > setFoo2 { foo: "hi", age: 29 } []
+          ⧩
+          {age: 29, foo: []}
 ```

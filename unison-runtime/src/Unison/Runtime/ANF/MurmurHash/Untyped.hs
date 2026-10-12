@@ -318,6 +318,9 @@ hash64AddFunc rf ctx = \case
   FRec (RecordSchema rs) ->
     hash64AddInt 7
       `combine` hash64AddFoldable (hash64AddText) rs
+  FRecSet field ->
+    hash64AddInt 8
+      `combine` hash64AddText field
 
 hash64AddLit :: HRefs r -> Lit r -> Hash64 -> Hash64
 hash64AddLit rs = \case

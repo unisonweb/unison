@@ -1000,6 +1000,8 @@ alignFunc _ (FPrim ol) (FPrim or)
   | ol == or = Just . pure $ FPrim ol
 alignFunc _ (FRec rl) (FRec rr)
   | rl == rr = Just . pure $ FRec rl
+alignFunc _ (FRecSet fl) (FRecSet fr)
+  | fl == fr = Just . pure $ FRecSet fl
 alignFunc _ _ _ = Nothing
 
 alignBranch ::
@@ -1200,6 +1202,13 @@ pattern TRec ::
   [v] ->
   ANormal ref v
 pattern TRec rs args = TApp (FRec rs) args
+
+pattern TRecSet ::
+  (ABT.Var v) =>
+  FieldName ->
+  [v] ->
+  ANormal ref v
+pattern TRecSet field args = TApp (FRecSet field) args
 
 pattern AKon :: v -> [v] -> ANormalF ref v e
 pattern AKon v args = AApp (FCont v) args
@@ -1503,6 +1512,8 @@ data Func ref v
     FPrim (Either POp ForeignFunc)
   | -- record constructor
     FRec RecordSchema
+  | -- record update: replace one field's value, keeping the record's shape
+    FRecSet FieldName
   deriving (Show, Eq, Functor, Foldable, Traversable)
 
 data Lit ref
@@ -2139,6 +2150,7 @@ anfBlock (Record' fields) = fmap (pure . TRec recSchema) <$> anfArgs tms
   where
     recSchema = RecordSchema (Map.keysSet fields)
     tms = toList fields
+anfBlock (RecordSet' field r v) = fmap (pure . TRecSet field) <$> anfArgs [r, v]
 anfBlock t = internalBug [] $ "anf: unhandled term: " ++ show t
 
 type ReqBranches ref v =
@@ -2564,6 +2576,7 @@ funcLinks _ (FVar v) = pure $ FVar v
 funcLinks _ (FCont v) = pure $ FCont v
 funcLinks _ (FPrim e) = pure $ FPrim e
 funcLinks _ (FRec rr) = pure $ FRec rr
+funcLinks _ (FRecSet field) = pure $ FRecSet field
 
 expandBindings' ::
   (Var v) =>
@@ -2762,6 +2775,8 @@ prettyFunc (FReq r t) =
 prettyFunc (FPrim op) = either shows shows op . showString " "
 prettyFunc (FRec r) =
   showString "REC(" . shows r . showString ") "
+prettyFunc (FRecSet field) =
+  showString "RECSET(" . shows field . showString ") "
 
 showsShort :: Reference -> ShowS
 showsShort =

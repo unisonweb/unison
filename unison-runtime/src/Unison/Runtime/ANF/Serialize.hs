@@ -379,6 +379,7 @@ putFunc refrep allowFop ctx f = case f of
     | otherwise ->
         exn [] $ "putFunc: could not serialize foreign operation: " ++ show f
   FRec schema -> putTag FRecT <> putRecordSchema schema
+  FRecSet field -> putTag FRecSetT <> putText field
 
 getFunc ::
   (PrimBase m, Var v) => [v] -> GDeserial m (Func Reference v)
@@ -394,6 +395,7 @@ getFunc ctx (_, allowFOp) =
       | allowFOp -> FPrim . Right <$> getFOp
       | otherwise -> exn [] "getFunc: can't deserialize a foreign func"
     FRecT -> FRec <$> getRecordSchema
+    FRecSetT -> FRecSet <$> getText
 
 -- Note: this numbering is derived, and so not particularly stable.
 -- However, foreign functions are not serialized for interchange. This

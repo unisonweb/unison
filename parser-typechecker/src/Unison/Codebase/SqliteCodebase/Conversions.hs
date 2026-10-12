@@ -103,6 +103,7 @@ term1to2 h =
       V1.Term.Ref r -> V2.Term.Ref (rreference1to2 h r)
       V1.Term.Constructor (V1.ConstructorReference r i) -> V2.Term.Constructor (reference1to2 r) (fromIntegral i)
       V1.Term.Record fields -> V2.Term.Record fields
+      V1.Term.RecordSet field r v -> V2.Term.RecordSet field r v
       V1.Term.Request (V1.ConstructorReference r i) -> V2.Term.Request (reference1to2 r) (fromIntegral i)
       V1.Term.Handle b h -> V2.Term.Handle b h
       V1.Term.App f a -> V2.Term.App f a
@@ -170,6 +171,7 @@ term2to1 h lookupCT =
           V2.Term.Constructor r i ->
             pure (V1.Term.Constructor (V1.ConstructorReference (reference2to1 r) (fromIntegral i)))
           V2.Term.Record fields -> pure $ V1.Term.Record fields
+          V2.Term.RecordSet field r v -> pure $ V1.Term.RecordSet field r v
           V2.Term.Request r i ->
             pure (V1.Term.Request (V1.ConstructorReference (reference2to1 r) (fromIntegral i)))
           V2.Term.Handle a a4 -> pure $ V1.Term.Handle a a4
@@ -367,8 +369,9 @@ type2to1' convertRef =
       V2.Type.IntroOuter a -> V1.Type.IntroOuter a
       V2.Type.Record fb fields -> V1.Type.Record (convertFB fb) fields
       where
+        convertFB :: V2.Type.FieldBehavior a -> V1.Type.FieldBehavior a
         convertFB = \case
-          V2.Type.AllowExtraFields -> V1.Type.AllowExtraFields
+          V2.Type.AllowExtraFields row -> V1.Type.AllowExtraFields row
           V2.Type.RequireExactFields -> V1.Type.RequireExactFields
         convertKind = \case
           V2.Kind.Star -> V1.Kind.Star
@@ -398,8 +401,9 @@ type1to2' convertRef =
       V1.Type.IntroOuter a -> V2.Type.IntroOuter a
       V1.Type.Record fb fields -> V2.Type.Record (convertFB fb) fields
       where
+        convertFB :: V1.Type.FieldBehavior a -> V2.Type.FieldBehavior a
         convertFB = \case
-          V1.Type.AllowExtraFields -> V2.Type.AllowExtraFields
+          V1.Type.AllowExtraFields row -> V2.Type.AllowExtraFields row
           V1.Type.RequireExactFields -> V2.Type.RequireExactFields
         convertKind = \case
           V1.Kind.Star -> V2.Kind.Star

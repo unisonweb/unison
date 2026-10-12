@@ -284,6 +284,8 @@ putSingleTerm t = putABT putSymbol putUnit putF t
         putWord8 21 *> putReference r
       Term.Record fields ->
         putWord8 22 *> putFoldable (\(name, val) -> putText name *> putChild val) (Map.toList fields)
+      Term.RecordSet field r v ->
+        putWord8 23 *> putText field *> putChild r *> putChild v
     putMatchCase :: (MonadPut m) => (a -> m ()) -> Term.MatchCase LocalTextId TermFormat.TypeRef a -> m ()
     putMatchCase putChild (Term.MatchCase pat guard body) =
       putPattern pat *> putMaybe putChild guard *> putChild body
@@ -379,6 +381,7 @@ getSingleTerm = getABT getSymbol getUnit getF
           getList
             ((,) <$> getText <*> getChild)
             <&> Term.Record . Map.fromList
+        23 -> Term.RecordSet <$> getText <*> getChild <*> getChild
         tag -> unknownTag "getSingleTerm" tag
       where
         getReferent :: (MonadGet m) => m (Referent' TermFormat.TermRef TermFormat.TypeRef)
@@ -464,7 +467,7 @@ getType getReference = getABT getSymbol getUnit go
         5 -> Type.Effects <$> getList getChild
         6 -> Type.Forall <$> getChild
         7 -> Type.IntroOuter <$> getChild
-        8 -> Type.Record <$> getEnum @Type.FieldBehavior <*> (Map.fromList <$> getList (getPair getText getChild))
+        8 -> Type.Record <$> getFieldBehavior getChild <*> (Map.fromList <$> getList (getPair getText getChild))
         tag -> unknownTag "getType" tag
     getKind :: (MonadGet m) => m Kind
     getKind =
@@ -1141,15 +1144,33 @@ putType putReference putVar = putABT putVar putUnit go
       Type.Effects es -> putWord8 5 *> putFoldable putChild es
       Type.Forall body -> putWord8 6 *> putChild body
       Type.IntroOuter body -> putWord8 7 *> putChild body
-      Type.Record fb fields -> putWord8 8 *> putEnum @Type.FieldBehavior fb *> putFoldable (\(l, t) -> putText l *> putChild t) (Map.toAscList fields)
+      Type.Record fb fields -> putWord8 8 *> putFieldBehavior putChild fb *> putFoldable (\(l, t) -> putText l *> putChild t) (Map.toAscList fields)
     putKind :: (MonadPut m) => Kind -> m ()
     putKind k = case k of
       Kind.Star -> putWord8 0
       Kind.Arrow i o -> putWord8 1 *> putKind i *> putKind o
 
+-- | Serialize a record's field behavior, carrying the row variable (if named).
+--
+-- Tag 0/1 match the historical (row-less) encoding, so existing codebases
+-- decode unchanged; tag 2 is the named row `{ a : T | r }`.
+putFieldBehavior :: (MonadPut m) => (a -> m ()) -> Type.FieldBehavior a -> m ()
+putFieldBehavior putChild = \case
+  Type.AllowExtraFields Nothing -> putVarInt (0 :: Word8)
+  Type.RequireExactFields -> putVarInt (1 :: Word8)
+  Type.AllowExtraFields (Just row) -> putVarInt (2 :: Word8) *> putChild row
+
+getFieldBehavior :: (MonadGet m) => m a -> m (Type.FieldBehavior a)
+getFieldBehavior getChild =
+  getVarInt >>= \case
+    (0 :: Word8) -> pure (Type.AllowExtraFields Nothing)
+    1 -> pure Type.RequireExactFields
+    2 -> Type.AllowExtraFields . Just <$> getChild
+    tag -> unknownTag "getFieldBehavior" tag
+
+
 putChar :: (MonadPut m) => Char -> m ()
 putChar = serialize . VarInt . fromEnum
-
 getChar :: (MonadGet m) => m Char
 getChar = toEnum . unVarInt <$> deserialize
 
@@ -1168,9 +1189,3 @@ getMaybe getA =
 unknownTag :: (MonadGet m, Show a) => String -> a -> m x
 unknownTag msg tag =
   fail $ "unknown tag " ++ show tag ++ " while deserializing: " ++ msg
-
-putEnum :: forall e m. (MonadPut m, Enum e) => e -> m ()
-putEnum e = putVarInt (fromEnum e)
-
-getEnum :: forall e m. (MonadGet m, Enum e) => m e
-getEnum = toEnum <$> getVarInt

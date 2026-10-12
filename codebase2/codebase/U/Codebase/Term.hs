@@ -66,6 +66,8 @@ data F' text termRef typeRef termLink typeLink vt a
     -- second argument identifies the constructor
     Constructor typeRef ConstructorId
   | Record (Map Text {- field name -} a {- field value -})
+  | -- | @RecordSet field record newValue@: @record@ with one field replaced
+    RecordSet Text a a
   | Request typeRef ConstructorId
   | Handle a a
   | App a a
@@ -191,6 +193,7 @@ extraMapM ftext ftermRef ftypeRef ftermLink ftypeLink fvt = go'
       Char c -> pure $ Char c
       Ref r -> Ref <$> ftermRef r
       Constructor r cid -> Constructor <$> (ftypeRef r) <*> pure cid
+      RecordSet field a b -> pure $ RecordSet field a b
       Record fields -> pure $ Record fields
       Request r cid -> Request <$> ftypeRef r <*> pure cid
       Handle e h -> pure $ Handle e h
@@ -337,6 +340,7 @@ unhashComponent componentHash refToVar m =
             Char c -> ABT.tm () $ Char c
             Constructor typeRef conId -> ABT.tm () $ Constructor typeRef conId
             Record fields -> ABT.tm () $ Record fields
+            RecordSet field r v -> ABT.tm () $ RecordSet field r v
             Request typeRef conId -> ABT.tm () $ Request typeRef conId
             Handle e h -> ABT.tm () $ Handle e h
             App f a -> ABT.tm () $ App f a

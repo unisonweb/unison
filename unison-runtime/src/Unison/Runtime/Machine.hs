@@ -447,6 +447,20 @@ exec _ henv !_activeThreads !stk !k _ (RecUnpack desiredFields recIndex) = do
       stk' <- dumpSeg stk seg S
       pure (False, henv, stk', k)
     _ -> die [] "RecUnpack called on non-record value"
+exec _ henv !_activeThreads !stk !k _ (RecSet field args) = do
+  case args of
+    VArg2 recI valI -> do
+      rv <- bpeekOff stk recI
+      nv <- peekOff stk valI
+      case rv of
+        RecordG shape vals -> do
+          -- The value's own shape says which slot the field sits in.
+          let pos = shapePositions shape EC.! field
+          stk <- bump stk
+          bpoke stk . RecordG shape $ vals V.// [(pos, nv)]
+          pure (False, henv, stk, k)
+        _ -> die [] "RecSet called on non-record value"
+    _ -> die [] "RecSet called with unexpected arguments"
 exec _ henv !_activeThreads !stk !k _ (Print i) = do
   t <- peekOffBi stk i
   Tx.putStrLn (Util.Text.toText t)

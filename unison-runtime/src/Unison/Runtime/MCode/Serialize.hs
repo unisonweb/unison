@@ -174,6 +174,7 @@ data InstrT
   | AddFinalizerT
   | RecPackT
   | RecUnpackT
+  | RecSetT
 
 instance Tag InstrT where
   tag2word Prim1T = 0
@@ -200,6 +201,7 @@ instance Tag InstrT where
   tag2word AddFinalizerT = 23
   tag2word RecPackT = 24
   tag2word RecUnpackT = 25
+  tag2word RecSetT = 26
 
   word2tag 0 = pure Prim1T
   word2tag 1 = pure Prim2T
@@ -225,6 +227,7 @@ instance Tag InstrT where
   word2tag 23 = pure AddFinalizerT
   word2tag 24 = pure RecPackT
   word2tag 25 = pure RecUnpackT
+  word2tag 26 = pure RecSetT
   word2tag n = unknownTag "InstrT" n
 
 putInstr :: GInstr cix -> Builder
@@ -241,6 +244,7 @@ putInstr = \case
   (Pack r w a) -> putTag PackT <> putReference r <> putPackedTag w <> putArgs a
   (RecPack shape args) -> putTag RecPackT <> putRecordShape shape <> putArgs args
   (RecUnpack fields recIndex) -> putTag RecUnpackT <> putFoldable putFieldRef fields <> pInt recIndex
+  (RecSet field args) -> putTag RecSetT <> putFieldRef field <> putArgs args
   (Lit l) -> putTag LitT <> putLit l
   (Print i) -> putTag PrintT <> pInt i
   (Reset s nh ah) ->
@@ -303,6 +307,7 @@ getInstr =
     SandboxingFailureT -> error "getInstr: Unexpected serialized Sandboxing Failure"
     RecPackT -> RecPack <$> getRecordShape <*> getArgs
     RecUnpackT -> RecUnpack <$> getVector getFieldRef <*> gInt
+    RecSetT -> RecSet <$> getFieldRef <*> getArgs
 
 data ArgsT
   = ZArgsT

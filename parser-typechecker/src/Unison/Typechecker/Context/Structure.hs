@@ -380,7 +380,11 @@ apply' solved refined t = go t
       Type.Effects' es -> Type.effects a (fmap go es)
       Type.ForallNamed' v t' -> Type.forAll a v (go t')
       Type.IntroOuterNamed' v t' -> Type.introOuter a v (go t')
-      Type.Record' fb fields -> Type.record a fb (go <$> fields)
+      Type.Record' fb fields ->
+        -- Substituting a solution into a row can nest records, so re-flatten:
+        -- `{x: Nat | {y: Text}}` and `{x: Nat, y: Text}` are the same type and
+        -- have to compare equal.
+        Type.normalize (Type.record a (go <$> fb) (go <$> fields))
       _ -> error $ "Match error in Context.apply': " ++ show t
       where
         a = ABT.annotation t

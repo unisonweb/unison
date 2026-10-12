@@ -661,3 +661,25 @@ record_projection_applied r = Nat.increment r@a
 
 record_projection_of_expr : Nat -> Nat
 record_projection_of_expr n = ({ v : n })@v
+
+-- Row variables and record updates
+row_var_type : { x : Nat | r } -> { x : Nat | r }
+row_var_type r = r
+
+row_var_flat : { a : Nat | { b : Text | rest } } -> { a : Nat, b : Text | rest }
+row_var_flat r = r
+
+row_var_open : { x : Nat | ... } -> Nat
+row_var_open r = r@x
+
+-- `@` may be spaced out on either side
+row_var_spaced : { y : Nat } -> Nat
+row_var_spaced r = r @ y
+
+-- record update, which prints back with the `@` adjacent again
+row_var_set : { foo : Nat | rest } -> Nat -> { foo : Nat | rest }
+row_var_set r v = r @ foo.set v
+
+-- the prefix form of the projection
+row_var_getter_section : { foo : Nat | ... } -> Nat
+row_var_getter_section = (@foo)
