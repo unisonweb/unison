@@ -14,8 +14,10 @@ scratch/main> builtins.merge lib.builtins
 
 A projection on an argument whose type isn't known yet learns that field and
 leaves the *rest* of the row as a variable, so later projections can add more
-fields to the same argument. The inferred types say `| r` rather than `| ...`
-for exactly that reason.
+fields to the same argument. A row that ends up used only once is then closed
+again where the type is reported -- see "Rows dropped from an inferred type" below
+\-- so the signature reads `{ field1: Nat, field2: Nat } -> Nat` rather than
+`{ field1: Nat, field2: Nat | r } -> Nat`.
 
 ``` unison
 getName r = r@name
@@ -50,13 +52,13 @@ bump r = r@age.set (r@age + 1)
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  + addFields : {field1: Nat, field2: Nat | x} -> Nat
+  + addFields : {field1: Nat, field2: Nat} -> Nat
   + bump      : {age: Nat | x} -> {age: Nat | x}
-  + deep      : {inner: {x: t | x} | x1} -> t
-  + getName   : {name: t | x} -> t
-  + swap      : {x: t, y: t1 | x} -> {a: t1, b: t}
-  + three     : {a: t2, b: t1, c: t | x} -> (t2, t1, t)
-  + two       : {a: t1, b: t | x} -> (t1, t)
+  + deep      : {inner: {x: t}} -> t
+  + getName   : {name: t} -> t
+  + swap      : {x: t, y: t1} -> {a: t1, b: t}
+  + three     : {a: t2, b: t1, c: t} -> (t2, t1, t)
+  + two       : {a: t1, b: t} -> (t1, t)
 
   Run `update` to apply these changes to your codebase.
 
@@ -496,4 +498,26 @@ badDuo = Duo2 { a: 1 }
   from here:
 
       1 | type Duo2 = Duo2 { a: Nat, b: Nat }
+```
+
+## Rows dropped from an inferred type
+
+A row variable that occurs once, as a record's row in a parameter position, says
+nothing: a parameter's record type already means "at least these fields". So it is
+closed when the type is reported, which reads better. A row that occurs twice is
+kept, because it ties its two positions together.
+
+``` unison
+dropRow r = r@field1 Nat.+ r@field2
+
+keepRow r = r@age.set (r@age + 1)
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  + dropRow : {field1: Nat, field2: Nat} -> Nat
+  + keepRow : {age: Nat | x} -> {age: Nat | x}
+
+  Run `update` to apply these changes to your codebase.
 ```

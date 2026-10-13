@@ -203,7 +203,7 @@ getName = cases
 
   so that it would match the type:
     
-    {age: 𝕩17, name: 𝕩18 | 𝕤19}
+    {age: 𝕩17, name: 𝕩18 | ...}
     
 
   from here:
@@ -242,7 +242,7 @@ getAddress = cases
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  + getAddress : {address: t | x} -> t
+  + getAddress : {address: t} -> t
 
   Run `update` to apply these changes to your codebase.
 ```
@@ -261,7 +261,7 @@ scratch/main> ls
   2.  Point       (type)
   3.  Point.      (1 term)
   4.  addUpRec    ({x: Nat, y: Nat, z: Nat | ...} -> Nat)
-  5.  getAddress  ({address: t | x} -> t)
+  5.  getAddress  ({address: t} -> t)
   6.  getX        (Point -> Nat)
   7.  getY        (Point -> Nat)
   8.  lib.        (775 terms, 120 types)
@@ -293,7 +293,7 @@ nestedInferred = cases
   Loading changes detected in scratch.u.
 
   + nested         : {a: {b: Nat}} -> Nat
-  + nestedInferred : {a: {b: {c: t | x} | x1} | x2} -> t
+  + nestedInferred : {a: {b: {c: t}}} -> t
 
   Run `update` to apply these changes to your codebase.
 
@@ -1629,7 +1629,7 @@ noField r = r @nope.set 0
 
   so that it would match the type:
     
-    {nope: 𝕤6 | 𝕤7}
+    {nope: 𝕤6 | _row7}
     
 
   from here:
@@ -1646,7 +1646,7 @@ notARecord n = n @foo.set 0
   Loading changes detected in scratch.u.
 
   I found a value  of type:  Nat
-  where I expected to find:  {foo: 𝕤 | 𝕤1}
+  where I expected to find:  {foo: 𝕤 | _row}
 
       2 | notARecord n = n @foo.set 0
 

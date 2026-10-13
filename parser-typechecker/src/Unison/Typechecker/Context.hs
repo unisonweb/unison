@@ -874,6 +874,104 @@ openNegativeRows vars = go False
         | not positive -> Type.AllowExtraFields Nothing
       _ -> fmap (go positive) fb
 
+-- | Close vacuous row variables: a variable that occurs exactly once, as the row
+-- of a record in a negative position, can be dropped by closing that row.
+--
+-- @{ a: Nat | r } -> Nat@ and @{ a: Nat } -> Nat@ are the same type, because a
+-- record in a parameter position already means "at least these fields" (see
+-- `openNegativeRows`), so the @forall r@ says nothing. Closing it reads better,
+-- and it is what you want in an inferred signature.
+--
+-- Only a single occurrence is eligible: with two, the variable ties those
+-- positions together -- as @r\@age.set@ does, where the result's row is the
+-- argument's -- so it can't be dropped. Callers must therefore apply the context
+-- to the type first: until they do, an occurrence can hide behind a variable and
+-- a row can look like it occurs once when it doesn't.
+--
+-- The polarity walk matches `openNegativeRows`: the type of a value starts out
+-- positive, an arrow flips in its domain, and a type constructor's argument
+-- takes the polarity of the parameter. Under an invariant or unknown parameter,
+-- closing the row wouldn't be sound in both polarities, so nothing there is
+-- eligible.
+closeVacuousRows :: (Var v) => Map Reference [Variance] -> Type v loc -> Type v loc
+closeVacuousRows vars t
+  | Set.null eligible = t
+  | otherwise = go True t
+  where
+    eligible =
+      Set.fromList
+        [ v
+        | (v, (occurrences, isNegativeRow)) <- Map.toList (count True True t),
+          occurrences == 1,
+          isNegativeRow,
+          Set.member v free
+        ]
+    free = Set.map TypeVar.underlying (ABT.freeVars t)
+
+    -- Every occurrence of every variable, paired with whether that occurrence is
+    -- a record's row in a negative position, so that a variable appearing more
+    -- than once ends up ineligible.
+    --
+    -- Occurrences are keyed by the *underlying* variable: the same variable can
+    -- appear under different `TypeVar` annotations, and counting those as
+    -- separate variables would make a shared row look like two lone ones.
+    --
+    -- Note `combine`, not `<>`: `Data.Map`'s `<>` is a left-biased union, which
+    -- would silently drop one of two occurrences rather than adding them.
+    count positive creditable ty = case ty of
+      Type.Ann' t' _ -> count positive creditable t'
+      Type.Arrow' i o -> combine (count (not positive) creditable i) (count positive creditable o)
+      Type.Effect1' e o -> combine (count positive creditable e) (count positive creditable o)
+      Type.Effects' es -> foldr combine Map.empty (map (count positive creditable) es)
+      Type.App' f x ->
+        combine
+          (count positive creditable f)
+          ( case checkVarianceWith vars f of
+              Just (Pos : _) -> count positive creditable x
+              Just (Neg : _) -> count (not positive) creditable x
+              _ -> count positive False x
+          )
+      Type.Record' fb fields ->
+        combine
+          (row positive creditable fb)
+          (foldr combine Map.empty (map (count positive creditable) (Map.elems fields)))
+      Type.ForallNamed' _ t' -> count positive creditable t'
+      Type.IntroOuterNamed' _ t' -> count positive creditable t'
+      Type.Var' v -> Map.singleton (TypeVar.underlying v) (1 :: Int, False)
+      _ -> mempty
+
+    row positive creditable fb = case fb of
+      Type.AllowExtraFields (Just (Type.Var' v)) ->
+        Map.singleton (TypeVar.underlying v) (1 :: Int, creditable && not positive)
+      Type.AllowExtraFields (Just r) -> count positive creditable r
+      _ -> mempty
+
+    combine = Map.unionWith \(n1, f1) (n2, f2) -> (n1 + n2, f1 || f2)
+
+    -- Same walk again, now closing the rows of the eligible variables.
+    go positive ty = case ty of
+      Type.Ann' t' k -> Type.ann (loc ty) (go positive t') k
+      Type.Arrow' i o -> Type.arrow (loc ty) (go (not positive) i) (go positive o)
+      Type.Effect1' e o -> Type.effect1 (loc ty) (go positive e) (go positive o)
+      Type.Effects' es -> Type.effects (loc ty) (fmap (go positive) es)
+      Type.App' f x ->
+        let x' = case checkVarianceWith vars f of
+              Just (Pos : _) -> go positive x
+              Just (Neg : _) -> go (not positive) x
+              _ -> x
+         in Type.app (loc ty) (go positive f) x'
+      Type.Record' fb fields -> Type.record (loc ty) (close positive fb) (fmap (go positive) fields)
+      Type.ForallNamed' v t' -> Type.forAll (loc ty) v (go positive t')
+      Type.IntroOuterNamed' v t' -> Type.introOuter (loc ty) v (go positive t')
+      _ -> ty
+
+    close positive fb = case fb of
+      Type.AllowExtraFields (Just (Type.Var' v))
+        | not positive,
+          Set.member (TypeVar.underlying v) eligible ->
+            Type.RequireExactFields
+      _ -> fmap (go positive) fb
+
 addNotes :: (Var v) => CtxSegment v loc -> M v loc ()
 addNotes seg =
   getAp
@@ -2876,7 +2974,11 @@ generalizeExistentials ctx vars ty0 = generalizeP pred ctx ty
   where
     gens = unsolvedExistentials $ info ctx
 
-    ty = discardCovariant vars gens $ apply ctx ty0
+    -- An inferred type is where a vacuous negative row variable is worth
+    -- dropping (see `closeVacuousRows`), and it has to be done on the *applied*
+    -- type: until the context is substituted in, a row that is shared between
+    -- positions can look like it occurs once.
+    ty = discardCovariant vars gens . closeVacuousRows vars $ apply ctx ty0
     fvs = Type.freeVars ty
 
     pred e
