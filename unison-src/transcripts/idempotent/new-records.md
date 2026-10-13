@@ -1575,9 +1575,10 @@ badRow r = r
 ## Record updates
 
 `@foo.set` replaces a field instead of reading it. Its `@` may be spaced on either
-side — `r@foo.set v`, `r@ foo.set v`, `r @ foo.set v` — but a space *only* before
-the `@` makes that an application of `r` to `@foo.set`, and there is no receiver-less
-set, so it is not a set.
+side — `r@foo.set v`, `r@ foo.set v`, `r @ foo.set v`. A space *only* before the `@`
+is not a set: `@foo` reads a field of the record a block is updating, and those reads
+only exist inside a block's braces, so there is no term to read and it is a parse
+error.
 
 ``` unison
 setFoo : { foo: a | rest } -> b -> { foo: b | rest }
@@ -1613,33 +1614,57 @@ setFoo r v = r @ foo.set v
           "hi"
 ```
 
-The field has to already be there, and the record has to be a record:
+The field has to be there already, and the target has to be a record:
 
 ``` unison :error
 noField : { a: Nat } -> Nat
-noField r = r @nope.set 0
+noField r = r@nope.set 0
 ```
 
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I got confused here:
+  I expected this record:
 
-      2 | noField r = r @nope.set 0
+      1 | noField : { a: Nat } -> Nat
 
 
-  I was surprised to find a '@' here.
-  I was expecting one of these instead:
+  to have the field
+    nope: 𝕤6
 
-  * and
-  * infixApp
-  * newline or semicolon
-  * or
+  so that it would match the type:
+    
+    {nope: 𝕤6 | _row7}
+    
+
+  from here:
+
+      2 | noField r = r@nope.set 0
 ```
 
 ``` unison :error
-notARecord : Nat -> Nat
-notARecord n = n @foo.set 0
+setOnNat : Nat -> Nat
+setOnNat n = n@foo.set 0
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  I found a value  of type:  Nat
+  where I expected to find:  {foo: 𝕤 | _row}
+
+      2 | setOnNat n = n@foo.set 0
+
+    from right here:
+
+      1 | setOnNat : Nat -> Nat
+```
+
+Outside a block there is no `@foo` term to read, so a space before the `@` makes this a
+parse error rather than a type error:
+
+``` unison :error
+spacedSet r v = r @foo.set v
 ```
 
 ``` ucm :added-by-ucm
@@ -1647,7 +1672,7 @@ notARecord n = n @foo.set 0
 
   I got confused here:
 
-      2 | notARecord n = n @foo.set 0
+      1 | spacedSet r v = r @foo.set v
 
 
   I was surprised to find a '@' here.
@@ -1659,8 +1684,8 @@ notARecord n = n @foo.set 0
   * or
 ```
 
-Both operators also have a prefix form, `(@foo)` and `(@foo.set)`, so they can
-be defined once and passed around like any other function:
+Both operators also have a prefix form, `(@foo)` and `(@foo.set)`, so they can be defined
+once and passed around like any other function:
 
 ``` unison
 getFoo : { foo: a | ... } -> a
@@ -1692,11 +1717,11 @@ setFoo2 = (@foo.set)
 
 ## Record-set blocks
 
-A record-set block replaces several fields at once, with the new values written against the
-values the fields had *before* the update:
+A record-set block replaces several fields at once. Each value is written against the fields'
+*current* values, so the update is simultaneous rather than a sequence of updates:
 
 ``` unison
-setBoth r = r@{f1: @f1 + 1, f2: @f1 + @f2}
+setBoth r = r@{f1: @f1 + 1, f2: @f1 + @f2}   -- @f1 is still 1 here, so f2 becomes 3
 
 > setBoth {f1 : 1, f2 : 2}
 ```
@@ -1713,56 +1738,23 @@ setBoth r = r@{f1: @f1 + 1, f2: @f1 + @f2}
           {f1: 2, f2: 3}
 ```
 
-The name before each colon is the field being replaced, and inside the braces `@field` reads
-the field's *current* value — so `@f1` in `f2: @f1 + @f2` is the `f1` that was there before:
-the update is simultaneous, not a sequence of updates. A bare name in a value means whatever
-it means outside the block, so reading a field's value always goes through `@`:
+The name before each colon is the field being replaced, and `@field` reads a field's current
+value — including a field the block does not write. A bare name means whatever it means
+outside the block, so reading a field always goes through `@`:
 
 ``` unison
 seed = 99
 
-fromOuter r = r@{seed: seed + 1}
+fromOuter r = r@{seed: seed + 1}       -- the definition above
+fromField r = r@{seed: @seed + 1}      -- the record's own field
 
-fromField r = r@{seed: @seed + 1}
+addOther r = r@{f1: @f2 + 1}           -- writes f1, reads the f2 it doesn't write
+applyTo r = r@{f1: Nat.increment @f2}  -- a space before the `@` applies a function to a read
 
 > fromOuter {seed : 1}
-
 > fromField {seed : 1}
-```
-
-``` ucm :added-by-ucm
-  Loading changes detected in scratch.u.
-
-  + fromField : {seed: Nat | x} -> {seed: Nat | x}
-  + fromOuter : {seed: x1 | x} -> {seed: Nat | x}
-  + seed      : Nat
-
-  Run `update` to apply these changes to your codebase.
-
-    7 | > fromOuter {seed : 1}
-          ⧩
-          {seed: 100}
-
-    9 | > fromField {seed : 1}
-          ⧩
-          {seed: 2}
-```
-
-A field the block does not write is read the same way, and putting a space before the `@`
-applies a function to such a read:
-
-``` unison
-addOther r = r@{f1: @f2 + 1}
-
-applyTo r = r@{f1: Nat.increment @f2}
-
-sameField r = r@{f1: @f1 Nat.+ @f1}
-
 > addOther {f1 : 1, f2 : 10}
-
 > applyTo {f1 : 0, f2 : 41}
-
-> sameField {f1 : 3}
 ```
 
 ``` ucm :added-by-ucm
@@ -1770,108 +1762,67 @@ sameField r = r@{f1: @f1 Nat.+ @f1}
 
   + addOther  : {f1: x1, f2: Nat | x} -> {f1: Nat, f2: Nat | x}
   + applyTo   : {f1: x1, f2: Nat | x} -> {f1: Nat, f2: Nat | x}
-  + sameField : {f1: Nat | x} -> {f1: Nat | x}
+  + fromField : {seed: Nat | x} -> {seed: Nat | x}
+  + fromOuter : {seed: x1 | x} -> {seed: Nat | x}
+  + seed      : Nat
 
   Run `update` to apply these changes to your codebase.
 
-    7 | > addOther {f1 : 1, f2 : 10}
+    9 | > fromOuter {seed : 1}
           ⧩
-          {f1: 11, f2: 10}
+          {seed: 100}
 
-    9 | > applyTo {f1 : 0, f2 : 41}
-          ⧩
-          {f1: 42, f2: 41}
-
-    11 | > sameField {f1 : 3}
+    10 | > fromField {seed : 1}
            ⧩
-           {f1: 6}
+           {seed: 2}
+
+    11 | > addOther {f1 : 1, f2 : 10}
+           ⧩
+           {f1: 11, f2: 10}
+
+    12 | > applyTo {f1 : 0, f2 : 41}
+           ⧩
+           {f1: 42, f2: 41}
 ```
 
-A path before the braces updates a nested record, and a block may change a field's type
-because a set does:
+A path before the braces updates a nested record, and because a block is a set it can change a
+field's type. The rows a block does not mention stay open, as they do for `@field.set`:
 
 ``` unison
-nested r = r@employee@{name: @name ++ "!", salary: @salary + 100}
-
+setNested r = r@employee@{name: @name ++ "!", salary: @salary + 100}
 deep r = r@a@b@{x: @x + 1}
-
 retype r = r@{x: Nat.toText @x}
 
-> nested {employee : {name : "A", salary : 1}}
-
+> setNested {employee : {name : "A", salary : 1}}
 > deep {a : {b : {x : 1}}}
-
 > retype {x : 5}
 ```
 
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  + deep   : {a: {b: {x: Nat | x} | x1} | x2}
-             -> {a: {b: {x: Nat | x} | x1} | x2}
-  + nested : {employee: {name: Text, salary: Nat | x} | x1}
-             -> {employee: {name: Text, salary: Nat | x} | x1}
-  + retype : {x: Nat | x} -> {x: Text | x}
+  + deep      : {a: {b: {x: Nat | x} | x1} | x2}
+                -> {a: {b: {x: Nat | x} | x1} | x2}
+  + retype    : {x: Nat | x} -> {x: Text | x}
+  + setNested : {employee: {name: Text, salary: Nat | x} | x1}
+                -> { employee: {name: Text, salary: Nat | x} | x1}
 
   Run `update` to apply these changes to your codebase.
 
-    7 | > nested {employee : {name : "A", salary : 1}}
+    5 | > setNested {employee : {name : "A", salary : 1}}
           ⧩
           {employee: {name: "A!", salary: 101}}
 
-    9 | > deep {a : {b : {x : 1}}}
+    6 | > deep {a : {b : {x : 1}}}
           ⧩
           {a: {b: {x: 2}}}
 
-    11 | > retype {x : 5}
-           ⧩
-           {x: "5"}
-```
-
-The target is evaluated once, however many fields the block sets and however deep the path
-is — `Debug.watch` fires once here, not once per set:
-
-``` unison
-watched r = Debug.watch "target" r@{a: @a + 1, b: @b + 1}
-
-> watched {a : 1, b : 2}
-```
-
-``` ucm :added-by-ucm
-  Loading changes detected in scratch.u.
-
-  + watched : {a: Nat, b: Nat | x} -> {a: Nat, b: Nat | x}
-
-  Run `update` to apply these changes to your codebase.
-
-    3 | > watched {a : 1, b : 2}
+    7 | > retype {x : 5}
           ⧩
-          {a: 2, b: 3}
+          {x: "5"}
 ```
 
-A block ends the chain of projections:
-
-``` unison :error
-afterBlock r = r@{f1: 1}@f1
-```
-
-``` ucm :added-by-ucm
-  Loading changes detected in scratch.u.
-
-  It looks like this expression is being called like a function:
-
-      1 | afterBlock r = r@{f1: 1}@f1
-
-
-  but the thing being applied has the type:
-
-  {f1: Nat | _row}
-
-  Which doesn't expect any arguments.
-
-```
-
-Setting a field the record does not have is a type error, as it is for `@field.set`:
+A block can only set fields the target's type has:
 
 ``` unison :error
 noSuchField3 : { f1 : Nat } -> { f1 : Nat }
