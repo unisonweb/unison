@@ -1168,9 +1168,9 @@ getFieldBehavior getChild =
     2 -> Type.AllowExtraFields . Just <$> getChild
     tag -> unknownTag "getFieldBehavior" tag
 
-
 putChar :: (MonadPut m) => Char -> m ()
 putChar = serialize . VarInt . fromEnum
+
 getChar :: (MonadGet m) => m Char
 getChar = toEnum . unVarInt <$> deserialize
 

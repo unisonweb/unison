@@ -1344,6 +1344,7 @@ emitSection _ _ _ _ _ tm =
   internalBug [] $ "emitSection: unhandled code: " ++ show tm
 
 -- Emit the code for a function call
+
 -- | What a record-related function needs from the surrounding emit. Both cases
 -- intern a name into a shared table, which is why they can't be computed by
 -- the pure `emitFunction`.

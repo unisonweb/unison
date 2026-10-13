@@ -844,7 +844,7 @@ hasAnonymousRowInPositivePosition = go True
 -- Thus, if the user writes: `{ name : Text } -> Nat`, it typechecks as
 -- if they had written `{ name : Text | ... } -> Nat` and will allow inputs
 -- with more than just the `name` field.
--- 
+--
 -- Only `RequireExactFields` in a negative position is opened. A named row stays
 -- named, and `...` stays `...`.
 openNegativeRows :: (Var v) => Map Reference [Variance] -> Type v loc -> Type v loc
