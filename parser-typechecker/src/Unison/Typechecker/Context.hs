@@ -1484,7 +1484,7 @@ synthesizeWanted e
       -- written in place in the context, and a solution can only mention
       -- variables bound before it.
       fieldV <- extendExistential Var.inferRecordFieldType
-      rowV <- extendExistential Var.inferRecordFieldType
+      rowV <- extendExistential Var.inferRecordRowType
       -- The record must already have the field; an update changes only that
       -- field's type, so a missing field is an error rather than an extension.
       (recordType, wRecord) <- synthesize record
@@ -1999,7 +1999,7 @@ checkPattern scrutineeType p =
         Type.Record' (Type.AllowExtraFields (Just (Type.Var' (TypeVar.Existential b v)))) typeFields -> do
           let missing = Map.difference inferredFieldTypes typeFields
           unless (Map.null missing) $ do
-            rowV <- lift $ extendExistential Var.inferRecordFieldType
+            rowV <- lift $ extendExistential Var.inferRecordRowType
             let grown =
                   Type.record
                     recordLoc
