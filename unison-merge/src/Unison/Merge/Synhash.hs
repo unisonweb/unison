@@ -363,6 +363,13 @@ hashTermFTokens ppe = \case
   -- The two children are hashed by the caller; the token here only names the
   -- field being replaced.
   Term.RecordSet field _ _ -> [H.Tag 22, H.Text field]
+  -- The path and the field names are part of the term's identity; the children
+  -- (the target and each field value) are hashed by the caller.
+  Term.RecordSetBlock path fields _ ->
+    [H.Tag 23, hashLengthToken path]
+      <> fieldNameTokens path
+      <> [hashLengthToken fields]
+      <> fieldNameTokens (map fst fields)
 
 hashTypeTokens :: forall v a. (Var v) => PrettyPrintEnv -> [v] -> Type v a -> [Token]
 hashTypeTokens ppe = go

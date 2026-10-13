@@ -1484,6 +1484,13 @@ emitLet rns _ grpn _ _ _ ctx (TApp (FCon r n) args) =
 emitLet rns _ grpn _ _ _ ctx (TApp (FRec rs) args) = \es -> do
   shape <- recordShape (recNum rns rs) rs
   fmap (Ins . RecPack shape $ emitArgs grpn ctx args) es
+-- A record update needs its field's reference interned, the same way a record literal
+-- needs its shape interned. `emitSection` resolves it for a call position; a let needs
+-- its own case because a chain of updates (`r@f1.set ..)@f2.set ..`) puts every update
+-- but the last one in a let.
+emitLet _ _ grpn _ _ _ ctx (TApp (FRecSet field) args) = \es -> do
+  fieldRef <- V.head <$> convertFieldNamesToRefs (V.singleton field)
+  fmap (Ins (RecSet fieldRef (emitArgs grpn ctx args))) es
 emitLet _ _ grpn _ _ _ ctx (TApp (FPrim p) args) =
   fmap (Ins . either emitPOp emitFOp p $ emitArgs grpn ctx args)
 emitLet _ _ _ _ _ _ ctx (TDiscard v)

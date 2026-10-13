@@ -42,3 +42,4 @@ result-transcripts
 
 # Agent stuff
 /.claude
+*.local.md

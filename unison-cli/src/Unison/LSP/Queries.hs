@@ -152,6 +152,7 @@ refInTerm term =
       Term.TypeLink ref -> Just (LD.TypeReference ref)
       Term.Record {} -> Nothing
       Term.RecordSet {} -> Nothing
+      Term.RecordSetBlock {} -> Nothing
     ABT.Var _v -> Nothing
     ABT.Cycle _r -> Nothing
     ABT.Abs _v _r -> Nothing
@@ -271,6 +272,9 @@ findSmallestEnclosingNodeMatching pos pred term
               Term.RecordSet _field r v ->
                 findSmallestEnclosingNodeMatching pos pred r
                   <|> findSmallestEnclosingNodeMatching pos pred v
+              Term.RecordSetBlock _path fields target ->
+                findSmallestEnclosingNodeMatching pos pred target
+                  <|> altSum (findSmallestEnclosingNodeMatching pos pred . snd <$> fields)
             ABT.Var _v -> guardInFile *> termPred term
             ABT.Cycle r -> findSmallestEnclosingNodeMatching pos pred r
             ABT.Abs _v r -> findSmallestEnclosingNodeMatching pos pred r

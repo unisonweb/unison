@@ -49,6 +49,9 @@ data TermF typeVar typeAnn patternAnn a
   | TermRecord (Map Text a)
   | -- | @TermRecordSet field record newValue@: @record@ with one field replaced
     TermRecordSet Text a a
+  | -- | @TermRecordSetBlock path fields target@: @target@, reached by following
+    -- @path@, with the fields in @fields@ replaced
+    TermRecordSetBlock [Text] [(Text, a)] a
   | TermRequest Reference ConstructorId
   | TermHandle a a
   | TermApp a a
@@ -218,3 +221,12 @@ instance (Var v) => Hashable1 (TermF v a p) where
                           (Map.toAscList fs)
                   TermRecordSet field r v ->
                     [tag 21, accumulateToken field, hashed (hash r), hashed (hash v)]
+                  -- The path and the field names are part of the term's identity,
+                  -- and the counts delimit the flat runs of names, as in
+                  -- `TermRecord` above.
+                  TermRecordSetBlock path fields target ->
+                    [tag 22, varint (length path)]
+                      <> map accumulateToken path
+                      <> [varint (length fields)]
+                      <> foldMap (\(name, val) -> [accumulateToken name, hashed (hash val)]) fields
+                      <> [hashed (hash target)]

@@ -707,3 +707,5 @@ expressionLeafNodes abt =
       Term.TypeLink {} -> [abt]
       Term.Record fields -> fields & foldMap expressionLeafNodes
       Term.RecordSet _field r v -> expressionLeafNodes r <> expressionLeafNodes v
+      Term.RecordSetBlock _path fields target ->
+        expressionLeafNodes target <> (fields & foldMap (expressionLeafNodes . snd))

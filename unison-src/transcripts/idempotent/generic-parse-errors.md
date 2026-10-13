@@ -64,6 +64,7 @@ x = a.#abc
   I was expecting one of these instead:
 
   * @
+  * a field of the record being updated
   * and
   * bang
   * do

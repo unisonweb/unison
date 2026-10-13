@@ -286,6 +286,11 @@ putSingleTerm t = putABT putSymbol putUnit putF t
         putWord8 22 *> putFoldable (\(name, val) -> putText name *> putChild val) (Map.toList fields)
       Term.RecordSet field r v ->
         putWord8 23 *> putText field *> putChild r *> putChild v
+      Term.RecordSetBlock path fields target ->
+        putWord8 24
+          *> putFoldable putText path
+          *> putFoldable (\(name, val) -> putText name *> putChild val) fields
+          *> putChild target
     putMatchCase :: (MonadPut m) => (a -> m ()) -> Term.MatchCase LocalTextId TermFormat.TypeRef a -> m ()
     putMatchCase putChild (Term.MatchCase pat guard body) =
       putPattern pat *> putMaybe putChild guard *> putChild body
@@ -382,6 +387,11 @@ getSingleTerm = getABT getSymbol getUnit getF
             ((,) <$> getText <*> getChild)
             <&> Term.Record . Map.fromList
         23 -> Term.RecordSet <$> getText <*> getChild <*> getChild
+        24 ->
+          Term.RecordSetBlock
+            <$> getList getText
+            <*> getList ((,) <$> getText <*> getChild)
+            <*> getChild
         tag -> unknownTag "getSingleTerm" tag
       where
         getReferent :: (MonadGet m) => m (Referent' TermFormat.TermRef TermFormat.TypeRef)

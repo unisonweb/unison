@@ -683,3 +683,19 @@ row_var_set r v = r @ foo.set v
 -- the prefix form of the projection
 row_var_getter_section : { foo : Nat | ... } -> Nat
 row_var_getter_section = (@foo)
+
+-- record-set blocks: several fields replaced at once, the values reading the fields'
+-- current values through `@field`. These print back as written, including the path form.
+record_set_block : { f1 : Nat, f2 : Nat } -> { f1 : Nat, f2 : Nat }
+record_set_block r = r@{ f1: @f1 + 1, f2: @f1 + @f2 }
+
+record_set_block_path : { a : { x : Nat } } -> { a : { x : Nat } }
+record_set_block_path r = r@a@{ x: @x + 1 }
+
+-- `@field` reads a field the block does not write
+record_set_block_read : { f1 : Nat, f2 : Nat } -> { f1 : Nat, f2 : Nat }
+record_set_block_read r = r@{ f1: @f2 + 1 }
+
+-- a space before the `@` applies a function to such a read
+record_set_block_applied : { f1 : Nat, f2 : Nat } -> { f1 : Nat, f2 : Nat }
+record_set_block_applied r = r@{ f1: Nat.increment @f2 }

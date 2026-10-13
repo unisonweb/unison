@@ -2151,6 +2151,9 @@ anfBlock (Record' fields) = fmap (pure . TRec recSchema) <$> anfArgs tms
     recSchema = RecordSchema (Map.keysSet fields)
     tms = toList fields
 anfBlock (RecordSet' field r v) = fmap (pure . TRecSet field) <$> anfArgs [r, v]
+-- A record-set block is sugar: expand it to the match and `RecordSet` chain it
+-- means, then compile that.
+anfBlock t@(RecordSetBlock' _ _ _) = anfBlock (expandRecordSetBlock t)
 anfBlock t = internalBug [] $ "anf: unhandled term: " ++ show t
 
 type ReqBranches ref v =

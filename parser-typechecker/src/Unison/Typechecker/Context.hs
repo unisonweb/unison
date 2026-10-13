@@ -1576,6 +1576,10 @@ synthesizeWanted e
       -- Unify ability wants for the whole record
       wanteds <- foldM coalesceWanted [] (fold wantedSets)
       pure (Type.record l fb fieldTypes, wanteds)
+  | Term.RecordSetBlock' _ _ _ <- e =
+      -- A record-set block is sugar for a match over a chain of `RecordSet`s; it
+      -- has no typing rules of its own.
+      synthesize (Term.expandRecordSetBlock e)
   | Term.RecordSet' fieldName record newValue <- e = scope (InRecordLiteral (ABT.annotation e)) $ do
       -- These are created before the record is synthesized on purpose: the
       -- record's type may still be an unbound variable, whose solution is
@@ -3625,32 +3629,59 @@ subtype tx ty = scope (InSubtype tx ty) $ do
           vars <- getVariances
           t <- relax' vars False (extendExistential Var.inferAbility) t
           instantiateR t b v
-    go _ r1@(Type.Record' fb1 fields1) r2@(Type.Record' fb2 fields2) = do
-      -- Fields r1 has that r2 does not are the "leftover" row: permitted
-      -- exactly when r2 tolerates extra fields, and they fix r2's row
-      -- variable if it has one.
-      leftovers <-
-        Align.align fields1 fields2
-          & Map.traverseWithKey
-            ( \fieldName -> \case
-                -- r1 has a field r2 doesn't: an extra field, which is only an
-                -- error if r2 won't tolerate extras.
-                This t1 -> case fb2 of
-                  Type.RequireExactFields -> failWith $ UnexpectedRecordField fieldName t1 r2 r1
-                  Type.AllowExtraFields _ -> pure (Just t1)
-                -- r1 is missing a field r2 requires, so it can't be a subtype
-                -- regardless of the field behavior.
-                That t2 -> failWith $ MissingRecordField fieldName t2 r1 r2
-                These t1 t2 -> subtype t1 t2 $> Nothing
-            )
-          <&> Map.mapMaybe id
-      -- `{x: Nat, y: Nat | r} <: {x: Nat | ...}` is fine, leaving the
-      -- anonymous row alone; when the row is a variable it is solved:
-      -- `{x: Nat, y: Nat | r} <: {x: Nat | r'}` gives `r' = {y: Nat | r}`.
-      case fb2 of
-        Type.AllowExtraFields (Just (Type.Var' (TypeVar.Existential b v))) ->
-          instantiateL b v (Type.normalize (Type.record (loc r1) fb1 leftovers))
-        _ -> pure ()
+    go ctx r1@(Type.Record' fb1 fields1) r2@(Type.Record' fb2 fields2)
+      -- A field r2 requires that r1 doesn't have is normally a hard error, but
+      -- when r1 is an open record whose row is still an unsolved variable, r1 can
+      -- grow to include it: the row variable stands for fields we don't know
+      -- about yet, and solving it is the same growth `checkPattern` does when a
+      -- record pattern needs a field the scrutinee doesn't have yet.
+      --
+      -- Without this, a *second* update of the same record is rejected once the
+      -- first one has sealed its field set: `{f1: t | r} <: {f2: u | r'}`
+      -- grows `r` to `{f2: u | r1}`. The retry below sees a record whose fields
+      -- include everything r2 asks for, so it terminates.
+      | not (Map.null missing),
+        Type.AllowExtraFields (Just (Type.Var' (TypeVar.Existential b v))) <- fb1,
+        Set.member v (existentials ctx) = do
+          rowV <- extendExistential Var.inferRecordRowType
+          let loc1 = loc r1
+              grown =
+                Type.record
+                  loc1
+                  (Type.AllowExtraFields (Just (existentialp loc1 rowV)))
+                  missing
+          instantiateL b v (Type.normalize grown)
+          ctx' <- getContext
+          go ctx' (apply ctx' r1) (apply ctx' r2)
+      | otherwise = do
+          -- Fields r1 has that r2 does not are the "leftover" row: permitted
+          -- exactly when r2 tolerates extra fields, and they fix r2's row
+          -- variable if it has one.
+          leftovers <-
+            Align.align fields1 fields2
+              & Map.traverseWithKey
+                ( \fieldName -> \case
+                    -- r1 has a field r2 doesn't: an extra field, which is only an
+                    -- error if r2 won't tolerate extras.
+                    This t1 -> case fb2 of
+                      Type.RequireExactFields -> failWith $ UnexpectedRecordField fieldName t1 r2 r1
+                      Type.AllowExtraFields _ -> pure (Just t1)
+                    -- r1 is missing a field r2 requires and its row isn't an
+                    -- unsolved variable (see the guard above), so it can't be a
+                    -- subtype regardless of the field behavior.
+                    That t2 -> failWith $ MissingRecordField fieldName t2 r1 r2
+                    These t1 t2 -> subtype t1 t2 $> Nothing
+                )
+              <&> Map.mapMaybe id
+          -- `{x: Nat, y: Nat | r} <: {x: Nat | ...}` is fine, leaving the
+          -- anonymous row alone; when the row is a variable it is solved:
+          -- `{x: Nat, y: Nat | r} <: {x: Nat | r'}` gives `r' = {y: Nat | r}`.
+          case fb2 of
+            Type.AllowExtraFields (Just (Type.Var' (TypeVar.Existential b v))) ->
+              instantiateL b v (Type.normalize (Type.record (loc r1) fb1 leftovers))
+            _ -> pure ()
+      where
+        missing = Map.difference fields2 fields1
     go _ (Type.Effects' es1) (Type.Effects' es2) =
       void $ subAbilities ((,) Nothing <$> es1) es2
     go _ t t2@(Type.Effects' _) | expand t = subtype (Type.effects (loc t) [t]) t2

@@ -68,6 +68,9 @@ data F' text termRef typeRef termLink typeLink vt a
   | Record (Map Text {- field name -} a {- field value -})
   | -- | @RecordSet field record newValue@: @record@ with one field replaced
     RecordSet Text a a
+  | -- | @RecordSetBlock path fields target@: @target@, reached by following
+    -- @path@, with the fields in @fields@ replaced, in the order given
+    RecordSetBlock [Text] [(Text, a)] a
   | Request typeRef ConstructorId
   | Handle a a
   | App a a
@@ -194,6 +197,7 @@ extraMapM ftext ftermRef ftypeRef ftermLink ftypeLink fvt = go'
       Ref r -> Ref <$> ftermRef r
       Constructor r cid -> Constructor <$> (ftypeRef r) <*> pure cid
       RecordSet field a b -> pure $ RecordSet field a b
+      RecordSetBlock path fields target -> pure $ RecordSetBlock path fields target
       Record fields -> pure $ Record fields
       Request r cid -> Request <$> ftypeRef r <*> pure cid
       Handle e h -> pure $ Handle e h
@@ -341,6 +345,7 @@ unhashComponent componentHash refToVar m =
             Constructor typeRef conId -> ABT.tm () $ Constructor typeRef conId
             Record fields -> ABT.tm () $ Record fields
             RecordSet field r v -> ABT.tm () $ RecordSet field r v
+            RecordSetBlock path fields target -> ABT.tm () $ RecordSetBlock path fields target
             Request typeRef conId -> ABT.tm () $ Request typeRef conId
             Handle e h -> ABT.tm () $ Handle e h
             App f a -> ABT.tm () $ App f a

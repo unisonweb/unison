@@ -108,7 +108,29 @@ data F typeVar typeAnn patternAnn a
     -- replaced. The field must already exist, and the result has the record's
     -- own field set (and so its shape at runtime).
     RecordSet Text a a
+  | -- | @RecordSetBlock path fields target@: the record @target@, reached by
+    -- following @path@ (a chain of field names), with the fields in @fields@
+    -- replaced, in the order given. @target\@path\@{f: e, ...}@.
+    --
+    -- Each field's value is abstracted over the record being updated (a variable named
+    -- `recordSetTargetName`), so that the binder is present for every pass over the
+    -- term and not only for typechecking. A value reads a field's *current* value as
+    -- `@field`, which is a projection on that variable; a bare name in a value means
+    -- whatever it means outside the block.
+    --
+    -- This is sugar: it is expanded to a match over a chain of `RecordSet`s when
+    -- it is typechecked and when it is compiled to runtime form
+    -- (`expandRecordSetBlock`). It survives in the term so that it prints back as
+    -- the source form.
+    RecordSetBlock [Text] [(Text, a)] a
   deriving (Ord, Foldable, Functor, Generic, Generic1, Traversable)
+
+-- | The variable a record-set block binds to the record being updated, which its
+-- values mention to read a field (`@field` is a projection on it). Deliberately
+-- unlikely rather than unforgeable: unlike the typechecker's markers it reaches the
+-- printer, which parses variable names, so it has to be a name the lexer accepts.
+recordSetTargetName :: Text
+recordSetTargetName = "recordSetTarget"
 
 _Ref :: Prism' (F tv ta pa a) Reference
 _Ref = _Ctor @"Ref"
@@ -294,6 +316,7 @@ extraMap vtf atf apf = \case
   Constructor x -> Constructor x
   Record fields -> Record fields
   RecordSet field r v -> RecordSet field r v
+  RecordSetBlock path fields target -> RecordSetBlock path fields target
   Request x -> Request x
   Handle x y -> Handle x y
   App x y -> App x y
@@ -544,6 +567,15 @@ pattern RecordSet' ::
   ABT.Term (F typeVar typeAnn patternAnn) v a ->
   ABT.Term (F typeVar typeAnn patternAnn) v a
 pattern RecordSet' field r v <- (ABT.out -> ABT.Tm (RecordSet field r v))
+
+-- | @RecordSetBlock' path fields target@ is @target\@path\@{f: e, ...}@: see
+-- `RecordSetBlock`.
+pattern RecordSetBlock' ::
+  [Text] ->
+  [(Text, ABT.Term (F typeVar typeAnn patternAnn) v a)] ->
+  ABT.Term (F typeVar typeAnn patternAnn) v a ->
+  ABT.Term (F typeVar typeAnn patternAnn) v a
+pattern RecordSetBlock' path fields target <- (ABT.out -> ABT.Tm (RecordSetBlock path fields target))
 
 pattern Request' :: ConstructorReference -> ABT.Term (F typeVar typeAnn patternAnn) v a
 pattern Request' ref <- (ABT.out -> ABT.Tm (Request ref))
@@ -853,6 +885,137 @@ record a fields = ABT.tm' a (Record fields)
 -- | @recordSet a field r v@ is @r@ with @field@ replaced by @v@.
 recordSet :: (Ord v) => a -> Text -> Term2 vt at ap v a -> Term2 vt at ap v a -> Term2 vt at ap v a
 recordSet a field r v = ABT.tm' a (RecordSet field r v)
+
+-- | @recordSetBlock a path fields target@ is @target\@path\@{f: e, ...}@: see
+-- `RecordSetBlock`. Expanded by `expandRecordSetBlock`.
+recordSetBlock ::
+  (Ord vt, Ord v) =>
+  a ->
+  [Text] ->
+  [(Text, Term2 vt at a v a)] ->
+  Term2 vt at a v a ->
+  Term2 vt at a v a
+recordSetBlock a path fields target = ABT.tm' a (RecordSetBlock path fields target)
+
+-- | @base\@field@ desugars to a single-field record match.
+--
+-- That needs no new term form: it typechecks to @{field: t | row} -> t@ through
+-- the existing record pattern machinery (the row is left a variable, so further
+-- projections on the same value can still learn about other fields), and it
+-- compiles to the existing @RecUnpack@ instruction. The bound variable scopes
+-- over nothing but itself, so it cannot capture and needs no freshening.
+--
+-- The first argument annotates the field, which is the innermost location: the
+-- parser passes the field token's annotation.
+recordProjection ::
+  (Ord vt, Ord v, Var v) =>
+  -- Annotation for the match: the base's combined with the field's.
+  a ->
+  -- Annotation of the field itself.
+  a ->
+  Term2 vt at a v a ->
+  Text ->
+  Term2 vt at a v a
+recordProjection matchAnn fieldAnn base field =
+  let -- Not `_field`: a leading underscore makes it a wildcard when the
+      -- printed form is re-parsed, which would drop the binding.
+      v = Var.named "field"
+   in match
+        matchAnn
+        base
+        [ MatchCase
+            (Pattern.RecordLiteral fieldAnn (Map.singleton field (Pattern.Var fieldAnn)))
+            Nothing
+            (ABT.abs' fieldAnn v (var fieldAnn v))
+        ]
+
+-- | Expand a record-set block, @target\@path\@{f: e, ...}@, into the term it
+-- means:
+--
+-- @
+-- let r = target
+--     f1 = r\@f1
+--     f2 = r\@f2
+-- in (r\@f1.set e1)\@f2.set e2
+-- @
+--
+-- The target is bound once, so it is evaluated exactly once however many fields
+-- the block sets and however deep the path is, and the block's field names are
+-- bound to the record's *old* field values by projecting them out of that
+-- binding. The sets are then chained left to right, so each replaces a field on
+-- the result of the previous one, at both the term and the type level.
+--
+-- Nothing here is a record pattern, deliberately: a pattern creates field
+-- existentials in one scope, and the sets would then be comparing against them
+-- from another scope, which the ordered context does not permit. Reading the old
+-- values with projections keeps every constraint between a set's own variable and
+-- a variable introduced *after* it. The intermediate records named by @path@ are
+-- freshened against every free variable in the block, since they scope over user
+-- code.
+expandRecordSetBlock ::
+  (Ord vt, Ord v, Var v) =>
+  Term2 vt at a v a ->
+  Term2 vt at a v a
+expandRecordSetBlock term = case term of
+  RecordSetBlock' path fields target -> go free (ABT.annotation term) path fields target
+  _ -> term
+  where
+    -- Every variable the user's own code mentions, including the field names the
+    -- block's values refer to.
+    free = ABT.freeVars term
+
+    -- A `let` around the target is what makes it evaluated once. But binding a
+    -- projection is miscompiled (the update that consumes the let reads the wrong
+    -- slot), and a projection of a bound variable is a pure read, so it is safe to
+    -- use as-is: repeating it costs an unpack and nothing else.
+    bindTarget ann r target body
+      | isVar target || isProjectionOfVar target = ABT.subst r target body
+      | otherwise = singleLet False ann ann (r, target) body
+
+    isVar = \case
+      Var' _ -> True
+      _ -> False
+
+    -- A projection as `recordProjection` builds one: a match on a variable, one
+    -- field, returning it.
+    isProjectionOfVar = \case
+      Match' (Var' _) [MatchCase (Pattern.RecordLiteral _ fields) Nothing (ABT.AbsN' [_] (Var' _))] ->
+        not (Map.null fields)
+      _ -> False
+
+    -- The record at the end of the path: bound once, then its fields replaced.
+    go env ann [] fields target =
+      let r = Var.freshIn env (Var.named "r")
+          -- Each value is abstracted over the variables the block introduces. Put
+          -- the record being updated back in place of the target variable, and the
+          -- old value of a field in place of that field's name: reading a block's
+          -- field is a projection of the record, so it happens where the value is,
+          -- after the set that owns it has been checked (the arrangement
+          -- `r@f.set (r@f + 1)` uses).
+          -- The value's only binder is the record being updated (a read of it, `@field`,
+          -- is a projection on that variable), so put the bound record back in place.
+          instantiate e =
+            let (binders, body) = ABT.unabsA e
+                reps = [(v, var ann r) | (_, v) <- binders, Var.name v == recordSetTargetName]
+             in ABT.substs reps body
+          -- Left to right, so each set replaces a field on the result of the
+          -- previous one, at both the term and the type level.
+          body = foldl (\acc (f, e) -> recordSet ann f acc (instantiate e)) (var ann r) fields
+       in bindTarget ann r target body
+    -- A path level: replace the field with the result of expanding the rest of the
+    -- path on the field's value.
+    go env ann (f : rest) fields target =
+      let r = Var.freshIn env (Var.named "r")
+       in bindTarget
+            ann
+            r
+            target
+            ( recordSet
+                ann
+                f
+                (var ann r)
+                (go env ann rest fields (recordProjection ann ann (var ann r) f))
+            )
 
 -- todo: delete and rename app' to app
 app_ :: (Ord v) => Term0' vt v -> Term0' vt v -> Term0' vt v
@@ -1672,6 +1835,7 @@ instance (ABT.Var vt, Eq at, Eq a) => Eq (F vt at p a) where
   Request r == Request r2 = r == r2
   Record fields == Record fields2 = fields == fields2
   RecordSet f r v == RecordSet f2 r2 v2 = f == f2 && r == r2 && v == v2
+  RecordSetBlock p fs t == RecordSetBlock p2 fs2 t2 = p == p2 && fs == fs2 && t == t2
   Handle h b == Handle h2 b2 = h == h2 && b == b2
   App f a == App f2 a2 = f == f2 && a == a2
   Ann e t == Ann e2 t2 = e == e2 && t == t2
@@ -1726,6 +1890,11 @@ instance (Show v, Show a) => Show (F v a0 p a) where
         showParen
           True
           (shows r <> s "@" <> s (Text.unpack field) <> s ".set " <> shows v)
+      go _ (RecordSetBlock path fields target) =
+        let pathStr = foldMap (\f -> s "@" <> s (Text.unpack f)) path
+         in showParen
+              True
+              (shows target <> pathStr <> s "@" <> shows (map fst fields))
       go _ (Match scrutinee cases) =
         showParen
           True

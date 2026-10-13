@@ -186,6 +186,7 @@ v2ToH2Term = ABT.transform convertF
       V2.Term.Constructor r cid -> H2.TermConstructor (v2ToH2Reference r) cid
       V2.Term.Record fields -> H2.TermRecord fields
       V2.Term.RecordSet field r v -> H2.TermRecordSet field r v
+      V2.Term.RecordSetBlock path fields target -> H2.TermRecordSetBlock path fields target
       V2.Term.Request r cid -> H2.TermRequest (v2ToH2Reference r) cid
       V2.Term.Handle a b -> H2.TermHandle a b
       V2.Term.App a b -> H2.TermApp a b

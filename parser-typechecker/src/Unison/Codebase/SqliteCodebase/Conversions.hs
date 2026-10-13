@@ -104,6 +104,7 @@ term1to2 h =
       V1.Term.Constructor (V1.ConstructorReference r i) -> V2.Term.Constructor (reference1to2 r) (fromIntegral i)
       V1.Term.Record fields -> V2.Term.Record fields
       V1.Term.RecordSet field r v -> V2.Term.RecordSet field r v
+      V1.Term.RecordSetBlock path fields target -> V2.Term.RecordSetBlock path fields target
       V1.Term.Request (V1.ConstructorReference r i) -> V2.Term.Request (reference1to2 r) (fromIntegral i)
       V1.Term.Handle b h -> V2.Term.Handle b h
       V1.Term.App f a -> V2.Term.App f a
@@ -172,6 +173,7 @@ term2to1 h lookupCT =
             pure (V1.Term.Constructor (V1.ConstructorReference (reference2to1 r) (fromIntegral i)))
           V2.Term.Record fields -> pure $ V1.Term.Record fields
           V2.Term.RecordSet field r v -> pure $ V1.Term.RecordSet field r v
+          V2.Term.RecordSetBlock path fields target -> pure $ V1.Term.RecordSetBlock path fields target
           V2.Term.Request r i ->
             pure (V1.Term.Request (V1.ConstructorReference (reference2to1 r) (fromIntegral i)))
           V2.Term.Handle a a4 -> pure $ V1.Term.Handle a a4

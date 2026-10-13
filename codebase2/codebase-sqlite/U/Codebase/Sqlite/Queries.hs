@@ -2774,6 +2774,7 @@ c2xTerm saveText saveDefn tm tp =
           <*> pure cid
       C.Term.Record fields -> pure $ C.Term.Record fields
       C.Term.RecordSet field r v -> pure $ C.Term.RecordSet field r v
+      C.Term.RecordSetBlock path fields target -> pure $ C.Term.RecordSetBlock path fields target
       C.Term.Request typeRef cid ->
         C.Term.Request <$> bitraverse lookupText lookupDefn typeRef <*> pure cid
       C.Term.Handle a a2 -> pure $ C.Term.Handle a a2

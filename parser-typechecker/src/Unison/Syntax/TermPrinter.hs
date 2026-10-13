@@ -398,6 +398,33 @@ pretty0
                 <> fmt S.TypeOperator ".set"
                 <> " "
                 <> pv
+          -- `r@a@{f: e, ...}` is a record-set block.
+          RecordSetBlock' path fields target -> do
+            -- `Top` so anything that parenthesizes at all gets parens: a block
+            -- binds to a leaf, so its target does too.
+            ptarget <- goNormal Top target
+            -- Each value is abstracted over the variables the block introduces; print
+            -- the body, whose field names are the block's own.
+            renderedFields <- for fields \(fieldName, e) -> do
+              let value = snd (ABT.unabsA e)
+              pe <- pretty0 (ac Annotation Normal im doc) value
+              pure $
+                fmt (S.RecordFieldName fieldName) (PP.text fieldName)
+                  <> fmt S.RecordFieldValueColon ": "
+                  <> pe
+            let ppath =
+                  foldMap
+                    (\fieldName -> fmt S.DelimiterChar "@" <> fmt (S.RecordFieldName fieldName) (PP.text fieldName))
+                    path
+            pure $
+              ptarget
+                <> ppath
+                <> fmt S.DelimiterChar "@"
+                <> PP.group (PP.surroundCommas "{" "}" (fmap (PP.indentNAfterNewline 2) renderedFields))
+          -- `@foo` reads a field of the record being updated: a projection on the
+          -- variable a record-set block binds to it.
+          (asRecordTargetProjection -> Just field) ->
+            pure $ fmt S.DelimiterChar "@" <> fmt (S.RecordFieldName field) (PP.text field)
           -- A single-field record match is what `base@field` desugars to, so
           -- print it back that way rather than as the underlying match.
           (asRecordProjection -> Just (base, field)) -> do
@@ -1748,6 +1775,17 @@ isLet _ = False
 -- irrefutable single-field record pattern whose body is just the bound
 -- variable. Printing it back as a projection keeps `view` showing the syntax
 -- that was written.
+-- | Recognises `@foo`: a read of the `foo` field of the record being updated, which
+-- is a projection on the variable a record-set block binds to that record.
+asRecordTargetProjection :: (Var v) => Term3 v PrintAnnotation -> Maybe Text
+asRecordTargetProjection = \case
+  Match' (Var' target) [MatchCase (Pattern.RecordLiteral _ fields) Nothing (AbsN' [v] (Var' v'))]
+    | Var.name target == recordSetTargetName,
+      v == v',
+      [(field, Pattern.Var _)] <- Map.toList fields ->
+        Just field
+  _ -> Nothing
+
 asRecordProjection ::
   (Var v) => Term3 v PrintAnnotation -> Maybe (Term3 v PrintAnnotation, Text)
 asRecordProjection = \case

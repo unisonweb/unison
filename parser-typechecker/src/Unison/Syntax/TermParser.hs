@@ -693,21 +693,97 @@ termLeaf = termLeafNoProjection >>= recordProjections
 --
 -- Because this wraps a leaf, projection binds tighter than application:
 -- @f r\@x@ is @f (r\@x)@.
+-- | The end of an annotation, if it has a position.
+annEnd :: Ann -> Maybe L.Pos
+annEnd a = case a of
+  Ann _ e -> Just e
+  _ -> Nothing
+
+-- | @\@foo@ is the @foo@ field of the record being updated, inside a record-set
+-- block's braces. It parses to a projection on the variable that a block binds to
+-- that record (`Term.recordSetTargetName`); outside a block that variable is
+-- unbound, which is reported as an unbound name.
+--
+-- This only sees a @\@@ that is not attached to what is on its left: the infix
+-- operators are tried first, and they decline a @\@@ that follows whitespace and is
+-- immediately followed by a field name, which is how `foo @bar` comes to mean
+-- `foo (@bar)`.
+recordTargetField :: forall m v. (Monad m, Var v) => TermP v m
+recordTargetField = label "a field of the record being updated" . P.try $ do
+  at <- reserved "@"
+  field <- recordFieldName
+  let atAnn = ann at
+      target = Var.named Term.recordSetTargetName
+  pure (Term.recordProjection (atAnn <> ann field) (ann field) (Term.var atAnn target) (L.payload field))
+
 recordProjections :: forall m v. (Monad m, Var v) => Term v Ann -> P v m (Term v Ann)
-recordProjections base = do
-  mfield <- optional . P.try $ do
-    _at <- reserved "@"
-    -- `@x` projects, `@x.set` updates. `x.set` lexes as one qualified name, so
-    -- the two are told apart by which token parser matches.
-    (Left <$> P.try recordFieldName) <|> (Right <$> recordSetFieldName)
-  case mfield of
-    Nothing -> pure base
-    Just (Left field) -> recordProjections (recordProjection base field)
-    Just (Right field) -> do
-      -- The new value is an argument to the operator, so it is parsed as a
-      -- whole term rather than as a leaf.
-      value <- term
-      pure (Term.recordSet (ann base <> ann value) (L.payload field) base value)
+recordProjections base = go [] base base
+  where
+    -- `path` records the fields projected so far, in source order; a `@{...}`
+    -- block needs them in order to name the record it updates. `projected` is
+    -- the desugaring of that chain, exactly as before this feature.
+    go :: [(Text, Ann)] -> Term v Ann -> Term v Ann -> P v m (Term v Ann)
+    go path root projected = do
+      mblock <- optional . P.try $ reserved "@" *> blockFields
+      case mblock of
+        Just fields ->
+          -- A block ends the chain: `r@{...}@a` is not a thing.
+          let target = Var.named Term.recordSetTargetName
+              -- Bind the record being updated in each value, so that a read of it —
+              -- `@field`, which projects from that variable — has its binder for every
+              -- pass over the term, not just for typechecking. A block's own field
+              -- names are *not* bound: reading a field's current value is spelled
+              -- `@field`, and a bare name means whatever it means outside the block.
+              bound e = ABT.abs' (ann e) target e
+           in pure $
+                Term.recordSetBlock
+                  (foldMap snd path <> ann root <> foldMap (ann . fst) fields)
+                  (fst <$> path)
+                  [(L.payload f, bound e) | (f, e) <- fields]
+                  root
+        Nothing -> do
+          mfield <- optional . P.try $ do
+            at <- reserved "@"
+            -- `@x` projects, `@x.set` updates. `x.set` lexes as one qualified
+            -- name, so the two are told apart by which token parser matches.
+            field <- (Left <$> P.try recordFieldName) <|> (Right <$> recordSetFieldName)
+            -- `foo @bar` — whitespace before the `@`, none after — is not a
+            -- projection: it is `foo` applied to `@bar`, the record being updated
+            -- read as an argument. Decline here so the `@` reaches
+            -- `recordTargetField`; every other spacing is the projection it has
+            -- always been (`foo@bar`, `foo@ bar`, `foo @ bar`).
+            let tokStart = either L.start L.start field
+            when (annEnd (ann projected) /= Just (L.start at) && L.end at == tokStart) (P.failure Nothing mempty)
+            pure field
+          case mfield of
+            Nothing -> pure projected
+            Just (Left field) ->
+              go
+                (path <> [(L.payload field, ann field)])
+                root
+                (Term.recordProjection (ann projected <> ann field) (ann field) projected (L.payload field))
+            Just (Right field) -> do
+              -- The new value is an argument to the operator, so it is parsed as
+              -- a whole term rather than as a leaf.
+              value <- term
+              pure (Term.recordSet (ann projected <> ann value) (L.payload field) projected value)
+
+    -- The `{ f: e, ... }` of a record-set block. At least one field, so `r@{}`
+    -- is an error; duplicate fields are rejected as they are in a record literal.
+    blockFields :: P v m [(L.Token Text, Term v Ann)]
+    blockFields = do
+      _ <- openBlockWith "{"
+      fields <- sepBy1 (reserved ",") field
+      _ <- closeBlock
+      checkForDuplicateRecordFields (fst <$> fields)
+      pure fields
+      where
+        field :: P v m (L.Token Text, Term v Ann)
+        field = do
+          name <- recordFieldName
+          _ <- reserved ":"
+          value <- term
+          pure (name, value)
 
 -- | The first-class form of the record operators: @(\@foo)@ is the getter
 -- @\\r -> r\@foo@ and @(\@foo.set)@ the setter @\\r v -> r \@foo.set v@, in the
@@ -717,47 +793,29 @@ recordProjections base = do
 -- consumes the parens and then fails, so the enclosing `P.try` rewinds.
 recordSection :: forall m v. (Monad m, Var v) => TermP v m
 recordSection = label "record section" . P.try $ do
-  (spanAnn, es) <- seq' "(" (,) section
-  case es of
-    [tm] -> pure tm {ABT.annotation = ABT.annotation tm <> spanAnn}
-    _ -> P.failure Nothing mempty
-  where
-    section :: TermP v m
-    section = do
-      at <- reserved "@"
-      mfield <- (Left <$> recordFieldName) <|> (Right <$> recordSetFieldName)
-      -- The body mentions nothing but the bound variables, so a plain name
-      -- cannot capture anything.
-      let atAnn = ann at
-          r = Var.named "r"
-          v = Var.named "v"
-      pure $ case mfield of
+  open <- openBlockWith "("
+  at <- reserved "@"
+  -- `(@foo)` is the section; `( @foo )` is a parenthesised read of the record being
+  -- updated, so leave that one to the parenthesised-term parser. Adjacent means the
+  -- `@` starts where the `(` ends.
+  when (L.start at /= L.end open) (P.failure Nothing mempty)
+  mfield <- (Left <$> recordFieldName) <|> (Right <$> recordSetFieldName)
+  close <- closeBlock
+  -- The body mentions nothing but the bound variables, so a plain name cannot
+  -- capture anything.
+  let atAnn = ann at <> ann close
+      r = Var.named "r"
+      v = Var.named "v"
+      tm = case mfield of
         Left field ->
-          Term.lam' atAnn [(atAnn, r)] (recordProjection (Term.var atAnn r) field)
+          Term.lam' atAnn [(atAnn, r)] (Term.recordProjection (atAnn <> ann field) (ann field) (Term.var atAnn r) (L.payload field))
         Right field ->
           Term.lam' atAnn [(atAnn, r), (atAnn, v)] (Term.recordSet atAnn (L.payload field) (Term.var atAnn r) (Term.var atAnn v))
+  pure tm {ABT.annotation = ABT.annotation tm <> ann open <> ann close}
 
--- | @base\@field@ desugars to a single-field record match.
---
--- That needs no new term form: it typechecks to @{field: t | row} -> t@ through
--- the existing record pattern machinery (the row is left a variable, so further
--- projections on the same value can still learn about other fields), and it
--- compiles to the existing @RecUnpack@ instruction. The bound variable scopes
--- over nothing but itself, so it cannot capture and needs no freshening.
-recordProjection :: (Var v) => Term v Ann -> L.Token Text -> Term v Ann
-recordProjection base fieldTok =
-  let fieldAnn = ann fieldTok
-      -- Not `_field`: a leading underscore makes it a wildcard when the
-      -- printed form is re-parsed, which would drop the binding.
-      v = Var.named "field"
-   in Term.match
-        (ann base <> fieldAnn)
-        base
-        [ Term.MatchCase
-            (Pattern.RecordLiteral fieldAnn (Map.singleton (L.payload fieldTok) (Pattern.Var fieldAnn)))
-            Nothing
-            (ABT.abs' fieldAnn v (Term.var fieldAnn v))
-        ]
+-- The record projection and record-set block desugarings live in `Unison.Term`
+-- (`recordProjection`, `expandRecordSetBlock`) so that the typechecker and the
+-- conversion to runtime form can use them too.
 
 termLeafNoProjection :: forall m v. (Monad m, Var v) => TermP v m
 termLeafNoProjection =
@@ -772,6 +830,7 @@ termLeafNoProjection =
       link,
       recordLiteral,
       recordSection,
+      recordTargetField,
       tupleOrParenthesizedTerm,
       keywordBlock,
       list term,

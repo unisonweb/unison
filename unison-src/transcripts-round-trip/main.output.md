@@ -37,7 +37,7 @@ scratch/a1> edit.new 1-1000
 
   ☝️
 
-  I added 128 definitions to the top of scratch.u
+  I added 132 definitions to the top of scratch.u
 
   You can edit them there, then run `update` to replace the
   definitions currently in this namespace.
@@ -638,6 +638,24 @@ record_refutable : {x: Nat | ...} -> Text
 record_refutable = cases
   {x: 0} -> "zero"
   _      -> "other"
+
+record_set_block : {f1: Nat, f2: Nat} -> {f1: Nat, f2: Nat}
+record_set_block r =
+  use Nat +
+  r@{f1: @f1 + 1, f2: @f1 + @f2}
+
+record_set_block_applied : {f1: Nat, f2: Nat} -> {f1: Nat, f2: Nat}
+record_set_block_applied r = r@{f1: Nat.increment @f2}
+
+record_set_block_path : {a: {x: Nat}} -> {a: {x: Nat}}
+record_set_block_path r =
+  use Nat +
+  r@a@{x: @x + 1}
+
+record_set_block_read : {f1: Nat, f2: Nat} -> {f1: Nat, f2: Nat}
+record_set_block_read r =
+  use Nat +
+  r@{f1: @f2 + 1}
 
 row_var_flat : {a: Nat, b: Text | rest} -> {a: Nat, b: Text | rest}
 row_var_flat r = r
