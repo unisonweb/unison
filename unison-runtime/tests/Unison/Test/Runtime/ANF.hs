@@ -102,6 +102,10 @@ denormalize (TApp (FRec (RecordSchema fields)) args) =
   -- Unlike every other `Func`, a record isn't applied to its arguments: the
   -- arguments are the field values, in ascending field-name order.
   Term.record () . Map.fromList . zip (Set.toAscList fields) $ Term.var () <$> args
+denormalize (TApp (FRecSet field) [r, v]) =
+  -- `rec @field.set v`: the arguments are the record being updated and its new
+  -- value, in that order (`anfBlock (RecordSet' field r v)`).
+  Term.recordSet () field (Term.var () r) (Term.var () v)
 denormalize (TApp f args) = Term.apps' df (Term.var () <$> args)
   where
     df = case f of
@@ -115,6 +119,7 @@ denormalize (TApp f args) = Term.apps' df (Term.var () <$> args)
       FCont _ -> error "denormalize FCont"
       -- Handled by the equation above; the `case` can't see that.
       FRec _ -> error "denormalize FRec"
+      FRecSet _ -> error "denormalize FRecSet"
 denormalize (TFrc _) = error "denormalize TFrc"
 denormalize (TDiscard _) = error "denormalize TDiscard"
 denormalize (TLocal _ _) = error "denormalize TLocal"
