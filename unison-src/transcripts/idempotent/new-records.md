@@ -211,34 +211,25 @@ getName = cases
       2 |   { name:name, age:_ } -> name
 ```
 
-We should get a nice error if we have additional unexpected fields.
+A constructor's field is a parameter position as well, so a record literal there
+reads the same way: the caller may supply extra fields, and the declared field
+type is what the field *at least* holds.
 
-``` unison :error
+``` unison
 type Person = Person { name: Text, age: Nat }
 
--- 'address' is an unexpected field
+-- 'address' is extra, which is fine here
 createPerson = Person { name: "Alice", age: 30, address: "123 Main St" }
 ```
 
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I didn't expect this record:
+  + type Person
 
-      4 | createPerson = Person { name: "Alice", age: 30, address: "123 Main St" }
+  + createPerson : Person
 
-
-  to have the field
-    address: Text
-
-  because it should have the type:
-    
-    {age: Nat, name: Text}
-    
-
-  derived from here:
-
-      1 | type Person = Person { name: Text, age: Nat }
+  Run `update` to apply these changes to your codebase.
 ```
 
 Record field projections should infer the most general record type:
@@ -356,7 +347,7 @@ mismatchedFieldTypes =
 
   All the elements of a list need to have the same type.
 
-  Here, one   is:  {age: Nat, name: Text}
+  Here, one   is:  {age: Nat, name: Text | ...}
   and another is:  {age: Text, name: Text}
 
 

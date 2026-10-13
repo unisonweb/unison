@@ -840,6 +840,40 @@ hasAnonymousRowInPositivePosition = go True
       Type.AllowExtraFields Nothing -> positive
       Type.AllowExtraFields (Just r) -> go positive r
 
+-- | Adds `| ...` onto row types in negative position.
+-- Thus, if the user writes: `{ name : Text } -> Nat`, it typechecks as
+-- if they had written `{ name : Text | ... } -> Nat` and will allow inputs
+-- with more than just the `name` field.
+-- 
+-- Only `RequireExactFields` in a negative position is opened. A named row stays
+-- named, and `...` stays `...`.
+openNegativeRows :: (Var v) => Map Reference [Variance] -> Type v loc -> Type v loc
+openNegativeRows vars = go False
+  where
+    go positive t = case t of
+      Type.Ann' t' k -> Type.ann (loc t) (go positive t') k
+      Type.Arrow' i o -> Type.arrow (loc t) (go (not positive) i) (go positive o)
+      Type.Effect1' e o -> Type.effect1 (loc t) (go positive e) (go positive o)
+      Type.Effects' es -> Type.effects (loc t) (fmap (go positive) es)
+      Type.App' f x ->
+        let x' = case checkVarianceWith vars f of
+              Just (Pos : _) -> go positive x
+              Just (Neg : _) -> go (not positive) x
+              -- Invariant (or a constructor we know nothing about): leave it
+              -- alone, since equality there depends on the exact field set.
+              _ -> x
+         in Type.app (loc t) (go positive f) x'
+      Type.Record' fb fields ->
+        Type.record (loc t) (openRow positive fb) (fmap (go positive) fields)
+      Type.ForallNamed' v t' -> Type.forAll (loc t) v (go positive t')
+      Type.IntroOuterNamed' v t' -> Type.introOuter (loc t) v (go positive t')
+      _ -> t
+
+    openRow positive fb = case fb of
+      Type.RequireExactFields
+        | not positive -> Type.AllowExtraFields Nothing
+      _ -> fmap (go positive) fb
+
 addNotes :: (Var v) => CtxSegment v loc -> M v loc ()
 addNotes seg =
   getAp
@@ -1131,7 +1165,12 @@ synthesizeApp fun (Type.stripIntroOuters -> Type.Effect'' es ft) argp@(arg, argN
           exact
             | Term.Apps' (Term.Var' f) _ <- fun = any (== f) defs
             | otherwise = False
-      (o,) <$> checkWantedScoped exact ((Just fun,) <$> es) arg i
+      -- `i` is a parameter position, so a record there means "at least these
+      -- fields" and a closed row is read as `...`; see `openNegativeRows`. A
+      -- constructor's field type is a parameter position too: the caller
+      -- supplies the field, so `Person { name, age, extra }` is fine.
+      vars <- getVariances
+      (o,) <$> checkWantedScoped exact ((Just fun,) <$> es) arg (openNegativeRows vars i)
     go (Type.Var' (TypeVar.Existential b a)) = do
       -- a^App
       [i, e, o] <- traverse freshenVar [Var.named "i", Var.inferAbility, Var.named "o"]

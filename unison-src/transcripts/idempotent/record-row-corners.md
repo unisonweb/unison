@@ -351,3 +351,149 @@ topLevelWild = { x: 1 }
   type:
     {x: Nat | ...}
 ```
+
+## Closed records in a parameter position
+
+A record type in a parameter position means "at least these fields": the caller
+may pass a record with more, so a closed row there reads as if it were `...`. The
+definition body still only knows what was written — reading a field the parameter
+didn't mention is still an error — which is the point: callers may add fields,
+bodies may not depend on them.
+
+``` unison
+getX' : { x: Nat } -> Nat
+getX' r = r@x
+
+> getX' { x: 1, y: true }
+
+pairExact : { field1: Nat, field2: Nat } -> (Nat, Nat)
+pairExact r = (r@field1, r@field2)
+
+> pairExact {field1: 1, field2: 2, field3: 3}
+
+nestedExact : { inner: { x: Nat } } -> Nat
+nestedExact r = r@inner@x
+
+> nestedExact { inner: { x: 1, y: 2 }, extra: true }
+
+hofExact : ({ x: Nat } -> Nat) -> Nat
+hofExact g = g { x: 1, y: 2 }
+
+> hofExact (r -> r@x)
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  + getX'       : {x: Nat} -> Nat
+  + hofExact    : ({x: Nat} ->{g} Nat) ->{g} Nat
+  + nestedExact : {inner: {x: Nat}} -> Nat
+  + pairExact   : {field1: Nat, field2: Nat} -> (Nat, Nat)
+
+  Run `update` to apply these changes to your codebase.
+
+    4 | > getX' { x: 1, y: true }
+          ⧩
+          1
+
+    9 | > pairExact {field1: 1, field2: 2, field3: 3}
+          ⧩
+          (1, 2)
+
+    14 | > nestedExact { inner: { x: 1, y: 2 }, extra: true }
+           ⧩
+           1
+
+    19 | > hofExact (r -> r@x)
+           ⧩
+           1
+```
+
+The variance of a data type is handled properly also. `Box` is covariant in `a`, so a
+`Box {x : Nat} -> r` function will accept a `Box {x: Nat, y: Nat}`.
+
+But `Fn` is contravariant in `a`, so `Fn (@x)` will check against `Fn {x : Nat, y: Nat}`.
+
+``` unison
+type Box a = Box a
+type Fn a = Fn (a -> Nat)
+
+boxCheck : Box {x: Nat} -> Box {x: Nat}
+boxCheck b1 = b1
+
+> boxCheck (Box {x: 0, y: 1})
+
+fnCheck : Fn {x : Nat, y: Nat} -> Nat 
+fnCheck fn1 = 42
+
+> fnCheck (Fn (@x))
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  + type Box a
+  + type Fn a
+
+  + boxCheck : Box {x: Nat} -> Box {x: Nat}
+  + fnCheck  : Fn {x: Nat, y: Nat} -> Nat
+
+  Run `update` to apply these changes to your codebase.
+
+    7 | > boxCheck (Box {x: 0, y: 1})
+          ⧩
+          Box {x: 0, y: 1}
+
+    12 | > fnCheck (Fn (@x))
+           ⧩
+           42
+```
+
+A constructor's field is a parameter position as well, so the same reading
+applies to it: the declared field type is what the field *at least* holds, extra
+fields are kept, and a field the type requires is still required.
+
+``` unison
+type Duo = Duo { a: Nat, b: Nat }
+
+> Duo { a: 1, b: 2, c: 3 }
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  + type Duo
+
+  Run `update` to apply these changes to your codebase.
+
+    3 | > Duo { a: 1, b: 2, c: 3 }
+          ⧩
+          Duo {a: 1, b: 2, c: 3}
+```
+
+``` unison :error
+type Duo2 = Duo2 { a: Nat, b: Nat }
+
+badDuo = Duo2 { a: 1 }
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  I expected this record:
+
+      3 | badDuo = Duo2 { a: 1 }
+
+
+  to have the field
+    b: Nat
+
+  so that it would match the type:
+    
+    {a: Nat, b: Nat | ...}
+    
+
+  from here:
+
+      1 | type Duo2 = Duo2 { a: Nat, b: Nat }
+```
