@@ -39,6 +39,7 @@ addUpRec = cases
 
 > List.map (@name) [{name: "Alice", age : 40}, {name: "Bob", age : 33}]
 > List.zipWith (@age.set) [{name: "Alice", age : 40}, {name: "Bob", age : 33}] [22, 23]
+> List.map (r -> r@age + Text.size r@name) [{name: "Alice", age : 40}, {name: "Bob", age : 33}]
 > addUpRec (mkRec 1 2 3)
 ```
 
@@ -68,7 +69,11 @@ addUpRec = cases
            ⧩
            [{age: 22, name: "Alice"}, {age: 23, name: "Bob"}]
 
-    31 | > addUpRec (mkRec 1 2 3)
+    31 | > List.map (r -> r@age + Text.size r@name) [{name: "Alice", age : 40}, {name: "Bob", age : 33}]
+           ⧩
+           [45, 36]
+
+    32 | > addUpRec (mkRec 1 2 3)
            ⧩
            6
 ```
@@ -194,11 +199,11 @@ getName = cases
 
 
   to have the field
-    name: 𝕩16
+    name: 𝕩18
 
   so that it would match the type:
     
-    {age: 𝕩15, name: 𝕩16 | ...}
+    {age: 𝕩17, name: 𝕩18 | 𝕤19}
     
 
   from here:
@@ -246,7 +251,7 @@ getAddress = cases
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  + getAddress : {address: t | ...} -> t
+  + getAddress : {address: t | x} -> t
 
   Run `update` to apply these changes to your codebase.
 ```
@@ -265,7 +270,7 @@ scratch/main> ls
   2.  Point       (type)
   3.  Point.      (1 term)
   4.  addUpRec    ({x: Nat, y: Nat, z: Nat | ...} -> Nat)
-  5.  getAddress  ({address: t | ...} -> t)
+  5.  getAddress  ({address: t | x} -> t)
   6.  getX        (Point -> Nat)
   7.  getY        (Point -> Nat)
   8.  lib.        (775 terms, 120 types)
@@ -297,7 +302,7 @@ nestedInferred = cases
   Loading changes detected in scratch.u.
 
   + nested         : {a: {b: Nat}} -> Nat
-  + nestedInferred : {a: {b: {c: t | ...} | ...} | ...} -> t
+  + nestedInferred : {a: {b: {c: t | x} | x1} | x2} -> t
 
   Run `update` to apply these changes to your codebase.
 

@@ -1940,24 +1940,56 @@ checkPattern scrutineeType p =
       -- enclosing pattern or an annotation, so look through solutions before
       -- inspecting it.
       scrutineeType <- lift $ Type.stripIntroOuters <$> applyM scrutineeType
-      -- If we already know what we're matching, we can produce a much better
-      -- error than the `subtype` check below would.
-      case scrutineeType of
-        Type.Record' _fb typeFields ->
-          -- Matching a field the record doesn't have.
-          for_ (Map.toList (Map.difference fieldPatterns typeFields)) \(fieldName, fieldPat) ->
-            lift . failWith $ PatternMatchedMissingField fieldName fieldPat scrutineeType
-        _
-          | couldBeRecord scrutineeType -> pure ()
-          | otherwise -> lift . failWith $ RecordPatternMatchOnNonRecordType p scrutineeType
       -- Create unification variables for each field in the pattern
       inferredFieldTypes <- lift $ for fieldPatterns \pat -> do
         fieldTypeV <- freshenVar Var.inferOther
         let vt = existentialp (Pattern.loc pat) fieldTypeV
         appendContext [existential fieldTypeV]
         pure vt
-      -- Record patterns allow extra unmatched fields
-      let fb = Type.AllowExtraFields Nothing
+      -- The scrutinee's type may be a record whose row is still an unsolved
+      -- variable. Such a record can *grow* to include a field the pattern needs
+      -- but doesn't have yet, which is how `r -> (r@a, r@b)` learns that the
+      -- argument has both `a` and `b`: the first projection learns about `a` and
+      -- leaves the row a variable, and the second adds `b` to that row.
+      --
+      -- The scrutinee type was applied to the context above, so this only fires
+      -- for fields that really aren't there yet: a field already present would
+      -- mean the row variable is already solved, and re-solving it would be both
+      -- pointless and a way to loop.
+      case scrutineeType of
+        Type.Record' (Type.AllowExtraFields (Just (Type.Var' (TypeVar.Existential b v)))) typeFields -> do
+          let missing = Map.difference inferredFieldTypes typeFields
+          unless (Map.null missing) $ do
+            rowV <- lift $ extendExistential Var.inferRecordFieldType
+            let grown =
+                  Type.record
+                    recordLoc
+                    (Type.AllowExtraFields (Just (existentialp recordLoc rowV)))
+                    missing
+            lift $ instantiateL b v (Type.normalize grown)
+        _ -> pure ()
+      -- The growth above may have changed the scrutinee's type, so re-apply
+      -- before inspecting it. If we already know what we're matching, we can
+      -- produce a much better error than the `subtype` check below would.
+      scrutineeType <- lift $ Type.stripIntroOuters <$> applyM scrutineeType
+      case scrutineeType of
+        Type.Record' _fb typeFields ->
+          -- Matching a field the record doesn't have. A row that could grow was
+          -- grown above, so getting here means it genuinely can't: the record is
+          -- closed, its row is `...` (anonymous, so it can be required but not
+          -- extended), or the row came from a `forall` and is rigid.
+          for_ (Map.toList (Map.difference fieldPatterns typeFields)) \(fieldName, fieldPat) ->
+            lift . failWith $ PatternMatchedMissingField fieldName fieldPat scrutineeType
+        _
+          | couldBeRecord scrutineeType -> pure ()
+          | otherwise -> lift . failWith $ RecordPatternMatchOnNonRecordType p scrutineeType
+      -- Record patterns allow extra unmatched fields, and the scrutinee's type
+      -- may not be known yet, so give the pattern a named row variable: that way
+      -- instantiating an unknown scrutinee solves it to `{ field: v | row }` with
+      -- `row` still solvable, rather than sealing it with `...`.
+      rowV <- lift $ freshenVar Var.inferRecordFieldType
+      lift $ appendContext [existential rowV]
+      let fb = Type.AllowExtraFields (Just (existentialp recordLoc rowV))
       -- Build the type of the pattern, filled with those unification variables
       let patternRecordType = Type.record recordLoc fb inferredFieldTypes
       lift $ subtype scrutineeType patternRecordType

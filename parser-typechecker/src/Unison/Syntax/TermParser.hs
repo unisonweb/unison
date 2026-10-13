@@ -739,10 +739,11 @@ recordSection = label "record section" . P.try $ do
 
 -- | @base\@field@ desugars to a single-field record match.
 --
--- That needs no new term form: it typechecks to @{field: t | ...} -> t@ through
--- the existing record pattern machinery, and compiles to the existing
--- @RecUnpack@ instruction. The bound variable scopes over nothing but itself,
--- so it cannot capture and needs no freshening.
+-- That needs no new term form: it typechecks to @{field: t | row} -> t@ through
+-- the existing record pattern machinery (the row is left a variable, so further
+-- projections on the same value can still learn about other fields), and it
+-- compiles to the existing @RecUnpack@ instruction. The bound variable scopes
+-- over nothing but itself, so it cannot capture and needs no freshening.
 recordProjection :: (Var v) => Term v Ann -> L.Token Text -> Term v Ann
 recordProjection base fieldTok =
   let fieldAnn = ann fieldTok
