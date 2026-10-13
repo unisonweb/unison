@@ -10,6 +10,7 @@ where
 import Control.Monad.Fix (MonadFix)
 import Data.Map (Map)
 import Data.Map qualified as Map
+import Data.Text (Text)
 import Unison.ConstructorReference (ConstructorReference)
 import Unison.PatternMatchCoverage.ListPat (ListPat)
 import Unison.PrettyPrintEnv (PrettyPrintEnv)
@@ -42,6 +43,10 @@ data EnumeratedConstructors vt v loc
   = ConstructorType [(v, ConstructorReference, Type vt loc)]
   | AbilityType (Type vt loc) (Map ConstructorReference (v, Type vt loc))
   | SequenceType [(ListPat, [Type vt loc])]
+  | -- | A record is a product with a single constructor, whose argument types
+    -- are the field types. Carrying the field names lets us name the variables
+    -- we introduce for them.
+    RecordType (Map Text (Type vt loc))
   | BooleanType
   | OtherType
   deriving stock (Show)
@@ -64,5 +69,6 @@ traverseConstructorTypes f = \case
         (pure mempty)
         m
   SequenceType x -> pure (SequenceType x)
+  RecordType x -> pure (RecordType x)
   BooleanType -> pure BooleanType
   OtherType -> pure OtherType

@@ -172,6 +172,9 @@ data InstrT
   | KeepAliveT
   | NewForeignPtrT
   | AddFinalizerT
+  | RecPackT
+  | RecUnpackT
+  | RecSetT
 
 instance Tag InstrT where
   tag2word Prim1T = 0
@@ -196,6 +199,9 @@ instance Tag InstrT where
   tag2word KeepAliveT = 21
   tag2word NewForeignPtrT = 22
   tag2word AddFinalizerT = 23
+  tag2word RecPackT = 24
+  tag2word RecUnpackT = 25
+  tag2word RecSetT = 26
 
   word2tag 0 = pure Prim1T
   word2tag 1 = pure Prim2T
@@ -219,6 +225,9 @@ instance Tag InstrT where
   word2tag 21 = pure KeepAliveT
   word2tag 22 = pure NewForeignPtrT
   word2tag 23 = pure AddFinalizerT
+  word2tag 24 = pure RecPackT
+  word2tag 25 = pure RecUnpackT
+  word2tag 26 = pure RecSetT
   word2tag n = unknownTag "InstrT" n
 
 putInstr :: GInstr cix -> Builder
@@ -233,6 +242,9 @@ putInstr = \case
   (Name r a) -> putTag NameT <> putRef r <> putArgs a
   (Info s) -> putTag InfoT <> putString s
   (Pack r w a) -> putTag PackT <> putReference r <> putPackedTag w <> putArgs a
+  (RecPack shape args) -> putTag RecPackT <> putRecordShape shape <> putArgs args
+  (RecUnpack fields recIndex) -> putTag RecUnpackT <> putFoldable putFieldRef fields <> pInt recIndex
+  (RecSet field args) -> putTag RecSetT <> putFieldRef field <> putArgs args
   (Lit l) -> putTag LitT <> putLit l
   (Print i) -> putTag PrintT <> pInt i
   (Reset s nh ah) ->
@@ -254,6 +266,19 @@ putInstr = \case
   DLLCall ->
     -- same for DLL calls; those happen exclusively at runtime
     error "putInstr: Unexpected serialized DLLCall"
+
+putRecordShape :: RecordShape -> Builder
+putRecordShape (RecordShape ref fields positions) =
+  putRecordRef ref
+    <> putFoldable putText fields
+    <> putEnumMap putFieldRef pInt positions
+
+getRecordShape :: (PrimBase m) => Get m RecordShape
+getRecordShape =
+  RecordShape
+    <$> getRecordRef
+    <*> getVector getText
+    <*> getEnumMap getFieldRef gInt
 
 getInstr :: (PrimBase m) => Get m Instr
 getInstr =
@@ -280,6 +305,9 @@ getInstr =
     NewForeignPtrT -> NewForeignPtr <$> gInt <*> gInt
     AddFinalizerT -> AddFinalizer <$> gInt <*> gInt
     SandboxingFailureT -> error "getInstr: Unexpected serialized Sandboxing Failure"
+    RecPackT -> RecPack <$> getRecordShape <*> getArgs
+    RecUnpackT -> RecUnpack <$> getVector getFieldRef <*> gInt
+    RecSetT -> RecSet <$> getFieldRef <*> getArgs
 
 data ArgsT
   = ZArgsT
@@ -322,6 +350,12 @@ getArgs =
     ArgRT -> VArgR <$> gInt <*> gInt
     ArgNT -> VArgN <$> getIntArr
     ArgVT -> VArgV <$> gInt
+
+putFieldRef :: FieldRef -> Builder
+putFieldRef (FieldRef r) = putVarInt r
+
+getFieldRef :: (PrimBase m) => Get m FieldRef
+getFieldRef = FieldRef <$> getVarInt
 
 data RefT = StkT | EnvT | DynT
 

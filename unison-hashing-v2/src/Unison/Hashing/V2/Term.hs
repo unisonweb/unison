@@ -8,6 +8,7 @@ module Unison.Hashing.V2.Term
   )
 where
 
+import Data.Map qualified as Map
 import Data.Sequence qualified as Sequence
 import Data.Text qualified as Text
 import Data.Zip qualified as Zip
@@ -45,6 +46,12 @@ data TermF typeVar typeAnn patternAnn a
   | -- First argument identifies the data type,
     -- second argument identifies the constructor
     TermConstructor Reference ConstructorId
+  | TermRecord (Map Text a)
+  | -- | @TermRecordSet field record newValue@: @record@ with one field replaced
+    TermRecordSet Text a a
+  | -- | @TermRecordSetBlock path fields target@: @target@, reached by following
+    -- @path@, with the fields in @fields@ replaced
+    TermRecordSetBlock [Text] [(Text, a)] a
   | TermRequest Reference ConstructorId
   | TermHandle a a
   | TermApp a a
@@ -200,3 +207,26 @@ instance (Var v) => Hashable1 (TermF v a p) where
                   TermOr x y -> [tag 17, hashed $ hash x, hashed $ hash y]
                   TermTermLink r -> [tag 18, accumulateToken r]
                   TermTypeLink r -> [tag 19, accumulateToken r]
+                  -- The field count is significant: without it the flat
+                  -- name/value run has no terminator distinguishing it from
+                  -- tokens that follow.
+                  TermRecord fields -> tag 20 : varint (Map.size fields) : fieldTokens fields
+                    where
+                      fieldTokens :: Map Text x -> [Hashable.Token]
+                      fieldTokens fs =
+                        foldMap
+                          ( \(name, val) ->
+                              [accumulateToken name, hashed (hash val)]
+                          )
+                          (Map.toAscList fs)
+                  TermRecordSet field r v ->
+                    [tag 21, accumulateToken field, hashed (hash r), hashed (hash v)]
+                  -- The path and the field names are part of the term's identity,
+                  -- and the counts delimit the flat runs of names, as in
+                  -- `TermRecord` above.
+                  TermRecordSetBlock path fields target ->
+                    [tag 22, varint (length path)]
+                      <> map accumulateToken path
+                      <> [varint (length fields)]
+                      <> foldMap (\(name, val) -> [accumulateToken name, hashed (hash val)]) fields
+                      <> [hashed (hash target)]

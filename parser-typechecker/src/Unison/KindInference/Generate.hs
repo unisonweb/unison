@@ -10,6 +10,7 @@ where
 
 import Control.Monad.Except
 import Data.Foldable (foldlM)
+import Data.Map qualified as Map
 import Data.Set qualified as Set
 import U.Core.ABT qualified as ABT
 import Unison.Builtin.Decls (rewriteTypeRef)
@@ -112,6 +113,21 @@ typeConstraintTree resultVar ABT.Term {annotation, out} = do
           effKind <- freshVar eff
           effConstraints <- typeConstraintTree effKind eff
           pure $ ParentConstraint (IsAbility effKind (Provenance EffectsList $ ABT.annotation eff)) effConstraints
+      Type.Record fb fields -> do
+        -- The row is a type as well, so it is kind-constrained like the fields.
+        rowConstraints <- case fb of
+          Type.AllowExtraFields (Just row) -> do
+            rowKind <- freshVar row
+            rowCS <- typeConstraintTree rowKind row
+            pure [ParentConstraint (IsType rowKind (Provenance Record (ABT.annotation row))) rowCS]
+          _ -> pure []
+        fieldConstraints <-
+          for (Map.toList fields) \(fieldName, fieldType) -> do
+            fieldKind <- freshVar fieldType
+            fieldConstraints' <- typeConstraintTree fieldKind fieldType
+            let fieldAnn = ABT.annotation fieldType
+            pure $ ParentConstraint (IsType fieldKind (Provenance (RecordField fieldName) fieldAnn)) fieldConstraints'
+        pure $ ParentConstraint (IsType resultVar (Provenance Record annotation)) (Node (rowConstraints <> fieldConstraints))
 
 handleIntroOuter :: (Var v) => v -> loc -> (GeneratedConstraint v loc -> Gen v loc r) -> Gen v loc r
 handleIntroOuter v loc k = do

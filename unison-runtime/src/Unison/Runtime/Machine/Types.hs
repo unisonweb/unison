@@ -21,6 +21,7 @@ import GHC.Event (getSystemTimerManager, registerTimeout)
 #else
 import System.CPUTime
 #endif
+import Control.Monad.State.Strict
 import Unison.Builtin.Decls (ioFailureRef)
 import Unison.Prelude
 import Unison.Reference (Reference, isBuiltin)
@@ -33,15 +34,18 @@ import Unison.Runtime.ANF
     foldGroupLinks,
     valueLinks,
   )
+import Unison.Runtime.ANF qualified as ANF
 import Unison.Runtime.ANF.Optimize (OptInfos)
 import Unison.Runtime.Builtin
 import Unison.Runtime.Exception qualified as Exception
-import Unison.Runtime.InternalError (CompileExn (CE))
+import Unison.Runtime.InternalError (CompileExn (CE), internalBug)
 import Unison.Runtime.MCode
 import Unison.Runtime.Profiling
 import Unison.Runtime.Referenced
 import Unison.Runtime.Stack
 import Unison.Symbol
+import Unison.Util.BiMap (BiMap)
+import Unison.Util.BiMap qualified as BM
 import Unison.Util.EnumContainers as EC
 import Unison.Util.Text as UText
 
@@ -80,6 +84,12 @@ refLookup s m r
   | Just w <- M.lookup r m = w
   | otherwise =
       error $ "refLookup:" ++ s ++ ": unknown reference: " ++ show r
+
+recordRefLookup :: BM.BiMap ANF.RecordSchema ANF.RecordRef -> ANF.RecordSchema -> ANF.RecordRef
+recordRefLookup m r
+  | Just rr <- BM.lookupL r m = rr
+  | otherwise =
+      internalBug [] $ "recordRefLookup: unknown record schema: " ++ show r
 
 -- A class parameterizing profiling. The interpreter loop can be
 -- specialized to a class, which allows the same code to be used for both
@@ -173,10 +183,13 @@ data CCache prof = CCache
     tagRefs :: TVar (EnumMap Word64 Reference),
     freshTm :: TVar Word64,
     freshTy :: TVar Word64,
+    freshRecSchema :: TVar Word64,
     intermed :: TVar (M.Map Reference (SuperGroup Reference Symbol)),
     refTm :: TVar (M.Map Reference Word64),
     refTy :: TVar (M.Map Reference Word64),
-    sandbox :: TVar (M.Map Reference (Set Reference))
+    recordRefs :: TVar (BiMap ANF.RecordSchema ANF.RecordRef),
+    sandbox :: TVar (M.Map Reference (Set Reference)),
+    recordFieldMappings :: TVar RecordFieldMappings
   }
 
 refNumsTm :: CCache prof -> IO (M.Map Reference Word64)
@@ -202,23 +215,35 @@ baseCCache sandboxed = do
     <*> newTVarIO builtinTypeBackref
     <*> newTVarIO ftm
     <*> newTVarIO fty
+    <*> newTVarIO frs
     <*> newTVarIO mempty
     <*> newTVarIO builtinTermNumbering
     <*> newTVarIO builtinTypeNumbering
+    <*> newTVarIO builtinFieldNumbering
     <*> newTVarIO baseSandboxInfo
+    <*> newTVarIO rfm
   where
+    builtinFieldNumbering = mempty
     cacheableCombs = mempty
     noTrace _ _ = NoTrace
     ftm = 1 + maximum builtinTermNumbering
     fty = 1 + maximum builtinTypeNumbering
+    -- No builtin record schemas yet
+    frs = 1
 
     rns = emptyRNs {dnum = refLookup "ty" builtinTypeNumbering}
 
     srcCombs :: EnumMap Word64 Combs
-    srcCombs =
-      numberedTermLookup
-        & mapWithKey
-          (\k v -> let r = builtinTermBackref ! k in emitComb @Symbol rns r k mempty (0, v))
+    rfm :: RecordFieldMappings
+    (srcCombs, rfm) =
+      flip runState emptyRecordFieldMappings $
+        ( numberedTermLookup
+            & traverseWithKey
+              ( \k v -> do
+                  let r = builtinTermBackref ! k
+                  emitComb @Symbol rns r k mempty (0, v)
+              )
+        )
     combs :: EnumMap Word64 MCombs
     combs =
       srcCombs
@@ -314,18 +339,27 @@ codeValidate ::
 codeValidate cc tml = do
   rty0 <- readTVarIO (refTy cc)
   fty <- readTVarIO (freshTy cc)
+  recRefs <- readTVarIO (recordRefs cc)
+  frs <- readTVarIO (freshRecSchema cc)
+  rfms <- readTVarIO (recordFieldMappings cc)
   let f b r
         | b, M.notMember r rty0 = S.singleton r
         | otherwise = mempty
       ntys0 = (foldMap . foldMap) (foldGroupLinks f) tml
       ntys = M.fromList $ zip (S.toList ntys0) [fty ..]
       rty = ntys <> rty0
+      -- Validation must not mutate the cache, so any schema this code
+      -- introduces gets a provisional reference above the fresh counter, and
+      -- the field mappings it interns are discarded along with the result.
+      newSchemas = (foldMap . foldMap) ANF.groupRecordSchemas tml `S.difference` BM.keysSetL recRefs
+      recRefs' =
+        BM.fromList (zip (S.toList newSchemas) (ANF.RecordRef <$> [frs ..])) <> recRefs
   ftm <- readTVarIO (freshTm cc)
   rtm0 <- readTVarIO (refTm cc)
   let rs = fst <$> tml
       rtm = rtm0 `M.union` M.fromList (zip rs [ftm ..])
-      rns = RN (refLookup "ty" rty) (refLookup "tm" rtm) (const Nothing)
-      combinate (n, (r, g)) = evaluate $ emitCombs rns r n g
+      rns = RN (refLookup "ty" rty) (refLookup "tm" rtm) (const Nothing) (recordRefLookup recRefs')
+      combinate (n, (r, g)) = evaluate . fst $ runState (emitCombs rns r n g) rfms
   (Nothing <$ traverse_ combinate (zip [ftm ..] tml))
     `catch` \(CE cs _issues perr) ->
       let msg = UText.pack perr

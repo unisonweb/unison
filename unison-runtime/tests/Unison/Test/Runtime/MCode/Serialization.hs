@@ -12,13 +12,16 @@ import Hedgehog hiding (Rec, Test, test)
 import Hedgehog.Gen qualified as Gen
 import Hedgehog.Range qualified as Range
 import Unison.Prelude
+import Unison.Runtime.ANF qualified as ANF
 import Unison.Runtime.Foreign.Function.Type (ForeignFunc)
 import Unison.Runtime.Interface
-import Unison.Runtime.MCode (Args (..), Branch, Comb, CombIx (..), GBranch (..), GComb (..), GCombInfo (..), GInstr (..), GRef (..), GSection (..), Instr, MLit (..), Prim1, Prim2, Ref, Section)
+import Unison.Runtime.MCode (Args (..), Branch, Comb, CombIx (..), FieldRef (..), GBranch (..), GComb (..), GCombInfo (..), GInstr (..), GRef (..), GSection (..), Instr, MLit (..), Prim1, Prim2, RecordFieldMappings (..), Ref, Section)
 import Unison.Runtime.Machine (Combs)
 import Unison.Runtime.Serialize.Get
 import Unison.Runtime.TypeTags (PackedTag (..))
 import Unison.Test.Gen
+import Unison.Util.BiMap (BiMap)
+import Unison.Util.BiMap qualified as BiMap
 import Unison.Util.EnumContainers (EnumMap, EnumSet)
 import Unison.Util.EnumContainers qualified as EC
 
@@ -169,6 +172,28 @@ genComb =
     -- CachedClosure
     ]
 
+genFieldRef :: Gen FieldRef
+genFieldRef = FieldRef <$> genSmallWord64
+
+genRecordRef :: Gen ANF.RecordRef
+genRecordRef = ANF.RecordRef <$> genSmallWord64
+
+genRecordSchema :: Gen ANF.RecordSchema
+genRecordSchema = ANF.RecordSchema <$> Gen.set (Range.linear 0 5) genSmallText
+
+-- | Generated through `fromMap`, because that's the shape the codec rebuilds:
+-- it stores only the forward map and derives the backward one on the way in. A
+-- BiMap assembled some other way can carry a backward map that doesn't follow
+-- from its forward map, and then the round trip would be testing BiMap's
+-- internal invariants rather than the codec.
+genBiMap :: (Ord k, Ord v) => Gen k -> Gen v -> Gen (BiMap k v)
+genBiMap genK genV =
+  BiMap.fromMap <$> Gen.map (Range.linear 0 10) ((,) <$> genK <*> genV)
+
+genRecordFieldMappings :: Gen RecordFieldMappings
+genRecordFieldMappings =
+  RecordFieldMappings <$> genFieldRef <*> genBiMap genSmallText genFieldRef
+
 genStoredCache :: Gen StoredCache
 genStoredCache =
   SCache
@@ -180,12 +205,15 @@ genStoredCache =
     <*> (genEnumMap genSmallWord64 genReference)
     <*> genSmallWord64
     <*> genSmallWord64
+    <*> genSmallWord64
     <*>
     -- We don't yet generate supergroups because generating valid ones is difficult.
     mempty
     <*> (Gen.map (Range.linear 0 10) ((,) <$> genReference <*> genSmallWord64))
     <*> (Gen.map (Range.linear 0 10) ((,) <$> genReference <*> genSmallWord64))
+    <*> genBiMap genRecordSchema genRecordRef
     <*> (Gen.map (Range.linear 0 10) ((,) <$> genReference <*> (Gen.set (Range.linear 0 10) genReference)))
+    <*> genRecordFieldMappings
 
 sCacheRoundtrip :: Property
 sCacheRoundtrip =

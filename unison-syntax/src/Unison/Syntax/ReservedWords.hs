@@ -56,7 +56,8 @@ reservedOperators =
       "|",
       "!",
       "'",
-      "==>"
+      "==>",
+      "..."
     ]
 
 delimiters :: Set Char

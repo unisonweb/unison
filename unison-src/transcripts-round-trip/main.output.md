@@ -37,7 +37,7 @@ scratch/a1> edit.new 1-1000
 
   ☝️
 
-  I added 111 definitions to the top of scratch.u
+  I added 132 definitions to the top of scratch.u
 
   You can edit them there, then run `update` to replace the
   definitions currently in this namespace.
@@ -603,6 +603,77 @@ raw_d =
   Use an extra blank line if you'd like a trailing newline. Like so:
   
   """
+
+record_closed_type : {x: Nat, y: Text} -> Nat
+record_closed_type = cases {x: x, y: _} -> x
+
+record_destructure : {x: Nat, y: Nat | ...} -> Nat
+record_destructure = cases {x: x, y: y} -> x Nat.+ y
+
+record_empty : {}
+record_empty = {}
+
+record_literal : {age: Nat, name: Text}
+record_literal = {age: 30, name: "Alice"}
+
+record_nested : {a: {b: {c: Nat}}}
+record_nested = {a: {b: {c: 42}}}
+
+record_open_type : {x: Nat, y: Text | ...} -> Nat
+record_open_type = cases {x: x} -> x
+
+record_projection : {a: Nat | ...} -> Nat
+record_projection = cases {a: field} -> field
+
+record_projection_applied : {a: Nat | ...} -> Nat
+record_projection_applied r = Nat.increment r@a
+
+record_projection_chain : {a: {b: {c: Nat}} | ...} -> Nat
+record_projection_chain r = r@a@b@c
+
+record_projection_of_expr : Nat -> Nat
+record_projection_of_expr n = {v: n}@v
+
+record_refutable : {x: Nat | ...} -> Text
+record_refutable = cases
+  {x: 0} -> "zero"
+  _      -> "other"
+
+record_set_block : {f1: Nat, f2: Nat} -> {f1: Nat, f2: Nat}
+record_set_block r =
+  use Nat +
+  r@{f1: @f1 + 1, f2: @f1 + @f2}
+
+record_set_block_applied : {f1: Nat, f2: Nat} -> {f1: Nat, f2: Nat}
+record_set_block_applied r = r@{f1: Nat.increment @f2}
+
+record_set_block_path : {a: {x: Nat}} -> {a: {x: Nat}}
+record_set_block_path r =
+  use Nat +
+  r@a@{x: @x + 1}
+
+record_set_block_read : {f1: Nat, f2: Nat} -> {f1: Nat, f2: Nat}
+record_set_block_read r =
+  use Nat +
+  r@{f1: @f2 + 1}
+
+row_var_flat : {a: Nat, b: Text | rest} -> {a: Nat, b: Text | rest}
+row_var_flat r = r
+
+row_var_getter_section : {foo: Nat | ...} -> Nat
+row_var_getter_section = cases {foo: field} -> field
+
+row_var_open : {x: Nat | ...} -> Nat
+row_var_open = cases {x: field} -> field
+
+row_var_set : {foo: Nat | rest} -> Nat -> {foo: Nat | rest}
+row_var_set r v = r@foo.set v
+
+row_var_spaced : {y: Nat} -> Nat
+row_var_spaced = cases {y: field} -> field
+
+row_var_type : {x: Nat | r} -> {x: Nat | r}
+row_var_type r = r
 
 simplestPossibleExample : Nat
 simplestPossibleExample =

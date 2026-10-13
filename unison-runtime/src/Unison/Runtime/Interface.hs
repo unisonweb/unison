@@ -37,7 +37,7 @@ where
 import Control.Concurrent.STM as STM
 import Control.Exception (fromException, tryJust)
 import Control.Monad
-import Control.Monad.State
+import Control.Monad.State.Strict
 import Data.Bitraversable (bitraverse)
 import Data.ByteString qualified as B
 import Data.ByteString.Builder (Builder)
@@ -84,9 +84,11 @@ import Unison.Runtime.InternalError (CompileExn (CE))
 import Unison.Runtime.MCode
   ( Args (..),
     CombIx (..),
+    FieldRef (..),
     GInstr (..),
     GSection (..),
     RCombs,
+    RecordFieldMappings (..),
     RefNums (..),
     absurdCombs,
     combTypes,
@@ -126,6 +128,8 @@ import Unison.Syntax.NamePrinter (prettyHashQualified, prettyReference)
 import Unison.Syntax.TermPrinter
 import Unison.Term qualified as Tm
 import Unison.Type qualified as Type
+import Unison.Util.BiMap qualified as BM
+import Unison.Util.BiMap qualified as BiMap
 import Unison.Util.EnumContainers as EC
 import Unison.Util.Monoid (foldMapM)
 import Unison.Util.Pretty as P
@@ -493,7 +497,8 @@ checkCacheability cl ctx (r, sg) =
 
 decompileCtx ::
   EnumMap Word64 Reference -> EvalCtx -> Val -> DecompResult Symbol
-decompileCtx crs ctx = decompile ib $ backReferenceTm crs fr ir dt
+decompileCtx crs ctx val =
+  decompile ib (backReferenceTm crs fr ir dt) val
   where
     ib = intermedToBase ctx
     fr = floatRemap ctx
@@ -647,7 +652,7 @@ intermediateTerms ppe ctx rtms =
       where
         f ref =
           superNormalize
-            . splitPatterns (dspec ctx)
+            . splitPatterns ctx.dspec
             . addDefaultCases tmName
           where
             tmName = HQ.toText . termName ppe $ RF.Ref ref
@@ -727,7 +732,7 @@ intermediateTerm ppe ctx tm =
         tmName = HQ.toText . termName ppe $ RF.Ref ref
         f =
           superNormalize
-            . splitPatterns (dspec ctx)
+            . splitPatterns ctx.dspec
             . addDefaultCases tmName
 
 prepareEvaluation ::
@@ -917,14 +922,17 @@ data StoredCache
       (EnumMap Word64 Reference)
       Word64
       Word64
+      Word64
       (Map Reference (SuperGroup Reference Symbol))
       (Map Reference Word64)
       (Map Reference Word64)
+      (BM.BiMap ANF.RecordSchema ANF.RecordRef)
       (Map Reference (Set Reference))
+      RecordFieldMappings
   deriving (Show, Eq)
 
 putStoredCache :: StoredCache -> Builder
-putStoredCache (SCache cs crs cacheableCombs oinfo trs ftm fty int rtm rty sbs) =
+putStoredCache (SCache cs crs cacheableCombs oinfo trs ftm fty frs int rtm rty rsLookup sbs rfm) =
   putEnumMap putNat (putEnumMap putNat (putComb absurd)) cs
     <> putEnumMap putNat putReference crs
     <> putEnumSet putNat cacheableCombs
@@ -932,10 +940,26 @@ putStoredCache (SCache cs crs cacheableCombs oinfo trs ftm fty int rtm rty sbs) 
     <> putEnumMap putNat putReference trs
     <> putNat ftm
     <> putNat fty
+    <> putNat frs
     <> putMap putReference (putGroup mempty False) int
     <> putMap putReference putNat rtm
     <> putMap putReference putNat rty
+    <> putMap putRecordSchema putRecordRef (BM.forward rsLookup)
     <> putMap putReference (putFoldable putReference) sbs
+    <> putRecordFieldMappings rfm
+
+putRecordFieldMappings :: RecordFieldMappings -> Builder
+putRecordFieldMappings (RecordFieldMappings next rfm) =
+  putFieldRef next <> putMap putText putFieldRef (BiMap.toMapL rfm)
+
+getRecordFieldMappings :: (PrimBase m) => Get m RecordFieldMappings
+getRecordFieldMappings = RecordFieldMappings <$> getFieldRef <*> (BiMap.fromMap <$> getMap getText getFieldRef)
+
+putFieldRef :: FieldRef -> Builder
+putFieldRef (FieldRef w) = putVarInt w
+
+getFieldRef :: (PrimBase m) => Get m FieldRef
+getFieldRef = FieldRef <$> getVarInt
 
 getStoredCache :: (PrimBase m) => Get m StoredCache
 getStoredCache =
@@ -947,10 +971,13 @@ getStoredCache =
     <*> getEnumMap getNat getReference
     <*> getNat
     <*> getNat
+    <*> getNat
     <*> getMap getReference getGroupCurrent
     <*> getMap getReference getNat
     <*> getMap getReference getNat
+    <*> (BM.fromMap <$> getMap getRecordSchema getRecordRef)
     <*> getMap getReference (fromList <$> getList getReference)
+    <*> getRecordFieldMappings
 
 debugTextFormat :: Bool -> Pretty ColorText -> String
 debugTextFormat fancy =
@@ -959,7 +986,7 @@ debugTextFormat fancy =
     render = if fancy then toANSI else toPlain
 
 restoreCache :: Bool -> StoredCache -> IO (CCache ())
-restoreCache sandboxed (SCache cs crs cacheableCombs opt trs ftm fty int rtm rty sbs) = do
+restoreCache sandboxed (SCache cs crs cacheableCombs opt trs ftm fty frs int rtm rty recSchemas sbs rfm) = do
   cc <-
     CCache sandboxed debugText ()
       <$> newTVarIO srcCombs
@@ -970,10 +997,13 @@ restoreCache sandboxed (SCache cs crs cacheableCombs opt trs ftm fty int rtm rty
       <*> newTVarIO (trs <> builtinTypeBackref)
       <*> newTVarIO ftm
       <*> newTVarIO fty
+      <*> newTVarIO frs
       <*> newTVarIO int
       <*> newTVarIO (rtm <> builtinTermNumbering)
       <*> newTVarIO (rty <> builtinTypeNumbering)
+      <*> newTVarIO recSchemas
       <*> newTVarIO (sbs <> baseSandboxInfo)
+      <*> newTVarIO newRFM
   let (unresolvedCacheableCombs, unresolvedNonCacheableCombs) =
         srcCombs
           & sanitizeCombsOfForeignFuncs sandboxed sandboxedForeignFuncs
@@ -1003,10 +1033,20 @@ restoreCache sandboxed (SCache cs crs cacheableCombs opt trs ftm fty int rtm rty
               (debugTextFormat fancy $ pretty PPE.empty dv)
     rns = emptyRNs {dnum = refLookup "ty" builtinTypeNumbering}
     rf k = builtinTermBackref ! k
+    builtinCombs :: EnumMap Word64 Combs
+    newRFM :: RecordFieldMappings
+    (builtinCombs, newRFM) =
+      flip
+        runState
+        rfm
+        ( numberedTermLookup
+            & traverseWithKey
+              ( \k v -> do
+                  emitComb @Symbol rns (rf k) k mempty (0, v)
+              )
+        )
     srcCombs :: EnumMap Word64 Combs
-    srcCombs =
-      let builtinCombs = mapWithKey (\k v -> emitComb @Symbol rns (rf k) k mempty (0, v)) numberedTermLookup
-       in builtinCombs <> cs
+    srcCombs = builtinCombs <> cs
     combs :: EnumMap Word64 (RCombs Val)
     combs =
       srcCombs
@@ -1036,12 +1076,15 @@ buildSCache ::
   EnumMap Word64 Reference ->
   Word64 ->
   Word64 ->
+  Word64 ->
   Map Reference (SuperGroup Reference Symbol) ->
   Map Reference Word64 ->
   Map Reference Word64 ->
+  BM.BiMap ANF.RecordSchema ANF.RecordRef ->
   Map Reference (Set Reference) ->
+  RecordFieldMappings ->
   StoredCache
-buildSCache crsrc cssrc cacheableCombs optsrc trsrc ftm fty int rtmsrc rtysrc sndbx =
+buildSCache crsrc cssrc cacheableCombs optsrc trsrc ftm fty frs int rtmsrc rtysrc rsLookup sndbx rfm =
   SCache
     cs
     crs
@@ -1050,10 +1093,13 @@ buildSCache crsrc cssrc cacheableCombs optsrc trsrc ftm fty int rtmsrc rtysrc sn
     trs
     ftm
     fty
+    frs
     int
     rtm
     (restrictTyR rtysrc)
+    rsLookup
     (restrictTmR sndbx)
+    rfm
   where
     termRefs = Map.keysSet int
 
@@ -1096,10 +1142,13 @@ standalone cc init =
           <*> readTVarIO (tagRefs cc)
           <*> readTVarIO (freshTm cc)
           <*> readTVarIO (freshTy cc)
+          <*> readTVarIO (freshRecSchema cc)
           <*> (readTVarIO (intermed cc) >>= traceNeeded rinit)
           <*> readTVarIO (refTm cc)
           <*> readTVarIO (refTy cc)
+          <*> readTVarIO (recordRefs cc)
           <*> readTVarIO (sandbox cc)
+          <*> readTVarIO (recordFieldMappings cc)
       Nothing ->
         die [] $ "standalone: unknown combinator: " ++ show init
 

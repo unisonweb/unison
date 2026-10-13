@@ -65,6 +65,12 @@ data F' text termRef typeRef termLink typeLink vt a
   | -- First argument identifies the data type,
     -- second argument identifies the constructor
     Constructor typeRef ConstructorId
+  | Record (Map Text {- field name -} a {- field value -})
+  | -- | @RecordSet field record newValue@: @record@ with one field replaced
+    RecordSet Text a a
+  | -- | @RecordSetBlock path fields target@: @target@, reached by following
+    -- @path@, with the fields in @fields@ replaced, in the order given
+    RecordSetBlock [Text] [(Text, a)] a
   | Request typeRef ConstructorId
   | Handle a a
   | App a a
@@ -109,6 +115,7 @@ data Pattern t r
   | PChar !Char
   | PBytes !Bytes
   | PConstructor !r !ConstructorId [Pattern t r]
+  | PRecord (Map Text (Pattern t r))
   | PAs (Pattern t r)
   | PEffectPure (Pattern t r)
   | PEffectBind !r !ConstructorId [Pattern t r] (Pattern t r)
@@ -189,6 +196,9 @@ extraMapM ftext ftermRef ftypeRef ftermLink ftypeLink fvt = go'
       Char c -> pure $ Char c
       Ref r -> Ref <$> ftermRef r
       Constructor r cid -> Constructor <$> (ftypeRef r) <*> pure cid
+      RecordSet field a b -> pure $ RecordSet field a b
+      RecordSetBlock path fields target -> pure $ RecordSetBlock path fields target
+      Record fields -> pure $ Record fields
       Request r cid -> Request <$> ftypeRef r <*> pure cid
       Handle e h -> pure $ Handle e h
       App f a -> pure $ App f a
@@ -224,6 +234,7 @@ rmapPatternM ft fr = go
       PChar c -> pure $ PChar c
       PBytes b -> pure $ PBytes b
       PConstructor r i ps -> PConstructor <$> fr r <*> pure i <*> (traverse go ps)
+      PRecord fields -> PRecord <$> (traverse go fields)
       PAs p -> PAs <$> go p
       PEffectPure p -> PEffectPure <$> go p
       PEffectBind r i ps p -> PEffectBind <$> fr r <*> pure i <*> traverse go ps <*> go p
@@ -332,6 +343,9 @@ unhashComponent componentHash refToVar m =
             Text t -> ABT.tm () $ Text t
             Char c -> ABT.tm () $ Char c
             Constructor typeRef conId -> ABT.tm () $ Constructor typeRef conId
+            Record fields -> ABT.tm () $ Record fields
+            RecordSet field r v -> ABT.tm () $ RecordSet field r v
+            RecordSetBlock path fields target -> ABT.tm () $ RecordSetBlock path fields target
             Request typeRef conId -> ABT.tm () $ Request typeRef conId
             Handle e h -> ABT.tm () $ Handle e h
             App f a -> ABT.tm () $ App f a

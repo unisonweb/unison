@@ -63,6 +63,8 @@ x = a.#abc
   I was surprised to find a '.' here.
   I was expecting one of these instead:
 
+  * @
+  * a field of the record being updated
   * and
   * bang
   * do
@@ -75,6 +77,7 @@ x = a.#abc
   * newline or semicolon
   * or
   * quote
+  * record section
   * termLink
   * true
   * tuple

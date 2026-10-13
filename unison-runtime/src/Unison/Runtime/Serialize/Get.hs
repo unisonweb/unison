@@ -19,6 +19,7 @@ module Unison.Runtime.Serialize.Get
     getAccumulatingRevList,
     getArray,
     getList,
+    getVector,
     getSeq,
     getPrimArray,
     remaining,
@@ -43,6 +44,7 @@ import Data.Primitive.PrimArray
 import Data.Primitive.PrimVar
 import Data.Primitive.Types
 import Data.Sequence qualified as Seq
+import Data.Vector qualified as V
 import Data.Word
 
 -- TODO: replace with GHC builtins after upgrading to GHC 9.10
@@ -270,6 +272,9 @@ getByteString n = Get \bs (Ix ix) -> do
 getList :: (PrimBase m) => Get m a -> Get m [a]
 getList ga = getVarInt >>= (`replicateM` ga)
 {-# INLINE getList #-}
+
+getVector :: (PrimBase m) => Get m a -> Get m (V.Vector a)
+getVector ga = V.fromList <$> getList ga
 
 -- Builds a result by repeated snoc in an efficient loop. Should only be
 -- used when the snoc is efficient.

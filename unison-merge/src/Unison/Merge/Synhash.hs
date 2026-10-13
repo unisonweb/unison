@@ -323,6 +323,10 @@ hashPatternTokens ppe = \case
         Pattern.Snoc -> H.Tag 1
         Pattern.Cons -> H.Tag 2
   Pattern.Bytes _ b -> [H.Tag 17, H.Bytes (Bytes.toByteString b)]
+  Pattern.RecordLiteral _ ps ->
+    H.Tag 18
+      : hashLengthToken ps
+      : (Map.toAscList ps >>= \(txt, p) -> H.Text txt : hashPatternTokens ppe p)
 
 hashReferentToken :: PrettyPrintEnv -> Referent -> Token
 hashReferentToken ppe =
@@ -355,6 +359,17 @@ hashTermFTokens ppe = \case
     H.Tag 18 : hashLengthToken cases : (cases >>= hashCaseTokens ppe)
   Term.TermLink rf -> [H.Tag 19, hashReferentToken ppe rf]
   Term.TypeLink r -> [H.Tag 20, hashTypeReferenceToken ppe r]
+  Term.Record fields -> H.Tag 21 : hashLengthToken fields : fieldNameTokens (Map.keys fields)
+  -- The two children are hashed by the caller; the token here only names the
+  -- field being replaced.
+  Term.RecordSet field _ _ -> [H.Tag 22, H.Text field]
+  -- The path and the field names are part of the term's identity; the children
+  -- (the target and each field value) are hashed by the caller.
+  Term.RecordSetBlock path fields _ ->
+    [H.Tag 23, hashLengthToken path]
+      <> fieldNameTokens path
+      <> [hashLengthToken fields]
+      <> fieldNameTokens (map fst fields)
 
 hashTypeTokens :: forall v a. (Var v) => PrettyPrintEnv -> [v] -> Type v a -> [Token]
 hashTypeTokens ppe = go
@@ -378,6 +393,18 @@ hashTypeFTokens ppe = \case
   Type.Effects es -> [H.Tag 5, hashLengthToken es]
   Type.Forall {} -> [H.Tag 6]
   Type.IntroOuter {} -> [H.Tag 7]
+  Type.Record fb fields ->
+    [H.Tag 8, hashLengthToken fields] <> fieldBehaviorTokens fb <> fieldNameTokens (Map.keys fields)
+
+fieldBehaviorTokens :: Type.FieldBehavior () -> [Token]
+fieldBehaviorTokens = \case
+  Type.AllowExtraFields Nothing -> [H.Tag 0]
+  Type.AllowExtraFields (Just ()) -> [H.Tag 0, H.Tag 2]
+  Type.RequireExactFields -> [H.Tag 1]
+
+fieldNameTokens :: [Text] -> [Token]
+fieldNameTokens names =
+  fmap H.Text names
 
 hashTypeReferenceToken :: PrettyPrintEnv -> TypeReference -> Token
 hashTypeReferenceToken ppe =

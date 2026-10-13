@@ -170,6 +170,9 @@ builtinTypeForTermLiterals term =
       Term.Match {} -> Nothing
       Term.TermLink {} -> Nothing
       Term.TypeLink {} -> Nothing
+      Term.Record {} -> Nothing
+      Term.RecordSet {} -> Nothing
+      Term.RecordSetBlock {} -> Nothing
     ABT.Var {} -> Nothing
     ABT.Cycle {} -> Nothing
     ABT.Abs {} -> Nothing
@@ -191,3 +194,4 @@ builtinTypeForPatternLiterals = \case
   Pattern.EffectBind _ _ _ _ -> Nothing
   Pattern.SequenceLiteral _ _ -> Nothing
   Pattern.SequenceOp _ _ _ _ -> Nothing
+  Pattern.RecordLiteral {} -> Nothing

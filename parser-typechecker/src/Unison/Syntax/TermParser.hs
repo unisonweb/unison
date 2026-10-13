@@ -55,7 +55,7 @@ import Unison.Syntax.Lexer.Unison qualified as L
 import Unison.Syntax.Name qualified as Name (toText, toVar, unsafeParseVar)
 import Unison.Syntax.NameSegment qualified as NameSegment
 import Unison.Syntax.Parser hiding (seq)
-import Unison.Syntax.Parser qualified as Parser (seq, uniqueName)
+import Unison.Syntax.Parser qualified as Parser
 import Unison.Syntax.Parser.Doc.Data qualified as Doc
 import Unison.Syntax.Pattern qualified as Syntax.Pattern
 import Unison.Syntax.Precedence (operatorPrecedence)
@@ -304,6 +304,8 @@ parsePattern =
           Parser.seq Syntax.Pattern.SequenceLiteral pRoot,
           -- () or (pat, pat) or (pat, pat, pat) [which is actually parsed as (pat, (pat, pat)]
           pParenOrTuple,
+          -- { a : b, c : d }
+          P.try pRecord,
           -- { pat -> pat } or { pat }
           pEffect
         ]
@@ -397,6 +399,19 @@ parsePattern =
         pEffectPure =
           parsePattern <&> \pat -> Syntax.Pattern.EffectPure (ann pat) pat
 
+    pRecord :: P v m (Syntax.Pattern.Pattern v)
+    pRecord = do
+      start <- openBlockWith "{"
+      let field = do
+            fieldName <- Parser.recordFieldName
+            _ <- reserved ":"
+            fieldPattern <- parsePattern
+            pure (fieldName, fieldPattern)
+      fields <- sepBy (reserved ",") field
+      end <- closeBlock
+      checkForDuplicateRecordFields (fst <$> fields)
+      pure (Syntax.Pattern.RecordLiteral (ann start <> ann end) (Map.fromList (first L.payload <$> fields)))
+
     -- Parse an "HQ-namey", which could either definitely be a nullary constructor (because it's either hash-only or
     -- hash-qualified or symboly), or either a variable or nullary constructor (because it's a wordy name-only). And if
     -- it's the latter, we might see that it's actually not a nullary constructor but actually a variable in an
@@ -451,6 +466,8 @@ bindConstructorsInPattern =
         )
           <$> bindConstructorsInPattern1 lpat1
           <*> bindConstructorsInPattern1 lpat2
+      Syntax.Pattern.RecordLiteral pos fields ->
+        traverse bindConstructorsInPattern1 fields <&> Pattern.RecordLiteral pos
       Syntax.Pattern.SequenceLiteral pos pats -> Pattern.SequenceLiteral pos <$> traverse bindConstructorsInPattern1 pats
       Syntax.Pattern.SequenceOp pos lpat1 op lpat2 ->
         Pattern.SequenceOp pos
@@ -664,7 +681,144 @@ resolveHashQualified tok = do
           | otherwise -> pure $ Term.fromReferent (ann tok) (Set.findMin s)
 
 termLeaf :: forall m v. (Monad m, Var v) => TermP v m
-termLeaf =
+termLeaf = termLeafNoProjection >>= recordProjections
+
+-- | Parse a chain of record field projections onto an already-parsed term, so
+-- that @r\@x@ reads the @x@ field of the record @r@, and @r\@x.set v@ replaces
+-- it.
+--
+-- The @\@@ may be spaced on either side. The @\@@ of a doc special form is a
+-- distinct token, so a bare @\@@ in term position is unambiguously this
+-- operator.
+--
+-- Because this wraps a leaf, projection binds tighter than application:
+-- @f r\@x@ is @f (r\@x)@.
+-- | The end of an annotation, if it has a position.
+annEnd :: Ann -> Maybe L.Pos
+annEnd a = case a of
+  Ann _ e -> Just e
+  _ -> Nothing
+
+-- | @\@foo@ is the @foo@ field of the record being updated, inside a record-set
+-- block's braces. It parses to a projection on the variable that a block binds to
+-- that record (`Term.recordSetTargetName`); outside a block that variable is
+-- unbound, which is reported as an unbound name.
+--
+-- This only sees a @\@@ that is not attached to what is on its left: the infix
+-- operators are tried first, and they decline a @\@@ that follows whitespace and is
+-- immediately followed by a field name, which is how `foo @bar` comes to mean
+-- `foo (@bar)`.
+recordTargetField :: forall m v. (Monad m, Var v) => TermP v m
+recordTargetField = label "a field of the record being updated" . P.try $ do
+  at <- reserved "@"
+  field <- recordFieldName
+  let atAnn = ann at
+      target = Var.named Term.recordSetTargetName
+  pure (Term.recordProjection (atAnn <> ann field) (ann field) (Term.var atAnn target) (L.payload field))
+
+recordProjections :: forall m v. (Monad m, Var v) => Term v Ann -> P v m (Term v Ann)
+recordProjections base = go [] base base
+  where
+    -- `path` records the fields projected so far, in source order; a `@{...}`
+    -- block needs them in order to name the record it updates. `projected` is
+    -- the desugaring of that chain, exactly as before this feature.
+    go :: [(Text, Ann)] -> Term v Ann -> Term v Ann -> P v m (Term v Ann)
+    go path root projected = do
+      mblock <- optional . P.try $ reserved "@" *> blockFields
+      case mblock of
+        Just fields ->
+          -- A block ends the chain: `r@{...}@a` is not a thing.
+          let target = Var.named Term.recordSetTargetName
+              -- Bind the record being updated in each value, so that a read of it —
+              -- `@field`, which projects from that variable — has its binder for every
+              -- pass over the term, not just for typechecking. A block's own field
+              -- names are *not* bound: reading a field's current value is spelled
+              -- `@field`, and a bare name means whatever it means outside the block.
+              bound e = ABT.abs' (ann e) target e
+           in pure $
+                Term.recordSetBlock
+                  (foldMap snd path <> ann root <> foldMap (ann . fst) fields)
+                  (fst <$> path)
+                  [(L.payload f, bound e) | (f, e) <- fields]
+                  root
+        Nothing -> do
+          mfield <- optional . P.try $ do
+            at <- reserved "@"
+            -- `@x` projects, `@x.set` updates. `x.set` lexes as one qualified
+            -- name, so the two are told apart by which token parser matches.
+            field <- (Left <$> P.try recordFieldName) <|> (Right <$> recordSetFieldName)
+            -- `foo @bar` — whitespace before the `@`, none after — is not a
+            -- projection: it is `foo` applied to `@bar`, the record being updated
+            -- read as an argument. Decline here so the `@` reaches
+            -- `recordTargetField`; every other spacing is the projection it has
+            -- always been (`foo@bar`, `foo@ bar`, `foo @ bar`).
+            let tokStart = either L.start L.start field
+            when (annEnd (ann projected) /= Just (L.start at) && L.end at == tokStart) (P.failure Nothing mempty)
+            pure field
+          case mfield of
+            Nothing -> pure projected
+            Just (Left field) ->
+              go
+                (path <> [(L.payload field, ann field)])
+                root
+                (Term.recordProjection (ann projected <> ann field) (ann field) projected (L.payload field))
+            Just (Right field) -> do
+              -- The new value is an argument to the operator, so it is parsed as
+              -- a whole term rather than as a leaf.
+              value <- term
+              pure (Term.recordSet (ann projected <> ann value) (L.payload field) projected value)
+
+    -- The `{ f: e, ... }` of a record-set block. At least one field, so `r@{}`
+    -- is an error; duplicate fields are rejected as they are in a record literal.
+    blockFields :: P v m [(L.Token Text, Term v Ann)]
+    blockFields = do
+      _ <- openBlockWith "{"
+      fields <- sepBy1 (reserved ",") field
+      _ <- closeBlock
+      checkForDuplicateRecordFields (fst <$> fields)
+      pure fields
+      where
+        field :: P v m (L.Token Text, Term v Ann)
+        field = do
+          name <- recordFieldName
+          _ <- reserved ":"
+          value <- term
+          pure (name, value)
+
+-- | The first-class form of the record operators: @(\@foo)@ is the getter
+-- @\\r -> r\@foo@ and @(\@foo.set)@ the setter @\\r v -> r \@foo.set v@, in the
+-- same way that @(+)@ is a first-class operator.
+--
+-- Any other parenthesized term is left to `tupleOrParenthesizedTerm`: this
+-- consumes the parens and then fails, so the enclosing `P.try` rewinds.
+recordSection :: forall m v. (Monad m, Var v) => TermP v m
+recordSection = label "record section" . P.try $ do
+  open <- openBlockWith "("
+  at <- reserved "@"
+  -- `(@foo)` is the section; `( @foo )` is a parenthesised read of the record being
+  -- updated, so leave that one to the parenthesised-term parser. Adjacent means the
+  -- `@` starts where the `(` ends.
+  when (L.start at /= L.end open) (P.failure Nothing mempty)
+  mfield <- (Left <$> recordFieldName) <|> (Right <$> recordSetFieldName)
+  close <- closeBlock
+  -- The body mentions nothing but the bound variables, so a plain name cannot
+  -- capture anything.
+  let atAnn = ann at <> ann close
+      r = Var.named "r"
+      v = Var.named "v"
+      tm = case mfield of
+        Left field ->
+          Term.lam' atAnn [(atAnn, r)] (Term.recordProjection (atAnn <> ann field) (ann field) (Term.var atAnn r) (L.payload field))
+        Right field ->
+          Term.lam' atAnn [(atAnn, r), (atAnn, v)] (Term.recordSet atAnn (L.payload field) (Term.var atAnn r) (Term.var atAnn v))
+  pure tm {ABT.annotation = ABT.annotation tm <> ann open <> ann close}
+
+-- The record projection and record-set block desugarings live in `Unison.Term`
+-- (`recordProjection`, `expandRecordSetBlock`) so that the typechecker and the
+-- conversion to runtime form can use them too.
+
+termLeafNoProjection :: forall m v. (Monad m, Var v) => TermP v m
+termLeafNoProjection =
   asum
     [ force,
       hashQualifiedPrefixTerm,
@@ -674,6 +828,9 @@ termLeaf =
       bytes,
       boolean,
       link,
+      recordLiteral,
+      recordSection,
+      recordTargetField,
       tupleOrParenthesizedTerm,
       keywordBlock,
       list term,
@@ -1342,6 +1499,23 @@ number' i u f = fmap go numeric
       | take 1 p == "+" = i (read . drop 1 <$> num)
       | take 1 p == "-" = i (read <$> num)
       | otherwise = u (read <$> num)
+
+-- E.g. { name = "Steve", age = 30 }
+recordLiteral ::
+  forall v m.
+  (Var v, Ord v, Monad m) =>
+  TermP v m
+recordLiteral = do
+  (spanAnn, kvs) <- seq' "{" (,) keyValueP
+  checkForDuplicateRecordFields (fst <$> kvs)
+  pure $ Term.record spanAnn (Map.fromList (first L.payload <$> kvs))
+  where
+    keyValueP :: P v m (L.Token Text, Term v Ann)
+    keyValueP = do
+      key <- recordFieldName
+      _ <- reserved ":"
+      value <- term
+      pure (key, value)
 
 tupleOrParenthesizedTerm :: (Monad m, Var v) => TermP v m
 tupleOrParenthesizedTerm = label "tuple" $ do
