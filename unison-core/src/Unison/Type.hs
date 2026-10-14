@@ -38,15 +38,14 @@ import Unison.Util.List qualified as List
 import Unison.Var (Var)
 import Unison.Var qualified as Var
 
--- | Whether the record type unifies with types that have _extra_ fields.
--- E.g. subtype (Record _ {a: Int, b: Nat}) (Record AllowExtraFields {a: Int})
---   will succeed, since the former has all the required fields, and extra fields are allowed,
---   but:
---   subtype (Record _ {a: Int, b: Nat}) (Record RequireExactFields {a: Int})
--- fails.
-data FieldBehavior a
-  = AllowExtraFields (Maybe a) -- { a: Int | ...} or { a : Int | rest }
-  | RequireExactFields
+-- | The "tail" of a record type: whether the record may have fields beyond the
+-- named ones, and, if so, the row that describes them.
+--
+-- E.g. @{a: Int, b: Nat | r}@ has a @HasExtraFields r@ tail, and @{a: Int}@
+-- has a @NoExtraFields@ tail.
+data RecordTail a
+  = HasExtraFields a -- { a: Int | rest }
+  | NoExtraFields
   deriving (Eq, Ord, Show, Foldable, Functor, Traversable)
 
 -- | Base functor for types in the Unison language
@@ -62,7 +61,7 @@ data F a
   -- bound by outer type signatures, to support scoped type
   -- variables
   | -- Record type, mapping field names to types
-    Record (FieldBehavior a) (Map Text a)
+    Record (RecordTail a) (Map Text a)
   deriving (Foldable, Functor, Generic, Generic1, Eq, Ord, Traversable)
 
 _Ref :: Prism' (F a) TypeReference
@@ -160,7 +159,7 @@ pattern Pure' t <- (unPure -> Just t)
 pattern Request' :: [Type v a] -> Type v a -> Type v a
 pattern Request' ets res <- Apps' (Ref' ((== effectRef) -> True)) [(flattenEffects -> ets), res]
 
-pattern Record' :: FieldBehavior (ABT.Term F v a) -> Map Text (ABT.Term F v a) -> ABT.Term F v a
+pattern Record' :: RecordTail (ABT.Term F v a) -> Map Text (ABT.Term F v a) -> ABT.Term F v a
 pattern Record' fb fields <- ABT.Tm' (Record fb fields)
 
 pattern Effects' :: [ABT.Term F v a] -> ABT.Term F v a
@@ -456,7 +455,7 @@ char a = ref a charRef
 integer :: (Ord v) => a -> Type v a
 integer a = ref a integerRef
 
-record :: (Ord v) => a -> FieldBehavior (Type v a) -> Map Text (Type v a) -> Type v a
+record :: (Ord v) => a -> RecordTail (Type v a) -> Map Text (Type v a) -> Type v a
 record a fb fields = ABT.tm' a (Record fb fields)
 
 -- | Flatten a record type whose row is itself a record, so that
@@ -469,7 +468,7 @@ normalize = ABT.rebuildUp go
   where
     go :: F (Type v a) -> F (Type v a)
     go (Record fb fields) = case fb of
-      AllowExtraFields (Just (Record' innerFb innerFields)) ->
+      HasExtraFields (Record' innerFb innerFields) ->
         go (Record innerFb (fields <> innerFields))
       _ -> Record fb fields
     go t = t
@@ -966,9 +965,8 @@ instance (Show a) => Show (F a) where
         _ -> showParen True $ s "outer " <> shows body
       go p (Record fb fields) =
         let fbs = case fb of
-              RequireExactFields -> s ""
-              AllowExtraFields Nothing -> s "| ..."
-              AllowExtraFields (Just row) -> s "| " <> shows row
+              NoExtraFields -> s ""
+              HasExtraFields row -> s "| " <> shows row
          in showParen (p > 0) $ foldl' (<>) (s "{") (List.intersperse (s ", ") (showField <$> Map.toList fields)) <> fbs <> s "}"
         where
           showField (l, t) = s (Text.unpack l) <> s ": " <> shows t

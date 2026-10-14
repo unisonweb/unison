@@ -484,11 +484,6 @@ data Warn v loc
 data Cause v loc
   = TypeMismatch (Context v loc)
   | IllFormedType (Context v loc)
-  | -- | An anonymous record row (@...@) was used in a positive position, where
-    -- it is meaningless: it says "accept whatever other fields the caller has",
-    -- which only makes sense for an argument. The row has to be named there
-    -- instead. Carries the offending type's location and the type itself.
-    AnonymousRowInPositivePosition loc (Type v loc)
   | UnknownSymbol loc v
   | UnknownTerm loc v [Suggestion v loc] (Type v loc)
   | AbilityCheckFailure [Type v loc] [Type v loc] (Context v loc) -- ambient, requested
@@ -807,150 +802,126 @@ wellformedType c t = case t of
           ctx' = fromRight (error "wellformedType: Expected Right") $ extend' (Universal v) ctx
        in (v, ctx')
 
--- | Whether an anonymous row (@...@) occurs in a positive position.
+-- | Open closed record types in negative position to a named row variable,
+-- reusing the same variable for records of the same shape. A record type in
+-- negative position means "at least these fields", so it is sugar for
+-- @{ … | rest }@; the named row is what a caller's extra fields flow into.
 --
--- `...` means "accept whatever other fields the caller provides", which is
--- only sound for an argument. In a result the caller would get to choose the
--- extra fields, so the row has to be named (@| r@) instead. This is what makes
+-- The row variables are generated as existentials (see 'isOpenedRow'):
+-- those that remain unsolved once the definition body has been checked are
+-- generalized over by the usual machinery (see 'generalizeExistentials'),
+-- while a row the body forces to a concrete shape (e.g. by returning a
+-- parameter as a closed record) stays solved.
 --
---   @badRow : { x: Nat | ... } -> { x: Nat | ... }@
+-- A shape that also occurs in positive position is left closed: opening it
+-- would let extra fields leak into a result the signature doesn't mention
+-- them in. So @{x} -> {x}@ stays exact, while @{x} -> {x} -> Nat@ shares one
+-- row between the parameters. The positive shapes are collected up front, so
+-- no occurrence order is privileged.
 --
--- a type error, while @{ x: Nat | ... } -> Nat@ is fine.
---
--- Note that a row sits in the same position as the record that carries it, and
--- can itself be a record (partial nesting), so both cases recurse.
-hasAnonymousRowInPositivePosition :: (Var v) => Type v loc -> Bool
-hasAnonymousRowInPositivePosition = go True
+-- This runs wherever signatures are introduced (alongside `addAbilities`, in
+-- `prepare` and `checkScoped`), never at call sites: the stored type already
+-- says which rows are open -- via @forall@-bound variables that each use
+-- freshens -- and anything still closed is exact.
+openNegativeRows ::
+  forall v loc.
+  (Var v, Ord loc) =>
+  Map Reference [Variance] ->
+  Type v loc ->
+  M v loc (Type v loc)
+openNegativeRows vars t =
+  fst <$> runStateT (go True t) Map.empty
   where
-    go :: (Var v) => Bool -> Type v loc -> Bool
-    go positive t = case t of
-      Type.Ann' t' _ -> go positive t'
-      -- A function's domain is contravariant, its codomain covariant.
-      Type.Arrow' i o -> go (not positive) i || go positive o
-      Type.Effect1' e a -> go positive e || go positive a
-      Type.App' f x -> go positive f || go positive x
-      Type.Effects' es -> any (go positive) es
-      Type.Forall' body -> go positive (ABT.bind body (Type.var (ABT.annotation t) (ABT.variable body)))
-      Type.IntroOuter' body -> go positive (ABT.bind body (Type.var (ABT.annotation t) (ABT.variable body)))
-      Type.Record' fb fields -> row positive fb || any (go positive) fields
-      _ -> False
-    row :: (Var v) => Bool -> Type.FieldBehavior (Type v loc) -> Bool
-    row positive = \case
-      Type.RequireExactFields -> False
-      Type.AllowExtraFields Nothing -> positive
-      Type.AllowExtraFields (Just r) -> go positive r
+    positiveShapes = collectPositive True t
 
--- | Adds `| ...` onto row types in negative position.
--- Thus, if the user writes: `{ name : Text } -> Nat`, it typechecks as
--- if they had written `{ name : Text | ... } -> Nat` and will allow inputs
--- with more than just the `name` field.
---
--- Only `RequireExactFields` in a negative position is opened. A named row stays
--- named, and `...` stays `...`.
-openNegativeRows :: (Var v) => Map Reference [Variance] -> Type v loc -> Type v loc
-openNegativeRows vars = go False
-  where
+    go :: Bool -> Type v loc -> StateT (Map (Map Text (Type v loc)) v) (M v loc) (Type v loc)
     go positive t = case t of
-      Type.Ann' t' k -> Type.ann (loc t) (go positive t') k
-      Type.Arrow' i o -> Type.arrow (loc t) (go (not positive) i) (go positive o)
-      Type.Effect1' e o -> Type.effect1 (loc t) (go positive e) (go positive o)
-      Type.Effects' es -> Type.effects (loc t) (fmap (go positive) es)
+      Type.Ann' t' k -> Type.ann (loc t) <$> go positive t' <*> pure k
+      Type.Arrow' i o -> Type.arrow (loc t) <$> go (not positive) i <*> go positive o
+      Type.Effect1' e o -> Type.effect1 (loc t) <$> go positive e <*> go positive o
+      Type.Effects' es -> Type.effects (loc t) <$> traverse (go positive) es
       Type.App' f x ->
         let x' = case checkVarianceWith vars f of
               Just (Pos : _) -> go positive x
               Just (Neg : _) -> go (not positive) x
-              -- Invariant (or a constructor we know nothing about): leave it
-              -- alone, since equality there depends on the exact field set.
-              _ -> x
-         in Type.app (loc t) (go positive f) x'
+              _ -> pure x
+         in Type.app (loc t) <$> go positive f <*> x'
+      Type.Record' fb fields -> do
+        fb' <- case fb of
+          Type.NoExtraFields
+            | not positive,
+              Set.notMember fields positiveShapes -> do
+                m <- get
+                case Map.lookup fields m of
+                  Just rest -> pure (Type.HasExtraFields (existentialp (loc t) rest))
+                  Nothing -> do
+                    rest <- lift (extendExistential Var.inferOpenedRowType)
+                    put (Map.insert fields rest m)
+                    pure (Type.HasExtraFields (existentialp (loc t) rest))
+          _ -> traverse (go positive) fb
+        fields' <- traverse (go positive) fields
+        pure (Type.record (loc t) fb' fields')
+      Type.ForallNamed' v t' -> Type.forAll (loc t) v <$> go positive t'
+      Type.IntroOuterNamed' v t' -> Type.introOuter (loc t) v <$> go positive t'
+      _ -> pure t
+
+    -- Mirror of `go`'s traversal, gathering the shapes of positive records.
+    collectPositive positive t = case t of
+      Type.Ann' t' _ -> collectPositive positive t'
+      Type.Arrow' i o -> collectPositive (not positive) i <> collectPositive positive o
+      Type.Effect1' e o -> collectPositive positive e <> collectPositive positive o
+      Type.Effects' es -> foldMap (collectPositive positive) es
+      Type.App' f x ->
+        collectPositive positive f <> case checkVarianceWith vars f of
+          Just (Pos : _) -> collectPositive positive x
+          Just (Neg : _) -> collectPositive (not positive) x
+          _ -> mempty
       Type.Record' fb fields ->
-        Type.record (loc t) (openRow positive fb) (fmap (go positive) fields)
-      Type.ForallNamed' v t' -> Type.forAll (loc t) v (go positive t')
-      Type.IntroOuterNamed' v t' -> Type.introOuter (loc t) v (go positive t')
-      _ -> t
+        (if positive then Set.singleton fields else mempty)
+          <> foldMap (collectPositive positive) fields
+          <> foldMap (collectPositive positive) fb
+      Type.ForallNamed' _ t' -> collectPositive positive t'
+      Type.IntroOuterNamed' _ t' -> collectPositive positive t'
+      _ -> mempty
 
-    openRow positive fb = case fb of
-      Type.RequireExactFields
-        | not positive -> Type.AllowExtraFields Nothing
-      _ -> fmap (go positive) fb
+-- | A row variable introduced by opening a closed record in a negative
+-- position (see 'openNegativeRows'). It is an ordinary existential for
+-- solving, but 'checkPattern' and 'goRecord' must
+-- not grow it with fields the signature didn't mention.
+isOpenedRow :: (Var v) => v -> Bool
+isOpenedRow v = Var.typeOf v == Var.Inference Var.OpenedRowType
 
--- | Close vacuous row variables: a variable that occurs exactly once, as the row
--- of a record in a negative position, can be dropped by closing that row.
+-- | Remove @forall@-bound row variables that occur only in negative positions
+-- (as a record's row). This is the exact inverse of 'openNegativeRows': such
+-- rows are implied by the rewrite of closed record types in negative
+-- positions and are re-added at each call site, so the @forall@ says nothing.
+-- A row that occurs anywhere else -- as @r\@age.set@ does, where the result's
+-- row is the argument's -- ties its positions together and is kept.
 --
--- @{ a: Nat | r } -> Nat@ and @{ a: Nat } -> Nat@ are the same type, because a
--- record in a parameter position already means "at least these fields" (see
--- `openNegativeRows`), so the @forall r@ says nothing. Closing it reads better,
--- and it is what you want in an inferred signature.
+-- This is a display-side cleanup only: stored types keep their rows (see
+-- `generalizeExistentials`), so each use site gets a fresh row variable to
+-- solve with the caller's extra fields.
 --
--- Only a single occurrence is eligible: with two, the variable ties those
--- positions together -- as @r\@age.set@ does, where the result's row is the
--- argument's -- so it can't be dropped. Callers must therefore apply the context
--- to the type first: until they do, an occurrence can hide behind a variable and
--- a row can look like it occurs once when it doesn't.
---
--- The polarity walk matches `openNegativeRows`: the type of a value starts out
--- positive, an arrow flips in its domain, and a type constructor's argument
--- takes the polarity of the parameter. Under an invariant or unknown parameter,
--- closing the row wouldn't be sound in both polarities, so nothing there is
--- eligible.
-closeVacuousRows :: (Var v) => Map Reference [Variance] -> Type v loc -> Type v loc
-closeVacuousRows vars t
-  | Set.null eligible = t
+-- The polarity walk matches `subtype`'s variance handling: the type of a value
+-- starts out positive, an arrow flips in its domain, and a type constructor's
+-- argument takes the polarity of the parameter. Under an invariant or unknown
+-- parameter, the variable must be absent for the row to be implied.
+closeNegativeRows :: (Var v) => Map Reference [Variance] -> Type v loc -> Type v loc
+closeNegativeRows vars t
+  | Set.null toStrip = t
   | otherwise = go True t
   where
-    eligible =
+    toStrip =
       Set.fromList
-        [ v
-        | (v, (occurrences, isNegativeRow)) <- Map.toList (count True True t),
-          occurrences == 1,
-          isNegativeRow,
-          Set.member v free
+        [ TypeVar.underlying v
+        | sub <- ABT.subterms t,
+          Type.ForallNamed' v body <- [sub],
+          onlyNegativeRow v body
         ]
-    free = Set.map TypeVar.underlying (ABT.freeVars t)
-
-    -- Every occurrence of every variable, paired with whether that occurrence is
-    -- a record's row in a negative position, so that a variable appearing more
-    -- than once ends up ineligible.
-    --
-    -- Occurrences are keyed by the *underlying* variable: the same variable can
-    -- appear under different `TypeVar` annotations, and counting those as
-    -- separate variables would make a shared row look like two lone ones.
-    --
-    -- Note `combine`, not `<>`: `Data.Map`'s `<>` is a left-biased union, which
-    -- would silently drop one of two occurrences rather than adding them.
-    count positive creditable ty = case ty of
-      Type.Ann' t' _ -> count positive creditable t'
-      Type.Arrow' i o -> combine (count (not positive) creditable i) (count positive creditable o)
-      Type.Effect1' e o -> combine (count positive creditable e) (count positive creditable o)
-      Type.Effects' es -> foldr combine Map.empty (map (count positive creditable) es)
-      Type.App' f x ->
-        combine
-          (count positive creditable f)
-          ( case checkVarianceWith vars f of
-              Just (Pos : _) -> count positive creditable x
-              Just (Neg : _) -> count (not positive) creditable x
-              _ -> count positive False x
-          )
-      Type.Record' fb fields ->
-        combine
-          (row positive creditable fb)
-          (foldr combine Map.empty (map (count positive creditable) (Map.elems fields)))
-      Type.ForallNamed' _ t' -> count positive creditable t'
-      Type.IntroOuterNamed' _ t' -> count positive creditable t'
-      Type.Var' v -> Map.singleton (TypeVar.underlying v) (1 :: Int, False)
-      _ -> mempty
-
-    row positive creditable fb = case fb of
-      Type.AllowExtraFields (Just (Type.Var' v)) ->
-        Map.singleton (TypeVar.underlying v) (1 :: Int, creditable && not positive)
-      Type.AllowExtraFields (Just r) -> count positive creditable r
-      _ -> mempty
-
-    combine = Map.unionWith \(n1, f1) (n2, f2) -> (n1 + n2, f1 || f2)
-
-    -- Same walk again, now closing the rows of the eligible variables.
     go positive ty = case ty of
-      Type.Ann' t' k -> Type.ann (loc ty) (go positive t') k
+      Type.ForallNamed' v body
+        | Set.member (TypeVar.underlying v) toStrip -> go positive body
+        | otherwise -> Type.forAll (loc ty) v (go positive body)
       Type.Arrow' i o -> Type.arrow (loc ty) (go (not positive) i) (go positive o)
       Type.Effect1' e o -> Type.effect1 (loc ty) (go positive e) (go positive o)
       Type.Effects' es -> Type.effects (loc ty) (fmap (go positive) es)
@@ -960,17 +931,36 @@ closeVacuousRows vars t
               Just (Neg : _) -> go (not positive) x
               _ -> x
          in Type.app (loc ty) (go positive f) x'
-      Type.Record' fb fields -> Type.record (loc ty) (close positive fb) (fmap (go positive) fields)
-      Type.ForallNamed' v t' -> Type.forAll (loc ty) v (go positive t')
-      Type.IntroOuterNamed' v t' -> Type.introOuter (loc ty) v (go positive t')
+      Type.Record' fb fields -> Type.record (loc ty) (goFb positive fb) (fmap (go positive) fields)
+      Type.IntroOuterNamed' v body -> Type.introOuter (loc ty) v (go positive body)
       _ -> ty
-
-    close positive fb = case fb of
-      Type.AllowExtraFields (Just (Type.Var' v))
-        | not positive,
-          Set.member (TypeVar.underlying v) eligible ->
-            Type.RequireExactFields
+    goFb positive fb = case fb of
+      Type.HasExtraFields (Type.Var' v)
+        | Set.member (TypeVar.underlying v) toStrip && not positive -> Type.NoExtraFields
       _ -> fmap (go positive) fb
+
+    onlyNegativeRow v body = goOcc True body
+      where
+        goOcc positive ty = case ty of
+          Type.Var' v' -> TypeVar.underlying v' /= TypeVar.underlying v
+          Type.Arrow' i o -> goOcc (not positive) i && goOcc positive o
+          Type.Effect1' e o -> goOcc positive e && goOcc positive o
+          Type.Effects' es -> all (goOcc positive) es
+          Type.App' f x ->
+            let x' = case checkVarianceWith vars f of
+                  Just (Pos : _) -> goOcc positive x
+                  Just (Neg : _) -> goOcc (not positive) x
+                  _ -> notMemberUnderlying v x
+             in goOcc positive f && x'
+          Type.Record' fb fields -> fbOk positive fb && all (goOcc positive) fields
+          Type.ForallNamed' v' b | TypeVar.underlying v' /= TypeVar.underlying v -> goOcc positive b
+          Type.IntroOuterNamed' _ b -> goOcc positive b
+          _ -> True
+        fbOk positive fb = case fb of
+          Type.HasExtraFields (Type.Var' v') | TypeVar.underlying v' == TypeVar.underlying v -> not positive
+          Type.HasExtraFields row -> goOcc positive row
+          _ -> True
+        notMemberUnderlying v x = TypeVar.underlying v `Set.notMember` Set.map TypeVar.underlying (ABT.freeVars x)
 
 addNotes :: (Var v) => CtxSegment v loc -> M v loc ()
 addNotes seg =
@@ -1263,12 +1253,7 @@ synthesizeApp fun (Type.stripIntroOuters -> Type.Effect'' es ft) argp@(arg, argN
           exact
             | Term.Apps' (Term.Var' f) _ <- fun = any (== f) defs
             | otherwise = False
-      -- `i` is a parameter position, so a record there means "at least these
-      -- fields" and a closed row is read as `...`; see `openNegativeRows`. A
-      -- constructor's field type is a parameter position too: the caller
-      -- supplies the field, so `Person { name, age, extra }` is fine.
-      vars <- getVariances
-      (o,) <$> checkWantedScoped exact ((Just fun,) <$> es) arg (openNegativeRows vars i)
+      (o,) <$> checkWantedScoped exact ((Just fun,) <$> es) arg i
     go (Type.Var' (TypeVar.Existential b a)) = do
       -- a^App
       [i, e, o] <- traverse freshenVar [Var.named "i", Var.inferAbility, Var.named "o"]
@@ -1321,24 +1306,27 @@ noteTopLevelType ::
   Term v loc ->
   Type v loc ->
   M v loc ()
-noteTopLevelType e binding typ = case binding of
-  Term.Ann' strippedBinding _ -> do
-    inferred <- (Just <$> synthesizeTop strippedBinding) `orElse` pure Nothing
-    case inferred of
-      Nothing -> do
-        btw $
-          topLevelComponent
-            [(Var.reset (ABT.variable e), generalizeAndUnTypeVar typ, False)]
-      Just inferred -> do
-        redundant <- isRedundant typ inferred
-        btw $
-          topLevelComponent
-            [(Var.reset (ABT.variable e), generalizeAndUnTypeVar typ, redundant)]
-  -- The signature didn't exist, so was definitely redundant
-  _ -> do
-    btw $
-      topLevelComponent
-        [(Var.reset (ABT.variable e), generalizeAndUnTypeVar typ, True)]
+noteTopLevelType e binding typ0 = do
+  vars <- getVariances
+  let typ = closeNegativeRows vars typ0
+  case binding of
+    Term.Ann' strippedBinding _ -> do
+      inferred <- (Just <$> synthesizeTop strippedBinding) `orElse` pure Nothing
+      case inferred of
+        Nothing -> do
+          btw $
+            topLevelComponent
+              [(Var.reset (ABT.variable e), generalizeAndUnTypeVar typ, False)]
+        Just inferred -> do
+          redundant <- isRedundant typ inferred
+          btw $
+            topLevelComponent
+              [(Var.reset (ABT.variable e), generalizeAndUnTypeVar typ, redundant)]
+    -- The signature didn't exist, so was definitely redundant
+    _ -> do
+      btw $
+        topLevelComponent
+          [(Var.reset (ABT.variable e), generalizeAndUnTypeVar typ, True)]
 
 -- | Take note of the types and locations of all bindings, including let bindings, letrec
 -- bindings, lambda argument bindings and top-level bindings.
@@ -1442,6 +1430,12 @@ synthesizeWanted (Term.Ann' (Term.Ref' _) t)
       t <- existentializeArrows t
       -- See note about ungeneralizing above in the Var case.
       t <- ungeneralize t
+      -- Stored types have their implied rows stripped (see
+      -- `closeNegativeRows`), so re-open them here: each use gets fresh
+      -- rows for the caller's extra fields to solve. Rows left unsolved
+      -- are generalized by the enclosing scope as usual.
+      vars <- getVariances
+      t <- openNegativeRows vars t
       (,[]) <$> discard t
   | otherwise = compilerCrash $ FreeVarsInTypeAnnotation s
   where
@@ -1563,7 +1557,7 @@ synthesizeWanted e
       pure (existential' l blank v, [])
   | Term.Record' fields <- e = scope (InRecordLiteral (ABT.annotation e)) $ do
       -- Record literals have an exact field set.
-      let fb = Type.RequireExactFields
+      let fb = Type.NoExtraFields
       (fieldTypes, wantedSets) <-
         fields
           & Map.traverseWithKey
@@ -1593,7 +1587,7 @@ synthesizeWanted e
       let wanted =
             Type.record
               l
-              (Type.AllowExtraFields (Just (existentialp l rowV)))
+              (Type.HasExtraFields (existentialp l rowV))
               (Map.singleton fieldName (existentialp l fieldV))
       subtype recordType wanted
       -- Solving the constraint above fills the row in with the record's other
@@ -1604,7 +1598,7 @@ synthesizeWanted e
             Type.normalize $
               Type.record
                 l
-                (Type.AllowExtraFields (Just rowType))
+                (Type.HasExtraFields rowType)
                 (Map.singleton fieldName newFieldType)
       (result,) <$> coalesceWanted wValue wRecord
   | Term.List' v <- e = do
@@ -2098,14 +2092,18 @@ checkPattern scrutineeType p =
       -- mean the row variable is already solved, and re-solving it would be both
       -- pointless and a way to loop.
       case scrutineeType of
-        Type.Record' (Type.AllowExtraFields (Just (Type.Var' (TypeVar.Existential b v)))) typeFields -> do
+        Type.Record' (Type.HasExtraFields (Type.Var' (TypeVar.Existential b v))) typeFields
+          -- A signature-introduced row stands for fields the body may not
+          -- depend on, so the pattern can't grow it; it falls through to the
+          -- missing-field error below.
+          | not (isOpenedRow v) -> do
           let missing = Map.difference inferredFieldTypes typeFields
           unless (Map.null missing) $ do
             rowV <- lift $ extendExistential Var.inferRecordRowType
             let grown =
                   Type.record
                     recordLoc
-                    (Type.AllowExtraFields (Just (existentialp recordLoc rowV)))
+                    (Type.HasExtraFields (existentialp recordLoc rowV))
                     missing
             lift $ instantiateL b v (Type.normalize grown)
         _ -> pure ()
@@ -2117,8 +2115,8 @@ checkPattern scrutineeType p =
         Type.Record' _fb typeFields ->
           -- Matching a field the record doesn't have. A row that could grow was
           -- grown above, so getting here means it genuinely can't: the record is
-          -- closed, its row is `...` (anonymous, so it can be required but not
-          -- extended), or the row came from a `forall` and is rigid.
+          -- closed, or its row is rigid (a `forall` row or a signature-opened
+          -- row; see `isOpenedRow`).
           for_ (Map.toList (Map.difference fieldPatterns typeFields)) \(fieldName, fieldPat) ->
             lift . failWith $ PatternMatchedMissingField fieldName fieldPat scrutineeType
         _
@@ -2130,7 +2128,7 @@ checkPattern scrutineeType p =
       -- `row` still solvable, rather than sealing it with `...`.
       rowV <- lift $ freshenVar Var.inferRecordFieldType
       lift $ appendContext [existential rowV]
-      let fb = Type.AllowExtraFields (Just (existentialp recordLoc rowV))
+      let fb = Type.HasExtraFields (existentialp recordLoc rowV)
       -- Build the type of the pattern, filled with those unification variables
       let patternRecordType = Type.record recordLoc fb inferredFieldTypes
       lift $ subtype scrutineeType patternRecordType
@@ -2590,7 +2588,8 @@ annotateLetRecBindings isTop letrec =
         resetContextAfter Nothing $
           Just <$> annotateLetRecBindings' letrec False
       -- convert from typechecker TypeVar back to regular `v` vars
-      let unTypeVar (v, t) = (v, generalizeAndUnTypeVar t)
+      vars <- getVariances
+      let unTypeVar (v, t) = (v, generalizeAndUnTypeVar (closeNegativeRows vars t))
       case withoutAnnotations of
         Just (_, vts') -> do
           r <- and <$> zipWithM isRedundant (fmap snd vts) (fmap snd vts')
@@ -2729,10 +2728,16 @@ annotateLetRecBindings' letrec useAnn = do
       -- If a term has an annotation add any missing ability
       -- annotations. We indicate whether the type is completely
       -- closed, because such types can be separated out of the
-      -- binding cycle.
+      -- binding cycle. Opening closed records in negative positions to
+      -- named rows here -- before `indicate` classifies the binding --
+      -- introduces the row existentials the body may solve, and the
+      -- unsolved remainder is generalized over by
+      -- `generalizeExistentials` below.
       | useAnn,
         Term.Ann' e t <- binding = do
           t <- addAbilities (countLambdas e) =<< applyM t
+          vars <- getVariances
+          t <- openNegativeRows vars t
           pure $ indicate t (Term.ann (loc binding) e t, t, v, vloc)
       -- If the term is a lambda, we immediately make a refined type
       -- for better inference.
@@ -2900,9 +2905,9 @@ tweakEffects v0 t0
       | Type.Record' fb fields <- ty = do
           (vs, fields') <- getCompose $ for fields (Compose . rewrite p)
           (vfb, fb') <- case fb of
-            Type.AllowExtraFields (Just row) -> do
+            Type.HasExtraFields row -> do
               (v, row') <- rewrite p row
-              pure (v, Type.AllowExtraFields (Just row'))
+              pure (v, Type.HasExtraFields row')
             _ -> pure ([], fb)
           pure (vfb ++ vs, Type.record (loc ty) fb' fields')
       | otherwise = pure ([], ty)
@@ -2967,7 +2972,9 @@ forcedData (Type.Arrow' _ o) = forcedData o
 forcedData ty = Type.freeVars ty
 
 -- | Apply the context to the input type, then convert any unsolved existentials
--- to universals.
+-- to universals. Open rows are kept as @forall@-bound variables in the stored
+-- type (call sites instantiate them afresh); see `closeNegativeRows` for the
+-- display-side cleanup.
 generalizeExistentials ::
   (Var v, Ord loc) =>
   CtxSegment v loc ->
@@ -2978,11 +2985,7 @@ generalizeExistentials ctx vars ty0 = generalizeP pred ctx ty
   where
     gens = unsolvedExistentials $ info ctx
 
-    -- An inferred type is where a vacuous negative row variable is worth
-    -- dropping (see `closeVacuousRows`), and it has to be done on the *applied*
-    -- type: until the context is substituted in, a row that is shared between
-    -- positions can look like it occurs once.
-    ty = discardCovariant vars gens . closeVacuousRows vars $ apply ctx ty0
+    ty = discardCovariant vars gens $ apply ctx ty0
     fvs = Type.freeVars ty
 
     pred e
@@ -3045,6 +3048,8 @@ checkScoped e (Type.Forall' body) = do
   pure (generalizeP variableP pop ty, want)
 checkScoped e t = do
   t <- addAbilities (countLambdas e) t
+  vars <- getVariances
+  t <- openNegativeRows vars t
   (t,) <$> check e t
 
 checkScopedWith ::
@@ -3554,8 +3559,6 @@ check m0 t0 = scope (InCheck m0 t0) $ do
     Right m
       | not (wellformedType ctx t0) ->
           failWith $ IllFormedType ctx
-      | hasAnonymousRowInPositivePosition t0 ->
-          failWith $ AnonymousRowInPositivePosition (ABT.annotation t0) t0
       | Type.Var' TypeVar.Existential {} <- t0 ->
           applyM t0 >>= checkWanted Nothing [] m
       | otherwise ->
@@ -3629,7 +3632,22 @@ subtype tx ty = scope (InSubtype tx ty) $ do
           vars <- getVariances
           t <- relax' vars False (extendExistential Var.inferAbility) t
           instantiateR t b v
-    go ctx r1@(Type.Record' fb1 fields1) r2@(Type.Record' fb2 fields2)
+    go _ r1 r2
+      | Type.Record' _ _ <- r1,
+        Type.Record' _ _ <- r2 = do
+          -- Look through solved row variables and flatten nested rows before
+          -- comparing, mirroring `checkPattern`: an already-solved (or itself a
+          -- record) row must be compared by its fields, not re-solved or skipped.
+          ctx <- getContext
+          goRecord ctx (Type.normalize (apply ctx r1)) (Type.normalize (apply ctx r2))
+    go _ (Type.Effects' es1) (Type.Effects' es2) =
+      void $ subAbilities ((,) Nothing <$> es1) es2
+    go _ t t2@(Type.Effects' _) | expand t = subtype (Type.effects (loc t) [t]) t2
+    go _ t@(Type.Effects' _) t2 | expand t2 = subtype t (Type.effects (loc t2) [t2])
+    go ctx _ _ = failWith $ TypeMismatch ctx
+
+    goRecord :: Context v loc -> Type v loc -> Type v loc -> M v loc ()
+    goRecord ctx r1@(Type.Record' fb1 fields1) r2@(Type.Record' fb2 fields2)
       -- A field r2 requires that r1 doesn't have is normally a hard error, but
       -- when r1 is an open record whose row is still an unsolved variable, r1 can
       -- grow to include it: the row variable stands for fields we don't know
@@ -3641,52 +3659,54 @@ subtype tx ty = scope (InSubtype tx ty) $ do
       -- grows `r` to `{f2: u | r1}`. The retry below sees a record whose fields
       -- include everything r2 asks for, so it terminates.
       | not (Map.null missing),
-        Type.AllowExtraFields (Just (Type.Var' (TypeVar.Existential b v))) <- fb1,
-        Set.member v (existentials ctx) = do
+        Type.HasExtraFields (Type.Var' (TypeVar.Existential b v)) <- fb1,
+        Set.member v (existentials ctx),
+        -- An opened row can't gain fields the opened row didn't
+        -- mention; it falls through to the missing-field error below.
+        not (isOpenedRow v) = do
           rowV <- extendExistential Var.inferRecordRowType
           let loc1 = loc r1
               grown =
                 Type.record
                   loc1
-                  (Type.AllowExtraFields (Just (existentialp loc1 rowV)))
+                  (Type.HasExtraFields (existentialp loc1 rowV))
                   missing
           instantiateL b v (Type.normalize grown)
           ctx' <- getContext
-          go ctx' (apply ctx' r1) (apply ctx' r2)
+          go ctx' r1 r2
       | otherwise = do
-          -- Fields r1 has that r2 does not are the "leftover" row: permitted
-          -- exactly when r2 tolerates extra fields, and they fix r2's row
-          -- variable if it has one.
-          leftovers <-
+          leftover <-
             Align.align fields1 fields2
               & Map.traverseWithKey
                 ( \fieldName -> \case
-                    -- r1 has a field r2 doesn't: an extra field, which is only an
-                    -- error if r2 won't tolerate extras.
+                    -- An extra field is only a problem when r2 is closed; when it
+                    -- is open the field flows into the row comparison below.
                     This t1 -> case fb2 of
-                      Type.RequireExactFields -> failWith $ UnexpectedRecordField fieldName t1 r2 r1
-                      Type.AllowExtraFields _ -> pure (Just t1)
-                    -- r1 is missing a field r2 requires and its row isn't an
-                    -- unsolved variable (see the guard above), so it can't be a
-                    -- subtype regardless of the field behavior.
+                      Type.NoExtraFields -> failWith $ UnexpectedRecordField fieldName t1 r2 r1
+                      Type.HasExtraFields _ -> pure (Just t1)
+                    -- A missing field is always an error (the growth case above
+                    -- already handled a row that could grow).
                     That t2 -> failWith $ MissingRecordField fieldName t2 r1 r2
                     These t1 t2 -> subtype t1 t2 $> Nothing
                 )
               <&> Map.mapMaybe id
-          -- `{x: Nat, y: Nat | r} <: {x: Nat | ...}` is fine, leaving the
-          -- anonymous row alone; when the row is a variable it is solved:
-          -- `{x: Nat, y: Nat | r} <: {x: Nat | r'}` gives `r' = {y: Nat | r}`.
-          case fb2 of
-            Type.AllowExtraFields (Just (Type.Var' (TypeVar.Existential b v))) ->
-              instantiateL b v (Type.normalize (Type.record (loc r1) fb1 leftovers))
-            _ -> pure ()
+          -- The rows subtype: the leftover fields plus r1's row must be a subtype
+          -- of r2's row (a closed record stands for an empty row), so
+          -- `{x | rest} <: {x | other}` becomes `rest <: other` and
+          -- `{x | rest} <: {x}` becomes `rest <: {}`.
+          let lhsRow = case (fb1, Map.null leftover) of
+                (Type.HasExtraFields rest, True) -> rest
+                (Type.NoExtraFields, True) -> Type.record (loc r1) Type.NoExtraFields Map.empty
+                (fb, False) -> Type.record (loc r1) fb leftover
+              rhsRow = case fb2 of
+                Type.HasExtraFields other -> other
+                Type.NoExtraFields -> Type.record (loc r1) Type.NoExtraFields Map.empty
+          when (not (isEmpty lhsRow && isEmpty rhsRow)) $ subtype lhsRow rhsRow
       where
         missing = Map.difference fields2 fields1
-    go _ (Type.Effects' es1) (Type.Effects' es2) =
-      void $ subAbilities ((,) Nothing <$> es1) es2
-    go _ t t2@(Type.Effects' _) | expand t = subtype (Type.effects (loc t) [t]) t2
-    go _ t@(Type.Effects' _) t2 | expand t2 = subtype t (Type.effects (loc t2) [t2])
-    go ctx _ _ = failWith $ TypeMismatch ctx
+        isEmpty (Type.Record' Type.NoExtraFields fields) = Map.null fields
+        isEmpty _ = False
+    goRecord ctx _ _ = failWith $ TypeMismatch ctx
 
     expand :: Type v loc -> Bool
     expand t = case t of
@@ -3770,14 +3790,8 @@ equate0 r1@(Type.Record' fb1 fields1) r2@(Type.Record' fb2 fields2) =
     -- interchangeable with a closed one even when the fields line up.
     ctx <- getContext
     case (fb1, fb2) of
-      (Type.RequireExactFields, Type.RequireExactFields) -> pure ()
-      (Type.AllowExtraFields row1, Type.AllowExtraFields row2) ->
-        case (row1, row2) of
-          (Nothing, Nothing) -> pure ()
-          (Just row1', Just row2') -> equate row1' row2'
-          -- `...` is an anonymous row and can't be named, so there's nothing
-          -- to equate it with.
-          _ -> failWith $ TypeMismatch ctx
+      (Type.NoExtraFields, Type.NoExtraFields) -> pure ()
+      (Type.HasExtraFields row1, Type.HasExtraFields row2) -> equate row1 row2
       _ -> failWith $ TypeMismatch ctx
     Align.align fields1 fields2
       & Map.traverseWithKey
@@ -3803,12 +3817,12 @@ equate0 y1 y2 = do
 freshenRow ::
   (Var v, Ord loc) =>
   loc ->
-  Type.FieldBehavior (Type v loc) ->
-  M v loc (Maybe (v, Type v loc), Type.FieldBehavior (Type v loc))
+  Type.RecordTail (Type v loc) ->
+  M v loc (Maybe (v, Type v loc), Type.RecordTail (Type v loc))
 freshenRow l fb = case fb of
-  Type.AllowExtraFields (Just row@(Type.Var' _)) -> do
+  Type.HasExtraFields row@(Type.Var' _) -> do
     rv <- freshenVar (nameFrom Var.inferRecordFieldType row)
-    pure (Just (rv, row), Type.AllowExtraFields (Just (existentialp l rv)))
+    pure (Just (rv, row), Type.HasExtraFields (existentialp l rv))
   _ -> pure (Nothing, fb)
 
 -- | Instantiate the given existential such that it is

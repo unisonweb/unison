@@ -117,12 +117,8 @@ recordType = do
   fields <- sepBy (reserved ",") recordField
   fb <-
     optional (reserved "|") >>= \case
-      Nothing -> pure Type.RequireExactFields
-      Just _bar -> do
-        anonymous <- optional (reserved "...")
-        case anonymous of
-          Just _ -> pure (Type.AllowExtraFields Nothing)
-          Nothing -> Type.AllowExtraFields . Just <$> valueType
+      Nothing -> pure Type.NoExtraFields
+      Just _bar -> Type.HasExtraFields <$> valueType
   close <- closeBlock
   checkForDuplicateRecordFields (fst <$> fields)
   let a = ann open <> ann close

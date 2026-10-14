@@ -394,13 +394,12 @@ hashTypeFTokens ppe = \case
   Type.Forall {} -> [H.Tag 6]
   Type.IntroOuter {} -> [H.Tag 7]
   Type.Record fb fields ->
-    [H.Tag 8, hashLengthToken fields] <> fieldBehaviorTokens fb <> fieldNameTokens (Map.keys fields)
+    [H.Tag 8, hashLengthToken fields] <> recordTailTokens fb <> fieldNameTokens (Map.keys fields)
 
-fieldBehaviorTokens :: Type.FieldBehavior () -> [Token]
-fieldBehaviorTokens = \case
-  Type.AllowExtraFields Nothing -> [H.Tag 0]
-  Type.AllowExtraFields (Just ()) -> [H.Tag 0, H.Tag 2]
-  Type.RequireExactFields -> [H.Tag 1]
+recordTailTokens :: Type.RecordTail () -> [Token]
+recordTailTokens = \case
+  Type.HasExtraFields () -> [H.Tag 0, H.Tag 2]
+  Type.NoExtraFields -> [H.Tag 1]
 
 fieldNameTokens :: [Text] -> [Token]
 fieldNameTokens names =

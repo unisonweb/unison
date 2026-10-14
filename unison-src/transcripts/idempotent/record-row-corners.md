@@ -1,8 +1,8 @@
 # Record row corner cases
 
-Record rows — `{ a: Nat | r }` for a named remainder, `{ a: Nat | ... }` for an
-anonymous one — and the operations that mention them: projections, `@.set`, and
-how subtyping behaves when a row shows up on one side, the other, or both.
+Record rows — `{ a: Nat | r }` for a named remainder — and the operations that
+mention them: projections, `@.set`, and how width subtyping behaves when a row
+shows up on one side, the other, or both.
 
 ``` ucm
 scratch/main> builtins.merge lib.builtins
@@ -104,7 +104,7 @@ pairOpen r = (r@field1, r@field2)
 > pairOpen {field1: 1, field2: 2}
 > pairOpen {field1: 1, field2: 2, field3: 3}
 
-pairWild : { field1: Nat, field2: Nat | ... } -> (Nat, Nat)
+pairWild : { field1: Nat, field2: Nat } -> (Nat, Nat)
 pairWild r = (r@field1, r@field2)
 
 > pairWild {field1: 1, field2: 2}
@@ -120,8 +120,8 @@ pairExact r = (r@field1, r@field2)
   Loading changes detected in scratch.u.
 
   + pairExact : {field1: Nat, field2: Nat} -> (Nat, Nat)
-  + pairOpen  : {field1: Nat, field2: Nat | r} -> (Nat, Nat)
-  + pairWild  : {field1: Nat, field2: Nat | ...} -> (Nat, Nat)
+  + pairOpen  : {field1: Nat, field2: Nat} -> (Nat, Nat)
+  + pairWild  : {field1: Nat, field2: Nat} -> (Nat, Nat)
 
   Run `update` to apply these changes to your codebase.
 
@@ -160,7 +160,7 @@ rowId r = r
 > rowId { x: 1, y: "hi" }
 > rowId { x: 1 }
 
-getX : { x: Nat | ... } -> Nat
+getX : { x: Nat } -> Nat
 getX r = r@x
 
 mk : { x: Nat | r } -> { x: Nat | r }
@@ -172,7 +172,7 @@ mk r = r
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  + getX  : {x: Nat | ...} -> Nat
+  + getX  : {x: Nat} -> Nat
   + mk    : {x: Nat | r} -> {x: Nat | r}
   + rowId : {x: Nat | r} -> {x: Nat | r}
 
@@ -206,7 +206,7 @@ firstOf = cases
 
 > firstOf { x: 1, y: 2 }
 
-innerX : { inner: { x: Nat | ... } } -> Nat
+innerX : { inner: { x: Nat } } -> Nat
 innerX r = r@inner@x
 
 > innerX { inner: { x: 1, y: 2 } }
@@ -223,8 +223,8 @@ bumpNamed r = r@age.set 31
 
   + bumpNamed : {age: Nat | r} -> {age: Nat | r}
   + dup       : {x: Nat | r} -> [{x: Nat | r}]
-  + firstOf   : {x: Nat | r} -> Nat
-  + innerX    : {inner: {x: Nat | ...}} -> Nat
+  + firstOf   : {x: Nat} -> Nat
+  + innerX    : {inner: {x: Nat}} -> Nat
 
   Run `update` to apply these changes to your codebase.
 
@@ -251,10 +251,12 @@ bumpNamed r = r@age.set 31
 
 ## Rows that can't grow
 
-An anonymous row can be *required* of a caller but never extended, and a row
-introduced by a `forall` is rigid, so a definition body can't demand fields its
-signature didn't promise. Both are errors even though the argument's row is
-still a variable at the point of the projection.
+A closed record written in a signature is opened to a row the body can't grow:
+it may stay unsolved (and generalize) or be closed by how the body uses it, but
+reading a field the signature didn't promise is an error. A row introduced by a
+`forall` is rigid the same way. The exception is a shape that also appears in
+positive position: it is never opened, so it stays exact -- see `closedResult`
+below.
 
 ``` unison :error
 demandExtra : { x: Nat | r } -> Nat
@@ -274,7 +276,7 @@ demandExtra v = v@y
 ```
 
 ``` unison :error
-demandExtraWild : { x: Nat | ... } -> Nat
+demandExtraWild : { x: Nat } -> Nat
 demandExtraWild v = v@y
 ```
 
@@ -287,10 +289,10 @@ demandExtraWild v = v@y
 
 
   It has type:
-    {x: Nat | ...}
+    {x: Nat | _rest4}
 ```
 
-A closed record has no row to grow, and `...` isn't allowed in a result at all.
+A closed record has no row to grow:
 
 ``` unison :error
 noSuchField : { x: Nat } -> Nat
@@ -307,57 +309,94 @@ noSuchField = cases
 
 
   It has type:
+    {x: Nat | _rest4}
+```
+
+A shape that appears in both positive and negative position stays exact: no
+row is ever opened for it, since extra fields would leak into a result the
+signature doesn't mention them in. The definition below is just the identity
+on exact records, and applying it to an exact record is fine:
+
+``` unison
+closedResult : { x: Nat } -> { x: Nat }
+closedResult r = r
+
+> closedResult { x: 1 }
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  + closedResult : {x: Nat} -> {x: Nat}
+
+  Run `update` to apply these changes to your codebase.
+
+    4 | > closedResult { x: 1 }
+          ⧩
+          {x: 1}
+```
+
+But a record with extra fields is rejected, even though the parameter position
+alone would accept it:
+
+``` unison :error
+closedResultFails : { x: Nat } -> { x: Nat }
+closedResultFails r = r
+
+> closedResultFails { x: 1, y: 2 }
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  I didn't expect this record:
+
+      4 | > closedResultFails { x: 1, y: 2 }
+
+
+  to have the field
+    y: Nat
+
+  because it should have the type:
+    
     {x: Nat}
+    
+
+  derived from here:
+
+      1 | closedResultFails : { x: Nat } -> { x: Nat }
 ```
 
 ``` unison :error
-badRow : { x: Nat | ... } -> { x: Nat | ... }
-badRow r = r
+closedTopLevel : { x: Nat }
+closedTopLevel = { x: 1, extra: 2 }
 ```
 
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I can't use `...` here.
+  I didn't expect this record:
 
-  `...` is an anonymous record row, which says "accept whatever
-  other fields the caller has". That only makes sense for an
-  argument: in a result it would let the caller choose the extra
-  fields, so the row has to be named instead, e.g. `{ x: Nat | r
-  }`.
+      2 | closedTopLevel = { x: 1, extra: 2 }
 
-      1 | badRow : { x: Nat | ... } -> { x: Nat | ... }
 
-  type:
-    {x: Nat | ...} ->{𝕖3} {x: Nat | ...}
-```
+  to have the field
+    extra: Nat
 
-``` unison :error
-topLevelWild : { x: Nat | ... }
-topLevelWild = { x: 1 }
-```
+  because it should have the type:
+    
+    {x: Nat}
+    
 
-``` ucm :added-by-ucm
-  Loading changes detected in scratch.u.
+  derived from here:
 
-  I can't use `...` here.
-
-  `...` is an anonymous record row, which says "accept whatever
-  other fields the caller has". That only makes sense for an
-  argument: in a result it would let the caller choose the extra
-  fields, so the row has to be named instead, e.g. `{ x: Nat | r
-  }`.
-
-      1 | topLevelWild : { x: Nat | ... }
-
-  type:
-    {x: Nat | ...}
+      1 | closedTopLevel : { x: Nat }
 ```
 
 ## Closed records in a parameter position
 
 A record type in a parameter position means "at least these fields": the caller
-may pass a record with more, so a closed row there reads as if it were `...`. The
+may pass a record with more fields. The
 definition body still only knows what was written — reading a field the parameter
 didn't mention is still an error — which is the point: callers may add fields,
 bodies may not depend on them.
@@ -379,7 +418,7 @@ nestedExact r = r@inner@x
 > nestedExact { inner: { x: 1, y: 2 }, extra: true }
 
 hofExact : ({ x: Nat } -> Nat) -> Nat
-hofExact g = g { x: 1, y: 2 }
+hofExact g = g { x: 1 }
 
 > hofExact (r -> r@x)
 ```
@@ -411,51 +450,119 @@ hofExact g = g { x: 1, y: 2 }
            1
 ```
 
-The variance of a data type is handled properly also. `Box` is covariant in `a`, so a
-`Box {x : Nat} -> r` function will accept a `Box {x: Nat, y: Nat}`.
+A function passed in for a function-typed parameter only accepts exactly what
+that parameter says: the inner `{ x: Nat }` is in positive position, so it is
+never opened, and handing it a wider record is an error:
 
-But `Fn` is contravariant in `a`, so `Fn (@x)` will check against `Fn {x : Nat, y: Nat}`.
+``` unison :error
+hofWide : ({ x: Nat } -> Nat) -> Nat
+hofWide g = g { x: 1, y: 2 }
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  I didn't expect this record:
+
+      2 | hofWide g = g { x: 1, y: 2 }
+
+
+  to have the field
+    y: Nat
+
+  because it should have the type:
+    
+    {x: Nat}
+    
+
+  derived from here:
+
+      1 | hofWide : ({ x: Nat } -> Nat) -> Nat
+```
+
+Records with the same shape in one signature share a single row, so a function
+taking two `{ x: Nat }` arguments takes two records with the *same* extra
+fields:
+
+``` unison
+both : { x: Nat } -> { x: Nat } -> Nat
+both a b = a@x
+
+> both { x: 1, y: 2 } { x: 3, y: 4 }
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  + both : {x: Nat} -> {x: Nat} -> Nat
+
+  Run `update` to apply these changes to your codebase.
+
+    4 | > both { x: 1, y: 2 } { x: 3, y: 4 }
+          ⧩
+          1
+```
+
+``` unison :error
+bothMismatch : { x: Nat } -> { x: Nat } -> Nat
+bothMismatch a b = a@x
+
+> bothMismatch { x: 1, y: 2 } { x: 3 }
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  I expected this record:
+
+      4 | > bothMismatch { x: 1, y: 2 } { x: 3 }
+
+
+  to have the field
+    y: Nat
+
+  so that it would match the type:
+    
+    {x: Nat, y: Nat}
+    
+
+  from here:
+
+      4 | > bothMismatch { x: 1, y: 2 } { x: 3 }
+```
+
+The variance of a data type is handled properly also. `Box` is covariant in `a`, so a
+`Box {x: Nat}` in a parameter position accepts a `Box {x: Nat, y: Nat}` -- the
+extra field flows through the type variable.
 
 ``` unison
 type Box a = Box a
-type Fn a = Fn (a -> Nat)
 
-boxCheck : Box {x: Nat} -> Box {x: Nat}
-boxCheck b1 = b1
+boxUse : Box {x: Nat} -> Nat
+boxUse = cases
+  Box r -> r@x
 
-> boxCheck (Box {x: 0, y: 1})
-
-fnCheck : Fn {x : Nat, y: Nat} -> Nat 
-fnCheck fn1 = 42
-
-> fnCheck (Fn (@x))
+> boxUse (Box {x: 0, y: 1})
 ```
 
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
   + type Box a
-  + type Fn a
 
-  + boxCheck : Box {x: Nat} -> Box {x: Nat}
-  + fnCheck  : Fn {x: Nat, y: Nat} -> Nat
+  + boxUse : Box {x: Nat} -> Nat
 
   Run `update` to apply these changes to your codebase.
 
-    7 | > boxCheck (Box {x: 0, y: 1})
+    7 | > boxUse (Box {x: 0, y: 1})
           ⧩
-          Box {x: 0, y: 1}
-
-    12 | > fnCheck (Fn (@x))
-           ⧩
-           42
+          0
 ```
 
-A constructor's field is a parameter position as well, so the same reading
-applies to it: the declared field type is what the field *at least* holds, extra
-fields are kept, and a field the type requires is still required.
+A constructor's field type is exact: the declared field type is what the field
+holds, no more and no less.
 
-``` unison
+``` unison :error
 type Duo = Duo { a: Nat, b: Nat }
 
 > Duo { a: 1, b: 2, c: 3 }
@@ -464,13 +571,22 @@ type Duo = Duo { a: Nat, b: Nat }
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  + type Duo
+  I didn't expect this record:
 
-  Run `update` to apply these changes to your codebase.
+      3 | > Duo { a: 1, b: 2, c: 3 }
 
-    3 | > Duo { a: 1, b: 2, c: 3 }
-          ⧩
-          Duo {a: 1, b: 2, c: 3}
+
+  to have the field
+    c: Nat
+
+  because it should have the type:
+    
+    {a: Nat, b: Nat}
+    
+
+  derived from here:
+
+      1 | type Duo = Duo { a: Nat, b: Nat }
 ```
 
 ``` unison :error
@@ -492,7 +608,7 @@ badDuo = Duo2 { a: 1 }
 
   so that it would match the type:
     
-    {a: Nat, b: Nat | ...}
+    {a: Nat, b: Nat}
     
 
   from here:
@@ -502,10 +618,11 @@ badDuo = Duo2 { a: 1 }
 
 ## Rows dropped from an inferred type
 
-A row variable that occurs once, as a record's row in a parameter position, says
+A row variable that occurs only as a record's row in parameter positions says
 nothing: a parameter's record type already means "at least these fields". So it is
-closed when the type is reported, which reads better. A row that occurs twice is
-kept, because it ties its two positions together.
+dropped when the type is reported, which reads better, though it is kept in the
+stored type so each use site still gets a fresh row to solve. A row that occurs
+anywhere else is kept, because it ties its positions together.
 
 ``` unison
 dropRow r = r@field1 Nat.+ r@field2

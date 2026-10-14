@@ -7,7 +7,6 @@ Syntax at a glance:
 | `{ x: 1, y: 2 }` | record literal; fields are stored in name order, not source order |
 | `{ x: Nat, y: Text }` | record type |
 | `type Point = Point { x: Nat, y: Nat }` | a constructor with a record payload, built by `Point { x: 1, y: 2 }` |
-| `{ x: Nat | ... }` | an *argument* type meaning "and any other fields the caller has" |
 | `{ x: Nat | r }` | names the trailing row, so a function can talk about the other fields |
 | `{ x: Nat | { y: Text | r } }` | a row can itself be a record; partial nesting is flattened |
 | `r@x` | read a field; binds tighter than application (`f r@x` is `f (r@x)`) and chains (`r@a@b`) |
@@ -39,7 +38,7 @@ as functions.
 mkRec : a -> b -> c -> { x: a, y: b, z: c }
 mkRec a b c = { x: a, y: b, z: c }
 
-addUpRec : { x: Nat, y: Nat, z: Nat | ... } -> Nat
+addUpRec : { x: Nat, y: Nat, z: Nat } -> Nat
 addUpRec = cases
   { x: x, y: y, z: z } -> x Nat.+ y Nat.+ z
 
@@ -74,7 +73,7 @@ List.zipWith f a b =
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  + addUpRec     : {x: Nat, y: Nat, z: Nat | ...} -> Nat
+  + addUpRec     : {x: Nat, y: Nat, z: Nat} -> Nat
   + List.map     : (a ->{e} b) -> [a] ->{e} [b]
   + List.zipWith : (a -> b ->{e} c) -> [a] -> [b] ->{e} [c]
   + mkRec        : a -> b -> c -> {x: a, y: b, z: c}
@@ -168,11 +167,11 @@ noField r = r@nope.set 0
 
 
   to have the field
-    nope: 𝕤6
+    nope: 𝕤7
 
   so that it would match the type:
     
-    {nope: 𝕤6 | _row7}
+    {nope: 𝕤7 | _row8}
     
 
   from here:
@@ -226,7 +225,7 @@ Both operators also have a prefix form, `(@foo)` and `(@foo.set)`, so they can b
 once and passed around like any other function:
 
 ``` unison
-getFoo : { foo: a | ... } -> a
+getFoo : { foo: a } -> a
 getFoo = (@foo)
 
 setFoo2 : { foo: a | rest } -> b -> { foo: b | rest }
@@ -239,7 +238,7 @@ setFoo2 = (@foo.set)
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  + getFoo  : {foo: a | ...} -> a
+  + getFoo  : {foo: a} -> a
   + setFoo2 : {foo: a | rest} -> b -> {foo: b | rest}
 
   Run `update` to apply these changes to your codebase.
@@ -279,9 +278,8 @@ getY = cases
 p : Point
 p = mkPoint 3 4
 
--- 'address' is extra, which is fine here
 type Person = Person { name: Text, age: Nat }
-createPerson = Person { name: "Alice", age: 30, address: "123 Main St" }
+createPerson = Person { name: "Alice", age: 30 }
 
 -- a partial pattern infers the most general record type
 getAddress = cases
@@ -308,15 +306,15 @@ getAddress = cases
 
   Run `update` to apply these changes to your codebase.
 
-    30 | > unpackPoint p
+    29 | > unpackPoint p
            ⧩
            (3, 4)
 
-    31 | > getX p
+    30 | > getX p
            ⧩
            3
 
-    32 | > getY p
+    31 | > getY p
            ⧩
            4
 ```
@@ -349,6 +347,32 @@ scratch/main> view Point
   type Point = Point {x: Nat, y: Nat}
 ```
 
+A constructor's field type is exact, so an extra field is an error:
+
+``` unison :error
+createPersonExtra = Person { name: "Alice", age: 30, address: "123 Main St" }
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  I didn't expect this record:
+
+      1 | createPersonExtra = Person { name: "Alice", age: 30, address: "123 Main St" }
+
+
+  to have the field
+    address: Text
+
+  because it should have the type:
+    
+    {age: Nat, name: Text}
+    
+
+  derived from here:
+
+```
+
 A record literal that's missing a field the expected type has is an error:
 
 ``` unison :error
@@ -372,7 +396,7 @@ getName = cases
 
   so that it would match the type:
     
-    {age: 𝕩17, name: 𝕩18 | ...}
+    {age: 𝕩17, name: 𝕩18 | 𝕤19}
     
 
   from here:
@@ -433,7 +457,7 @@ jons =
 A record match is irrefutable, so a second record pattern is redundant and reported:
 
 ``` unison :error
-getAgeRedundant : { age: Nat, address: Text | ... } -> Nat
+getAgeRedundant : { age: Nat, address: Text } -> Nat
 getAgeRedundant = cases
   { age: age } -> age
   { address: _ } -> 99
@@ -506,23 +530,23 @@ case reachable, and different cases may match different subsets of the fields --
 compiled against the union of the fields matched anywhere in the match:
 
 ``` unison
-lit : { x: Nat | ... } -> Text
+lit : { x: Nat } -> Text
 lit = cases
   { x: 0 } -> "zero"
   _ -> "other"
 
-con : { x: Optional Nat | ... } -> Nat
+con : { x: Optional Nat } -> Nat
 con = cases
   { x: Some n } -> n
   { x: None } -> 0
 
-subsets : { x: Nat, y: Text | ... } -> Text
+subsets : { x: Nat, y: Text } -> Text
 subsets = cases
   { x: 0 } -> "zero"
   { y: y } -> y
 
 -- the first case is refutable, so the second is reachable -- compare getAgeRedundant above
-notRedundant : { age: Nat, address: Text | ... } -> Nat
+notRedundant : { age: Nat, address: Text } -> Nat
 notRedundant = cases
   { age: 0 } -> 1
   { address: _ } -> 99
@@ -540,10 +564,10 @@ notRedundant = cases
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  + con          : {x: Optional Nat | ...} -> Nat
-  + lit          : {x: Nat | ...} -> Text
-  + notRedundant : {address: Text, age: Nat | ...} -> Nat
-  + subsets      : {x: Nat, y: Text | ...} -> Text
+  + con          : {x: Optional Nat} -> Nat
+  + lit          : {x: Nat} -> Text
+  + notRedundant : {address: Text, age: Nat} -> Nat
+  + subsets      : {x: Nat, y: Text} -> Text
 
   Run `update` to apply these changes to your codebase.
 
@@ -583,7 +607,7 @@ notRedundant = cases
 A field pattern that doesn't cover every case is reported with a suggestion:
 
 ``` unison :error
-partialField : { x: Optional Nat | ... } -> Nat
+partialField : { x: Optional Nat } -> Nat
 partialField = cases
   { x: Some n } -> n
 ```
@@ -616,7 +640,7 @@ mismatchedFieldTypes =
 
   All the elements of a list need to have the same type.
 
-  Here, one   is:  {age: Nat, name: Text | ...}
+  Here, one   is:  {age: Nat, name: Text}
   and another is:  {age: Text, name: Text}
 
 
@@ -659,7 +683,7 @@ noSuchField = cases
 
 
   It has type:
-    {age: Nat}
+    {age: Nat | _rest4}
 ```
 
 ## Field names
@@ -708,12 +732,12 @@ inline. A getter binds tighter than application, so `f r@x` is `f (r@x)`, and it
 can be any expression, not just a name:
 
 ``` unison
-sum3 : { x: Nat, y: Nat, z: Nat | ... } -> Nat
+sum3 : { x: Nat, y: Nat, z: Nat } -> Nat
 sum3 r =
   { x: x, y: y, z: z } = r
   x Nat.+ y Nat.+ z
 
-getInner : { a: { b: Nat } | ... } -> Nat
+getInner : { a: { b: Nat } } -> Nat
 getInner r =
   { a: { b: b } } = r
   b
@@ -740,11 +764,11 @@ mkRec2 n = { v: n }
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  + getInner  : {a: {b: Nat} | ...} -> Nat
+  + getInner  : {a: {b: Nat}} -> Nat
   + mkRec2    : Nat -> {v: Nat}
   + rec       : {a: Nat, b: Text}
   + recNested : {a: {b: {c: Nat}}}
-  + sum3      : {x: Nat, y: Nat, z: Nat | ...} -> Nat
+  + sum3      : {x: Nat, y: Nat, z: Nat} -> Nat
 
   Run `update` to apply these changes to your codebase.
 
@@ -832,7 +856,7 @@ noSuchField2 r = r@nope
 
 
   It has type:
-    {a: Nat}
+    {a: Nat | _rest4}
 ```
 
 ``` unison :error
@@ -855,18 +879,18 @@ notARecord2 n = n@a
 A getter prints back as a getter:
 
 ``` unison
-projA : { a: Nat | ... } -> Nat
+projA : { a: Nat } -> Nat
 projA r = Nat.increment r@a
 
-projDeep : { a: { b: Nat } | ... } -> Nat
+projDeep : { a: { b: Nat } } -> Nat
 projDeep r = r@a@b
 ```
 
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  + projA    : {a: Nat | ...} -> Nat
-  + projDeep : {a: {b: Nat} | ...} -> Nat
+  + projA    : {a: Nat} -> Nat
+  + projDeep : {a: {b: Nat}} -> Nat
 
   Run `update` to apply these changes to your codebase.
 ```
@@ -881,10 +905,10 @@ scratch/main> update
 
 scratch/main> view projA projDeep
 
-  projA : {a: Nat | ...} -> Nat
+  projA : {a: Nat} -> Nat
   projA r = Nat.increment r@a
 
-  projDeep : {a: {b: Nat} | ...} -> Nat
+  projDeep : {a: {b: Nat}} -> Nat
   projDeep r = r@a@b
 ```
 
@@ -914,7 +938,7 @@ valueRoundTrip = do
 mkRecV : Nat -> { a: Nat, z: Text }
 mkRecV n = { a: n, z: "hi" }
 
-readA : { a: Nat | ... } -> Nat
+readA : { a: Nat } -> Nat
 readA = cases { a: a } -> a
 
 isRight : Either a b -> Boolean
@@ -928,7 +952,7 @@ isRight = cases
 
   + isRight        : Either a b -> Boolean
   + mkRecV         : Nat -> {a: Nat, z: Text}
-  + readA          : {a: Nat | ...} -> Nat
+  + readA          : {a: Nat} -> Nat
   + unpack         : {a: Nat, z: Nat} -> (Nat, Nat)
   + valueRoundTrip : '{IO, Exception} (Nat, Nat)
 
@@ -1094,6 +1118,34 @@ those are ordered by comparing the sorted field-name lists:
            false
 ```
 
+Comparing records of different shapes directly is a type error -- the two sides
+can't share a type. Wrap them in `Any` to compare across shapes, as above:
+
+``` unison :error
+> {a: 1, b: 2} Universal.== {a: 1}
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  I expected this record:
+
+      1 | > {a: 1, b: 2} Universal.== {a: 1}
+
+
+  to have the field
+    b: Nat
+
+  so that it would match the type:
+    
+    {a: Nat, b: Nat}
+    
+
+  from here:
+
+      1 | > {a: 1, b: 2} Universal.== {a: 1}
+```
+
 ## Rewrite rules
 
 A `@rewrite case` rule can match on a record pattern. Here the field value is
@@ -1246,7 +1298,7 @@ targetWild = cases {w: 0} -> 7
 
 ## Rows
 
-A record type's trailing `| ...` can be given a name, which lets a function talk about a record's
+A record type's trailing row can be named, `{ x: Nat | r }`, which lets a function talk about a record's
 *other* fields. The row is solved at the call site, so `rest` is `{y: Text}` in the first call
 below and empty in the second:
 
@@ -1265,7 +1317,7 @@ firstOf r = r@x
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  + firstOf : {x: Nat | rest} -> Nat
+  + firstOf : {x: Nat} -> Nat
   + rowId   : {x: Nat | r} -> {x: Nat | r}
 
   Run `update` to apply these changes to your codebase.
@@ -1284,14 +1336,14 @@ firstOf r = r@x
 ```
 
 A row can itself be a record, and partial nesting is flattened, so `{ a: Nat | { b: Text | r } }` is
-the same type as `{ a: Nat, b: Text | r }`. But `...` still means "accept any extra fields" only
-where the record is being *passed in*:
+the same type as `{ a: Nat, b: Text | r }`. A closed record means "at least these fields", so
+`sumX` accepts a record with extra fields:
 
 ``` unison
 flat : { a: Nat | { b: Text | rest } } -> { a: Nat, b: Text | rest }
 flat r = r
 
-sumX : { x: Nat | ... } -> Nat
+sumX : { x: Nat } -> Nat
 sumX r = r@x
 
 > flat { a: 1, b: "hi" }
@@ -1302,7 +1354,7 @@ sumX r = r@x
   Loading changes detected in scratch.u.
 
   + flat : {a: Nat, b: Text | rest} -> {a: Nat, b: Text | rest}
-  + sumX : {x: Nat | ...} -> Nat
+  + sumX : {x: Nat} -> Nat
 
   Run `update` to apply these changes to your codebase.
 
@@ -1315,26 +1367,26 @@ sumX r = r@x
           1
 ```
 
-``` unison :error
-badRow : { x: Nat | ... } -> { x: Nat | ... }
-badRow r = r
+A closed record in a result position is exact, so passing a record straight through
+requires naming the row:
+
+``` unison
+passthrough : { x: Nat | r } -> { x: Nat | r }
+passthrough r = r
+
+> passthrough { x: 1, y: "hi" }
 ```
 
 ``` ucm :added-by-ucm
   Loading changes detected in scratch.u.
 
-  I can't use `...` here.
+  + passthrough : {x: Nat | r} -> {x: Nat | r}
 
-  `...` is an anonymous record row, which says "accept whatever
-  other fields the caller has". That only makes sense for an
-  argument: in a result it would let the caller choose the extra
-  fields, so the row has to be named instead, e.g. `{ x: Nat | r
-  }`.
+  Run `update` to apply these changes to your codebase.
 
-      1 | badRow : { x: Nat | ... } -> { x: Nat | ... }
-
-  type:
-    {x: Nat | ...} ->{𝕖3} {x: Nat | ...}
+    4 | > passthrough { x: 1, y: "hi" }
+          ⧩
+          {x: 1, y: "hi"}
 ```
 
 ## Record-set blocks

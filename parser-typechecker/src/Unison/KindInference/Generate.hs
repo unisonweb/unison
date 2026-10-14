@@ -116,11 +116,11 @@ typeConstraintTree resultVar ABT.Term {annotation, out} = do
       Type.Record fb fields -> do
         -- The row is a type as well, so it is kind-constrained like the fields.
         rowConstraints <- case fb of
-          Type.AllowExtraFields (Just row) -> do
+          Type.HasExtraFields row -> do
             rowKind <- freshVar row
             rowCS <- typeConstraintTree rowKind row
             pure [ParentConstraint (IsType rowKind (Provenance Record (ABT.annotation row))) rowCS]
-          _ -> pure []
+          Type.NoExtraFields -> pure []
         fieldConstraints <-
           for (Map.toList fields) \(fieldName, fieldType) -> do
             fieldKind <- freshVar fieldType
