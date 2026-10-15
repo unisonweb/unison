@@ -188,6 +188,7 @@ import Unison.Runtime.Crypto.P256 qualified as P256
 import Unison.Runtime.Crypto.Rsa qualified as Rsa
 import Unison.Runtime.Exception (die, exn)
 import Unison.Runtime.FFI.DLL
+import Unison.Runtime.Foreign.Callback (freeCallback)
 import Unison.Runtime.Foreign.Dynamic as Dyn
 import Unison.Runtime.Foreign.Function.Type
   ( ForeignFunc (..),
@@ -1248,6 +1249,7 @@ foreignCallHelper = \case
   -- The spec only fixes the phantom type of the resulting @FFI.Func a@;
   -- marshalling a function-pointer argument needs just the pointer.
   FFI_funcType -> mkForeign $ \(_ :: FFSpec) -> pure Fun
+  FFI_freeCallback -> mkForeign $ \(cf :: CDynFunc) -> freeCallback cf
   FFI_getDLLSym -> mkForeignExn $ \(dll, sym, spec) ->
     let name = getDLLPath dll ++ "$" ++ sym
         n = length $ ffArgs spec

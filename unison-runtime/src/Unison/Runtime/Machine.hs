@@ -86,6 +86,7 @@ import Data.Vector qualified as V
 import Unison.Runtime.Array as PA
 import Unison.Runtime.Builtin hiding (unitValue)
 import Unison.Runtime.Exception (RuntimeExn (BU, PE), die, exn)
+import Unison.Runtime.Foreign.Callback qualified as Callback
 import Unison.Runtime.Foreign.Dynamic qualified as DLL
 import Unison.Runtime.Foreign.Function
   ( decodeVal,
@@ -542,6 +543,19 @@ exec env henv !activeThreads !stk !k _ (AddFinalizer i j)
       fin <- peekOff stk j
       CFPtr.addForeignPtrFinalizer fp $
         nestEval env activeThreads (const $ pure ()) fin
+      pure (False, henv, stk, k)
+exec env henv !activeThreads !stk !k _ (MkCallback i j)
+  | sandboxed env =
+      die [] "attempted to use sandboxed operation: FFI.mkCallback"
+  | otherwise = do
+      spec <- peekOffBi stk i
+      fn <- peekOff stk j
+      -- The C side calls this later with its own arguments; running the Unison
+      -- function needs the live code environment, which only exists here.
+      let run args write = nestEvalArgs env activeThreads args write fn
+      cb <- Callback.mkCallback spec run
+      stk <- bump stk
+      pokeBi stk cb
       pure (False, henv, stk, k)
 exec _ henv !_activeThreads !stk !k _ DLLCall = do
   cf <- peekBi stk

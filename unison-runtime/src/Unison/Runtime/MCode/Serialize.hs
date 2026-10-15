@@ -175,6 +175,7 @@ data InstrT
   | RecPackT
   | RecUnpackT
   | RecSetT
+  | MkCallbackT
 
 instance Tag InstrT where
   tag2word Prim1T = 0
@@ -202,6 +203,7 @@ instance Tag InstrT where
   tag2word RecPackT = 24
   tag2word RecUnpackT = 25
   tag2word RecSetT = 26
+  tag2word MkCallbackT = 27
 
   word2tag 0 = pure Prim1T
   word2tag 1 = pure Prim2T
@@ -228,6 +230,7 @@ instance Tag InstrT where
   word2tag 24 = pure RecPackT
   word2tag 25 = pure RecUnpackT
   word2tag 26 = pure RecSetT
+  word2tag 27 = pure MkCallbackT
   word2tag n = unknownTag "InstrT" n
 
 putInstr :: GInstr cix -> Builder
@@ -260,6 +263,7 @@ putInstr = \case
   (KeepAlive i) -> putTag KeepAliveT <> pInt i
   (AddFinalizer i j) -> putTag AddFinalizerT <> pInt i <> pInt j
   (NewForeignPtr i j) -> putTag NewForeignPtrT <> pInt i <> pInt j
+  (MkCallback i j) -> putTag MkCallbackT <> pInt i <> pInt j
   (SandboxingFailure {}) ->
     -- Sandboxing failures should only exist in code we're actively running, it shouldn't be serialized.
     error "putInstr: Unexpected serialized Sandboxing Failure"
@@ -304,6 +308,7 @@ getInstr =
     KeepAliveT -> KeepAlive <$> gInt
     NewForeignPtrT -> NewForeignPtr <$> gInt <*> gInt
     AddFinalizerT -> AddFinalizer <$> gInt <*> gInt
+    MkCallbackT -> MkCallback <$> gInt <*> gInt
     SandboxingFailureT -> error "getInstr: Unexpected serialized Sandboxing Failure"
     RecPackT -> RecPack <$> getRecordShape <*> getArgs
     RecUnpackT -> RecUnpack <$> getVector getFieldRef <*> gInt
