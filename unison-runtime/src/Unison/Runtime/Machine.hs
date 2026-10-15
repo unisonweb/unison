@@ -567,6 +567,8 @@ exec _ henv !_activeThreads !stk !k _ DLLCall = do
               Store.peek (castPtr cRet) >>= writeBack @(Ptr ()) stk
             DLL.MBArr ->
               die [] $ "unexpected array result from DLL function"
+            DLL.Fun ->
+              die [] $ "unexpected function-pointer result from DLL function"
   pure (False, henv, stk, k)
 exec _ henv !_activeThreads !stk !k _ (KeepAlive i) = do
   x <- bpeekOff stk i
@@ -655,6 +657,11 @@ copyArgs !stk tys p0 h0 next = go 2 tys p0 h0
         Store.poke (castPtr p) ptr >> nx
     store DLL.Ptr i p nx = do
       peekOffBi @(Ptr ()) stk i >>= Store.poke (castPtr p) >> nx
+    store DLL.Fun i p nx = do
+      cf <- peekOffBi @DLL.CDynFunc stk i
+      case cf of
+        DLL.CDynFunc _ _ f ->
+          Store.poke (castPtr p) (castFunPtr f :: FunPtr ()) >> nx
     store _ i p nx =
       upeekOff stk i >>= Store.poke p >> nx
     {-# INLINE store #-}

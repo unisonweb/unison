@@ -1475,6 +1475,7 @@ declareForeigns = do
   declareForeign Untracked 2 FFI_baseIO
   declareForeign Untracked 2 FFI_arr
   declareForeign Untracked 2 FFI_Spec_variadic
+  declareForeign Untracked 1 FFI_funcType
   declareForeign Tracked 3 FFI_getDLLSym
   declareForeign Tracked 3 FFI_getDLLSymPtr
   declareForeign Untracked 2 Bytes_read
