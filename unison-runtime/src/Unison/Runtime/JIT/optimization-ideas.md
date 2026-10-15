@@ -17,7 +17,7 @@ be one object. The tree benchmark's `Node` has four fields, so this is on its ho
 is base's `Map`, whose `Bin` has five ([2026-10-11
 replacements](benchmarks/2026-10-11-replacements.md)). Reviewed with Paul on 2026-10-15: the
 plan is `data-layout-plan.local.md` (fixed-arity flat constructors up to six fields, the
-`Seg` split in the rest, and the reference pointer dropped,
+`Seg` split in the rest, the reference kept,
 since the packed tag already carries the type number).
 
 ### One allocation for several `Pack`s
