@@ -108,6 +108,11 @@ past runs are in [benchmarks/](benchmarks/).
   | `unison-src/transcripts-manual/jit-suite.md` | the older, broader `suite` (lists, maps, text, JSON, abilities), about 5.5 minutes per run; the test of whether the JIT is usable on library code | `jit_codebase` |
   | `unison-src/transcripts-manual/jit-replacements.md` | `replacementSuite`, every replaced base operation at three sizes, meant to be run with `UNISON_JIT=off`, `UNISON_JIT=on UNISON_REPLACEMENTS=on` and `UNISON_JIT=on UNISON_REPLACEMENTS=off`; about 10 minutes per run (the `time` helper runs each row for several seconds whatever its work) | `jit_codebase` |
 
+- **`jit_codebase` is at codebase schema 26 and trunk (merged 2026-10-15) requires 27 with
+  no migration** (cbc884651), so the merged build refuses to open it ("needs to be
+  migrated", which `UNISON_MIGRATION=auto` cannot do either). The benchmark suites need the
+  codebase rebuilt (the project and libraries below) before their next run; the tests don't
+  use it.
 - `jit_codebase/` (repo root) has a project `jit-tests`, branch `main`, with the
   `@pchiusano/misc-benchmarks` suite (`suite`, `fibsuite`, `fib1`, `time`, `printTime`,
   `repeat`, ...) and the libraries `unison_base_7_19_2`, `unison_json_1_3_4`,
