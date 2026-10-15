@@ -149,8 +149,9 @@ corruption, so the debug RTS checks the heap.
     `UNISON_JIT_EXIT_COST=0 UNISON_JIT_ENTRY_COST=0`, so that the rules don't hide code from
     the tests; `UNISON_JIT_DISABLE=list,text,bytes,name` for the fallback paths of the C
     helpers; `UNISON_JIT_DISABLE=irhelpers` (generated code calls the C copies of the IR
-    helpers) and `UNISON_JIT_DISABLE=requests` (every ability request exits) under the
-    stress combination.
+    helpers), `UNISON_JIT_DISABLE=requests` (every ability request exits) and
+    `UNISON_JIT_DISABLE=records` (every record instruction exits) under the stress
+    combination.
   - The helper self-tests: `eager` with `UNISON_JIT_STRESS=lists=20000,texts=20000,bytes=200000`,
     which run that many random operations through the C helpers at startup, each on the
     results of earlier ones, checking every result's structure and elements against Haskell.
@@ -164,6 +165,13 @@ corruption, so the debug RTS checks the heap.
 - **Run the first few configurations on the optimized build too** before believing a
   benchmark. Some failures only exist at `-O2`, and the startup checks can fail closed there
   for reasons the fast build never shows (a sample list GHC floated to a top-level constant).
+- **A startup probe's sample values are built in an unoptimized module** (`Layout.hs` under
+  `--fast`), so a `Val`'s type tag bound by `let` is an untagged CAF pointer, a list
+  literal's elements and a `fst` are thunks, and `writeArray arr i . any'` stores a thunk of
+  the coercion; the C side then reports "untagged value" or a failed layout check. Build
+  samples through the `-O2` modules' constructors (`NatVal`, `recordVals . segFromList`,
+  `formData`) and write `evaluate (any' v) >>= writeArray arr i`, as the existing probes do
+  (three of the four record probe failures on 2026-10-15 were these).
 - **A transcript whose output matches says nothing about whether the JIT was on; the log
   does.** Run with `UNISON_JIT_LOG=1` and look for "the JIT is off" and for the compile
   lines. `UNISON_JIT_STATS=1` prints exit counts after every evaluation; the counts for

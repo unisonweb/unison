@@ -33,6 +33,7 @@ module Unison.Runtime.JIT.Native
     cmpInit,
     cmpTest,
     envInit,
+    recordInit,
     murmurCAddress,
     ucmpCAddress,
     tableAddresses,
@@ -269,6 +270,16 @@ foreign import ccall unsafe "unison_jit_env_init" c_envInit :: MutableArray# Rea
 -- all is well, else the number of the check that failed.
 envInit :: MutableArray RealWorld Any -> IO Int
 envInit (MutableArray arr#) = fromIntegral <$> c_envInit arr#
+
+foreign import ccall unsafe "unison_jit_record_init" c_recordInit :: MutableArray# RealWorld Any -> Ptr Int64 -> IO Int64
+
+-- | Teaches the record helpers the record layout from samples and checks
+-- the field lookup on them (see unison_jit_record_init). 1 if everything
+-- is as expected, else the number of the check that failed.
+recordInit :: MutableArray RealWorld Any -> [Int] -> IO Int
+recordInit (MutableArray arr#) infos = allocaBytes (8 * length infos) $ \p -> do
+  mapM_ (\(i, v) -> pokeElemOff p i (fromIntegral v)) (zip [0 ..] infos)
+  fromIntegral <$> c_recordInit arr# p
 
 foreign import ccall "&unison_jit_murmur" c_murmurAddr :: FunPtr (Int64 -> Ptr () -> IO ())
 

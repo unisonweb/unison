@@ -98,22 +98,51 @@ static void mh_val_closure(StgClosure *item, void *env) {
   mh_val(s, LW(item, 1), LP(item, 0));
 }
 
+// the code points of UTF-8 bytes
+static void mh_utf8(MH *s, const unsigned char *p, const unsigned char *e) {
+  while (p < e) {
+    uint64_t cp;
+    if (p[0] < 0x80) cp = p[0], p += 1;
+    else if (p[0] < 0xE0) cp = ((p[0] & 0x1Fu) << 6) | (p[1] & 0x3Fu), p += 2;
+    else if (p[0] < 0xF0) cp = ((p[0] & 0x0Fu) << 12) | ((p[1] & 0x3Fu) << 6) | (p[2] & 0x3Fu), p += 3;
+    else cp = ((p[0] & 0x07u) << 18) | ((p[1] & 0x3Fu) << 12) | ((p[2] & 0x3Fu) << 6) | (p[3] & 0x3Fu), p += 4;
+    mh_word(s, cp);
+  }
+}
+
 // the code points of a text, chunk by chunk
 static void mh_text(MH *s, StgClosure *r) {
   const RopeKind *K = &TK;
   StgInt n = rope_size(K, r), off;
   for (StgInt i = 0; i < n;) {
     StgClosure *c = unison_jit_rope_chunk_at(K, r, i, &off);
-    const unsigned char *p = chunk_bytes(K, c), *e = p + chunk_len(K, c);
-    while (p < e) {
-      uint64_t cp;
-      if (p[0] < 0x80) cp = p[0], p += 1;
-      else if (p[0] < 0xE0) cp = ((p[0] & 0x1Fu) << 6) | (p[1] & 0x3Fu), p += 2;
-      else if (p[0] < 0xF0) cp = ((p[0] & 0x0Fu) << 12) | ((p[1] & 0x3Fu) << 6) | (p[2] & 0x3Fu), p += 3;
-      else cp = ((p[0] & 0x07u) << 18) | ((p[1] & 0x3Fu) << 12) | ((p[2] & 0x3Fu) << 6) | (p[3] & 0x3Fu), p += 4;
-      mh_word(s, cp);
-    }
+    const unsigned char *p = chunk_bytes(K, c);
+    mh_utf8(s, p, p + chunk_len(K, c));
     i += chunk_size(K, c);
+  }
+}
+
+// a record: 5, the code points of each field name in order, then the values
+static void mh_record(MH *s, StgClosure *c) {
+  mh_word(s, 5);
+  StgMutArrPtrs *names = (StgMutArrPtrs *)LP(c, REC_NAMES);
+  StgWord noff = LW(c, REC_NOFF), nlen = LW(c, REC_NLEN);
+  for (StgWord i = 0; i < nlen && s->ok; i++) {
+    StgClosure *t = names->payload[noff + i];
+    if (LTAG(t) == 0) t = unison_jit_settle(t);
+    if (LTAG(t) == 0 || (StgWord)LUN(t)->header.info != RK.text_info) {
+      unison_jit_murmur_fail("field name", t);
+      s->ok = 0;
+      return;
+    }
+    const unsigned char *p = (const unsigned char *)((StgArrBytes *)LP(t, 0))->payload + LW(t, 1);
+    mh_utf8(s, p, p + LW(t, 2));
+  }
+  StgMutArrPtrs *vals = (StgMutArrPtrs *)LP(c, REC_VALS);
+  StgWord voff = LW(c, REC_VOFF), vlen = LW(c, REC_VLEN);
+  for (StgWord i = 0; i < vlen && s->ok; i++) {
+    StgClosure *v = vals->payload[voff + i];
+    mh_val_closure(LTAG(v) == 0 ? unison_jit_settle(v) : v, s);
   }
 }
 
@@ -170,6 +199,8 @@ static void mh_closure(MH *s, StgClosure *c) {
       StgWord i = n - 1 - j;
       mh_val(s, ((StgWord *)us->payload)[i], bs->payload[i]);
     }
+  } else if (RK.ok && info == RK.record_info) {
+    mh_record(s, c);
   } else if (info == LF.foreign_info) {
     StgClosure *r;
     if ((r = rope_of(&TK, c)) != NULL) {
@@ -265,6 +296,21 @@ void *unison_jit_resolve_dyn(void *henv, int64_t key) {
 }
 
 // ---------------------------------------------------------------------------
+// Records: the slot of a field ("records" in jit_internal.h).
+
+int64_t unison_jit_rec_pos(void *rec, int64_t field) {
+  if (!RK.ok) return -1;
+  StgClosure *pos = LP(rec, REC_POS), *v;
+  // the map and the boxed Int at its tip are strict fields of evaluated
+  // values, but may still be reached through an indirection
+  if (LTAG(pos) == 0) pos = unison_jit_settle(pos);
+  if (LTAG(pos) == 0 || im_find(pos, field, &v, 0) != 1) return -1;
+  if (LTAG(v) == 0) v = unison_jit_settle(v);
+  if (LTAG(v) != 1 || (StgWord)LUN(v)->header.info != RK.int_info) return -1;
+  return LW(v, 0);
+}
+
+// ---------------------------------------------------------------------------
 // Universal.== and Universal.compare
 //
 // The interpreter's `Eq Val` and `Ord Val` (compareVal False, Unison.Runtime.Stack),
@@ -284,10 +330,15 @@ void *unison_jit_resolve_dyn(void *henv, int64_t key) {
 //   and Nat tags match each other. The fields of an Any compare with tyEq;
 //   under tyEq, different packed tags compare the type references, which
 //   is left to the interpreter.
-// - Different closure kinds order as closureNum (PAp 0, data 1, Foreign 3)
-//   and are never equal. A PAp compares its CombIx (reference pointer,
-//   group, index) then its arguments; different reference pointers are left
-//   to the interpreter.
+// - Different closure kinds order as closureNum (PAp 0, data 1, Foreign 3,
+//   record 7) and are never equal. A PAp compares its CombIx (reference
+//   pointer, group, index) then its arguments; different reference pointers
+//   are left to the interpreter.
+// - Records: equal when their shapes are equal (the shape reference is
+//   interned per set of field names, so the references say so) and their
+//   values are, slot by slot. Ordering compares the lengths then the slots;
+//   under tyEq (inside an Any) two records of different shapes order by
+//   their field names, which is left to the interpreter.
 // - Foreign values: two texts or two bytes through the rope helpers, two
 //   lists or two arrays element by element with a prefix smaller, two byte
 //   arrays by their bytes then their lengths, two refs or mutable arrays
@@ -303,12 +354,14 @@ typedef struct {
 #define UK_PAP 0
 #define UK_DATA 1
 #define UK_FOREIGN 3
+#define UK_RECORD 7
 
 static int uc_kind(UC *s, StgClosure *c) {
   StgWord info = (StgWord)LUN(c)->header.info;
   if (info == HK.enum_info || info == LF.data1_info || info == LF.data2_info || info == HK.datag_info) return UK_DATA;
   if (info == LF.foreign_info) return UK_FOREIGN;
   if (CK.pap_info != 0 && info == CK.pap_info) return UK_PAP;
+  if (RK.ok && info == RK.record_info) return UK_RECORD;
   unison_jit_cmp_fail("closure kind", c);
   s->ok = 0;
   return -1;
@@ -429,6 +482,12 @@ static int uc_elem(UC *s, StgClosure *item, StgWord *u, StgClosure **b) {
   return 1;
 }
 
+// element i of a record's values
+static inline StgClosure *rec_val(StgClosure *c, StgWord i) {
+  StgClosure *v = ((StgMutArrPtrs *)LP(c, REC_VALS))->payload[LW(c, REC_VOFF) + i];
+  return LTAG(v) == 0 ? unison_jit_settle(v) : v;
+}
+
 static int64_t uc_elems(UC *s, StgClosure *x1, StgClosure *x2, int tyeq) {
   StgWord u1, u2;
   StgClosure *b1, *b2;
@@ -489,6 +548,21 @@ static int64_t uc_closure(UC *s, StgClosure *c1, StgClosure *c2, int tyeq) {
     int64_t r = cmp_u(f1.tag & 0xFFFF, f2.tag & 0xFFFF);
     if (r != 0) return r;
     return uc_fieldwise(s, &f1, &f2, tyeq || (f1.tag >> 16) == CK.any_type);
+  }
+  if (k1 == UK_RECORD) {
+    if (tyeq && LW(c1, REC_REF) != LW(c2, REC_REF)) {
+      unison_jit_cmp_fail("record shapes", c1);
+      s->ok = 0;
+      return 0;
+    }
+    // compareValList: the lengths, then the slots
+    StgWord n1 = LW(c1, REC_VLEN), n2 = LW(c2, REC_VLEN);
+    if (n1 != n2) return cmp_u(n1, n2);
+    for (StgWord i = 0; i < n1 && s->ok; i++) {
+      int64_t r = uc_elems(s, rec_val(c1, i), rec_val(c2, i), tyeq);
+      if (r != 0) return r;
+    }
+    return 0;
   }
   if (k1 == UK_PAP) {
     // PAp (CIx ref grp w) comb (useg, bseg): pointers ref, entry, useg, bseg; words grp, w
@@ -579,6 +653,12 @@ static int ue_closure(UC *s, StgClosure *c1, StgClosure *c2) {
     } else if (f1.tag != f2.tag)
       return 0;
     return ue_fieldwise(s, &f1, &f2);
+  }
+  if (k1 == UK_RECORD) {
+    if (LW(c1, REC_REF) != LW(c2, REC_REF) || LW(c1, REC_VLEN) != LW(c2, REC_VLEN)) return 0;
+    for (StgWord i = 0; i < LW(c1, REC_VLEN) && s->ok; i++)
+      if (!ue_elems(s, rec_val(c1, i), rec_val(c2, i))) return 0;
+    return s->ok;
   }
   if (k1 == UK_PAP) {
     if (LP(c1, 0) != LP(c2, 0)) {

@@ -1344,7 +1344,7 @@ buildData !stk !r !t (VArgV i) = do
 buildRec :: Stack -> RecordShape -> Args -> IO Closure
 buildRec !stk shape args = do
   seg <- augSeg I stk nullSeg (Just $ argsToArgs' args)
-  pure . RecordG shape . V.fromList $ segToList seg
+  pure . RecordG shape $ recordVals seg
 {-# INLINE buildRec #-}
 
 dumpDataValNoTag ::
@@ -2374,7 +2374,7 @@ reifyValue0Canon combs tys tms rty rtm rrLookup rfms = goV
       -- `putValue` writes the values in ascending field-name order, which is
       -- the shape's slot order, so no reordering is needed.
       vals' <- goVs vals
-      pure . boxedVal . RecordG shape . V.fromList $ segToList vals'
+      pure . boxedVal . RecordG shape $ recordVals vals'
     goV (ANF.Cont vs k) = do
       k' <- goK k
       vs' <- goVs vs
@@ -2483,7 +2483,7 @@ reifyValue0 (combs, rty, rtm, rrLookup, rfms) = goV
       -- `putValue` writes the values in ascending field-name order, which is
       -- the shape's slot order, so no reordering is needed.
       vals' <- goVs vals
-      pure . boxedVal . RecordG shape . V.fromList $ segToList vals'
+      pure . boxedVal . RecordG shape $ recordVals vals'
     goV (ANF.Cont vs k) = do
       k' <- goK k
       vs' <- goVs vs

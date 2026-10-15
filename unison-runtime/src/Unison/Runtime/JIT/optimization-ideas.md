@@ -21,6 +21,17 @@ loses to the Haskell map above a few thousand keys while winning below
 change (`GClosure`, `dataBranch`, `buildData`, value serialization), not a JIT one, and needs
 a plan of its own.
 
+### A field's slot without the map walk
+
+`RecUnpack` asks `unison_jit_rec_pos` for the slot of each field it pushes: a walk of the
+value's positions map, an `IntMap` of two to four nodes for a small record, with a boxed `Int`
+at the tip, per field per match. The slot depends only on the value's shape, and most sites
+see one shape. An inline cache per site (the shape reference last seen and the slots found for
+it, in a mutable word pair the module owns) would make the common case a compare and a load;
+or the shape could carry its positions as a flat array of field numbers (`shapeFields` already
+is one of names), making the lookup a scan with no pointer chasing. Measure a record-heavy loop
+first (`recordLoop` in jit-tests.md is one); records are new, so nothing has been measured.
+
 ### One allocation for several `Pack`s
 
 Consecutive `Pack`s in a straight-line run, and the arithmetic between them, could share one

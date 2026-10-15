@@ -2997,3 +2997,340 @@ scratch/main> run cmpArrays
 
   (false, -1, true, +1, false, -1)
 ```
+
+## Records
+
+A record literal (`RecPack`), a record pattern or a field read (`RecUnpack`) and a field update
+(`RecSet`) are native. The slot of a field is read from the value's own shape, so one function
+works on records of every shape its row type admits; `Universal.==`, `compare` and the hash walk
+records like data. Two records of different shapes inside an `Any` order by their field names,
+which is left to the interpreter.
+
+``` unison
+use Nat + - * / == < > <= >=
+
+type Point = Point { x: Nat, y: Nat }
+
+cmpAll : a -> a -> (Boolean, Boolean, Boolean, Boolean, Boolean, Int)
+cmpAll x y = (x Universal.== y, x Universal.< y, x Universal.<= y, x Universal.> y, x Universal.>= y, Universal.compare x y)
+
+insertSorted : a -> [a] -> [a]
+insertSorted x = cases
+  [] -> [x]
+  y +: ys -> if x Universal.<= y then x +: (y +: ys) else y +: insertSorted x ys
+
+sortU : [a] -> [a]
+sortU xs =
+  go acc = cases
+    [] -> acc
+    x +: rest -> go (insertSorted x acc) rest
+  go [] xs
+
+mapList : (a -> b) -> [a] -> [b]
+mapList f = cases
+  [] -> []
+  x +: xs -> f x +: mapList f xs
+
+mkPair : Nat -> Text -> { n: Nat, s: Text }
+mkPair n s = { n: n, s: s }
+
+-- row polymorphic: the slot of n differs between the shapes it is applied to
+getN : { n: Nat | r } -> Nat
+getN r = r@n
+
+sumXY : { x: Nat, y: Nat | r } -> Nat
+sumXY = cases { x: x, y: y } -> x + y
+
+bump : { x: Nat | r } -> { x: Nat | r }
+bump r = r@x.set (r@x + 1)
+
+five : Nat -> { a: Nat, b: Nat, c: Nat, d: Nat, e: Nat }
+five n = { a: n, b: n + 1, c: n + 2, d: n + 3, e: n + 4 }
+
+sumFive : { a: Nat, b: Nat, c: Nat, d: Nat, e: Nat } -> Nat
+sumFive = cases { a: a, b: b, c: c, d: d, e: e } -> a + b + c + d + e
+
+nested : Nat -> { inner: { x: Nat, y: Nat }, name: Text }
+nested n = { inner: { x: n, y: n * 2 }, name: "n" }
+
+pointY : Point -> Nat
+pointY = cases Point { y: y } -> y
+
+-- a refutable field pattern, and a destructuring bind
+classify : { x: Nat, y: Nat } -> Nat
+classify = cases
+  { x: 0, y: y } -> y
+  { x: x } -> x * 100
+
+firstX : { x: Nat, y: Nat } -> Nat
+firstX r =
+  { x: x } = r
+  x
+
+-- builds, updates and reads records in a loop, so that the instructions run many times
+recordLoop : Nat -> Nat
+recordLoop n =
+  go i acc = if i == n then acc else
+    r = bump { x: i, y: i * 2, tag: "t" }
+    go (i + 1) (acc + sumXY r + getN { m: i, n: r@x })
+  go 0 0
+
+-- a record update chain
+shift : { x: Nat, y: Nat, z: Nat } -> { x: Nat, y: Nat, z: Nat }
+shift r = ((r@x.set r@y)@y.set r@z)@z.set r@x
+
+> mkPair 3 "three"
+> getN (mkPair 3 "three")
+> getN { n: 7 }
+> getN { m: "a", n: 8, o: 9.0 }
+> getN { a: 1, b: 2, c: 3, n: 4 }
+> sumXY { x: 1, y: 2 }
+> sumXY { w: 0, x: 1, y: 2, z: 3 }
+> sumXY { y: 10, x: 5 }
+> bump { x: 1, y: 2 }
+> bump { a: "a", x: 10 }
+> five 1
+> sumFive (five 1)
+> nested 4
+> (nested 4)@inner@y
+> (nested 4)@inner@{x: @x + 100, y: @y * 10}
+> shift { x: 1, y: 2, z: 3 }
+> { }
+> pointY (Point { x: 3, y: 4 })
+> Point { x: 3, y: 4 }
+> classify { x: 0, y: 7 }
+> classify { x: 2, y: 7 }
+> firstX { x: 11, y: 12 }
+> mapList (@x) [{x: 1, y: 2}, {x: 3, y: 4}]
+> mapList (r -> r@x.set 0) [{x: 1, y: 2}, {x: 3, y: 4}]
+> mapList (r -> r@n + Text.size r@s) [mkPair 1 "a", mkPair 2 "bc"]
+> recordLoop 10000
+> cmpAll { x: 1, y: 2 } { x: 1, y: 3 }
+> cmpAll { x: 1, y: 2 } { x: 1, y: 2 }
+> cmpAll { x: "b" } { x: "a" }
+> cmpAll { x: 2, y: 0 } { x: 1, y: 9 }
+> cmpAll { } { }
+> cmpAll (nested 4) (nested 5)
+> cmpAll (Any { x: 1, y: 2 }) (Any { x: 1, y: 3 })
+> cmpAll (Any { x: 1 }) (Any { x: 1, y: 2 })
+> cmpAll (Any { b: 1 }) (Any { a: 1 })
+> sortU [{k: 3, v: "c"}, {k: 1, v: "a"}, {k: 2, v: "b"}, {k: 1, v: "0"}]
+> Universal.murmurHashUntyped { x: 1, y: "two" }
+> Universal.murmurHashUntyped { y: "two", x: 1 } == Universal.murmurHashUntyped { x: 1, y: "two" }
+> Universal.murmurHashUntyped { }
+> Universal.murmurHashUntyped (five 3)
+> Universal.murmurHashUntyped (nested 1)
+> Universal.murmurHashUntyped [{ a: 1 }, { a: 2 }]
+> Value.value { x: 1, y: "two" } Universal.== Value.value { y: "two", x: 1 }
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  + type Point
+
+  + bump         : {x: Nat | r} -> {x: Nat | r}
+  + classify     : {x: Nat, y: Nat} -> Nat
+  + cmpAll       : a
+                   -> a
+                   -> ( Boolean,
+                     Boolean,
+                     Boolean,
+                     Boolean,
+                     Boolean,
+                     Int)
+  + firstX       : {x: Nat, y: Nat} -> Nat
+  + five         : Nat
+                   -> {a: Nat, b: Nat, c: Nat, d: Nat, e: Nat}
+  + getN         : {n: Nat} -> Nat
+  + insertSorted : a -> [a] -> [a]
+  + mapList      : (a ->{g} b) -> [a] ->{g} [b]
+  + mkPair       : Nat -> Text -> {n: Nat, s: Text}
+  + nested       : Nat -> {inner: {x: Nat, y: Nat}, name: Text}
+  + pointY       : Point -> Nat
+  + recordLoop   : Nat -> Nat
+  + shift        : {x: Nat, y: Nat, z: Nat}
+                   -> {x: Nat, y: Nat, z: Nat}
+  + sortU        : [a] -> [a]
+  + sumFive      : {a: Nat, b: Nat, c: Nat, d: Nat, e: Nat}
+                   -> Nat
+  + sumXY        : {x: Nat, y: Nat} -> Nat
+
+  Run `update` to apply these changes to your codebase.
+
+    73 | > mkPair 3 "three"
+           ⧩
+           {n: 3, s: "three"}
+
+    74 | > getN (mkPair 3 "three")
+           ⧩
+           3
+
+    75 | > getN { n: 7 }
+           ⧩
+           7
+
+    76 | > getN { m: "a", n: 8, o: 9.0 }
+           ⧩
+           8
+
+    77 | > getN { a: 1, b: 2, c: 3, n: 4 }
+           ⧩
+           4
+
+    78 | > sumXY { x: 1, y: 2 }
+           ⧩
+           3
+
+    79 | > sumXY { w: 0, x: 1, y: 2, z: 3 }
+           ⧩
+           3
+
+    80 | > sumXY { y: 10, x: 5 }
+           ⧩
+           15
+
+    81 | > bump { x: 1, y: 2 }
+           ⧩
+           {x: 2, y: 2}
+
+    82 | > bump { a: "a", x: 10 }
+           ⧩
+           {a: "a", x: 11}
+
+    83 | > five 1
+           ⧩
+           {a: 1, b: 2, c: 3, d: 4, e: 5}
+
+    84 | > sumFive (five 1)
+           ⧩
+           15
+
+    85 | > nested 4
+           ⧩
+           {inner: {x: 4, y: 8}, name: "n"}
+
+    86 | > (nested 4)@inner@y
+           ⧩
+           8
+
+    87 | > (nested 4)@inner@{x: @x + 100, y: @y * 10}
+           ⧩
+           {inner: {x: 104, y: 80}, name: "n"}
+
+    88 | > shift { x: 1, y: 2, z: 3 }
+           ⧩
+           {x: 2, y: 3, z: 1}
+
+    89 | > { }
+           ⧩
+           {}
+
+    90 | > pointY (Point { x: 3, y: 4 })
+           ⧩
+           4
+
+    91 | > Point { x: 3, y: 4 }
+           ⧩
+           Point {x: 3, y: 4}
+
+    92 | > classify { x: 0, y: 7 }
+           ⧩
+           7
+
+    93 | > classify { x: 2, y: 7 }
+           ⧩
+           200
+
+    94 | > firstX { x: 11, y: 12 }
+           ⧩
+           11
+
+    95 | > mapList (@x) [{x: 1, y: 2}, {x: 3, y: 4}]
+           ⧩
+           [1, 3]
+
+    96 | > mapList (r -> r@x.set 0) [{x: 1, y: 2}, {x: 3, y: 4}]
+           ⧩
+           [{x: 0, y: 2}, {x: 0, y: 4}]
+
+    97 | > mapList (r -> r@n + Text.size r@s) [mkPair 1 "a", mkPair 2 "bc"]
+           ⧩
+           [2, 4]
+
+    98 | > recordLoop 10000
+           ⧩
+           200000000
+
+    99 | > cmpAll { x: 1, y: 2 } { x: 1, y: 3 }
+           ⧩
+           (false, true, true, false, false, -1)
+
+    100 | > cmpAll { x: 1, y: 2 } { x: 1, y: 2 }
+            ⧩
+            (true, false, true, false, true, +0)
+
+    101 | > cmpAll { x: "b" } { x: "a" }
+            ⧩
+            (false, false, false, true, true, +1)
+
+    102 | > cmpAll { x: 2, y: 0 } { x: 1, y: 9 }
+            ⧩
+            (false, false, false, true, true, +1)
+
+    103 | > cmpAll { } { }
+            ⧩
+            (true, false, true, false, true, +0)
+
+    104 | > cmpAll (nested 4) (nested 5)
+            ⧩
+            (false, true, true, false, false, -1)
+
+    105 | > cmpAll (Any { x: 1, y: 2 }) (Any { x: 1, y: 3 })
+            ⧩
+            (false, true, true, false, false, -1)
+
+    106 | > cmpAll (Any { x: 1 }) (Any { x: 1, y: 2 })
+            ⧩
+            (false, true, true, false, false, -1)
+
+    107 | > cmpAll (Any { b: 1 }) (Any { a: 1 })
+            ⧩
+            (false, false, false, true, true, +1)
+
+    108 | > sortU [{k: 3, v: "c"}, {k: 1, v: "a"}, {k: 2, v: "b"}, {k: 1, v: "0"}]
+            ⧩
+            [ {k: 1, v: "0"}
+            , {k: 1, v: "a"}
+            , {k: 2, v: "b"}
+            , {k: 3, v: "c"}
+            ]
+
+    109 | > Universal.murmurHashUntyped { x: 1, y: "two" }
+            ⧩
+            4393921531997892843
+
+    110 | > Universal.murmurHashUntyped { y: "two", x: 1 } == Universal.murmurHashUntyped { x: 1, y: "two" }
+            ⧩
+            true
+
+    111 | > Universal.murmurHashUntyped { }
+            ⧩
+            18141272173630156384
+
+    112 | > Universal.murmurHashUntyped (five 3)
+            ⧩
+            17374375190455785819
+
+    113 | > Universal.murmurHashUntyped (nested 1)
+            ⧩
+            6686457496765184676
+
+    114 | > Universal.murmurHashUntyped [{ a: 1 }, { a: 2 }]
+            ⧩
+            6187858042067279575
+
+    115 | > Value.value { x: 1, y: "two" } Universal.== Value.value { y: "two", x: 1 }
+            ⧩
+            false
+```

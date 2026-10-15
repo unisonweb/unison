@@ -168,7 +168,7 @@ data Config = Config
     -- @irhelpers@ (the helpers compiled from IR: generated code calls the C
     -- copies instead), @requests@ (ability requests and the affine handler
     -- instructions: every request exits), @ptr@ (the FFI pointer reads and
-    -- writes)
+    -- writes), @records@ (the record instructions: every one exits)
     disabled :: [String]
   }
   deriving (Show)

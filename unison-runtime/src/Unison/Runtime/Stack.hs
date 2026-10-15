@@ -77,6 +77,7 @@ module Unison.Runtime.Stack
     BSeg,
     SegList,
     RecordVals,
+    recordVals,
     segToList,
     Val
       ( ..,
@@ -211,6 +212,7 @@ import Data.Primitive.ByteArray qualified as BA
 import Data.Tagged (Tagged (..))
 import Data.Vector (Vector)
 import Data.Vector qualified as V
+import Data.Vector.Mutable qualified as MV
 import Data.Word
 import Data.X509 qualified as X509
 import Foreign.ForeignPtr qualified as Ptr
@@ -778,6 +780,22 @@ ints :: ByteArray -> [Int]
 ints ba = fmap (indexByteArray ba) [n - 1, n - 2 .. 0]
   where
     n = sizeofByteArray ba `div` 8
+
+-- | A record's values from a segment: slot i holds the segment's i-th value
+-- (the segments are stored backwards). Every element is an evaluated 'Val',
+-- since native code reads the vector's elements as closures.
+recordVals :: Seg -> RecordVals
+recordVals (u, b) = V.create do
+  let n = sizeofByteArray u `div` 8
+  mv <- MV.new n
+  let go i
+        | i == n = pure ()
+        | otherwise = do
+            let j = n - 1 - i
+            MV.write mv i $! Val (indexByteArray u j) (indexArray b j)
+            go (i + 1)
+  go 0
+  pure mv
 
 -- | Converts from the list representation of a segment to the efficient stack form. Segments are stored backwards,
 -- so this reverses the contents.

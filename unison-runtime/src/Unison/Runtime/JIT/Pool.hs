@@ -35,9 +35,10 @@ import System.IO.Unsafe (unsafePerformIO)
 import Unison.Reference (Reference)
 import Unison.Runtime.ANF (PackedTag)
 import Unison.Runtime.JIT.Config (config, stressPool)
-import Unison.Runtime.MCode (CombIx, GCombInfo, MLit (..))
+import Data.Vector qualified as V
+import Unison.Runtime.MCode (CombIx, GCombInfo, MLit (..), RecordShape (..))
 import Unison.Runtime.Machine.Types (MComb)
-import Unison.Runtime.Stack (Closure, Val (..), charTypeTag, falseVal, floatTypeTag, intTypeTag, natTypeTag, nullSeg, trueVal, pattern Enum, pattern Foreign, pattern PAp)
+import Unison.Runtime.Stack (Closure, Val (..), charTypeTag, falseVal, floatTypeTag, intTypeTag, natTypeTag, nullSeg, trueVal, pattern Enum, pattern Foreign, pattern PAp, pattern RecordG)
 import Unison.Runtime.Stack qualified as Stack
 
 -- The order matches unboxedTypeTagToInt in Stack.hs.
@@ -75,6 +76,10 @@ data PoolKey
   | -- | the boxed part of a top-level value that was evaluated when its
     -- definition was loaded (a @CachedVal@), by its CombIx
     KeyCached !CombIx !Closure
+  | -- | a record shape, kept as an empty record of that shape: native code
+    -- copies the shape's words out of it when it builds a record
+    -- (@RecPack@). Interned by the field names, which determine the shape.
+    KeyRecord !RecordShape
 
 instance Eq PoolKey where
   a == b = compare a b == EQ
@@ -91,6 +96,9 @@ instance Ord PoolKey where
     (KeyComb {}) _ -> LT
     _ (KeyComb {}) -> GT
     (KeyCached c _) (KeyCached c' _) -> compare c c'
+    (KeyCached {}) _ -> LT
+    _ (KeyCached {}) -> GT
+    (KeyRecord s) (KeyRecord s') -> compare s s'
 
 instance Show PoolKey where
   show = \case
@@ -98,6 +106,7 @@ instance Show PoolKey where
     KeyLit l -> "KeyLit " ++ show l
     KeyComb c _ -> "KeyComb " ++ show c
     KeyCached c _ -> "KeyCached " ++ show c
+    KeyRecord s -> "KeyRecord " ++ show (shapeFields s)
 
 data Pool = Pool
   { poolArray :: !(MutableArray RealWorld Closure),
@@ -161,6 +170,7 @@ closureFor = \case
   -- them); nullSeg's components are CAFs, so force them
   KeyComb cix comb -> let (u, b) = nullSeg in u `seq` b `seq` PAp cix comb (u, b)
   KeyCached _ c -> c
+  KeyRecord s -> RecordG s V.empty
   KeyLit l -> case l of
     MT t -> Foreign (Stack.WrapText t)
     MM r -> Foreign (Stack.WrapReferent r)

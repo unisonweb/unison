@@ -17,6 +17,7 @@ module Unison.Runtime.JIT.Layout
     probeMurmur,
     probeCompare,
     probeEnv,
+    probeRecords,
   )
 where
 
@@ -46,8 +47,10 @@ import Unison.Runtime.ANF.MurmurHash.Untyped (hash64ValueUntyped)
 import Unison.Runtime.Referenced (Referenced (Plain))
 import Unison.Reference (Reference)
 import Unison.Runtime.JIT.Strict (Pair (..))
-import Unison.Runtime.JIT.Native (envInit, arrayInit, bytesCheck, bytesInit, bytesTest, closureInit, cmpInit, cmpTest, listCheck, listInit, listTest, murmurInit, murmurTest, nameTest, probeClosure, textCheck, textInit, textTest)
-import Unison.Runtime.MCode (CombIx (..), GCombInfo (..), GSection (..), noNativeCell)
+import Unison.Runtime.JIT.Native (envInit, arrayInit, bytesCheck, bytesInit, bytesTest, closureInit, cmpInit, cmpTest, listCheck, listInit, listTest, murmurInit, murmurTest, nameTest, probeClosure, recordInit, textCheck, textInit, textTest)
+import Unison.Runtime.MCode (CombIx (..), FieldRef (..), GCombInfo (..), GSection (..), RecordShape (..), noNativeCell)
+import Data.Set qualified as Set
+import Data.Vector qualified as V
 import Unison.Runtime.Stack
 import Unison.Runtime.TypeTags qualified as TT
 import Unison.Type qualified as Ty
@@ -99,6 +102,11 @@ data Layouts = Layouts
     lArrayWrap, lMutableByteArrayWrap, lByteArrayWrap, lTicketWrap, lPtrWrap :: !(Pair Int Int),
     -- | @Val u b@: pointer tag 1; pointer b, then non-pointer u
     lVal :: !Layout,
+    -- | @RecordG shape vals@ with the shape and the vector unpacked: pointer
+    -- tag 7; pointers the field names' Array#, the positions map and the
+    -- values' Array#; non-pointers the shape reference, the names' offset and
+    -- length, the values' offset and length ("records" in jit_internal.h)
+    lRecord :: !Layout,
     -- | header size in bytes; payload starts after it
     lHeaderBytes :: !Int
   }
@@ -193,8 +201,11 @@ probeLayouts = do
   tw <- probe (any' $! WrapTicket ticket) [any' tv] []
   pw <- probeWrap False (any' $! WrapPtr nullPtr)
   v <- probe (any' $! Val 9 nat) [any' nat] [9]
-  pure $ case (e, d1, d2, dg, pap, ub, bb, fi, wi, ai, v, aw, mbw, bw, tw, pw) of
-    (Right le, Right ld1, Right ld2, Right ldg, Right lp, Right ubi, Right bbi, Right fii, Right wii, Right aii, Right lv, Right awi, Right mbwi, Right bwi, Right ltw, Right pwi)
+  -- a record: its words are checked by unison_jit_record_init (probeRecords);
+  -- here only the counts and the pointer tag
+  rc <- probeKind 7 3 5 (any' $! RecordG (recordShapeOf 7 [("a", 3), ("bc", 5)]) (recordVals (segFromList [NatVal 9, NatVal 10])))
+  pure $ case (e, d1, d2, dg, pap, ub, bb, fi, wi, ai, v, aw, mbw, bw, tw, pw, rc) of
+    (Right le, Right ld1, Right ld2, Right ldg, Right lp, Right ubi, Right bbi, Right fii, Right wii, Right aii, Right lv, Right awi, Right mbwi, Right bwi, Right ltw, Right pwi, Right lr)
       | lPtrTag le == 2 && lPtrs le == 1 && lNptrs le == 1,
         lPtrTag ld1 == 3 && lPtrs ld1 == 2 && lNptrs ld1 == 2,
         lPtrTag ld2 == 4 && lPtrs ld2 == 3 && lNptrs ld2 == 3,
@@ -202,9 +213,126 @@ probeLayouts = do
         lPtrTag lp == 1 && lPtrs lp == 4 && lNptrs lp == 5,
         lPtrTag lv == 1 && lPtrs lv == 1 && lNptrs lv == 1,
         lPtrs ltw == 1 && lNptrs ltw == 0 ->
-          Right (Layouts le ld1 ld2 ldg lp ubi bbi fii wii aii awi mbwi bwi (Pair (lInfo ltw) (lPtrTag ltw)) pwi lv 8)
+          Right (Layouts le ld1 ld2 ldg lp ubi bbi fii wii aii awi mbwi bwi (Pair (lInfo ltw) (lPtrTag ltw)) pwi lv lr 8)
       | otherwise -> Left ("closure layouts are not what the code generator expects: " ++ unwords (map summary [le, ld1, ld2, ldg, lp, lv, ltw]))
-    _ -> Left ("closure layouts could not be probed: " ++ show ([either id (const "ok") x | x <- [e, d1, d2, dg, pap, v, tw]] ++ [either id (const "ok") x | x <- [ub, bb, fi, wi, ai]] ++ [either id (const "ok") x | x <- [aw, mbw, bw, pw]]))
+    _ -> Left ("closure layouts could not be probed: " ++ show ([either id (const "ok") x | x <- [e, d1, d2, dg, pap, v, tw, rc]] ++ [either id (const "ok") x | x <- [ub, bb, fi, wi, ai]] ++ [either id (const "ok") x | x <- [aw, mbw, bw, pw]]))
+
+-- | The layout of a constructor with the given pointer tag and field counts.
+probeKind :: Int -> Int -> Int -> Any -> IO (Either String Layout)
+probeKind tag ptrs nptrs sample0 = do
+  let !sample = sample0
+  arr <- newArray 1 sample :: IO (MutableArray RealWorld Any)
+  r <- probeClosure arr
+  pure $ case r of
+    (info : t : _ty : p : n : _) | t == tag, p == ptrs, n == nptrs -> Right (Layout info t p n (\i -> 8 + 8 * i))
+    _ -> Left ("kind probe: " ++ show r)
+
+-- | A record shape for the probes: the reference, and the field names with
+-- their numbers, which the shape keeps ascending by name.
+recordShapeOf :: Word64 -> [(Text.Text, Word64)] -> RecordShape
+recordShapeOf ref fields =
+  let sorted = M.toAscList (M.fromList fields)
+   in RecordShape
+        { shapeRef = ANF.RecordRef ref,
+          shapeFields = V.fromList (map fst sorted),
+          shapePositions = EC.mapFromList (zip (map (FieldRef . snd) sorted) [0 ..])
+        }
+
+-- | Records: hands the record helpers sample records (see
+-- unison_jit_record_init), which checks the layout and the field lookup
+-- against them, then runs records through the hash and the comparison
+-- helpers against the Haskell answers. After 'probeEnv': the positions map
+-- is an IntMap, whose constructors the environment probe learned.
+probeRecords :: Layouts -> IO (Either String ())
+probeRecords _ls = do
+  let PackedTag someTag = TT.someTag
+      shape2 = recordShapeOf 7 [("a", 3), ("bc", 5)]
+      shape0 = recordShapeOf 8 []
+      shape3 = recordShapeOf 9 [("x", 11), ("y", 12), ("zz", 13)]
+      -- the same field names, as a shape compiled elsewhere would have them
+      shape3' = recordShapeOf 9 [("x", 11), ("y", 12), ("zz", 13)]
+      -- (the pattern synonyms store tagged type-tag pointers; a let-bound
+      -- natTypeTag in this unoptimized module would be an untagged CAF)
+      !v0 = NatVal 9
+      !v1 = NatVal 10
+      -- the values through the interpreter's builder, which evaluates them
+      -- (a list literal's elements are thunks in this unoptimized module)
+      !r2 = RecordG shape2 (recordVals (segFromList [v0, v1]))
+      !r0 = RecordG shape0 V.empty
+      !r3 = RecordG shape3 (recordVals (segFromList [NatVal 1, NatVal 2, NatVal 3]))
+      -- the names are evaluated texts in a shape the emitter builds; here
+      -- they are literals, thunks in an unoptimized build
+      forceNames sh = mapM_ evaluate (V.toList (shapeFields sh))
+  mapM_ forceNames [shape2, shape0, shape3, shape3']
+  arr <- newArray 5 (any' r2) :: IO (MutableArray RealWorld Any)
+  let put i v = evaluate v >>= writeArray arr i
+  put 0 (any' r2)
+  put 1 (any' v0)
+  put 2 (any' v1)
+  put 3 (any' r0)
+  put 4 (any' r3)
+  ok <- recordInit arr [3, 5, 7, 11, 12, 13]
+  if ok /= 1
+    then pure (Left ("the record layout is not what the record helpers expect (check " ++ show ok ++ ")"))
+    else do
+      -- the hash: reflection then the Haskell hash, as probeMurmur does
+      let expected :: ANF.Value Reference -> Word64
+          expected v = asWord64 (hash64ValueUntyped (Plain v))
+          pos = ANF.BLit . ANF.Pos
+          recV names vs = ANF.Record (ANF.RecordSchema (Set.fromList names)) vs
+          some v = BoxedVal (Data1 Ty.optionalRef (PackedTag someTag) v)
+          text t = BoxedVal (Foreign (WrapText (UText.pack t)))
+          rec sh vs = BoxedVal (RecordG sh (recordVals (segFromList vs)))
+          shapeN = recordShapeOf 10 [("inner", 21), ("name", 22)]
+          !rNested = RecordG shapeN (recordVals (segFromList [BoxedVal r3, text "héllo"]))
+          hashes :: [(String, Closure, ANF.Value Reference)]
+          hashes =
+            [ ("two fields", r2, recV ["a", "bc"] [pos 9, pos 10]),
+              ("no fields", r0, recV [] []),
+              ("three fields", r3, recV ["x", "y", "zz"] [pos 1, pos 2, pos 3]),
+              ("nested", rNested, recV ["inner", "name"] [recV ["x", "y", "zz"] [pos 1, pos 2, pos 3], ANF.BLit (ANF.Text (UText.pack "héllo"))])
+            ]
+      forceNames shapeN
+      harr <- newArray 1 (any' r2) :: IO (MutableArray RealWorld Any)
+      hs <- forM hashes $ \(name, c, v) -> do
+        evaluate (any' c) >>= writeArray harr 0
+        got <- murmurTest harr 0 False
+        pure (if got == Just (expected v) then Nothing else Just ("murmurHashUntyped of a record (" ++ name ++ "): native " ++ show got ++ ", Haskell " ++ show (expected v)))
+      -- the comparisons, as probeCompare does
+      let anyOf v = BoxedVal (Data1 Ty.anyRef TT.anyTag v)
+          both = (True, True)
+          pairs :: [(String, Val, Val, (Bool, Bool))]
+          pairs =
+            [ ("equal records", rec shape3 [NatVal 1, NatVal 2, NatVal 3], rec shape3' [NatVal 1, NatVal 2, NatVal 3], both),
+              ("records differing late", rec shape3 [NatVal 1, NatVal 2, NatVal 3], rec shape3' [NatVal 1, NatVal 2, NatVal 4], both),
+              ("records differing early", rec shape3 [NatVal 2, NatVal 0, NatVal 0], rec shape3' [NatVal 1, NatVal 9, NatVal 9], both),
+              ("records of texts", rec shape2 [text "a", text "b"], rec shape2 [text "a", text "c"], both),
+              ("nested records", rec shape2 [BoxedVal r3, NatVal 1], rec shape2 [BoxedVal r3, NatVal 2], both),
+              ("empty records", rec shape0 [], rec shape0 [], both),
+              ("record against data", rec shape0 [], some (NatVal 1), both),
+              ("record against text", rec shape0 [], text "a", both),
+              ("Any records of the same shape", anyOf (rec shape2 [NatVal 1, NatVal 2]), anyOf (rec shape2 [NatVal 1, NatVal 3]), both),
+              -- different shapes order by their field names: the interpreter's
+              ("Any records of different shapes", anyOf (rec shape2 [NatVal 1, NatVal 2]), anyOf (rec shape3 [NatVal 1, NatVal 2, NatVal 3]), (False, True))
+            ]
+      carr <- newArray 2 (any' r2) :: IO (MutableArray RealWorld Any)
+      let toInt o = fromEnum o - 1
+      cs <- forM pairs $ \(name, l, r, (handledC, handledE)) -> do
+        evaluate (any' (getBoxedVal l)) >>= writeArray carr 0
+        evaluate (any' (getBoxedVal r)) >>= writeArray carr 1
+        gotC <- cmpTest carr (getUnboxedVal l) (getUnboxedVal r) False
+        gotE <- cmpTest carr (getUnboxedVal l) (getUnboxedVal r) True
+        let wantC = toInt (compare l r)
+            wantE = fromEnum (l == r)
+            okC = if handledC then gotC == Just wantC else gotC == Nothing
+            okE = if handledE then gotE == Just wantE else gotE == Nothing
+        pure $
+          if okC && okE
+            then Nothing
+            else Just ("Universal comparison of records (" ++ name ++ "): native " ++ show (gotC, gotE) ++ ", Haskell " ++ show (wantC, wantE) ++ (if handledC && handledE then "" else " (expected to be left to the interpreter)"))
+      pure $ case catMaybes (hs ++ cs) of
+        [] -> Right ()
+        e : _ -> Left e
 
 -- | Teaches the C array and ref helpers the wrappers' info pointers and
 -- tags, and the runtime's empty value (what @Scope.array@ fills with).

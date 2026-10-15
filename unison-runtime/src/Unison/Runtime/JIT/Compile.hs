@@ -121,6 +121,8 @@ poolKeysOf s =
     keys = \case
       Pack r t ZArgs -> [KeyEnum r t]
       Pack r _ _ -> [KeyEnum r (PackedTag 0)]
+      -- a record is built from an empty one of its shape
+      RecPack shape _ -> [KeyRecord shape]
       Lit l@(MT _) -> [KeyLit l]
       Lit l@(MM _) -> [KeyLit l]
       Lit l@(MY _) -> [KeyLit l]

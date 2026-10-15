@@ -33,7 +33,7 @@ import Unison.Runtime.JIT.Estimate (Estimate (..), judge)
 import Unison.Runtime.JIT.Exits
 import Unison.Runtime.JIT.Helpers (helpersIR)
 import Unison.Runtime.JIT.LLVM
-import Unison.Runtime.JIT.Layout (probeArrays, probeBytes, probeCompare, probeEnv, probeLayouts, probeLists, probeMurmur, probeNames, probeTexts)
+import Unison.Runtime.JIT.Layout (probeArrays, probeBytes, probeCompare, probeEnv, probeLayouts, probeLists, probeMurmur, probeNames, probeRecords, probeTexts)
 import Unison.Runtime.JIT.Native (configureNative, ctxLayout, murmurCAddress, rtsFacts, tableAddresses, ucmpCAddress)
 import Unison.Runtime.MCode (CombIx (..), GComb (..), GCombInfo (..), NativeCell, claimNativeCell, combDeps, nativeCellRequested, noNativeCell, prettyIns, prettySection, readNativeCode, readNativeCount, releaseNativeCell, takeNativeCell, writeNativeCount)
 import Unison.Runtime.Machine.Types (CCache (combRefs, combs, sandboxed), MCombs)
@@ -167,7 +167,10 @@ initJIT' = do
                                 Right () ->
                                   probeEnv >>= \case
                                     Left e -> pure (Left e)
-                                    Right () -> fmap (const ls) <$> probeNames ls
+                                    Right () ->
+                                      probeRecords ls >>= \case
+                                        Left e -> pure (Left e)
+                                        Right () -> fmap (const ls) <$> probeNames ls
       (offs, _) <- ctxLayout
       case (layouts, offs) of
         (Left e, _) -> pure (Left [e ++ "; the JIT is off"])

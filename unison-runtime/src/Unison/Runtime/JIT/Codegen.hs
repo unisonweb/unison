@@ -64,6 +64,7 @@ import Unison.Builtin.Decls qualified as Ty (eitherRef, optionalRef, pairRef, se
 import Data.Map.Strict qualified as Map
 import Data.IntMap.Strict qualified as IM
 import Data.IntSet qualified as IS
+import Data.Vector qualified as V
 import Unison.Runtime.MCode hiding (Env)
 import Unison.Runtime.MCode qualified as MCode (GRef (Env))
 import Unison.Runtime.Machine.Types (MCombs, MRef, MSection)
@@ -249,6 +250,8 @@ modulePrelude =
       "declare { i64, i64 } @unison_jit_ueq(i64, ptr, i64, ptr, i64)",
       "declare { i64, i64 } @unison_jit_ucmp(i64, ptr, i64, ptr, i64)",
       "declare ptr @unison_jit_resolve_dyn(ptr, i64)",
+      "declare i64 @unison_jit_rec_pos(ptr, i64)",
+      "declare ptr @unison_jit_rec_set(ptr, ptr, i64, i64, ptr)",
       "declare i64 @unison_jit_set_aff(ptr, ptr, ptr)",
       "declare ptr @unison_jit_local_env(ptr, ptr)",
       "declare ptr @unison_jit_wrap_ptr(ptr, i64)",
@@ -806,6 +809,9 @@ instrReads base d = \case
   Name r args -> (case r of Stk i -> slotAt d i; _ -> Just IS.empty) <+> argReads base d args
   Info _ -> Just IS.empty
   Pack _ _ args -> argReads base d args
+  RecPack _ args -> argReads base d args
+  RecUnpack _ i -> slotAt d i
+  RecSet _ args -> argReads base d args
   Lit _ -> Just IS.empty
   Print i -> slotAt d i
   Reset _ i mi -> slotAt d i <+> maybe (Just IS.empty) (slotAt d) mi
@@ -1203,6 +1209,8 @@ allocates :: MSection -> Bool
 allocates = anyInstr $ \case
   Pack _ _ ZArgs -> False
   Pack {} -> True
+  RecPack {} -> True
+  RecSet {} -> True
   Prim2 REFW _ _ -> True
   ForeignCall _ MutableArray_write _ -> True
   RefCAS {} -> True
@@ -2896,6 +2904,9 @@ instrNative :: GInstr comb -> Bool
 instrNative = \case
   Lit _ -> True
   Pack {} -> True
+  RecPack {} -> recordsOn
+  RecUnpack {} -> recordsOn
+  RecSet {} -> recordsOn
   -- VALU is native only as the first half of Universal.murmurHashUntyped
   -- (see genInstr); on its own it is a call-out, which the estimate accepts
   Prim1 op _ -> prim1Supported op || op `elem` [REFR, REFN, TIKR, RRFC, VALU, NOTB, SIZS, VWLS, VWRS, SIZT, SIZB, FLTB, UCNS, USNC, ITOT, NTOT, FTOT, TTOI, TTON, TTOF, PAKT, UPKT, PAKB, UPKB]
@@ -2930,6 +2941,11 @@ localObservingOn = requestsOn && exitCall config
 requestsOn :: Bool
 requestsOn = "requests" `notElem` disabled config
 
+-- | The record instructions are generated (off under
+-- @UNISON_JIT_DISABLE=records@).
+recordsOn :: Bool
+recordsOn = "records" `notElem` disabled config
+
 -- | Whether a section, the rest of an affine handler's case after its
 -- @InLocal@, can run without the environment switch the instruction makes
 -- in the interpreter. The switch is observed by requests, @Reset@,
@@ -2952,6 +2968,9 @@ localUnobserved = \case
     harmless = \case
       Lit _ -> True
       Pack {} -> True
+      RecPack {} -> True
+      RecUnpack {} -> True
+      RecSet {} -> True
       Name r _ -> case r of Dyn _ -> False; _ -> True
       SetAff False _ _ -> True
       Prim1 op _ -> prim1Supported op
@@ -3043,6 +3062,33 @@ genInstr fe d instr sect k = case instr of
         slow <- exitBlock fe d (Resume (feCix fe) sect)
         genPack fe d refIx t fields slow
         k (d + 1)
+  -- a record literal: built from the pool's empty record of its shape
+  RecPack shape args
+    | enabled fe "records",
+      Just protoIx <- Map.lookup (KeyRecord shape) (envPool (feEnv fe)) -> do
+        slow <- exitBlock fe d (Resume (feCix fe) sect)
+        genRecPack fe d protoIx (argSources fe d args) slow
+        k (d + 1)
+  -- a record pattern, or a field read: the named fields are pushed
+  RecUnpack fields i | enabled fe "records" -> do
+    slow <- exitBlock fe d (Resume (feCix fe) sect)
+    genRecUnpack fe d i (V.toList fields) slow
+    k (d + V.length fields)
+  -- a field update: a copy with one slot replaced, by the C helper, which
+  -- gives null for anything that isn't a record with that field
+  RecSet (FieldRef f) (VArg2 ri vi) | enabled fe "records" -> do
+    slow <- exitBlock fe d (Resume (feCix fe) sect)
+    rec <- loadB (d - ri)
+    u <- loadU (d - vi)
+    b <- loadB (d - vi)
+    r <- fresh "rec"
+    emit (r <> " = call ptr @unison_jit_rec_set(ptr %ctx, ptr " <> rec <> ", i64 " <> tshow f <> ", i64 " <> u <> ", ptr " <> b <> ")")
+    miss <- fresh "miss"
+    emit (miss <> " = icmp eq ptr " <> r <> ", null")
+    branchIf "recset" miss slow
+    storeU (d + 1) "-1"
+    storeB (d + 1) r
+    k (d + 1)
   -- An affine handler's switch to its own environment: nothing left in
   -- the case can tell (see 'localUnobserved'), so nothing is done; the
   -- interpreter's Local frame would only restore what was never changed.
@@ -3635,6 +3681,9 @@ pushCount = \case
   Name _ _ -> Just 1
   Info _ -> Just 0
   Pack {} -> Just 1
+  RecPack {} -> Just 1
+  RecUnpack fields _ -> Just (V.length fields)
+  RecSet {} -> Just 1
   Lit _ -> Just 1
   Print _ -> Just 0
   Reset {} -> Just 0
@@ -3801,6 +3850,147 @@ genPack fe d refIx (PackedTag t) fields slow = do
   emit (tp <> " = inttoptr i64 " <> ti <> " to ptr")
   storeU (d + 1) "-1"
   storeB (d + 1) tp
+
+-- | Allocates a record with the given fields (in ascending field-name
+-- order, the shape's slot order) and pushes it: the record closure, its
+-- values' @Array#@ and a @Val@ box per field, in one chunk. The shape's
+-- words (the names' array, the positions map, the shape reference, the
+-- names' offset and length) are copied from the pool's empty record of the
+-- shape at @protoIx@. An untagged field value goes to @slow@.
+genRecPack :: FnEnv -> Int -> Int -> Deque Int -> Text -> Gen ()
+genRecPack fe d protoIx fields slow = do
+  let env = feEnv fe
+      ls = envLayouts env
+      rts = envRts env
+      layout = lRecord ls
+      vl = lVal ls
+      n = D.size fields
+      recWords = 1 + lPtrs layout + lNptrs layout
+      cardWords = (n + (1 `shiftL` rCardBits rts) - 1) `shiftR` rCardBits rts
+      cardWords' = (cardWords + 7) `div` 8
+      arrWords = rPtrsHeader rts + n + cardWords'
+      valWords = 1 + lPtrs vl + lNptrs vl
+      words = recWords + arrWords + n * valWords
+      -- the chunk: the record, then the Array#, then the Vals
+      arr = recWords
+      valsAt = arr + arrWords
+  -- the fields, before the allocation call so nothing is held across it
+  vals <- loadSources fields
+  requireTagged slow (fmap (\(Pair _ b) -> b) vals)
+  -- the shape, from the prototype
+  proto <- poolValue protoIx
+  pi' <- fresh "proto"
+  emit (pi' <> " = ptrtoint ptr " <> proto <> " to i64")
+  pb <- fresh "proto.base"
+  emit (pb <> " = and i64 " <> pi' <> ", -8")
+  names <- loadAt pb "names" "ptr" (lFieldOffset layout 0)
+  positions <- loadAt pb "positions" "ptr" (lFieldOffset layout 1)
+  ref <- loadAt pb "shaperef" "i64" (lFieldOffset layout (lPtrs layout))
+  noff <- loadAt pb "noff" "i64" (lFieldOffset layout (lPtrs layout + 1))
+  nlen <- loadAt pb "nlen" "i64" (lFieldOffset layout (lPtrs layout + 2))
+  -- charge the budget and allocate
+  obj <- allocWords env words
+  let word i = do
+        a <- fresh "w"
+        emit (a <> " = getelementptr i64, ptr " <> obj <> ", i64 " <> tshow i)
+        pure a
+      storeAt i what = do
+        a <- word i
+        emit ("store " <> what <> ", ptr " <> a)
+      tagged i tg = do
+        a <- word i
+        v <- fresh "addr"
+        emit (v <> " = ptrtoint ptr " <> a <> " to i64")
+        tv <- fresh "tagged"
+        emit (tv <> " = or i64 " <> v <> ", " <> tshow (tg :: Int))
+        tp <- fresh "tagged"
+        emit (tp <> " = inttoptr i64 " <> tv <> " to ptr")
+        pure tp
+  -- the Array#: element count, then payload size including the card table
+  storeAt arr ("i64 " <> tshow (rArrPtrsInfo rts))
+  storeAt (arr + rPtrsCount rts) ("i64 " <> tshow n)
+  storeAt (arr + rPtrsSize rts) ("i64 " <> tshow (n + cardWords'))
+  forM_ [0 .. cardWords' - 1] $ \c -> storeAt (arr + rPtrsHeader rts + n + c) "i64 0"
+  -- the Vals: pointer b, then word u; element j of the array is Val j (tag 1)
+  iforM_ vals $ \j (Pair u b) -> do
+    let vb = valsAt + j * valWords
+    storeAt vb ("i64 " <> tshow (lInfo vl))
+    storeAt (vb + 1) ("ptr " <> b)
+    storeAt (vb + 1 + lPtrs vl) ("i64 " <> u)
+    vp <- tagged vb 1
+    storeAt (arr + rPtrsHeader rts + j) ("ptr " <> vp)
+  -- the record: the shape's words, then the values' array, offset and length
+  storeAt 0 ("i64 " <> tshow (lInfo layout))
+  storeAt 1 ("ptr " <> names)
+  storeAt 2 ("ptr " <> positions)
+  ap <- word arr
+  storeAt 3 ("ptr " <> ap)
+  storeAt (1 + lPtrs layout) ("i64 " <> ref)
+  storeAt (2 + lPtrs layout) ("i64 " <> noff)
+  storeAt (3 + lPtrs layout) ("i64 " <> nlen)
+  storeAt (4 + lPtrs layout) "i64 0"
+  storeAt (5 + lPtrs layout) ("i64 " <> tshow n)
+  tp <- tagged 0 (lPtrTag layout)
+  storeU (d + 1) "-1"
+  storeB (d + 1) tp
+
+-- | Pushes the named fields of the record in slot @d - i@ onto slots
+-- d+1..d+n, first field on top (as the interpreter's @dumpSeg@ does). The
+-- slot of each field comes from the value's own shape, through
+-- @unison_jit_rec_pos@, since the same code runs for records of every
+-- shape the pattern matches. Anything that isn't a record, a field the
+-- record doesn't have, or an element that isn't an evaluated @Val@
+-- branches to @slow@.
+genRecUnpack :: FnEnv -> Int -> Int -> [FieldRef] -> Text -> Gen ()
+genRecUnpack fe d i fields slow = do
+  let ls = envLayouts (feEnv fe)
+      rts = envRts (feEnv fe)
+      layout = lRecord ls
+      vl = lVal ls
+      n = length fields
+  p <- loadB (d - i)
+  raw <- fresh "raw"
+  emit (raw <> " = ptrtoint ptr " <> p <> " to i64")
+  tagBits <- fresh "ptrtag"
+  emit (tagBits <> " = and i64 " <> raw <> ", 7")
+  notTag <- fresh "notrec"
+  emit (notTag <> " = icmp ne i64 " <> tagBits <> ", " <> tshow (lPtrTag layout))
+  branchIf "record" notTag slow
+  base <- fresh "base"
+  emit (base <> " = and i64 " <> raw <> ", -8")
+  info <- loadAt base "info" "i64" 0
+  notRec <- fresh "notrec"
+  emit (notRec <> " = icmp ne i64 " <> info <> ", " <> tshow (lInfo layout))
+  branchIf "record" notRec slow
+  arr <- loadAt base "vals" "ptr" (lFieldOffset layout 2)
+  voff <- loadAt base "voff" "i64" (lFieldOffset layout (lPtrs layout + 3))
+  forM_ (zip [0 ..] fields) $ \(j, FieldRef f) -> do
+    pos <- fresh "pos"
+    emit (pos <> " = call i64 @unison_jit_rec_pos(ptr " <> p <> ", i64 " <> tshow f <> ")")
+    missing <- fresh "nofield"
+    emit (missing <> " = icmp slt i64 " <> pos <> ", 0")
+    branchIf "field" missing slow
+    ix <- fresh "ix"
+    emit (ix <> " = add i64 " <> voff <> ", " <> pos)
+    ix' <- fresh "ix"
+    emit (ix' <> " = add i64 " <> ix <> ", " <> tshow (rPtrsHeader rts))
+    ea <- fresh "elem.a"
+    emit (ea <> " = getelementptr i64, ptr " <> arr <> ", i64 " <> ix')
+    v <- fresh "elem"
+    emit (v <> " = load ptr, ptr " <> ea)
+    vi <- fresh "elem"
+    emit (vi <> " = ptrtoint ptr " <> v <> " to i64")
+    vt <- fresh "elem.tag"
+    emit (vt <> " = and i64 " <> vi <> ", 7")
+    notVal <- fresh "notval"
+    emit (notVal <> " = icmp ne i64 " <> vt <> ", " <> tshow (lPtrTag vl))
+    branchIf "val" notVal slow
+    vb <- fresh "elem.base"
+    emit (vb <> " = and i64 " <> vi <> ", -8")
+    b <- loadAt vb "fb" "ptr" (lFieldOffset vl 0)
+    u <- loadAt vb "fu" "i64" (lFieldOffset vl (lPtrs vl))
+    storeU (d + n - j) u
+    storeB (d + n - j) b
 
 -- | Loads through a Ref: the closure in slot @k@ must be @Foreign
 -- (WrapIORef ref)@, checked by info pointer, and the MutVar#'s content an

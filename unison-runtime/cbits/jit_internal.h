@@ -215,6 +215,43 @@ UNISON_JIT_TABLE EnvFacts unison_jit_EK;
 // Defined in jit_helpers.c; generated code calls the IR copy.
 void *unison_jit_resolve_dyn(void *henv, int64_t key);
 
+// --- records (GRecord, Unison.Runtime.Stack) ---
+// A record is `GRecord shape vals` with the shape (MCode.RecordShape) and the
+// vector of values unpacked into the closure (both modules are compiled with
+// -funbox-strict-fields): pointer tag 7, told from Foreign by its info
+// pointer; pointers the field names' Array# (Data.Text elements, ascending),
+// the positions map (EnumMap FieldRef Int: an IntMap, as the handler
+// environment's, of boxed Ints) and the values' Array# (Val closures, slot i
+// the value of field i); words the interned shape reference, the names'
+// offset and length in their array, the values' offset and length. All of it
+// from unison_jit_record_init, which runs after unison_jit_env_init (the
+// IntMap tags are EK's).
+typedef struct {
+  StgWord record_info;
+  StgWord text_info; // Data.Text: pointer the ByteArray#, words the byte offset and length (UTF-8)
+  StgWord int_info;  // a boxed Int (I#): one word
+  int ok;
+} RecordFacts;
+UNISON_JIT_TABLE RecordFacts unison_jit_RK;
+#define RK unison_jit_RK
+// payload indices of a record closure
+#define REC_NAMES 0
+#define REC_POS 1
+#define REC_VALS 2
+#define REC_REF 3
+#define REC_NOFF 4
+#define REC_NLEN 5
+#define REC_VOFF 6
+#define REC_VLEN 7
+static inline int is_record(void *c) {
+  return RK.ok && LTAG(c) == 7 && (StgWord)LUN(c)->header.info == RK.record_info;
+}
+// The slot of the field with this number in the record's shape, or -1 when
+// the record has no such field or the map isn't evaluated. Defined in
+// jit_helpers.c; generated code calls the IR copy.
+int64_t unison_jit_rec_pos(void *rec, int64_t field);
+// why a record was left to the interpreter, under UNISON_JIT_TRACE_TEST
+void unison_jit_rec_fail(const char *what, StgClosure *c);
 // The hash of a stack slot's two halves, or "not handled". Defined in
 // jit_helpers.c; generated code calls the IR copy.
 JitNat unison_jit_murmur(int64_t u, void *b);

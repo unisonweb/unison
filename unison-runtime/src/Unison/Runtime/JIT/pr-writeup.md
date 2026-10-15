@@ -78,3 +78,12 @@ twice it was the interpreter's.
   above `0.0`, and `-0.0` ordered above every negative float and below `0.0`. The native comparison
   reproduced it at first (outputs must match), then both were fixed to clear bit 63;
   `runtime-tests.md` had recorded the wrong answers for `compare +0.0 (-0.0)` and its mirror.
+
+## Records (merged from trunk on 2026-10-15)
+
+Trunk's structural records (`GRecord`, `RecPack`, `RecUnpack`, `RecSet`) were merged and made
+native the same day: the three instructions are generated, and the comparison walkers and the
+hash handle records. Two things in the interpreter changed with it: the elements of a record's
+value vector are built evaluated (`recordVals`), since native code reads them as closures, and
+nothing else. "Records" in internals.md has the details.
+
