@@ -97,7 +97,12 @@ migrations personalKey regionVar getDeclType termBuffer declBuffer rootCodebaseP
       sqlMigration 23 Q.addHistoryComments,
       sqlMigration 24 Q.addHistoryCommentHashing,
       (25, runT $ hashHistoryCommentsMigration personalKey),
-      sqlMigration 26 Q.historyCommentHashingCleanup
+      sqlMigration 26 Q.historyCommentHashingCleanup,
+      -- Version 27 added record terms, types and patterns to the term
+      -- serialization: nothing stored in a version 26 codebase changes, the
+      -- bump only keeps older versions from opening a codebase that may
+      -- hold records.
+      sqlMigration 27 (pure ())
     ]
   where
     runT :: Sqlite.Transaction () -> Sqlite.Connection -> IO ()
