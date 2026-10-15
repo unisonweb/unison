@@ -1,6 +1,7 @@
 module Unison.Hashing.V2.Type
   ( Type,
     TypeF (..),
+    RecordTail (..),
     bindExternal,
     bindReferences,
 
@@ -35,6 +36,13 @@ import Unison.Prelude
 import Unison.Util.List qualified as List
 import Unison.Var (Var)
 
+-- | The "tail" of a record type: whether the record may have fields beyond the
+-- named ones, and, if so, the row that describes them.
+data RecordTail a
+  = HasExtraFields a -- { a: Int | rest }
+  | NoExtraFields
+  deriving (Eq, Ord, Show, Foldable, Functor, Traversable)
+
 -- | Base functor for types in the Unison language
 data TypeF a
   = TypeRef Reference
@@ -47,6 +55,7 @@ data TypeF a
   | TypeIntroOuter a -- binder like ∀, used to introduce variables that are
   -- bound by outer type signatures, to support scoped type
   -- variables
+  | TypeRecord (RecordTail a) (Map Text a)
   deriving (Foldable, Functor, Traversable)
 
 -- | Types are represented as ABTs over the base functor F, with variables in `v`
@@ -151,3 +160,12 @@ instance Hashable1 TypeF where
             TypeEffect e t -> [tag 5, hashed (hash e), hashed (hash t)]
             TypeForall a -> [tag 6, hashed (hash a)]
             TypeIntroOuter a -> [tag 7, hashed (hash a)]
+            TypeRecord fb fields ->
+              let fbh = case fb of
+                    HasExtraFields row -> [tag 0, hashed (hash row)]
+                    NoExtraFields -> [tag 1]
+                  sortedFields = Map.toAscList fields
+                  fieldHashes =
+                    sortedFields & foldMap \(fieldName, fieldType) ->
+                      [Hashable.accumulateToken fieldName, hashed (hash fieldType)]
+               in tag 8 : fbh <> fieldHashes

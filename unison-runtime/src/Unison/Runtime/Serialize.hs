@@ -16,6 +16,7 @@ import Data.Primitive.Array
     indexArray,
     sizeofArray,
   )
+import Data.Set qualified as Set
 import Data.Text (Text)
 import Data.Text.Encoding (decodeUtf8, encodeUtf8)
 import Data.Word (Word64, Word8)
@@ -27,6 +28,7 @@ import Unison.Hash qualified as Hash
 import Unison.Reference (Id' (..), Reference, Reference' (Builtin, DerivedId), pattern Derived)
 import Unison.Referent (Referent, pattern Con, pattern Ref)
 import Unison.ReferentPrime (Referent' (..))
+import Unison.Runtime.ANF qualified as ANF
 import Unison.Runtime.Array qualified as PA
 import Unison.Runtime.Canonicalizer
 import Unison.Runtime.Exception (exn)
@@ -204,6 +206,13 @@ putEnumSet pk s =
 
 getEnumSet :: (PrimBase m) => (EnumKey k) => Get m k -> Get m (EnumSet k)
 getEnumSet gk = setFromList <$> getList gk
+
+getSet :: (Ord a, PrimBase m) => Get m a -> Get m (Set.Set a)
+getSet getA = Set.fromList <$> getList getA
+{-# INLINEABLE getSet #-}
+
+putSet :: (Ord a) => (a -> Builder) -> Set.Set a -> Builder
+putSet putA s = putFoldable putA (Set.toAscList s)
 
 putMaybe :: Maybe a -> (a -> Builder) -> Builder
 putMaybe Nothing _ = BU.word8 0
@@ -464,6 +473,22 @@ putConstructorReference (ConstructorReference r i) =
 getConstructorReference :: (PrimBase m) => Get m ConstructorReference
 getConstructorReference =
   ConstructorReference <$> getReference <*> getLength
+
+getRecordSchema :: (PrimBase m) => Get m ANF.RecordSchema
+getRecordSchema = do
+  fields <- getList getText
+  pure $ ANF.RecordSchema (Set.fromList fields)
+
+putRecordSchema :: ANF.RecordSchema -> Builder
+putRecordSchema (ANF.RecordSchema fields) =
+  putFoldable putText (Set.toAscList fields)
+
+getRecordRef :: (PrimBase m) => Get m ANF.RecordRef
+getRecordRef = do
+  ANF.RecordRef <$> getWord64be
+
+putRecordRef :: ANF.RecordRef -> Builder
+putRecordRef (ANF.RecordRef r) = BU.word64BE r
 
 instance Tag Prim1 where
   tag2word DECI = 0

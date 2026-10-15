@@ -17,6 +17,7 @@ source-repository head
 
 library
   exposed-modules:
+      Unison.Util.BiMap
       Unison.Util.BiMultimap
       Unison.Util.Relation
       Unison.Util.Relation3

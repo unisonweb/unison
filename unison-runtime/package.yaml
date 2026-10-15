@@ -106,6 +106,7 @@ library:
     - temporary
     - text
     - template-haskell
+    - transformers
     - inspection-testing
     - time
     - tls
@@ -121,6 +122,7 @@ library:
     - unison-util-bytes
     - unison-util-file-embed
     - unison-util-recursion
+    - unison-util-relation
     - unison-util-rope
     - unliftio
     - unordered-containers
@@ -163,6 +165,7 @@ tests:
       - unison-core1
       - unison-hash
       - unison-util-bytes
+      - unison-util-relation
       - unison-parser-typechecker
       - unison-prelude
       - unison-pretty-printer

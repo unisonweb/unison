@@ -16,6 +16,13 @@ type FT = F' Reference
 -- | For potentially recursive types, like those in DataDeclaration
 type FD = F' (Reference' Text (Maybe Hash))
 
+-- | The "tail" of a record type: whether the record may have fields beyond the
+-- named ones, and, if so, the row that describes them.
+data RecordTail a
+  = HasExtraFields a -- { a: Int | rest }
+  | NoExtraFields
+  deriving (Eq, Ord, Show, Foldable, Functor, Traversable)
+
 data F' r a
   = Ref r
   | Arrow a a
@@ -27,6 +34,7 @@ data F' r a
   | IntroOuter a -- binder like ∀, used to introduce variables that are
   -- bound by outer type signatures, to support scoped type
   -- variables
+  | Record (RecordTail a) (Map Text a)
   deriving (Foldable, Functor, Eq, Ord, Show, Traversable)
 
 -- | Non-recursive type

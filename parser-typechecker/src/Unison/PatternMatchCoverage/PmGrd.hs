@@ -1,5 +1,9 @@
 module Unison.PatternMatchCoverage.PmGrd where
 
+import Data.Map (Map)
+import Data.Map qualified as Map
+import Data.Text (Text)
+import Data.Text qualified as Text
 import Unison.ConstructorReference (ConstructorReference)
 import Unison.PatternMatchCoverage.PmLit (PmLit, prettyPmLit)
 import Unison.PatternMatchCoverage.Pretty
@@ -57,6 +61,17 @@ data
   | -- | @PmLet x expr@ corresponds to a @let x = expr@ guard. This actually
     -- /binds/ @x@.
     PmLet v (Term' vt v loc) (Type vt loc)
+  | -- | @PmRecordLiteral fields x typ@ corresponds to matching the record in
+    -- @x@, binding a variable for each named field. A record has a single
+    -- constructor, so this match is irrefutable; fields the pattern doesn't
+    -- mention are absent from the map.
+    PmRecordLiteral
+      -- | a variable and type per matched field
+      (Map Text (v, Type vt loc))
+      -- | record value
+      v
+      -- | record type
+      (Type vt loc)
   deriving stock (Show)
 
 prettyPmGrd :: (Var vt, Var v) => PPE.PrettyPrintEnv -> PmGrd vt v loc -> Pretty ColorText
@@ -74,5 +89,8 @@ prettyPmGrd ppe = \case
   PmLit var lit -> sep " " [prettyPmLit lit, "<-", prettyVar var]
   PmBang v -> "!" <> prettyVar v
   PmLet v _expr _ -> sep " " ["let", prettyVar v, "=", "<expr>"]
+  PmRecordLiteral fields v _ ->
+    let fieldStrs = fmap (\(k, (fv, _t)) -> sep " " [string (Text.unpack k), ":", prettyVar fv]) (Map.toAscList fields)
+     in sep " " ["{" <> sep ", " fieldStrs <> "}", "<-", prettyVar v]
   where
     pc = prettyConstructorReference ppe

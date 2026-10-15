@@ -178,6 +178,7 @@ library
     , text
     , time
     , tls
+    , transformers
     , unison-codebase-sqlite
     , unison-core
     , unison-core1
@@ -190,6 +191,7 @@ library
     , unison-util-bytes
     , unison-util-file-embed
     , unison-util-recursion
+    , unison-util-relation
     , unison-util-rope
     , unliftio
     , unordered-containers
@@ -291,6 +293,7 @@ test-suite runtime-tests
     , unison-runtime
     , unison-syntax
     , unison-util-bytes
+    , unison-util-relation
   default-language: Haskell2010
   if flag(arraychecks)
     cpp-options: -DARRAY_CHECK

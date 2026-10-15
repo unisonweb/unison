@@ -5,11 +5,13 @@ module Unison.Type where
 import Control.Lens (Prism')
 import Control.Monad.Writer.Strict qualified as Writer
 import Data.Generics.Sum (_Ctor)
+import Data.List qualified as List
 import Data.List.Extra (nubOrd)
 import Data.Map qualified as Map
 import Data.Monoid (Any (..))
 import Data.Sequence qualified as Seq
 import Data.Set qualified as Set
+import Data.Text qualified as Text
 import Unison.ABT qualified as ABT
 import Unison.HashQualified qualified as HQ
 import Unison.Kind qualified as K
@@ -36,6 +38,16 @@ import Unison.Util.List qualified as List
 import Unison.Var (Var)
 import Unison.Var qualified as Var
 
+-- | The "tail" of a record type: whether the record may have fields beyond the
+-- named ones, and, if so, the row that describes them.
+--
+-- E.g. @{a: Int, b: Nat | r}@ has a @HasExtraFields r@ tail, and @{a: Int}@
+-- has a @NoExtraFields@ tail.
+data RecordTail a
+  = HasExtraFields a -- { a: Int | rest }
+  | NoExtraFields
+  deriving (Eq, Ord, Show, Foldable, Functor, Traversable)
+
 -- | Base functor for types in the Unison language
 data F a
   = Ref TypeReference
@@ -48,6 +60,8 @@ data F a
   | IntroOuter a -- binder like ∀, used to introduce variables that are
   -- bound by outer type signatures, to support scoped type
   -- variables
+  | -- Record type, mapping field names to types
+    Record (RecordTail a) (Map Text a)
   deriving (Foldable, Functor, Generic, Generic1, Eq, Ord, Traversable)
 
 _Ref :: Prism' (F a) TypeReference
@@ -145,6 +159,9 @@ pattern Pure' t <- (unPure -> Just t)
 pattern Request' :: [Type v a] -> Type v a -> Type v a
 pattern Request' ets res <- Apps' (Ref' ((== effectRef) -> True)) [(flattenEffects -> ets), res]
 
+pattern Record' :: RecordTail (ABT.Term F v a) -> Map Text (ABT.Term F v a) -> ABT.Term F v a
+pattern Record' fb fields <- ABT.Tm' (Record fb fields)
+
 pattern Effects' :: [ABT.Term F v a] -> ABT.Term F v a
 pattern Effects' es <- ABT.Tm' (Effects es)
 
@@ -193,10 +210,15 @@ pattern Cycle' xs t <- ABT.Cycle' xs t
 pattern Abs' :: (Foldable f, Functor f, ABT.Var v) => ABT.Subst f v a -> ABT.Term f v a
 pattern Abs' subst <- ABT.Abs' _ subst
 
+-- Pattern match combinations for Type terms
+-- Effect'' matches ANY type and extracts the underlying type and its effects (if any)
+{-# COMPLETE Effect'' #-}
+
+{-# COMPLETE Ref', Arrow', Ann', App', Effect', Effects', Forall', IntroOuter', Record' #-}
+
 unPure :: (Ord v) => Type v a -> Maybe (Type v a)
 unPure (Effect'' [] t) = Just t
 unPure (Effect'' _ _) = Nothing
-unPure t = Just t
 
 unArrows :: Type v a -> Maybe [Type v a]
 unArrows t =
@@ -432,6 +454,24 @@ char a = ref a charRef
 
 integer :: (Ord v) => a -> Type v a
 integer a = ref a integerRef
+
+record :: (Ord v) => a -> RecordTail (Type v a) -> Map Text (Type v a) -> Type v a
+record a fb fields = ABT.tm' a (Record fb fields)
+
+-- | Flatten a record type whose row is itself a record, so that
+-- @{a: Nat | {b: Text | rest}}@ becomes @{a: Nat, b: Text | rest}@.
+--
+-- Applied bottom-up, so nesting of any depth is collapsed into a single
+-- record node with a single row.
+normalize :: (Ord v) => Type v a -> Type v a
+normalize = ABT.rebuildUp go
+  where
+    go :: F (Type v a) -> F (Type v a)
+    go (Record fb fields) = case fb of
+      HasExtraFields (Record' innerFb innerFields) ->
+        go (Record innerFb (fields <> innerFields))
+      _ -> Record fb fields
+    go t = t
 
 natural :: (Ord v) => a -> Type v a
 natural a = ref a naturalRef
@@ -923,5 +963,12 @@ instance (Show a) => Show (F a) where
       go p (IntroOuter body) = case p of
         0 -> showsPrec p body
         _ -> showParen True $ s "outer " <> shows body
+      go p (Record fb fields) =
+        let fbs = case fb of
+              NoExtraFields -> s ""
+              HasExtraFields row -> s "| " <> shows row
+         in showParen (p > 0) $ foldl' (<>) (s "{") (List.intersperse (s ", ") (showField <$> Map.toList fields)) <> fbs <> s "}"
+        where
+          showField (l, t) = s (Text.unpack l) <> s ": " <> shows t
       (<>) = (.)
       s = showString

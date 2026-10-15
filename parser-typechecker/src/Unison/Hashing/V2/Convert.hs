@@ -119,6 +119,9 @@ m2hTerm = ABT.transformM \case
   Memory.Term.Blank b -> pure (Hashing.TermBlank b)
   Memory.Term.Ref r -> pure (Hashing.TermRef (m2hReference r))
   Memory.Term.Constructor (Memory.ConstructorReference.ConstructorReference r i) -> pure (Hashing.TermConstructor (m2hReference r) i)
+  Memory.Term.Record fields -> pure (Hashing.TermRecord fields)
+  Memory.Term.RecordSet field r v -> pure (Hashing.TermRecordSet field r v)
+  Memory.Term.RecordSetBlock path fields target -> pure (Hashing.TermRecordSetBlock path fields target)
   Memory.Term.Request (Memory.ConstructorReference.ConstructorReference r i) -> pure (Hashing.TermRequest (m2hReference r) i)
   Memory.Term.Handle x y -> pure (Hashing.TermHandle x y)
   Memory.Term.App f x -> pure (Hashing.TermApp f x)
@@ -150,6 +153,7 @@ m2hPattern = \case
   Memory.Pattern.Bytes loc b -> Hashing.PatternBytes loc b
   Memory.Pattern.Constructor loc (Memory.ConstructorReference.ConstructorReference r i) ps ->
     Hashing.PatternConstructor loc (m2hReference r) i (fmap m2hPattern ps)
+  Memory.Pattern.RecordLiteral loc fields -> Hashing.PatternRecord loc (m2hPattern <$> fields)
   Memory.Pattern.As loc p -> Hashing.PatternAs loc (m2hPattern p)
   Memory.Pattern.EffectPure loc p -> Hashing.PatternEffectPure loc (m2hPattern p)
   Memory.Pattern.EffectBind loc (Memory.ConstructorReference.ConstructorReference r i) ps k ->
@@ -182,6 +186,9 @@ h2mTerm getCT = ABT.transform \case
   Hashing.TermRef r -> Memory.Term.Ref (h2mReference r)
   Hashing.TermConstructor r i -> Memory.Term.Constructor (Memory.ConstructorReference.ConstructorReference (h2mReference r) i)
   Hashing.TermRequest r i -> Memory.Term.Request (Memory.ConstructorReference.ConstructorReference (h2mReference r) i)
+  Hashing.TermRecord fields -> Memory.Term.Record fields
+  Hashing.TermRecordSet field r v -> Memory.Term.RecordSet field r v
+  Hashing.TermRecordSetBlock path fields target -> Memory.Term.RecordSetBlock path fields target
   Hashing.TermHandle x y -> Memory.Term.Handle x y
   Hashing.TermApp f x -> Memory.Term.App f x
   Hashing.TermAnn e t -> Memory.Term.Ann e (h2mType t)
@@ -212,6 +219,7 @@ h2mPattern = \case
   Hashing.PatternBytes loc b -> Memory.Pattern.Bytes loc b
   Hashing.PatternConstructor loc r i ps ->
     Memory.Pattern.Constructor loc (Memory.ConstructorReference.ConstructorReference (h2mReference r) i) (h2mPattern <$> ps)
+  Hashing.PatternRecord loc fields -> Memory.Pattern.RecordLiteral loc (h2mPattern <$> fields)
   Hashing.PatternAs loc p -> Memory.Pattern.As loc (h2mPattern p)
   Hashing.PatternEffectPure loc p -> Memory.Pattern.EffectPure loc (h2mPattern p)
   Hashing.PatternEffectBind loc r i ps k ->
@@ -280,6 +288,12 @@ m2hType = ABT.transform \case
   Memory.Type.Effects a1s -> Hashing.TypeEffects a1s
   Memory.Type.Forall a1 -> Hashing.TypeForall a1
   Memory.Type.IntroOuter a1 -> Hashing.TypeIntroOuter a1
+  Memory.Type.Record fb a1 -> Hashing.TypeRecord (m2hRecordTail fb) a1
+
+m2hRecordTail :: Memory.Type.RecordTail a -> Hashing.RecordTail a
+m2hRecordTail = \case
+  Memory.Type.NoExtraFields -> Hashing.NoExtraFields
+  Memory.Type.HasExtraFields row -> Hashing.HasExtraFields row
 
 m2hKind :: Memory.Kind.Kind -> Hashing.Kind
 m2hKind = \case
@@ -318,6 +332,12 @@ h2mType = ABT.transform \case
   Hashing.TypeEffects a1s -> Memory.Type.Effects a1s
   Hashing.TypeForall a1 -> Memory.Type.Forall a1
   Hashing.TypeIntroOuter a1 -> Memory.Type.IntroOuter a1
+  Hashing.TypeRecord fb a1 -> Memory.Type.Record (h2mRecordTail fb) a1
+
+h2mRecordTail :: Hashing.RecordTail a -> Memory.Type.RecordTail a
+h2mRecordTail = \case
+  Hashing.NoExtraFields -> Memory.Type.NoExtraFields
+  Hashing.HasExtraFields row -> Memory.Type.HasExtraFields row
 
 h2mKind :: Hashing.Kind -> Memory.Kind.Kind
 h2mKind = \case
