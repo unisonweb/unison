@@ -16,7 +16,10 @@ module Unison.Runtime.Machine
     cacheAdd0,
     eval0,
     expandSandbox,
+    mCombVal,
+    nestEvalArgs,
     preEvalTopLevelConstants,
+    rCombSection,
     refLookup,
     refNumTm,
     refNumsTm,
@@ -906,6 +909,44 @@ nestEval env activeThreads write val = apply1 readBack env activeThreads val
   where
     readBack stk = peek stk >>= write
 {-# INLINE nestEval #-}
+
+-- | Like 'nestEval', but applies the function closure to the given
+-- arguments (pushed onto a fresh stack) rather than forcing a nullary
+-- thunk. Arguments are supplied in parameter order: @argVals !! 0@ becomes
+-- the closure's first parameter. The result is delivered to the callback.
+--
+-- This is the re-entrant entry point used to run a Unison function from a
+-- C callback, where the arguments have been decoded from the foreign call.
+nestEvalArgs ::
+  (RuntimeProfiler prof) =>
+  CCache prof ->
+  ActiveThreads ->
+  [Val] ->
+  (Val -> IO ()) ->
+  Val ->
+  IO ()
+nestEvalArgs env activeThreads argVals write clo = do
+  stk <- alloc
+  (tick, cancelTicks) <- startTicker $ profiler env
+  stk <- pushArgs stk argVals
+  apply tick env mempty activeThreads stk k0 True args clo
+    `finally` cancelTicks
+  where
+    k0 = CB $ Hook (\stk -> peek (packXStack stk) >>= write)
+    -- Arguments are pushed left-to-right, so the k-th argument ends up at
+    -- offset @n - 1 - k@ from the top of the stack. The arg list below
+    -- names those offsets in parameter order, mirroring 'demuxArgs'.
+    args = case reverse [0 .. length argVals - 1] of
+      [] -> ZArgs
+      [i] -> VArg1 i
+      [i, j] -> VArg2 i j
+      is -> VArgN $ PA.primArrayFromList is
+    pushArgs stk [] = pure stk
+    pushArgs stk (v : vs) = do
+      stk <- bump stk
+      poke stk v
+      pushArgs stk vs
+{-# INLINE nestEvalArgs #-}
 
 atomicEval ::
   (RuntimeProfiler prof) =>
