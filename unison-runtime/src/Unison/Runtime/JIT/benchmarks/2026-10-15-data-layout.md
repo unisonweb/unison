@@ -59,8 +59,12 @@ What it shows:
   per character); one case per match, each alternative looking its arm up and pushing
   its own fields, is the final form (the interpreter columns above).
 - **Open**: "Apply a function argument" reads 0.048 → 0.057 ms native in every round,
-  0.9 ns per closure call; the closure-call code lost the two box checks and nothing else
-  changed there. The interpreter's hash row reads 7% slower; its hash goes through the
+  0.9 ns per closure call, and 49 → 58 µs in a standalone loop. The optimized IR and the
+  assembly (`llc` on the dumps) of the loop after are a strict subset of the ones before:
+  the two box checks, two dependent loads and a branch are gone and nothing was added. So
+  the emitted instructions are better and the time is elsewhere: the placement of the
+  loop in the JIT's code memory (branch-target alignment at this size is worth about
+  this much), or the arrays the pooled PAp now points at directly. Not resolved. The interpreter's hash row reads 7% slower; its hash goes through the
   `DataC` view, which has more cases now.
 
 The records rows are a control (records are their own closure kind) and are unchanged.
