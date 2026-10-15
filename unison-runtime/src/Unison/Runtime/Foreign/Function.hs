@@ -1334,10 +1334,10 @@ foreignCallHelper = \case
   PinnedByteArray_contents ->
     mkForeign $ evaluate . PA.mutableByteArrayContents @PA.RealWorld
   FFI_ForeignPtr_new_foreign -> mkForeign \(fin0, ptr) ->
-    let fin | CDynFunc _ _ f <- fin0 = castFunPtr f
+    let fin | CDynFunc _ _ f _ <- fin0 = castFunPtr f
      in FgnPtr.newForeignPtr @() fin ptr
   FFI_ForeignPtr_addCFinalizer -> mkForeign \(fin0, fptr) ->
-    let fin | CDynFunc _ _ f <- fin0 = castFunPtr f
+    let fin | CDynFunc _ _ f _ <- fin0 = castFunPtr f
      in FgnPtr.addForeignPtrFinalizer @() fin fptr
   FFI_ForeignPtr_unsafeContents -> mkForeign \fptr ->
     evaluate $ FgnPtr.unsafeForeignPtrToPtr @() fptr

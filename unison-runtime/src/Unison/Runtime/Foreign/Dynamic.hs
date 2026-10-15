@@ -55,7 +55,12 @@ data CDynFunc
   CDynFunc
   { cName :: String,
     cSpec :: {-# UNPACK #-} !CSpec,
-    cFun :: !(FunPtr a)
+    cFun :: !(FunPtr a),
+    -- Resources to release when the function value is no longer needed.
+    -- A symbol loaded from a DLL owns nothing (@pure ()@); a callback
+    -- (see "Unison.Runtime.Foreign.Callback") frees its libffi closure and
+    -- stable pointer here. Expected to be idempotent.
+    cFinalize :: IO ()
   }
 
 cffArgs :: CDynFunc -> [FFType]
@@ -70,10 +75,10 @@ instance Show CDynFunc where
 -- The call signature is part of a function value's identity: one variadic
 -- symbol can be loaded with different arities, argument types, or conventions.
 instance Eq CDynFunc where
-  CDynFunc _ ls l == CDynFunc _ rs r = l == castFunPtr r && ffSpec ls == ffSpec rs
+  CDynFunc _ ls l _ == CDynFunc _ rs r _ = l == castFunPtr r && ffSpec ls == ffSpec rs
 
 instance Ord CDynFunc where
-  compare (CDynFunc _ ls l) (CDynFunc _ rs r) =
+  compare (CDynFunc _ ls l _) (CDynFunc _ rs r _) =
     compare l (castFunPtr r) <> compare (ffSpec ls) (ffSpec rs)
 
 encodeType :: FFType -> Ptr CType
@@ -162,7 +167,7 @@ foreign import ccall unsafe "ffi_prep_cif_var"
 
 loadForeign :: DLL -> FFSpec -> String -> IO CDynFunc
 loadForeign dll fspec sym =
-  CDynFunc name <$> prepareSpec fspec <*> getDLLSym dll sym
+  CDynFunc name <$> prepareSpec fspec <*> getDLLSym dll sym <*> pure (pure ())
   where
     name = getDLLPath dll ++ "$" ++ sym
 
@@ -179,7 +184,7 @@ loadForeign dll fspec sym =
 --
 --     Store.poke (castPtr (plusPtr p i)) <smaller-value>
 callForeign :: CDynFunc -> Ptr (Ptr a) -> Ptr r -> IO ()
-callForeign (CDynFunc _ CSpec {cInterface, cArgumentTypes} fun) cArgs cRet =
+callForeign (CDynFunc _ CSpec {cInterface, cArgumentTypes} fun _) cArgs cRet =
   withForeignPtr cInterface \cif ->
     withForeignPtr cArgumentTypes \_ ->
       ffi_call cif fun (castPtr cRet) (castPtr cArgs)

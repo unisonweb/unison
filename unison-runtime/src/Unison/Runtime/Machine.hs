@@ -663,7 +663,7 @@ copyArgs !stk tys p0 h0 next = go 2 tys p0 h0
     store DLL.Fun i p nx = do
       cf <- peekOffBi @DLL.CDynFunc stk i
       case cf of
-        DLL.CDynFunc _ _ f ->
+        DLL.CDynFunc _ _ f _ ->
           Store.poke (castPtr p) (castFunPtr f :: FunPtr ()) >> nx
     store _ i p nx =
       upeekOff stk i >>= Store.poke p >> nx

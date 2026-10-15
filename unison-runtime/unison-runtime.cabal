@@ -59,6 +59,7 @@ library
       Unison.Runtime.Debug
       Unison.Runtime.Decompile
       Unison.Runtime.Exception
+      Unison.Runtime.Foreign.Callback
       Unison.Runtime.Foreign.Dynamic
       Unison.Runtime.Foreign.Function
       Unison.Runtime.Foreign.Function.Type
