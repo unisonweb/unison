@@ -13,13 +13,12 @@ A constructor with three or more fields holds a `Seg`, a tuple of a `ByteArray` 
 `Array`; the tuple's fields can't be unpacked, so the closure points at two lifted boxes, each
 pointing at the real array. Reading a field is three dependent loads, and building the
 constructor allocates five objects and 15 + 2n words for n fields, where a flat closure would
-be one object of 3 + 2n words. The tree benchmark's `Node` has four fields, so this is on its
-hot path, and so is base's `Map`, whose `Bin` has five: a 100000-key map is about 13 MB of
-`DataG` nodes against 5 MB for the Haskell `Data.Map` it replaced, which is why native code
-loses to the Haskell map above a few thousand keys while winning below
-([2026-10-11 replacements](benchmarks/2026-10-11-replacements.md)). It is an interpreter
-change (`GClosure`, `dataBranch`, `buildData`, value serialization), not a JIT one, and needs
-a plan of its own.
+be one object. The tree benchmark's `Node` has four fields, so this is on its hot path, and so
+is base's `Map`, whose `Bin` has five ([2026-10-11
+replacements](benchmarks/2026-10-11-replacements.md)). Reviewed with Paul on 2026-10-15: the
+plan is `data-layout-plan.local.md` (fixed-arity flat constructors up to six fields, the
+`Seg` split in the rest, and the reference pointer replaced by a process-wide type table,
+since the packed tag already carries the type number).
 
 ### One allocation for several `Pack`s
 
