@@ -54,7 +54,7 @@ sizeType = if sizeOf (undefined :: CSize) == 8 then U64 else U32
 formatWith :: [FFType] -> [Argument] -> String -> IO (String, CInt)
 formatWith types values format = do
   spec <- prepareSpec $ FFSpec ([MBArr, sizeType, Ptr] ++ types) I32 (Just 3)
-  let fun = CDynFunc "snprintf" spec snprintfPtr
+  let fun = CDynFunc "snprintf" spec snprintfPtr (pure ())
   replicateM_ 100 $ void $ prepareSpec $ FFSpec [D64, U64, I32, Ptr] D64 Nothing
   performGC
   allocaBytes 256 \buffer ->
@@ -75,12 +75,12 @@ test =
             withCString "fixed FFI" \str ->
               withArguments [Argument str] \args ->
                 allocaBytes 8 \result -> do
-                  callForeign (CDynFunc "strlen" spec strlenPtr) args result
+                  callForeign (CDynFunc "strlen" spec strlenPtr (pure ())) args result
                   peek (castPtr result) :: IO CSize
           expectEqual 9 actual,
         scope "function identity includes the call signature" do
           actual <- io do
-            let make name spec = CDynFunc name <$> prepareSpec spec <*> pure snprintfPtr
+            let make name spec = CDynFunc name <$> prepareSpec spec <*> pure snprintfPtr <*> pure (pure ())
                 args = [MBArr, sizeType, Ptr]
                 spec = FFSpec args I32 (Just 3)
             original <- make "snprintf" spec
