@@ -607,7 +607,7 @@ raw_d =
 record_closed_type : {x: Nat, y: Text} -> Nat
 record_closed_type = cases {x: x, y: _} -> x
 
-record_destructure : {x: Nat, y: Nat | ...} -> Nat
+record_destructure : {x: Nat, y: Nat} -> Nat
 record_destructure = cases {x: x, y: y} -> x Nat.+ y
 
 record_empty : {}
@@ -619,22 +619,22 @@ record_literal = {age: 30, name: "Alice"}
 record_nested : {a: {b: {c: Nat}}}
 record_nested = {a: {b: {c: 42}}}
 
-record_open_type : {x: Nat, y: Text | ...} -> Nat
+record_open_type : {x: Nat, y: Text} -> Nat
 record_open_type = cases {x: x} -> x
 
-record_projection : {a: Nat | ...} -> Nat
+record_projection : {a: Nat} -> Nat
 record_projection = cases {a: field} -> field
 
-record_projection_applied : {a: Nat | ...} -> Nat
+record_projection_applied : {a: Nat} -> Nat
 record_projection_applied r = Nat.increment r@a
 
-record_projection_chain : {a: {b: {c: Nat}} | ...} -> Nat
+record_projection_chain : {a: {b: {c: Nat}}} -> Nat
 record_projection_chain r = r@a@b@c
 
 record_projection_of_expr : Nat -> Nat
 record_projection_of_expr n = {v: n}@v
 
-record_refutable : {x: Nat | ...} -> Text
+record_refutable : {x: Nat} -> Text
 record_refutable = cases
   {x: 0} -> "zero"
   _      -> "other"
@@ -660,10 +660,10 @@ record_set_block_read r =
 row_var_flat : {a: Nat, b: Text | rest} -> {a: Nat, b: Text | rest}
 row_var_flat r = r
 
-row_var_getter_section : {foo: Nat | ...} -> Nat
+row_var_getter_section : {foo: Nat} -> Nat
 row_var_getter_section = cases {foo: field} -> field
 
-row_var_open : {x: Nat | ...} -> Nat
+row_var_open : {x: Nat} -> Nat
 row_var_open = cases {x: field} -> field
 
 row_var_set : {foo: Nat | rest} -> Nat -> {foo: Nat | rest}
