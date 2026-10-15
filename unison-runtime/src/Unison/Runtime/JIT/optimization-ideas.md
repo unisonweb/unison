@@ -7,18 +7,21 @@ change would be and roughly what it would buy; when one is done it leaves this f
 
 ## Unimplemented
 
-### Flat `GDataG`
+### Static enums
 
-A constructor with three or more fields holds a `Seg`, a tuple of a `ByteArray` and an
-`Array`; the tuple's fields can't be unpacked, so the closure points at two lifted boxes, each
-pointing at the real array. Reading a field is three dependent loads, and building the
-constructor allocates five objects and 15 + 2n words for n fields, where a flat closure would
-be one object. The tree benchmark's `Node` has four fields, so this is on its hot path, and so
-is base's `Map`, whose `Bin` has five ([2026-10-11
-replacements](benchmarks/2026-10-11-replacements.md)). Reviewed with Paul on 2026-10-15: the
-plan is `data-layout-plan.local.md` (fixed-arity flat constructors up to six fields, the
-`Seg` split in the rest, the reference kept,
-since the packed tag already carries the type number).
+With the data layout of 2026-10-15 an `Enum` is three words that never change; like GHC's
+own nullary constructors, one per (type, constructor) could be shared instead of allocated
+at every `Pack`. The pool already holds one per `Pack … ZArgs` site for native code; the
+interpreter's `buildData` would read a per-cache table of them. Worth measuring on a
+program that builds many `None`s and `Nil`s.
+
+### Dropping the reference pointer from data closures
+
+The packed tag carries the type number, so the reference field is redundant: one word and
+one traced pointer per value. It stays because `compareClosure`'s different-types path
+(inside `Any`) orders by reference, and that path is reached from `Data.Map`'s own calls on
+the replaced map through the `Ord Val` instance, which can't take a lookup function. A map
+parameterized by a comparison would free it (`data-layout-plan.local.md`).
 
 ### One allocation for several `Pack`s
 

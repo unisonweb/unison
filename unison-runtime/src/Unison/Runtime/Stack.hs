@@ -22,6 +22,10 @@ module Unison.Runtime.Stack
         Enum,
         Data1,
         Data2,
+        Data3,
+        Data4,
+        Data5,
+        Data6,
         DataG,
         RecordG,
         Captured,
@@ -42,6 +46,7 @@ module Unison.Runtime.Stack
     emptyAEnv,
     HEnv (..),
     closureTag,
+    dataTag,
     formDataReplaced,
     mapFamily,
     mapReplaced,
@@ -443,23 +448,39 @@ unboxedTypeTagFromInt = \case
 -- value of field @i@ of the accompanying 'RecordShape'.
 type RecordVals = Vector Val
 
+-- The constructor order sets the pointer tags native code switches on:
+-- the first six constructors get tags 1 to 6 and the rest share tag 7,
+-- told apart by their info pointers. A data constructor's fields come
+-- first and its reference last, so that with @-funbox-strict-fields@ the
+-- closure is the fields' boxed halves, the reference, the packed tag and
+-- the fields' unboxed halves: field j's boxed half is pointer j. The
+-- segments of a partial application, a wide constructor and a captured
+-- continuation are two fields, not a tuple (which couldn't be unpacked),
+-- so the closure holds the two arrays directly.
 data GClosure comb
   = GPAp
       !CombIx
       {-# UNPACK #-} !(GCombInfo comb)
       -- | args
-      {-# UNPACK #-} !Seg
-  | GEnum !Reference !PackedTag
-  | GData1 !Reference !PackedTag !Val
-  | GData2 !Reference !PackedTag !Val !Val
-  | GDataG !Reference !PackedTag {-# UNPACK #-} !Seg
+      !USeg
+      !BSeg
+  | GEnum !PackedTag !Reference
+  | GData1 !PackedTag !Val !Reference
+  | GData2 !PackedTag !Val !Val !Reference
+  | GData3 !PackedTag !Val !Val !Val !Reference
+  | GData4 !PackedTag !Val !Val !Val !Val !Reference
+  | GData5 !PackedTag !Val !Val !Val !Val !Val !Reference
+  | GData6 !PackedTag !Val !Val !Val !Val !Val !Val !Reference
+  | -- | seven or more fields
+    GDataG !PackedTag !USeg !BSeg !Reference
   | GCaptured
       -- | code cont
       !K
       -- | arg size
       !Int
       -- | u/b data stacks
-      {-# UNPACK #-} !Seg
+      !USeg
+      !BSeg
   | GRecord !RecordShape !RecordVals
   | GForeign !Foreign
   | -- | The type tag for the value in the corresponding unboxed stack slot.
@@ -501,21 +522,60 @@ blackHole = Closure GBlackHole
 {-# NOINLINE blackHole #-}
 
 pattern PAp :: CombIx -> GCombInfo (RComb Val) -> Seg -> Closure
-pattern PAp cix comb seg = Closure (GPAp cix comb seg)
+pattern PAp cix comb seg <- (matchPAp -> Just (cix, comb, seg))
+  where
+    PAp cix comb (u, b) = Closure (GPAp cix comb u b)
+
+matchPAp :: Closure -> Maybe (CombIx, GCombInfo (RComb Val), Seg)
+matchPAp (Closure (GPAp cix comb u b)) = Just (cix, comb, (u, b))
+matchPAp _ = Nothing
+{-# INLINE matchPAp #-}
 
 pattern Enum :: Reference -> PackedTag -> Closure
-pattern Enum r t = Closure (GEnum r t)
+pattern Enum r t = Closure (GEnum t r)
 
-pattern Data1 r t i = Closure (GData1 r t i)
+pattern Data1 :: Reference -> PackedTag -> Val -> Closure
+pattern Data1 r t i = Closure (GData1 t i r)
 
-pattern Data2 r t i j = Closure (GData2 r t i j)
+pattern Data2 :: Reference -> PackedTag -> Val -> Val -> Closure
+pattern Data2 r t i j = Closure (GData2 t i j r)
 
-pattern DataG r t seg = Closure (GDataG r t seg)
+pattern Data3 :: Reference -> PackedTag -> Val -> Val -> Val -> Closure
+pattern Data3 r t a b c = Closure (GData3 t a b c r)
+
+pattern Data4 :: Reference -> PackedTag -> Val -> Val -> Val -> Val -> Closure
+pattern Data4 r t a b c d = Closure (GData4 t a b c d r)
+
+pattern Data5 :: Reference -> PackedTag -> Val -> Val -> Val -> Val -> Val -> Closure
+pattern Data5 r t a b c d e = Closure (GData5 t a b c d e r)
+
+pattern Data6 :: Reference -> PackedTag -> Val -> Val -> Val -> Val -> Val -> Val -> Closure
+pattern Data6 r t a b c d e f = Closure (GData6 t a b c d e f r)
+
+-- | A constructor with seven or more fields (fewer go to the fixed-arity
+-- constructors; 'formData' and 'formDataSeg' choose).
+pattern DataG :: Reference -> PackedTag -> Seg -> Closure
+pattern DataG r t seg <- (matchDataG -> Just (r, t, seg))
+  where
+    DataG r t (u, b) = Closure (GDataG t u b r)
+
+matchDataG :: Closure -> Maybe (Reference, PackedTag, Seg)
+matchDataG (Closure (GDataG t u b r)) = Just (r, t, (u, b))
+matchDataG _ = Nothing
+{-# INLINE matchDataG #-}
 
 pattern RecordG :: RecordShape -> RecordVals -> Closure
 pattern RecordG sh vs = Closure (GRecord sh vs)
 
-pattern Captured k a seg = Closure (GCaptured k a seg)
+pattern Captured :: K -> Int -> Seg -> Closure
+pattern Captured k a seg <- (matchCaptured -> Just (k, a, seg))
+  where
+    Captured k a (u, b) = Closure (GCaptured k a u b)
+
+matchCaptured :: Closure -> Maybe (K, Int, Seg)
+matchCaptured (Closure (GCaptured k a u b)) = Just (k, a, (u, b))
+matchCaptured _ = Nothing
+{-# INLINE matchCaptured #-}
 
 pattern Foreign x = Closure (GForeign x)
 
@@ -533,7 +593,7 @@ pattern UnboxedTypeTag t <- Closure (GUnboxedTypeTag t)
       IntTag -> intTypeTag
       NatTag -> natTypeTag
 
-{-# COMPLETE PAp, Enum, Data1, Data2, DataG, RecordC, Captured, Foreign, UnboxedTypeTag, BlackHole, Affine #-}
+{-# COMPLETE PAp, Enum, Data1, Data2, Data3, Data4, Data5, Data6, DataG, RecordC, Captured, Foreign, UnboxedTypeTag, BlackHole, Affine #-}
 
 {-# COMPLETE DataC, RecordC, PAp, Captured, Foreign, BlackHole, UnboxedTypeTag, Affine #-}
 
@@ -570,18 +630,34 @@ traceK begin = dedup (begin, 1)
 splitData :: Closure -> Maybe (Reference, PackedTag, SegList)
 splitData = \case
   (Enum r t) -> Just (r, t, [])
-  (Data1 r t u) -> Just (r, t, [u])
-  (Data2 r t i j) -> Just (r, t, [i, j])
+  (Data1 r t a) -> Just (r, t, [a])
+  (Data2 r t a b) -> Just (r, t, [a, b])
+  (Data3 r t a b c) -> Just (r, t, [a, b, c])
+  (Data4 r t a b c d) -> Just (r, t, [a, b, c, d])
+  (Data5 r t a b c d e) -> Just (r, t, [a, b, c, d, e])
+  (Data6 r t a b c d e f) -> Just (r, t, [a, b, c, d, e, f])
   (DataG r t seg) -> Just (r, t, segToList seg)
   _ -> Nothing
 
+-- | The packed tag of a data constructor closure, or Nothing for any other
+-- closure.
+dataTag :: Closure -> Maybe PackedTag
+dataTag (Closure c) = case c of
+  GEnum t _ -> Just t
+  GData1 t _ _ -> Just t
+  GData2 t _ _ _ -> Just t
+  GData3 t _ _ _ _ -> Just t
+  GData4 t _ _ _ _ _ -> Just t
+  GData5 t _ _ _ _ _ _ -> Just t
+  GData6 t _ _ _ _ _ _ _ -> Just t
+  GDataG t _ _ _ -> Just t
+  _ -> Nothing
+{-# INLINE dataTag #-}
+
 closureTag :: Closure -> PackedTag
-closureTag (Enum _ t) = t
-closureTag (Data1 _ t _) = t
-closureTag (Data2 _ t _ _) = t
-closureTag (DataG _ t _) = t
-closureTag c =
-  throw $ Panic "closureTag: unexpected closure" (Just $ BoxedVal c)
+closureTag c = case dataTag c of
+  Just t -> t
+  Nothing -> throw $ Panic "closureTag: unexpected closure" (Just $ BoxedVal c)
 {-# INLINE closureTag #-}
 
 -- | Converts a list of integers representing an unboxed segment back into the
@@ -602,22 +678,30 @@ bseg :: [Closure] -> BSeg
 bseg = L.fromList . reverse
 
 formData :: Reference -> PackedTag -> SegList -> Closure
-formData r t [] = Enum r t
-formData r t [v1] = Data1 r t v1
-formData r t [v1, v2] = Data2 r t v1 v2
-formData r t segList = DataG r t (segFromList segList)
+formData r t = \case
+  [] -> Enum r t
+  [a] -> Data1 r t a
+  [a, b] -> Data2 r t a b
+  [a, b, c] -> Data3 r t a b c
+  [a, b, c, d] -> Data4 r t a b c d
+  [a, b, c, d, e] -> Data5 r t a b c d e
+  [a, b, c, d, e, f] -> Data6 r t a b c d e f
+  segList -> DataG r t (segFromList segList)
 
+-- | A constructor from a segment, which holds the fields backwards (field 0
+-- last).
 formDataSeg :: Reference -> PackedTag -> Seg -> Closure
 formDataSeg r t (usg, bsg) = case sizeofArray bsg of
   0 -> Enum r t
-  1 -> Data1 r t (Val (indexByteArray usg 0) (indexArray bsg 0))
-  2 ->
-    Data2
-      r
-      t
-      (Val (indexByteArray usg 1) (indexArray bsg 1))
-      (Val (indexByteArray usg 0) (indexArray bsg 0))
+  1 -> Data1 r t (at 0)
+  2 -> Data2 r t (at 1) (at 0)
+  3 -> Data3 r t (at 2) (at 1) (at 0)
+  4 -> Data4 r t (at 3) (at 2) (at 1) (at 0)
+  5 -> Data5 r t (at 4) (at 3) (at 2) (at 1) (at 0)
+  6 -> Data6 r t (at 5) (at 4) (at 3) (at 2) (at 1) (at 0)
   _ -> DataG r t (usg, bsg)
+  where
+    at i = Val (indexByteArray usg i) (indexArray bsg i)
 {-# INLINE formDataSeg #-}
 
 -- | The tag of base's @Map@ type and of the functions on @Map@, @Set@ and

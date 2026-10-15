@@ -89,3 +89,14 @@ a shape keeps the slot of each field in two unboxed sorted arrays searched by `s
 rather than in an `EnumMap`, which both the interpreter and native code look up faster
 (`benchmarks/2026-10-15-positions.md`). "Records" in internals.md has the details.
 
+## Flat data constructors (2026-10-15)
+
+A constructor with three or more fields was a `GDataG` holding a `Seg` tuple, which can't be
+unpacked: five objects and three loads per field. `GData3` to `GData6` are flat now, one
+object with the fields inline in both halves and the reference last; `GDataG` (seven or
+more), `GPAp` and `GCaptured` hold their two segment arrays as two fields with no boxes. The
+pattern synonyms keep every construction and matching site as it was; `buildData`,
+`dumpDataNoTag` and `dataBranch` handle the new shapes, and `dataBranch` is one generic
+matcher now rather than three copies. The pointer-tag order changed: `Data5`, `Data6`,
+`DataG` and `Captured` are told apart by info pointer. Measured in
+`benchmarks/2026-10-15-data-layout.md`; "Layouts" in internals.md has the layout.

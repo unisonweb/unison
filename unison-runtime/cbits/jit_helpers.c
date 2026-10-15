@@ -158,6 +158,26 @@ static void mh_bytes(MH *s, StgClosure *r) {
   }
 }
 
+// A constructor with three or more fields, out of line so that the common
+// shapes stay straight-line code in mh_closure (which mh_val inlines).
+__attribute__((noinline)) static void mh_data_wide(MH *s, StgClosure *c, int arity) {
+  mh_word(s, 2);
+  if (arity <= DATA_MAX) {
+    mh_word(s, DATA_TAG(c, arity) & 0xFFFF);
+    for (int j = 0; j < arity && s->ok; j++) mh_val(s, DATA_U(c, arity, j), DATA_B(c, arity, j));
+    return;
+  }
+  // DataG: the arrays hold the fields in reverse
+  mh_word(s, LW(c, 3) & 0xFFFF);
+  StgArrBytes *us = (StgArrBytes *)LP(c, 0);
+  StgMutArrPtrs *bs = (StgMutArrPtrs *)LP(c, 1);
+  StgWord n = bs->ptrs;
+  for (StgWord j = 0; j < n && s->ok; j++) {
+    StgWord i = n - 1 - j;
+    mh_val(s, ((StgWord *)us->payload)[i], bs->payload[i]);
+  }
+}
+
 static void mh_closure(MH *s, StgClosure *c) {
   if (!s->ok) return;
   int tag = LTAG(c);
@@ -167,38 +187,21 @@ static void mh_closure(MH *s, StgClosure *c) {
     return;
   }
   StgWord info = (StgWord)LUN(c)->header.info;
-  if (info == HK.enum_info) {
+  int arity = data_arity(info);
+  if (arity == 0) {
     mh_word(s, 2);
-    mh_word(s, LW(c, 1) & 0xFFFF);
-  } else if (info == LF.data1_info) {
-    // Data1 ref tag (Val u b): pointers ref, b; words tag, u
+    mh_word(s, DATA_TAG(c, 0) & 0xFFFF);
+  } else if (arity == 1) {
     mh_word(s, 2);
-    mh_word(s, LW(c, 2) & 0xFFFF);
-    mh_val(s, LW(c, 3), LP(c, 1));
-  } else if (info == LF.data2_info) {
+    mh_word(s, DATA_TAG(c, 1) & 0xFFFF);
+    mh_val(s, DATA_U(c, 1, 0), DATA_B(c, 1, 0));
+  } else if (arity == 2) {
     mh_word(s, 2);
-    mh_word(s, LW(c, 3) & 0xFFFF);
-    mh_val(s, LW(c, 4), LP(c, 1));
-    mh_val(s, LW(c, 5), LP(c, 2));
-  } else if (info == HK.datag_info) {
-    // DataG ref tag (useg, bseg): the segments hold the fields in reverse
-    // the segments' boxes may be static indirections (a constant array GHC
-    // floated to a CAF): follow them; an unevaluated one is the interpreter's
-    StgClosure *ubox = unison_jit_settle(LP(c, 1)), *bbox = unison_jit_settle(LP(c, 2));
-    if (LTAG(ubox) == 0 || LTAG(bbox) == 0) {
-      unison_jit_murmur_fail("segment box", LTAG(ubox) == 0 ? ubox : bbox);
-      s->ok = 0;
-      return;
-    }
-    mh_word(s, 2);
-    mh_word(s, LW(c, 3) & 0xFFFF);
-    StgArrBytes *us = (StgArrBytes *)LP(ubox, 0);
-    StgMutArrPtrs *bs = (StgMutArrPtrs *)LP(bbox, 0);
-    StgWord n = bs->ptrs;
-    for (StgWord j = 0; j < n && s->ok; j++) {
-      StgWord i = n - 1 - j;
-      mh_val(s, ((StgWord *)us->payload)[i], bs->payload[i]);
-    }
+    mh_word(s, DATA_TAG(c, 2) & 0xFFFF);
+    mh_val(s, DATA_U(c, 2, 0), DATA_B(c, 2, 0));
+    mh_val(s, DATA_U(c, 2, 1), DATA_B(c, 2, 1));
+  } else if (arity > 0) {
+    mh_data_wide(s, c, arity);
   } else if (RK.ok && info == RK.record_info) {
     mh_record(s, c);
   } else if (info == LF.foreign_info) {
@@ -365,7 +368,7 @@ typedef struct {
 
 static int uc_kind(UC *s, StgClosure *c) {
   StgWord info = (StgWord)LUN(c)->header.info;
-  if (info == HK.enum_info || info == LF.data1_info || info == LF.data2_info || info == HK.datag_info) return UK_DATA;
+  if (data_arity(info) >= 0) return UK_DATA;
   if (info == LF.foreign_info) return UK_FOREIGN;
   if (CK.pap_info != 0 && info == CK.pap_info) return UK_PAP;
   if (RK.ok && info == RK.record_info) return UK_RECORD;
@@ -381,23 +384,31 @@ typedef struct {
   const StgWord *us;
   StgClosure *const *bs;
   int rev;
-  StgWord uw[2];
-  StgClosure *bp[2];
+  StgWord uw[DATA_MAX];
+  StgClosure *bp[DATA_MAX];
 } Fields;
 
-static int uc_segs(UC *s, StgClosure *ubox0, StgClosure *bbox0, Fields *f) {
-  StgClosure *ubox = unison_jit_settle(ubox0), *bbox = unison_jit_settle(bbox0);
-  if (LTAG(ubox) == 0 || LTAG(bbox) == 0) {
-    unison_jit_cmp_fail("segment box", LTAG(ubox) == 0 ? ubox : bbox);
-    s->ok = 0;
-    return 0;
-  }
-  StgArrBytes *us = (StgArrBytes *)LP(ubox, 0);
-  StgMutArrPtrs *bs = (StgMutArrPtrs *)LP(bbox, 0);
+// the fields of a segment: the ByteArray# and the Array# (the closure's own
+// fields; never thunks)
+static int uc_segs(UC *s, StgClosure *useg, StgClosure *bseg, Fields *f) {
+  (void)s;
+  StgArrBytes *us = (StgArrBytes *)useg;
+  StgMutArrPtrs *bs = (StgMutArrPtrs *)bseg;
   f->n = bs->ptrs;
   f->us = (const StgWord *)us->payload;
   f->bs = (StgClosure *const *)bs->payload;
   f->rev = 1;
+  return 1;
+}
+
+// three to six fields, out of line (see mh_data_wide)
+__attribute__((noinline)) static int uc_fields_wide(StgClosure *c, int arity, Fields *f) {
+  f->tag = DATA_TAG(c, arity);
+  f->n = arity;
+  for (int j = 0; j < arity; j++) {
+    f->uw[j] = DATA_U(c, arity, j);
+    f->bp[j] = DATA_B(c, arity, j);
+  }
   return 1;
 }
 
@@ -406,30 +417,32 @@ static int uc_fields(UC *s, StgClosure *c, Fields *f) {
   f->us = f->uw;
   f->bs = f->bp;
   f->rev = 0;
-  if (info == HK.enum_info) {
-    f->tag = LW(c, 1);
+  int arity = data_arity(info);
+  if (arity == 0) {
+    f->tag = DATA_TAG(c, 0);
     f->n = 0;
     return 1;
   }
-  if (info == LF.data1_info) {
-    f->tag = LW(c, 2);
+  if (arity == 1) {
+    f->tag = DATA_TAG(c, 1);
     f->n = 1;
-    f->uw[0] = LW(c, 3);
-    f->bp[0] = LP(c, 1);
+    f->uw[0] = DATA_U(c, 1, 0);
+    f->bp[0] = DATA_B(c, 1, 0);
     return 1;
   }
-  if (info == LF.data2_info) {
-    f->tag = LW(c, 3);
+  if (arity == 2) {
+    f->tag = DATA_TAG(c, 2);
     f->n = 2;
-    f->uw[0] = LW(c, 4);
-    f->bp[0] = LP(c, 1);
-    f->uw[1] = LW(c, 5);
-    f->bp[1] = LP(c, 2);
+    f->uw[0] = DATA_U(c, 2, 0);
+    f->bp[0] = DATA_B(c, 2, 0);
+    f->uw[1] = DATA_U(c, 2, 1);
+    f->bp[1] = DATA_B(c, 2, 1);
     return 1;
   }
-  // DataG ref tag (useg, bseg)
+  if (arity <= DATA_MAX) return uc_fields_wide(c, arity, f);
+  // DataG tag useg bseg ref
   f->tag = LW(c, 3);
-  return uc_segs(s, LP(c, 1), LP(c, 2), f);
+  return uc_segs(s, LP(c, 0), LP(c, 1), f);
 }
 
 static inline StgWord fld_u(const Fields *f, StgWord i) { return f->us[f->rev ? f->n - 1 - i : i]; }
@@ -572,7 +585,7 @@ static int64_t uc_closure(UC *s, StgClosure *c1, StgClosure *c2, int tyeq) {
     return 0;
   }
   if (k1 == UK_PAP) {
-    // PAp (CIx ref grp w) comb (useg, bseg): pointers ref, entry, useg, bseg; words grp, w
+    // PAp (CIx ref grp w) comb useg bseg: pointers ref, entry, the arrays; words grp, w
     if (LP(c1, 0) != LP(c2, 0)) {
       unison_jit_cmp_fail("function references", c1);
       s->ok = 0;

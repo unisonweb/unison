@@ -143,13 +143,36 @@ static inline void *wrapped_of(void *x, const WrapInfo *w) { return (void *)wrap
 
 // --- Universal.murmurHashUntyped ---
 
+// The data constructors ("Layouts" in internals.md): DataN for 0 to 6
+// fields is one closure whose pointers are the fields' boxed halves then
+// the type reference, and whose words are the packed tag then the fields'
+// unboxed halves; DataG (seven or more) has pointers the ByteArray#, the
+// Array# and the reference, and one word, the tag. The arrays hold the
+// fields in reverse (field 0 last).
+#define DATA_MAX 6
 typedef struct {
   StgWord utag_info; // the closure that marks an unboxed value's type
-  StgWord enum_info, datag_info;
+  StgWord data_info[DATA_MAX + 1], datag_info;
   int ok;
 } HashFacts;
 UNISON_JIT_TABLE HashFacts unison_jit_HK;
 #define HK unison_jit_HK
+// the field count of a data closure's info pointer: 0 to DATA_MAX, DATA_MAX + 1
+// for DataG, -1 for anything else
+static inline int data_arity(StgWord info) {
+  if (info == HK.data_info[0]) return 0;
+  if (info == HK.data_info[1]) return 1;
+  if (info == HK.data_info[2]) return 2;
+  if (info == HK.data_info[3]) return 3;
+  if (info == HK.data_info[4]) return 4;
+  if (info == HK.data_info[5]) return 5;
+  if (info == HK.data_info[6]) return 6;
+  return info == HK.datag_info ? DATA_MAX + 1 : -1;
+}
+// field j of a DataN closure with n fields
+#define DATA_B(c, n, j) LP(c, j)
+#define DATA_TAG(c, n) LW(c, (n) + 1)
+#define DATA_U(c, n, j) LW(c, (n) + 2 + (j))
 
 // why a value was left to the interpreter, under UNISON_JIT_TRACE_TEST
 void unison_jit_murmur_fail(const char *what, StgClosure *c);
@@ -159,7 +182,7 @@ void unison_jit_murmur_fail(const char *what, StgClosure *c);
 // What the comparison walkers need beyond LF, TK, BK, AK and HK; from
 // unison_jit_cmp_init.
 typedef struct {
-  StgWord pap_info;         // PAp (CIx ref grp w) comb (useg, bseg): pointers ref, entry, useg, bseg; words grp, w, ...
+  StgWord pap_info;         // PAp (CIx ref grp w) comb useg bseg: pointers ref, entry, the ByteArray#, the Array#; words grp, w, ...
   StgWord int_tag, nat_tag; // the packed tags of boxed Int and Nat literals, which match each other under equality
   StgWord any_type;         // the type part (above bit 16) of Any's packed tag: its fields compare with types
   int ok;

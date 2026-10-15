@@ -74,20 +74,20 @@ data Layout = Layout
   }
 
 data Layouts = Layouts
-  { -- | @Enum ref tag@: the tag word is the first non-pointer field
-    lEnum :: !Layout,
-    -- | @Data1 ref tag (Val u b)@
-    lData1 :: !Layout,
-    -- | @Data2 ref tag (Val u b) (Val u b)@
-    lData2 :: !Layout,
-    -- | @DataG ref tag (useg, bseg)@: pointers ref, useg, bseg; one non-pointer, the tag
+  { -- | the data constructors with 0 to 6 fields, by field count: @DataN
+    -- tag (Val u b)... ref@, with the fields' boxed halves as pointers 0 to
+    -- n-1, the reference as pointer n, the tag as the first non-pointer
+    -- word and the fields' unboxed halves after it. Pointer tags 2 to 6
+    -- for 0 to 4 fields; 5 and 6 fields share tag 7 with the rest.
+    lData :: !(V.Vector Layout),
+    -- | @DataG tag useg bseg ref@ (seven or more fields): pointers the
+    -- ByteArray#, the Array# and the reference; one non-pointer, the tag;
+    -- pointer tag 7
     lDataG :: !Layout,
-    -- | @PAp (CIx ref grp w) (LamI arity fsize entry cell) (useg, bseg)@, with
-    -- CombIx and GCombInfo unpacked: pointers ref, entry, useg, bseg;
-    -- non-pointers grp, w, arity, fsize, cell
+    -- | @PAp (CIx ref grp w) (LamI arity fsize entry cell) useg bseg@, with
+    -- CombIx and GCombInfo unpacked: pointers ref, entry, the ByteArray#,
+    -- the Array#; non-pointers grp, w, arity, fsize, cell
     lPAp :: !Layout,
-    -- | info pointers of the lifted boxes around a Seg's arrays
-    lByteArrayBoxInfo, lArrayBoxInfo :: !Int,
     -- | @Foreign x@: pointer tag 7, one pointer, the Foreign
     lForeignInfo :: !Int,
     -- | @WrapIORef ref@: pointer tag 7, one pointer, the MutVar#
@@ -134,10 +134,6 @@ probe sample0 fields planted = do
         else pure (Left ("probe: " ++ show r))
     _ -> pure (Left ("probe: " ++ show r))
 
--- | The info pointer of a box with one pointer field and pointer tag 1.
-probeBox :: Any -> IO (Either String Int)
-probeBox = probeInfo 1
-
 -- | The info pointer and pointer tag of a constructor with one pointer
 -- field (or, with @False@, one non-pointer field).
 probeWrap :: Bool -> Any -> IO (Either String (Pair Int Int))
@@ -166,20 +162,29 @@ probeLayouts :: IO (Either String Layouts)
 probeLayouts = do
   let !ref = Ty.booleanRef
       !nat = natTypeTag
+      !int = intTypeTag
+      !flt = floatTypeTag
+      !chr = charTypeTag
       !nil = Enum ref (PackedTag 0)
+      !one = Enum ref (PackedTag 1)
+      -- six distinct evaluated closures for the fields' boxed halves
+      objs = [nat, nil, flt, chr, int, one]
       !useg = byteArrayFromList [11 :: Int, 12]
       !bseg = arrayFromList [nat, nil]
-  e <- probe (any' $! Enum ref (PackedTag 7)) [any' ref] [7]
-  d1 <- probe (any' $! Data1 ref (PackedTag 7) (Val 9 nat)) [any' ref, any' nat] [7, 9]
-  d2 <- probe (any' $! Data2 ref (PackedTag 7) (Val 9 nat) (Val 10 nil)) [any' ref, any' nat, any' nil] [7, 9, 10]
-  dg <- probe (any' $! DataG ref (PackedTag 7) (useg, bseg)) [any' ref, any' useg, any' bseg] [7]
+  -- the data constructors by field count: field j holds (9 + j, objs !! j);
+  -- the pointers are the boxed halves then the reference, the words the
+  -- tag then the unboxed halves
+  ds <- forM [0 .. 6] $ \k -> do
+    let fields = take k objs
+        vals = zipWith Val [9 ..] fields
+        !c = DataC ref (PackedTag 7) vals
+    probe (any' c) (map any' fields ++ [any' ref]) (7 : take k [9 ..])
+  dg <- probeKind 7 3 1 (any' $! DataC ref (PackedTag 7) (zipWith Val [9 ..] (objs ++ [nat])))
   let !entry = Exit
       !cell = noNativeCell
       IntPtr cellAddr = ptrToIntPtr cell
-  pap <- probe (any' $! PAp (CIx ref 21 22) (LamI 23 24 entry cell) (useg, bseg)) [any' ref, any' entry, any' useg, any' bseg] [21, 22, 23, 24, cellAddr]
-  -- the boxes: one pointer field each (the unlifted array), tag 1
-  ub <- probeBox (any' useg)
-  bb <- probeBox (any' bseg)
+  pap <- probeKind 1 4 5 (any' $! PAp (CIx ref 21 22) (LamI 23 24 entry cell) (useg, bseg))
+  _ <- pure cellAddr
   -- a Ref: Foreign (WrapIORef ref), the IORef unpacked to its MutVar#
   ref' <- newIORef (Val 9 nat)
   let !w = WrapIORef ref'
@@ -204,18 +209,17 @@ probeLayouts = do
   -- a record: its words are checked by unison_jit_record_init (probeRecords);
   -- here only the counts and the pointer tag
   rc <- probeKind 7 4 5 (any' $! RecordG (recordShapeOf 7 [("a", 3), ("bc", 5)]) (recordVals (segFromList [NatVal 9, NatVal 10])))
-  pure $ case (e, d1, d2, dg, pap, ub, bb, fi, wi, ai, v, aw, mbw, bw, tw, pw, rc) of
-    (Right le, Right ld1, Right ld2, Right ldg, Right lp, Right ubi, Right bbi, Right fii, Right wii, Right aii, Right lv, Right awi, Right mbwi, Right bwi, Right ltw, Right pwi, Right lr)
-      | lPtrTag le == 2 && lPtrs le == 1 && lNptrs le == 1,
-        lPtrTag ld1 == 3 && lPtrs ld1 == 2 && lNptrs ld1 == 2,
-        lPtrTag ld2 == 4 && lPtrs ld2 == 3 && lNptrs ld2 == 3,
-        lPtrTag ldg == 5 && lPtrs ldg == 3 && lNptrs ldg == 1,
+  let dataOk k l = lPtrTag l == (if k <= 4 then k + 2 else 7) && lPtrs l == k + 1 && lNptrs l == k + 1
+  pure $ case (sequence ds, dg, pap, fi, wi, ai, v, aw, mbw, bw, tw, pw, rc) of
+    (Right lds, Right ldg, Right lp, Right fii, Right wii, Right aii, Right lv, Right awi, Right mbwi, Right bwi, Right ltw, Right pwi, Right lr)
+      | and (zipWith dataOk [0 ..] lds),
+        lPtrTag ldg == 7 && lPtrs ldg == 3 && lNptrs ldg == 1,
         lPtrTag lp == 1 && lPtrs lp == 4 && lNptrs lp == 5,
         lPtrTag lv == 1 && lPtrs lv == 1 && lNptrs lv == 1,
         lPtrs ltw == 1 && lNptrs ltw == 0 ->
-          Right (Layouts le ld1 ld2 ldg lp ubi bbi fii wii aii awi mbwi bwi (Pair (lInfo ltw) (lPtrTag ltw)) pwi lv lr 8)
-      | otherwise -> Left ("closure layouts are not what the code generator expects: " ++ unwords (map summary [le, ld1, ld2, ldg, lp, lv, ltw]))
-    _ -> Left ("closure layouts could not be probed: " ++ show ([either id (const "ok") x | x <- [e, d1, d2, dg, pap, v, tw, rc]] ++ [either id (const "ok") x | x <- [ub, bb, fi, wi, ai]] ++ [either id (const "ok") x | x <- [aw, mbw, bw, pw]]))
+          Right (Layouts (V.fromList lds) ldg lp fii wii aii awi mbwi bwi (Pair (lInfo ltw) (lPtrTag ltw)) pwi lv lr 8)
+      | otherwise -> Left ("closure layouts are not what the code generator expects: " ++ unwords (map summary (lds ++ [ldg, lp, lv, ltw])))
+    _ -> Left ("closure layouts could not be probed: " ++ show ([either id (const "ok") x | x <- ds ++ [dg, pap, v, tw, rc]] ++ [either id (const "ok") x | x <- [fi, wi, ai]] ++ [either id (const "ok") x | x <- [aw, mbw, bw, pw]]))
 
 -- | The layout of a constructor with the given pointer tag and field counts.
 probeKind :: Int -> Int -> Int -> Any -> IO (Either String Layout)
@@ -358,7 +362,7 @@ probeMurmur ls = do
   let put :: Any -> IO ()
       put v = evaluate v >>= writeArray arr 0
   put (any' nat)
-  ok <- murmurInit arr [lInfo (lEnum ls), lInfo (lDataG ls)]
+  ok <- murmurInit arr (map lInfo (V.toList (lData ls)) ++ [lInfo (lDataG ls)])
   if ok /= 1
     then pure (Left "the murmur hash helper could not be initialized")
     else do
@@ -634,7 +638,7 @@ probeLists ls steps = do
   put arr 1 (any' x)
   put arr 2 (wrap Sq.empty)
   put arr 3 (wrap (range 1 1000))
-  ok <- listInit arr [lForeignInfo ls, lInfo (lVal ls), lInfo (lData1 ls), lInfo (lData2 ls)]
+  ok <- listInit arr [lForeignInfo ls, lInfo (lVal ls), lInfo (lData ls V.! 1), lInfo (lData ls V.! 2)]
   if ok /= 1
     then pure (Left ("the list constructors are not laid out as the JIT's helpers expect (check " ++ show ok ++ ")"))
     else do
@@ -1483,7 +1487,7 @@ probeBytes ls steps = do
 -- already captured.
 probeNames :: Layouts -> IO (Either String ())
 probeNames ls = do
-  closureInit [lInfo (lPAp ls), lByteArrayBoxInfo ls, lArrayBoxInfo ls]
+  closureInit [lInfo (lPAp ls)]
   let put :: MutableArray RealWorld Any -> Int -> Any -> IO ()
       put a i v = evaluate v >>= writeArray a i
       !ref = Ty.booleanRef

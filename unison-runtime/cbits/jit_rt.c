@@ -1043,21 +1043,21 @@ int64_t unison_jit_list_size(void *list) {
   return LTAG(dq) == 2 ? TSIZE(LW(dq, 3)) : 0;
 }
 
-// A SeqView closure: Data2 ref tag a b, whose pointers are ref, a's, b's and
+// A SeqView closure: Data2 tag a b ref, whose pointers are a's, b's, ref and
 // whose words are tag, a's, b's. Here for element x (a Val: a pointer, then a
 // word) and the rest of the list (a Foreign), in seven words at p.
 static inline void *view_at(StgWord *p, void *empty, int64_t elem_tag, int64_t left, StgClosure *x, void *rest) {
   p[0] = LF.data2_info;
-  p[1] = (StgWord)LP(empty, 0);
+  p[3] = (StgWord)LP(empty, 0);
   p[4] = elem_tag;
   if (left) {
-    p[2] = (StgWord)LP(x, 0);
-    p[3] = (StgWord)rest;
+    p[1] = (StgWord)LP(x, 0);
+    p[2] = (StgWord)rest;
     p[5] = (StgWord)LP(x, 1);
     p[6] = (StgWord)-1;
   } else {
-    p[2] = (StgWord)rest;
-    p[3] = (StgWord)LP(x, 0);
+    p[1] = (StgWord)rest;
+    p[2] = (StgWord)LP(x, 0);
     p[5] = (StgWord)-1;
     p[6] = (StgWord)LP(x, 1);
   }
@@ -1148,11 +1148,11 @@ void *unison_jit_list_index(UnisonJitCtx *ctx, void *list, int64_t i, void *none
     StgClosure *nd = mid_look(LP(dq, 1), 0, i - pc, &off);
     x = node_kids(nd)[off];
   }
-  // Data1 ref tag v: pointers ref, v's; words tag, v's
+  // Data1 tag v ref: pointers v's, ref; words tag, v's
   StgWord *p = list_alloc(ctx, 5);
   p[0] = LF.data1_info;
-  p[1] = (StgWord)LP(none, 0);
-  p[2] = (StgWord)LP(x, 0);
+  p[1] = (StgWord)LP(x, 0);
+  p[2] = (StgWord)LP(none, 0);
   p[3] = some_tag;
   p[4] = (StgWord)LP(x, 1);
   return (void *)((StgWord)p | 3);
@@ -1193,9 +1193,9 @@ void *unison_jit_list_split(UnisonJitCtx *ctx, void *list, int64_t n, void *empt
   void *fa = a == dq ? list : wrap_list(ctx, a), *fb = b == dq ? list : wrap_list(ctx, b);
   StgWord *p = list_alloc(ctx, 7);
   p[0] = LF.data2_info;
-  p[1] = (StgWord)LP(empty, 0);
-  p[2] = (StgWord)fa;
-  p[3] = (StgWord)fb;
+  p[1] = (StgWord)fa;
+  p[2] = (StgWord)fb;
+  p[3] = (StgWord)LP(empty, 0);
   p[4] = elem_tag;
   p[5] = (StgWord)-1;
   p[6] = (StgWord)-1;
@@ -2024,11 +2024,11 @@ void *unison_jit_bytes_index(UnisonJitCtx *ctx, void *bytes, int64_t i, void *no
   if (i < 0 || i >= rope_size(&BK, r)) return none;
   StgInt off;
   StgClosure *c = unison_jit_rope_chunk_at(&BK, r, i, &off);
-  // Data1 ref tag v: pointers ref, v's; words tag, v's
+  // Data1 tag v ref: pointers v's, ref; words tag, v's
   StgWord *p = list_alloc(ctx, 5);
   p[0] = LF.data1_info;
-  p[1] = (StgWord)LP(none, 0);
-  p[2] = (StgWord)nat_tag;
+  p[1] = (StgWord)nat_tag;
+  p[2] = (StgWord)LP(none, 0);
   p[3] = some_tag;
   p[4] = chunk_bytes(&BK, c)[off];
   return (void *)((StgWord)p | 3);
@@ -2301,8 +2301,8 @@ int64_t unison_jit_bytes_test(void **elems, int64_t op, int64_t arg, int64_t arg
 static inline void *mk_data1(UnisonJitCtx *ctx, StgClosure *ref, StgInt tag, void *b, StgInt u) {
   StgWord *p = list_alloc(ctx, 5);
   p[0] = LF.data1_info;
-  p[1] = (StgWord)ref;
-  p[2] = (StgWord)b;
+  p[1] = (StgWord)b;
+  p[2] = (StgWord)ref;
   p[3] = tag;
   p[4] = u;
   return (void *)((StgWord)p | 3);
@@ -2311,9 +2311,9 @@ static inline void *mk_data1(UnisonJitCtx *ctx, StgClosure *ref, StgInt tag, voi
 static inline void *mk_data2(UnisonJitCtx *ctx, StgClosure *ref, StgInt tag, void *b1, StgInt u1, void *b2, StgInt u2) {
   StgWord *p = list_alloc(ctx, 7);
   p[0] = LF.data2_info;
-  p[1] = (StgWord)ref;
-  p[2] = (StgWord)b1;
-  p[3] = (StgWord)b2;
+  p[1] = (StgWord)b1;
+  p[2] = (StgWord)b2;
+  p[3] = (StgWord)ref;
   p[4] = tag;
   p[5] = u1;
   p[6] = u2;
@@ -3140,37 +3140,28 @@ void *unison_jit_bytes_from_base(UnisonJitCtx *ctx, void *bytes, int64_t base, v
 // is a copy with longer arrays: the new arguments first, the last one at
 // index 0 (as the interpreter's augSeg lays them out), then the old ones.
 
-static StgWord PF_pap_info, PF_bytes_box_info, PF_array_box_info;
+static StgWord PF_pap_info;
 enum { PAP_USEG = 2, PAP_BSEG = 3, PAP_WORDS = 9 };
 #define NAME_MAX_ARGS 4
 
-void unison_jit_closure_init(int64_t *info) {
-  PF_pap_info = info[0];
-  PF_bytes_box_info = info[1];
-  PF_array_box_info = info[2];
-}
+void unison_jit_closure_init(int64_t *info) { PF_pap_info = info[0]; }
 
 // NULL if `fun` isn't a PAp.
 void *unison_jit_name(UnisonJitCtx *ctx, void *fun, int64_t n, int64_t u0, void *b0, int64_t u1, void *b1,
                       int64_t u2, void *b2, int64_t u3, void *b3) {
   if (LTAG(fun) != 1 || (StgWord)LUN(fun)->header.info != PF_pap_info) return NULL;
-  StgArrBytes *us = (StgArrBytes *)LP(LP(fun, PAP_USEG), 0);
-  StgMutArrPtrs *bs = (StgMutArrPtrs *)LP(LP(fun, PAP_BSEG), 0);
+  StgArrBytes *us = (StgArrBytes *)LP(fun, PAP_USEG);
+  StgMutArrPtrs *bs = (StgMutArrPtrs *)LP(fun, PAP_BSEG);
   StgWord old = bs->ptrs, total = old + n;
   StgWord cards = ROUNDUP_BYTES_TO_WDS(mutArrPtrsCards(total));
   StgWord bytes_words = sizeofW(StgArrBytes) + total, ptrs_words = sizeofW(StgMutArrPtrs) + total + cards;
-  StgWord *p = list_alloc(ctx, 1 + PAP_WORDS + 4 + bytes_words + ptrs_words);
-  StgWord *ubox = p + 1 + PAP_WORDS, *bbox = ubox + 2;
-  StgArrBytes *nus = (StgArrBytes *)(bbox + 2);
+  StgWord *p = list_alloc(ctx, 1 + PAP_WORDS + bytes_words + ptrs_words);
+  StgArrBytes *nus = (StgArrBytes *)(p + 1 + PAP_WORDS);
   StgMutArrPtrs *nbs = (StgMutArrPtrs *)((StgWord *)nus + bytes_words);
-  // the closure: a copy, but for the two boxes
+  // the closure: a copy, but for the two arrays
   memcpy(p, LUN(fun), (1 + PAP_WORDS) * sizeof(StgWord));
-  p[1 + PAP_USEG] = (StgWord)ubox | 1;
-  p[1 + PAP_BSEG] = (StgWord)bbox | 1;
-  ubox[0] = PF_bytes_box_info;
-  ubox[1] = (StgWord)nus;
-  bbox[0] = PF_array_box_info;
-  bbox[1] = (StgWord)nbs;
+  p[1 + PAP_USEG] = (StgWord)nus;
+  p[1 + PAP_BSEG] = (StgWord)nbs;
   SET_INFO((StgClosure *)nus, &stg_ARR_WORDS_info);
   nus->bytes = total * sizeof(StgWord);
   SET_INFO((StgClosure *)nbs, &stg_MUT_ARR_PTRS_FROZEN_CLEAN_info);
@@ -3618,15 +3609,16 @@ void unison_jit_murmur_fail(const char *what, StgClosure *c) {
   }
 }
 
-// Startup: elems[0] is a type tag closure (for its info pointer); info[0],
-// info[1] the Enum and DataG info pointers.
+// Startup: elems[0] is a type tag closure (for its info pointer); info[0..6]
+// the info pointers of the data constructors with 0 to 6 fields, info[7]
+// DataG's.
 int64_t unison_jit_murmur_init(void **elems, int64_t *info) {
   HK.ok = 0;
   StgClosure *t = unison_jit_settle(elems[0]);
   if (LTAG(t) == 0) return 0;
   HK.utag_info = (StgWord)LUN(t)->header.info;
-  HK.enum_info = info[0];
-  HK.datag_info = info[1];
+  for (int n = 0; n <= DATA_MAX; n++) HK.data_info[n] = info[n];
+  HK.datag_info = info[DATA_MAX + 1];
   HK.ok = LF.foreign_info != 0;
   return HK.ok;
 }

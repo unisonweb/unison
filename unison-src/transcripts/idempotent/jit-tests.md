@@ -3334,3 +3334,173 @@ shift r = ((r@x.set r@y)@y.set r@z)@z.set r@x
             ⧩
             false
 ```
+
+## Wide constructors and values of different types inside Any
+
+Constructors with up to six fields are flat closures (one per field count); seven or more
+hold their fields in two arrays. Each shape is built, matched, compared and hashed here, and
+two values of different types inside `Any` order by their type references, as before.
+
+``` unison
+use Nat + - * ==
+
+structural type Wide5 = Wide5 Nat Text Nat Nat Nat
+structural type Wide6 = Wide6 Nat Nat Text Nat Nat Nat
+structural type Wide7 = Wide7 Nat Nat Nat Text Nat Nat Nat
+structural type Wide8 = Wide8 Nat Nat Nat Nat Text Nat Nat Nat | Narrow Nat
+
+sum5 : Wide5 -> Nat
+sum5 = cases Wide5 a t b c d -> a + b + c + d + Text.size t
+
+sum6 : Wide6 -> Nat
+sum6 = cases Wide6 a b t c d e -> a + b + c + d + e + Text.size t
+
+sum7 : Wide7 -> Nat
+sum7 = cases Wide7 a b c t d e f -> a + b + c + d + e + f + Text.size t
+
+sum8 : Wide8 -> Nat
+sum8 = cases
+  Wide8 a b c d t e f g -> a + b + c + d + e + f + g + Text.size t
+  Narrow n -> n
+
+mk8 : Nat -> Wide8
+mk8 i = if Nat.mod i 2 == 0 then Wide8 i 1 2 3 "four" 5 6 7 else Narrow i
+
+wideLoop : Nat -> Nat
+wideLoop n =
+  go acc i =
+    if i == n then acc
+    else go (acc + sum5 (Wide5 i "a" 1 2 3) + sum6 (Wide6 i 1 "bb" 2 3 4) + sum7 (Wide7 i 1 2 "ccc" 3 4 5) + sum8 (mk8 i)) (i + 1)
+  go 0 0
+
+last8 : Wide8 -> Nat
+last8 = cases
+  Wide8 _ _ _ _ _ _ _ g -> g
+  Narrow n -> n
+
+cmpAll : a -> a -> (Boolean, Boolean, Boolean, Boolean, Boolean, Int)
+cmpAll x y = (x Universal.== y, x Universal.< y, x Universal.<= y, x Universal.> y, x Universal.>= y, Universal.compare x y)
+
+> wideLoop 1000
+> sum5 (Wide5 1 "xy" 2 3 4)
+> sum7 (Wide7 1 2 3 "" 4 5 6)
+> last8 (Wide8 1 2 3 4 "t" 5 6 7)
+> last8 (Narrow 9)
+> List.map sum8 [mk8 0, mk8 1, mk8 2]
+> cmpAll (Wide5 1 "a" 2 3 4) (Wide5 1 "a" 2 3 4)
+> cmpAll (Wide6 1 2 "a" 3 4 5) (Wide6 1 2 "a" 3 4 6)
+> cmpAll (Wide7 1 2 3 "a" 4 5 6) (Wide7 1 2 3 "b" 4 5 6)
+> cmpAll (Wide8 1 2 3 4 "a" 5 6 7) (Wide8 1 2 3 4 "a" 5 6 7)
+> cmpAll (Wide8 1 2 3 4 "a" 5 6 7) (Narrow 1)
+> cmpAll (Any (Wide5 1 "a" 2 3 4)) (Any (Wide6 1 2 "a" 3 4 5))
+> cmpAll (Any (Wide6 1 2 "a" 3 4 5)) (Any (Wide5 1 "a" 2 3 4))
+> cmpAll (Any (Narrow 1)) (Any (Some 1))
+> cmpAll (Any 1) (Any (Wide7 1 2 3 "a" 4 5 6))
+> Universal.murmurHashUntyped (Wide5 1 "a" 2 3 4)
+> Universal.murmurHashUntyped (Wide7 1 2 3 "a" 4 5 6)
+> Universal.murmurHashUntyped (Wide8 1 2 3 4 "a" 5 6 7)
+> Value.value (Wide7 1 2 3 "a" 4 5 6) Universal.== Value.value (Wide7 1 2 3 "a" 4 5 6)
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  + structural type Wide5
+  + structural type Wide6
+  + structural type Wide7
+  + structural type Wide8
+
+  + cmpAll   : a
+               -> a
+               -> ( Boolean,
+                 Boolean,
+                 Boolean,
+                 Boolean,
+                 Boolean,
+                 Int)
+  + last8    : Wide8 -> Nat
+  + mk8      : Nat -> Wide8
+  + sum5     : Wide5 -> Nat
+  + sum6     : Wide6 -> Nat
+  + sum7     : Wide7 -> Nat
+  + sum8     : Wide8 -> Nat
+  + wideLoop : Nat -> Nat
+
+  Run `update` to apply these changes to your codebase.
+
+    40 | > wideLoop 1000
+           ⧩
+           2049000
+
+    41 | > sum5 (Wide5 1 "xy" 2 3 4)
+           ⧩
+           12
+
+    42 | > sum7 (Wide7 1 2 3 "" 4 5 6)
+           ⧩
+           21
+
+    43 | > last8 (Wide8 1 2 3 4 "t" 5 6 7)
+           ⧩
+           7
+
+    44 | > last8 (Narrow 9)
+           ⧩
+           9
+
+    45 | > List.map sum8 [mk8 0, mk8 1, mk8 2]
+           ⧩
+           [28, 1, 30]
+
+    46 | > cmpAll (Wide5 1 "a" 2 3 4) (Wide5 1 "a" 2 3 4)
+           ⧩
+           (true, false, true, false, true, +0)
+
+    47 | > cmpAll (Wide6 1 2 "a" 3 4 5) (Wide6 1 2 "a" 3 4 6)
+           ⧩
+           (false, true, true, false, false, -1)
+
+    48 | > cmpAll (Wide7 1 2 3 "a" 4 5 6) (Wide7 1 2 3 "b" 4 5 6)
+           ⧩
+           (false, true, true, false, false, -1)
+
+    49 | > cmpAll (Wide8 1 2 3 4 "a" 5 6 7) (Wide8 1 2 3 4 "a" 5 6 7)
+           ⧩
+           (true, false, true, false, true, +0)
+
+    50 | > cmpAll (Wide8 1 2 3 4 "a" 5 6 7) (Narrow 1)
+           ⧩
+           (false, true, true, false, false, -1)
+
+    51 | > cmpAll (Any (Wide5 1 "a" 2 3 4)) (Any (Wide6 1 2 "a" 3 4 5))
+           ⧩
+           (false, true, true, false, false, -1)
+
+    52 | > cmpAll (Any (Wide6 1 2 "a" 3 4 5)) (Any (Wide5 1 "a" 2 3 4))
+           ⧩
+           (false, false, false, true, true, +1)
+
+    53 | > cmpAll (Any (Narrow 1)) (Any (Some 1))
+           ⧩
+           (false, false, false, true, true, +1)
+
+    54 | > cmpAll (Any 1) (Any (Wide7 1 2 3 "a" 4 5 6))
+           ⧩
+           (false, true, true, false, false, -1)
+
+    55 | > Universal.murmurHashUntyped (Wide5 1 "a" 2 3 4)
+           ⧩
+           11652843823105925464
+
+    56 | > Universal.murmurHashUntyped (Wide7 1 2 3 "a" 4 5 6)
+           ⧩
+           13388258010007196895
+
+    57 | > Universal.murmurHashUntyped (Wide8 1 2 3 4 "a" 5 6 7)
+           ⧩
+           7694229926377012766
+
+    58 | > Value.value (Wide7 1 2 3 "a" 4 5 6) Universal.== Value.value (Wide7 1 2 3 "a" 4 5 6)
+           ⧩
+           false
+```

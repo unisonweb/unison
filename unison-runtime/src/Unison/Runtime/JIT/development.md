@@ -179,7 +179,20 @@ corruption, so the debug RTS checks the heap.
   (three of the four record probe failures on 2026-10-15 were these).
 - **A transcript whose output matches says nothing about whether the JIT was on; the log
   does.** Run with `UNISON_JIT_LOG=1` and look for "the JIT is off" and for the compile
-  lines. `UNISON_JIT_STATS=1` prints exit counts after every evaluation; the counts for
+  lines. And check that the executable is the one you think: when `stack build` fails in
+  the runtime, `stack exec unison` still runs the last executable that built, whose probes
+  describe the old layout (an hour was spent on 2026-10-15 reading a probe failure that was
+  the previous binary's). And check that the run finished: a run that dies (an `LLVM ERROR`
+  at module compile, say) leaves the previous `.output.md` in place, and a diff against it
+  passes by accident. Delete the output file before the run, or look for "Completed
+  transcript" in the log, before believing a diff.
+- **`LLVM ERROR: Instruction Combining on <helper> did not reach a fixpoint`** at a module
+  compile is LLVM's self-check on the combiner, fatal in the LLVM in use, and it means the
+  helper's IR got harder to optimize, not that the pipeline is wrong: the hash walker with a
+  loop over a dynamic field count inlined into `mh_val` did it on 2026-10-15, and cost the
+  hash row 40% besides. Straight-line code for the common shapes with the loop out of line
+  (`mh_data_wide`) fixed both. `instcombine<no-verify-fixpoint>` in `UNISON_JIT_PASSES`
+  turns the check off if it is ever needed to get a run through. `UNISON_JIT_STATS=1` prints exit counts after every evaluation; the counts for
   "depth 1000000" are the quickest way to see whether frames are unwinding more than they
   should.
 - The benchmark transcript is a test too, with the fast binary: base library code has

@@ -2211,33 +2211,13 @@ genDMatchClosure fe d i mr br sect = do
       -- references) can still be matched when the value is an enumeration,
       -- which the pointer tag says; the other kinds exit
       kinds = case arities of
-        Just _ -> D.fromList [lEnum ls, lData1 ls, lData2 ls, lDataG ls]
-        Nothing -> D.singleton (lEnum ls)
+        Just _ -> V.toList (lData ls) ++ [lDataG ls]
+        Nothing -> [lData ls V.! 0]
   p <- loadB (d - i)
   raw <- fresh "raw"
   emit (raw <> " = ptrtoint ptr " <> p <> " to i64")
-  tagBits <- fresh "ptrtag"
-  emit (tagBits <> " = and i64 " <> raw <> ", 7")
-  base <- fresh "base"
-  emit (base <> " = sub i64 " <> raw <> ", " <> tagBits)
   other <- exitBlock fe d (Resume (feCix fe) sect)
-  dispatch <- freshLabel "dispatch"
-  -- one block per closure kind, loading the packed tag from its offset
-  loads <- forM kinds $ \layout -> do
-    l <- freshLabel "kind"
-    packed <- fresh "packed"
-    sideBlockNamed l $ do
-      addr <- fresh "tag.a"
-      emit (addr <> " = add i64 " <> base <> ", " <> tshow (lFieldOffset layout (lPtrs layout)))
-      ptr <- fresh "tag.p"
-      emit (ptr <> " = inttoptr i64 " <> addr <> " to ptr")
-      emit (packed <> " = load i64, ptr " <> ptr)
-      emit ("br label %" <> dispatch)
-    pure (Triple layout l packed)
-  emit ("switch i64 " <> tagBits <> ", label %" <> other <> " [ " <> intercalateT " " (fmap (\(Triple layout l _) -> " i64 " <> tshow (lPtrTag layout) <> ", label %" <> l) loads) <> " ]")
-  startBlock dispatch
-  packed <- fresh "packed"
-  emit (packed <> " = phi i64 " <> intercalateT ", " (fmap (\(Triple _ l v) -> "[ " <> v <> ", %" <> l <> " ]") loads))
+  Pair base packed <- loadPackedTag raw other kinds
   tag <- fresh "tag"
   emit (tag <> " = and i64 " <> packed <> ", 65535") -- maskTags
   -- an arm for constructor u knows its field count, so it knows the kind
@@ -2250,6 +2230,52 @@ genDMatchClosure fe d i mr br sect = do
             pushFields fe d base n other
             genSection fe (d + n) body
   genBranchWith fe d tag br sect arm
+
+-- | Loads the packed tag of the data closure whose tagged pointer is the
+-- i64 in @raw@, admitting the given shapes: a switch on the pointer tag
+-- for the shapes that have their own, then, for pointer tag 7, a switch
+-- on the info pointer for the shapes that share it. Anything else
+-- branches to @other@. Gives the untagged address and the tag word.
+loadPackedTag :: Text -> Text -> [Layout] -> Gen (Pair Text Text)
+loadPackedTag raw other kinds = do
+  tagBits <- fresh "ptrtag"
+  emit (tagBits <> " = and i64 " <> raw <> ", 7")
+  base <- fresh "base"
+  emit (base <> " = sub i64 " <> raw <> ", " <> tagBits)
+  dispatch <- freshLabel "dispatch"
+  let own = filter ((/= 7) . lPtrTag) kinds
+      shared = filter ((== 7) . lPtrTag) kinds
+      -- one block per shape, loading the packed tag from its offset
+      loadIn layout = do
+        l <- freshLabel "kind"
+        packed <- fresh "packed"
+        sideBlockNamed l $ do
+          addr <- fresh "tag.a"
+          emit (addr <> " = add i64 " <> base <> ", " <> tshow (lFieldOffset layout (lPtrs layout)))
+          ptr <- fresh "tag.p"
+          emit (ptr <> " = inttoptr i64 " <> addr <> " to ptr")
+          emit (packed <> " = load i64, ptr " <> ptr)
+          emit ("br label %" <> dispatch)
+        pure (Triple layout l packed)
+  owns <- mapM loadIn own
+  shareds <- mapM loadIn shared
+  sevenL <-
+    if null shareds
+      then pure other
+      else do
+        l <- freshLabel "kind7"
+        sideBlockNamed l $ do
+          bp <- fresh "base.p"
+          emit (bp <> " = inttoptr i64 " <> base <> " to ptr")
+          info <- fresh "info"
+          emit (info <> " = load i64, ptr " <> bp)
+          emit ("switch i64 " <> info <> ", label %" <> other <> " [ " <> intercalateT " " (D.fromList (map (\(Triple layout l' _) -> " i64 " <> tshow (lInfo layout) <> ", label %" <> l') shareds)) <> " ]")
+        pure l
+  emit ("switch i64 " <> tagBits <> ", label %" <> other <> " [ " <> intercalateT " " (D.fromList (map (\(Triple layout l _) -> " i64 " <> tshow (lPtrTag layout) <> ", label %" <> l) owns ++ [" i64 7, label %" <> sevenL | not (null shareds)])) <> " ]")
+  startBlock dispatch
+  packed <- fresh "packed"
+  emit (packed <> " = phi i64 " <> intercalateT ", " (D.fromList (map (\(Triple _ l v) -> "[ " <> v <> ", %" <> l <> " ]") (owns ++ shareds))))
+  pure (Pair base packed)
 
 -- | A match on a request closure (an affine handler's @RMatch@). The
 -- closure is a data constructor like any other; its packed tag is
@@ -2264,31 +2290,12 @@ genRMatch :: FnEnv -> Int -> Int -> MSection -> EC.EnumMap Word64 (GBranch (RCom
 genRMatch fe d i pu br sect = do
   let env = feEnv fe
       ls = envLayouts env
-      kinds = D.fromList [lEnum ls, lData1 ls, lData2 ls, lDataG ls]
+      kinds = V.toList (lData ls) ++ [lDataG ls]
   p <- loadB (d - i)
   raw <- fresh "raw"
   emit (raw <> " = ptrtoint ptr " <> p <> " to i64")
-  tagBits <- fresh "ptrtag"
-  emit (tagBits <> " = and i64 " <> raw <> ", 7")
-  base <- fresh "base"
-  emit (base <> " = sub i64 " <> raw <> ", " <> tagBits)
   other <- exitBlock fe d (Resume (feCix fe) sect)
-  dispatch <- freshLabel "dispatch"
-  loads <- forM kinds $ \layout -> do
-    l <- freshLabel "kind"
-    packed <- fresh "packed"
-    sideBlockNamed l $ do
-      addr <- fresh "tag.a"
-      emit (addr <> " = add i64 " <> base <> ", " <> tshow (lFieldOffset layout (lPtrs layout)))
-      ptr <- fresh "tag.p"
-      emit (ptr <> " = inttoptr i64 " <> addr <> " to ptr")
-      emit (packed <> " = load i64, ptr " <> ptr)
-      emit ("br label %" <> dispatch)
-    pure (Triple layout l packed)
-  emit ("switch i64 " <> tagBits <> ", label %" <> other <> " [ " <> intercalateT " " (fmap (\(Triple layout l _) -> " i64 " <> tshow (lPtrTag layout) <> ", label %" <> l) loads) <> " ]")
-  startBlock dispatch
-  packed <- fresh "packed"
-  emit (packed <> " = phi i64 " <> intercalateT ", " (fmap (\(Triple _ l v) -> "[ " <> v <> ", %" <> l <> " ]") loads))
+  Pair base packed <- loadPackedTag raw other kinds
   let PackedTag pureTag = TT.pureEffectTag
   isPure <- fresh "pure"
   emit (isPure <> " = icmp eq i64 " <> packed <> ", " <> tshow pureTag)
@@ -2314,10 +2321,10 @@ genRMatch fe d i pu br sect = do
   emit ("switch i64 " <> ability <> ", label %" <> other <> " [ " <> intercalateT " " (D.fromList (map (\(Pair e l) -> "i64 " <> tshow e <> ", label %" <> l) arms)) <> " ]")
 
 -- | Pushes the @n@ fields of the constructor closure at untagged address
--- @base@ onto slots d+1..d+n, first field on top. A @DataG@ whose
--- segment boxes aren't evaluated branches to @slow@.
+-- @base@ onto slots d+1..d+n, first field on top (as the interpreter's
+-- @dumpSeg@ does).
 pushFields :: FnEnv -> Int -> Text -> Int -> Text -> Gen ()
-pushFields fe d base n slow = do
+pushFields fe d base n _slow = do
   let ls = envLayouts (feEnv fe)
       rts = envRts (feEnv fe)
       loadFrom from what ty off = do
@@ -2329,45 +2336,25 @@ pushFields fe d base n slow = do
         emit (v <> " = load " <> ty <> ", ptr " <> pp)
         pure v
       loadAt = loadFrom base
-      -- field j of Data1/Data2: pointer j+1 and non-pointer j+1
-      field layout j = do
-        b <- loadAt "fb" "ptr" (lFieldOffset layout (j + 1))
-        u <- loadAt "fu" "i64" (lFieldOffset layout (lPtrs layout + j + 1))
-        pure (Pair u b)
-  case n of
-    1 -> do
-      Pair u b <- field (lData1 ls) 0
-      storeU (d + 1) u >> storeB (d + 1) b
-    2 -> do
-      Pair u0 b0 <- field (lData2 ls) 0
-      Pair u1 b1 <- field (lData2 ls) 1
-      storeU (d + 2) u0 >> storeB (d + 2) b0
-      storeU (d + 1) u1 >> storeB (d + 1) b1
-    _ -> do
-      -- DataG: the Seg's two fields are lifted boxes (ByteArray, Array)
-      -- around the arrays, since a tuple's fields can't be unpacked. Each
-      -- box is an evaluated single-constructor object: untag it and read
-      -- its one field, the array. The arrays hold the fields in reverse,
-      -- so element j goes to slot d+1+j.
+  if n <= 6
+    then do
+      -- field j: pointer j and non-pointer 1 + j (after the tag)
+      let layout = lData ls V.! n
+      forM_ [0 .. n - 1] $ \j -> do
+        b <- loadAt "fb" "ptr" (lFieldOffset layout j)
+        u <- loadAt "fu" "i64" (lFieldOffset layout (lPtrs layout + 1 + j))
+        storeU (d + n - j) u >> storeB (d + n - j) b
+    else do
+      -- DataG: the two arrays, which hold the fields in reverse, so
+      -- element j goes to slot d+1+j
       let layout = lDataG ls
-          unbox what off = do
-            box <- loadAt what "ptr" (lFieldOffset layout off)
-            boxI <- fresh (what <> ".box")
-            emit (boxI <> " = ptrtoint ptr " <> box <> " to i64")
-            boxTag <- fresh (what <> ".tag")
-            emit (boxTag <> " = and i64 " <> boxI <> ", 7")
-            boxBad <- fresh (what <> ".lazy")
-            emit (boxBad <> " = icmp ne i64 " <> boxTag <> ", 1")
-            branchIf what boxBad slow
-            untagged <- fresh (what <> ".un")
-            emit (untagged <> " = and i64 " <> boxI <> ", -8")
-            loadFrom untagged what "i64" (lHeaderBytes ls)
-      usegI <- unbox "useg" 1
-      bsegI <- unbox "bseg" 2
+      usegI <- loadAt "useg" "i64" (lFieldOffset layout 0)
+      bsegI <- loadAt "bseg" "i64" (lFieldOffset layout 1)
       forM_ [0 .. n - 1] $ \j -> do
         u <- loadFrom usegI "fu" "i64" (8 * (rBytesHeader rts + j))
         b <- loadFrom bsegI "fb" "ptr" (8 * (rPtrsHeader rts + j))
         storeU (d + 1 + j) u >> storeB (d + 1 + j) b
+
 -- | The slots that an argument list selects, top first, as frame offsets.
 -- @VArgV@ means "everything in the frame above index i", and the frame
 -- the interpreter sees is the innermost inline binding's, if any.
@@ -2685,30 +2672,9 @@ closureCalleeFrom fe p n = do
   emit (fnp0 <> " = load ptr, ptr " <> cellP)
   isNull <- fresh "isnull"
   emit (isNull <> " = icmp eq ptr " <> fnp0 <> ", null")
-  -- the segment's boxes must be evaluated (pointer tag 1) to be read
-  -- through; a lazily built one (a thunk, whose payload is not an array
-  -- pointer) is left to the interpreter, so nothing is loaded through a
-  -- box before its tag has been checked
-  let boxOf what off = do
-        box <- loadFrom base what "ptr" (lFieldOffset layout off)
-        boxI <- fresh (what <> ".box")
-        emit (boxI <> " = ptrtoint ptr " <> box <> " to i64")
-        boxTag <- fresh (what <> ".tag")
-        emit (boxTag <> " = and i64 " <> boxI <> ", 7")
-        boxBad <- fresh (what <> ".lazy")
-        emit (boxBad <> " = icmp ne i64 " <> boxTag <> ", 1")
-        untagged <- fresh (what <> ".un")
-        emit (untagged <> " = and i64 " <> boxI <> ", -8")
-        pure (Pair untagged boxBad)
-  Pair usegBox usegBad <- boxOf "useg" 2
-  Pair bsegBox bsegBad <- boxOf "bseg" 3
-  boxesBad <- fresh "lazy"
-  emit (boxesBad <> " = or i1 " <> usegBad <> ", " <> bsegBad)
-  segL <- freshLabel "pap.seg"
-  emit ("br i1 " <> boxesBad <> ", label %" <> joinL <> ", label %" <> segL <> unlikely)
-  startBlock segL
-  useg <- loadFrom usegBox "useg" "i64" (lHeaderBytes ls)
-  bseg <- loadFrom bsegBox "bseg" "i64" (lHeaderBytes ls)
+  -- the segment's arrays are the closure's own fields
+  useg <- loadFrom base "useg" "i64" (lFieldOffset layout 2)
+  bseg <- loadFrom base "bseg" "i64" (lFieldOffset layout 3)
   count <- loadFrom bseg "count" "i64" (8 * rPtrsCount rts)
   need <- fresh "need"
   emit (need <> " = add i64 " <> count <> ", " <> tshow n)
@@ -2728,15 +2694,15 @@ closureCalleeFrom fe p n = do
   emit ("br label %" <> joinL)
   startBlock joinL
   skip0 <- fresh "skip"
-  emit (skip0 <> " = phi i1 [ true, %" <> cur <> " ], [ true, %" <> okL <> " ], [ " <> bad <> ", %" <> segL <> " ]")
+  emit (skip0 <> " = phi i1 [ true, %" <> cur <> " ], [ " <> bad <> ", %" <> okL <> " ]")
   fnp <- fresh "fn"
-  emit (fnp <> " = phi ptr [ null, %" <> cur <> " ], [ null, %" <> okL <> " ], [ " <> fnp0 <> ", %" <> segL <> " ]")
+  emit (fnp <> " = phi ptr [ null, %" <> cur <> " ], [ " <> fnp0 <> ", %" <> okL <> " ]")
   usegR <- fresh "cap.u"
-  emit (usegR <> " = phi i64 [ 0, %" <> cur <> " ], [ 0, %" <> okL <> " ], [ " <> useg <> ", %" <> segL <> " ]")
+  emit (usegR <> " = phi i64 [ 0, %" <> cur <> " ], [ " <> useg <> ", %" <> okL <> " ]")
   bsegR <- fresh "cap.b"
-  emit (bsegR <> " = phi i64 [ 0, %" <> cur <> " ], [ 0, %" <> okL <> " ], [ " <> bseg <> ", %" <> segL <> " ]")
+  emit (bsegR <> " = phi i64 [ 0, %" <> cur <> " ], [ " <> bseg <> ", %" <> okL <> " ]")
   countR <- fresh "cap.n"
-  emit (countR <> " = phi i64 [ 0, %" <> cur <> " ], [ 0, %" <> okL <> " ], [ " <> count <> ", %" <> segL <> " ]")
+  emit (countR <> " = phi i64 [ 0, %" <> cur <> " ], [ " <> count <> ", %" <> okL <> " ]")
   modify' (\st -> st {gsCaptured = Just $! Captured usegR bsegR countR})
   skip <-
     if envStressCallee env
@@ -3616,7 +3582,7 @@ loadBoolean fe k slow =
   slotKind k >>= \case
     Just c -> pure c
     Nothing -> do
-      let layout = lEnum (envLayouts (feEnv fe))
+      let layout = lData (envLayouts (feEnv fe)) V.! 0
           PackedTag false = TT.falseTag
       p <- loadB k
       raw <- fresh "raw"
@@ -3743,24 +3709,22 @@ genPack fe d refIx (PackedTag t) fields slow = do
       ls = envLayouts env
       rts = envRts env
       n = D.size fields
-      !(Pair layout ptrTag) = case n of
-        1 -> Pair (lData1 ls) 3
-        2 -> Pair (lData2 ls) 4
-        _ -> Pair (lDataG ls) 5
+      wide = n > 6
+      layout = if wide then lDataG ls else lData ls V.! n
+      ptrTag = lPtrTag layout
       conWords = 1 + lPtrs layout + lNptrs layout
-      -- a DataG also gets its two arrays and their boxes, all in one chunk
+      -- a DataG also gets its two arrays, in the same chunk
       cardWords = (n + (1 `shiftL` rCardBits rts) - 1) `shiftR` rCardBits rts
       cardWords' = (cardWords + 7) `div` 8
       bytesWords = rBytesHeader rts + n
       ptrsWords = rPtrsHeader rts + n + cardWords'
-      boxWords = 2
       words
-        | n <= 2 = conWords
-        | otherwise = conWords + 2 * boxWords + bytesWords + ptrsWords
+        | wide = conWords + bytesWords + ptrsWords
+        | otherwise = conWords
   -- the fields, before the allocation call so nothing is held across it
   vals <- loadSources fields
   requireTagged slow (fmap (\(Pair _ b) -> b) vals)
-  -- the Reference: first field of the pool's Enum for this type
+  -- the Reference: the pointer field of the pool's Enum for this type
   usePool refIx
   ea <- fresh "enum.a"
   emit (ea <> " = getelementptr ptr, ptr %pool, i64 " <> tshow refIx)
@@ -3771,7 +3735,7 @@ genPack fe d refIx (PackedTag t) fields slow = do
   eb <- fresh "enum.base"
   emit (eb <> " = and i64 " <> ei <> ", -8")
   ra <- fresh "ref.a"
-  emit (ra <> " = add i64 " <> eb <> ", " <> tshow (lFieldOffset (lEnum ls) 0))
+  emit (ra <> " = add i64 " <> eb <> ", " <> tshow (lFieldOffset (lData ls V.! 0) 0))
   rp <- fresh "ref.p"
   emit (rp <> " = inttoptr i64 " <> ra <> " to ptr")
   ref <- fresh "ref"
@@ -3783,42 +3747,27 @@ genPack fe d refIx (PackedTag t) fields slow = do
         emit (a <> " = getelementptr i64, ptr " <> obj <> ", i64 " <> tshow i)
         pure a
       payload i = word (1 + i) -- after the header
+      storeAt i what = do
+        a <- word i
+        emit ("store " <> what <> ", ptr " <> a)
   hdr <- word 0
   emit ("store i64 " <> tshow (lInfo layout) <> ", ptr " <> hdr)
-  refA <- payload 0
+  -- the reference is the last pointer, the tag the first word after it
+  refA <- payload (lPtrs layout - 1)
   emit ("store ptr " <> ref <> ", ptr " <> refA)
   tagA <- payload (lPtrs layout)
   emit ("store i64 " <> tshow t <> ", ptr " <> tagA)
-  if n <= 2
+  if not wide
     then iforM_ vals $ \j (Pair u b) -> do
-      ba <- payload (1 + j)
+      ba <- payload j
       emit ("store ptr " <> b <> ", ptr " <> ba)
       ua <- payload (lPtrs layout + 1 + j)
       emit ("store i64 " <> u <> ", ptr " <> ua)
     else do
-      -- layout of the chunk after the constructor: ByteArray box, Array
-      -- box, ByteArray#, Array#. The arrays hold the fields in reverse:
-      -- element n-1-j is field j.
-      let ubox = conWords
-          bbox = ubox + boxWords
-          ubytes = bbox + boxWords
+      -- the chunk after the constructor: the ByteArray#, then the Array#.
+      -- The arrays hold the fields in reverse: element n-1-j is field j.
+      let ubytes = conWords
           bptrs = ubytes + bytesWords
-          storeAt i what = do
-            a <- word i
-            emit ("store " <> what <> ", ptr " <> a)
-          addrOf i = do
-            a <- word i
-            v <- fresh "addr"
-            emit (v <> " = ptrtoint ptr " <> a <> " to i64")
-            pure v
-          tagged i tg = do
-            v <- addrOf i
-            tv <- fresh "tagged"
-            emit (tv <> " = or i64 " <> v <> ", " <> tshow (tg :: Int))
-            tp <- fresh "tagged"
-            emit (tp <> " = inttoptr i64 " <> tv <> " to ptr")
-            pure tp
-      -- the ByteArray#
       storeAt ubytes ("i64 " <> tshow (rArrWordsInfo rts))
       storeAt (ubytes + rBytesCount rts) ("i64 " <> tshow (8 * n))
       -- the Array#: element count, then payload size including the card table
@@ -3829,18 +3778,11 @@ genPack fe d refIx (PackedTag t) fields slow = do
       iforM_ vals $ \j (Pair u b) -> do
         storeAt (ubytes + rBytesHeader rts + (n - 1 - j)) ("i64 " <> u)
         storeAt (bptrs + rPtrsHeader rts + (n - 1 - j)) ("ptr " <> b)
-      -- the boxes, each pointing at its array
+      -- the constructor's two array fields
       ua <- word ubytes
-      storeAt ubox ("i64 " <> tshow (lByteArrayBoxInfo ls))
-      storeAt (ubox + 1) ("ptr " <> ua)
+      storeAt 1 ("ptr " <> ua)
       ba <- word bptrs
-      storeAt bbox ("i64 " <> tshow (lArrayBoxInfo ls))
-      storeAt (bbox + 1) ("ptr " <> ba)
-      -- and the constructor's two Seg fields point at the boxes (tag 1)
-      ubp <- tagged ubox 1
-      bbp <- tagged bbox 1
-      storeAt (1 + 1) ("ptr " <> ubp)
-      storeAt (1 + 2) ("ptr " <> bbp)
+      storeAt 2 ("ptr " <> ba)
   -- the result is the tagged pointer
   oi <- fresh "obj"
   emit (oi <> " = ptrtoint ptr " <> obj <> " to i64")

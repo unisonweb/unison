@@ -1321,21 +1321,42 @@ buildData !stk !r !t (VArg2 i j) = do
   v1 <- peekOff stk i
   v2 <- peekOff stk j
   pure $ Data2 r t v1 v2
-buildData !stk !r !t (VArgR i l) = do
-  seg <- augSeg I stk nullSeg (Just $ ArgR i l)
-  pure $ DataG r t seg
-buildData !stk !r !t (VArgN as) = do
-  seg <- augSeg I stk nullSeg (Just $ ArgN as)
-  pure $ DataG r t seg
-buildData !stk !r !t (VArgV i) = do
-  seg <-
-    if l > 0
-      then augSeg I stk nullSeg (Just $ ArgR 0 l)
-      else pure nullSeg
-  pure $ DataG r t seg
+buildData !stk !r !t (VArgR i l)
+  | l <= 6 = buildDataAt stk r t l (i +)
+  | otherwise = do
+      seg <- augSeg I stk nullSeg (Just $ ArgR i l)
+      pure $ DataG r t seg
+buildData !stk !r !t (VArgN as)
+  | n <= 6 = buildDataAt stk r t n (PA.indexPrimArray as)
+  | otherwise = do
+      seg <- augSeg I stk nullSeg (Just $ ArgN as)
+      pure $ DataG r t seg
+  where
+    n = PA.sizeofPrimArray as
+buildData !stk !r !t (VArgV i)
+  | l <= 6 = buildDataAt stk r t l id
+  | otherwise = do
+      seg <- augSeg I stk nullSeg (Just $ ArgR 0 l)
+      pure $ DataG r t seg
   where
     l = fsize stk - i
 {-# INLINE buildData #-}
+
+-- | A constructor of @n@ (up to six) fields, field @k@ read from slot
+-- @slot k@.
+buildDataAt :: Stack -> Reference -> PackedTag -> Int -> (Int -> Int) -> IO Closure
+buildDataAt !stk !r !t !n slot = case n of
+  0 -> pure $ Enum r t
+  1 -> Data1 r t <$> at 0
+  2 -> Data2 r t <$> at 0 <*> at 1
+  3 -> Data3 r t <$> at 0 <*> at 1 <*> at 2
+  4 -> Data4 r t <$> at 0 <*> at 1 <*> at 2 <*> at 3
+  5 -> Data5 r t <$> at 0 <*> at 1 <*> at 2 <*> at 3 <*> at 4
+  6 -> Data6 r t <$> at 0 <*> at 1 <*> at 2 <*> at 3 <*> at 4 <*> at 5
+  _ -> die [] "buildDataAt: more than six fields"
+  where
+    at k = peekOff stk (slot k)
+{-# INLINE buildDataAt #-}
 
 -- | Pack some number of args into a record value of the given shape. The args
 -- are emitted in ascending field-name order, which is the shape's slot order,
@@ -1367,14 +1388,17 @@ dumpDataNoTag !mr !stk = \case
   -- Normally we want to avoid dumping unboxed values since it's unnecessary, but sometimes we don't know the type of
   -- the incoming value and end up dumping unboxed values, so we just push them back to the stack as-is. e.g. in type-casts/coercions
   Enum _ _ -> pure stk
-  Data1 _ _ x -> do
+  Data1 _ _ a -> do
     stk <- bump stk
-    poke stk x
-    pure stk
-  Data2 _ _ x y -> do
+    stk <$ poke stk a
+  Data2 _ _ a b -> do
     stk <- bumpn stk 2
-    pokeOff stk 1 y
-    stk <$ poke stk x
+    pokeOff stk 1 b
+    stk <$ poke stk a
+  clo@(Data3 {}) -> dumpDataWide stk clo
+  clo@(Data4 {}) -> dumpDataWide stk clo
+  clo@(Data5 {}) -> dumpDataWide stk clo
+  clo@(Data6 {}) -> dumpDataWide stk clo
   DataG _ _ seg -> dumpSeg stk seg S
   clo ->
     die [3320] $
@@ -1382,6 +1406,39 @@ dumpDataNoTag !mr !stk = \case
         ++ show clo
         ++ maybe "" (\r -> "\nexpected type: " ++ show r) mr
 {-# INLINE dumpDataNoTag #-}
+
+-- | The fields of a constructor with three to six fields, out of line so
+-- that the interpreter's loop only inlines the common shapes.
+dumpDataWide :: Stack -> Closure -> IO Stack
+dumpDataWide !stk = \case
+  Data3 _ _ a b c -> do
+    stk <- bumpn stk 3
+    pokeOff stk 2 c
+    pokeOff stk 1 b
+    stk <$ poke stk a
+  Data4 _ _ a b c d -> do
+    stk <- bumpn stk 4
+    pokeOff stk 3 d
+    pokeOff stk 2 c
+    pokeOff stk 1 b
+    stk <$ poke stk a
+  Data5 _ _ a b c d e -> do
+    stk <- bumpn stk 5
+    pokeOff stk 4 e
+    pokeOff stk 3 d
+    pokeOff stk 2 c
+    pokeOff stk 1 b
+    stk <$ poke stk a
+  Data6 _ _ a b c d e f -> do
+    stk <- bumpn stk 6
+    pokeOff stk 5 f
+    pokeOff stk 4 e
+    pokeOff stk 3 d
+    pokeOff stk 2 c
+    pokeOff stk 1 b
+    stk <$ poke stk a
+  clo -> die [3321] $ "dumpDataWide: bad closure: " ++ show clo
+{-# NOINLINE dumpDataWide #-}
 
 -- Note: although the representation allows it, it is impossible
 -- to under-apply one sort of argument while over-applying the
@@ -1486,98 +1543,38 @@ selectBranch _ (TestY {}) = error "impossible"
 -- uniformly expect _no_ values to be added to the stack.
 dataBranch ::
   Maybe Reference -> Stack -> MBranch -> Closure -> IO (MSection, Stack)
-dataBranch mrf stk (Test1 u cu df) = \case
-  Enum _ t
-    | maskTags t == u -> pure (cu, stk)
-    | otherwise -> pure (df, stk)
-  Data1 _ t x
-    | maskTags t == u -> do
-        stk <- bump stk
-        (cu, stk) <$ poke stk x
-    | otherwise -> pure (df, stk)
-  Data2 _ t x y
-    | maskTags t == u -> do
-        stk <- bumpn stk 2
-        pokeOff stk 1 y
-        (cu, stk) <$ poke stk x
-    | otherwise -> pure (df, stk)
-  DataG _ t seg
-    | maskTags t == u -> (cu,) <$> dumpSeg stk seg S
-    | otherwise -> pure (df, stk)
+dataBranch mrf stk br = \case
   Foreign (WrapMap m) -> case m of
     M.Bin sz k e l r
-      | u == Rf.mapBin -> (cu,) <$> dumpBin sz k e l r stk
+      | Just ca <- branchArm br Rf.mapBin -> (ca,) <$> dumpBin sz k e l r stk
     M.Tip
-      | u == Rf.mapTip -> pure (cu, stk)
-    _ -> pure (df, stk)
-  clo -> (df, stk) <$ dataBranchClosureError mrf clo
-dataBranch mrf stk (Test2 u cu v cv df) = \case
-  Enum _ t
-    | maskTags t == u -> pure (cu, stk)
-    | maskTags t == v -> pure (cv, stk)
-    | otherwise -> pure (df, stk)
-  Data1 _ t x
-    | maskTags t == u -> do
-        stk <- bump stk
-        (cu, stk) <$ poke stk x
-    | maskTags t == v -> do
-        stk <- bump stk
-        (cv, stk) <$ poke stk x
-    | otherwise -> pure (df, stk)
-  Data2 _ t x y
-    | maskTags t == u -> do
-        stk <- bumpn stk 2
-        pokeOff stk 1 y
-        (cu, stk) <$ poke stk x
-    | maskTags t == v -> do
-        stk <- bumpn stk 2
-        pokeOff stk 1 y
-        (cv, stk) <$ poke stk x
-    | otherwise -> pure (df, stk)
-  DataG _ t seg
-    | maskTags t == u -> (cu,) <$> dumpSeg stk seg S
-    | maskTags t == v -> (cv,) <$> dumpSeg stk seg S
-    | otherwise -> pure (df, stk)
-  Foreign (WrapMap m) -> case m of
-    M.Bin sz k e l r
-      | u == Rf.mapBin -> (cu,) <$> dumpBin sz k e l r stk
-      | v == Rf.mapBin -> (cv,) <$> dumpBin sz k e l r stk
-    M.Tip
-      | u == Rf.mapTip -> pure (cu, stk)
-      | v == Rf.mapTip -> pure (cv, stk)
-    _ -> pure (df, stk)
-  clo -> (df, stk) <$ dataBranchClosureError mrf clo
-dataBranch mrf stk (TestW df bs) = \case
-  Enum _ t
-    | Just ca <- EC.lookup (maskTags t) bs -> pure (ca, stk)
-    | otherwise -> pure (df, stk)
-  Data1 _ t x
-    | Just ca <- EC.lookup (maskTags t) bs -> do
-        stk <- bump stk
-        (ca, stk) <$ poke stk x
-    | otherwise -> pure (df, stk)
-  Data2 _ t x y
-    | Just ca <- EC.lookup (maskTags t) bs -> do
-        stk <- bumpn stk 2
-        pokeOff stk 1 y
-        (ca, stk) <$ poke stk x
-    | otherwise -> pure (df, stk)
-  DataG _ t seg
-    | Just ca <- EC.lookup (maskTags t) bs ->
-        (ca,) <$> dumpSeg stk seg S
-    | otherwise -> pure (df, stk)
-  Foreign (WrapMap m) -> case m of
-    M.Bin sz k e l r
-      | Just ca <- EC.lookup Rf.mapBin bs ->
-          (ca,) <$> dumpBin sz k e l r stk
-    M.Tip
-      | Just ca <- EC.lookup Rf.mapTip bs ->
-          pure (ca, stk)
-    _ -> pure (df, stk)
-  clo -> (df, stk) <$ dataBranchClosureError mrf clo
-dataBranch _ _ br = \_ ->
-  dataBranchBranchError br
+      | Just ca <- branchArm br Rf.mapTip -> pure (ca, stk)
+    _ -> pure (branchDefault br, stk)
+  clo
+    | Just t <- dataTag clo -> case branchArm br (maskTags t) of
+        Just ca -> (ca,) <$> dumpDataNoTag mrf stk clo
+        Nothing -> pure (branchDefault br, stk)
+    | otherwise -> (branchDefault br, stk) <$ dataBranchClosureError mrf clo
 {-# INLINE dataBranch #-}
+
+-- | The section of a data branch for a constructor number, if it has one.
+-- Inlined into a case, so the Maybe costs nothing.
+branchArm :: MBranch -> Word64 -> Maybe MSection
+branchArm br ct = case br of
+  Test1 u cu _ -> if ct == u then Just cu else Nothing
+  Test2 u cu v cv _ -> if ct == u then Just cu else if ct == v then Just cv else Nothing
+  TestW _ bs -> EC.lookup ct bs
+  _ -> Nothing
+{-# INLINE branchArm #-}
+
+-- | The default section of a data branch.
+branchDefault :: MBranch -> MSection
+branchDefault = \case
+  Test1 _ _ d -> d
+  Test2 _ _ _ _ d -> d
+  TestW d _ -> d
+  br -> throw (Panic ("dataBranch: unexpected branch: " ++ show br) Nothing)
+{-# INLINE branchDefault #-}
 
 dumpBin :: Int -> Val -> Val -> Map Val Val -> Map Val Val -> Stack -> IO Stack
 dumpBin sz k e l r stk = do
@@ -1635,10 +1632,6 @@ dataBranchClosureError mrf clo =
       Foreign (foreignRef -> rf) ->
         "a builtin value of type `" <> prettyRef rf <> "`"
       RecordC {} -> "a record"
-
-dataBranchBranchError :: MBranch -> IO a
-dataBranchBranchError br =
-  die [] $ "dataBranch: unexpected branch: " <> show br
 
 -- Splits off a portion of the continuation up to a given prompt.
 --
@@ -2116,12 +2109,8 @@ nativeMapPairs :: Closure -> Maybe [(Val, Val)]
 nativeMapPairs = go []
   where
     go acc (Enum _ t) | t == TT.mapTipTag = Just acc
-    go acc (DataG _ t (usg, bsg))
-      | t == TT.mapBinTag,
-        sizeofArray bsg == 5 =
-          let k = Val (indexByteArray usg 3) (indexArray bsg 3)
-              v = Val (indexByteArray usg 2) (indexArray bsg 2)
-           in go acc (indexArray bsg 0) >>= \acc' -> go ((k, v) : acc') (indexArray bsg 1)
+    go acc (Data5 _ t _sz k v (BoxedVal l) (BoxedVal r))
+      | t == TT.mapBinTag = go acc r >>= \acc' -> go ((k, v) : acc') l
     go _ _ = Nothing
 
 -- Reflects a runtime value into an interchange value, given a mapping
@@ -2179,26 +2168,14 @@ reflectValue0 rty rtm = goV0
             ANF.Partial <$> goIx cix <*> goVs args
           Enum _ t
             | not mapReplaced, t == TT.mapTipTag -> pure $ ANF.BLit (ANF.Map [])
-            | otherwise -> do
-                r <- resolveTy rty $ TT.typeTag t
-                pure $ ANF.Data r (maskTags t) []
-          Data1 _ t u -> do
-            r <- resolveTy rty $ TT.typeTag t
-            u <- goV u
-            pure $ ANF.Data r (maskTags t) [u]
-          Data2 _ t u v -> do
-            r <- resolveTy rty $ TT.typeTag t
-            u <- goV u
-            v <- goV v
-            pure $ ANF.Data r (maskTags t) [u, v]
-          DataG _ t seg
+          DataC _ t vs
             | not mapReplaced,
               t == TT.mapBinTag,
               Just kvs <- nativeMapPairs clos ->
                 ANF.BLit . ANF.Map <$> traverse (\(k, v) -> (,) <$> goV k <*> goV v) kvs
             | otherwise -> do
                 r <- resolveTy rty $ TT.typeTag t
-                ANF.Data r (maskTags t) <$> goVs seg
+                ANF.Data r (maskTags t) <$> traverse goV vs
           RecordC shape vals ->
             -- The shape carries the field names, in the same ascending order
             -- as the slots, which is also the order `reifyValue` expects.
