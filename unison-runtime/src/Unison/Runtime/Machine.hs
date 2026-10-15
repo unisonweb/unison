@@ -1544,17 +1544,35 @@ selectBranch _ (TestY {}) = error "impossible"
 dataBranch ::
   Maybe Reference -> Stack -> MBranch -> Closure -> IO (MSection, Stack)
 dataBranch mrf stk br = \case
+  -- one case on the closure: each shape looks its arm up and pushes its
+  -- fields in the same alternative (a second dispatch to push them cost a
+  -- few nanoseconds per match, 2026-10-15)
+  Enum _ t -> pick t (pure stk)
+  Data1 _ t a -> pick t do
+    stk <- bump stk
+    stk <$ poke stk a
+  Data2 _ t a b -> pick t do
+    stk <- bumpn stk 2
+    pokeOff stk 1 b
+    stk <$ poke stk a
+  clo@(Data3 _ t _ _ _) -> pick t (dumpDataWide stk clo)
+  clo@(Data4 _ t _ _ _ _) -> pick t (dumpDataWide stk clo)
+  clo@(Data5 _ t _ _ _ _ _) -> pick t (dumpDataWide stk clo)
+  clo@(Data6 _ t _ _ _ _ _ _) -> pick t (dumpDataWide stk clo)
+  DataG _ t seg -> pick t (dumpSeg stk seg S)
   Foreign (WrapMap m) -> case m of
     M.Bin sz k e l r
       | Just ca <- branchArm br Rf.mapBin -> (ca,) <$> dumpBin sz k e l r stk
     M.Tip
       | Just ca <- branchArm br Rf.mapTip -> pure (ca, stk)
     _ -> pure (branchDefault br, stk)
-  clo
-    | Just t <- dataTag clo -> case branchArm br (maskTags t) of
-        Just ca -> (ca,) <$> dumpDataNoTag mrf stk clo
-        Nothing -> pure (branchDefault br, stk)
-    | otherwise -> (branchDefault br, stk) <$ dataBranchClosureError mrf clo
+  clo -> (branchDefault br, stk) <$ dataBranchClosureError mrf clo
+  where
+    pick :: PackedTag -> IO Stack -> IO (MSection, Stack)
+    pick t push = case branchArm br (maskTags t) of
+      Just ca -> (ca,) <$> push
+      Nothing -> pure (branchDefault br, stk)
+    {-# INLINE pick #-}
 {-# INLINE dataBranch #-}
 
 -- | The section of a data branch for a constructor number, if it has one.
