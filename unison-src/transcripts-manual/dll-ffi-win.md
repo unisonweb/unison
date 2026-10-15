@@ -67,6 +67,24 @@ scratch/dll-ffi> run doArrTest
 scratch/dll-ffi> run doPTest
 ```
 
+A C function pointer, obtained from a symbol, can be passed as an argument to
+another C function.
+
+``` unison
+incSpec = baseIO uint32 uint32
+applySpec = arr (funcType incSpec) (baseIO uint32 uint32)
+
+doFunArgTest = do
+  dll = libtest()
+  incp = getDLLSymPtr dll "inc" incSpec
+  apply = getDLLSym dll "apply_fn" applySpec
+  apply incp 41
+```
+
+``` ucm
+scratch/dll-ffi> run doFunArgTest
+```
+
 ``` unison
 allocPSpec = baseIO void ptr
 freePSpec = baseIO ptr void

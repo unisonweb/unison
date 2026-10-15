@@ -27,6 +27,10 @@ data FFType
   | Void
   | MBArr
   | Ptr
+  | -- A C function pointer argument. At the libffi level this is just a
+    -- pointer; the Unison-level call signature it stands for is tracked by
+    -- the phantom parameter of @FFI.Func@, not needed for marshalling.
+    Fun
   deriving (Eq, Ord, Show)
 
 -- Nothing denotes an ordinary fixed-arity function. Just n denotes a
@@ -86,6 +90,7 @@ encodeType F32 = ffi_type_float
 encodeType Void = ffi_type_void
 encodeType MBArr = ffi_type_pointer
 encodeType Ptr = ffi_type_pointer
+encodeType Fun = ffi_type_pointer
 
 encodeTypes :: [FFType] -> Ptr (Ptr CType) -> IO ()
 encodeTypes [] !_ = pure ()
@@ -115,7 +120,9 @@ prepareSpec :: FFSpec -> IO CSpec
 prepareSpec spec = do
   ffSpec@(FFSpec args ret fixed) <- adjustSpec spec
 
-  when (ret == MBArr) $
+  -- MBArr results are never valid; Fun (function-pointer) results are not
+  -- yet supported, only function-pointer arguments.
+  when (ret == MBArr || ret == Fun) $
     throwIO BadResult
 
   let numArgs = length args
