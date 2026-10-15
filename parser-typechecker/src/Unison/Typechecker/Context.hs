@@ -2097,15 +2097,15 @@ checkPattern scrutineeType p =
           -- depend on, so the pattern can't grow it; it falls through to the
           -- missing-field error below.
           | not (isOpenedRow v) -> do
-          let missing = Map.difference inferredFieldTypes typeFields
-          unless (Map.null missing) $ do
-            rowV <- lift $ extendExistential Var.inferRecordRowType
-            let grown =
-                  Type.record
-                    recordLoc
-                    (Type.HasExtraFields (existentialp recordLoc rowV))
-                    missing
-            lift $ instantiateL b v (Type.normalize grown)
+              let missing = Map.difference inferredFieldTypes typeFields
+              unless (Map.null missing) $ do
+                rowV <- lift $ extendExistential Var.inferRecordRowType
+                let grown =
+                      Type.record
+                        recordLoc
+                        (Type.HasExtraFields (existentialp recordLoc rowV))
+                        missing
+                lift $ instantiateL b v (Type.normalize grown)
         _ -> pure ()
       -- The growth above may have changed the scrutinee's type, so re-apply
       -- before inspecting it. If we already know what we're matching, we can

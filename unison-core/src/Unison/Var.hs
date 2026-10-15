@@ -203,8 +203,8 @@ data InferenceType
   | RecordFieldType
   | RecordRowType
   | -- A row introduced by opening a closed record in a negative position.
-  -- Solvable like any existential, but pattern matching and subtyping must
-  -- not grow it with unmentioned fields.
+    -- Solvable like any existential, but pattern matching and subtyping must
+    -- not grow it with unmentioned fields.
     OpenedRowType
   | Other
   deriving (Eq, Ord, Show)
