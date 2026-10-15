@@ -1134,23 +1134,6 @@ renderTypeError e env src = case e of
         "",
         "but you supplied " <> (Pr.shown num) <> " arguments."
       ]
-  Other (C.cause -> C.AnonymousRowInPositivePosition loc typ) ->
-    Pr.lines
-      [ Pr.wrap "I can't use `...` here.",
-        "",
-        Pr.wrap
-          ( mconcat
-              [ "`...` is an anonymous record row, which says \"accept whatever other ",
-                "fields the caller has\". That only makes sense for an argument: in a ",
-                "result it would let the caller choose the extra fields, so the row ",
-                "has to be named instead, e.g. `{ x: Nat | r }`."
-              ]
-          ),
-        "",
-        annotatedAsErrorSite src loc,
-        "type:",
-        Pr.indentN 2 (stylePretty Type1 (Pr.group (renderType' env typ)))
-      ]
   Other note ->
     mconcat
       [ "Sorry, you hit an error we didn't make a nice message for yet.\n\n",
@@ -1309,19 +1292,6 @@ renderTypeError e env src = case e of
         mconcat ["RunWatchTypeMismatch\n", annotatedAsErrorSite src loc, "type:\n", renderType' env typ]
       C.IllFormedType c ->
         mconcat ["IllFormedType\n", "  context:\n", renderContext env c]
-      C.AnonymousRowInPositivePosition loc typ ->
-        mconcat
-          [ "I can't use `...` here.\n",
-            "\n",
-            "`...` is an anonymous record row, which says \"accept whatever other\n",
-            "fields the caller has\". That only makes sense for an argument: in a\n",
-            "result it would let the caller choose the extra fields, so the row has\n",
-            "to be named instead, e.g. `{ x: Nat | r }`.\n",
-            "\n",
-            annotatedAsErrorSite src loc,
-            "type:\n",
-            renderType' env typ
-          ]
       C.UnguardedLetRecCycle vs _ts ->
         "Unguarded cycle of definitions: "
           <> foldMap renderVar vs
@@ -1645,9 +1615,8 @@ renderType env f t = renderType0 env f (0 :: Int) (cleanup t)
       Type.Var' v -> renderVar v
       Type.Record' fb fields ->
         let fbs = case fb of
-              Type.AllowExtraFields Nothing -> " | ..."
-              Type.AllowExtraFields (Just row) -> " | " <> go 0 row
-              Type.RequireExactFields -> ""
+              Type.HasExtraFields row -> " | " <> go 0 row
+              Type.NoExtraFields -> ""
          in curly
               (p >= 3)
               "{"

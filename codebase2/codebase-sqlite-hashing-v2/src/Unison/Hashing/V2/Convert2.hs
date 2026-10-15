@@ -84,11 +84,11 @@ v2ToH2Type' mkReference = ABT.transform convertF
       V2.Type.Effects a -> H2.TypeEffects a
       V2.Type.Forall a -> H2.TypeForall a
       V2.Type.IntroOuter a -> H2.TypeIntroOuter a
-      V2.Type.Record fb fields -> H2.TypeRecord (convertFB fb) fields
-    convertFB :: V2.Type.FieldBehavior a -> H2.FieldBehavior a
-    convertFB = \case
-      V2.Type.AllowExtraFields row -> H2.AllowExtraFields row
-      V2.Type.RequireExactFields -> H2.RequireExactFields
+      V2.Type.Record fb fields -> H2.TypeRecord (convertRecordTail fb) fields
+    convertRecordTail :: V2.Type.RecordTail a -> H2.RecordTail a
+    convertRecordTail = \case
+      V2.Type.HasExtraFields row -> H2.HasExtraFields row
+      V2.Type.NoExtraFields -> H2.NoExtraFields
 
 convertKind :: V2.Kind -> H2.Kind
 convertKind = \case

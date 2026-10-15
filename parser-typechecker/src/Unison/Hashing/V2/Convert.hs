@@ -288,12 +288,12 @@ m2hType = ABT.transform \case
   Memory.Type.Effects a1s -> Hashing.TypeEffects a1s
   Memory.Type.Forall a1 -> Hashing.TypeForall a1
   Memory.Type.IntroOuter a1 -> Hashing.TypeIntroOuter a1
-  Memory.Type.Record fb a1 -> Hashing.TypeRecord (m2hFieldBehavior fb) a1
+  Memory.Type.Record fb a1 -> Hashing.TypeRecord (m2hRecordTail fb) a1
 
-m2hFieldBehavior :: Memory.Type.FieldBehavior a -> Hashing.FieldBehavior a
-m2hFieldBehavior = \case
-  Memory.Type.RequireExactFields -> Hashing.RequireExactFields
-  Memory.Type.AllowExtraFields row -> Hashing.AllowExtraFields row
+m2hRecordTail :: Memory.Type.RecordTail a -> Hashing.RecordTail a
+m2hRecordTail = \case
+  Memory.Type.NoExtraFields -> Hashing.NoExtraFields
+  Memory.Type.HasExtraFields row -> Hashing.HasExtraFields row
 
 m2hKind :: Memory.Kind.Kind -> Hashing.Kind
 m2hKind = \case
@@ -332,12 +332,12 @@ h2mType = ABT.transform \case
   Hashing.TypeEffects a1s -> Memory.Type.Effects a1s
   Hashing.TypeForall a1 -> Memory.Type.Forall a1
   Hashing.TypeIntroOuter a1 -> Memory.Type.IntroOuter a1
-  Hashing.TypeRecord fb a1 -> Memory.Type.Record (h2mFieldBehavior fb) a1
+  Hashing.TypeRecord fb a1 -> Memory.Type.Record (h2mRecordTail fb) a1
 
-h2mFieldBehavior :: Hashing.FieldBehavior a -> Memory.Type.FieldBehavior a
-h2mFieldBehavior = \case
-  Hashing.RequireExactFields -> Memory.Type.RequireExactFields
-  Hashing.AllowExtraFields row -> Memory.Type.AllowExtraFields row
+h2mRecordTail :: Hashing.RecordTail a -> Memory.Type.RecordTail a
+h2mRecordTail = \case
+  Hashing.NoExtraFields -> Memory.Type.NoExtraFields
+  Hashing.HasExtraFields row -> Memory.Type.HasExtraFields row
 
 h2mKind :: Hashing.Kind -> Memory.Kind.Kind
 h2mKind = \case

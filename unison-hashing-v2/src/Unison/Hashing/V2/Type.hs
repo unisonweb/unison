@@ -1,7 +1,7 @@
 module Unison.Hashing.V2.Type
   ( Type,
     TypeF (..),
-    FieldBehavior (..),
+    RecordTail (..),
     bindExternal,
     bindReferences,
 
@@ -36,15 +36,11 @@ import Unison.Prelude
 import Unison.Util.List qualified as List
 import Unison.Var (Var)
 
--- | Whether the record type unifies with types that have _extra_ fields.
--- E.g. subtype (Record _ {a: Int, b: Nat}) (Record AllowExtraFields {a: Int})
---   will succeed, since the former has all the required fields, and extra fields are allowed,
---   but:
---   subtype (Record _ {a: Int, b: Nat}) (Record RequireExactFields {a: Int})
--- fails.
-data FieldBehavior a
-  = AllowExtraFields (Maybe a) -- { a: Int | ...} or { a : Int | rest }
-  | RequireExactFields
+-- | The "tail" of a record type: whether the record may have fields beyond the
+-- named ones, and, if so, the row that describes them.
+data RecordTail a
+  = HasExtraFields a -- { a: Int | rest }
+  | NoExtraFields
   deriving (Eq, Ord, Show, Foldable, Functor, Traversable)
 
 -- | Base functor for types in the Unison language
@@ -59,7 +55,7 @@ data TypeF a
   | TypeIntroOuter a -- binder like ∀, used to introduce variables that are
   -- bound by outer type signatures, to support scoped type
   -- variables
-  | TypeRecord (FieldBehavior a) (Map Text a)
+  | TypeRecord (RecordTail a) (Map Text a)
   deriving (Foldable, Functor, Traversable)
 
 -- | Types are represented as ABTs over the base functor F, with variables in `v`
@@ -166,11 +162,8 @@ instance Hashable1 TypeF where
             TypeIntroOuter a -> [tag 7, hashed (hash a)]
             TypeRecord fb fields ->
               let fbh = case fb of
-                    AllowExtraFields Nothing -> [tag 0]
-                    -- An anonymous row (`...`) hashes like the row-less form, so
-                    -- existing hashes are unaffected; a named row contributes its hash.
-                    AllowExtraFields (Just row) -> [tag 0, hashed (hash row)]
-                    RequireExactFields -> [tag 1]
+                    HasExtraFields row -> [tag 0, hashed (hash row)]
+                    NoExtraFields -> [tag 1]
                   sortedFields = Map.toAscList fields
                   fieldHashes =
                     sortedFields & foldMap \(fieldName, fieldType) ->

@@ -477,7 +477,7 @@ getType getReference = getABT getSymbol getUnit go
         5 -> Type.Effects <$> getList getChild
         6 -> Type.Forall <$> getChild
         7 -> Type.IntroOuter <$> getChild
-        8 -> Type.Record <$> getFieldBehavior getChild <*> (Map.fromList <$> getList (getPair getText getChild))
+        8 -> Type.Record <$> getRecordTail getChild <*> (Map.fromList <$> getList (getPair getText getChild))
         tag -> unknownTag "getType" tag
     getKind :: (MonadGet m) => m Kind
     getKind =
@@ -1154,29 +1154,28 @@ putType putReference putVar = putABT putVar putUnit go
       Type.Effects es -> putWord8 5 *> putFoldable putChild es
       Type.Forall body -> putWord8 6 *> putChild body
       Type.IntroOuter body -> putWord8 7 *> putChild body
-      Type.Record fb fields -> putWord8 8 *> putFieldBehavior putChild fb *> putFoldable (\(l, t) -> putText l *> putChild t) (Map.toAscList fields)
+      Type.Record fb fields -> putWord8 8 *> putRecordTail putChild fb *> putFoldable (\(l, t) -> putText l *> putChild t) (Map.toAscList fields)
     putKind :: (MonadPut m) => Kind -> m ()
     putKind k = case k of
       Kind.Star -> putWord8 0
       Kind.Arrow i o -> putWord8 1 *> putKind i *> putKind o
 
--- | Serialize a record's field behavior, carrying the row variable (if named).
+-- | Serialize a record's tail: whether it may have extra fields, and the row
+-- variable if so.
 --
--- Tag 0/1 match the historical (row-less) encoding, so existing codebases
--- decode unchanged; tag 2 is the named row `{ a : T | r }`.
-putFieldBehavior :: (MonadPut m) => (a -> m ()) -> Type.FieldBehavior a -> m ()
-putFieldBehavior putChild = \case
-  Type.AllowExtraFields Nothing -> putVarInt (0 :: Word8)
-  Type.RequireExactFields -> putVarInt (1 :: Word8)
-  Type.AllowExtraFields (Just row) -> putVarInt (2 :: Word8) *> putChild row
+-- Tag 0 is the closed record `{ a : T }`; tag 1 carries a named row
+-- `{ a : T | r }`.
+putRecordTail :: (MonadPut m) => (a -> m ()) -> Type.RecordTail a -> m ()
+putRecordTail putChild = \case
+  Type.NoExtraFields -> putVarInt (0 :: Word8)
+  Type.HasExtraFields row -> putVarInt (1 :: Word8) *> putChild row
 
-getFieldBehavior :: (MonadGet m) => m a -> m (Type.FieldBehavior a)
-getFieldBehavior getChild =
+getRecordTail :: (MonadGet m) => m a -> m (Type.RecordTail a)
+getRecordTail getChild =
   getVarInt >>= \case
-    (0 :: Word8) -> pure (Type.AllowExtraFields Nothing)
-    1 -> pure Type.RequireExactFields
-    2 -> Type.AllowExtraFields . Just <$> getChild
-    tag -> unknownTag "getFieldBehavior" tag
+    (0 :: Word8) -> pure Type.NoExtraFields
+    1 -> Type.HasExtraFields <$> getChild
+    tag -> unknownTag "getRecordTail" tag
 
 putChar :: (MonadPut m) => Char -> m ()
 putChar = serialize . VarInt . fromEnum

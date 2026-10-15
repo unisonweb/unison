@@ -369,12 +369,12 @@ type2to1' convertRef =
       V2.Type.Effects as -> V1.Type.Effects as
       V2.Type.Forall a -> V1.Type.Forall a
       V2.Type.IntroOuter a -> V1.Type.IntroOuter a
-      V2.Type.Record fb fields -> V1.Type.Record (convertFB fb) fields
+      V2.Type.Record fb fields -> V1.Type.Record (convertRecordTail fb) fields
       where
-        convertFB :: V2.Type.FieldBehavior a -> V1.Type.FieldBehavior a
-        convertFB = \case
-          V2.Type.AllowExtraFields row -> V1.Type.AllowExtraFields row
-          V2.Type.RequireExactFields -> V1.Type.RequireExactFields
+        convertRecordTail :: V2.Type.RecordTail a -> V1.Type.RecordTail a
+        convertRecordTail = \case
+          V2.Type.HasExtraFields row -> V1.Type.HasExtraFields row
+          V2.Type.NoExtraFields -> V1.Type.NoExtraFields
         convertKind = \case
           V2.Kind.Star -> V1.Kind.Star
           V2.Kind.Arrow i o -> V1.Kind.Arrow (convertKind i) (convertKind o)
@@ -401,12 +401,12 @@ type1to2' convertRef =
       V1.Type.Effects as -> V2.Type.Effects as
       V1.Type.Forall a -> V2.Type.Forall a
       V1.Type.IntroOuter a -> V2.Type.IntroOuter a
-      V1.Type.Record fb fields -> V2.Type.Record (convertFB fb) fields
+      V1.Type.Record fb fields -> V2.Type.Record (convertRecordTail fb) fields
       where
-        convertFB :: V1.Type.FieldBehavior a -> V2.Type.FieldBehavior a
-        convertFB = \case
-          V1.Type.AllowExtraFields row -> V2.Type.AllowExtraFields row
-          V1.Type.RequireExactFields -> V2.Type.RequireExactFields
+        convertRecordTail :: V1.Type.RecordTail a -> V2.Type.RecordTail a
+        convertRecordTail = \case
+          V1.Type.HasExtraFields row -> V2.Type.HasExtraFields row
+          V1.Type.NoExtraFields -> V2.Type.NoExtraFields
         convertKind = \case
           V1.Kind.Star -> V2.Kind.Star
           V1.Kind.Arrow i o -> V2.Kind.Arrow (convertKind i) (convertKind o)

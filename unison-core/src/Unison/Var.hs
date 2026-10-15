@@ -17,6 +17,7 @@ module Unison.Var
     inferTypeConstructorArg,
     inferRecordFieldType,
     inferRecordRowType,
+    inferOpenedRowType,
     isAction,
     missingResult,
     name,
@@ -78,6 +79,7 @@ rawName typ = case typ of
   Inference TypeConstructorArg -> "𝕦"
   Inference RecordFieldType -> "𝕤" -- "s" for "struct"
   Inference RecordRowType -> "_row"
+  Inference OpenedRowType -> "_rest"
   MissingResult -> "_"
   Blank -> "_"
   Eta -> "_eta"
@@ -128,6 +130,7 @@ missingResult,
   inferTypeConstructorArg,
   inferRecordFieldType,
   inferRecordRowType,
+  inferOpenedRowType,
   inferOther ::
     (Var v) => v
 missingResult = typed MissingResult
@@ -143,6 +146,7 @@ inferTypeConstructor = typed (Inference TypeConstructor)
 inferTypeConstructorArg = typed (Inference TypeConstructorArg)
 inferRecordFieldType = typed (Inference RecordFieldType)
 inferRecordRowType = typed (Inference RecordRowType)
+inferOpenedRowType = typed (Inference OpenedRowType)
 inferOther = typed (Inference Other)
 
 unnamedRef :: (Var v) => Reference.Id -> v
@@ -198,6 +202,10 @@ data InferenceType
   | TypeConstructorArg
   | RecordFieldType
   | RecordRowType
+  | -- A row introduced by opening a closed record in a negative position.
+    -- Solvable like any existential, but pattern matching and subtyping must
+    -- not grow it with unmentioned fields.
+    OpenedRowType
   | Other
   deriving (Eq, Ord, Show)
 
