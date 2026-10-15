@@ -3907,19 +3907,19 @@ void unison_jit_rec_fail(const char *what, StgClosure *c) {
 }
 
 // Startup: learns the record layout from samples and checks the lookup.
-// elems: [0] a record of the fields "a" and "bc" (field numbers info[0] and
+// elems: [0] a record of the fields "a" and "bc" (field numbers info[0] <
 // info[1], shape reference info[2]) holding the Vals [1] and [2]; [3] a
-// record with no fields; [4] a record with three fields (numbers info[3],
-// info[4], info[5] in slots 0, 1, 2). Returns 1, or the number of the
+// record with no fields; [4] a record with three fields (numbers info[3] <
+// info[4] < info[5] in slots 0, 1, 2). Returns 1, or the number of the
 // check that failed.
 int64_t unison_jit_record_init(void **elems, int64_t *info) {
   RK.ok = 0;
-  if (!EK.ok || LF.val_info == 0) return 2;
+  if (LF.val_info == 0) return 2;
   StgClosure *r = unison_jit_settle(elems[0]), *v0 = unison_jit_settle(elems[1]), *v1 = unison_jit_settle(elems[2]);
   StgClosure *r0 = unison_jit_settle(elems[3]), *r3 = unison_jit_settle(elems[4]);
   if (LTAG(r) != 7 || LTAG(r0) != 7 || LTAG(r3) != 7 || LTAG(v0) == 0 || LTAG(v1) == 0) return 3;
   const StgInfoTable *ri = get_itbl(LUN(r));
-  if (ri->layout.payload.ptrs != 3 || ri->layout.payload.nptrs != 5) return 4;
+  if (ri->layout.payload.ptrs != 4 || ri->layout.payload.nptrs != 5) return 4;
   if (LUN(r0)->header.info != LUN(r)->header.info || LUN(r3)->header.info != LUN(r)->header.info) return 5;
   // the words: the shape reference, the names' and the values' offsets and lengths
   if (LW(r, REC_REF) != info[2] || LW(r, REC_NOFF) != 0 || LW(r, REC_NLEN) != 2 || LW(r, REC_VOFF) != 0 || LW(r, REC_VLEN) != 2) return 6;
@@ -3943,21 +3943,22 @@ int64_t unison_jit_record_init(void **elems, int64_t *info) {
   const unsigned char *pa = (const unsigned char *)((StgArrBytes *)LP(ta, 0))->payload + LW(ta, 1);
   const unsigned char *pb = (const unsigned char *)((StgArrBytes *)LP(tb, 0))->payload + LW(tb, 1);
   if (pa[0] != 'a' || pb[0] != 'b' || pb[1] != 'c') return 16;
-  // the positions: an IntMap (the handler environment's constructors) of boxed Ints
-  StgClosure *pos = unison_jit_settle(LP(r, REC_POS)), *pos0 = unison_jit_settle(LP(r0, REC_POS)), *found;
-  if (LTAG(pos) != EK.bin_tag || LTAG(pos0) != EK.nil_tag) return 17;
-  if (im_find(pos, info[0], &found, 0) != 1) return 18;
-  found = unison_jit_settle(found);
-  const StgInfoTable *ii = get_itbl(LUN(found));
-  if (LTAG(found) != 1 || ii->layout.payload.ptrs != 0 || ii->layout.payload.nptrs != 1 || LW(found, 0) != 0) return 19;
+  // the field numbers and the slots: two ByteArray#s of words, the numbers
+  // ascending with the slot of each at the same index
+  StgArrBytes *keys = (StgArrBytes *)LUN(unison_jit_settle(LP(r, REC_KEYS))), *slots = (StgArrBytes *)LUN(unison_jit_settle(LP(r, REC_SLOTS)));
+  StgArrBytes *keys0 = (StgArrBytes *)LUN(unison_jit_settle(LP(r0, REC_KEYS))), *keys3 = (StgArrBytes *)LUN(unison_jit_settle(LP(r3, REC_KEYS)));
+  if (get_itbl((StgClosure *)keys)->type != ARR_WORDS || get_itbl((StgClosure *)slots)->type != ARR_WORDS || get_itbl((StgClosure *)keys0)->type != ARR_WORDS) return 17;
+  if (keys->bytes != 2 * sizeof(StgWord) || slots->bytes != 2 * sizeof(StgWord) || keys0->bytes != 0 || keys3->bytes != 3 * sizeof(StgWord)) return 18;
+  // the sample's numbers are given ascending (info[0] < info[1]), so the slots are 0, 1
+  const int64_t *kw = (const int64_t *)keys->payload, *sw = (const int64_t *)slots->payload;
+  if (kw[0] != info[0] || kw[1] != info[1] || sw[0] != 0 || sw[1] != 1) return 19;
   RK.record_info = (StgWord)LUN(r)->header.info;
   RK.text_info = (StgWord)LUN(ta)->header.info;
-  RK.int_info = (StgWord)LUN(found)->header.info;
   RK.ok = 1;
   // the lookup, through the helper itself
   if (unison_jit_rec_pos(r, info[0]) != 0 || unison_jit_rec_pos(r, info[1]) != 1) return 20;
-  if (unison_jit_rec_pos(r, info[0] + info[1] + 1) != -1 || unison_jit_rec_pos(r0, info[0]) != -1) return 21;
-  if (unison_jit_rec_pos(r3, info[3]) != 0 || unison_jit_rec_pos(r3, info[4]) != 1 || unison_jit_rec_pos(r3, info[5]) != 2) return 22;
+  if (unison_jit_rec_pos(r, info[0] + info[1] + 1) != -1 || unison_jit_rec_pos(r, info[0] - 1) != -1 || unison_jit_rec_pos(r0, info[0]) != -1) return 21;
+  if (unison_jit_rec_pos(r3, info[3]) != 0 || unison_jit_rec_pos(r3, info[4]) != 1 || unison_jit_rec_pos(r3, info[5]) != 2 || unison_jit_rec_pos(r3, info[5] + 1) != -1) return 22;
   if (!is_record(r) || !is_record(r0) || is_record(v0) || is_record(ta)) return 23;
   return 1;
 }
@@ -3979,16 +3980,17 @@ void *unison_jit_rec_set(UnisonJitCtx *ctx, void *rec, int64_t field, int64_t u,
   StgMutArrPtrs *a = parray_new(ctx, n, nv, &stg_MUT_ARR_PTRS_FROZEN_CLEAN_info);
   for (StgWord i = 0; i < n; i++)
     if (i != (StgWord)pos) a->payload[i] = old->payload[voff + i];
-  StgWord *p = list_alloc(ctx, 9);
+  StgWord *p = list_alloc(ctx, 10);
   p[0] = RK.record_info;
   p[1] = (StgWord)LP(c, REC_NAMES);
-  p[2] = (StgWord)LP(c, REC_POS);
-  p[3] = (StgWord)a;
-  p[4] = LW(c, REC_REF);
-  p[5] = LW(c, REC_NOFF);
-  p[6] = LW(c, REC_NLEN);
-  p[7] = 0;
-  p[8] = n;
+  p[2] = (StgWord)LP(c, REC_KEYS);
+  p[3] = (StgWord)LP(c, REC_SLOTS);
+  p[4] = (StgWord)a;
+  p[5] = LW(c, REC_REF);
+  p[6] = LW(c, REC_NOFF);
+  p[7] = LW(c, REC_NLEN);
+  p[8] = 0;
+  p[9] = n;
   return (void *)((StgWord)p | 7);
 }
 

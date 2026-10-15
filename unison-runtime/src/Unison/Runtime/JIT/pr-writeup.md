@@ -85,5 +85,7 @@ Trunk's structural records (`GRecord`, `RecPack`, `RecUnpack`, `RecSet`) were me
 native the same day: the three instructions are generated, and the comparison walkers and the
 hash handle records. Two things in the interpreter changed with it: the elements of a record's
 value vector are built evaluated (`recordVals`), since native code reads them as closures, and
-nothing else. "Records" in internals.md has the details.
+a shape keeps the slot of each field in two unboxed sorted arrays searched by `shapeSlot`
+rather than in an `EnumMap`, which both the interpreter and native code look up faster
+(`benchmarks/2026-10-15-positions.md`). "Records" in internals.md has the details.
 

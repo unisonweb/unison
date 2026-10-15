@@ -17,6 +17,8 @@ module Unison.Runtime.MCode
     Args (..),
     FieldRef (..),
     RecordShape (..),
+    mkRecordShape,
+    shapeSlot,
     recordShape,
     recordShapeFrom,
     RefNums (..),
@@ -369,10 +371,47 @@ data RecordShape = RecordShape
     -- | The record's field names, ascending. Slot @i@ of a record value holds
     -- the value of @shapeFields ! i@.
     shapeFields :: !(Vector ANF.FieldName),
-    -- | Slot index of each field, for 'RecUnpack'.
-    shapePositions :: !(EC.EnumMap FieldRef Int)
+    -- | The field numbers ('FieldRef'), ascending; with 'shapeSlots' the
+    -- slot of each field, for 'RecUnpack' and 'RecSet'. Two unboxed arrays
+    -- searched by 'shapeSlot' rather than a map: a lookup is a binary search
+    -- over a few words, and native code does the same search over the
+    -- @ByteArray#@s (unison_jit_rec_pos). Built by 'mkRecordShape'.
+    shapeKeys :: !(PrimArray Word64),
+    -- | The slot of the field at the same index of 'shapeKeys'.
+    shapeSlots :: !(PrimArray Int)
   }
   deriving stock (Show)
+
+-- | A shape from its reference, its field names ascending, and the number of
+-- each field in that order (so the field at slot @i@ has number @refs !! i@).
+mkRecordShape :: ANF.RecordRef -> Vector ANF.FieldName -> [FieldRef] -> RecordShape
+mkRecordShape ref names refs =
+  RecordShape
+    { shapeRef = ref,
+      shapeFields = names,
+      shapeKeys = PA.primArrayFromList (map (\(FieldRef k, _) -> k) sorted),
+      shapeSlots = PA.primArrayFromList (map snd sorted)
+    }
+  where
+    sorted = M.toAscList (M.fromList (zip refs [0 ..]))
+
+-- | The slot of a field in a record of this shape: a binary search of
+-- 'shapeKeys'. A field the shape lacks is an error, not a result: typechecked
+-- code only reads fields the record has, so there is nothing to recover
+-- from, and nothing to allocate on the way out.
+shapeSlot :: RecordShape -> FieldRef -> Int
+shapeSlot shape (FieldRef k) = go 0 (PA.sizeofPrimArray keys)
+  where
+    keys = shapeKeys shape
+    go !lo !hi
+      | lo >= hi = error ("shapeSlot: no field " ++ show k ++ " in record " ++ show (V.toList (shapeFields shape)))
+      | otherwise =
+          let mid = (lo + hi) `div` 2
+              k' = PA.indexPrimArray keys mid
+           in if k' < k then go (mid + 1) hi
+              else if k' > k then go lo mid
+              else PA.indexPrimArray (shapeSlots shape) mid
+{-# INLINE shapeSlot #-}
 
 -- | Records are equal and ordered by field name, never by 'shapeRef', so that
 -- the result doesn't depend on the order field names happened to be interned.
@@ -393,12 +432,7 @@ recordShapeFrom ::
 recordShapeFrom (RecordFieldMappings _ m) ref (ANF.RecordSchema fields) = do
   let names = V.fromList (Set.toAscList fields)
   refs <- traverse (\n -> BiMap.lookupL n m) names
-  pure
-    RecordShape
-      { shapeRef = ref,
-        shapeFields = names,
-        shapePositions = EC.mapFromList (zip (V.toList refs) [0 ..])
-      }
+  pure (mkRecordShape ref names (V.toList refs))
 
 -- | Build the shape for a record schema, assigning a 'FieldRef' to any field
 -- name not yet seen.
@@ -410,12 +444,7 @@ recordShape ::
 recordShape ref (ANF.RecordSchema fields) = do
   let names = V.fromList (Set.toAscList fields)
   refs <- convertFieldNamesToRefs names
-  pure
-    RecordShape
-      { shapeRef = ref,
-        shapeFields = names,
-        shapePositions = EC.mapFromList (zip (V.toList refs) [0 ..])
-      }
+  pure (mkRecordShape ref names (V.toList refs))
 
 argsToLists :: Args -> [Int]
 argsToLists = \case

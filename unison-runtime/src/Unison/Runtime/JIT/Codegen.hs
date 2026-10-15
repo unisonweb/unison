@@ -3854,9 +3854,9 @@ genPack fe d refIx (PackedTag t) fields slow = do
 -- | Allocates a record with the given fields (in ascending field-name
 -- order, the shape's slot order) and pushes it: the record closure, its
 -- values' @Array#@ and a @Val@ box per field, in one chunk. The shape's
--- words (the names' array, the positions map, the shape reference, the
--- names' offset and length) are copied from the pool's empty record of the
--- shape at @protoIx@. An untagged field value goes to @slow@.
+-- words (the names' array, the field numbers' and the slots' arrays, the
+-- shape reference, the names' offset and length) are copied from the pool's
+-- empty record of the shape at @protoIx@. An untagged field value goes to @slow@.
 genRecPack :: FnEnv -> Int -> Int -> Deque Int -> Text -> Gen ()
 genRecPack fe d protoIx fields slow = do
   let env = feEnv fe
@@ -3884,7 +3884,8 @@ genRecPack fe d protoIx fields slow = do
   pb <- fresh "proto.base"
   emit (pb <> " = and i64 " <> pi' <> ", -8")
   names <- loadAt pb "names" "ptr" (lFieldOffset layout 0)
-  positions <- loadAt pb "positions" "ptr" (lFieldOffset layout 1)
+  keys <- loadAt pb "keys" "ptr" (lFieldOffset layout 1)
+  slots <- loadAt pb "slots" "ptr" (lFieldOffset layout 2)
   ref <- loadAt pb "shaperef" "i64" (lFieldOffset layout (lPtrs layout))
   noff <- loadAt pb "noff" "i64" (lFieldOffset layout (lPtrs layout + 1))
   nlen <- loadAt pb "nlen" "i64" (lFieldOffset layout (lPtrs layout + 2))
@@ -3922,9 +3923,10 @@ genRecPack fe d protoIx fields slow = do
   -- the record: the shape's words, then the values' array, offset and length
   storeAt 0 ("i64 " <> tshow (lInfo layout))
   storeAt 1 ("ptr " <> names)
-  storeAt 2 ("ptr " <> positions)
+  storeAt 2 ("ptr " <> keys)
+  storeAt 3 ("ptr " <> slots)
   ap <- word arr
-  storeAt 3 ("ptr " <> ap)
+  storeAt 4 ("ptr " <> ap)
   storeAt (1 + lPtrs layout) ("i64 " <> ref)
   storeAt (2 + lPtrs layout) ("i64 " <> noff)
   storeAt (3 + lPtrs layout) ("i64 " <> nlen)
@@ -3962,7 +3964,7 @@ genRecUnpack fe d i fields slow = do
   notRec <- fresh "notrec"
   emit (notRec <> " = icmp ne i64 " <> info <> ", " <> tshow (lInfo layout))
   branchIf "record" notRec slow
-  arr <- loadAt base "vals" "ptr" (lFieldOffset layout 2)
+  arr <- loadAt base "vals" "ptr" (lFieldOffset layout 3)
   voff <- loadAt base "voff" "i64" (lFieldOffset layout (lPtrs layout + 3))
   forM_ (zip [0 ..] fields) $ \(j, FieldRef f) -> do
     pos <- fresh "pos"

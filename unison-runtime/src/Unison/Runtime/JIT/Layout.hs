@@ -48,7 +48,7 @@ import Unison.Runtime.Referenced (Referenced (Plain))
 import Unison.Reference (Reference)
 import Unison.Runtime.JIT.Strict (Pair (..))
 import Unison.Runtime.JIT.Native (envInit, arrayInit, bytesCheck, bytesInit, bytesTest, closureInit, cmpInit, cmpTest, listCheck, listInit, listTest, murmurInit, murmurTest, nameTest, probeClosure, recordInit, textCheck, textInit, textTest)
-import Unison.Runtime.MCode (CombIx (..), FieldRef (..), GCombInfo (..), GSection (..), RecordShape (..), noNativeCell)
+import Unison.Runtime.MCode (CombIx (..), FieldRef (..), GCombInfo (..), GSection (..), RecordShape (..), mkRecordShape, noNativeCell)
 import Data.Set qualified as Set
 import Data.Vector qualified as V
 import Unison.Runtime.Stack
@@ -103,8 +103,8 @@ data Layouts = Layouts
     -- | @Val u b@: pointer tag 1; pointer b, then non-pointer u
     lVal :: !Layout,
     -- | @RecordG shape vals@ with the shape and the vector unpacked: pointer
-    -- tag 7; pointers the field names' Array#, the positions map and the
-    -- values' Array#; non-pointers the shape reference, the names' offset and
+    -- tag 7; pointers the field names' Array#, the field numbers' and the
+    -- slots' ByteArray#s and the values' Array#; non-pointers the shape reference, the names' offset and
     -- length, the values' offset and length ("records" in jit_internal.h)
     lRecord :: !Layout,
     -- | header size in bytes; payload starts after it
@@ -203,7 +203,7 @@ probeLayouts = do
   v <- probe (any' $! Val 9 nat) [any' nat] [9]
   -- a record: its words are checked by unison_jit_record_init (probeRecords);
   -- here only the counts and the pointer tag
-  rc <- probeKind 7 3 5 (any' $! RecordG (recordShapeOf 7 [("a", 3), ("bc", 5)]) (recordVals (segFromList [NatVal 9, NatVal 10])))
+  rc <- probeKind 7 4 5 (any' $! RecordG (recordShapeOf 7 [("a", 3), ("bc", 5)]) (recordVals (segFromList [NatVal 9, NatVal 10])))
   pure $ case (e, d1, d2, dg, pap, ub, bb, fi, wi, ai, v, aw, mbw, bw, tw, pw, rc) of
     (Right le, Right ld1, Right ld2, Right ldg, Right lp, Right ubi, Right bbi, Right fii, Right wii, Right aii, Right lv, Right awi, Right mbwi, Right bwi, Right ltw, Right pwi, Right lr)
       | lPtrTag le == 2 && lPtrs le == 1 && lNptrs le == 1,
@@ -232,17 +232,12 @@ probeKind tag ptrs nptrs sample0 = do
 recordShapeOf :: Word64 -> [(Text.Text, Word64)] -> RecordShape
 recordShapeOf ref fields =
   let sorted = M.toAscList (M.fromList fields)
-   in RecordShape
-        { shapeRef = ANF.RecordRef ref,
-          shapeFields = V.fromList (map fst sorted),
-          shapePositions = EC.mapFromList (zip (map (FieldRef . snd) sorted) [0 ..])
-        }
+   in mkRecordShape (ANF.RecordRef ref) (V.fromList (map fst sorted)) (map (FieldRef . snd) sorted)
 
 -- | Records: hands the record helpers sample records (see
 -- unison_jit_record_init), which checks the layout and the field lookup
 -- against them, then runs records through the hash and the comparison
--- helpers against the Haskell answers. After 'probeEnv': the positions map
--- is an IntMap, whose constructors the environment probe learned.
+-- helpers against the Haskell answers.
 probeRecords :: Layouts -> IO (Either String ())
 probeRecords _ls = do
   let PackedTag someTag = TT.someTag

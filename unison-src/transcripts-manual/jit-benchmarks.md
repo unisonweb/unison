@@ -245,6 +245,16 @@ recordLoop n =
     go (acc Nat.+ recordSum r' Nat.+ recordGetN { m: i, n: r'@x } Nat.+ recordGetN { n: i }) (i Nat.+ 1)
   go 0 0
 
+-- a wide record: 16 fields, four read per iteration from across the shape,
+-- where a lookup has the most keys to search
+wideLoop : Nat -> Nat
+wideLoop n =
+  go : Nat -> Nat -> Nat
+  go acc i = if i == n then acc else
+    r = { a: i, b: 1, c: 2, d: 3, e: 4, f: 5, g: 6, h: 7, i: 8, j: 9, k: 10, l: 11, m: 12, n: 13, o: 14, p: i }
+    go (acc Nat.+ r@a Nat.+ r@f Nat.+ r@k Nat.+ r@p) (i Nat.+ 1)
+  go 0 0
+
 -- A callee that is first reached after its caller is hot: the first 20000
 -- iterations take the other branch (the batch forms on the compile thread
 -- about a millisecond after the trigger, a thousand or so iterations, so
@@ -363,6 +373,7 @@ jitSuite = do
   printTime "Ref.cas loop, 10000 times" 1 (n -> repeat n do casLoop 10000)
   printTime "murmurHashUntyped of Some (i, \"x\"), 10000 times" 1 (n -> repeat n do hashLoop 10000)
   printTime "Records: a literal, an update, a pattern and two getters, 100000 times" 1 (n -> repeat n do recordLoop 100000)
+  printTime "Records: a 16-field literal and four getters, 100000 times" 1 (n -> repeat n do wideLoop 100000)
   printTime "Counter: 100000 requests" 1 (n -> repeat n do runCounter 0 '(sumNext 0 100000))
   printTime "Store: get and put, 100000 iterations" 1 (n -> repeat n do runStore 0 '(loopStore 100000))
   printTime "handle installed per iteration, 10000 iterations" 1 (n -> repeat n do handleLoop 0 10000)

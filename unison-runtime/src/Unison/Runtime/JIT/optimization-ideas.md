@@ -21,17 +21,6 @@ loses to the Haskell map above a few thousand keys while winning below
 change (`GClosure`, `dataBranch`, `buildData`, value serialization), not a JIT one, and needs
 a plan of its own.
 
-### A field's slot without the map walk
-
-`RecUnpack` asks `unison_jit_rec_pos` for the slot of each field it pushes: a walk of the
-value's positions map, an `IntMap` of two to four nodes for a small record, with a boxed `Int`
-at the tip, per field per match. The shape could instead hold two unboxed arrays, the field
-numbers sorted and their slots, looked up by binary search: measured in Haskell against the
-map on 2026-10-15, one to two nanoseconds saved per lookup up to 8 keys and ahead at every
-size, with more to gain on the native side, whose walk checks a tag per node. A per-site
-inline cache (the shape last seen and its slots) was considered and rejected: mutable state
-shared between threads. The plan is `positions-plan.local.md`.
-
 ### One allocation for several `Pack`s
 
 Consecutive `Pack`s in a straight-line run, and the arithmetic between them, could share one

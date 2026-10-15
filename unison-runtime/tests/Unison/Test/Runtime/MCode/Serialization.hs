@@ -6,7 +6,9 @@ module Unison.Test.Runtime.MCode.Serialization (Unison.Test.Runtime.MCode.Serial
 import Control.Monad.ST (ST, runST)
 import Data.ByteString.Builder (Builder, toLazyByteString)
 import Data.ByteString.Lazy (toStrict)
-import Data.Primitive (Prim, PrimArray, primArrayFromList)
+import Data.Primitive (Prim, PrimArray, primArrayFromList, primArrayToList)
+import Data.Set qualified as Set
+import GHC.Exts qualified as Exts
 import EasyTest qualified as EasyTest
 import Hedgehog hiding (Rec, Test, test)
 import Hedgehog.Gen qualified as Gen
@@ -15,7 +17,8 @@ import Unison.Prelude
 import Unison.Runtime.ANF qualified as ANF
 import Unison.Runtime.Foreign.Function.Type (ForeignFunc)
 import Unison.Runtime.Interface
-import Unison.Runtime.MCode (Args (..), Branch, Comb, CombIx (..), FieldRef (..), GBranch (..), GComb (..), GCombInfo (..), GInstr (..), GRef (..), GSection (..), Instr, MLit (..), Prim1, Prim2, RecordFieldMappings (..), Ref, Section)
+import Unison.Runtime.MCode (Args (..), Branch, Comb, CombIx (..), FieldRef (..), GBranch (..), GComb (..), GCombInfo (..), GInstr (..), GRef (..), GSection (..), Instr, MLit (..), Prim1, Prim2, RecordFieldMappings (..), RecordShape (..), Ref, Section, mkRecordShape, noNativeCell)
+import Unison.Runtime.MCode.Serialize (getRecordShape, putRecordShape)
 import Unison.Runtime.Machine (Combs)
 import Unison.Runtime.Serialize.Get
 import Unison.Runtime.TypeTags (PackedTag (..))
@@ -33,7 +36,8 @@ test =
         checkParallel $
           Group
             "roundtrip"
-            [ ("SCache", sCacheRoundtrip)
+            [ ("SCache", sCacheRoundtrip),
+              ("RecordShape", recordShapeRoundtrip)
             ]
     EasyTest.expect success
 
@@ -130,8 +134,19 @@ genInstr =
       Fork <$> genSmallInt,
       Atomically <$> genSmallInt,
       Seq <$> genArgs,
-      TryForce <$> genSmallInt
+      TryForce <$> genSmallInt,
+      RecPack <$> genRecordShape <*> genArgs,
+      RecUnpack <$> (Exts.fromList <$> Gen.list (Range.linear 0 5) genFieldRef) <*> genSmallInt,
+      RecSet <$> genFieldRef <*> genArgs
     ]
+
+-- | Distinct field names ascending, each with a distinct number, as the
+-- emitter builds them.
+genRecordShape :: Gen RecordShape
+genRecordShape = do
+  names <- Set.toAscList <$> Gen.set (Range.linear 0 6) genSmallText
+  refs <- Gen.subsequence [0 .. 50] >>= Gen.shuffle
+  pure (mkRecordShape (ANF.RecordRef 0) (Exts.fromList names) (map FieldRef (take (length names) (refs ++ [51 ..]))))
 
 genSection :: Gen Section
 genSection = do
@@ -151,7 +166,7 @@ genSection = do
         pure $ Call b cix cix args,
       Match <$> genSmallInt <*> genBranch,
       Ins <$> genInstr <*> genSection,
-      Let <$> genSection <*> genCombIx <*> genSmallInt <*> genSection,
+      Let <$> genSection <*> genCombIx <*> genSmallInt <*> genSection <*> pure noNativeCell,
       DMatch <$> Gen.maybe genReference <*> genSmallInt <*> genBranch,
       NMatch <$> Gen.maybe genReference <*> genSmallInt <*> genBranch,
       RMatch <$> genSmallInt <*> genSection <*> genEnumMap genSmallWord64 genBranch
@@ -163,6 +178,7 @@ genCombInfo =
     <$> Gen.int (Range.linear 0 10)
     <*> Gen.int (Range.linear 0 10)
     <*> genSection
+    <*> pure noNativeCell
 
 genComb :: Gen Comb
 genComb =
@@ -218,6 +234,16 @@ genStoredCache =
 sCacheRoundtrip :: Property
 sCacheRoundtrip =
   getPutRoundtrip getStoredCache (putStoredCache) genStoredCache
+
+-- | A shape's Eq is by field names only, so the slot arrays are compared
+-- here on their own: every field must come back at the same slot.
+recordShapeRoundtrip :: Property
+recordShapeRoundtrip =
+  property $ do
+    shape <- forAll genRecordShape
+    let bytes = toStrict . toLazyByteString $ putRecordShape shape
+        slotsOf s = (primArrayToList (shapeKeys s), primArrayToList (shapeSlots s))
+    fmap slotsOf (runST (runGetCatch getRecordShape bytes)) === Right (slotsOf shape)
 
 getPutRoundtrip ::
   (Eq a, Show a) =>

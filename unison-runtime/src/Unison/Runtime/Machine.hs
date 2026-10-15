@@ -449,10 +449,9 @@ exec _ henv !_activeThreads !stk !k _ (RecUnpack desiredFields recIndex) = do
       -- The slot a field sits in depends on the *value's* shape, not the
       -- pattern's: one pattern matches records of several shapes, in which a
       -- given field may sit at a different slot.
-      let positions = shapePositions shape
       let seg =
             V.toList desiredFields
-              <&> (\f -> vals V.! (positions EC.! f))
+              <&> (\f -> vals V.! shapeSlot shape f)
               & segFromList
       stk' <- dumpSeg stk seg S
       pure (False, henv, stk', k)
@@ -465,7 +464,7 @@ exec _ henv !_activeThreads !stk !k _ (RecSet field args) = do
       case rv of
         RecordG shape vals -> do
           -- The value's own shape says which slot the field sits in.
-          let pos = shapePositions shape EC.! field
+          let pos = shapeSlot shape field
           stk <- bump stk
           bpoke stk . RecordG shape $ vals V.// [(pos, nv)]
           pure (False, henv, stk, k)

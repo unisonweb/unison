@@ -299,15 +299,22 @@ void *unison_jit_resolve_dyn(void *henv, int64_t key) {
 // Records: the slot of a field ("records" in jit_internal.h).
 
 int64_t unison_jit_rec_pos(void *rec, int64_t field) {
-  if (!RK.ok) return -1;
-  StgClosure *pos = LP(rec, REC_POS), *v;
-  // the map and the boxed Int at its tip are strict fields of evaluated
-  // values, but may still be reached through an indirection
-  if (LTAG(pos) == 0) pos = unison_jit_settle(pos);
-  if (LTAG(pos) == 0 || im_find(pos, field, &v, 0) != 1) return -1;
-  if (LTAG(v) == 0) v = unison_jit_settle(v);
-  if (LTAG(v) != 1 || (StgWord)LUN(v)->header.info != RK.int_info) return -1;
-  return LW(v, 0);
+  // the two ByteArray#s are strict, evaluated fields; the GC never leaves an
+  // indirection to an ARR_WORDS in a strict field of a value it has built,
+  // but settle anyway in case a pointer is still untagged
+  StgClosure *kc = LP(rec, REC_KEYS), *sc = LP(rec, REC_SLOTS);
+  if (LTAG(kc) == 0) kc = unison_jit_settle(kc);
+  if (LTAG(sc) == 0) sc = unison_jit_settle(sc);
+  StgArrBytes *keys = (StgArrBytes *)LUN(kc), *slots = (StgArrBytes *)LUN(sc);
+  const int64_t *k = (const int64_t *)keys->payload;
+  int64_t lo = 0, hi = (int64_t)(keys->bytes / sizeof(int64_t));
+  while (lo < hi) {
+    int64_t mid = lo + (hi - lo) / 2, km = k[mid];
+    if (km < field) lo = mid + 1;
+    else if (km > field) hi = mid;
+    else return ((const int64_t *)slots->payload)[mid];
+  }
+  return -1;
 }
 
 // ---------------------------------------------------------------------------
