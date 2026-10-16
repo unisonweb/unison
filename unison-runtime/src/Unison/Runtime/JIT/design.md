@@ -45,14 +45,14 @@ A few things to be aware of throughout the design:
 
 The JIT sits on the existing interpreter and shares its state with it: the Unison stack and the continuation. Everything below is a consequence of that.
 
-- **[The runtime it builds on](#the-runtime-the-jit-builds-on).** The interpreter runs supercombinators whose bodies are [`MCode`](../MCode.hs) instruction trees, on a [`Stack`](../Stack.hs#L1091) of two arrays (unboxed words and boxed closures) with a heap-allocated continuation [`K`](../Stack.hs#L310). The JIT compiles the same `MCode`, in dynamically formed batches of supercombinators, to functions that operate on the same stack.
-- **[Exits](#exits-how-native-code-covers-a-subset-of-the-language).** Every compiled function has one C signature. It returns `OK` when it finishes, or an *exit*: an index into a table of [`Exit`](Exits.hs#L34) specifying what the interpreter should do next (resume at a section, run one instruction and re-enter, grow the stack, or just come back later). Before exiting, native code puts its frame back on the Unison stack, so that [the core rule](#the-core-rule) holds: whenever Haskell has control, the stack is exactly what the interpreter would have produced.
+- **[The runtime it builds on](#the-runtime-the-jit-builds-on).** The interpreter runs supercombinators whose bodies are [`MCode`](../MCode.hs) instruction trees, on a [`Stack`](../Stack.hs#:~:text=data%20Stack) of two arrays (unboxed words and boxed closures) with a heap-allocated continuation [`K`](../Stack.hs#:~:text=data%20K). The JIT compiles the same `MCode`, in dynamically formed batches of supercombinators, to functions that operate on the same stack.
+- **[Exits](#exits-how-native-code-covers-a-subset-of-the-language).** Every compiled function has one C signature. It returns `OK` when it finishes, or an *exit*: an index into a table of [`Exit`](Exits.hs#:~:text=data%20Exit) specifying what the interpreter should do next (resume at a section, run one instruction and re-enter, grow the stack, or just come back later). Before exiting, native code puts its frame back on the Unison stack, so that [the core rule](#the-core-rule) holds: whenever Haskell has control, the stack is exactly what the interpreter would have produced.
 - **[Re-entry points](#re-entry-points).** After an exit in the middle of a function, the rest of the function has its own native entry, so one unsupported instruction doesn't make the whole remainder run interpreted.
-- **[Frames](#frames-native-code-records-haskell-builds).** Native code calls native code through the C stack and never allocates a `K` frame. When an exit unwinds through native callers, each writes a three-word *frame record*, and the interpreter builds the [`Push`](../Stack.hs#L327) frames from them. This avoid native code needing to know details of how the Haskell side represents continuations.
+- **[Frames](#frames-native-code-records-haskell-builds).** Native code calls native code through the C stack and never allocates a `K` frame. When an exit unwinds through native callers, each writes a three-word *frame record*, and the interpreter builds the [`Push`](../Stack.hs#:~:text=Push%20%21Int) frames from them. This avoid native code needing to know details of how the Haskell side represents continuations.
 - **[Native code cells](#native-code-cells).** Each supercombinator has a 32-byte cell outside the Haskell heap holding its code pointer, a call counter, a request state and a verdict. Both the interpreter and native code find compiled code by loading from a cell.
-- **[The trampoline](#the-trampoline).** Every transition between the interpreter and native code goes through one piece of Haskell: fill in the per-thread [`Ctx`](../../../../cbits/jit_rt.h#L10), make an `unsafe` foreign call, read the results back, act on the status. Neither stack grows across transitions, so the two can interleave indefinitely.
+- **[The trampoline](#the-trampoline).** Every transition between the interpreter and native code goes through one piece of Haskell: fill in the per-thread [`Ctx`](../../../../cbits/jit_rt.h#:~:text=typedef%20struct), make an `unsafe` foreign call, read the results back, act on the status. Neither stack grows across transitions, so the two can interleave indefinitely.
 - **[What gets compiled, and when](#what-gets-compiled-and-when).** A function that has been called a threshold number of times is *hot*; a background thread compiles it in a batch with its neighbours in the call graph, as one LLVM module, and installs the code one pointer write at a time. Because there's some overhead to exiting native code, functions estimated to involve a lot of back and forth between the interpreter and native code are kept interpreted.
-- **[Calls](#calls).** Known callees are called directly (within a module) or through their cell; function values are called by reading the cell out of the [`GPAp`](../Stack.hs#L483) closure; tail calls use LLVM's `musttail`; within a module, functions are also compiled as *workers* that pass arguments and results in registers rather than via the Unison stack.
+- **[Calls](#calls).** Known callees are called directly (within a module) or through their cell; function values are called by reading the cell out of the [`GPAp`](../Stack.hs#:~:text=%7C%20GPAp) closure; tail calls use LLVM's `musttail`; within a module, functions are also compiled as *workers* that pass arguments and results in registers rather than via the Unison stack.
 - **[Stack growth and preemption](#stack-growth-and-preemption).** Native code checks the Unison stack, the C stack and the runtime's context-switch flag at every function entry, and exits when a check fires; the interpreter does the work and calls the function again.
 - **[Memory](#memory).** Native code allocates ordinary Haskell heap objects with a bump pointer, respects pointer tagging and the generational write barrier, and keeps an allocation budget so that GC still happens. Layouts are probed at startup, not hard-coded.
 - **[Builtins and data structures](#builtins-and-data-structures).** Lists, text, bytes, arrays, refs and numbers are handled natively by C helpers that are ports of the Haskell operations, checked against them at startup.
@@ -71,19 +71,19 @@ Before native compilation, our existing machinery has already converted the code
 
 #### MCode
 
-[`Unison.Runtime.MCode`](../MCode.hs). Each supercombinator is a [`GSection`](../MCode.hs#L793) tree of instructions. Instructions include things like [`DMatch`](../MCode.hs#L809) (pattern matching on a value), [`App`](../MCode.hs#L833) (call an unknown function), [`Call`](../MCode.hs#L802) (fully saturated call to known function), [`ForeignCall`](../MCode.hs#L678) (call a foreign function), [`Let`](../MCode.hs#L822) (evaluate and push result to stack), and so on. The instructions that sit between sections are [`GInstr`](../MCode.hs#L665). Some builtin functions like arithmetic have direct instructions (via [`Prim1`](../MCode.hs#L473) and [`Prim2`](../MCode.hs#L555)) but most others are `ForeignCall` instructions that run a Haskell function and push results to the stack. A supercombinator's arity, frame size, entry section and [native code cell](#native-code-cells) are its [`GCombInfo`](../MCode.hs#L894).
+[`Unison.Runtime.MCode`](../MCode.hs). Each supercombinator is a [`GSection`](../MCode.hs#:~:text=data%20GSection) tree of instructions. Instructions include things like [`DMatch`](../MCode.hs#:~:text=DMatch%20%21%28Maybe) (pattern matching on a value), [`App`](../MCode.hs#:~:text=App%20%21Bool) (call an unknown function), [`Call`](../MCode.hs#:~:text=Call%20%21Bool%20%2D%2D%20skip) (fully saturated call to known function), [`ForeignCall`](../MCode.hs#:~:text=ForeignCall%20%21Bool) (call a foreign function), [`Let`](../MCode.hs#:~:text=Let%20%21%28GSection) (evaluate and push result to stack), and so on. The instructions that sit between sections are [`GInstr`](../MCode.hs#:~:text=data%20GInstr). Some builtin functions like arithmetic have direct instructions (via [`Prim1`](../MCode.hs#:~:text=data%20Prim1) and [`Prim2`](../MCode.hs#:~:text=data%20Prim2)) but most others are `ForeignCall` instructions that run a Haskell function and push results to the stack. A supercombinator's arity, frame size, entry section and [native code cell](#native-code-cells) are its [`GCombInfo`](../MCode.hs#:~:text=data%20GCombInfo).
 
 #### The stack
 
-[`Unison.Runtime.Stack`](../Stack.hs). The [`Stack`](../Stack.hs#L1091) has three pointers, `ap` (arg pointer), `fp` (frame pointer) and `sp` (stack pointer), an unboxed `MutableByteArray` (`ustk`) and a boxed `MutableArray Closure` (`bstk`). Both arrays are unpinned and are reallocated when the stack grows ([`ensure`](../Stack.hs#L1394)). Instructions address slots relative to `sp`, so the layout at each program point is fixed statically. `ap` matters for frames: [`saveFrame`](../Stack.hs#L1461) records a frame's size as `sp - fp` and its pending-argument count as `fp - ap`, and [`restoreFrame`](../Stack.hs#L1469) rebuilds `ap` from that count.
+[`Unison.Runtime.Stack`](../Stack.hs). The [`Stack`](../Stack.hs#:~:text=data%20Stack) has three pointers, `ap` (arg pointer), `fp` (frame pointer) and `sp` (stack pointer), an unboxed `MutableByteArray` (`ustk`) and a boxed `MutableArray Closure` (`bstk`). Both arrays are unpinned and are reallocated when the stack grows ([`ensure`](../Stack.hs#:~:text=ensure%20%3A%3A)). Instructions address slots relative to `sp`, so the layout at each program point is fixed statically. `ap` matters for frames: [`saveFrame`](../Stack.hs#:~:text=saveFrame%20%3A%3A) records a frame's size as `sp - fp` and its pending-argument count as `fp - ap`, and [`restoreFrame`](../Stack.hs#:~:text=restoreFrame%20%3A%3A) rebuilds `ap` from that count.
 
 #### Values
 
-[`Closure`](../Stack.hs#L347) wraps [`GClosure`](../Stack.hs#L471): `GList`, `GText`, `GEnum`, `GData1`, `GData2`, `GData5`, `GData3`, `GData4`, `GData6`, `GDataG`, [`GPAp`](../Stack.hs#L483), [`GCaptured`](../Stack.hs#L489), `GRecord`, [`GForeign`](../Stack.hs#L498) (bytes, maps, arrays, refs and the other Haskell values, the [`Foreign`](../Stack.hs#L2079) wrappers), `GUnboxedTypeTag`, `GAffine`, `GBlackHole`. The first six have their own pointer tags, which is why the order is what it is ([internals](internals.md#data-representations-and-the-c-helpers)). A stack slot's value is a [`Val`](../Stack.hs#L1148): unboxed values are a `ustk` word plus a type-tag closure (such as [`natTypeTag`](../Stack.hs#L626)) in the matching `bstk` slot; boxed values are the closure, with the word unused.
+[`Closure`](../Stack.hs#:~:text=newtype%20Closure) wraps [`GClosure`](../Stack.hs#:~:text=data%20GClosure): `GList`, `GText`, `GEnum`, `GData1`, `GData2`, `GData5`, `GData3`, `GData4`, `GData6`, `GDataG`, [`GPAp`](../Stack.hs#:~:text=%7C%20GPAp), [`GCaptured`](../Stack.hs#:~:text=%7C%20GCaptured), `GRecord`, [`GForeign`](../Stack.hs#:~:text=%7C%20GForeign) (bytes, maps, arrays, refs and the other Haskell values, the [`Foreign`](../Stack.hs#:~:text=data%20Foreign) wrappers), `GUnboxedTypeTag`, `GAffine`, `GBlackHole`. The first six have their own pointer tags, which is why the order is what it is ([internals](internals.md#data-representations-and-the-c-helpers)). A stack slot's value is a [`Val`](../Stack.hs#:~:text=data%20Val): unboxed values are a `ustk` word plus a type-tag closure (such as [`natTypeTag`](../Stack.hs#:~:text=natTypeTag%20%3A%3A)) in the matching `bstk` slot; boxed values are the closure, with the word unused.
 
 #### The continuation
 
-[`K`](../Stack.hs#L310) is a chain of frames: [`Push`](../Stack.hs#L327) (frame size, pending args, resumption [`CombIx`](../MCode.hs#L863) + [`RSection`](../MCode.hs#L786), stack guard), [`Mark`](../Stack.hs#L321)/[`AMark`](../Stack.hs#L315) (prompts) and [`Local`](../Stack.hs#L336)/[`Keep`](../Stack.hs#L342)/[`CB`](../Stack.hs#L313). `Capture` copies stack segments plus `K` frames up to a prompt. What each frame means for native code is in [Frames](#frames-native-code-records-haskell-builds).
+[`K`](../Stack.hs#:~:text=data%20K) is a chain of frames: [`Push`](../Stack.hs#:~:text=Push%20%21Int) (frame size, pending args, resumption [`CombIx`](../MCode.hs#:~:text=data%20CombIx) + [`RSection`](../MCode.hs#:~:text=type%20RSection), stack guard), [`Mark`](../Stack.hs#:~:text=Mark%20%21Int%20%2D%2D%20pending%20args%20%21%28EnumSet)/[`AMark`](../Stack.hs#:~:text=AMark%20%21Int) (prompts) and [`Local`](../Stack.hs#:~:text=Local%20HEnv)/[`Keep`](../Stack.hs#:~:text=Keep%20%21a)/[`CB`](../Stack.hs#:~:text=CB%20Callback). `Capture` copies stack segments plus `K` frames up to a prompt. What each frame means for native code is in [Frames](#frames-native-code-records-haskell-builds).
 
 ### Exits: how native code covers a subset of the language
 
@@ -96,7 +96,7 @@ Native code, once compiled, is entered through a foreign call, using the C calli
 
 #### The native signature
 
-Every native-compiled function has a wrapper with the same signature. This uniform signature is what the interpreter calls ([`UnisonNativeFn`](../../../../cbits/jit_rt.c#L3238) in C, [`NativeFn`](Native.hs#L64) in Haskell):
+Every native-compiled function has a wrapper with the same signature. This uniform signature is what the interpreter calls ([`UnisonNativeFn`](../../../../cbits/jit_rt.c#:~:text=typedef%20int64_t) in C, [`NativeFn`](Native.hs#:~:text=data%20NativeFn) in Haskell):
 
 ```c
 typedef STATUS (*UnisonNativeFn)(Ctx *ctx, int64_t ap, int64_t fp, int64_t sp);
@@ -104,13 +104,13 @@ typedef STATUS (*UnisonNativeFn)(Ctx *ctx, int64_t ap, int64_t fp, int64_t sp);
 
 (Each supercombinator also gets compiled as a separate *worker* that takes arguments as ordinary parameters and returns results via unboxed LLVM tuples. The wrapper calls the worker, and within a batch, workers can call each other and themselves directly without having to stash values on the Unison stack. See [Workers](#workers-arguments-and-results-in-registers).)
 
-[`Ctx`](../../../../cbits/jit_rt.h#L10) is a per-thread value holding what native code needs from the runtime (the addresses of the Unison stacks and of the constant pool, the limits it checks against) and where it writes what the runtime needs back (the stack pointers on exit, since a C function can only return the one `STATUS`). The `ap`, `fp` and `sp` *arguments* are the values on entry; the `Ctx` fields are the values on exit. The Haskell side mirrors its layout in [`CtxOffsets`](Codegen.hs#L79) and checks it at startup ([internals](internals.md#the-interface)).
+[`Ctx`](../../../../cbits/jit_rt.h#:~:text=typedef%20struct) is a per-thread value holding what native code needs from the runtime (the addresses of the Unison stacks and of the constant pool, the limits it checks against) and where it writes what the runtime needs back (the stack pointers on exit, since a C function can only return the one `STATUS`). The `ap`, `fp` and `sp` *arguments* are the values on entry; the `Ctx` fields are the values on exit. The Haskell side mirrors its layout in [`CtxOffsets`](Codegen.hs#:~:text=data%20CtxOffsets) and checks it at startup ([internals](internals.md#the-interface)).
 
 #### Status values and the exits table
 
-`STATUS` is an `int64_t`: [`OK = 0`](../../../../cbits/jit_rt.h#L98) means the function returned normally; [`EXIT_ERROR = -1`](../../../../cbits/jit_rt.h#L99) means it returned with an error, details stashed in `Ctx` (other negative values are reserved); positive values are an exit, a 1-based index into the global `Exit` table.
+`STATUS` is an `int64_t`: [`OK = 0`](../../../../cbits/jit_rt.h#:~:text=%23define%20UNISON_JIT_OK) means the function returned normally; [`EXIT_ERROR = -1`](../../../../cbits/jit_rt.h#:~:text=%23define%20UNISON_JIT_EXIT_ERROR) means it returned with an error, details stashed in `Ctx` (other negative values are reserved); positive values are an exit, a 1-based index into the global `Exit` table.
 
-Before it returns an exit, native code puts the frame back on the Unison stack, since the interpreter continues from there: the slots the resumed code will read (a liveness walk, [`liveAt`](Codegen.hs#L754), decides which), and the stack pointers into `Ctx`. The site does this with one call to a C routine in the runtime, [`unison_jit_exit_frame`](../../../../cbits/jit_rt.c#L3864), passing the live values as arguments and a constant descriptor saying where they go; generating the stores themselves made the exit paths most of a function's code, and nearly none of them ever run. See "Write-back" in [internals](internals.md#the-generator).
+Before it returns an exit, native code puts the frame back on the Unison stack, since the interpreter continues from there: the slots the resumed code will read (a liveness walk, [`liveAt`](Codegen.hs#:~:text=liveAt%20%3A%3A), decides which), and the stack pointers into `Ctx`. The site does this with one call to a C routine in the runtime, [`unison_jit_exit_frame`](../../../../cbits/jit_rt.c#:~:text=EXIT_FRAME_CC%20void%20unison_jit_exit_frame%28UnisonJitCtx%20%2Actx%2C%20const%20int64_t%20%2Ad%2C), passing the live values as arguments and a constant descriptor saying where they go; generating the stores themselves made the exit paths most of a function's code, and nearly none of them ever run. See "Write-back" in [internals](internals.md#the-generator).
 
 The exits table tells the interpreter what to do when native code returns an exit. It is an ordinary Haskell structure, since an `Exit` holds Haskell heap objects (`RSection`, `GInstr`). Native code never reads it: it only returns an index into it, as a constant baked into the generated code. (Each supercombinator has a fixed number of possible exits, known at compilation time, so it's no problem to give each supercombinator a range in the global exits table.)
 
@@ -134,7 +134,7 @@ data Exit
     -- thread next runs, call the function in this cell again
 ```
 
-(The real type, [`Exit` in `Exits.hs`](Exits.hs#L34), also records the combinator each exit belongs to, for statistics; the table is registered with [`registerExits`](Exits.hs#L71) and read with [`lookupExit`](Exits.hs#L95). The exits name [native code cells](#native-code-cells) rather than code pointers because code is installed while the program runs: an exit can be taken before its continuation's cell has been written, and a call-out's re-entry function may not have been generated at all yet.)
+(The real type, [`Exit` in `Exits.hs`](Exits.hs#:~:text=data%20Exit), also records the combinator each exit belongs to, for statistics; the table is registered with [`registerExits`](Exits.hs#:~:text=registerExits%20%3A%3A) and read with [`lookupExit`](Exits.hs#:~:text=lookupExit%20%3A%3A). The exits name [native code cells](#native-code-cells) rather than code pointers because code is installed while the program runs: an exit can be taken before its continuation's cell has been written, and a call-out's re-entry function may not have been generated at all yet.)
 
 `Resume` is straightforward, it's just interpreted code to run on resume. `CallOut` is needed so that a single exit in the middle of a function doesn't cause the whole rest of the function to run interpreted: the interpreter runs the one instruction and then resumes using the native re-entry function (if its cell is non-null) or the given `RSection` (if not).
 
@@ -151,7 +151,7 @@ data Exit
 | The same, in tail position | resume at the `App` / `Call` section |
 | Unison stack needs to grow | `GrowStack`: the function exits at its entry check, before doing anything else. The interpreter grows the stack and calls the same function again. See [Stack growth and preemption](#stack-growth-and-preemption). |
 | Preemption poll, or allocation budget used up | `Reenter`: the function exits at its entry poll. Once the Haskell runtime has done what it needed to, the interpreter calls the same function again. |
-| Combinator returns | not an exit: status `OK`, which goes to [`yield`](../Machine.hs#L1468) |
+| Combinator returns | not an exit: status `OK`, which goes to [`yield`](../Machine.hs#:~:text=yield%20%3A%3A) |
 | `Die`, or an error from a foreign call | not an exit: status `EXIT_ERROR`, with the message in `ctx` |
 
 #### The core rule
@@ -184,7 +184,7 @@ f n =
 
 If `g` returns normally, native `f` just carries on into `x + 10`, and no re-entry point is involved. If `g` exits to the interpreter, we need a re-entry function for the continuation from that point in `f`.
 
-We generate re-entry functions eagerly for resumptions after a call-out (since these locations are statically known), but the others are generated lazily, if and when they are needed ([`genAuxFunction`](Codegen.hs#L1545); the on-demand mechanism is under "Re-entry functions" in [internals](internals.md#the-generator)). Their [properties](#properties-of-re-entry-points) follow.
+We generate re-entry functions eagerly for resumptions after a call-out (since these locations are statically known), but the others are generated lazily, if and when they are needed ([`genAuxFunction`](Codegen.hs#:~:text=genAuxFunction%20%3A%3A); the on-demand mechanism is under "Re-entry functions" in [internals](internals.md#the-generator)). Their [properties](#properties-of-re-entry-points) follow.
 
 #### Properties of re-entry points
 
@@ -192,7 +192,7 @@ We generate re-entry functions eagerly for resumptions after a call-out (since t
 - **No code is duplicated.** The code after a call-out lives only in the re-entry function.
 - **They're optional.** A `Let` with no corresponding re-entry function is resumed in the interpreter, which is always correct. So they can be added gradually.
 - **Native code never looks one up;** only the interpreter does. A call-out's re-entry point is a cell held by its `Exit`. A `Let`'s re-entry point is the native code of the `Let` body's own combinator: the MCode emitter already makes every `Let` body a combinator whose arguments are the whole frame, so calling it is resuming at the body. Its [native code cell](#native-code-cells) is carried by the `Let` node and by the `Push` frame.
-- **A re-entry point inside an inline binding sees the interpreter's frame.** When native code exits from inside a binding it compiled inline, the frame records describe a frame for the binding, so the code that re-enters there is generated as if entered with the interpreter's frame pointer at the binding's base; slot offsets stay those of the enclosing function, so the body finds its values where it expects them. (The mechanism, the *frame base* [`feBase`](Codegen.hs#L667), is in [internals](internals.md#frame-records-and-the-frame-base).)
+- **A re-entry point inside an inline binding sees the interpreter's frame.** When native code exits from inside a binding it compiled inline, the frame records describe a frame for the binding, so the code that re-enters there is generated as if entered with the interpreter's frame pointer at the binding's base; slot offsets stay those of the enclosing function, so the body finds its values where it expects them. (The mechanism, the *frame base* [`feBase`](Codegen.hs#:~:text=feBase%20%3A%3A), is in [internals](internals.md#frame-records-and-the-frame-base).)
 
 ### Frames: native code records, Haskell builds
 
@@ -205,11 +205,11 @@ The interpreter allocates a `Push` frame before every non-tail call; native code
 
 #### What a `K` frame is
 
-[`K`](../Stack.hs#L310) (in `Stack.hs`) is the interpreter's continuation: a linked list, allocated on the Haskell heap, that says what to do after the current code returns. Each constructor in the list is one frame:
+[`K`](../Stack.hs#:~:text=data%20K) (in `Stack.hs`) is the interpreter's continuation: a linked list, allocated on the Haskell heap, that says what to do after the current code returns. Each constructor in the list is one frame:
 
-- [`Push`](../Stack.hs#L327): "when the current call returns, continue at this section." It records the caller's frame size, pending argument count, a stack guard, and the `CombIx` + `RSection` to resume at. The interpreter pushes one at every non-tail call (`Let`).
-- [`Mark`](../Stack.hs#L321) / [`AMark`](../Stack.hs#L315): prompts installed by ability handlers (`Reset`). `Capture` copies the list up to the matching prompt.
-- [`Local`](../Stack.hs#L336), [`Keep`](../Stack.hs#L342), [`CB`](../Stack.hs#L313), [`KE`](../Stack.hs#L311): saved handler state, values kept alive, callbacks, and the empty continuation.
+- [`Push`](../Stack.hs#:~:text=Push%20%21Int): "when the current call returns, continue at this section." It records the caller's frame size, pending argument count, a stack guard, and the `CombIx` + `RSection` to resume at. The interpreter pushes one at every non-tail call (`Let`).
+- [`Mark`](../Stack.hs#:~:text=Mark%20%21Int%20%2D%2D%20pending%20args%20%21%28EnumSet) / [`AMark`](../Stack.hs#:~:text=AMark%20%21Int): prompts installed by ability handlers (`Reset`). `Capture` copies the list up to the matching prompt.
+- [`Local`](../Stack.hs#:~:text=Local%20HEnv), [`Keep`](../Stack.hs#:~:text=Keep%20%21a), [`CB`](../Stack.hs#:~:text=CB%20Callback), [`KE`](../Stack.hs#:~:text=%3D%20KE): saved handler state, values kept alive, callbacks, and the empty continuation.
 
 #### The problem
 
@@ -219,8 +219,8 @@ When the interpreter makes a non-tail call, it allocates a `Push` frame first, s
 
 Native code can't construct a `Push` frame itself. A `Push` is a Haskell heap object that points to a `CombIx`, an `RSection` and the rest of `K`, and we'd rather native code know nothing about how `K` is represented. So the work is split:
 
-- Native code writes down a *frame record*, three integers, for each frame that needs to exist ([`writeRecord`](Codegen.hs#L885)).
-- After native code returns, the interpreter turns the frame records into real `Push` frames ([`frameRecords`](Native.hs#L167) reads them out of `Ctx`; [`runNative`](../Machine.hs#L992) builds the frames).
+- Native code writes down a *frame record*, three integers, for each frame that needs to exist ([`writeRecord`](Codegen.hs#:~:text=writeRecord%20%3A%3A)).
+- After native code returns, the interpreter turns the frame records into real `Push` frames ([`frameRecords`](Native.hs#:~:text=frameRecords%20%3A%3A) reads them out of `Ctx`; [`runNative`](../Machine.hs#:~:text=runNative%20%3A%3A) builds the frames).
 
 A frame record contains:
 
@@ -230,7 +230,7 @@ A frame record contains:
 | frame size | `sp - fp` at the call site, a runtime value |
 | pending-argument count | `fp - ap` at the call site, a runtime value |
 
-These are the same two sizes the interpreter's `saveFrame` computes. The remaining fields of a `Push` (the `CombIx`, the stack guard and the `RSection`) are fixed for a given `Let`, so they're kept in a Haskell-side *frame table* indexed by `Let` body id ([`Frame` in `Frames.hs`](Frames.hs#L25)), filled in when the function is compiled. This is the same arrangement as the exits table: native code only ever holds an index.
+These are the same two sizes the interpreter's `saveFrame` computes. The remaining fields of a `Push` (the `CombIx`, the stack guard and the `RSection`) are fixed for a given `Let`, so they're kept in a Haskell-side *frame table* indexed by `Let` body id ([`Frame` in `Frames.hs`](Frames.hs#:~:text=data%20Frame)), filled in when the function is compiled. This is the same arrangement as the exits table: native code only ever holds an index.
 
 #### An example
 
@@ -248,21 +248,21 @@ At step 5 the stack and `K` are exactly what they'd be if the interpreter had ru
 
 ### Native code cells
 
-Both the interpreter and native code need to answer the same question before calling a function: has it been compiled, and if so, where is the code? The answer is kept in one place per supercombinator, its *native code cell* ([`NativeCell`](../MCode.hs#L916)). What follows: [what a cell holds](#what-a-cell-is), [where cells live](#where-cells-live) and [who reads one](#who-reads-a-cell-and-how-they-find-it).
+Both the interpreter and native code need to answer the same question before calling a function: has it been compiled, and if so, where is the code? The answer is kept in one place per supercombinator, its *native code cell* ([`NativeCell`](../MCode.hs#:~:text=data%20NativeCell)). What follows: [what a cell holds](#what-a-cell-is), [where cells live](#where-cells-live) and [who reads one](#who-reads-a-cell-and-how-they-find-it).
 
 #### What a cell is
 
-The mutable part of a supercombinator, 32 bytes: a function pointer, a counter, a request state and a verdict. The pointer is null until the supercombinator is compiled, and after that it holds the address of its `UnisonNativeFn`. The counter counts the times the interpreter ran the code itself because the pointer was null; it is how a function gets hot. The request state is how a definition is asked for exactly once: the interpreter moves it from "not requested" to "queued" when it asks for the supercombinator to be compiled ([`claimNativeCell`](../MCode.hs#L966)), and the compile thread moves it to "taken" when it puts it in a batch ([`takeNativeCell`](../MCode.hs#L978)). The verdict is the compile thread's decision on whether the supercombinator is worth compiling, and whether the interpreter should enter its code (see [What isn't compiled](#what-isnt-compiled)); [`readNativeEntry`](../MCode.hs#L930) applies it when the interpreter asks for the code pointer.
+The mutable part of a supercombinator, 32 bytes: a function pointer, a counter, a request state and a verdict. The pointer is null until the supercombinator is compiled, and after that it holds the address of its `UnisonNativeFn`. The counter counts the times the interpreter ran the code itself because the pointer was null; it is how a function gets hot. The request state is how a definition is asked for exactly once: the interpreter moves it from "not requested" to "queued" when it asks for the supercombinator to be compiled ([`claimNativeCell`](../MCode.hs#:~:text=claimNativeCell%20%3A%3A)), and the compile thread moves it to "taken" when it puts it in a batch ([`takeNativeCell`](../MCode.hs#:~:text=takeNativeCell%20%3A%3A)). The verdict is the compile thread's decision on whether the supercombinator is worth compiling, and whether the interpreter should enter its code (see [What isn't compiled](#what-isnt-compiled)); [`readNativeEntry`](../MCode.hs#:~:text=readNativeEntry%20%3A%3A) applies it when the interpreter asks for the code pointer.
 
 #### Where cells live
 
-Outside the Haskell heap, so they never move and the GC ignores them. Each supercombinator's [`GCombInfo`](../MCode.hs#L894) holds the address of its cell, next to its arity and frame size. Cells are allocated when code is loaded, every supercombinator gets one whether or not it's ever compiled, and they are never freed. A cell's address is only meaningful within one process and is not part of the serialized form of code.
+Outside the Haskell heap, so they never move and the GC ignores them. Each supercombinator's [`GCombInfo`](../MCode.hs#:~:text=data%20GCombInfo) holds the address of its cell, next to its arity and frame size. Cells are allocated when code is loaded, every supercombinator gets one whether or not it's ever compiled, and they are never freed. A cell's address is only meaningful within one process and is not part of the serialized form of code.
 
 #### Who reads a cell, and how they find it
 
 | Reader | How it finds the cell |
 | --- | --- |
-| The interpreter, at a `Call` or `App` ([`enter`](../Machine.hs#L926), [`apply`](../Machine.hs#L1143)) | from the `GCombInfo` of the supercombinator it's about to run, which it already has in hand |
+| The interpreter, at a `Call` or `App` ([`enter`](../Machine.hs#:~:text=enter%20%3A%3A), [`apply`](../Machine.hs#:~:text=apply%20%3A%3A)) | from the `GCombInfo` of the supercombinator it's about to run, which it already has in hand |
 | Native code calling a known function | the cell's address is a constant in the generated code |
 | Native code [calling a function value](#calling-function-values) | from the `GCombInfo` inside the closure |
 
@@ -272,28 +272,28 @@ The cell's layout, its accessors, how it is attached during resolution and how g
 
 ### The trampoline
 
-Native code never calls into Haskell, and the interpreter never calls native code directly from the middle of its own logic. Every transition in either direction goes through one piece of Haskell code, the *trampoline* ([`runNative`](../Machine.hs#L992) in `Machine.hs`, over [`enterNative`](Native.hs#L152) in `Native.hs`). It's called that because control bounces off it: native code returns to the trampoline, which decides what runs next, which may be more native code. Below: [when the interpreter hands off](#when-the-interpreter-hands-off), [what the trampoline does](#what-the-trampoline-does) with each status, and [its properties](#properties-of-the-trampoline).
+Native code never calls into Haskell, and the interpreter never calls native code directly from the middle of its own logic. Every transition in either direction goes through one piece of Haskell code, the *trampoline* ([`runNative`](../Machine.hs#:~:text=runNative%20%3A%3A) in `Machine.hs`, over [`enterNative`](Native.hs#:~:text=enterNative%20%3A%3A) in `Native.hs`). It's called that because control bounces off it: native code returns to the trampoline, which decides what runs next, which may be more native code. Below: [when the interpreter hands off](#when-the-interpreter-hands-off), [what the trampoline does](#what-the-trampoline-does) with each status, and [its properties](#properties-of-the-trampoline).
 
 #### When the interpreter hands off
 
 The interpreter looks for native code in the two places where it would otherwise start interpreting:
 
-- **When calling a function:** `Call`, and `App` whose target is a known supercombinator ([`enter`](../Machine.hs#L926)). It checks the supercombinator's [native code cell](#native-code-cells) for a main entry point.
-- **When returning into a function:** [`yield`](../Machine.hs#L1468), when it pops a `Push` frame. It checks whether that `Let` has a [re-entry point](#re-entry-points). This is how execution gets back into native code after an exit.
+- **When calling a function:** `Call`, and `App` whose target is a known supercombinator ([`enter`](../Machine.hs#:~:text=enter%20%3A%3A)). It checks the supercombinator's [native code cell](#native-code-cells) for a main entry point.
+- **When returning into a function:** [`yield`](../Machine.hs#:~:text=yield%20%3A%3A), when it pops a `Push` frame. It checks whether that `Let` has a [re-entry point](#re-entry-points). This is how execution gets back into native code after an exit.
 
 If it finds native code, the interpreter sets up the call exactly as it would for an interpreted one (arguments moved into place, stack grown if needed) and then passes the function pointer to the trampoline instead of interpreting the body.
 
 #### What the trampoline does
 
-Fill in `Ctx` (the current addresses of the stacks and the constant pool, which the GC may have moved since the last entry, and the limits native code checks against); call the native function with an `unsafe` foreign call ([`unison_jit_enter`](../../../../cbits/jit_rt.c#L3254)); read the stack pointers and any frame records back out of `Ctx`; build `K` frames from the records on top of the `K` it was entered with; then act on the status:
+Fill in `Ctx` (the current addresses of the stacks and the constant pool, which the GC may have moved since the last entry, and the limits native code checks against); call the native function with an `unsafe` foreign call ([`unison_jit_enter`](../../../../cbits/jit_rt.c#:~:text=int64_t%20unison_jit_enter%28UnisonNativeFn)); read the stack pointers and any frame records back out of `Ctx`; build `K` frames from the records on top of the `K` it was entered with; then act on the status:
 
 | `STATUS` | What the trampoline does next |
 | --- | --- |
 | `OK` | The function finished and its result is on the stack. Hand the result to the continuation with `yield`, as when an interpreted function returns. |
-| exit index of a `Resume` | Continue interpreting at the recorded section ([`eval`](../Machine.hs#L818)). |
+| exit index of a `Resume` | Continue interpreting at the recorded section ([`eval`](../Machine.hs#:~:text=eval%20%3A%3A)). |
 | exit index of a `Reenter` | Nothing, beyond being back in Haskell, where the runtime can switch threads or run a GC. Then enter the same function again. |
-| exit index of a `GrowStack` | Grow the Unison stack with the interpreter's [`ensure`](../Stack.hs#L1394), then enter the same function again. |
-| exit index of a `CallOut` | Run the one recorded instruction with the interpreter's [`exec`](../Machine.hs#L305). Then enter the re-entry function, so the rest of the function runs natively. If the instruction raised an exception, don't re-enter: route it to the current exception handler, as the interpreter does for that instruction (the handler's continuation is the re-entry function, so the rest of the function is still native afterwards). |
+| exit index of a `GrowStack` | Grow the Unison stack with the interpreter's [`ensure`](../Stack.hs#:~:text=ensure%20%3A%3A), then enter the same function again. |
+| exit index of a `CallOut` | Run the one recorded instruction with the interpreter's [`exec`](../Machine.hs#:~:text=exec%20%3A%3A). Then enter the re-entry function, so the rest of the function runs natively. If the instruction raised an exception, don't re-enter: route it to the current exception handler, as the interpreter does for that instruction (the handler's continuation is the re-entry function, so the rest of the function is still native afterwards). |
 | `EXIT_ERROR` | Read the error details from `Ctx` and throw the Haskell exception the interpreter would have thrown. |
 
 #### Properties of the trampoline
@@ -301,11 +301,11 @@ Fill in `Ctx` (the current addresses of the stacks and the constant pool, which 
 - **Neither stack grows across transitions.** By the time native code returns to the trampoline, all its C stack frames are gone. On the Haskell side, the trampoline's moves (`yield`, continue interpreting, re-enter native code) are all tail calls. So a program can go back and forth between native and interpreted code indefinitely.
 - **The interpreter and native code interleave freely.** An interpreted function can call a native one, which can exit to the interpreter for an unknown call, whose callee may itself be native. Each side only ever sees the shared state: the Unison stack and `K`.
 - **Nothing else in the interpreter changes.** Besides the checks above, the interpreter runs as it does today. When it resumes after an exit it can't tell that native code was involved, because of [the core rule](#the-core-rule).
-- **Cost of a transition.** Entering native code costs an `unsafe` foreign call plus a few stores into `Ctx`, and a round trip allocates nothing (the results come back in spare words past the stack's last slot, [`nativeOutWords`](../Stack.hs#L1189)). The details are in [internals](internals.md#the-trampoline).
+- **Cost of a transition.** Entering native code costs an `unsafe` foreign call plus a few stores into `Ctx`, and a round trip allocates nothing (the results come back in spare words past the stack's last slot, [`nativeOutWords`](../Stack.hs#:~:text=nativeOutWords%20%3A%3A)). The details are in [internals](internals.md#the-trampoline).
 
 ### What gets compiled, and when
 
-The compilation unit is a batch of supercombinators, compiled as a single LLVM module. It is highly beneficial to compile multiple related supercombinators together, so that inlining and further optimizations can be applied that cross function boundaries. The driver is [`compileThread`](../JIT.hs#L375) in `JIT.hs`, with the per-module work in [`Compile.hs`](Compile.hs). The parts:
+The compilation unit is a batch of supercombinators, compiled as a single LLVM module. It is highly beneficial to compile multiple related supercombinators together, so that inlining and further optimizations can be applied that cross function boundaries. The driver is [`compileThread`](../JIT.hs#:~:text=compileThread%20%3A%3A) in `JIT.hs`, with the per-module work in [`Compile.hs`](Compile.hs). The parts:
 
 - [Hot functions and batches](#hot-functions-and-batches): the threshold, the queue, and how a batch grows along the call graph.
 - [Private copies](#private-copies): compiling a small callee again so that a new module can inline it.
@@ -315,30 +315,30 @@ The compilation unit is a batch of supercombinators, compiled as a single LLVM m
 #### Hot functions and batches
 
 * Each supercombinator yet to be native-compiled (an "interpreted" function) keeps a count of how many times it has been called, in its cell.
-* When this count reaches a threshold (N, default 100, [`UNISON_JIT_THRESHOLD`](Config.hs#L184)), it is said to be "hot" and the definition is queued (idempotently, [`jitRequestGroup`](../JIT.hs#L280)) for a background compile thread. This thread submits batches of definitions for compilation.
-* We use the call graph of the code to pull related definitions into the same batch ([`formBatch`](../JIT.hs#L450)). The compile thread grows the batch from the hot definition one neighbour at a time, using Prim's algorithm over the call graph in both directions (callers and callees), taking next the candidate with the most estimated calls into the batch, as long as that estimate, divided by the candidate's size relative to a typical definition, reaches a gate (N/4), up to a batch of size B. (The division keeps a large definition that runs once, such as a program's main body with many call sites into hot code, from joining the batch of everything it calls: compiling it would cost most of the module's time and save a handful of calls.)
-* The estimate for an edge ([`edgeCalls`](../JIT.hs#L342)) is the call count of the combinator holding the call site (every site is taken to run once per call of its combinator; a site in a local loop counts the loop's own calls), so a callee can join on the strength of its caller's count before it has been called at all, and a caller joins by its own count. The dependents direction tends to matter more since a callee is called at least as often as its caller, so it usually gets hot first. A definition whose own request is already waiting in the queue for compilation always joins the batch as well.
-* Once compiled, pointers to native code for each supercombinator are installed while the program runs, one pointer write per supercombinator ([`compileUnits`](Compile.hs#L349)). Nothing assumes a batch appears all at once.
+* When this count reaches a threshold (N, default 100, [`UNISON_JIT_THRESHOLD`](Config.hs#:~:text=thresh%20%3C%2D)), it is said to be "hot" and the definition is queued (idempotently, [`jitRequestGroup`](../JIT.hs#:~:text=jitRequestGroup%20%3A%3A)) for a background compile thread. This thread submits batches of definitions for compilation.
+* We use the call graph of the code to pull related definitions into the same batch ([`formBatch`](../JIT.hs#:~:text=formBatch%20cache%20callers%20grp%20%3D)). The compile thread grows the batch from the hot definition one neighbour at a time, using Prim's algorithm over the call graph in both directions (callers and callees), taking next the candidate with the most estimated calls into the batch, as long as that estimate, divided by the candidate's size relative to a typical definition, reaches a gate (N/4), up to a batch of size B. (The division keeps a large definition that runs once, such as a program's main body with many call sites into hot code, from joining the batch of everything it calls: compiling it would cost most of the module's time and save a handful of calls.)
+* The estimate for an edge ([`edgeCalls`](../JIT.hs#:~:text=edgeCalls%20%3A%3A)) is the call count of the combinator holding the call site (every site is taken to run once per call of its combinator; a site in a local loop counts the loop's own calls), so a callee can join on the strength of its caller's count before it has been called at all, and a caller joins by its own count. The dependents direction tends to matter more since a callee is called at least as often as its caller, so it usually gets hot first. A definition whose own request is already waiting in the queue for compilation always joins the batch as well.
+* Once compiled, pointers to native code for each supercombinator are installed while the program runs, one pointer write per supercombinator ([`compileUnits`](Compile.hs#:~:text=compileUnits%20%3A%3A)). Nothing assumes a batch appears all at once.
 
 #### Private copies
 
-A small function that is already compiled can be compiled again and included as a private copy in a later batch that calls it ([`copyUnits`](Compile.hs#L312)), so that the call is direct and LLVM can inline it; the original keeps serving every other caller. This adds some code duplication but allows for more inlining. The criterion is the callee's estimated work per call, not its size.
+A small function that is already compiled can be compiled again and included as a private copy in a later batch that calls it ([`copyUnits`](Compile.hs#:~:text=copyUnits%20%3A%3A)), so that the call is direct and LLVM can inline it; the original keeps serving every other caller. This adds some code duplication but allows for more inlining. The criterion is the callee's estimated work per call, not its size.
 
 #### Re-entry functions on demand
 
-One tricky part of the JIT is producing re-entry functions. Whenever native code exits for a call-out midway through a function, deferring to the interpreter, we want the continuation from that point in the function to also (eventually) get a native definition. Those on the slow path of an instruction that has a native fast path are generated on demand ([`Deferred`](Codegen.hs#L173), [`deferredUnit`](Compile.hs#L326)), when the interpreter has found their cell empty often enough; they are compiled in batches, or when requests for compilation have paused briefly.
+One tricky part of the JIT is producing re-entry functions. Whenever native code exits for a call-out midway through a function, deferring to the interpreter, we want the continuation from that point in the function to also (eventually) get a native definition. Those on the slow path of an instruction that has a native fast path are generated on demand ([`Deferred`](Codegen.hs#:~:text=data%20Deferred), [`deferredUnit`](Compile.hs#:~:text=deferredUnit%20%3A%3A)), when the interpreter has found their cell empty often enough; they are compiled in batches, or when requests for compilation have paused briefly.
 
 #### What isn't compiled
 
-Native code saves the interpreter's overhead, estimated around 10 nanoseconds per instruction; an exit and the way back cost several times that. So before a function is compiled, its MCode is walked ([`Estimate.hs`](Estimate.hs), [`judge`](Estimate.hs#L102)) to estimate, for an average path from entry to return, the overhead native code would save and the number of exits it is *certain* to take (instructions with no native version, calls to handlers, and calls to functions that are themselves not worth compiling). If the exits, weighted by the cost of a round trip, exceed the saving, the function is left to the interpreter and its cell records this verdict. Callees that haven't been judged are judged on the way, so the answer doesn't depend on the order in which functions get hot, and "not worth compiling" spreads to callers that do little but call such functions. Exits that only happen on a slow path (the poll, stack growth, a fast path's miss) don't count. What the rule can't see is the behaviour of function values: a loop that calls a closure which turns out not to be native takes an exit per iteration.
+Native code saves the interpreter's overhead, estimated around 10 nanoseconds per instruction; an exit and the way back cost several times that. So before a function is compiled, its MCode is walked ([`Estimate.hs`](Estimate.hs), [`judge`](Estimate.hs#:~:text=judge%20%3A%3A)) to estimate, for an average path from entry to return, the overhead native code would save and the number of exits it is *certain* to take (instructions with no native version, calls to handlers, and calls to functions that are themselves not worth compiling). If the exits, weighted by the cost of a round trip, exceed the saving, the function is left to the interpreter and its cell records this verdict. Callees that haven't been judged are judged on the way, so the answer doesn't depend on the order in which functions get hot, and "not worth compiling" spreads to callers that do little but call such functions. Exits that only happen on a slow path (the poll, stack growth, a fast path's miss) don't count. What the rule can't see is the behaviour of function values: a loop that calls a closure which turns out not to be native takes an exit per iteration.
 
 The same estimate gives a third verdict, *too small to enter*: a function whose average path saves less than entering native code from the interpreter costs, and that has no loop. It is compiled, and native callers call it directly, but when the interpreter is the caller it interprets the function as if it had no native code.
 
-The weights, the costs and the batch parameters are in [internals](internals.md#the-compile-driver) and, as environment variables, in [`Config.hs`](Config.hs#L62).
+The weights, the costs and the batch parameters are in [internals](internals.md#the-compile-driver) and, as environment variables, in [`Config.hs`](Config.hs#:~:text=data%20Config).
 
 ### Calls
 
-A call from native code is one of three things: a direct call to a function in the same module, a call through a [cell](#native-code-cells) to a known function compiled elsewhere, or a call to a function value found on the stack. The generator is [`Codegen.hs`](Codegen.hs) ([`genApp`](Codegen.hs#L2522) for calls); the parts of the design:
+A call from native code is one of three things: a direct call to a function in the same module, a call through a [cell](#native-code-cells) to a known function compiled elsewhere, or a call to a function value found on the stack. The generator is [`Codegen.hs`](Codegen.hs) ([`genApp`](Codegen.hs#:~:text=genApp%20%3A%3A) for calls); the parts of the design:
 
 - [Calling function values](#calling-function-values): what a `GPAp` holds, and how native code calls through it.
 - [Tail calls](#tail-calls): loops without C stack.
@@ -348,19 +348,19 @@ A call from native code is one of three things: a direct call to a function in t
 
 Higher-order code is everywhere in Unison, so native code has to be able to call a function it was passed. In `List.map f xs`, the call to `f` is an `App` whose target is a value on the stack, not a supercombinator known at compile time. If each such call meant an exit to the interpreter, `List.map` would exit once per element.
 
-**What a function value is.** For an ordinary function or lambda, it's a [`GPAp`](../Stack.hs#L483) closure, which holds:
+**What a function value is.** For an ordinary function or lambda, it's a [`GPAp`](../Stack.hs#:~:text=%7C%20GPAp) closure, which holds:
 
 | Field | Meaning |
 | --- | --- |
-| [`CombIx`](../MCode.hs#L863) | which supercombinator it refers to |
-| [`GCombInfo`](../MCode.hs#L894) | that supercombinator's arity, frame size, code, and the address of its [native code cell](#native-code-cells) |
+| [`CombIx`](../MCode.hs#:~:text=data%20CombIx) | which supercombinator it refers to |
+| [`GCombInfo`](../MCode.hs#:~:text=data%20GCombInfo) | that supercombinator's arity, frame size, code, and the address of its [native code cell](#native-code-cells) |
 | captured arguments | values already supplied, such as a lambda's free variables |
 
 **What native code does.**
 
 1. Check that the value is a `GPAp`. This is a test on the pointer's tag bits.
 2. Read the arity and the number of captured arguments.
-3. If captured plus supplied equals the arity, the call is exactly saturated. Copy the supplied arguments onto the Unison stack, then the captured ones above them, which is the layout the interpreter's [`apply`](../Machine.hs#L1143) produces.
+3. If captured plus supplied equals the arity, the call is exactly saturated. Copy the supplied arguments onto the Unison stack, then the captured ones above them, which is the layout the interpreter's [`apply`](../Machine.hs#:~:text=apply%20%3A%3A) produces.
 4. Read the address of the native code cell from the closure's `GCombInfo`, and load the function pointer from the cell.
 5. Call it like any other native function: a tail call if the `App` is in tail position, and otherwise a call followed by the status check.
 
@@ -397,13 +397,13 @@ The [uniform signature](#the-native-signature) passes everything through the Uni
 
 So a function is also compiled as a **worker**: an internal LLVM function `(ctx, fp, u1, b1, ..., un, bn) -> {status, u, b}` with LLVM's `tailcc` convention. The arguments are parameters, the result is two return values, and the Unison stack isn't written at all unless something exits. The function its cell points to becomes a **wrapper** with the uniform signature: load the arguments from the stack, call the worker, store the result. Calls between functions of one module go to the worker directly, and an inlined worker is plain SSA code in its caller. The frame keeps its place on the Unison stack: a worker is passed the frame pointer its frame would have, and if it exits it writes its slots there, so the interpreter sees the same stack either way.
 
-Every Unison function returns one value, but the unit of compilation is an MCode combinator, and MCode's `Yield` can carry several (a primitive such as `LOAD` pushes two results, and a `Let` binding bound to several variables is a combinator that returns all of them to its body). Those keep the uniform form only; ordinary functions get a worker ([`workerShape`](Codegen.hs#L1260) decides).
+Every Unison function returns one value, but the unit of compilation is an MCode combinator, and MCode's `Yield` can carry several (a primitive such as `LOAD` pushes two results, and a `Let` binding bound to several variables is a combinator that returns all of them to its body). Those keep the uniform form only; ordinary functions get a worker ([`workerShape`](Codegen.hs#:~:text=workerShape%20%3A%3A) decides).
 
 How a worker exits, tail calls between the two signatures, the fast entry for base cases and the cold branch weights are in [internals](internals.md#the-generator), with a worked example.
 
 ### Stack growth and preemption
 
-Native code can't grow a stack or give up the CPU by itself. Both are handled the same way: native code checks a condition at known points, and if the check fires, it exits to the interpreter, which does the work in Haskell and then calls back into native code. The three checks, all at function entry ([`entryBlock`](Codegen.hs#L1622), [`genHead`](Codegen.hs#L1721)):
+Native code can't grow a stack or give up the CPU by itself. Both are handled the same way: native code checks a condition at known points, and if the check fires, it exits to the interpreter, which does the work in Haskell and then calls back into native code. The three checks, all at function entry ([`entryBlock`](Codegen.hs#:~:text=entryBlock%20%3A%3A), [`genHead`](Codegen.hs#:~:text=genHead%20%3A%3A)):
 
 - [The C stack](#the-c-stack): a depth limit, beyond which calls go through the interpreter.
 - [The Unison stack](#the-unison-stack): one check per function for its whole frame.
@@ -411,11 +411,11 @@ Native code can't grow a stack or give up the CPU by itself. Both are handled th
 
 #### The C stack
 
-Unison programs can recurse deeply. Above a depth limit, native code exits instead of calling, and the rest runs from the interpreter with heap-allocated frames. The limit is the stack pointer compared with a limit in `Ctx`, set from the thread's stack bounds minus a reserve ([`cStackGuard`](Codegen.hs#L2010)). Beyond the limit, recursion alternates between native and interpreted frames, one interpreted `Let` per limit hit.
+Unison programs can recurse deeply. Above a depth limit, native code exits instead of calling, and the rest runs from the interpreter with heap-allocated frames. The limit is the stack pointer compared with a limit in `Ctx`, set from the thread's stack bounds minus a reserve ([`cStackGuard`](Codegen.hs#:~:text=cStackGuard%20%3A%3A)). Beyond the limit, recursion alternates between native and interpreted frames, one interpreted `Let` per limit hit.
 
 #### The Unison stack
 
-Every supercombinator has a maximum frame size that's known at compile time: the most Unison stack it can use, including the argument slots for any call it makes. Every native function starts by checking that a frame of that size fits in the space remaining, the check the interpreter does with [`ensure`](../Stack.hs#L1394) when it enters a supercombinator. If it fails, the function returns a `GrowStack` exit before doing anything else; its arguments are already in their stack slots, so there's nothing to write back. Once the entry check has passed, every slot the function could write, including those written on its exit paths, is inside the space that was checked. Checking at entry rather than at the call site is one check per function, not one per call, and works for calls to function values, where the caller doesn't know the callee's frame size. Only the interpreter reallocates the stack arrays, so their addresses stay valid for as long as native code runs.
+Every supercombinator has a maximum frame size that's known at compile time: the most Unison stack it can use, including the argument slots for any call it makes. Every native function starts by checking that a frame of that size fits in the space remaining, the check the interpreter does with [`ensure`](../Stack.hs#:~:text=ensure%20%3A%3A) when it enters a supercombinator. If it fails, the function returns a `GrowStack` exit before doing anything else; its arguments are already in their stack slots, so there's nothing to write back. Once the entry check has passed, every slot the function could write, including those written on its exit paths, is inside the space that was checked. Checking at entry rather than at the call site is one check per function, not one per call, and works for calls to function values, where the caller doesn't know the callee's frame size. Only the interpreter reallocates the stack arrays, so their addresses stay valid for as long as native code runs.
 
 #### Preemption
 
@@ -423,7 +423,7 @@ Haskell threads aren't preempted at arbitrary points: the runtime's timer sets a
 
 ### Memory
 
-Native code allocates real Haskell heap objects, in the same allocation block compiled Haskell uses ([`allocWords`](Codegen.hs#L619) inline, [`unison_jit_alloc_words`](../../../../cbits/jit_rt.c#L345) on the slow path). This is safe because GHC can't run a GC on this capability during an `unsafe` foreign call, and native code keeps no heap pointers once it returns. The constructor layouts are GHC's, so they are not hard-coded: they are learned by probing sample closures at startup ([`probeLayouts`](Layout.hs#L166) in `Layout.hs`), because `UNPACK` pragmas only take effect in optimized builds and the layout can differ between builds. Heap constants (`Reference`s, type tags, `GCombInfo`, literals) come from the [constant pool](#the-constant-pool), never from addresses baked into code. Three things the collector requires:
+Native code allocates real Haskell heap objects, in the same allocation block compiled Haskell uses ([`allocWords`](Codegen.hs#:~:text=allocWords%20%3A%3A) inline, [`unison_jit_alloc_words`](../../../../cbits/jit_rt.c#:~:text=void%20%2Aunison_jit_alloc_words%28UnisonJitCtx%20%2Actx%2C%20int64_t%20n%29%20%7B) on the slow path). This is safe because GHC can't run a GC on this capability during an `unsafe` foreign call, and native code keeps no heap pointers once it returns. The constructor layouts are GHC's, so they are not hard-coded: they are learned by probing sample closures at startup ([`probeLayouts`](Layout.hs#:~:text=probeLayouts%20%3A%3A) in `Layout.hs`), because `UNPACK` pragmas only take effect in optimized builds and the layout can differ between builds. Heap constants (`Reference`s, type tags, `GCombInfo`, literals) come from the [constant pool](#the-constant-pool), never from addresses baked into code. Three things the collector requires:
 
 - [Pointer tagging](#pointer-tagging): reading and writing tagged pointers.
 - [The write barrier](#the-write-barrier): telling a generational GC about stores into old objects.
@@ -431,7 +431,7 @@ Native code allocates real Haskell heap objects, in the same allocation block co
 
 #### Pointer tagging
 
-Pointers to evaluated constructors carry the constructor number in their low bits. Native code must untag before reading fields and must store correctly tagged pointers when it writes into `bstk` or a constructor field. Every field of `GClosure` and `Val` is strict, so everything reachable from `bstk` is in weak head normal form and native code never has to evaluate anything; but a pointer taken from a stack slot may still be *untagged* (a top-level constant stored as itself), so native code checks the tag before reading through such a pointer and before storing it into a strict field ([`requireTagged`](Codegen.hs#L3699)), and leaves the rest to the interpreter.
+Pointers to evaluated constructors carry the constructor number in their low bits. Native code must untag before reading fields and must store correctly tagged pointers when it writes into `bstk` or a constructor field. Every field of `GClosure` and `Val` is strict, so everything reachable from `bstk` is in weak head normal form and native code never has to evaluate anything; but a pointer taken from a stack slot may still be *untagged* (a top-level constant stored as itself), so native code checks the tag before reading through such a pointer and before storing it into a strict field ([`requireTagged`](Codegen.hs#:~:text=requireTagged%20%3A%3A)), and leaves the rest to the interpreter.
 
 #### The write barrier
 
@@ -449,17 +449,17 @@ Most of what library code does is in builtins over a few representations: lists,
 
 #### Strict representations
 
-The representations are strict in every field: a `List` is a strict finger tree ([`Deque`](../../../../../lib/unison-util-rope/src/Unison/Util/Deque/Internal.hs#L276), held directly by [`GList`](../Stack.hs#L472)), a `Text` ([`GText`](../Stack.hs#L473), over [`Unison.Util.Text`](../../../../../parser-typechecker/src/Unison/Util/Text.hs#L27)) and a `Bytes` are [ropes](../../../../../lib/unison-util-rope/src/Unison/Util/Rope.hs#L124) of packed chunks on the same tree. So everything reachable from one is an evaluated constructor, and native code can take them apart and build new ones with no thunk in sight.
+The representations are strict in every field: a `List` is a strict finger tree ([`Deque`](../../../../../lib/unison-util-rope/src/Unison/Util/Deque/Internal.hs#:~:text=data%20Deque), held directly by [`GList`](../Stack.hs#:~:text=%3D%20GList)), a `Text` ([`GText`](../Stack.hs#:~:text=%7C%20GText), over [`Unison.Util.Text`](../../../../../parser-typechecker/src/Unison/Util/Text.hs#:~:text=newtype%20Text)) and a `Bytes` are [ropes](../../../../../lib/unison-util-rope/src/Unison/Util/Rope.hs#:~:text=data%20Rope) of packed chunks on the same tree. So everything reachable from one is an evaluated constructor, and native code can take them apart and build new ones with no thunk in sight.
 
 #### Complete, checked ports
 
 The native operations are complete ports of the Haskell ones, as C helpers that generated code calls directly ([`jit_rt.c`](../../../../cbits/jit_rt.c); the smallest generated inline; a few compiled from C to LLVM IR, [`jit_helpers.c`](../../../../cbits/jit_helpers.c), and compiled again by the JIT, so that what they return comes back the same way on every platform), and they are checked against the Haskell operations at startup on sample values (and by a longer randomized test on request); if anything differs, the JIT stays off. A helper that can't decide a case exactly answers "not handled" and the interpreter does it, so a helper is never wrong, only sometimes absent. The price is that a helper has to be kept in step with the Haskell operation it ports, which is what the checks are for.
 
-The results are the interpreter's bit for bit: GHC's `Double` semantics for floats, the interpreter's bounds arithmetic for arrays, the Haskell lexer's forms for numbers read from text. Universal comparison and hashing are the same kind of port, as IR helpers ([`unison_jit_ucmp`](../../../../cbits/jit_helpers.c#L744), [`unison_jit_murmur`](../../../../cbits/jit_helpers.c#L250)) that walk closures the way [`Ord Val`](../Stack.hs#L1151) and `Value.value` do. Some base library definitions the interpreter replaces with Haskell (base's `Map`, and functions over it) are kept as Unison code under the JIT, where native code beats the call-out; that choice is [`replacementActive`](Config.hs#L56), described in [internals](internals.md#the-haskell-replacements).
+The results are the interpreter's bit for bit: GHC's `Double` semantics for floats, the interpreter's bounds arithmetic for arrays, the Haskell lexer's forms for numbers read from text. Universal comparison and hashing are the same kind of port, as IR helpers ([`unison_jit_ucmp`](../../../../cbits/jit_helpers.c#:~:text=JitNat%20unison_jit_ucmp%28int64_t), [`unison_jit_murmur`](../../../../cbits/jit_helpers.c#:~:text=JitNat%20unison_jit_murmur%28int64_t)) that walk closures the way [`Ord Val`](../Stack.hs#:~:text=instance%20Ord%20Val) and `Value.value` do. Some base library definitions the interpreter replaces with Haskell (base's `Map`, and functions over it) are kept as Unison code under the JIT, where native code beats the call-out; that choice is [`replacementActive`](Config.hs#:~:text=replacementActive%20%3A%3A), described in [internals](internals.md#the-haskell-replacements).
 
 ### The constant pool
 
-Native code needs some Haskell heap objects: the `Reference` written into every constructor by `Pack`, the type-tag closures for unboxed values, constructors without fields, `GCombInfo` for building partial applications, and `Lit` values. These objects move on every GC, so their addresses can't be baked into machine code. Instead there is a *constant pool* ([`Pool.hs`](Pool.hs#L111)): a `MutableArray Closure` owned by Haskell, whose address is passed to native code on every entry, exactly like `bstk`, through `Ctx`. Generated code refers to constants by pool index ([`poolIndices`](Pool.hs#L140) assigns them per module; [`closureFor`](Pool.hs#L166) builds each entry from its [`PoolKey`](Pool.hs#L65)). Addresses are stable for the duration of an `unsafe` call, so this is safe for the same reason reading `bstk` is.
+Native code needs some Haskell heap objects: the `Reference` written into every constructor by `Pack`, the type-tag closures for unboxed values, constructors without fields, `GCombInfo` for building partial applications, and `Lit` values. These objects move on every GC, so their addresses can't be baked into machine code. Instead there is a *constant pool* ([`Pool.hs`](Pool.hs#:~:text=data%20Pool%20%3D)): a `MutableArray Closure` owned by Haskell, whose address is passed to native code on every entry, exactly like `bstk`, through `Ctx`. Generated code refers to constants by pool index ([`poolIndices`](Pool.hs#:~:text=poolIndices%20%3A%3A) assigns them per module; [`closureFor`](Pool.hs#:~:text=closureFor%20%3A%3A) builds each entry from its [`PoolKey`](Pool.hs#:~:text=data%20PoolKey)). Addresses are stable for the duration of an `unsafe` call, so this is safe for the same reason reading `bstk` is.
 
 There is one global pool rather than one per module, because native code in one module calls into another without passing through the trampoline, so there would be no moment to switch pools. Entries are interned by key when a module is compiled, so two modules using the same `Reference` share an index. How the pool grows while native code holds the old array is in [internals](internals.md#the-constant-pools-growth).
 
