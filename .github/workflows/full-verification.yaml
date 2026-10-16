@@ -7,10 +7,12 @@ name: full verification
 # was pushed with partial or missing attestations without running the checks
 # on a laptop.
 #
-# Pushes made with the default GITHUB_TOKEN do not start other workflows, so
-# the PR's own CI does not rerun on the pushed commit unless the repository
-# has a FULL_VERIFICATION_TOKEN secret (a token with contents: write), which
-# is used for the push when present.
+# The push uses the FULL_VERIFICATION_TOKEN secret when the repository has one
+# (a maintainer's token with write access): that lets it push to pull requests
+# from forks, which "Allow edits from maintainers" permits for a maintainer's
+# token but not for the workflow's own GITHUB_TOKEN, and it makes the PR's CI
+# rerun on the pushed commit, which a push with GITHUB_TOKEN never does.
+# Without the secret, pull requests from forks are refused.
 
 on:
   issue_comment:
@@ -49,22 +51,28 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh pr view ${{ github.event.issue.number }} --repo "${{ github.repository }}" \
-            --json headRefName,isCrossRepository,headRepositoryOwner \
-            --jq '"branch=" + .headRefName, "cross=" + (.isCrossRepository|tostring), "owner=" + .headRepositoryOwner.login' \
+            --json headRefName,isCrossRepository,headRepositoryOwner,headRepository \
+            --jq '"branch=" + .headRefName, "cross=" + (.isCrossRepository|tostring), "repo=" + .headRepositoryOwner.login + "/" + .headRepository.name' \
             >> "$GITHUB_OUTPUT"
           cat "$GITHUB_OUTPUT"
 
-      - name: refuse a fork
+      - name: refuse a fork when there is no token that can push to it
+        id: fork
         if: steps.pr.outputs.cross == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
+          PUSH_TOKEN: ${{ secrets.FULL_VERIFICATION_TOKEN }}
         run: |
-          gh pr comment ${{ github.event.issue.number }} --repo "${{ github.repository }}" \
-            --body "🤖 I can't push attestations to a branch in another repository (${{ steps.pr.outputs.owner }}). Run \`./scripts/check.sh\` locally and push the proofs files."
-          exit 1
+          if [[ -z "$PUSH_TOKEN" ]]; then
+            gh pr comment ${{ github.event.issue.number }} --repo "${{ github.repository }}" \
+              --body "🤖 This pull request comes from a fork (${{ steps.pr.outputs.repo }}) and the repository has no FULL_VERIFICATION_TOKEN secret, so I can't push attestations to it. Run \`./scripts/check.sh\` locally and push the proofs files."
+            echo "refused=true" >> "$GITHUB_OUTPUT"
+            exit 1
+          fi
 
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
         with:
+          repository: ${{ steps.pr.outputs.repo }}
           ref: ${{ steps.pr.outputs.branch }}
           token: ${{ secrets.FULL_VERIFICATION_TOKEN || github.token }}
 
@@ -115,7 +123,7 @@ jobs:
           fi
 
       - name: report
-        if: always() && steps.pr.outputs.cross != 'true'
+        if: always() && steps.fork.outputs.refused != 'true'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
