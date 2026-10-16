@@ -10,6 +10,7 @@
 #   1. Unit tests and integration tests (with proof caching)
 #   2. Transcript tests (with proof caching)
 #   3. Formatting check
+#   4. Migration of the latest release's codebase (with proof caching; needs network)
 #
 # All checks with proof caching will:
 #   - Skip if already passed for current codebase state
@@ -55,6 +56,7 @@ run_check() {
 run_check "Tests:"        ./scripts/proofs/tests.sh "${ARGS[@]}"
 run_check "Transcripts:"  ./scripts/proofs/transcripts.sh "${ARGS[@]}"
 run_check "Formatting:"   ./scripts/proofs/formatting.sh "${ARGS[@]}"
+run_check "Migration:"    ./scripts/proofs/migration.sh "${ARGS[@]}"
 # run_check "Dead code:"    ./scripts/proofs/weeds.sh "${ARGS[@]}"
 
 echo ""

@@ -68,9 +68,44 @@ jobs:
             exit 1
           fi
 
+  verify-migration:
+    name: verify migration proof
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+        with:
+          ref: ${{ inputs.ref || github.ref }}
+      - name: verify migration proof
+        run: |
+          read -r RESULT HASH <<< "$(./scripts/proofs/migration.sh --check)"
+          if [[ "$RESULT" == "pass" ]]; then
+            echo "Migration proof: pass ($HASH)"
+          elif [[ "$RESULT" == "fail" ]]; then
+            echo "::error::Migration previously FAILED for hash $HASH. Fix and re-run './scripts/proofs/migration.sh'."
+            exit 1
+          elif [[ "$RESULT" == "nofile" ]]; then
+            echo "::error::Migration proof file not found (hash $HASH). Run './scripts/proofs/migration.sh', commit the proofs file, and push again."
+            exit 1
+          else
+            echo "::error::Migration proof has no entry for hash $HASH. Run './scripts/proofs/migration.sh', commit the proofs file, and push again."
+            exit 1
+          fi
+      - name: verify the proof is for the latest release
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          recorded=$(cat .github/workflows/proofs/migration-release.txt)
+          latest=$(./scripts/migration-test.sh --latest)
+          if [[ "$recorded" == "$latest" ]]; then
+            echo "Migration proof is for the latest release ($latest)"
+          else
+            echo "::error::The migration proof was recorded against $recorded but the latest release is $latest. Run './scripts/proofs/migration.sh', commit the proofs files, and push again."
+            exit 1
+          fi
+
   verify-proofs:
     name: verify proofs
-    needs: [verify-transcripts, verify-tests]
+    needs: [verify-transcripts, verify-tests, verify-migration]
     runs-on: ubuntu-24.04
     steps:
       - name: check all proofs
@@ -81,5 +116,9 @@ jobs:
           fi
           if [[ "${{ needs.verify-tests.result }}" != "success" ]]; then
             echo "verify-tests: ${{ needs.verify-tests.result }}"
+            exit 1
+          fi
+          if [[ "${{ needs.verify-migration.result }}" != "success" ]]; then
+            echo "verify-migration: ${{ needs.verify-migration.result }}"
             exit 1
           fi
