@@ -4,6 +4,7 @@ Sep 26, 2026 · Paul Chiusano
 
 This document describes the design of Unison's new LLVM-based JIT compiler, which can execute Unison code at native speeds. It is in two parts: [Part 1](#part-1-overview) is an overview of the major pieces, with links to its section of [Part 2](#part-2-details) for more depth. Haskell and C names link to their definitions in the code. Also:
 
+* How to turn it on, what it needs and what the settings mean is in [usage.md](usage.md)
 * How to build, run and test it is in [development.md](development.md)
 * Which builtins are native is in [builtins.md](builtins.md)
 * Ideas not done yet are in [optimization-ideas.md](optimization-ideas.md)

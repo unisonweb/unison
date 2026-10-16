@@ -1,7 +1,8 @@
 # Working on the JIT
 
 How to build, run, test and look inside the JIT. The [design](design.md) says what it is and
-how each part works; this is the operational side. Numbers from
+how each part works, and [usage.md](usage.md) is the user's side (turning it on, installing LLVM,
+the settings); this is the developer's side. Numbers from
 past runs are in [benchmarks/](benchmarks/).
 
 ## Building
