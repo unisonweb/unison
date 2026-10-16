@@ -4,8 +4,7 @@
 {-# LANGUAGE PatternSynonyms #-}
 
 -- | MCode to LLVM IR, for the subset the JIT supports. See design.md for
--- the conventions and internals.md ("The generator") for how this module
--- is organized.
+-- the conventions ("Code generation" for how this module is organized).
 --
 -- Within a function, every Unison stack slot is an LLVM alloca (decision
 -- D11): @%u<k>@ holds the unboxed word and @%b<k>@ the boxed pointer of the
@@ -340,7 +339,7 @@ data GS = GS
     -- | highest frame offset used
     gsMaxK :: !Int,
     -- | slots whose value is a boolean held as an i1 register, with no
-    -- closure built yet (internals.md, "Slots"). Absent means the slot's
+    -- closure built yet (design.md, "Slots"). Absent means the slot's
     -- allocas hold the value. Saved and restored around branch arms.
     gsKinds :: !(IM.IntMap Text),
     -- | set when the function can't be compiled after all
@@ -2537,7 +2536,7 @@ genApp fe d r args sect = case r of
           emit ("br label %" <> enBody e)
     | otherwise -> genTailClosureCall fe d (closureCallee fe d (d - i) n) srcs sect
   -- An ability request: the handler is the closure the environment maps
-  -- the ability's number to (see "Ability requests" in internals.md), and
+  -- the ability's number to (see "Ability requests" in design.md), and
   -- it is called like any other function value, with the request as its
   -- argument and this frame as its continuation. A number the environment
   -- doesn't map to an affine handler is the interpreter's.
@@ -4051,8 +4050,10 @@ genRefWrite fe d k kv unitIx instr sect = do
 -- | Universal comparison (@==@, @<=@, @<@, @compare@ on any type). The
 -- fast path: both values unboxed with the same type-tag closure, which is
 -- how @Val@'s instances compare them (a word comparison, signed for Int,
--- unsigned for Nat, bitwise for Float and Char). Anything else, including
--- an Int against a Nat, is left to the interpreter through the call-out.
+-- unsigned for Nat, bitwise for Float and Char). Anything else goes to the
+-- IR helpers @unison_jit_ueq@ / @unison_jit_ucmp@, which walk both values
+-- and answer "not handled" for the cases they leave to the call-out
+-- ("Hashing and comparison" in design.md).
 genUniversal :: FnEnv -> Int -> Prim2 -> Int -> Int -> GInstr (RComb Val) -> MSection -> Gen ()
 genUniversal fe d op ki kj instr sect = do
   slow <- callOutExit True fe d instr sect

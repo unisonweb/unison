@@ -4,7 +4,7 @@
 -- C (@cbits/jit_helpers.c@, compiled to @cbits/jit_helpers.ll@ by
 -- @cbits/gen-helpers.sh@). The text is embedded in the executable at build
 -- time and added to the JIT as a module at startup ("The IR helpers" in
--- internals.md). This module holds nothing else, because every change to the
+-- design.md). This module holds nothing else, because every change to the
 -- file recompiles it.
 module Unison.Runtime.JIT.Helpers (helpersIR) where
 

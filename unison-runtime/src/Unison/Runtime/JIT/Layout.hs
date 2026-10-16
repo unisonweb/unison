@@ -2,7 +2,7 @@
 {-# LANGUAGE MultiWayIf #-}
 
 -- | Closure layouts, found by probing sample closures at startup
--- (see internals.md, "Allocation and the barrier"). Generated code
+-- (see design.md, "Layouts"). Generated code
 -- uses these as constants. If a layout isn't what the code generator
 -- expects, the JIT is turned off.
 module Unison.Runtime.JIT.Layout

@@ -466,7 +466,7 @@ countArgs (VArgV {}) = internalBug [] "countArgs: DArgV"
 {-# INLINEABLE countArgs #-}
 
 -- The first six constructors are the ones the interpreter dispatches on
--- most (measured 2026-10-15; "Constructor order" in JIT/internals.md): GHC
+-- most (measured 2026-10-15; "Layouts" in JIT/design.md): GHC
 -- gives a type's first six constructors their own pointer tags, and a case
 -- on any later one reads the info table. Nothing serializes or orders by
 -- this order; the Tag instances are explicit.
@@ -548,7 +548,7 @@ data Prim1
   deriving (Show, Eq, Ord, Enum, Bounded)
 
 -- The first six constructors are the ones the interpreter dispatches on
--- most (measured 2026-10-15; "Constructor order" in JIT/internals.md): GHC
+-- most (measured 2026-10-15; "Layouts" in JIT/design.md): GHC
 -- gives a type's first six constructors their own pointer tags, and a case
 -- on any later one reads the info table. Nothing serializes or orders by
 -- this order; the Tag instances are explicit.
@@ -658,7 +658,7 @@ type RInstr val = GInstr (RComb val)
 -- Instructions for manipulating the data stack in the main portion of
 -- a block
 -- The first six constructors are the ones the interpreter dispatches on
--- most (measured 2026-10-15; "Constructor order" in JIT/internals.md): GHC
+-- most (measured 2026-10-15; "Layouts" in JIT/design.md): GHC
 -- gives a type's first six constructors their own pointer tags, and a case
 -- on any later one reads the info table. Nothing serializes or orders by
 -- this order; the Tag instances are explicit.
@@ -786,7 +786,7 @@ type Section = GSection CombIx
 type RSection val = GSection (RComb val)
 
 -- The first six constructors are the ones the interpreter dispatches on
--- most (measured 2026-10-15; "Constructor order" in JIT/internals.md): GHC
+-- most (measured 2026-10-15; "Layouts" in JIT/design.md): GHC
 -- gives a type's first six constructors their own pointer tags, and a case
 -- on any later one reads the info table. Nothing serializes or orders by
 -- this order; the Tag instances are explicit.

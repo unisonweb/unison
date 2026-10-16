@@ -209,7 +209,7 @@ initJIT' = do
         _ -> pure (Left ["unexpected Ctx layout; the JIT is off"])
 
 -- | Adds the IR helpers' module, after defining the names of the runtime's
--- tables it refers to ("The IR helpers" in internals.md).
+-- tables it refers to ("The IR helpers" in design.md).
 addHelpers :: IO (Either String ())
 addHelpers = do
   tables <- tableAddresses
@@ -237,7 +237,7 @@ jitCompileGroup sandbox ref grp cmbs = case mode config of
 
 -- ---------------------------------------------------------------------------
 -- The @on@ mode: compiling what gets hot, on a thread of its own.
--- See design.md, "What gets compiled, and when", and internals.md, "The compile driver".
+-- See design.md, "What gets compiled, and when".
 
 -- | What the interpreter asks the compile thread for.
 data Request

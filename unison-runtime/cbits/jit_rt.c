@@ -3837,7 +3837,7 @@ int64_t unison_jit_hplim_value(void) { return (int64_t)*unison_jit_hplim_address
 // unwind after a callee exited), it calls this with the frame's live slots
 // as variadic arguments instead of writing them itself: one call
 // instruction per site, where the generated stores were most of a
-// function's code (see "Write-back" in internals.md). What to do with them
+// function's code (see "Write-back" in design.md). What to do with them
 // is a constant descriptor in the module, built by Codegen.joinCall:
 //
 //   [flags, base, fbase, depth, nslots, nrecs, slot offsets..., records...]

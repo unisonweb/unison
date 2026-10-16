@@ -9,7 +9,7 @@
 // platform; the C copy is what the startup self-check runs and the fallback
 // under UNISON_JIT_DISABLE=irhelpers. Whatever is here must keep the IR
 // platform-independent: see jit_internal.h and "The IR helpers" in
-// internals.md. The tables and walkers it needs are exported from jit_rt.c.
+// design.md. The tables and walkers it needs are exported from jit_rt.c.
 //
 // Universal.murmurHashUntyped
 //
@@ -252,7 +252,7 @@ JitNat unison_jit_murmur(int64_t u, void *b) { return mh_run((StgWord)u, (StgClo
 
 // ---------------------------------------------------------------------------
 // Ability requests: the handler for an ability number, from the handler
-// environment ("The handler environment" in internals.md).
+// environment ("The environment in the context" under "Ability requests" in design.md).
 
 // Whether `key` is in the map: 1 and the value through `out`, 0 when it is
 // absent, -1 when a node on the way isn't an evaluated IntMap constructor.

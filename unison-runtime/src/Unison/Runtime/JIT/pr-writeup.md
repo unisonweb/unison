@@ -87,7 +87,7 @@ hash handle records. Two things in the interpreter changed with it: the elements
 value vector are built evaluated (`recordVals`), since native code reads them as closures, and
 a shape keeps the slot of each field in two unboxed sorted arrays searched by `shapeSlot`
 rather than in an `EnumMap`, which both the interpreter and native code look up faster
-(`benchmarks/2026-10-15-positions.md`). "Records" in internals.md has the details.
+(`benchmarks/2026-10-15-positions.md`). "Records" in design.md has the details.
 
 ## Flat data constructors (2026-10-15)
 
@@ -99,7 +99,7 @@ pattern synonyms keep every construction and matching site as it was; `buildData
 `dumpDataNoTag` and `dataBranch` handle the new shapes, and `dataBranch` is one generic
 matcher now rather than three copies. The pointer-tag order changed: `Data5`, `Data6`,
 `DataG` and `Captured` are told apart by info pointer. Measured in
-`benchmarks/2026-10-15-data-layout.md`; "Layouts" in internals.md has the layout.
+`benchmarks/2026-10-15-data-layout.md`; "Layouts" in design.md has the layout.
 
 ## Constructor order (2026-10-15)
 

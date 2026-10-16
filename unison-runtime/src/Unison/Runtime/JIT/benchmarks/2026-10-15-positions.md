@@ -4,7 +4,7 @@ A record shape's field positions were an `EnumMap FieldRef Int` (an `IntMap` of 
 `Int`s), walked by the interpreter's `RecUnpack` and `RecSet` and, node by node, by
 `unison_jit_rec_pos`. They are now two unboxed arrays, the field numbers ascending and the
 slot of each, searched by binary search on both sides (`shapeSlot` in `MCode.hs`, the helper
-in `jit_helpers.c`; "Records" in internals.md). Optimized build, a builtins-only transcript
+in `jit_helpers.c`; "Records" in design.md). Optimized build, a builtins-only transcript
 (`scratchpad/recbench3/rec.md`: the suite's two record rows with their own timer), seven
 samples of ten calls each; the table shows the median of the last five. The wide row is new
 with this change, so it has no earlier figure.

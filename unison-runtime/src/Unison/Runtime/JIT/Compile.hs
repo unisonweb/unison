@@ -2,7 +2,7 @@
 {-# LANGUAGE LambdaCase #-}
 
 -- | Compiling a group of combinators to a native module and installing
--- the result in their cells. See internals.md, "The compile driver".
+-- the result in their cells. See design.md, "What gets compiled, and when".
 module Unison.Runtime.JIT.Compile
   ( JITState (..),
     Unit,

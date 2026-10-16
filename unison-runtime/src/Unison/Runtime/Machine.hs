@@ -988,7 +988,7 @@ jitStats = JIT.stats JIT.config
 
 -- The trampoline: runs compiled code for a combinator whose frame has
 -- been set up as `enter` sets it up, then acts on the status it returns.
--- See unison-runtime/src/Unison/Runtime/JIT/design.md, "The trampoline", and unison-runtime/src/Unison/Runtime/JIT/internals.md.
+-- See unison-runtime/src/Unison/Runtime/JIT/design.md, "The trampoline".
 runNative ::
   (RuntimeProfiler prof) =>
   Ticker prof ->

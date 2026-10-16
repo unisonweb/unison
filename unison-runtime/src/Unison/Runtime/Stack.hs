@@ -2071,7 +2071,7 @@ deflateMap _ = Nothing
 -- be an existential type to enable extensibility, but that never
 -- materialized, and a big bunch of cases facilitates some nicer behavior.
 -- The first six constructors are the ones the builtins unwrap most
--- often (measured 2026-10-15; "Constructor order" in JIT/internals.md): GHC
+-- often (measured 2026-10-15; "Layouts" in JIT/design.md): GHC
 -- gives a type's first six constructors their own pointer tags, and a case
 -- on any later one reads the info table. Nothing serializes or orders by
 -- this order; the Tag instances are explicit. Texts and lists are closure

@@ -9,7 +9,7 @@
 // (unison_jit_table_addresses, defined as absolute symbols in JIT.hs).
 //
 // The IR is generated from jit_helpers.c by cbits/gen-helpers.sh and must be
-// platform-independent (see "The IR helpers" in internals.md), so nothing in
+// platform-independent (see "The IR helpers" in design.md), so nothing in
 // this header may depend on the target beyond 64-bit words and little-endian
 // byte order: fixed-width types only, `unsigned char` for bytes, no varargs,
 // no stdio.
@@ -160,7 +160,7 @@ static inline void *wrapped_of(void *x, const WrapInfo *w) { return (void *)wrap
 
 // --- Universal.murmurHashUntyped ---
 
-// The data constructors ("Layouts" in internals.md): DataN for 0 to 6
+// The data constructors ("Layouts" in design.md): DataN for 0 to 6
 // fields is one closure whose pointers are the fields' boxed halves then
 // the type reference, and whose words are the packed tag then the fields'
 // unboxed halves; DataG (seven or more) has pointers the ByteArray#, the

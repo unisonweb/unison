@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # Makes clang's IR for jit_helpers.c platform-independent: reads the .ll on
 # stdin, writes the stripped one on stdout. What goes and why is in "The IR
-# helpers" in src/Unison/Runtime/JIT/internals.md. Run through gen-helpers.sh.
+# helpers" in src/Unison/Runtime/JIT/design.md. Run through gen-helpers.sh.
 import re, sys
 
 # function attributes that mean the same on every target

@@ -2,7 +2,7 @@
 
 Constructors with 3 to 6 fields became flat closures (`GData3` … `GData6`), `DataG`, `PAp`
 and `Captured` hold their two segment arrays directly, and the pointer tags were
-reassigned ("Layouts" in internals.md; the plan is `data-layout-plan.local.md`). Optimized
+reassigned ("Layouts" in design.md; the plan is `data-layout-plan.local.md`). Optimized
 builds of the commit before and of this one, the suite (`jit-benchmarks.md`) run twice per
 binary and mode, alternating the binaries, best of the two per cell. The interpreter
 columns are from the final matcher (the second commit below); the JIT columns from the

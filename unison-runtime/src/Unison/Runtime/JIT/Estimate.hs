@@ -2,7 +2,7 @@
 
 -- | Deciding, before compiling a function, whether native code for it
 -- would be faster than the interpreter. See design.md, "What isn't
--- compiled", and internals.md, "The estimate".
+-- compiled".
 --
 -- What compiling saves is the interpreter's overhead (dispatch and stack
 -- traffic), a few nanoseconds per instruction; the instruction's own work

@@ -1,7 +1,7 @@
 # JIT: optimization ideas
 
 Ideas not done yet, and ideas tried and not kept. What is implemented is described in
-[design.md](design.md), [internals.md](internals.md) and the code, not here, and the numbers
+[design.md](design.md) and the code, not here, and the numbers
 behind every decision are in [benchmarks/](benchmarks/README.md). An entry here says what the
 change would be and roughly what it would buy; when one is done it leaves this file.
 

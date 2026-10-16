@@ -1,7 +1,7 @@
 # Working on the JIT
 
 How to build, run, test and look inside the JIT. The [design](design.md) says what it is and
-[internals](internals.md) how each part works; this is the operational side. Numbers from
+how each part works; this is the operational side. Numbers from
 past runs are in [benchmarks/](benchmarks/).
 
 ## Building
@@ -52,7 +52,7 @@ past runs are in [benchmarks/](benchmarks/).
   layouts the generator and the C helpers rely on only exist in optimized code. Without it a fast build makes the layout probe turn the JIT off, which
   is correct, and the probe's log line says so.
 - `cbits/jit_helpers.c` is also compiled to `cbits/jit_helpers.ll`, which is committed and
-  embedded ("The IR helpers" in internals.md). After editing it or `cbits/jit_internal.h`, run
+  embedded ("The IR helpers" in design.md). After editing it or `cbits/jit_internal.h`, run
   `unison-runtime/cbits/gen-helpers.sh` (needs clang; the GHC headers come from `stack exec
   ghc`) and commit the `.ll` with the change; `gen-helpers.sh --check` says whether the two
   are in step. It is a developer's step, not CI's (decided 2026-10-10: CI would need clang and
@@ -91,7 +91,7 @@ past runs are in [benchmarks/](benchmarks/).
   the exit and entry costs, `UNISON_JIT_DISABLE` (features turned off for bisecting a bug)
   and `UNISON_JIT_STRESS` (see Testing).
 - `UNISON_REPLACEMENTS=on|off` forces all or none of the Haskell replacements of base
-  definitions (internals, "The Haskell replacements"); unset, the interpreter applies all of
+  definitions (design.md, "The Haskell replacements"); unset, the interpreter applies all of
   them and the JIT the ones tagged `Always` in `functionReplacementList`. `on` under the JIT
   is the escape hatch for a program with a huge `Map`; `off` under the interpreter shows what
   the replaced Unison code costs there.
@@ -248,7 +248,7 @@ corruption, so the debug RTS checks the heap.
   ([2026-10-09 O0](benchmarks/2026-10-09-o0.md)); full O0 with workers crashes, see there.
 - `UNISON_JIT_EXITS=blocks` makes exits and unwinds write the frame back through generated
   blocks instead of the one call per site to `unison_jit_exit_frame` that is the default
-  ([internals](internals.md#the-generator), "Write-back";
+  ([design](design.md#write-back);
   [2026-10-09 exit call](benchmarks/2026-10-09-exit-call.md)). For comparison, and the
   fallback should the call form misbehave somewhere.
 - `UNISON_JIT_INLINE_THRESHOLD=N` sets LLVM's inliner threshold (default 225), for
