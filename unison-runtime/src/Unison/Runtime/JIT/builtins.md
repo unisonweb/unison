@@ -17,20 +17,20 @@ when reading it:
 
 - All of Int, Nat and Float is native (since 2026-10-04: `pow`, `toFloat`, the `CAST`
   coercions behind `Nat.toInt`, `Char.toNat`, `Float.toRepresentation` and the like, and every
-  Float operation). The Float results are the interpreter's bit for bit; the internals ("Numbers") say
+  Float operation). The Float results are the interpreter's bit for bit; "The representations" in [design.md](design.md#the-representations) says
   what that took.
 - `Text` and `List` are complete. `Bytes` is complete except the compression functions. The
   Text patterns were skipped on purpose (Paul, 2026-10-03).
 - `Universal.==`, `<`, `<=`, `>`, `>=` and `compare` are native for every kind of value since
   2026-10-11 (before that, only for two numbers of the same type and two texts or bytes; a
   tuple, a list or a constructor exited): numbers inline, everything else through the
-  comparison walkers (internals, "Universal comparison"). What still goes to the interpreter:
+  comparison walkers ([design.md, "Hashing and comparison"](design.md#hashing-and-comparison)). What still goes to the interpreter:
   two functions of different definitions, maps, two foreign values of different kinds (which
   the interpreter rejects with an error).
 - Arrays and Refs are complete (2026-10-05): every `MutableArray`, `ImmutableArray`,
   `MutableByteArray`, `ImmutableByteArray` and `PinnedByteArray` builtin, the `Scope` and `IO`
   constructors for them, `Scope.ref`/`IO.ref`, `Ref.readForCas`, `Ticket.read` and `Ref.cas`.
-  See the internals, "Arrays and refs".
+  See [design.md, "The representations"](design.md#the-representations).
 - `Universal.murmurHashUntyped` is native (2026-10-04) for numbers, characters, data
   constructors, text, bytes, lists, arrays and byte arrays; a function, a map, a link, quoted
   code, a continuation or a big number in the value sends the whole hash to the interpreter.
@@ -46,13 +46,13 @@ when reading it:
   including pointers) are native since 2026-10-11: a load or store through the address in the
   `Ptr`'s wrapper, with the conventions' sign and zero extension and truncation. Allocation,
   freeing, `cast`, `null`, the `ForeignPtr`s and the calls themselves (`getDLLSym`,
-  `FFI.base`) stay call-outs. See the internals, "Arrays and refs".
+  `FFI.base`) stay call-outs. See [design.md, "The representations"](design.md#the-representations).
 - The five bare names `==`, `<`, `<=`, `>`, `>=` in `Unison.Builtin` are a rename list
   (`Int.==` is also `Int.eq`, and so on), not builtins, and are left out.
 - The Haskell replacements of base definitions (`Map`, `Set`, `List.sort`, the JSON parser,
   ... in `functionReplacementList`) are not builtins and are not listed here. Under the JIT
-  only the ones that beat native code are applied; which, and the numbers, are in the
-  internals ("The Haskell replacements") and
+  only the ones that beat native code are applied; which, and the numbers, are in
+  [design.md, "The Haskell replacements"](design.md#the-haskell-replacements) and
   [benchmarks/2026-10-11-replacements.md](benchmarks/2026-10-11-replacements.md).
 
 To regenerate after adding native versions: the lists this reads are `prim1Supported`,

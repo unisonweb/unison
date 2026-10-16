@@ -32,7 +32,7 @@ The modified existing code is concentrated in three files:
 | Area | What it is | Where | Lines | Share |
 | --- | --- | --- | --- | --- |
 | Code generation | MCode to LLVM IR | `Codegen.hs` 4,140, `Strict.hs` 50 | 4,190 | 19% |
-| Documentation | design, internals, development, ideas, builtins, this file, and 15 benchmark runs | 22 Markdown files | 3,048 | 14% |
+| Documentation | design, usage, development, ideas, builtins, this file, and the benchmark runs (internals.md was folded into design.md on 2026-10-16) | 22 Markdown files | 3,048 | 14% |
 | Native builtins | C implementations of the list, Text, Bytes, array, Ref and hashing primitives, and the Haskell side that registers them | `jit_rt.c` sections Lists 1,067, Ropes 846, the rest of Text and Bytes 857, Arrays and Refs 290, murmurHash 251; `Native.hs` 363 | 3,674 | 17% |
 | Runtime data structures | `Deque` and `Skews`, the `Rope` rework, their tests and benchmarks, small `Text` and `Bytes` changes | `lib/unison-util-rope`, `Util/Text.hs`, `Util/Bytes.hs` | 3,257 | 15% |
 | Tests and benchmarks | the transcripts | `jit-tests.md`, `jit-benchmarks.md`, `jit-suite.md` | 2,455 | 11% |
