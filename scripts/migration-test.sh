@@ -9,8 +9,8 @@
 #   ./scripts/migration-test.sh --latest
 #
 # OPTIONS:
-#   --ucm PATH   The development ucm to test (default: $UCM, else
-#                `stack exec unison --`, else `unison` on the PATH)
+#   --ucm PATH   The development ucm to test (default: $UCM if set, else the
+#                binary stack builds from this checkout, built if needed)
 #   --keep       Leave the migration-test codebase and the downloaded release
 #                in place after a successful run
 #   --latest     Print the latest release's tag (e.g. release/1.5.0) and exit
@@ -102,14 +102,18 @@ url=$(printf '%s' "$release_json" | grep -o "\"browser_download_url\": *\"[^\"]*
 
 # --- the development ucm -----------------------------------------------------
 
+# Without --ucm or UCM, the ucm is the one stack builds from this checkout,
+# built here if it isn't yet. Nothing on the PATH is used: a `unison` found
+# there is likely to be an installed release, and the test would then compare
+# the release with itself.
 if [[ -z "$ucm" ]]; then
-    if command -v stack >/dev/null 2>&1 && stack exec --silent -- which unison >/dev/null 2>&1; then
-        ucm="stack exec --silent unison --"
-    elif command -v unison >/dev/null 2>&1; then
-        ucm="unison"
-    else
-        prereq "no development ucm: pass --ucm PATH, set UCM, or build with stack"
+    command -v stack >/dev/null 2>&1 || prereq "no development ucm: pass --ucm PATH, set UCM, or install stack"
+    ucm="$(stack path --local-install-root)/bin/unison"
+    if [[ ! -x "$ucm" ]]; then
+        echo "Building the development ucm..."
+        stack build --fast unison-cli-main:exe:unison || prereq "could not build the development ucm"
     fi
+    [[ -x "$ucm" ]] || prereq "stack did not produce $ucm"
 fi
 # shellcheck disable=SC2086
 dev_version=$($ucm --version 2>/dev/null | head -1) || prereq "could not run the development ucm: $ucm"
