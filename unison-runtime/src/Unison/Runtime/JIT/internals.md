@@ -285,7 +285,7 @@ The list is therefore applied through one setting fixed at startup (`Config.repl
 
 ## The constant pool's growth
 
-*`JIT/Pool.hs`; implements the [constant pool](design.md#appendix-the-constant-pool).*
+*`JIT/Pool.hs`; implements the [constant pool](design.md#the-constant-pool).*
 
 The array grows by copying, and superseded arrays are kept alive so that an address read at entry stays valid for the rest of that native run. Because code is installed while native code runs, a run can call a function that is newer than the array it holds. So a new entry is also written to the superseded arrays where it fits, and a function that uses an index beyond the size of the pool's first array checks the size of the array it was given at entry; if it is too small, it exits (`stale constant pool`) and is entered again with the current array. A `Reference` is kept as the field of a prebuilt field-less constructor of its type, and a record shape as an empty record of that shape (`KeyRecord`). The pool's first entries are fixed: the type-tag closures and the boolean constructors, at indices every function may use without a check.
 
