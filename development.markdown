@@ -1,6 +1,6 @@
 These are commands that will likely be useful during development.
 
-__General:__ `./scripts/test.sh` compiles and builds the Haskell code and runs all tests. Recommended that you run this before pushing any code to a branch that others might be working on.
+__General:__ `./scripts/check.sh` runs every check CI will ask for (tests, transcripts, formatting, the migration check) and records that you did, so CI can skip them; see [Checks before pushing](#checks-before-pushing). Run it before pushing.
 
 _Disclaimer_ If you have trouble getting started, please get in touch via [Discord](https://unison-lang.org/discord) so we can help.  If you have any fixes to the process, please send us a PR!
 
@@ -27,6 +27,28 @@ There are some Git hooks provided by Unison. If you want to use them, you can ru
 ``` bash
 ./scripts/hooks/install.bash
 ```
+
+## Checks before pushing
+
+CI does not rerun the expensive checks on every push. Instead each check has an *attestation*: a hash of the files it depends on, plus the verdict, recorded in `.github/workflows/proofs/<check>.txt`. When you run a check locally it writes its attestation; you commit that file with your change; and CI only verifies that the committed attestation matches the commit's files. If it doesn't, CI fails and tells you which script to run. The merge queue runs everything regardless, so an attestation is a shortcut for pull requests, not a substitute for the full run.
+
+`./scripts/check.sh` runs all of them:
+
+| Check | Script | What it runs | Inputs hashed |
+| --- | --- | --- | --- |
+| tests | `scripts/proofs/tests.sh` | `stack build --fast --test` and the CLI integration tests | Haskell and C sources, build config, integration test inputs |
+| transcripts | `scripts/proofs/transcripts.sh` | every transcript, the round-trip and docs transcripts | Haskell and C sources, build config, `unison-src` |
+| formatting | `scripts/proofs/formatting.sh` | `ormolu --check-idempotence` (see [Autoformatting](#autoformatting-your-code-with-ormolu)) | Haskell sources, `.ormolu` |
+| migration | `scripts/proofs/migration.sh` | `scripts/migration-test.sh`: the latest release makes a codebase, this ucm must migrate it | the migrations, the schema version, the latest release's tag |
+
+Things worth knowing:
+
+- A check whose attestation already covers the current files says `cached (pass)` and does nothing; `--force` reruns it. `--dry-run` says what would run, `--verbose` shows the hashes and where they were found.
+- The hashes of the tests, transcripts and migration checks ignore comments and whitespace in Haskell and C sources, so a comment edit or a reformat doesn't invalidate them. The formatting check hashes the raw text.
+- The migration check needs network access (it downloads the latest release from GitHub and installs `@unison/base` from Share), and its attestation includes the release it was run against, recorded in `.github/workflows/proofs/migration-release.txt`. A new release invalidates it until someone runs it again.
+- If you are sure a change can only affect some transcripts, `./scripts/proofs/transcripts.sh --only PREFIX` runs just the transcripts whose file names start with `PREFIX` (repeatable; `round-trip`, `docs.to-html` and `fix5507` name the manual ones) and records a *partial* attestation, with the transcripts run and their hashes in `.github/workflows/proofs/transcripts-partial.txt`. Pull request CI accepts it with a notice; the merge queue runs all transcripts; a later full run replaces it.
+- The [pre-push hook](#git-hooks) checks the attestations of the commits you push and runs any that are missing, amending the proofs files into the commit, so with the hook installed you rarely run the scripts by hand.
+- To have CI do the full run for a pull request and push the attestations to its branch, a maintainer comments `🤖 run full verification` on it. The bot reacts to the comment, runs `./scripts/check.sh --force`, commits the proofs files, pushes, and comments the outcome. It can push to pull requests from forks only when the repository has a `FULL_VERIFICATION_TOKEN` secret.
 
 ## Autoformatting your code with Ormolu
 
