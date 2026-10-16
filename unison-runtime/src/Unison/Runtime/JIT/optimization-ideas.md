@@ -53,6 +53,14 @@ indices, constant pool indices, and the addresses of native cells. Those would h
 indirections or relocations before an object could be reused. The one change that would make
 compile time stop mattering rather than smaller.
 
+### Specialization on function arguments
+
+A call to `foldLeft` with `(Nat.+)` could produce a specialized version of `foldLeft`, with
+`(Nat.+)` effectively inlined into the body; a hot `List.map f` could get its own copy with
+`f` inlined, which removes the indirect call altogether. The call to a function value is
+the one call native code can't inline (it goes through the cell in the `GPAp`), so a loop
+over a closure pays an indirect call per iteration even when the closure is native.
+
 ### Tiered compilation
 
 Compile the trigger alone first, in a small module, and the batch later with direct calls,

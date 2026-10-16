@@ -2,9 +2,9 @@
 
 Sep 26, 2026 · Paul Chiusano
 
-This document describes the design of Unison's new LLVM-based JIT compiler, which can execute Unison code at native speeds. It is in two parts: [Part 1](#part-1-overview) is an overview of the major pieces, each linking to its section of [Part 2](#part-2-details), where each area is described in more depth. Links to the code are relative to this file; links into [internals.md](internals.md) lead to how each mechanism is built today.
+This document describes the design of Unison's new LLVM-based JIT compiler, which can execute Unison code at native speeds. It is in two parts: [Part 1](#part-1-overview) is an overview of the major pieces, with links to its section of [Part 2](#part-2-details) for more depth. Also: 
 
-* How each part is built is in [internals.md](internals.md), organized by mechanism
+* Implementation details are in [internals.md](internals.md), organized by mechanism
 * How to build, run and test it is in [development.md](development.md)
 * Which builtins are native is in [builtins.md](builtins.md)
 * Benchmarks from along the way in [benchmarks/](benchmarks/)
@@ -13,28 +13,11 @@ This document describes the design of Unison's new LLVM-based JIT compiler, whic
 
 ### The big idea
 
-A bit of history to motivate this design: we previously attempted a JIT that aimed to compile the entirety of the language to Racket Scheme (itself compiled at runtime to native code). This effort was ultimately abandoned for a few reasons: it was quite complicated to try to cover literally everything in the Unison language, especially the dynamic code-loading and serialization support used by Unison Cloud, and other than simple arithmetic loops, we never saw major performance wins over the interpreter. Certain functional code was actually *faster* with our tuned interpreter. It was also very much an "all or nothing" effort that couldn't be used until every Unison builtin had a Scheme implementation.
+A bit of history to motivate this design: we previously attempted a JIT that aimed to compile the entirety of the language to Racket Scheme (itself compiled at runtime to native code). This effort was ultimately abandoned for a few reasons: it was quite complicated to try to cover literally everything in the Unison language, especially the dynamic code-loading and serialization support used by Unison Cloud. And other than simple arithmetic loops, we never saw major performance wins over the interpreter. Certain functional code was actually *faster* with our interpreter, which is pretty well tuned. It was also very much an "all or nothing" effort that couldn't be used until every Unison builtin had a Scheme implementation.
 
 This new JIT uses a different approach that allows it to be useful immediately. The idea is to compile functions to native code with [LLVM ORC](https://llvm.org/docs/ORCv2.html). But rather than needing to cover the entirety of the Unison language and its builtins, we allow native-compiled functions to "exit" back to the interpreter. Thus, delimited continuations, abilities, and any other subset of the language which is hard to compile to LLVM will continue to work but will defer to the interpreter at runtime. The idea is similar to what's done in a tracing JIT, where branches "off trace" revert to the interpreter, but here we're applying the idea to a function-at-a-time JIT.
 
 Note that code for a definition never changes, so compiled code never needs invalidating!
-
-### The pieces
-
-The JIT sits on the existing interpreter and shares its state with it: the Unison stack and the continuation. Everything below is a consequence of that.
-
-- **[The runtime it builds on](#the-runtime-the-jit-builds-on).** The interpreter runs supercombinators whose bodies are [`MCode`](../MCode.hs) instruction trees, on a [`Stack`](../Stack.hs#L1091) of two arrays (unboxed words and boxed closures) with a heap-allocated continuation [`K`](../Stack.hs#L310). The JIT compiles the same `MCode`, one supercombinator at a time, to functions that operate on the same stack.
-- **[Exits](#exits-how-native-code-covers-a-subset-of-the-language).** Every compiled function has one C signature. It returns `OK` when it finishes, or an *exit*: an index into a table of [`Exit`](Exits.hs#L34) descriptions saying what the interpreter should do next (resume at a section, run one instruction and re-enter, grow the stack, or just come back later). Before exiting, native code puts its frame back on the Unison stack, so that [the core rule](#the-core-rule) holds: whenever Haskell has control, the stack is exactly what the interpreter would have left.
-- **[Re-entry points](#re-entry-points).** After an exit in the middle of a function, the rest of the function has its own native entry, so one unsupported instruction doesn't make the whole remainder run interpreted.
-- **[Frames](#frames-native-code-records-haskell-builds).** Native code calls native code through the C stack and never allocates a `K` frame. When an exit unwinds through native callers, each writes a three-word *frame record*, and the interpreter builds the [`Push`](../Stack.hs#L327) frames from them.
-- **[Native code cells](#native-code-cells).** Each supercombinator has a 32-byte cell outside the Haskell heap holding its code pointer, a call counter, a request state and a verdict. Both the interpreter and native code find compiled code by loading from a cell.
-- **[The trampoline](#the-trampoline).** Every transition between the interpreter and native code goes through one piece of Haskell: fill in the per-thread [`Ctx`](../../../../cbits/jit_rt.h#L10), make an `unsafe` foreign call, read the results back, act on the status. Neither stack grows across transitions, so the two can interleave indefinitely.
-- **[What gets compiled, and when](#what-gets-compiled-and-when).** A function that has been called a threshold number of times is *hot*; a background thread compiles it in a batch with its neighbours in the call graph, as one LLVM module, and installs the code one pointer write at a time. A static estimate leaves functions that would exit more than they save to the interpreter.
-- **[Calls](#calls).** Known callees are called directly (within a module) or through their cell; function values are called by reading the cell out of the [`GPAp`](../Stack.hs#L483) closure; tail calls use LLVM's `musttail`; within a module, functions are also compiled as *workers* that pass arguments and results in registers.
-- **[Stack growth and preemption](#stack-growth-and-preemption).** Native code checks the Unison stack, the C stack and the runtime's context-switch flag at every function entry, and exits when a check fires; the interpreter does the work and calls the function again.
-- **[Memory](#memory).** Native code allocates ordinary Haskell heap objects with a bump pointer, respects pointer tagging and the generational write barrier, and keeps an allocation budget so that GC still happens. Layouts are probed at startup, not hard-coded.
-- **[Builtins and data structures](#builtins-and-data-structures).** Lists, text, bytes, arrays, refs and numbers are handled natively by C helpers that are ports of the Haskell operations, checked against them at startup.
-- **[The constant pool](#the-constant-pool).** Heap objects native code needs (references, type tags, literals) live in one global array whose address is passed in on every entry, since they move on every GC.
 
 ### Goals
 
@@ -58,11 +41,28 @@ A few things to be aware of throughout the design:
 * Native code must be preemptible in the same way as other Haskell functions. See [Preemption](#preemption).
 * Native code should keep the same conceptual model of the stack being growable. We do not want perfectly cromulent functional programs to crash because of a randomly low / fixed C stack limit. See [Stack growth](#stack-growth-and-preemption).
 
+### The pieces
+
+The JIT sits on the existing interpreter and shares its state with it: the Unison stack and the continuation. Everything below is a consequence of that.
+
+- **[The runtime it builds on](#the-runtime-the-jit-builds-on).** The interpreter runs supercombinators whose bodies are [`MCode`](../MCode.hs) instruction trees, on a [`Stack`](../Stack.hs#L1091) of two arrays (unboxed words and boxed closures) with a heap-allocated continuation [`K`](../Stack.hs#L310). The JIT compiles the same `MCode`, in dynamically formed batches of supercombinators, to functions that operate on the same stack.
+- **[Exits](#exits-how-native-code-covers-a-subset-of-the-language).** Every compiled function has one C signature. It returns `OK` when it finishes, or an *exit*: an index into a table of [`Exit`](Exits.hs#L34) specifying what the interpreter should do next (resume at a section, run one instruction and re-enter, grow the stack, or just come back later). Before exiting, native code puts its frame back on the Unison stack, so that [the core rule](#the-core-rule) holds: whenever Haskell has control, the stack is exactly what the interpreter would have produced.
+- **[Re-entry points](#re-entry-points).** After an exit in the middle of a function, the rest of the function has its own native entry, so one unsupported instruction doesn't make the whole remainder run interpreted.
+- **[Frames](#frames-native-code-records-haskell-builds).** Native code calls native code through the C stack and never allocates a `K` frame. When an exit unwinds through native callers, each writes a three-word *frame record*, and the interpreter builds the [`Push`](../Stack.hs#L327) frames from them. This avoid native code needing to know details of how the Haskell side represents continuations.
+- **[Native code cells](#native-code-cells).** Each supercombinator has a 32-byte cell outside the Haskell heap holding its code pointer, a call counter, a request state and a verdict. Both the interpreter and native code find compiled code by loading from a cell.
+- **[The trampoline](#the-trampoline).** Every transition between the interpreter and native code goes through one piece of Haskell: fill in the per-thread [`Ctx`](../../../../cbits/jit_rt.h#L10), make an `unsafe` foreign call, read the results back, act on the status. Neither stack grows across transitions, so the two can interleave indefinitely.
+- **[What gets compiled, and when](#what-gets-compiled-and-when).** A function that has been called a threshold number of times is *hot*; a background thread compiles it in a batch with its neighbours in the call graph, as one LLVM module, and installs the code one pointer write at a time. Because there's some overhead to exiting native code, functions estimated to involve a lot of back and forth between the interpreter and native code are kept interpreted.
+- **[Calls](#calls).** Known callees are called directly (within a module) or through their cell; function values are called by reading the cell out of the [`GPAp`](../Stack.hs#L483) closure; tail calls use LLVM's `musttail`; within a module, functions are also compiled as *workers* that pass arguments and results in registers rather than via the Unison stack.
+- **[Stack growth and preemption](#stack-growth-and-preemption).** Native code checks the Unison stack, the C stack and the runtime's context-switch flag at every function entry, and exits when a check fires; the interpreter does the work and calls the function again.
+- **[Memory](#memory).** Native code allocates ordinary Haskell heap objects with a bump pointer, respects pointer tagging and the generational write barrier, and keeps an allocation budget so that GC still happens. Layouts are probed at startup, not hard-coded.
+- **[Builtins and data structures](#builtins-and-data-structures).** Lists, text, bytes, arrays, refs and numbers are handled natively by C helpers that are ports of the Haskell operations, checked against them at startup.
+- **[The constant pool](#the-constant-pool).** Heap objects native code needs (references, type tags, literals) live in one global array whose address is passed in on every entry, since they move on every GC.
+
 ## Part 2: Details
 
 ### The runtime the JIT builds on
 
-Our existing machinery has already, before native compilation, converted the code to a set of _supercombinators_ (or just "functions" in this document). A supercombinator is a function definition in [A-normal form](https://en.wikipedia.org/wiki/A-normal_form) that contains no inner functions or lambdas and which can only call other supercombinators. The body of a supercombinator is a value of type `MCode` (for "machine code"). The JIT compiles these bodies and shares the interpreter's [stack](#the-stack), [values](#values) and [continuation](#the-continuation). The relevant types:
+Before native compilation, our existing machinery has already converted the code to a set of _supercombinators_ (or sometimes just "functions" in this document). A supercombinator is a function definition in [A-normal form](https://en.wikipedia.org/wiki/A-normal_form) that contains no inner functions or lambdas and which can only call other supercombinators. The body of a supercombinator is a value of type `MCode` (for "machine code"). The JIT compiles these bodies and shares the interpreter's [stack](#the-stack), [values](#values) and [continuation](#the-continuation). The relevant types:
 
 - [MCode](#mcode): the instruction trees the interpreter runs and the JIT compiles.
 - [The stack](#the-stack): two arrays and three pointers.
@@ -311,7 +311,6 @@ The compilation unit is a batch of supercombinators, compiled as a single LLVM m
 - [Private copies](#private-copies): compiling a small callee again so that a new module can inline it.
 - [Re-entry functions on demand](#re-entry-functions-on-demand): the continuations after call-outs, generated when they are used.
 - [What isn't compiled](#what-isnt-compiled): the static estimate that leaves exit-heavy functions interpreted.
-- [Later: specialization](#later-specialization).
 
 #### Hot functions and batches
 
@@ -331,15 +330,11 @@ One tricky part of the JIT is producing re-entry functions. Whenever native code
 
 #### What isn't compiled
 
-Native code saves the interpreter's overhead, a few nanoseconds per instruction; an exit and the way back cost several times that. A function whose body is one foreign call would be slower compiled. So before a function is compiled, its MCode is walked ([`Estimate.hs`](Estimate.hs), [`judge`](Estimate.hs#L102)) to estimate, for an average path from entry to return, the overhead native code would save and the number of exits it is *certain* to take (instructions with no native version, calls to handlers, and calls to functions that are themselves not worth compiling). If the exits, weighted by the cost of a round trip, exceed the saving, the function is left to the interpreter and its cell records the verdict. Callees that haven't been judged are judged on the way, so the answer doesn't depend on the order in which functions get hot, and "not worth compiling" spreads to callers that do little but call such functions. Exits that only happen on a slow path (the poll, stack growth, a fast path's miss) don't count. What the rule can't see is the behaviour of function values: a loop that calls a closure which turns out not to be native takes an exit per iteration.
+Native code saves the interpreter's overhead, estimated around 10 nanoseconds per instruction; an exit and the way back cost several times that. So before a function is compiled, its MCode is walked ([`Estimate.hs`](Estimate.hs), [`judge`](Estimate.hs#L102)) to estimate, for an average path from entry to return, the overhead native code would save and the number of exits it is *certain* to take (instructions with no native version, calls to handlers, and calls to functions that are themselves not worth compiling). If the exits, weighted by the cost of a round trip, exceed the saving, the function is left to the interpreter and its cell records this verdict. Callees that haven't been judged are judged on the way, so the answer doesn't depend on the order in which functions get hot, and "not worth compiling" spreads to callers that do little but call such functions. Exits that only happen on a slow path (the poll, stack growth, a fast path's miss) don't count. What the rule can't see is the behaviour of function values: a loop that calls a closure which turns out not to be native takes an exit per iteration.
 
-The same estimate gives a third verdict, *too small to enter*: a function whose average path saves less than entering native code from the interpreter costs, and that has no loop. It is compiled, and native callers call it directly, but when the interpreter is the caller it interprets the function as if it had no code.
+The same estimate gives a third verdict, *too small to enter*: a function whose average path saves less than entering native code from the interpreter costs, and that has no loop. It is compiled, and native callers call it directly, but when the interpreter is the caller it interprets the function as if it had no native code.
 
 The weights, the costs and the batch parameters are in [internals](internals.md#the-compile-driver) and, as environment variables, in [`Config.hs`](Config.hs#L62).
-
-#### Later: specialization
-
-A call to `foldLeft` with `(Nat.+)` might produce a specialized version of `foldLeft`, with `(Nat.+)` effectively inlined into the body; a hot `List.map f` can get its own copy with `f` inlined, which removes the indirect call altogether.
 
 ### Calls
 
@@ -398,7 +393,7 @@ Only non-tail calls use C stack, and those are covered by the [stack guards](#st
 
 #### Workers: arguments and results in registers
 
-The uniform signature passes everything through the Unison stack: the caller stores the arguments, the callee loads them, and the result comes back the same way. That is right for the trampoline and for calls through a cell, but between functions compiled together it is all overhead, and LLVM can't remove it, even when it inlines, because the stack is reachable from `Ctx`.
+The [uniform signature](#the-native-signature) passes everything through the Unison stack: the caller stores the arguments, the callee loads them, and the result comes back the same way. That is right for the trampoline and for calls through a cell, but between functions compiled together it is all overhead, and LLVM can't remove it, even when it inlines, because the stack is reachable from `Ctx`.
 
 So a function is also compiled as a **worker**: an internal LLVM function `(ctx, fp, u1, b1, ..., un, bn) -> {status, u, b}` with LLVM's `tailcc` convention. The arguments are parameters, the result is two return values, and the Unison stack isn't written at all unless something exits. The function its cell points to becomes a **wrapper** with the uniform signature: load the arguments from the stack, call the worker, store the result. Calls between functions of one module go to the worker directly, and an inlined worker is plain SSA code in its caller. The frame keeps its place on the Unison stack: a worker is passed the frame pointer its frame would have, and if it exits it writes its slots there, so the interpreter sees the same stack either way.
 
@@ -416,7 +411,7 @@ Native code can't grow a stack or give up the CPU by itself. Both are handled th
 
 #### The C stack
 
-Unison programs can recurse deeply. Above a depth limit, exit instead of calling, and the rest runs from the interpreter with heap-allocated frames. The limit is the stack pointer compared with a limit in `Ctx`, set from the thread's stack bounds minus a reserve ([`cStackGuard`](Codegen.hs#L2010)). Beyond the limit, recursion alternates between native and interpreted frames, one interpreted `Let` per limit hit.
+Unison programs can recurse deeply. Above a depth limit, native code exits instead of calling, and the rest runs from the interpreter with heap-allocated frames. The limit is the stack pointer compared with a limit in `Ctx`, set from the thread's stack bounds minus a reserve ([`cStackGuard`](Codegen.hs#L2010)). Beyond the limit, recursion alternates between native and interpreted frames, one interpreted `Let` per limit hit.
 
 #### The Unison stack
 
@@ -444,7 +439,7 @@ GHC's collector is generational, and a minor GC doesn't scan old-generation obje
 
 #### The allocation budget
 
-`allocate` takes blocks from the nursery, and once the nursery is empty it takes fresh blocks from the block allocator without limit; GC is only triggered when a *Haskell* heap check fails, and nothing native code does triggers one. So native code keeps an allocation budget, checked by the [poll](#preemption): after a budget exit, the interpreter's own allocation hits a heap check within a block or so, and the GC runs. The budget is what bounds memory growth, not a courtesy.
+`allocate` takes blocks from the nursery, and once the nursery is empty it takes fresh blocks from the block allocator without limit; GC is only triggered when a *Haskell* heap check fails, and nothing native code does triggers one. So native code keeps an allocation budget, checked by the [poll](#preemption): after a budget exit, the interpreter's own allocation hits a heap check within a block or so, and the GC runs.
 
 How allocation is done (the inline bump pointer), the barrier's details and the layouts probed are in [internals](internals.md#allocation-and-the-barrier).
 
