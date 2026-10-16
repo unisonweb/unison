@@ -2,15 +2,19 @@
 
 Sep 26, 2026 · Paul Chiusano
 
-This document is the model: what the JIT is, the invariants it keeps, and why. How each part is built today is in [internals.md](internals.md), organized by mechanism; how to build, run and test it is in [development.md](development.md); the measurements that shaped it are in [benchmarks/](benchmarks/) and the history in the branch's commits.
+This document describes the design of Unison's new LLVM-based JIT compiler, which can execute Unison code at native speeds. 
 
-## Summary
+* How each part is built is in [internals.md](internals.md), organized by mechanism
+* How to build, run and test it is in [development.md](development.md)
+* Benchmarks from along the way in [benchmarks/](benchmarks/)
 
-This document describes the design of Unison's new LLVM-based JIT compiler, which can execute Unison code at native speeds.
+## Overview and the big idea
 
 A bit of history to motivate this design: we previously attempted a JIT that aimed to compile the entirety of the language to Racket Scheme (itself compiled at runtime to native code). This effort was ultimately abandoned for a few reasons: it was quite complicated to try to cover literally everything in the Unison language, especially the dynamic code-loading and serialization support used by Unison Cloud, and other than simple arithmetic loops, we never saw major performance wins over the interpreter. Certain functional code was actually *faster* with our tuned interpreter. It was also very much an "all or nothing" effort that couldn't be used until every Unison builtin had a Scheme implementation.
 
 This new JIT uses a different approach that allows it to be useful immediately. The idea is to compile functions to native code with [LLVM ORC](https://llvm.org/docs/ORCv2.html). But rather than needing to cover the entirety of the Unison language and its builtins, we allow native-compiled functions to "exit" back to the interpreter. Thus, delimited continuations, abilities, and any other subset of the language which is hard to compile to LLVM will continue to work but will defer to the interpreter at runtime. The idea is similar to what's done in a tracing JIT, where branches "off trace" revert to the interpreter, but here we're applying the idea to a function-at-a time JIT.
+
+Note that code for a definition never changes, so compiled code never needs invalidating!
 
 A few tricky concerns to be aware of for the design:
 
@@ -20,22 +24,21 @@ A few tricky concerns to be aware of for the design:
 
 **Goals**
 
-- No change to language semantics, the continuation representation, or serialized code.
+- No change to language semantics or serialized code.
 - Large speedups on most Unison code, especially straight line code that doesn't use fancy features like abilities or delimited continuations.
 - Support only a subset of `MCode`, and grow it over time. Anything unsupported runs in the interpreter, with identical behaviour.
-
-Note that code for a definition never changes, so compiled code never needs invalidating!
+- Fast support for affine handlers, see [Ability requests](internals.md#ability-requests)
 
 **Non-goals, for now**
 
-- Compiling `Capture`, `Reset`, `Jump` or `Discard` natively. (Requests of affine handlers, and the handlers' cases, are native: [Ability requests](internals.md#ability-requests).)
+- Compiling `Capture`, `Reset`, `Jump` or `Discard` natively. (Requests of affine handlers, and the handlers' cases, are native: .)
 - Making compiled code callable as an ordinary Haskell function, or making it follow GHC's calling conventions.
 - Compatibility with the Racket / `run.native` backend. This backend is defunct.
 - Caching compiled code on disk across runs. If compilation is fast enough, this may never be worth it.
 
 ## Background: the runtime the JIT builds on
 
-Our existing machinery has already, before native compilation, converted the code to a set of  _supercombinators_ (or just "functions" in this document). A supercombinator is a function definition in A-normal form that contains no inner functions or lambdas and which can only call other supercombinators. The body of a supercombinator is a value of type `MCode` (for "machine code"). 
+Our existing machinery has already, before native compilation, converted the code to a set of  _supercombinators_ (or just "functions" in this document). A supercombinator is a function definition in [A-normal form](https://en.wikipedia.org/wiki/A-normal_form) that contains no inner functions or lambdas and which can only call other supercombinators. The body of a supercombinator is a value of type `MCode` (for "machine code"). 
 
 Here are the relevant types:
 
@@ -139,7 +142,7 @@ Properties of re-entry points:
 
 - **Each one is a `UnisonNativeFn`.** It starts by reading its locals from the Unison stack slots, which is always possible because of [the core rule](#the-core-rule), and begins with the same stack check as any native function.
 - **No code is duplicated.** The code after a call-out lives only in the re-entry function.
-- **They're optional.** A `Let` with no re-entry point is resumed in the interpreter, which is always correct. So they can be added gradually.
+- **They're optional.** A `Let` with no corresponding re-entry function is resumed in the interpreter, which is always correct. So they can be added gradually.
 - **Native code never looks one up;** only the interpreter does. A call-out's re-entry point is a cell held by its `Exit`. A `Let`'s re-entry point is the native code of the `Let` body's own combinator: the MCode emitter already makes every `Let` body a combinator whose arguments are the whole frame, so calling it is resuming at the body. Its [native code cell](#native-code-cells) is carried by the `Let` node and by the `Push` frame.
 - **A re-entry point inside an inline binding sees the interpreter's frame.** When native code exits from inside a binding it compiled inline, the frame records describe a frame for the binding, so the code that re-enters there is generated as if entered with the interpreter's frame pointer at the binding's base; slot offsets stay those of the enclosing function, so the body finds its values where it expects them. (The mechanism, the *frame base*, is in [internals](internals.md#frame-records-and-the-frame-base).)
 
@@ -227,7 +230,7 @@ If it finds native code, the interpreter sets up the call exactly as it would fo
 - **Neither stack grows across transitions.** By the time native code returns to the trampoline, all its C stack frames are gone. On the Haskell side, the trampoline's moves (`yield`, continue interpreting, re-enter native code) are all tail calls. So a program can go back and forth between native and interpreted code indefinitely.
 - **The interpreter and native code interleave freely.** An interpreted function can call a native one, which can exit to the interpreter for an unknown call, whose callee may itself be native. Each side only ever sees the shared state: the Unison stack and `K`.
 - **Nothing else in the interpreter changes.** Besides the checks above, the interpreter runs as it does today. When it resumes after an exit it can't tell that native code was involved, because of [the core rule](#the-core-rule).
-- **Cost of a transition.** Entering native code costs an `unsafe` foreign call plus a few stores into `Ctx`, and a round trip allocates nothing. That's cheap, but not free, which is why native-to-native calls go direct and don't pass through the trampoline.
+- **Cost of a transition.** Entering native code costs an `unsafe` foreign call plus a few stores into `Ctx`, and a round trip allocates nothing.
 
 ## What gets compiled, and when
 
@@ -235,7 +238,8 @@ The compilation unit is a batch of supercombinators, compiled as a single LLVM m
 
 * Each supercombinator yet to be native-compiled (an "interpreted" function) keeps a count of how many times it has been called, in its cell.
 * When this count reaches a threshold (N, default 100), it is said to be "hot" and the definition is queued (idempotently) for a background compile thread. This thread submits batches of definitions for compilation.
-* We use the call graph of the code to pull related definitions into the same batch. The compile thread grows the batch from the hot definition one neighbour at a time, using Prim's algorithm over the call graph in both directions (callers and callees), taking next the candidate with the most estimated calls into the batch, as long as that estimate, divided by the candidate's size relative to a typical definition, reaches a gate (N/4), up to a batch of size B. (The division keeps a large definition that runs once, such as a program's main body with many call sites into hot code, from joining the batch of everything it calls: compiling it would cost most of the module's time and save a handful of calls.) The estimate for an edge is the call count of the combinator holding the call site (every site is taken to run once per call of its combinator; a site in a local loop counts the loop's own calls), so a callee can join on the strength of its caller's count before it has been called at all, and a caller joins by its own count. The dependents direction tends to matter more since a callee is called at least as often as its caller, so it usually gets hot first. A definition whose own request is already waiting in the queue for compilation always joins the batch as well.
+* We use the call graph of the code to pull related definitions into the same batch. The compile thread grows the batch from the hot definition one neighbour at a time, using Prim's algorithm over the call graph in both directions (callers and callees), taking next the candidate with the most estimated calls into the batch, as long as that estimate, divided by the candidate's size relative to a typical definition, reaches a gate (N/4), up to a batch of size B. (The division keeps a large definition that runs once, such as a program's main body with many call sites into hot code, from joining the batch of everything it calls: compiling it would cost most of the module's time and save a handful of calls.)
+* The estimate for an edge is the call count of the combinator holding the call site (every site is taken to run once per call of its combinator; a site in a local loop counts the loop's own calls), so a callee can join on the strength of its caller's count before it has been called at all, and a caller joins by its own count. The dependents direction tends to matter more since a callee is called at least as often as its caller, so it usually gets hot first. A definition whose own request is already waiting in the queue for compilation always joins the batch as well.
 * Once compiled, pointers to native code for each supercombinator are installed while the program runs, one pointer write per supercombinator. Nothing assumes a batch appears all at once.
 
 **Private copies.** A small function that is already compiled can be compiled again and included as a private copy in a later batch that calls it, so that the call is direct and LLVM can inline it; the original keeps serving every other caller. This adds some code duplication but allows for more inlining. The criterion is the callee's estimated work per call, not its size.
