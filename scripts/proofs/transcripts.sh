@@ -12,6 +12,15 @@
 #   --verbose|-v    Verbose output
 #   --dry-run|-n    Show what would happen without running
 #   --summary       Summary mode for pre-push hook integration
+#   --only PREFIX   Run only the transcripts whose file name starts with
+#                   PREFIX (may be repeated; the special names round-trip,
+#                   docs.to-html and fix5507 select the manual ones). The
+#                   attestation is then recorded as "partial", with the
+#                   transcripts run and their hashes listed in
+#                   .github/workflows/proofs/transcripts-partial.txt. A partial
+#                   attestation satisfies the pull request check but not the
+#                   merge queue, which runs everything, and never makes a
+#                   later full run skip.
 #
 # ARGUMENTS:
 #   COMMIT          Optional commit SHA to hash (only valid with --hash)
@@ -38,15 +47,50 @@ PATTERNS=(
     # This script (for hash integrity)
     '**/transcripts.sh'
 )
+# Note: transcripts-partial.txt is deliberately not hashed: it describes the run, not the inputs.
+
+# Hash sources without their comments and whitespace (see lib-attestation-hash.sh)
+HASH_NORMALIZE=true
 
 # Handle --hash and --check early, before sourcing other libraries
 source "$(dirname "$0")/lib-attestation-hash.sh"
 handle_flags "$@"
 
+# --only PREFIX ... selects a subset; the attestation is then partial
+ONLY=()
+ARGS=()
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --only) ONLY+=("$2"); shift 2 ;;
+        *) ARGS+=("$1"); shift ;;
+    esac
+done
+set -- "${ARGS[@]+"${ARGS[@]}"}"
+
 source "$(dirname "$0")/lib-attestation-randr.sh"
 attestation_setup "transcripts" "$@"
 attestation_check_skip
 attestation_require_commands stack
+
+PARTIAL_FILE=.github/workflows/proofs/transcripts-partial.txt
+
+# The transcript files a prefix selects, across every directory the runner
+# scans, for the partial record.
+selected_transcripts() {
+    local prefix="$1"
+    case "$prefix" in
+        round-trip) echo unison-src/transcripts-round-trip/main.md; echo unison-src/transcripts-manual/rewrites.md ;;
+        docs.to-html) echo unison-src/transcripts-manual/docs.to-html.md ;;
+        fix5507) echo unison-src/tests/fix5507.md ;;
+        *)
+            for dir in unison-src/transcripts unison-src/transcripts/idempotent unison-src/transcripts/errors unison-src/transcripts-using-base; do
+                for f in "$dir/$prefix"*.md; do
+                    [[ -f "$f" && "$f" != *.output.md ]] && echo "$f"
+                done
+            done
+            ;;
+    esac
+}
 
 # === Tool-specific commands ===
 # Run in subshell to capture exit status while allowing errexit inside
@@ -60,35 +104,82 @@ set +e
     UCM=$(stack exec -- which unison)
     TRANSCRIPTS=$(stack exec -- which transcripts)
 
-    echo ""
-    echo "Running round-trip tests..."
-    "$UCM" transcript unison-src/transcripts-round-trip/main.md
-    "$UCM" transcript unison-src/transcripts-manual/rewrites.md
+    run_round_trip() {
+        echo ""
+        echo "Running round-trip tests..."
+        "$UCM" transcript unison-src/transcripts-round-trip/main.md
+        "$UCM" transcript unison-src/transcripts-manual/rewrites.md
+        echo "Checking for round-trip diffs..."
+        git diff --ignore-cr-at-eol --exit-code \
+            unison-src/transcripts-round-trip/main.output.md \
+            unison-src/transcripts-manual/rewrites.output.md
+    }
+    run_main() {
+        echo ""
+        echo "Running main transcripts${1:+ matching $1}..."
+        "$TRANSCRIPTS" ${1:+"$1"}
+        echo "Checking for transcript diffs..."
+        git diff --ignore-cr-at-eol --exit-code unison-src/transcripts
+    }
+    run_docs() {
+        echo ""
+        echo "Running docs.to-html transcript..."
+        "$UCM" transcript unison-src/transcripts-manual/docs.to-html.md
+        echo "Checking for docs diffs..."
+        git diff --ignore-cr-at-eol --exit-code \
+            unison-src/transcripts-manual/docs.to-html.output.md \
+            unison-src/transcripts-manual/docs.to-html
+    }
+    run_fix5507() {
+        echo ""
+        echo "Running fix5507 regression test..."
+        "$UCM" transcript unison-src/tests/fix5507.md
+        "$UCM" run.compiled fix5507.uc
+    }
 
-    echo "Checking for round-trip diffs..."
-    git diff --ignore-cr-at-eol --exit-code \
-        unison-src/transcripts-round-trip/main.output.md \
-        unison-src/transcripts-manual/rewrites.output.md
-
-    echo ""
-    echo "Running main transcripts..."
-    "$TRANSCRIPTS"
-
-    echo "Checking for transcript diffs..."
-    git diff --ignore-cr-at-eol --exit-code unison-src/transcripts
-
-    echo ""
-    echo "Running docs.to-html transcript..."
-    "$UCM" transcript unison-src/transcripts-manual/docs.to-html.md
-
-    echo "Checking for docs diffs..."
-    git diff --ignore-cr-at-eol --exit-code \
-        unison-src/transcripts-manual/docs.to-html.output.md \
-        unison-src/transcripts-manual/docs.to-html
-
-    echo ""
-    echo "Running fix5507 regression test..."
-    "$UCM" transcript unison-src/tests/fix5507.md
-    "$UCM" run.compiled fix5507.uc
+    if [[ ${#ONLY[@]} -eq 0 ]]; then
+        run_round_trip
+        run_main
+        run_docs
+        run_fix5507
+    else
+        for prefix in "${ONLY[@]}"; do
+            case "$prefix" in
+                round-trip) run_round_trip ;;
+                docs.to-html) run_docs ;;
+                fix5507) run_fix5507 ;;
+                *)
+                    if [[ -z "$(selected_transcripts "$prefix")" ]]; then
+                        echo "No transcript starts with '$prefix'" >&2
+                        exit 1
+                    fi
+                    run_main "$prefix"
+                    ;;
+            esac
+        done
+    fi
 )
-attestation_record_and_exit $?
+status=$?
+
+if [[ ${#ONLY[@]} -eq 0 ]]; then
+    # a full run supersedes any partial record
+    rm -f "$PARTIAL_FILE"
+    attestation_record_and_exit $status
+elif [[ $status -eq 0 ]]; then
+    # record which transcripts were run, with their hashes, then a partial attestation
+    mkdir -p "$(dirname "$PARTIAL_FILE")"
+    {
+        echo "# transcripts run for the partial attestation $HASH"
+        for prefix in "${ONLY[@]}"; do
+            selected_transcripts "$prefix"
+        done | LC_ALL=C sort -u | while read -r f; do
+            echo "$(shasum -a 256 "$f" | cut -d' ' -f1) $f"
+        done
+    } > "$PARTIAL_FILE"
+    echo ""
+    echo "Partial run: $(grep -c -v '^#' "$PARTIAL_FILE") transcript(s) recorded in $PARTIAL_FILE"
+    attestation_record partial
+    echo "Commit $PARTIAL_FILE with the proofs file."
+else
+    attestation_record_and_exit $status
+fi

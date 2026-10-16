@@ -17,7 +17,9 @@
 #   - Update tracked proofs files for CI verification
 #   - Allow CI to skip re-running when proofs are present
 #
-# See scripts/proofs/{tests,transcripts,weeds}.sh for details.
+# See scripts/proofs/{tests,transcripts,migration,weeds}.sh for details. To rerun only
+# some transcripts and record a partial attestation: ./scripts/proofs/transcripts.sh --only PREFIX
+# To have CI run everything and push the proofs to a PR: comment "🤖 run full verification" on it.
 #
 # =============================================================================
 

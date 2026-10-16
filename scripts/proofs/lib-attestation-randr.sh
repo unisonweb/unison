@@ -136,7 +136,7 @@ _lookup_attestation() {
     if [[ -f "$TRACKED_PROOFS_FILE" ]]; then
         local line=$(grep "^$HASH " "$TRACKED_PROOFS_FILE" 2>/dev/null || true)
         local result=$(echo "$line" | awk '{print $3}')
-        if [[ "$result" == "pass" || "$result" == "fail" ]]; then
+        if [[ "$result" == "pass" || "$result" == "fail" || "$result" == "partial" ]]; then
             CACHED_RESULT="$result"
             CACHED_SOURCE=tracked
             CACHED_INFRA=$(echo "$line" | awk '{print $2}')
@@ -151,7 +151,7 @@ _lookup_attestation() {
     if [[ -f "$LOCAL_PROOFS_FILE" ]]; then
         local line=$(grep " $HASH " "$LOCAL_PROOFS_FILE" 2>/dev/null | tail -1 || true)
         local result=$(echo "$line" | awk '{print $4}')
-        if [[ "$result" == "pass" || "$result" == "fail" ]]; then
+        if [[ "$result" == "pass" || "$result" == "fail" || "$result" == "partial" ]]; then
             CACHED_RESULT="$result"
             CACHED_SOURCE=local
             CACHED_INFRA=$(echo "$line" | awk '{print $3}')
@@ -196,6 +196,15 @@ attestation_check_skip() {
                 summary="cached (pass)"
             fi
             ;;
+        partial)
+            if [[ "$DRY_RUN" == "true" ]]; then
+                action=dry_run
+                summary="partial attestation only, would run"
+            else
+                action=run
+                summary="partial attestation only, running"
+            fi
+            ;;
         *)
             if [[ "$DRY_RUN" == "true" ]]; then
                 action=dry_run
@@ -223,7 +232,11 @@ attestation_check_skip() {
                 echo "Attestation not found, would run $ATTESTATION_NAME."
                 ;;
             run)
-                echo "Attestation not found, running $ATTESTATION_NAME."
+                if [[ "$CACHED_RESULT" == "partial" ]]; then
+                    echo "Only a partial attestation found for $ATTESTATION_NAME; running it in full."
+                else
+                    echo "Attestation not found, running $ATTESTATION_NAME."
+                fi
                 echo ""
                 ;;
         esac
@@ -278,11 +291,14 @@ attestation_record_and_exit() {
 }
 
 # -----------------------------------------------------------------------------
-# attestation_record [pass|fail]
+# attestation_record [pass|fail|partial]
 # Record hash to local cache and tracked file after run
-# Format: "timestamp source_hash infra_hash pass|fail" (local)
-#         "source_hash infra_hash pass|fail" (tracked)
-# Default result is "pass" if not specified
+# Format: "timestamp source_hash infra_hash pass|fail|partial" (local)
+#         "source_hash infra_hash pass|fail|partial" (tracked)
+# Default result is "pass" if not specified. A "partial" result means only
+# part of the check was run (the proof script says which part in
+# .github/workflows/proofs/<name>-partial.txt); it never lets a later run be
+# skipped, and CI treats it as attested for pull requests only.
 # -----------------------------------------------------------------------------
 attestation_record() {
     local result="${1:-pass}"

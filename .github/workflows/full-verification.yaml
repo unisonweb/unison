@@ -1,0 +1,139 @@
+name: full verification
+
+# A maintainer comments "🤖 run full verification" on a pull request, and this
+# runs every check in scripts/check.sh from scratch (tests, transcripts,
+# formatting, migration), commits the attestation files it produces and pushes
+# the commit to the pull request's branch. It is the way to attest a PR that
+# was pushed with partial or missing attestations without running the checks
+# on a laptop.
+#
+# Pushes made with the default GITHUB_TOKEN do not start other workflows, so
+# the PR's own CI does not rerun on the pushed commit unless the repository
+# has a FULL_VERIFICATION_TOKEN secret (a token with contents: write), which
+# is used for the push when present.
+
+on:
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: full-verification-${{ github.event.issue.number }}
+  cancel-in-progress: false
+
+env:
+  ormolu_version: 0.8.0.2
+
+jobs:
+  full-verification:
+    name: full verification (PR #${{ github.event.issue.number }})
+    if: |
+      github.event.issue.pull_request
+        && contains(github.event.comment.body, '🤖 run full verification')
+        && contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    steps:
+      - name: acknowledge the comment
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api -X POST "repos/${{ github.repository }}/issues/comments/${{ github.event.comment.id }}/reactions" -f content=eyes >/dev/null
+
+      - name: find the pull request's branch
+        id: pr
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh pr view ${{ github.event.issue.number }} --repo "${{ github.repository }}" \
+            --json headRefName,isCrossRepository,headRepositoryOwner \
+            --jq '"branch=" + .headRefName, "cross=" + (.isCrossRepository|tostring), "owner=" + .headRepositoryOwner.login' \
+            >> "$GITHUB_OUTPUT"
+          cat "$GITHUB_OUTPUT"
+
+      - name: refuse a fork
+        if: steps.pr.outputs.cross == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh pr comment ${{ github.event.issue.number }} --repo "${{ github.repository }}" \
+            --body "🤖 I can't push attestations to a branch in another repository (${{ steps.pr.outputs.owner }}). Run \`./scripts/check.sh\` locally and push the proofs files."
+          exit 1
+
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+        with:
+          ref: ${{ steps.pr.outputs.branch }}
+          token: ${{ secrets.FULL_VERIFICATION_TOKEN || github.token }}
+
+      - name: restore stack caches
+        uses: unisonweb/actions/stack/cache/restore@main
+        with:
+          cache-prefix: ci
+
+      - name: install stack
+        uses: unisonweb/actions/stack/install@main
+        with:
+          stack-version: 3.9.3
+
+      - name: install ormolu
+        run: |
+          curl -fsSL -o ormolu.zip "https://github.com/tweag/ormolu/releases/download/${{ env.ormolu_version }}/ormolu-x86_64-linux.zip"
+          mkdir -p "$HOME/.local/bin"
+          unzip -o -q ormolu.zip -d "$HOME/.local/bin"
+          chmod +x "$HOME/.local/bin/ormolu"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          "$HOME/.local/bin/ormolu" --version
+
+      - name: set git user info
+        run: |
+          git config --global user.name "GitHub Actions"
+          git config --global user.email "actions@github.com"
+
+      - name: run every check
+        id: check
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: ./scripts/check.sh --force
+
+      - name: commit and push the attestations
+        if: always() && steps.check.conclusion != 'skipped'
+        id: push
+        run: |
+          git add .github/workflows/proofs
+          if git diff --cached --quiet; then
+            echo "pushed=false" >> "$GITHUB_OUTPUT"
+            echo "The attestations did not change."
+          else
+            git commit -m "Record attestations from full verification
+
+          ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+            git push origin "HEAD:${{ steps.pr.outputs.branch }}"
+            echo "pushed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: report
+        if: always() && steps.pr.outputs.cross != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          run="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          if [[ "${{ steps.check.outcome }}" == "success" ]]; then
+            reaction=rocket
+            if [[ "${{ steps.push.outputs.pushed }}" == "true" ]]; then
+              body="🤖 Full verification passed; I pushed the attestations to \`${{ steps.pr.outputs.branch }}\` ($run)."
+            else
+              body="🤖 Full verification passed; the attestations were already current ($run)."
+            fi
+          else
+            reaction=-1
+            if [[ "${{ steps.push.outputs.pushed }}" == "true" ]]; then
+              body="🤖 Full verification failed; I pushed the proofs files that record the failures to \`${{ steps.pr.outputs.branch }}\`. See $run."
+            else
+              body="🤖 Full verification failed. See $run."
+            fi
+          fi
+          gh pr comment ${{ github.event.issue.number }} --repo "${{ github.repository }}" --body "$body"
+          gh api -X POST "repos/${{ github.repository }}/issues/comments/${{ github.event.comment.id }}/reactions" -f content="$reaction" >/dev/null

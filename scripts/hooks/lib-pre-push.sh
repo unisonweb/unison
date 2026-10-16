@@ -131,6 +131,9 @@ check_proof_hash() {
         if [[ "$committed_result" == "pass" ]]; then
             echo "  ✅ Already verified (passed)."
             return 0
+        elif [[ "$committed_result" == "partial" ]]; then
+            echo "  🟡 Partial attestation (see .github/workflows/proofs/${name}-partial.txt); the merge queue will run it in full."
+            return 0
         elif [[ "$committed_result" == "fail" ]]; then
             cat >&2 <<EOF
 

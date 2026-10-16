@@ -29,6 +29,10 @@ jobs:
           if [[ "$RESULT" == "pass" ]]; then
             echo "Transcript proof: pass ($HASH)"
             exit 0
+          elif [[ "$RESULT" == "partial" ]]; then
+            echo "::notice::Transcript proof is partial ($HASH): only the transcripts listed in .github/workflows/proofs/transcripts-partial.txt were run. The merge queue runs them all."
+            cat .github/workflows/proofs/transcripts-partial.txt
+            exit 0
           elif [[ "$RESULT" == "fail" ]]; then
             echo "::error::Transcripts previously FAILED for hash $HASH. Fix and re-run './scripts/proofs/transcripts.sh'."
             exit 1
