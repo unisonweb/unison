@@ -13,7 +13,7 @@ Run `nix develop --command stack --version`, which needs to succeed to allow for
 
 Once this command succeeds, you'll be in pretty good shape, but it'll error based on what's changed in Nixpkgs. For example, it will cause you to update
 
-- versions listed in [settings.yaml](../.vscode/settings.yaml) and [versions.nix](../nix/versions.nix) to the ones included in the new Nixpkgs,
+- versions listed in [settings.yaml](../.vscode/settings.json) and [versions.nix](../nix/versions.nix) to the ones included in the new Nixpkgs,
 - the `resolver` entry in [stack.yaml](../stack.yaml), and
 - Haskell packages missing from Stackage.
 
@@ -45,7 +45,7 @@ This is very similar to the Stack command (the Nix configuration is extracted fr
 
 Even though everything builds, there are other things in the repo (for example, GitHub actions) that reference some of the same tools, so the versions should match.
 
-For each of the entries in [settings.yaml](../.vscode/settings.yaml) and [versions.nix](../nix/versions.nix) that changed, search the codebase for the old version number, replacing it with the new one.
+For each of the entries in [settings.yaml](../.vscode/settings.json) and [versions.nix](../nix/versions.nix) that changed, search the codebase for the old version number, replacing it with the new one.
 
 **NB**: If you updated hpack, `rm **/*.cabal` then restore yaks/easytest/easytest.cabal. Then `stack build` will regenerate all of the Cabal files using the new hpack version.
 
