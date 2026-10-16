@@ -44,21 +44,24 @@ typedef struct { int64_t ok, v; } JitNat;
 
 // --- lists (Unison.Util.Deque) ---
 
+// A list value is `ListC deque`, one closure whose field is the deque;
+// list_info and list_tag are its info pointer and pointer tag (from
+// unison_jit_list_init, like the data constructors' tags: GClosure's order).
+// foreign_info is Foreign's, which the other wrappers sit under.
 typedef struct {
-  StgWord foreign_info, wrapseq_info, wrapseq_tag;
+  StgWord foreign_info, list_info, list_tag;
   StgWord deep_info, mdeep_info, scons_info, n8_info, na_info;
   StgWord val_info, data1_info, data2_info;
   StgClosure *nil, *mnil, *snil; // the constructors without fields (tagged)
+  StgWord data1_tag, data2_tag;  // the pointer tags of GData1 and GData2
 } ListFacts;
 UNISON_JIT_TABLE ListFacts unison_jit_LF;
 #define LF unison_jit_LF
 
 // The deque inside a list value (tagged), or NULL if the closure isn't a list.
 static inline StgClosure *deque_of(void *list) {
-  if (LTAG(list) != 7 || (StgWord)LUN(list)->header.info != LF.foreign_info) return NULL;
-  StgClosure *w = LP(list, 0);
-  if (LTAG(w) != LF.wrapseq_tag || (StgWord)LUN(w)->header.info != LF.wrapseq_info) return NULL;
-  return LP(w, 0);
+  if (LTAG(list) != (int)LF.list_tag || (StgWord)LUN(list)->header.info != LF.list_info) return NULL;
+  return LP(list, 0);
 }
 
 typedef void (*ItemFn)(StgClosure *item, void *env);
@@ -72,8 +75,12 @@ void *unison_jit_settle(void *p);
 
 // --- texts and bytes (Unison.Util.Rope) ---
 
+// A text is `TextC rope`, one closure whose field is the rope (direct);
+// bytes are `Foreign (WrapBytes rope)`, two. wrap_info and wrap_tag are the
+// closure holding the rope: TextC's, or WrapBytes' under foreign_info.
 typedef struct {
-  StgWord foreign_info, wrap_info, wrap_tag; // Foreign (WrapText rope) or (WrapBytes rope)
+  int direct;
+  StgWord foreign_info, wrap_info, wrap_tag;
   StgWord one_info, deep_info, chunk_info;
   StgClosure *empty; // Rope's Empty (tagged)
   // the most elements two chunks may have between them to be made one
@@ -88,10 +95,20 @@ UNISON_JIT_TABLE RopeKind unison_jit_TK, unison_jit_BK; // text, bytes
 #define BK unison_jit_BK
 
 static inline StgClosure *rope_of(const RopeKind *K, void *x) {
+  if (K->direct) {
+    if (LTAG(x) != (int)K->wrap_tag || (StgWord)LUN(x)->header.info != K->wrap_info) return NULL;
+    return LP(x, 0);
+  }
   if (LTAG(x) != 7 || (StgWord)LUN(x)->header.info != K->foreign_info) return NULL;
   StgClosure *w = LP(x, 0);
-  if (LTAG(w) != K->wrap_tag || (StgWord)LUN(w)->header.info != K->wrap_info) return NULL;
+  if (LTAG(w) != (int)K->wrap_tag || (StgWord)LUN(w)->header.info != K->wrap_info) return NULL;
   return LP(w, 0);
+}
+
+// Whether the info pointer is a closure holding a Haskell value: a text, a
+// list, or Foreign (the kinds Universal.compare orders together).
+static inline int is_builtin_info(StgWord info) {
+  return info == LF.foreign_info || info == LF.list_info || (TK.direct && info == TK.wrap_info);
 }
 
 static inline StgInt chunk_size(const RopeKind *K, StgClosure *c) { return LW(c, K->ix_count); }

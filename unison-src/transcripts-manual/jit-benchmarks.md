@@ -131,6 +131,27 @@ textWalk t =
     Some (c, rest) -> go (acc + 1) rest
   go 0 t
 
+-- List: a list built one element at a time, walked by a list pattern
+listBuild : Nat -> [Nat]
+listBuild n =
+  use List +:
+  go acc i = if i Nat.== n then acc else go (i +: acc) (i Nat.+ 1)
+  go [] 0
+
+listWalk : [Nat] -> Nat
+listWalk l =
+  use List +:
+  go acc l = match l with
+    [] -> acc
+    x +: rest -> go (acc Nat.+ x) rest
+  go 0 l
+
+listIndex : [Nat] -> Nat
+listIndex l =
+  n = List.size l
+  go acc i = if i == n then acc else go (acc + List.unsafeAt i l) (i + 1)
+  go 0 0
+
 -- numbers to text and back
 natRound : Nat -> Nat
 natRound n =
@@ -365,6 +386,10 @@ jitSuite = do
   printTime "Text: uncons walk over 100000 characters" 1 let
     t = Text.repeat 100000 "a"
     n -> repeat n do textWalk t
+  printTime "List: cons 10000 elements, then a pattern walk" 1 (n -> repeat n do listWalk (listBuild 10000))
+  printTime "List: at, 10000 times" 1 let
+    l = listBuild 10000
+    n -> repeat n do listIndex l
   printTime "Nat.toText and Nat.fromText, 10000 times" 1 (n -> repeat n do natRound 10000)
   printTime "Float: sqrt, sin, cos, arithmetic and conversions, 100000 times" 1 (n -> repeat n do floatWalk 100000)
   printTime "MutableByteArray: 4 writes and 6 reads, both byte orders, 100000 times" 1 (n -> repeat n do byteArrayLoop 100000)

@@ -29,6 +29,8 @@ module Unison.Runtime.Stack
         DataG,
         RecordG,
         Captured,
+        TextC,
+        ListC,
         Foreign,
         Affine,
         BlackHole,
@@ -450,7 +452,16 @@ type RecordVals = Vector Val
 
 -- The constructor order sets the pointer tags native code switches on:
 -- the first six constructors get tags 1 to 6 and the rest share tag 7,
--- told apart by their info pointers. A data constructor's fields come
+-- told apart by their info pointers. Lists, texts, enums and the data
+-- constructors with one, two and five fields come first because matches and
+-- the text and list primitives are the hot dispatch (five fields is base's
+-- Map node, which is native under the JIT: measured 2 to 5% on map rows,
+-- benchmarks/2026-10-15-text-list.md); a wider constructor pushes more
+-- fields and absorbs the info-table read better, and a partial
+-- application is only scrutinized by a call, whose other work dwarfs it
+-- (benchmarks/2026-10-15-constructor-order.md). A text and a list are one
+-- object each, the rope or the deque their one field (Text is a newtype
+-- over the rope). A data constructor's fields come
 -- first and its reference last, so that with @-funbox-strict-fields@ the
 -- closure is the fields' boxed halves, the reference, the packed tag and
 -- the fields' unboxed halves: field j's boxed half is pointer j. The
@@ -458,21 +469,23 @@ type RecordVals = Vector Val
 -- continuation are two fields, not a tuple (which couldn't be unpacked),
 -- so the closure holds the two arrays directly.
 data GClosure comb
-  = GPAp
+  = GList !(Deque Val)
+  | GText !U.Text
+  | GEnum !PackedTag !Reference
+  | GData1 !PackedTag !Val !Reference
+  | GData2 !PackedTag !Val !Val !Reference
+  | GData5 !PackedTag !Val !Val !Val !Val !Val !Reference
+  | GData3 !PackedTag !Val !Val !Val !Reference
+  | GData4 !PackedTag !Val !Val !Val !Val !Reference
+  | GData6 !PackedTag !Val !Val !Val !Val !Val !Val !Reference
+  | -- | seven or more fields
+    GDataG !PackedTag !USeg !BSeg !Reference
+  | GPAp
       !CombIx
       {-# UNPACK #-} !(GCombInfo comb)
       -- | args
       !USeg
       !BSeg
-  | GEnum !PackedTag !Reference
-  | GData1 !PackedTag !Val !Reference
-  | GData2 !PackedTag !Val !Val !Reference
-  | GData3 !PackedTag !Val !Val !Val !Reference
-  | GData4 !PackedTag !Val !Val !Val !Val !Reference
-  | GData5 !PackedTag !Val !Val !Val !Val !Val !Reference
-  | GData6 !PackedTag !Val !Val !Val !Val !Val !Val !Reference
-  | -- | seven or more fields
-    GDataG !PackedTag !USeg !BSeg !Reference
   | GCaptured
       -- | code cont
       !K
@@ -577,6 +590,14 @@ matchCaptured (Closure (GCaptured k a u b)) = Just (k, a, (u, b))
 matchCaptured _ = Nothing
 {-# INLINE matchCaptured #-}
 
+-- | A text: the runtime's one representation of a @Text@ value.
+pattern TextC :: U.Text -> Closure
+pattern TextC t = Closure (GText t)
+
+-- | A list: the runtime's one representation of a @List@ value.
+pattern ListC :: Deque Val -> Closure
+pattern ListC d = Closure (GList d)
+
 pattern Foreign x = Closure (GForeign x)
 
 pattern Affine ps aenv r = Closure (GAffine ps aenv r)
@@ -593,13 +614,13 @@ pattern UnboxedTypeTag t <- Closure (GUnboxedTypeTag t)
       IntTag -> intTypeTag
       NatTag -> natTypeTag
 
-{-# COMPLETE PAp, Enum, Data1, Data2, Data3, Data4, Data5, Data6, DataG, RecordC, Captured, Foreign, UnboxedTypeTag, BlackHole, Affine #-}
+{-# COMPLETE PAp, Enum, Data1, Data2, Data3, Data4, Data5, Data6, DataG, RecordC, Captured, TextC, ListC, Foreign, UnboxedTypeTag, BlackHole, Affine #-}
 
-{-# COMPLETE DataC, RecordC, PAp, Captured, Foreign, BlackHole, UnboxedTypeTag, Affine #-}
+{-# COMPLETE DataC, RecordC, PAp, Captured, TextC, ListC, Foreign, BlackHole, UnboxedTypeTag, Affine #-}
 
-{-# COMPLETE DataC, RecordC, PApV, Captured, Foreign, BlackHole, UnboxedTypeTag, Affine #-}
+{-# COMPLETE DataC, RecordC, PApV, Captured, TextC, ListC, Foreign, BlackHole, UnboxedTypeTag, Affine #-}
 
-{-# COMPLETE DataC, RecordC, PApV, CapV, Foreign, BlackHole, UnboxedTypeTag, Affine #-}
+{-# COMPLETE DataC, RecordC, PApV, CapV, TextC, ListC, Foreign, BlackHole, UnboxedTypeTag, Affine #-}
 
 -- We can avoid allocating a closure for common type tags on each poke by having shared top-level closures for them.
 natTypeTag :: Closure
@@ -731,10 +752,8 @@ formDataReplaced r t sg@(usg, bsg)
           !uk <- indexByteArray usg 3,
           !bv <- indexArray bsg 2,
           !uv <- indexByteArray usg 2,
-          Foreign l <- indexArray bsg 1,
-          Just (ul :: Map Val Val) <- maybeUnwrapBuiltin l,
-          Foreign r <- indexArray bsg 0,
-          Just (ur :: Map Val Val) <- maybeUnwrapBuiltin r,
+          Just (ul :: Map Val Val) <- maybeUnwrapBuiltin (indexArray bsg 1),
+          Just (ur :: Map Val Val) <- maybeUnwrapBuiltin (indexArray bsg 0),
           sz <- indexByteArray usg 4,
           Closure (GUnboxedTypeTag NatTag) <- indexArray bsg 4 ->
             Foreign . WrapMap $
@@ -935,21 +954,12 @@ data RuntimePanic = Panic String (Maybe Val)
 instance Exception RuntimePanic
 
 marshalUnwrapForeignIO ::
-  (HasCallStack, BuiltinForeign a) => Closure -> IO a
-marshalUnwrapForeignIO (Foreign x) = unwrapForeignIO x
-marshalUnwrapForeignIO c =
-  throwIO $ Panic "marshalUnwrapForeignIO: unhandled closure" (Just v)
-  where
-    v = BoxedVal c
-
-unwrapForeignIO ::
-  forall a. (HasCallStack, BuiltinForeign a) => Foreign -> IO a
-unwrapForeignIO f = maybe err pure $ maybeUnwrapBuiltin f
+  forall a. (HasCallStack, BuiltinForeign a) => Closure -> IO a
+marshalUnwrapForeignIO c = maybe err pure $ maybeUnwrapBuiltin c
   where
     Tagged exName = builtinName @a
-    v = BoxedVal (Foreign f)
-    err = throwIO $ Panic msg (Just v)
-    msg = "unwrapForeignIO: expected `" <> exName <> "`"
+    err = throwIO $ Panic msg (Just (BoxedVal c))
+    msg = "marshalUnwrapForeignIO: expected `" <> exName <> "`"
 
 type Off = Int
 
@@ -1659,11 +1669,11 @@ pokeOffC stk i c = do
 {-# INLINE pokeOffC #-}
 
 pokeBi :: (BuiltinForeign b) => Stack -> b -> IO ()
-pokeBi stk x = bpoke stk (Foreign $ wrapBuiltin x)
+pokeBi stk x = bpoke stk (wrapBuiltin x)
 {-# INLINE pokeBi #-}
 
 pokeOffBi :: (BuiltinForeign b) => Stack -> Int -> b -> IO ()
-pokeOffBi stk i x = bpokeOff stk i (Foreign $ wrapBuiltin x)
+pokeOffBi stk i x = bpokeOff stk i (wrapBuiltin x)
 {-# INLINE pokeOffBi #-}
 
 peekBi :: (BuiltinForeign b) => Stack -> IO b
@@ -1695,11 +1705,11 @@ peekOffS stk i = marshalUnwrapForeignIO =<< bpeekOff stk i
 {-# INLINE peekOffS #-}
 
 pokeS :: Stack -> USeq -> IO ()
-pokeS stk s = bpoke stk (Foreign $ WrapSeq s)
+pokeS stk s = bpoke stk (ListC s)
 {-# INLINE pokeS #-}
 
 pokeOffS :: Stack -> Int -> USeq -> IO ()
-pokeOffS stk i s = bpokeOff stk i (Foreign $ WrapSeq s)
+pokeOffS stk i s = bpokeOff stk i (ListC s)
 {-# INLINE pokeOffS #-}
 
 unull :: USeg
@@ -1761,7 +1771,7 @@ closureTermRefs f = \case
       UnboxedVal {} -> mempty
   (Captured k _ (_useg, bseg)) ->
     contTermRefs f k <> foldMap (closureTermRefs f) bseg
-  (Foreign (WrapSeq cs)) ->
+  (ListC cs) ->
     foldMap (\(Val _i clos) -> closureTermRefs f clos) cs
   _ -> mempty
 
@@ -1790,6 +1800,8 @@ closureNum PAp {} = 0
 closureNum DataC {} = 1
 closureNum Captured {} = 2
 closureNum Foreign {} = 3
+closureNum TextC {} = 3
+closureNum ListC {} = 3
 closureNum UnboxedTypeTag {} = 4
 closureNum BlackHole {} = 5
 closureNum Affine {} = 6
@@ -1816,8 +1828,28 @@ instance Eq Closure where
     cix1 == cix2 && eqValList segs1 segs2
   CapV k1 a1 vs1 == CapV k2 a2 vs2 =
     k1 == k2 && a1 == a2 && eqValList vs1 vs2
+  TextC l == TextC r = l == r
+  ListC l == ListC r = l == r
   Foreign fl == Foreign fr = fl == fr
-  c == d = closureNum c == closureNum d
+  c == d
+    | closureNum c == 3, closureNum d == 3 =
+        error $
+          "Attempting to check equality of values of different types: "
+            <> "`"
+            <> builtinKindName c
+            <> "` vs `"
+            <> builtinKindName d
+            <> "`"
+    | otherwise = closureNum c == closureNum d
+
+-- | The name of a text, a list or a foreign value's kind, for the errors
+-- on comparing two of different kinds.
+builtinKindName :: Closure -> String
+builtinKindName = \case
+  TextC {} -> "Text"
+  ListC {} -> "Seq"
+  Foreign f -> foreignName f
+  _ -> "closure"
 
 instance Eq K where
   KE == KE = True
@@ -1897,10 +1929,20 @@ compareClosure tyEq = \cases
     compareK tyEq k1 k2
       <> compare a1 a2
       <> compareValList True vs1 vs2
+  (TextC l) (TextC r) -> compare l r
+  (ListC l) (ListC r) -> liftCompare (compareVal tyEq) l r
   (Foreign fl) (Foreign fr) -> compareForeign tyEq fl fr
   (UnboxedTypeTag t1) (UnboxedTypeTag t2) -> compare t1 t2
   (BlackHole) (BlackHole) -> EQ
-  c d -> comparing closureNum c d
+  c d
+    | closureNum c == 3, closureNum d == 3 ->
+        error $
+          "Attempting to compare two values of different types: `"
+            <> builtinKindName c
+            <> "` vs `"
+            <> builtinKindName d
+            <> "`"
+    | otherwise -> comparing closureNum c d
 
 compareUnboxed ::
   Bool -> (UnboxedTypeTag, Int) -> (UnboxedTypeTag, Int) -> Ordering
@@ -2028,10 +2070,18 @@ deflateMap _ = Nothing
 -- Disjoint union of wraped Haskell values. Originally this was going to
 -- be an existential type to enable extensibility, but that never
 -- materialized, and a big bunch of cases facilitates some nicer behavior.
+-- The first six constructors are the ones the builtins unwrap most
+-- often (measured 2026-10-15; "Constructor order" in JIT/internals.md): GHC
+-- gives a type's first six constructors their own pointer tags, and a case
+-- on any later one reads the info table. Nothing serializes or orders by
+-- this order; the Tag instances are explicit. Texts and lists are closure
+-- constructors of their own ('TextC', 'ListC'), not foreign values.
 data Foreign
-  = WrapArray !(Array Val)
+  = WrapBytes !Bytes
+  | WrapMap !(Map Val Val)
+  | WrapArray !(Array Val)
+  | WrapNatural !Natural
   | WrapByteArray !ByteArray
-  | WrapBytes !Bytes
   | WrapCDynFunc !CDynFunc
   | WrapCPattern !CPattern
   | WrapCharPattern !CharPattern
@@ -2045,20 +2095,16 @@ data Foreign
   | WrapIORef !(IORef Val)
   | WrapInteger !Integer
   | WrapListenSocket !ListenSocket
-  | WrapMap !(Map Val Val)
   | WrapMutableByteArray !(MutableByteArray RealWorld)
   | WrapMutableArray !(MutableArray RealWorld Val)
   | WrapMVar !(MVar Val)
-  | WrapNatural !Natural
   | WrapProcessHandle !ProcessHandle
   | WrapPromise !(Promise Val)
   | WrapPtr !(Ptr.Ptr ())
   | WrapForeignPtr !(Ptr.ForeignPtr ())
   | WrapReference !Reference
   | WrapReferent !Referent
-  | WrapSeq !(Deque Val)
   | WrapSocket !Socket
-  | WrapText !U.Text
   | WrapThreadId !ThreadId
   | WrapTicket !(Atomic.Ticket Val)
   | WrapTimeSpec !TimeSpec
@@ -2074,10 +2120,12 @@ data Foreign
   | WrapSignalSubscription !Signal.Subscription
 
 -- Convenience class for (un)wrapping Haskell values automatically
+-- | The closure holding a Haskell value: @Foreign (Wrap... x)@ for most,
+-- a 'TextC' or 'ListC' for a text or a list.
 class BuiltinForeign f where
   builtinName :: Tagged f String
-  wrapBuiltin :: f -> Foreign
-  maybeUnwrapBuiltin :: Foreign -> Maybe f
+  wrapBuiltin :: f -> Closure
+  maybeUnwrapBuiltin :: Closure -> Maybe f
 
 foreignRef :: Foreign -> Reference
 foreignRef WrapArray {} = Ty.iarrayRef
@@ -2109,9 +2157,7 @@ foreignRef WrapPtr {} = Ty.ffiPtrRef
 foreignRef WrapForeignPtr {} = Ty.ffiForeignPtrRef
 foreignRef WrapReference {} = Ty.typeLinkRef
 foreignRef WrapReferent {} = Ty.termLinkRef
-foreignRef WrapSeq {} = Ty.listRef
 foreignRef WrapSocket {} = Ty.socketRef
-foreignRef WrapText {} = Ty.textRef
 foreignRef WrapThreadId {} = Ty.threadIdRef
 foreignRef WrapTicket {} = Ty.ticketRef
 foreignRef WrapTimeSpec {} = Ty.timeSpecRef
@@ -2154,9 +2200,7 @@ foreignName WrapPtr {} = "Ptr"
 foreignName WrapForeignPtr {} = "ForeignPtr"
 foreignName WrapReference {} = "Reference"
 foreignName WrapReferent {} = "Referent"
-foreignName WrapSeq {} = "Seq"
 foreignName WrapSocket {} = "Socket"
-foreignName WrapText {} = "Text"
 foreignName WrapThreadId {} = "ThreadId"
 foreignName WrapTicket {} = "Ticket"
 foreignName WrapTimeSpec {} = "TimeSpec"
@@ -2186,12 +2230,10 @@ instance Eq Foreign where
   WrapSignal l == WrapSignal r = l == r
   WrapSignalSubscription l == WrapSignalSubscription r = l == r
   WrapArray l == WrapArray r = l == r
-  WrapText l == WrapText r = l == r
   WrapReferent l == WrapReferent r = l == r
   WrapReference l == WrapReference r = l == r
   WrapBytes l == WrapBytes r = l == r
   WrapMVar l == WrapMVar r = l == r
-  WrapSeq l == WrapSeq r = l == r
   WrapTVar l == WrapTVar r = l == r
   WrapSocket l == WrapSocket r = l == r
   WrapTls (Tls l _) == WrapTls (Tls r _) = l == r
@@ -2239,7 +2281,6 @@ instance Eq Foreign where
 compareForeign :: Bool -> Foreign -> Foreign -> Ordering
 compareForeign _tyEq (WrapSignal l) (WrapSignal r) = compare l r
 compareForeign _tyEq (WrapSignalSubscription l) (WrapSignalSubscription r) = compare l r
-compareForeign _tyEq (WrapText l) (WrapText r) = compare l r
 compareForeign _tyEq (WrapReference l) (WrapReference r) = compare l r
 compareForeign _tyEq (WrapReferent l) (WrapReferent r) = compare l r
 compareForeign _tyEq (WrapBytes l) (WrapBytes r) = compare l r
@@ -2255,8 +2296,6 @@ compareForeign _tyEq (WrapCDynFunc l) (WrapCDynFunc r) = compare l r
 compareForeign _tyEq (WrapFFIType l) (WrapFFIType r) = compare l r
 compareForeign _tyEq (WrapFFISpec l) (WrapFFISpec r) = compare l r
 compareForeign tyEq (WrapMap l) (WrapMap r) = mapCmp tyEq l r
-compareForeign tyEq (WrapSeq l) (WrapSeq r) =
-  liftCompare (compareVal tyEq) l r
 compareForeign tyEq (WrapArray l) (WrapArray r) =
   liftCompare (compareVal tyEq) l r
 compareForeign _tyEq l r
@@ -2280,289 +2319,286 @@ instance Show Foreign where
     showParen (p > 9) $
       showString "Wrap "
         . showString (foreignName f)
-        . showString " "
-        . case f of
-          WrapText t -> shows t
-          _ -> showString "_"
+        . showString " _"
 
 instance BuiltinForeign U.Text where
   builtinName = Tagged "Text"
-  wrapBuiltin = WrapText
+  wrapBuiltin = TextC
   maybeUnwrapBuiltin = \case
-    WrapText v -> Just v
+    TextC v -> Just v
     _ -> Nothing
   {-# INLINE maybeUnwrapBuiltin #-}
 
 instance BuiltinForeign Bytes where
   builtinName = Tagged "Bytes"
-  wrapBuiltin = WrapBytes
+  wrapBuiltin = Foreign . WrapBytes
   maybeUnwrapBuiltin = \case
-    WrapBytes v -> Just v
+    Foreign (WrapBytes v) -> Just v
     _ -> Nothing
   {-# INLINE maybeUnwrapBuiltin #-}
 
 instance BuiltinForeign Handle where
   builtinName = Tagged "Handle"
-  wrapBuiltin = WrapHandle
+  wrapBuiltin = Foreign . WrapHandle
   maybeUnwrapBuiltin = \case
-    WrapHandle v -> Just v
+    Foreign (WrapHandle v) -> Just v
     _ -> Nothing
   {-# INLINE maybeUnwrapBuiltin #-}
 
 instance BuiltinForeign ProcessHandle where
   builtinName = Tagged "ProcessHandle"
-  wrapBuiltin = WrapProcessHandle
+  wrapBuiltin = Foreign . WrapProcessHandle
   maybeUnwrapBuiltin = \case
-    WrapProcessHandle v -> Just v
+    Foreign (WrapProcessHandle v) -> Just v
     _ -> Nothing
   {-# INLINE maybeUnwrapBuiltin #-}
 
 instance BuiltinForeign (Ptr.Ptr a) where
   builtinName = Tagged "Ptr"
-  wrapBuiltin = WrapPtr . Ptr.castPtr
+  wrapBuiltin = Foreign . WrapPtr . Ptr.castPtr
   maybeUnwrapBuiltin = \case
-    WrapPtr p -> Just (Ptr.castPtr p)
+    Foreign (WrapPtr p) -> Just (Ptr.castPtr p)
     _ -> Nothing
   {-# INLINE maybeUnwrapBuiltin #-}
 
 instance BuiltinForeign (Ptr.ForeignPtr a) where
   builtinName = Tagged "ForeignPtr"
-  wrapBuiltin = WrapForeignPtr . Ptr.castForeignPtr
+  wrapBuiltin = Foreign . WrapForeignPtr . Ptr.castForeignPtr
   maybeUnwrapBuiltin = \case
-    WrapForeignPtr p -> Just (Ptr.castForeignPtr p)
+    Foreign (WrapForeignPtr p) -> Just (Ptr.castForeignPtr p)
     _ -> Nothing
   {-# INLINE maybeUnwrapBuiltin #-}
 
 -- | Note: References are assumed to be type links
 instance BuiltinForeign Reference where
   builtinName = Tagged "Reference"
-  wrapBuiltin = WrapReference
+  wrapBuiltin = Foreign . WrapReference
   maybeUnwrapBuiltin = \case
-    WrapReference v -> Just v
+    Foreign (WrapReference v) -> Just v
     _ -> Nothing
   {-# INLINE maybeUnwrapBuiltin #-}
 
 instance BuiltinForeign Referent where
   builtinName = Tagged "Referent"
-  wrapBuiltin = WrapReferent
+  wrapBuiltin = Foreign . WrapReferent
   maybeUnwrapBuiltin = \case
-    WrapReferent v -> Just v
+    Foreign (WrapReferent v) -> Just v
     _ -> Nothing
   {-# INLINE maybeUnwrapBuiltin #-}
 
 instance BuiltinForeign Socket where
   builtinName = Tagged "Socket"
-  wrapBuiltin = WrapSocket
+  wrapBuiltin = Foreign . WrapSocket
   maybeUnwrapBuiltin = \case
-    WrapSocket v -> Just v
+    Foreign (WrapSocket v) -> Just v
     _ -> Nothing
   {-# INLINE maybeUnwrapBuiltin #-}
 
 instance BuiltinForeign ListenSocket where
   builtinName = Tagged "ListenSocket"
-  wrapBuiltin = WrapListenSocket
+  wrapBuiltin = Foreign . WrapListenSocket
   maybeUnwrapBuiltin = \case
-    WrapListenSocket v -> Just v
+    Foreign (WrapListenSocket v) -> Just v
     _ -> Nothing
   {-# INLINE maybeUnwrapBuiltin #-}
 
 instance BuiltinForeign ClientSockAddr where
   builtinName = Tagged "ClientSockAddr"
-  wrapBuiltin = WrapClientSockAddr
+  wrapBuiltin = Foreign . WrapClientSockAddr
   maybeUnwrapBuiltin = \case
-    WrapClientSockAddr v -> Just v
+    Foreign (WrapClientSockAddr v) -> Just v
     _ -> Nothing
   {-# INLINE maybeUnwrapBuiltin #-}
 
 instance BuiltinForeign UDPSocket where
   builtinName = Tagged "UDPSocket"
-  wrapBuiltin = WrapUDPSocket
+  wrapBuiltin = Foreign . WrapUDPSocket
   maybeUnwrapBuiltin = \case
-    WrapUDPSocket v -> Just v
+    Foreign (WrapUDPSocket v) -> Just v
     _ -> Nothing
   {-# INLINE maybeUnwrapBuiltin #-}
 
 instance BuiltinForeign ThreadId where
   builtinName = Tagged "ThreadId"
-  wrapBuiltin = WrapThreadId
+  wrapBuiltin = Foreign . WrapThreadId
   maybeUnwrapBuiltin = \case
-    WrapThreadId v -> Just v
+    Foreign (WrapThreadId v) -> Just v
     _ -> Nothing
   {-# INLINE maybeUnwrapBuiltin #-}
 
 instance BuiltinForeign TLS.ClientParams where
   builtinName = Tagged "ClientParams"
-  wrapBuiltin = WrapTlsClientParams
+  wrapBuiltin = Foreign . WrapTlsClientParams
   maybeUnwrapBuiltin = \case
-    WrapTlsClientParams v -> Just v
+    Foreign (WrapTlsClientParams v) -> Just v
     _ -> Nothing
   {-# INLINE maybeUnwrapBuiltin #-}
 
 instance BuiltinForeign TLS.ServerParams where
   builtinName = Tagged "ServerParams"
-  wrapBuiltin = WrapTlsServerParams
+  wrapBuiltin = Foreign . WrapTlsServerParams
   maybeUnwrapBuiltin = \case
-    WrapTlsServerParams v -> Just v
+    Foreign (WrapTlsServerParams v) -> Just v
     _ -> Nothing
   {-# INLINE maybeUnwrapBuiltin #-}
 
 instance BuiltinForeign X509.SignedCertificate where
   builtinName = Tagged "X509.SignedCertificate"
-  wrapBuiltin = WrapX509SignedCertificate
+  wrapBuiltin = Foreign . WrapX509SignedCertificate
   maybeUnwrapBuiltin = \case
-    WrapX509SignedCertificate v -> Just v
+    Foreign (WrapX509SignedCertificate v) -> Just v
     _ -> Nothing
   {-# INLINE maybeUnwrapBuiltin #-}
 
 instance BuiltinForeign X509.PrivKey where
   builtinName = Tagged "X509.PrivKey"
-  wrapBuiltin = WrapX509PrivKey
+  wrapBuiltin = Foreign . WrapX509PrivKey
   maybeUnwrapBuiltin = \case
-    WrapX509PrivKey v -> Just v
+    Foreign (WrapX509PrivKey v) -> Just v
     _ -> Nothing
   {-# INLINE maybeUnwrapBuiltin #-}
 
 instance BuiltinForeign Tls where
   builtinName = Tagged "Tls"
-  wrapBuiltin = WrapTls
+  wrapBuiltin = Foreign . WrapTls
   maybeUnwrapBuiltin = \case
-    WrapTls v -> Just v
+    Foreign (WrapTls v) -> Just v
     _ -> Nothing
   {-# INLINE maybeUnwrapBuiltin #-}
 
 instance BuiltinForeign (Referenced Code) where
   builtinName = Tagged "Code"
-  wrapBuiltin = WrapCode
+  wrapBuiltin = Foreign . WrapCode
   maybeUnwrapBuiltin = \case
-    WrapCode v -> Just v
+    Foreign (WrapCode v) -> Just v
     _ -> Nothing
   {-# INLINE maybeUnwrapBuiltin #-}
 
 instance BuiltinForeign (Referenced Value) where
   builtinName = Tagged "Value"
-  wrapBuiltin = WrapValue
+  wrapBuiltin = Foreign . WrapValue
   maybeUnwrapBuiltin = \case
-    WrapValue v -> Just v
+    Foreign (WrapValue v) -> Just v
     _ -> Nothing
   {-# INLINE maybeUnwrapBuiltin #-}
 
 instance BuiltinForeign TimeSpec where
   builtinName = Tagged "TimeSpec"
-  wrapBuiltin = WrapTimeSpec
+  wrapBuiltin = Foreign . WrapTimeSpec
   maybeUnwrapBuiltin = \case
-    WrapTimeSpec v -> Just v
+    Foreign (WrapTimeSpec v) -> Just v
     _ -> Nothing
   {-# INLINE maybeUnwrapBuiltin #-}
 
 instance BuiltinForeign (MutableByteArray RealWorld) where
   builtinName = Tagged "MutableByteArray"
-  wrapBuiltin = WrapMutableByteArray
+  wrapBuiltin = Foreign . WrapMutableByteArray
   maybeUnwrapBuiltin = \case
-    WrapMutableByteArray v -> Just v
+    Foreign (WrapMutableByteArray v) -> Just v
     _ -> Nothing
   {-# INLINE maybeUnwrapBuiltin #-}
 
 instance BuiltinForeign ByteArray where
   builtinName = Tagged "ByteArray"
-  wrapBuiltin = WrapByteArray
+  wrapBuiltin = Foreign . WrapByteArray
   maybeUnwrapBuiltin = \case
-    WrapByteArray v -> Just v
+    Foreign (WrapByteArray v) -> Just v
     _ -> Nothing
   {-# INLINE maybeUnwrapBuiltin #-}
 
 instance BuiltinForeign Integer where
   builtinName = Tagged "Integer"
-  wrapBuiltin = WrapInteger
+  wrapBuiltin = Foreign . WrapInteger
   maybeUnwrapBuiltin = \case
-    WrapInteger v -> Just v
+    Foreign (WrapInteger v) -> Just v
     _ -> Nothing
   {-# INLINE maybeUnwrapBuiltin #-}
 
 instance BuiltinForeign Natural where
   builtinName = Tagged "Natural"
-  wrapBuiltin = WrapNatural
+  wrapBuiltin = Foreign . WrapNatural
   maybeUnwrapBuiltin = \case
-    WrapNatural v -> Just v
+    Foreign (WrapNatural v) -> Just v
     _ -> Nothing
   {-# INLINE maybeUnwrapBuiltin #-}
 
 instance BuiltinForeign DLL where
   builtinName = Tagged "DLL"
-  wrapBuiltin = WrapDLL
+  wrapBuiltin = Foreign . WrapDLL
   maybeUnwrapBuiltin = \case
-    WrapDLL v -> Just v
+    Foreign (WrapDLL v) -> Just v
     _ -> Nothing
   {-# INLINE maybeUnwrapBuiltin #-}
 
 instance BuiltinForeign (Deque Val) where
   builtinName = Tagged "Seq"
-  wrapBuiltin = WrapSeq
+  wrapBuiltin = ListC
   maybeUnwrapBuiltin = \case
-    WrapSeq v -> Just v
+    ListC v -> Just v
     _ -> Nothing
   {-# INLINE maybeUnwrapBuiltin #-}
 
 instance BuiltinForeign (Map Val Val) where
   builtinName = Tagged "Map"
-  wrapBuiltin = WrapMap
+  wrapBuiltin = Foreign . WrapMap
   maybeUnwrapBuiltin = \case
-    WrapMap v -> Just v
+    Foreign (WrapMap v) -> Just v
     _ -> Nothing
   {-# INLINE maybeUnwrapBuiltin #-}
 
 instance BuiltinForeign (IORef Val) where
   builtinName = Tagged "IORef"
-  wrapBuiltin = WrapIORef
+  wrapBuiltin = Foreign . WrapIORef
   maybeUnwrapBuiltin = \case
-    WrapIORef v -> Just v
+    Foreign (WrapIORef v) -> Just v
     _ -> Nothing
   {-# INLINE maybeUnwrapBuiltin #-}
 
 instance BuiltinForeign (Atomic.Ticket Val) where
   builtinName = Tagged "Ticket"
-  wrapBuiltin = WrapTicket
+  wrapBuiltin = Foreign . WrapTicket
   maybeUnwrapBuiltin = \case
-    WrapTicket v -> Just v
+    Foreign (WrapTicket v) -> Just v
     _ -> Nothing
   {-# INLINE maybeUnwrapBuiltin #-}
 
 instance BuiltinForeign (MVar Val) where
   builtinName = Tagged "MVar"
-  wrapBuiltin = WrapMVar
+  wrapBuiltin = Foreign . WrapMVar
   maybeUnwrapBuiltin = \case
-    WrapMVar v -> Just v
+    Foreign (WrapMVar v) -> Just v
     _ -> Nothing
   {-# INLINE maybeUnwrapBuiltin #-}
 
 instance BuiltinForeign (TVar Val) where
   builtinName = Tagged "TVar"
-  wrapBuiltin = WrapTVar
+  wrapBuiltin = Foreign . WrapTVar
   maybeUnwrapBuiltin = \case
-    WrapTVar v -> Just v
+    Foreign (WrapTVar v) -> Just v
     _ -> Nothing
   {-# INLINE maybeUnwrapBuiltin #-}
 
 instance BuiltinForeign (Promise Val) where
   builtinName = Tagged "Promise"
-  wrapBuiltin = WrapPromise
+  wrapBuiltin = Foreign . WrapPromise
   maybeUnwrapBuiltin = \case
-    WrapPromise v -> Just v
+    Foreign (WrapPromise v) -> Just v
     _ -> Nothing
   {-# INLINE maybeUnwrapBuiltin #-}
 
 instance BuiltinForeign (MutableArray RealWorld Val) where
   builtinName = Tagged "MutableArray"
-  wrapBuiltin = WrapMutableArray
+  wrapBuiltin = Foreign . WrapMutableArray
   maybeUnwrapBuiltin = \case
-    WrapMutableArray v -> Just v
+    Foreign (WrapMutableArray v) -> Just v
     _ -> Nothing
   {-# INLINE maybeUnwrapBuiltin #-}
 
 instance BuiltinForeign (Array Val) where
   builtinName = Tagged "Array"
-  wrapBuiltin = WrapArray
+  wrapBuiltin = Foreign . WrapArray
   maybeUnwrapBuiltin = \case
-    WrapArray v -> Just v
+    Foreign (WrapArray v) -> Just v
     _ -> Nothing
   {-# INLINE maybeUnwrapBuiltin #-}
 
@@ -2582,64 +2618,64 @@ data Failure a = Failure Reference U.Text a
 
 instance BuiltinForeign HashAlgorithm where
   builtinName = Tagged "HashAlgorithm"
-  wrapBuiltin = WrapHashAlgorithm
+  wrapBuiltin = Foreign . WrapHashAlgorithm
   maybeUnwrapBuiltin = \case
-    WrapHashAlgorithm v -> Just v
+    Foreign (WrapHashAlgorithm v) -> Just v
     _ -> Nothing
   {-# INLINE maybeUnwrapBuiltin #-}
 
 instance BuiltinForeign CPattern where
   builtinName = Tagged "CPattern"
-  wrapBuiltin = WrapCPattern
+  wrapBuiltin = Foreign . WrapCPattern
   maybeUnwrapBuiltin = \case
-    WrapCPattern v -> Just v
+    Foreign (WrapCPattern v) -> Just v
     _ -> Nothing
   {-# INLINE maybeUnwrapBuiltin #-}
 
 instance BuiltinForeign CharPattern where
   builtinName = Tagged "CharPattern"
-  wrapBuiltin = WrapCharPattern
+  wrapBuiltin = Foreign . WrapCharPattern
   maybeUnwrapBuiltin = \case
-    WrapCharPattern v -> Just v
+    Foreign (WrapCharPattern v) -> Just v
     _ -> Nothing
   {-# INLINE maybeUnwrapBuiltin #-}
 
 instance BuiltinForeign Signal.Signal where
   builtinName = Tagged "IO.signal.Signal"
-  wrapBuiltin = WrapSignal
+  wrapBuiltin = Foreign . WrapSignal
   maybeUnwrapBuiltin = \case
-    WrapSignal v -> Just v
+    Foreign (WrapSignal v) -> Just v
     _ -> Nothing
   {-# INLINE maybeUnwrapBuiltin #-}
 
 instance BuiltinForeign Signal.Subscription where
   builtinName = Tagged "IO.signal.Subscription"
-  wrapBuiltin = WrapSignalSubscription
+  wrapBuiltin = Foreign . WrapSignalSubscription
   maybeUnwrapBuiltin = \case
-    WrapSignalSubscription v -> Just v
+    Foreign (WrapSignalSubscription v) -> Just v
     _ -> Nothing
   {-# INLINE maybeUnwrapBuiltin #-}
 
 instance BuiltinForeign FFType where
   builtinName = Tagged "FFI.Type"
-  wrapBuiltin = WrapFFIType
+  wrapBuiltin = Foreign . WrapFFIType
   maybeUnwrapBuiltin = \case
-    WrapFFIType v -> Just v
+    Foreign (WrapFFIType v) -> Just v
     _ -> Nothing
   {-# INLINE maybeUnwrapBuiltin #-}
 
 instance BuiltinForeign FFSpec where
   builtinName = Tagged "FFI.Spec"
-  wrapBuiltin = WrapFFISpec
+  wrapBuiltin = Foreign . WrapFFISpec
   maybeUnwrapBuiltin = \case
-    WrapFFISpec v -> Just v
+    Foreign (WrapFFISpec v) -> Just v
     _ -> Nothing
   {-# INLINE maybeUnwrapBuiltin #-}
 
 instance BuiltinForeign CDynFunc where
   builtinName = Tagged "DLL.Func"
-  wrapBuiltin = WrapCDynFunc
+  wrapBuiltin = Foreign . WrapCDynFunc
   maybeUnwrapBuiltin = \case
-    WrapCDynFunc v -> Just v
+    Foreign (WrapCDynFunc v) -> Just v
     _ -> Nothing
   {-# INLINE maybeUnwrapBuiltin #-}

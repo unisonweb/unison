@@ -2345,20 +2345,16 @@ emitJson0 = \case
       BoolVal b <- v ->
         TB.fromText $ if b then "true" else "false"
     | TT.jsonNumTag == t,
-      BoxedVal (Foreign f) <- v,
-      Just tx <- maybeUnwrapBuiltin @Text f ->
+      BoxedVal (TextC tx) <- v ->
         Util.Text.foldMapChunks TB.fromText tx
     | TT.jsonObjTag == t,
-      BoxedVal (Foreign f) <- v,
-      Just sq <- maybeUnwrapBuiltin @USeq f ->
+      BoxedVal (ListC sq) <- v ->
         renderObject $ fmap emitPair sq
     | TT.jsonTextTag == t,
-      BoxedVal (Foreign f) <- v,
-      Just tx <- maybeUnwrapBuiltin @Text f ->
+      BoxedVal (TextC tx) <- v ->
         literalForm tx
     | TT.jsonArrTag == t,
-      BoxedVal (Foreign f) <- v,
-      Just sq <- maybeUnwrapBuiltin @USeq f ->
+      BoxedVal (ListC sq) <- v ->
         renderArray $ fmap emitJsonVal sq
   c -> exn [] $ "Json.toText: unrecognized Json value: " ++ show c
   where
@@ -2371,8 +2367,7 @@ emitJson0 = \case
     renderObject s = TB.fromChar '{' <> commaSep s <> TB.fromChar '}'
 
     emitPair (Tup2V x y)
-      | BoxedVal (Foreign f) <- x,
-        Just tx <- maybeUnwrapBuiltin @Text f =
+      | BoxedVal (TextC tx) <- x =
           mapping tx (emitJsonVal y)
     emitPair v =
       exn [] $ "Json.toText: unrecognized Json object pair: " ++ show v
@@ -3234,7 +3229,7 @@ decodeText :: Closure -> IO Text
 decodeText = marshalUnwrapForeignIO
 
 encodeText :: Text -> Closure
-encodeText tx = Foreign (WrapText tx)
+encodeText tx = TextC tx
 
 instance (ForeignConvention a) => ForeignConvention (F.Failure a) where
   decodeVal (BoxedVal v) = decodeFailure v
@@ -3245,14 +3240,14 @@ instance (ForeignConvention a) => ForeignConvention (F.Failure a) where
   writeBack stk f = bpoke stk $ encodeFailure f
 
 decodeForeignClo :: forall a. (BuiltinForeign a) => Closure -> IO a
-decodeForeignClo (Foreign x)
-  | Just x <- maybeUnwrapBuiltin x = pure x
-decodeForeignClo c = foreignConventionError ty (BoxedVal c)
+decodeForeignClo c
+  | Just x <- maybeUnwrapBuiltin c = pure x
+  | otherwise = foreignConventionError ty (BoxedVal c)
   where
     Tagged ty = builtinName :: Tagged a String
 
 encodeForeignClo :: (BuiltinForeign a) => a -> Closure
-encodeForeignClo = Foreign . wrapBuiltin
+encodeForeignClo = wrapBuiltin
 
 decodeBuiltin :: forall a. (BuiltinForeign a) => Val -> IO a
 decodeBuiltin v
@@ -3268,7 +3263,7 @@ readBuiltinAt :: forall a. (BuiltinForeign a) => Stack -> Int -> IO a
 readBuiltinAt stk i = bpeekOff stk i >>= decodeForeignClo
 
 writeBuiltin :: forall a. (BuiltinForeign a) => Stack -> a -> IO ()
-writeBuiltin stk = bpoke stk . Foreign . wrapBuiltin
+writeBuiltin stk = bpoke stk . wrapBuiltin
 
 decodeAsBuiltin :: (BuiltinForeign t) => (t -> a) -> Val -> IO a
 decodeAsBuiltin k = fmap k . decodeBuiltin
@@ -3494,12 +3489,12 @@ instance ForeignConvention Foreign where
   writeBack stk f = bpoke stk (Foreign f)
 
 instance (ForeignConvention a) => ForeignConvention [a] where
-  decodeVal (BoxedVal (Foreign (WrapSeq sq))) =
+  decodeVal (BoxedVal (ListC sq)) =
     traverse decodeVal (toList sq)
   decodeVal v = foreignConventionError "List" v
 
   encodeVal l =
-    BoxedVal . Foreign . WrapSeq . Sq.fromList $ encodeVal <$> l
+    BoxedVal . ListC . Sq.fromList $ encodeVal <$> l
 
   readAtIndex stk i = traverse decodeVal . toList =<< peekOffS stk i
 

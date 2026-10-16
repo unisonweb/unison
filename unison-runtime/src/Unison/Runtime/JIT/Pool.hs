@@ -172,7 +172,7 @@ closureFor = \case
   KeyCached _ c -> c
   KeyRecord s -> RecordG s V.empty
   KeyLit l -> case l of
-    MT t -> Foreign (Stack.WrapText t)
+    MT t -> Stack.TextC t
     MM r -> Foreign (Stack.WrapReferent r)
     MY r -> Foreign (Stack.WrapReference r)
     _ -> error "closureFor: unboxed literal"

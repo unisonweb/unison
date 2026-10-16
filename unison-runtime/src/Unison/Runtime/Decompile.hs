@@ -32,6 +32,8 @@ import Unison.Runtime.Stack
   ( Closure (..),
     Foreign (..),
     HashAlgorithm (..),
+    pattern ListC,
+    pattern TextC,
     UnboxedTypeTag (..),
     Val (..),
     foreignRef,
@@ -136,6 +138,9 @@ decompile backref topTerms = \case
     BlackHole -> err Exn $ bug "<Exception>"
     (Captured {}) -> err Cont $ bug "<Continuation>"
     (Affine {}) -> err Aff $ bug "<Affine>"
+    (TextC t) -> pure $ text () (Text.toText t)
+    (ListC s) ->
+      list' () . Seq.fromList <$> traverse (decompile backref topTerms) (toList s)
     (Foreign f) ->
       decompileForeign backref topTerms f
 
@@ -159,7 +164,6 @@ decompileForeign ::
   Foreign ->
   DecompResult v
 decompileForeign backref topTerms = \case
-  WrapText t -> pure $ text () (Text.toText t)
   WrapBytes b -> pure $ decompileBytes b
   WrapHashAlgorithm h -> pure $ decompileHashAlgorithm h
   WrapReferent l ->
@@ -176,8 +180,6 @@ decompileForeign backref topTerms = \case
         ()
         (ref () ibarrayFromBytesRef)
         (decompileBytes . By.fromWord8s $ byteArrayToList a)
-  WrapSeq s ->
-    list' () . Seq.fromList <$> traverse (decompile backref topTerms) (toList s)
   WrapMap m -> do
     let decompileEntry k v = pair <$> decompile backref topTerms k <*> decompile backref topTerms v
     kvs <- traverse (uncurry decompileEntry) (Map.toList m)

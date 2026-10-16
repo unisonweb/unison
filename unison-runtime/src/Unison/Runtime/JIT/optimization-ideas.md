@@ -23,6 +23,19 @@ one traced pointer per value. It stays because `compareClosure`'s different-type
 the replaced map through the `Ord Val` instance, which can't take a lookup function. A map
 parameterized by a comparison would free it (`data-layout-plan.local.md`).
 
+### `Bytes` as a closure constructor
+
+A `Bytes` value is still `Foreign (WrapBytes rope)`, two objects and two checks before the
+rope, where a text became `TextC rope` on 2026-10-15 (`RopeKind.direct` in
+`jit_internal.h` already takes either form, so a `GBytes` constructor at tag 7 is the
+`Layout.hs` probe, `unison_jit_bytes_init`'s arguments, the `BuiltinForeign Bytes`
+instance and the `WrapBytes` sites). The same shape of change as texts and lists, with a
+smaller win: a bytes primitive would still read the info table, and bytes are rarer than
+texts in most code. `Map` (`Foreign (WrapMap …)`, matched by `dataBranch`) is a separate
+decision. The info-pointer compare in the native checks for the kinds that stay foreign
+(arrays, refs, pointers) could also go if those kinds took tags below 7, which nothing
+asks for yet.
+
 ### One allocation for several `Pack`s
 
 Consecutive `Pack`s in a straight-line run, and the arithmetic between them, could share one
@@ -207,6 +220,18 @@ runs per iteration: 445 ns per `handle` with two requests on the suite's row, ag
 per request. `Discard` (abort cases, caught exceptions) is a non-local exit and stays one.
 
 ### Open measurements
+
+- Text-keyed `Map.lookup` at 10 keys measured 108 ns on 2026-10-11 (one run) and 128 ns
+  on every binary of 2026-10-15, reproducibly: seven samples on three of the day's binaries
+  agree within 5%, and the row's parts are 47 ns of `Nat.toText` and about 94 ns of the
+  lookup itself, unchanged across the day
+  ([2026-10-15-text-list.md](benchmarks/2026-10-15-text-list.md)). The text comparison is
+  not the slow part. Whether the 10-11 figure was real or a lucky run is undecided and not
+  worth a build of that commit.
+- `Map.intersect` and `Map.==` are 10 times faster as call-outs to the Haskell `Map` than
+  native (15 against 190 ns, 28 against 300), and `fromList` of sorted input twice as fast;
+  the family is tagged as one. Tagging per function would need the two representations to
+  convert at the boundary, which is what the family tag avoids.
 
 - Private copies on a program where a hot loop calls small library functions from other
   definitions, which is where they should show; the suite's steady-state rows didn't move

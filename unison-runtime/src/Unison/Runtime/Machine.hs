@@ -267,7 +267,7 @@ unitValue = BoxedVal $ unitClosure
 
 litToVal :: MLit -> Val
 litToVal = \case
-  MT t -> BoxedVal $ Foreign (WrapText t)
+  MT t -> BoxedVal $ TextC t
   MM r -> BoxedVal $ Foreign (WrapReferent r)
   MY r -> BoxedVal $ Foreign (WrapReference r)
   MI i -> IntVal i
@@ -1647,6 +1647,8 @@ dataBranchClosureError mrf clo =
       UnboxedTypeTag FloatTag -> "a floating point number"
       UnboxedTypeTag IntTag -> "an integer"
       UnboxedTypeTag NatTag -> "a natural number"
+      TextC {} -> "a builtin value of type `" <> prettyRef Rf.textRef <> "`"
+      ListC {} -> "a builtin value of type `" <> prettyRef Rf.listRef <> "`"
       Foreign (foreignRef -> rf) ->
         "a builtin value of type `" <> prettyRef rf <> "`"
       RecordC {} -> "a record"
@@ -2201,6 +2203,8 @@ reflectValue0 rty rtm = goV0
               <$> traverse goV (V.toList vals)
           Captured k _ segs ->
             ANF.Cont <$> goVs segs <*> goK k
+          TextC t -> pure (ANF.BLit (ANF.Text t))
+          ListC s -> ANF.BLit . ANF.List . Seq.fromList <$> traverse goV (toList s)
           Foreign f -> ANF.BLit <$> goF f
           BlackHole -> reflExn "black hole"
           UnboxedTypeTag {} ->
@@ -2224,9 +2228,7 @@ reflectValue0 rty rtm = goV0
         <*> goK k
 
     goF = \case
-      WrapText t -> pure (ANF.Text t)
       WrapBytes b -> pure (ANF.Bytes b)
-      WrapSeq s -> ANF.List . Seq.fromList <$> traverse goV (toList s)
       WrapReferent l -> ANF.TmLink <$> canonicalizeReferent l
       WrapReference l -> ANF.TyLink <$> canonicalizeReference True l
       WrapValue v -> ANF.Quote <$> canonicalizeReferenced v
@@ -2516,7 +2518,7 @@ reifyValue0 (combs, rty, rtm, rrLookup, rfms) = goV
 
     goL :: ANF.BLit Reference -> IO Val
     goL (ANF.Text t) = pure $ encodeVal t
-    goL (ANF.List l) = boxedVal . Foreign . WrapSeq . Sq.fromList <$> traverse goV (toList l)
+    goL (ANF.List l) = boxedVal . ListC . Sq.fromList <$> traverse goV (toList l)
     goL (ANF.TmLink r) = pure $ encodeVal r
     goL (ANF.TyLink r) = pure $ encodeVal r
     goL (ANF.Bytes b) = pure $ encodeVal b

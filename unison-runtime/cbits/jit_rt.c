@@ -408,7 +408,7 @@ int64_t unison_jit_rts_facts(int64_t *out, int64_t n) {
 // Lists
 //
 // A Unison list is a Unison.Util.Deque of Val (a strict finger tree), held
-// as Foreign (WrapSeq deque). Every field is strict, so everything reachable
+// as ListC deque. Every field is strict, so everything reachable
 // from a list is an evaluated, tagged constructor and can be read and built
 // here without evaluating anything. These helpers are ports of the Haskell
 // operations in lib/unison-util-rope's Deque.hs (same results, structure
@@ -478,16 +478,14 @@ static inline StgWord *list_alloc(UnisonJitCtx *ctx, int64_t words) { return nat
 
 // --- building ---
 
-// Foreign (WrapSeq dq), in four words at p.
+// ListC dq, in two words at p.
 static inline void *wrap_at(StgWord *p, StgClosure *dq) {
-  p[0] = LF.wrapseq_info;
+  p[0] = LF.list_info;
   p[1] = (StgWord)dq;
-  p[2] = LF.foreign_info;
-  p[3] = (StgWord)p | LF.wrapseq_tag;
-  return (void *)((StgWord)(p + 2) | 7);
+  return (void *)((StgWord)p | LF.list_tag);
 }
 
-static inline void *wrap_list(UnisonJitCtx *ctx, StgClosure *dq) { return wrap_at(list_alloc(ctx, 4), dq); }
+static inline void *wrap_list(UnisonJitCtx *ctx, StgClosure *dq) { return wrap_at(list_alloc(ctx, 2), dq); }
 
 #define DEEP_WORDS 5
 static inline StgClosure *deep_at(StgWord *p, StgInt t, StgClosure *pr, StgClosure *m, StgClosure *sf) {
@@ -1061,7 +1059,7 @@ static inline void *view_at(StgWord *p, void *empty, int64_t elem_tag, int64_t l
     p[5] = (StgWord)-1;
     p[6] = (StgWord)LP(x, 1);
   }
-  return (void *)((StgWord)p | 4);
+  return (void *)((StgWord)p | LF.data2_tag);
 }
 
 // The view of a list from the left (x, rest) or the right (rest, x): the
@@ -1155,7 +1153,7 @@ void *unison_jit_list_index(UnisonJitCtx *ctx, void *list, int64_t i, void *none
   p[2] = (StgWord)LP(none, 0);
   p[3] = some_tag;
   p[4] = (StgWord)LP(x, 1);
-  return (void *)((StgWord)p | 3);
+  return (void *)((StgWord)p | LF.data1_tag);
 }
 
 // The Val closure at index i of a deque, for the comparison walkers.
@@ -1199,7 +1197,7 @@ void *unison_jit_list_split(UnisonJitCtx *ctx, void *list, int64_t n, void *empt
   p[4] = elem_tag;
   p[5] = (StgWord)-1;
   p[6] = (StgWord)-1;
-  return (void *)((StgWord)p | 4);
+  return (void *)((StgWord)p | LF.data2_tag);
 }
 
 // List.++
@@ -1356,8 +1354,9 @@ int64_t unison_jit_list_check(void **elems) {
 // suffix of three and no middle; elems[1] is x (a Val); elems[2] is the empty
 // list; elems[3] is a list of a thousand values added one at a time at the
 // back, which has both kinds of node. info[] holds the info pointers of
-// Foreign, Val, Data1 and Data2. Returns 1 if everything is as this file
-// assumes, else a number saying which check failed.
+// Foreign, Val, Data1 and Data2, the pointer tags of Data1 and Data2, and
+// ListC's info pointer and pointer tag. Returns 1 if everything is as this
+// file assumes, else a number saying which check failed.
 int64_t unison_jit_list_init(void **raw, int64_t *info) {
   void *elems[4] = {unison_jit_settle(raw[0]), unison_jit_settle(raw[1]), unison_jit_settle(raw[2]), unison_jit_settle(raw[3])};
   memset(&LF, 0, sizeof LF);
@@ -1365,16 +1364,17 @@ int64_t unison_jit_list_init(void **raw, int64_t *info) {
   LF.val_info = info[1];
   LF.data1_info = info[2];
   LF.data2_info = info[3];
+  LF.data1_tag = info[4];
+  LF.data2_tag = info[5];
+  LF.list_info = info[6];
+  LF.list_tag = info[7];
   StgClosure *f = elems[0];
-  if (LTAG(f) != 7 || (StgWord)LUN(f)->header.info != LF.foreign_info) return 2;
-  StgClosure *w = LP(f, 0);
-  const StgInfoTable *wit = get_itbl(LUN(w));
+  if (LTAG(f) != (int)LF.list_tag || (StgWord)LUN(f)->header.info != LF.list_info) return 2;
+  const StgInfoTable *wit = get_itbl(LUN(f));
   if (!(wit->type >= CONSTR && wit->type <= CONSTR_NOCAF) || wit->layout.payload.ptrs != 1 ||
       wit->layout.payload.nptrs != 0)
     return 3;
-  LF.wrapseq_info = (StgWord)LUN(w)->header.info;
-  LF.wrapseq_tag = LTAG(w);
-  StgClosure *dq = LP(w, 0);
+  StgClosure *dq = LP(f, 0);
   if (!con_is(dq, 2, 3, 1)) return 4;
   LF.deep_info = (StgWord)LUN(dq)->header.info;
   if (LW(dq, 3) != MK(4, 1, 3)) return 5;
@@ -1467,9 +1467,9 @@ int64_t unison_jit_list_test(void **elems, int64_t op, int64_t arg, int64_t arg2
 // ---------------------------------------------------------------------------
 // Ropes: Text and Bytes
 //
-// A Unison Text is a Unison.Util.Rope of chunks, held as Foreign (WrapText
-// rope), and a Bytes is the same rope over chunks of bytes, held as Foreign
-// (WrapBytes rope). The rope is the list's finger tree with chunks for
+// A Unison Text is a Unison.Util.Rope of chunks, held as TextC rope (one
+// closure), and a Bytes is the same rope over chunks of bytes, held as
+// Foreign (WrapBytes rope) (two). The rope is the list's finger tree with chunks for
 // elements and sizes counted in characters (bytes, for a Bytes): its middle
 // is the Deque's own Mid, so the functions above that take top = 0 work on it
 // as they are, and only the top level, whose items are chunks, is written
@@ -1915,10 +1915,16 @@ StgClosure *unison_jit_rope_chunk_at(const RopeKind *K, StgClosure *r, StgInt i,
 }
 
 
-// Foreign (WrapText rope) or (WrapBytes rope); `same` is returned if it
+// TextC rope, or Foreign (WrapBytes rope); `same` is returned if it
 // already holds that rope
 static void *wrap_rope(UnisonJitCtx *ctx, const RopeKind *K, StgClosure *rope, void *same) {
   if (same != NULL && rope_of(K, same) == rope) return same;
+  if (K->direct) {
+    StgWord *p = list_alloc(ctx, 2);
+    p[0] = K->wrap_info;
+    p[1] = (StgWord)rope;
+    return (void *)((StgWord)p | K->wrap_tag);
+  }
   StgWord *p = list_alloc(ctx, 4);
   p[0] = K->wrap_info;
   p[1] = (StgWord)rope;
@@ -2031,7 +2037,7 @@ void *unison_jit_bytes_index(UnisonJitCtx *ctx, void *bytes, int64_t i, void *no
   p[2] = (StgWord)LP(none, 0);
   p[3] = some_tag;
   p[4] = chunk_bytes(&BK, c)[off];
-  return (void *)((StgWord)p | 3);
+  return (void *)((StgWord)p | LF.data1_tag);
 }
 
 // Bytes.flatten: the same bytes in one chunk. A rope of one chunk, or none,
@@ -2138,27 +2144,37 @@ int64_t unison_jit_bytes_check(void **elems) { return rope_check(&BK, elems); }
 // Learns a kind's constructors from samples: elems[0] is a rope of the three
 // elements "abc" in one chunk, elems[1] two pieces of one element more than
 // the threshold appended, which is a Deep with one chunk in each digit,
-// elems[2] the empty rope. info[0] is Foreign's info pointer, info[1]
-// Rope.threshold and info[2] the offset of elems[0]'s chunk in its byte array
+// elems[2] the empty rope. info[0] is the info pointer of the closure
+// holding the rope (TextC's for a direct kind, else Foreign's), info[1]
+// Rope.threshold, info[2] the offset of elems[0]'s chunk in its byte array
 // (the Bytes sample is cut from a longer one, so that its offset and its size
-// differ and the two fields can't be mixed up). The constructors of the
-// digits and of the levels below are the list's (unison_jit_list_init has
-// run). Returns 1, or the number of the check that failed.
+// differ and the two fields can't be mixed up) and info[3] that closure's
+// pointer tag. The constructors of the digits and of the levels below are
+// the list's (unison_jit_list_init has run). Returns 1, or the number of the
+// check that failed.
 static int64_t rope_init(RopeKind *K, void **raw, int64_t *info) {
   void *elems[3] = {unison_jit_settle(raw[0]), unison_jit_settle(raw[1]), unison_jit_settle(raw[2])};
-  K->foreign_info = info[0];
   K->threshold = info[1];
   if (K->threshold < 1) return 14;
   StgInt piece = K->threshold + 1;
   StgClosure *f = elems[0];
-  if (LTAG(f) != 7 || (StgWord)LUN(f)->header.info != K->foreign_info) return 2;
-  StgClosure *w = LP(f, 0);
+  StgClosure *w;
+  if (K->direct) {
+    K->wrap_info = info[0];
+    K->wrap_tag = info[3];
+    if (LTAG(f) != (int)K->wrap_tag || (StgWord)LUN(f)->header.info != K->wrap_info) return 2;
+    w = f;
+  } else {
+    K->foreign_info = info[0];
+    if (LTAG(f) != 7 || info[3] != 7 || (StgWord)LUN(f)->header.info != K->foreign_info) return 2;
+    w = LP(f, 0);
+    K->wrap_info = (StgWord)LUN(w)->header.info;
+    K->wrap_tag = LTAG(w);
+  }
   const StgInfoTable *wit = get_itbl(LUN(w));
   if (!(wit->type >= CONSTR && wit->type <= CONSTR_NOCAF) || wit->layout.payload.ptrs != 1 ||
       wit->layout.payload.nptrs != 0)
     return 3;
-  K->wrap_info = (StgWord)LUN(w)->header.info;
-  K->wrap_tag = LTAG(w);
   StgClosure *one = LP(w, 0);
   if (!con_is(one, 2, 1, 0)) return 4;
   K->one_info = (StgWord)LUN(one)->header.info;
@@ -2187,6 +2203,7 @@ static int64_t rope_init(RopeKind *K, void **raw, int64_t *info) {
 
 int64_t unison_jit_text_init(void **raw, int64_t *info) {
   memset(&TK, 0, sizeof TK);
+  TK.direct = 1;
   TK.chunk_words = 4, TK.ix_count = 1, TK.ix_off = 2, TK.ix_len = 3, TK.utf8 = 1;
   return rope_init(&TK, raw, info);
 }
@@ -2305,7 +2322,7 @@ static inline void *mk_data1(UnisonJitCtx *ctx, StgClosure *ref, StgInt tag, voi
   p[2] = (StgWord)ref;
   p[3] = tag;
   p[4] = u;
-  return (void *)((StgWord)p | 3);
+  return (void *)((StgWord)p | LF.data1_tag);
 }
 
 static inline void *mk_data2(UnisonJitCtx *ctx, StgClosure *ref, StgInt tag, void *b1, StgInt u1, void *b2, StgInt u2) {
@@ -2317,7 +2334,7 @@ static inline void *mk_data2(UnisonJitCtx *ctx, StgClosure *ref, StgInt tag, voi
   p[4] = tag;
   p[5] = u1;
   p[6] = u2;
-  return (void *)((StgWord)p | 4);
+  return (void *)((StgWord)p | LF.data2_tag);
 }
 
 // Some v; `none` is the pooled None, whose first field is Optional's reference
@@ -3140,16 +3157,16 @@ void *unison_jit_bytes_from_base(UnisonJitCtx *ctx, void *bytes, int64_t base, v
 // is a copy with longer arrays: the new arguments first, the last one at
 // index 0 (as the interpreter's augSeg lays them out), then the old ones.
 
-static StgWord PF_pap_info;
+static StgWord PF_pap_info, PF_pap_tag;
 enum { PAP_USEG = 2, PAP_BSEG = 3, PAP_WORDS = 9 };
 #define NAME_MAX_ARGS 4
 
-void unison_jit_closure_init(int64_t *info) { PF_pap_info = info[0]; }
+void unison_jit_closure_init(int64_t *info) { PF_pap_info = info[0], PF_pap_tag = info[1]; }
 
 // NULL if `fun` isn't a PAp.
 void *unison_jit_name(UnisonJitCtx *ctx, void *fun, int64_t n, int64_t u0, void *b0, int64_t u1, void *b1,
                       int64_t u2, void *b2, int64_t u3, void *b3) {
-  if (LTAG(fun) != 1 || (StgWord)LUN(fun)->header.info != PF_pap_info) return NULL;
+  if (LTAG(fun) != (int)PF_pap_tag || (StgWord)LUN(fun)->header.info != PF_pap_info) return NULL;
   StgArrBytes *us = (StgArrBytes *)LP(fun, PAP_USEG);
   StgMutArrPtrs *bs = (StgMutArrPtrs *)LP(fun, PAP_BSEG);
   StgWord old = bs->ptrs, total = old + n;
@@ -3176,7 +3193,7 @@ void *unison_jit_name(UnisonJitCtx *ctx, void *fun, int64_t n, int64_t u0, void 
   }
   memcpy(&nus->payload[n], us->payload, old * sizeof(StgWord));
   memcpy(&nbs->payload[n], bs->payload, old * sizeof(StgWord));
-  return (void *)((StgWord)p | 1);
+  return (void *)((StgWord)p | PF_pap_tag);
 }
 
 // For the startup self-test: Name on elems[0] with `n` arguments, the k-th

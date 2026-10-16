@@ -204,7 +204,7 @@ static void mh_closure(MH *s, StgClosure *c) {
     mh_data_wide(s, c, arity);
   } else if (RK.ok && info == RK.record_info) {
     mh_record(s, c);
-  } else if (info == LF.foreign_info) {
+  } else if (is_builtin_info(info)) {
     StgClosure *r;
     if ((r = rope_of(&TK, c)) != NULL) {
       mh_word(s, 4);
@@ -369,7 +369,7 @@ typedef struct {
 static int uc_kind(UC *s, StgClosure *c) {
   StgWord info = (StgWord)LUN(c)->header.info;
   if (data_arity(info) >= 0) return UK_DATA;
-  if (info == LF.foreign_info) return UK_FOREIGN;
+  if (is_builtin_info(info)) return UK_FOREIGN;
   if (CK.pap_info != 0 && info == CK.pap_info) return UK_PAP;
   if (RK.ok && info == RK.record_info) return UK_RECORD;
   unison_jit_cmp_fail("closure kind", c);

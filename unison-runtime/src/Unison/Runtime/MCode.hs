@@ -465,8 +465,19 @@ countArgs (VArgN us) = sizeofPrimArray us
 countArgs (VArgV {}) = internalBug [] "countArgs: DArgV"
 {-# INLINEABLE countArgs #-}
 
+-- The first six constructors are the ones the interpreter dispatches on
+-- most (measured 2026-10-15; "Constructor order" in JIT/internals.md): GHC
+-- gives a type's first six constructors their own pointer tags, and a case
+-- on any later one reads the info table. Nothing serializes or orders by
+-- this order; the Tag instances are explicit.
 data Prim1
-  = -- integral
+  = VWLS -- viewl
+  | VWRS -- viewr
+  | SIZS -- size
+  | SIZT -- size
+  | UCNS -- uncons
+  | REFR -- Ref.read
+  | -- integral
     DECI -- decrement
   | DECN
   | INCI -- increment
@@ -505,9 +516,7 @@ data Prim1
   -- Bools
   | NOTB -- not
   -- text
-  | SIZT -- size
   | USNC -- unsnoc
-  | UCNS -- uncons
   | ITOT -- intToText
   | NTOT -- natToText
   | FTOT -- floatToText
@@ -517,9 +526,6 @@ data Prim1
   | PAKT -- pack
   | UPKT -- unpack
   -- sequence
-  | VWLS -- viewl
-  | VWRS -- viewr
-  | SIZS -- size
   | PAKB -- pack
   | UPKB -- unpack
   | SIZB -- size
@@ -537,19 +543,27 @@ data Prim1
   | SDBL -- sandbox link list
   | -- Refs
     REFN -- Ref.new
-  | REFR -- Ref.read
   | RRFC
   | TIKR
   deriving (Show, Eq, Ord, Enum, Bounded)
 
+-- The first six constructors are the ones the interpreter dispatches on
+-- most (measured 2026-10-15; "Constructor order" in JIT/internals.md): GHC
+-- gives a type's first six constructors their own pointer tags, and a case
+-- on any later one reads the info table. Nothing serializes or orders by
+-- this order; the Tag instances are explicit.
 data Prim2
-  = -- integral
+  = ADDN
+  | EQLN
+  | LESN
+  | DRPN -- dropn
+  | LEQN
+  | MULN
+  | -- integral
     ADDI -- +
-  | ADDN
   | SUBI -- -
   | SUBN
   | MULI
-  | MULN
   | DIVI -- /
   | DIVN
   | MODI -- mod
@@ -561,13 +575,10 @@ data Prim2
   | POWI -- pow
   | POWN
   | EQLI -- ==
-  | EQLN
   | NEQI -- !=
   | NEQN
   | LEQI -- <=
-  | LEQN
   | LESI -- <
-  | LESN
   | ANDN -- and
   | ANDI
   | IORN -- or
@@ -589,7 +600,6 @@ data Prim2
   | MAXF -- max
   | MINF -- min
   | CAST -- unboxed runtime type cast (int to nat, etc.)
-  | DRPN -- dropn
   -- Bools
   | ANDB -- and
   | IORB -- or
@@ -647,24 +657,42 @@ type RInstr val = GInstr (RComb val)
 
 -- Instructions for manipulating the data stack in the main portion of
 -- a block
+-- The first six constructors are the ones the interpreter dispatches on
+-- most (measured 2026-10-15; "Constructor order" in JIT/internals.md): GHC
+-- gives a type's first six constructors their own pointer tags, and a case
+-- on any later one reads the info table. Nothing serializes or orders by
+-- this order; the Tag instances are explicit.
 data GInstr comb
-  = -- 1-argument primitive operations
-    Prim1
-      !Prim1 -- primitive instruction
-      !Int -- index of prim argument
-  | -- 2-argument unboxed primitive operations
+  = -- 2-argument unboxed primitive operations
     Prim2
       !Prim2 -- primitive instruction
       !Int -- index of first prim argument
       !Int -- index of second prim argument
-  | -- Use a check-and-set ticket to update a reference
-    -- (ref stack index, ticket stack index, new value stack index)
-    RefCAS !Int !Int !Int
+  | -- Push a particular value onto the appropriate stack
+    Lit !MLit -- value to push onto the stack
+  | -- 1-argument primitive operations
+    Prim1
+      !Prim1 -- primitive instruction
+      !Int -- index of prim argument
   | -- Call out to a Haskell function.
     ForeignCall
       !Bool -- catch exceptions
       !ForeignFunc -- FFI call
       !Args -- arguments
+  | -- Pack a data type value into a closure and place it
+    -- on the stack.
+    Pack
+      !Reference -- data type reference
+      !PackedTag -- tag
+      !Args -- arguments to pack
+  | -- This is essentially the opposite of `Call`. Pack a given
+    -- statically known function into a closure with arguments.
+    -- No stack is necessary, because no nested evaluation happens,
+    -- so the instruction directly takes a follow-up.
+    Name !(GRef comb) !Args
+  | -- Use a check-and-set ticket to update a reference
+    -- (ref stack index, ticket stack index, new value stack index)
+    RefCAS !Int !Int !Int
   | -- Call a dynamically loaded function. The vacuous form of this
     -- instruction is due to the very limited circumstances it can be
     -- called in. Foreign DLL functions are only loaded at runtime, so
@@ -691,20 +719,9 @@ data GInstr comb
     Capture !Word64 -- the prompt tag
   | -- Discard the continuation up to a given marker.
     Discard !Int -- the index of the affine handler info
-  | -- This is essentially the opposite of `Call`. Pack a given
-    -- statically known function into a closure with arguments.
-    -- No stack is necessary, because no nested evaluation happens,
-    -- so the instruction directly takes a follow-up.
-    Name !(GRef comb) !Args
   | -- Dump some debugging information about the machine state to
     -- the screen.
     Info !String -- prefix for output
-  | -- Pack a data type value into a closure and place it
-    -- on the stack.
-    Pack
-      !Reference -- data type reference
-      !PackedTag -- tag
-      !Args -- arguments to pack
   | -- Pack a record type into a closure and place it on the stack.
     -- The args arrive in ascending field-name order, matching the shape's
     -- slot order.
@@ -729,8 +746,6 @@ data GInstr comb
     RecSet
       !FieldRef {- field to replace -}
       !Args {- the record and the new value -}
-  | -- Push a particular value onto the appropriate stack
-    Lit !MLit -- value to push onto the stack
   | -- Print a value on the unboxed stack
     Print !Int -- index of the primitive value to print
   | -- Put a delimiter and initial handler on the continuation.
@@ -770,14 +785,14 @@ type Section = GSection CombIx
 
 type RSection val = GSection (RComb val)
 
+-- The first six constructors are the ones the interpreter dispatches on
+-- most (measured 2026-10-15; "Constructor order" in JIT/internals.md): GHC
+-- gives a type's first six constructors their own pointer tags, and a case
+-- on any later one reads the info table. Nothing serializes or orders by
+-- this order; the Tag instances are explicit.
 data GSection comb
-  = -- Apply a function to arguments. This is the 'slow path', and
-    -- handles applying functions from arbitrary sources. This
-    -- requires checks to determine what exactly should happen.
-    App
-      !Bool -- skip argument check for known calling convention
-      !(GRef comb) -- function to call
-      !Args -- arguments
+  = -- Prefix an instruction onto a section
+    Ins !(GInstr comb) !(GSection comb)
   | -- This is the 'fast path', for when we statically know we're
     -- making an exactly saturated call to a statically known
     -- function. This allows skipping various checks that can cost
@@ -789,18 +804,12 @@ data GSection comb
       !CombIx
       {- Lazy! Might be cyclic -} comb
       !Args -- arguments
-  | -- Jump to a captured continuation value.
-    Jump
-      !Int -- index of captured continuation
-      !Args -- arguments to send to continuation
-  | -- Branch on the value in the unboxed data stack
-    Match
-      !Int -- index of unboxed item to match on
+  | -- Branch on a data type without dumping the tag onto the unboxed
+    -- stack.
+    DMatch
+      !(Maybe Reference) -- expected data type
+      !Int -- index of data item on boxed stack
       !(GBranch comb) -- branches
-  | -- Yield control to the current continuation, with arguments
-    Yield !Args -- values to yield
-  | -- Prefix an instruction onto a section
-    Ins !(GInstr comb) !(GSection comb)
   | -- Sequence two sections. The second is pushed as a return
     -- point for the results of the first. Stack modifications in
     -- the first are lost on return to the second.
@@ -816,17 +825,28 @@ data GSection comb
       !Int -- stack safety
       !(GSection comb) -- body code
       !(Ptr NativeCell) -- native code cell of the body's combinator (the re-entry point)
+  | -- Yield control to the current continuation, with arguments
+    Yield !Args -- values to yield
+  | -- Apply a function to arguments. This is the 'slow path', and
+    -- handles applying functions from arbitrary sources. This
+    -- requires checks to determine what exactly should happen.
+    App
+      !Bool -- skip argument check for known calling convention
+      !(GRef comb) -- function to call
+      !Args -- arguments
+  | -- Jump to a captured continuation value.
+    Jump
+      !Int -- index of captured continuation
+      !Args -- arguments to send to continuation
+  | -- Branch on the value in the unboxed data stack
+    Match
+      !Int -- index of unboxed item to match on
+      !(GBranch comb) -- branches
   | -- Throw an exception with the given message
     Die String
   | -- Immediately stop a thread of interpretation. This is more of
     -- a debugging tool than a proper operation to target.
     Exit
-  | -- Branch on a data type without dumping the tag onto the unboxed
-    -- stack.
-    DMatch
-      !(Maybe Reference) -- expected data type
-      !Int -- index of data item on boxed stack
-      !(GBranch comb) -- branches
   | -- Branch on a numeric type without dumping it to the stack
     NMatch
       !(Maybe Reference) -- expected data type

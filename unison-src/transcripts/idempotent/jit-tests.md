@@ -3504,3 +3504,104 @@ cmpAll x y = (x Universal.== y, x Universal.< y, x Universal.<= y, x Universal.>
            ⧩
            false
 ```
+
+## Texts and lists as closure constructors
+
+A text and a list are closure constructors of their own (one object each, since
+2026-10-15), not foreign values. They still reflect, decompile, hash and compare as they
+did: inside `Any` a text or a list orders after data and after an unboxed value, as the
+foreign values they were, and two texts or two lists compare by contents.
+
+``` unison
+use Nat + ==
+
+textsAndLists : Nat -> (Text, [Nat], Nat)
+textsAndLists n =
+  go acc t i =
+    if i == n then (t, acc, List.size acc + Text.size t)
+    else go (i +: acc) (t ++ Nat.toText i) (i + 1)
+  go [] "" 0
+
+cmpAll : a -> a -> (Boolean, Boolean, Boolean, Boolean, Boolean, Int)
+cmpAll x y = (x Universal.== y, x Universal.< y, x Universal.<= y, x Universal.> y, x Universal.>= y, Universal.compare x y)
+
+> textsAndLists 12
+> cmpAll (Any "ab") (Any "b")
+> cmpAll (Any [1, 2]) (Any [1, 3])
+> cmpAll (Any "a") (Any (Some 1))
+> cmpAll (Any [1]) (Any (Some 1))
+> cmpAll (Any 1) (Any "a")
+> cmpAll (Any 1) (Any [1])
+> cmpAll (Some "a") (Some "a")
+> cmpAll ["a", "b"] ["a", "c"]
+> Universal.murmurHashUntyped "hello"
+> Universal.murmurHashUntyped (1, "two", [3])
+> Value.serialize (Value.value ("a", [1, 2])) Universal.== Value.serialize (Value.value ("a", [1, 2]))
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  + cmpAll        : a
+                    -> a
+                    -> ( Boolean,
+                      Boolean,
+                      Boolean,
+                      Boolean,
+                      Boolean,
+                      Int)
+  + textsAndLists : Nat -> (Text, [Nat], Nat)
+
+  Run `update` to apply these changes to your codebase.
+
+    13 | > textsAndLists 12
+           ⧩
+           ( "01234567891011"
+           , [11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0]
+           , 26
+           )
+
+    14 | > cmpAll (Any "ab") (Any "b")
+           ⧩
+           (false, true, true, false, false, -1)
+
+    15 | > cmpAll (Any [1, 2]) (Any [1, 3])
+           ⧩
+           (false, true, true, false, false, -1)
+
+    16 | > cmpAll (Any "a") (Any (Some 1))
+           ⧩
+           (false, false, false, true, true, +1)
+
+    17 | > cmpAll (Any [1]) (Any (Some 1))
+           ⧩
+           (false, false, false, true, true, +1)
+
+    18 | > cmpAll (Any 1) (Any "a")
+           ⧩
+           (false, true, true, false, false, -1)
+
+    19 | > cmpAll (Any 1) (Any [1])
+           ⧩
+           (false, true, true, false, false, -1)
+
+    20 | > cmpAll (Some "a") (Some "a")
+           ⧩
+           (true, false, true, false, true, +0)
+
+    21 | > cmpAll ["a", "b"] ["a", "c"]
+           ⧩
+           (false, true, true, false, false, -1)
+
+    22 | > Universal.murmurHashUntyped "hello"
+           ⧩
+           4369220150815630094
+
+    23 | > Universal.murmurHashUntyped (1, "two", [3])
+           ⧩
+           5775252499904138194
+
+    24 | > Value.serialize (Value.value ("a", [1, 2])) Universal.== Value.serialize (Value.value ("a", [1, 2]))
+           ⧩
+           true
+```

@@ -277,6 +277,21 @@ corruption, so the debug RTS checks the heap.
   comparison. `UNISON_JIT_DISABLE=...` turns features off one at a time; the list is in
   [Config.hs](Config.hs). Bisecting with it is how the exponential generator and the pool's
   lazy segment boxes were found.
+- **A pointer tag written as a literal in C is a layout assumption the probes don't check.**
+  Moving `GPAp` past the sixth constructor (2026-10-15) changed every data tag; the
+  generator took the new tags from the layouts, but six C builders tagged their `Data1`
+  and `Data2` results with literal 3 and 4 and `unison_jit_name` its partial application
+  with 1, and a search for literal 7 had missed them. The list self-check caught it
+  ("splitting a list of 0 elements differs from the interpreter") and turned the JIT off,
+  so the round's native column was the interpreter. The tags C writes now arrive from the
+  inits (`LF.data1_tag`, `LF.data2_tag`, `PF_pap_tag`). When a run's numbers look like the
+  other mode's, count the "JIT is off" lines before reading the table.
+- Counting what the interpreter dispatches on: a `MutablePrimArray` indexed by
+  `base + dataToTag# x` (the `DataToTag` class in `GHC.Exts`), bumped at the top of `eval`,
+  in the `Ins` case and wherever a closure is scrutinized, and a thread that writes it to a
+  file once a second; the indices map back to names through the declaration order. Two
+  hooks and a rebuild of the optimized tree; what chose the constructor orders of 2026-10-15
+  ([benchmarks/2026-10-15-constructor-order.md](benchmarks/2026-10-15-constructor-order.md)).
 - Profiling the trampoline: run the transcript in the background, `sample <pid> 5`, and
   resolve the addresses in the `unison` binary against `nm -n`. Haskell code shows up as
   offsets from the nearest exported symbol, which is coarse, but the C and runtime functions

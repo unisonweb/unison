@@ -2651,8 +2651,8 @@ closureCalleeFrom fe p n = do
   emit (raw <> " = ptrtoint ptr " <> p <> " to i64")
   tagBits <- fresh "ptrtag"
   emit (tagBits <> " = and i64 " <> raw <> ", 7")
-  notPAp <- fresh "notpap"
-  emit (notPAp <> " = icmp ne i64 " <> tagBits <> ", " <> tshow (lPtrTag layout))
+  notTag <- fresh "notpap"
+  emit (notTag <> " = icmp ne i64 " <> tagBits <> ", " <> tshow (lPtrTag layout))
   base <- fresh "pap"
   emit (base <> " = and i64 " <> raw <> ", -8")
   -- The loads below are only valid for a PAp, but any closure has at
@@ -2661,8 +2661,22 @@ closureCalleeFrom fe p n = do
   -- payload, so they are guarded by a branch.
   okL <- freshLabel "pap"
   joinL <- freshLabel "pap.join"
-  cur <- curLabel
-  emit ("br i1 " <> notPAp <> ", label %" <> joinL <> ", label %" <> okL)
+  cur0 <- curLabel
+  -- a PAp shares pointer tag 7 with other kinds, so the tag alone doesn't
+  -- identify it: the info pointer is compared too (a dependent load the
+  -- tag check saved while PAp had its own tag; measured as noise)
+  notPreds <-
+    if lPtrTag layout /= 7
+      then [cur0] <$ emit ("br i1 " <> notTag <> ", label %" <> joinL <> ", label %" <> okL)
+      else do
+        chkL <- freshLabel "pap.info"
+        emit ("br i1 " <> notTag <> ", label %" <> joinL <> ", label %" <> chkL)
+        startBlock chkL
+        info <- loadFrom base "info" "i64" (0 :: Int)
+        notInfo <- fresh "notpap"
+        emit (notInfo <> " = icmp ne i64 " <> info <> ", " <> tshow (lInfo layout))
+        emit ("br i1 " <> notInfo <> ", label %" <> joinL <> ", label %" <> okL)
+        pure [cur0, chkL]
   startBlock okL
   arity <- loadFrom base "arity" "i64" (lFieldOffset layout (lPtrs layout + 2))
   cellA <- loadFrom base "cell" "i64" (lFieldOffset layout (lPtrs layout + 4))
@@ -2693,16 +2707,17 @@ closureCalleeFrom fe p n = do
   emit (bad <> " = or i1 " <> bad0 <> ", " <> noRoom)
   emit ("br label %" <> joinL)
   startBlock joinL
+  let notEntries v = intercalateT ", " (D.fromList ["[ " <> v <> ", %" <> l <> " ]" | l <- notPreds])
   skip0 <- fresh "skip"
-  emit (skip0 <> " = phi i1 [ true, %" <> cur <> " ], [ " <> bad <> ", %" <> okL <> " ]")
+  emit (skip0 <> " = phi i1 " <> notEntries "true" <> ", [ " <> bad <> ", %" <> okL <> " ]")
   fnp <- fresh "fn"
-  emit (fnp <> " = phi ptr [ null, %" <> cur <> " ], [ " <> fnp0 <> ", %" <> okL <> " ]")
+  emit (fnp <> " = phi ptr " <> notEntries "null" <> ", [ " <> fnp0 <> ", %" <> okL <> " ]")
   usegR <- fresh "cap.u"
-  emit (usegR <> " = phi i64 [ 0, %" <> cur <> " ], [ " <> useg <> ", %" <> okL <> " ]")
+  emit (usegR <> " = phi i64 " <> notEntries "0" <> ", [ " <> useg <> ", %" <> okL <> " ]")
   bsegR <- fresh "cap.b"
-  emit (bsegR <> " = phi i64 [ 0, %" <> cur <> " ], [ " <> bseg <> ", %" <> okL <> " ]")
+  emit (bsegR <> " = phi i64 " <> notEntries "0" <> ", [ " <> bseg <> ", %" <> okL <> " ]")
   countR <- fresh "cap.n"
-  emit (countR <> " = phi i64 [ 0, %" <> cur <> " ], [ " <> count <> ", %" <> okL <> " ]")
+  emit (countR <> " = phi i64 " <> notEntries "0" <> ", [ " <> count <> ", %" <> okL <> " ]")
   modify' (\st -> st {gsCaptured = Just $! Captured usegR bsegR countR})
   skip <-
     if envStressCallee env

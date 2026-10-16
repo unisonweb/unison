@@ -100,3 +100,32 @@ pattern synonyms keep every construction and matching site as it was; `buildData
 matcher now rather than three copies. The pointer-tag order changed: `Data5`, `Data6`,
 `DataG` and `Captured` are told apart by info pointer. Measured in
 `benchmarks/2026-10-15-data-layout.md`; "Layouts" in internals.md has the layout.
+
+## Constructor order (2026-10-15)
+
+GHC tags pointers to a type's first six constructors and reads the info table for the rest,
+and the interpreter's dispatch types were in declaration order: `Let` and `DMatch`, `Lit`
+and `Pack`, and the `Nat` comparisons all paid the info-table read on every dispatch while
+`Jump`, `RefCAS` and `DECI` held cheap tags. The dispatches were counted on both suites and
+`GSection`, `GInstr`, `Prim1`, `Prim2` and `Foreign` reordered by the counts. `GClosure`
+was already right at its match sites; `GPAp` then gave up its tag (only a call scrutinizes
+it, and a call's other work dwarfs an info-table read: measured at under 0.1 ns per call),
+so the data constructors with 0 to 5 fields hold tags 1 to 6 and a slot is free for a text
+or list constructor later. The tags C writes into closures now come from the probes rather
+than literals. No wire format or ordering depends on declaration order.
+Counts and timings in `benchmarks/2026-10-15-constructor-order.md`.
+
+## Texts and lists as closure constructors (2026-10-15)
+
+A text was `Foreign (WrapText rope)` and a list `Foreign (WrapSeq deque)`: two objects of
+two words each, two loads and two checks on every primitive, both allocated for every
+result. They are `TextC rope` and `ListC deque` now, constructors of `GClosure` holding
+pointer tags 1 and 2, one object each. The `BuiltinForeign` class is typed through
+`Closure`, the other Haskell values stay under `Foreign`, and the C side learns the two
+layouts from the probes like the data constructors (`rope_of` and `deque_of` are a tag
+compare and a load; bytes keep the two-level form). Nothing on the wire changed, texts and
+lists are their own cases of the ANF `Value`, and `Universal.compare` orders the new kinds
+as the foreign values they were. The six tagged constructors are `ListC`, `TextC`, `Enum`,
+`Data1`, `Data2` and `Data5` (base's `Map` node, native under the JIT: 2 to 5% on the Nat
+map rows against the node at tag 7); `Data3` and `Data4` read the info table now, which
+the tree rows show. Text and list rows 6 to 8% faster native. `benchmarks/2026-10-15-text-list.md`.
