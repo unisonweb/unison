@@ -18,7 +18,11 @@ stack exec --work-dir .stack-work-opt unison -- ... # run the optimized binary
 stack exec unison -- -C jit_codebase transcript.fork unison-src/transcripts/idempotent/jit-tests.md
 ```
 
-Run it with `UNISON_JIT=off`, `on` and `eager` at least, and the [matrix](#the-test-matrix) before a commit that touches the generator or a helper. A matching output says nothing about whether the JIT was on: run with `UNISON_JIT_LOG=1` and look for the compile lines.
+Run it with `UNISON_JIT=off`, `on` and `eager` at least, and the [matrix](#the-test-matrix) before a commit that touches the generator or a helper:
+
+```bash
+scripts/jit-test-matrix.sh            # every row, fast build; --opt, --debug, --list, or row names
+``` A matching output says nothing about whether the JIT was on: run with `UNISON_JIT_LOG=1` and look for the compile lines.
 
 **Benchmark**, on the optimized build, on an idle machine, the two suites:
 
@@ -42,8 +46,10 @@ Record a run as `benchmarks/<yyyy-mm-dd>-<what>.md`.
 | `stack build --fast` after a change in the runtime | 2 to 5 min |
 | the same after a change in `unison-util-rope` (every package depends on it) | about 5 min |
 | optimized build | about 5 min; debug RTS build about 8 min |
-| `jit-tests.md`, JIT on or eager | 10 to 25 s |
+| `jit-tests.md`, JIT on | about 20 s |
+| `jit-tests.md`, JIT eager, or a stress row of the matrix | 60 to 85 s (everything is compiled before it runs) |
 | `jit-tests.md`, JIT off | about 160 s (the tests are loops) |
+| the whole test matrix (`scripts/jit-test-matrix.sh`), fast build | about 20 min |
 | `jit-benchmarks.md` (`jitSuite`), optimized | about 1 min |
 | `jit-suite.md` (`suite`), optimized | 5.5 to 7 min per mode |
 | `jit-replacements.md`, optimized | about 10 min per mode |
@@ -127,7 +133,7 @@ The interpreter is the specification: every test runs the same program with and 
 
 #### The test matrix
 
-All on `jit-tests.md`, output identical each time. The stress modes: `poll=N` fires the preemption poll every N entries; `ustack=N` starts the Unison stack with N slots; `cstack=N` sets the C stack budget to N bytes; `callee=N` treats every N-th callee as not compiled; `alloc=N` makes the allocation budget N words; `pool=N` makes the constant pool's first array N entries so that it grows and functions check its size; `install=N` sleeps N ms before each function of a module is installed; `lists=N`, `texts=N`, `bytes=N` run N random operations through the C helpers at startup, each on the results of earlier ones, checking every result's structure and elements against Haskell.
+[`scripts/jit-test-matrix.sh`](../../../../../scripts/jit-test-matrix.sh) runs the rows below on `jit-tests.md`, each on its own copy of the transcript, and reports a row as passed when the transcript completed, the output equals the input, and the log shows the JIT in the state the row asks for (compiling, or off). `--opt` and `--debug` select the optimized and debug-RTS trees, `--list` prints the rows, and row names run a subset. Logs of failed rows are kept. All on `jit-tests.md`, output identical each time. The stress modes: `poll=N` fires the preemption poll every N entries; `ustack=N` starts the Unison stack with N slots; `cstack=N` sets the C stack budget to N bytes; `callee=N` treats every N-th callee as not compiled; `alloc=N` makes the allocation budget N words; `pool=N` makes the constant pool's first array N entries so that it grows and functions check its size; `install=N` sleeps N ms before each function of a module is installed; `lists=N`, `texts=N`, `bytes=N` run N random operations through the C helpers at startup, each on the results of earlier ones, checking every result's structure and elements against Haskell.
 
 | Configuration | Exercises |
 | --- | --- |
