@@ -120,7 +120,7 @@ dev_version=$($ucm --version 2>/dev/null | head -1) || prereq "could not run the
 
 # --- set up --------------------------------------------------------------------
 
-workdir=$(mktemp -d -t migration-test)
+workdir=$(mktemp -d "${TMPDIR:-/tmp}/migration-test.XXXXXX")
 codebase=migration-test
 log="$workdir/log"
 
