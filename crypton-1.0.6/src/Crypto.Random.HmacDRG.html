@@ -1,0 +1,215 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE TypeApplications #-}</span><span>
+</span><span id="line-2"></span><span>
+</span><span id="line-3"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Crypto.Random.HmacDRG.html"><span class="hs-identifier">Crypto.Random.HmacDRG</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Crypto.Random.HmacDRG.html#HmacDRG"><span class="hs-identifier">HmacDRG</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Crypto.Random.HmacDRG.html#initial"><span class="hs-identifier">initial</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Crypto.Random.HmacDRG.html#update"><span class="hs-identifier">update</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-4"></span><span>
+</span><span id="line-5"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Crypto.Hash.html"><span class="hs-identifier">Crypto.Hash</span></a></span><span>
+</span><span id="line-6"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Crypto.MAC.HMAC.html"><span class="hs-identifier">Crypto.MAC.HMAC</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Crypto.MAC.HMAC.html#HMAC"><span class="hs-identifier">HMAC</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Crypto.MAC.HMAC.html#hmac"><span class="hs-identifier">hmac</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-7"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Crypto.Random.Types.html"><span class="hs-identifier">Crypto.Random.Types</span></a></span><span>
+</span><span id="line-8"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.ByteArray</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">ByteArrayAccess</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">Bytes</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">ScrubbedBytes</span></span><span class="hs-special">)</span><span>
+</span><span id="line-9"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.ByteArray</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">M</span></span><span>
+</span><span id="line-10"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Maybe</span></span><span>
+</span><span id="line-11"></span><span>
+</span><span id="line-12"></span><span class="hs-comment">-- | HMAC-based Deterministic Random Generator</span><span>
+</span><span id="line-13"></span><span class="hs-comment">--</span><span>
+</span><span id="line-14"></span><span class="hs-comment">-- Adapted from NIST Special Publication 800-90A Revision 1, Section 10.1.2</span><span>
+</span><span id="line-15"></span><span class="hs-keyword">data</span><span> </span><span id="HmacDRG"><span class="annot"><a href="Crypto.Random.HmacDRG.html#HmacDRG"><span class="hs-identifier hs-var">HmacDRG</span></a></span></span><span> </span><span id="local-6989586621679276491"><span class="annot"><a href="#local-6989586621679276491"><span class="hs-identifier hs-type">hash</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="HmacDRG"><span class="annot"><a href="Crypto.Random.HmacDRG.html#HmacDRG"><span class="hs-identifier hs-var">HmacDRG</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Crypto.Hash.Types.html#Digest"><span class="hs-identifier hs-type">Digest</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679276491"><span class="hs-identifier hs-type">hash</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Crypto.Hash.Types.html#Digest"><span class="hs-identifier hs-type">Digest</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679276491"><span class="hs-identifier hs-type">hash</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-16"></span><span>
+</span><span id="line-17"></span><span class="annot"><span class="hs-comment">-- | The initial DRG state. It should be seeded via 'update' before use.</span></span><span>
+</span><span id="line-18"></span><span id="local-6989586621679276486"><span class="annot"><a href="Crypto.Random.HmacDRG.html#initial"><span class="hs-identifier hs-type">initial</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Crypto.Hash.Types.html#HashAlgorithm"><span class="hs-identifier hs-type">HashAlgorithm</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679276486"><span class="hs-identifier hs-type">hash</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679276486"><span class="hs-identifier hs-type">hash</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Crypto.Random.HmacDRG.html#HmacDRG"><span class="hs-identifier hs-type">HmacDRG</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679276486"><span class="hs-identifier hs-type">hash</span></a></span></span><span>
+</span><span id="line-19"></span><span id="initial"><span class="annot"><span class="annottext">initial :: forall hash. HashAlgorithm hash =&gt; hash -&gt; HmacDRG hash
+</span><a href="Crypto.Random.HmacDRG.html#initial"><span class="hs-identifier hs-var hs-var">initial</span></a></span></span><span> </span><span id="local-6989586621679276549"><span class="annot"><span class="annottext">hash
+</span><a href="#local-6989586621679276549"><span class="hs-identifier hs-var">algorithm</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Digest hash -&gt; Digest hash -&gt; HmacDRG hash
+forall hash. Digest hash -&gt; Digest hash -&gt; HmacDRG hash
+</span><a href="Crypto.Random.HmacDRG.html#HmacDRG"><span class="hs-identifier hs-var">HmacDRG</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Word8 -&gt; Digest hash
+</span><a href="#local-6989586621679276550"><span class="hs-identifier hs-var">constant</span></a></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">0x00</span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Word8 -&gt; Digest hash
+</span><a href="#local-6989586621679276550"><span class="hs-identifier hs-var">constant</span></a></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">0x01</span></span><span class="hs-special">)</span><span>
+</span><span id="line-20"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-21"></span><span>    </span><span id="local-6989586621679276550"><span class="annot"><span class="annottext">constant :: Word8 -&gt; Digest hash
+</span><a href="#local-6989586621679276550"><span class="hs-identifier hs-var hs-var">constant</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-22"></span><span>        </span><span class="annot"><span class="annottext">Maybe (Digest hash) -&gt; Digest hash
+forall a. HasCallStack =&gt; Maybe a -&gt; a
+</span><span class="hs-identifier hs-var">fromJust</span></span><span> </span><span class="annot"><span class="annottext">(Maybe (Digest hash) -&gt; Digest hash)
+-&gt; (Word8 -&gt; Maybe (Digest hash)) -&gt; Word8 -&gt; Digest hash
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Bytes -&gt; Maybe (Digest hash)
+forall a ba.
+(HashAlgorithm a, ByteArrayAccess ba) =&gt;
+ba -&gt; Maybe (Digest a)
+</span><a href="Crypto.Hash.html#digestFromByteString"><span class="hs-identifier hs-var">digestFromByteString</span></a></span><span> </span><span class="annot"><span class="annottext">(Bytes -&gt; Maybe (Digest hash))
+-&gt; (Word8 -&gt; Bytes) -&gt; Word8 -&gt; Maybe (Digest hash)
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">forall ba. ByteArray ba =&gt; Int -&gt; Word8 -&gt; ba
+</span><span class="hs-identifier hs-var">M.replicate</span></span><span> </span><span class="hs-glyph">@</span><span class="annot"><span class="hs-identifier hs-type">Bytes</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">hash -&gt; Int
+forall a. HashAlgorithm a =&gt; a -&gt; Int
+</span><a href="Crypto.Hash.Types.html#hashDigestSize"><span class="hs-identifier hs-var">hashDigestSize</span></a></span><span> </span><span class="annot"><span class="annottext">hash
+</span><a href="#local-6989586621679276549"><span class="hs-identifier hs-var">algorithm</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-23"></span><span>
+</span><span id="line-24"></span><span class="annot"><span class="hs-comment">-- | Update the DRG state with optional provided data.</span></span><span>
+</span><span id="line-25"></span><span id="local-6989586621679276505"><span id="local-6989586621679276506"><span class="annot"><a href="Crypto.Random.HmacDRG.html#update"><span class="hs-identifier hs-type">update</span></a></span><span>
+</span><span id="line-26"></span><span>    </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ByteArrayAccess</span></span><span> </span><span class="annot"><a href="#local-6989586621679276505"><span class="hs-identifier hs-type">input</span></a></span><span>
+</span><span id="line-27"></span><span>    </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Crypto.Hash.Types.html#HashAlgorithm"><span class="hs-identifier hs-type">HashAlgorithm</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679276506"><span class="hs-identifier hs-type">hash</span></a></span><span>
+</span><span id="line-28"></span><span>    </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679276505"><span class="hs-identifier hs-type">input</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Crypto.Random.HmacDRG.html#HmacDRG"><span class="hs-identifier hs-type">HmacDRG</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679276506"><span class="hs-identifier hs-type">hash</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Crypto.Random.HmacDRG.html#HmacDRG"><span class="hs-identifier hs-type">HmacDRG</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679276506"><span class="hs-identifier hs-type">hash</span></a></span></span></span><span>
+</span><span id="line-29"></span><span id="update"><span class="annot"><span class="annottext">update :: forall input hash.
+(ByteArrayAccess input, HashAlgorithm hash) =&gt;
+input -&gt; HmacDRG hash -&gt; HmacDRG hash
+</span><a href="Crypto.Random.HmacDRG.html#update"><span class="hs-identifier hs-var hs-var">update</span></a></span></span><span> </span><span id="local-6989586621679276567"><span class="annot"><span class="annottext">input
+</span><a href="#local-6989586621679276567"><span class="hs-identifier hs-var">input</span></a></span></span><span> </span><span id="local-6989586621679276568"><span class="annot"><span class="annottext">HmacDRG hash
+</span><a href="#local-6989586621679276568"><span class="hs-identifier hs-var">state0</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">input -&gt; Bool
+forall a. ByteArrayAccess a =&gt; a -&gt; Bool
+</span><span class="hs-identifier hs-var">M.null</span></span><span> </span><span class="annot"><span class="annottext">input
+</span><a href="#local-6989586621679276567"><span class="hs-identifier hs-var">input</span></a></span><span> </span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="annottext">HmacDRG hash
+</span><a href="#local-6989586621679276570"><span class="hs-identifier hs-var">state1</span></a></span><span> </span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="annottext">HmacDRG hash
+</span><a href="#local-6989586621679276571"><span class="hs-identifier hs-var">state2</span></a></span><span>
+</span><span id="line-30"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-31"></span><span>    </span><span id="local-6989586621679276570"><span class="annot"><span class="annottext">state1 :: HmacDRG hash
+</span><a href="#local-6989586621679276570"><span class="hs-identifier hs-var hs-var">state1</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word8 -&gt; HmacDRG hash -&gt; HmacDRG hash
+forall {hash} {hash}.
+HashAlgorithm hash =&gt;
+Word8 -&gt; HmacDRG hash -&gt; HmacDRG hash
+</span><a href="#local-6989586621679276574"><span class="hs-identifier hs-var">step</span></a></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">0x00</span></span><span> </span><span class="annot"><span class="annottext">HmacDRG hash
+</span><a href="#local-6989586621679276568"><span class="hs-identifier hs-var">state0</span></a></span><span>
+</span><span id="line-32"></span><span>    </span><span id="local-6989586621679276571"><span class="annot"><span class="annottext">state2 :: HmacDRG hash
+</span><a href="#local-6989586621679276571"><span class="hs-identifier hs-var hs-var">state2</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word8 -&gt; HmacDRG hash -&gt; HmacDRG hash
+forall {hash} {hash}.
+HashAlgorithm hash =&gt;
+Word8 -&gt; HmacDRG hash -&gt; HmacDRG hash
+</span><a href="#local-6989586621679276574"><span class="hs-identifier hs-var">step</span></a></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><span class="hs-number">0x01</span></span><span> </span><span class="annot"><span class="annottext">HmacDRG hash
+</span><a href="#local-6989586621679276570"><span class="hs-identifier hs-var">state1</span></a></span><span>
+</span><span id="line-33"></span><span>    </span><span id="local-6989586621679276574"><span class="annot"><span class="annottext">step :: Word8 -&gt; HmacDRG hash -&gt; HmacDRG hash
+</span><a href="#local-6989586621679276574"><span class="hs-identifier hs-var hs-var">step</span></a></span></span><span> </span><span id="local-6989586621679276578"><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679276578"><span class="hs-identifier hs-var">byte</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Crypto.Random.HmacDRG.html#HmacDRG"><span class="hs-identifier hs-type">HmacDRG</span></a></span><span> </span><span id="local-6989586621679276579"><span class="annot"><span class="annottext">Digest hash
+</span><a href="#local-6989586621679276579"><span class="hs-identifier hs-var">key</span></a></span></span><span> </span><span id="local-6989586621679276580"><span class="annot"><span class="annottext">Digest hash
+</span><a href="#local-6989586621679276580"><span class="hs-identifier hs-var">value</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Digest hash -&gt; Digest hash -&gt; HmacDRG hash
+forall hash. Digest hash -&gt; Digest hash -&gt; HmacDRG hash
+</span><a href="Crypto.Random.HmacDRG.html#HmacDRG"><span class="hs-identifier hs-var">HmacDRG</span></a></span><span> </span><span class="annot"><span class="annottext">Digest hash
+</span><a href="#local-6989586621679276581"><span class="hs-identifier hs-var">keyNew</span></a></span><span> </span><span class="annot"><span class="annottext">Digest hash
+</span><a href="#local-6989586621679276582"><span class="hs-identifier hs-var">valueNew</span></a></span><span>
+</span><span id="line-34"></span><span>      </span><span class="hs-keyword">where</span><span>
+</span><span id="line-35"></span><span>        </span><span id="local-6989586621679276581"><span class="annot"><span class="annottext">keyNew :: Digest hash
+</span><a href="#local-6989586621679276581"><span class="hs-identifier hs-var hs-var">keyNew</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-36"></span><span>            </span><span class="annot"><span class="annottext">HMAC hash -&gt; Digest hash
+forall a. HMAC a -&gt; Digest a
+</span><a href="Crypto.MAC.HMAC.html#hmacGetDigest"><span class="hs-identifier hs-var">hmacGetDigest</span></a></span><span> </span><span class="annot"><span class="annottext">(HMAC hash -&gt; Digest hash) -&gt; HMAC hash -&gt; Digest hash
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-37"></span><span>                </span><span class="annot"><span class="annottext">Digest hash -&gt; ScrubbedBytes -&gt; HMAC hash
+forall key message a.
+(ByteArrayAccess key, ByteArrayAccess message, HashAlgorithm a) =&gt;
+key -&gt; message -&gt; HMAC a
+</span><a href="Crypto.MAC.HMAC.html#hmac"><span class="hs-identifier hs-var">hmac</span></a></span><span> </span><span class="annot"><span class="annottext">Digest hash
+</span><a href="#local-6989586621679276579"><span class="hs-identifier hs-var">key</span></a></span><span> </span><span class="annot"><span class="annottext">(ScrubbedBytes -&gt; HMAC hash) -&gt; ScrubbedBytes -&gt; HMAC hash
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-38"></span><span>                    </span><span class="annot"><span class="annottext">Digest hash -&gt; ScrubbedBytes
+forall bin bout.
+(ByteArrayAccess bin, ByteArray bout) =&gt;
+bin -&gt; bout
+</span><span class="hs-identifier hs-var">M.convert</span></span><span> </span><span class="annot"><span class="annottext">Digest hash
+</span><a href="#local-6989586621679276580"><span class="hs-identifier hs-var">value</span></a></span><span> </span><span class="annot"><span class="annottext">ScrubbedBytes -&gt; ScrubbedBytes -&gt; ScrubbedBytes
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">forall a. ByteArray a =&gt; Word8 -&gt; a
+</span><span class="hs-identifier hs-var">M.singleton</span></span><span> </span><span class="hs-glyph">@</span><span class="annot"><span class="hs-identifier hs-type">ScrubbedBytes</span></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679276578"><span class="hs-identifier hs-var">byte</span></a></span><span> </span><span class="annot"><span class="annottext">ScrubbedBytes -&gt; ScrubbedBytes -&gt; ScrubbedBytes
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">input -&gt; ScrubbedBytes
+forall bin bout.
+(ByteArrayAccess bin, ByteArray bout) =&gt;
+bin -&gt; bout
+</span><span class="hs-identifier hs-var">M.convert</span></span><span> </span><span class="annot"><span class="annottext">input
+</span><a href="#local-6989586621679276567"><span class="hs-identifier hs-var">input</span></a></span><span>
+</span><span id="line-39"></span><span>        </span><span id="local-6989586621679276582"><span class="annot"><span class="annottext">valueNew :: Digest hash
+</span><a href="#local-6989586621679276582"><span class="hs-identifier hs-var hs-var">valueNew</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">HMAC hash -&gt; Digest hash
+forall a. HMAC a -&gt; Digest a
+</span><a href="Crypto.MAC.HMAC.html#hmacGetDigest"><span class="hs-identifier hs-var">hmacGetDigest</span></a></span><span> </span><span class="annot"><span class="annottext">(HMAC hash -&gt; Digest hash) -&gt; HMAC hash -&gt; Digest hash
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Digest hash -&gt; Digest hash -&gt; HMAC hash
+forall key message a.
+(ByteArrayAccess key, ByteArrayAccess message, HashAlgorithm a) =&gt;
+key -&gt; message -&gt; HMAC a
+</span><a href="Crypto.MAC.HMAC.html#hmac"><span class="hs-identifier hs-var">hmac</span></a></span><span> </span><span class="annot"><span class="annottext">Digest hash
+</span><a href="#local-6989586621679276581"><span class="hs-identifier hs-var">keyNew</span></a></span><span> </span><span class="annot"><span class="annottext">Digest hash
+</span><a href="#local-6989586621679276580"><span class="hs-identifier hs-var">value</span></a></span><span>
+</span><span id="line-40"></span><span>
+</span><span id="line-41"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679276531"><span class="annot"><a href="Crypto.Hash.Types.html#HashAlgorithm"><span class="hs-identifier hs-type">HashAlgorithm</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679276531"><span class="hs-identifier hs-type">hash</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Crypto.Random.Types.html#DRG"><span class="hs-identifier hs-type">DRG</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Crypto.Random.HmacDRG.html#HmacDRG"><span class="hs-identifier hs-type">HmacDRG</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679276531"><span class="hs-identifier hs-type">hash</span></a></span><span class="hs-special">)</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-42"></span><span>    </span><span id="local-6989586621679276618"><span class="annot"><span class="annottext">randomBytesGenerate :: forall byteArray.
+ByteArray byteArray =&gt;
+Int -&gt; HmacDRG hash -&gt; (byteArray, HmacDRG hash)
+</span><a href="#local-6989586621679276618"><span class="hs-identifier hs-var hs-var hs-var">randomBytesGenerate</span></a></span></span><span> </span><span id="local-6989586621679276620"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679276620"><span class="hs-identifier hs-var">count</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Crypto.Random.HmacDRG.html#HmacDRG"><span class="hs-identifier hs-type">HmacDRG</span></a></span><span> </span><span id="local-6989586621679276621"><span class="annot"><span class="annottext">Digest hash
+</span><a href="#local-6989586621679276621"><span class="hs-identifier hs-var">key</span></a></span></span><span> </span><span id="local-6989586621679276622"><span class="annot"><span class="annottext">Digest hash
+</span><a href="#local-6989586621679276622"><span class="hs-identifier hs-var">value</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">byteArray
+</span><a href="#local-6989586621679276623"><span class="hs-identifier hs-var">output</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">HmacDRG hash
+</span><a href="#local-6989586621679276624"><span class="hs-identifier hs-var">state</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-43"></span><span>      </span><span class="hs-keyword">where</span><span>
+</span><span id="line-44"></span><span>        </span><span id="local-6989586621679276623"><span class="annot"><span class="annottext">output :: byteArray
+</span><a href="#local-6989586621679276623"><span class="hs-identifier hs-var hs-var">output</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; byteArray -&gt; byteArray
+forall bs. ByteArray bs =&gt; Int -&gt; bs -&gt; bs
+</span><span class="hs-identifier hs-var">M.take</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679276620"><span class="hs-identifier hs-var">count</span></a></span><span> </span><span class="annot"><span class="annottext">byteArray
+</span><a href="#local-6989586621679276633"><span class="hs-identifier hs-var">result</span></a></span><span>
+</span><span id="line-45"></span><span>        </span><span id="local-6989586621679276624"><span class="annot"><span class="annottext">state :: HmacDRG hash
+</span><a href="#local-6989586621679276624"><span class="hs-identifier hs-var hs-var">state</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall input hash.
+(ByteArrayAccess input, HashAlgorithm hash) =&gt;
+input -&gt; HmacDRG hash -&gt; HmacDRG hash
+</span><a href="Crypto.Random.HmacDRG.html#update"><span class="hs-identifier hs-var">update</span></a></span><span> </span><span class="hs-glyph">@</span><span class="annot"><span class="hs-identifier hs-type">Bytes</span></span><span> </span><span class="annot"><span class="annottext">Bytes
+forall a. ByteArray a =&gt; a
+</span><span class="hs-identifier hs-var">M.empty</span></span><span> </span><span class="annot"><span class="annottext">(HmacDRG hash -&gt; HmacDRG hash) -&gt; HmacDRG hash -&gt; HmacDRG hash
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Digest hash -&gt; Digest hash -&gt; HmacDRG hash
+forall hash. Digest hash -&gt; Digest hash -&gt; HmacDRG hash
+</span><a href="Crypto.Random.HmacDRG.html#HmacDRG"><span class="hs-identifier hs-var">HmacDRG</span></a></span><span> </span><span class="annot"><span class="annottext">Digest hash
+</span><a href="#local-6989586621679276621"><span class="hs-identifier hs-var">key</span></a></span><span> </span><span class="annot"><span class="annottext">Digest hash
+</span><a href="#local-6989586621679276638"><span class="hs-identifier hs-var">new</span></a></span><span>
+</span><span id="line-46"></span><span>        </span><span class="hs-special">(</span><span id="local-6989586621679276633"><span class="annot"><span class="annottext">byteArray
+</span><a href="#local-6989586621679276633"><span class="hs-identifier hs-var">result</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679276638"><span class="annot"><span class="annottext">Digest hash
+</span><a href="#local-6989586621679276638"><span class="hs-identifier hs-var">new</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">byteArray -&gt; Digest hash -&gt; (byteArray, Digest hash)
+forall {t} {a}.
+(ByteArray t, HashAlgorithm a) =&gt;
+t -&gt; Digest a -&gt; (t, Digest a)
+</span><a href="#local-6989586621679276648"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">byteArray
+forall a. ByteArray a =&gt; a
+</span><span class="hs-identifier hs-var">M.empty</span></span><span> </span><span class="annot"><span class="annottext">Digest hash
+</span><a href="#local-6989586621679276622"><span class="hs-identifier hs-var">value</span></a></span><span>
+</span><span id="line-47"></span><span>        </span><span id="local-6989586621679276648"><span class="annot"><span class="annottext">go :: t -&gt; Digest a -&gt; (t, Digest a)
+</span><a href="#local-6989586621679276648"><span class="hs-identifier hs-var hs-var">go</span></a></span></span><span> </span><span id="local-6989586621679276668"><span class="annot"><span class="annottext">t
+</span><a href="#local-6989586621679276668"><span class="hs-identifier hs-var">buffer</span></a></span></span><span> </span><span id="local-6989586621679276669"><span class="annot"><span class="annottext">Digest a
+</span><a href="#local-6989586621679276669"><span class="hs-identifier hs-var">current</span></a></span></span><span>
+</span><span id="line-48"></span><span>            </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">t -&gt; Int
+forall ba. ByteArrayAccess ba =&gt; ba -&gt; Int
+</span><span class="hs-identifier hs-var">M.length</span></span><span> </span><span class="annot"><span class="annottext">t
+</span><a href="#local-6989586621679276668"><span class="hs-identifier hs-var">buffer</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&gt;=</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679276620"><span class="hs-identifier hs-var">count</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">t
+</span><a href="#local-6989586621679276668"><span class="hs-identifier hs-var">buffer</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Digest a
+</span><a href="#local-6989586621679276669"><span class="hs-identifier hs-var">current</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-49"></span><span>            </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">t -&gt; Digest a -&gt; (t, Digest a)
+</span><a href="#local-6989586621679276648"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">t
+</span><a href="#local-6989586621679276668"><span class="hs-identifier hs-var">buffer</span></a></span><span> </span><span class="annot"><span class="annottext">t -&gt; t -&gt; t
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Digest a -&gt; t
+forall bin bout.
+(ByteArrayAccess bin, ByteArray bout) =&gt;
+bin -&gt; bout
+</span><span class="hs-identifier hs-var">M.convert</span></span><span> </span><span class="annot"><span class="annottext">Digest a
+</span><a href="#local-6989586621679276671"><span class="hs-identifier hs-var">next</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Digest a
+</span><a href="#local-6989586621679276671"><span class="hs-identifier hs-var">next</span></a></span><span>
+</span><span id="line-50"></span><span>          </span><span class="hs-keyword">where</span><span>
+</span><span id="line-51"></span><span>            </span><span id="local-6989586621679276671"><span class="annot"><span class="annottext">next :: Digest a
+</span><a href="#local-6989586621679276671"><span class="hs-identifier hs-var hs-var">next</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">HMAC a -&gt; Digest a
+forall a. HMAC a -&gt; Digest a
+</span><a href="Crypto.MAC.HMAC.html#hmacGetDigest"><span class="hs-identifier hs-var">hmacGetDigest</span></a></span><span> </span><span class="annot"><span class="annottext">(HMAC a -&gt; Digest a) -&gt; HMAC a -&gt; Digest a
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Digest hash -&gt; Digest a -&gt; HMAC a
+forall key message a.
+(ByteArrayAccess key, ByteArrayAccess message, HashAlgorithm a) =&gt;
+key -&gt; message -&gt; HMAC a
+</span><a href="Crypto.MAC.HMAC.html#hmac"><span class="hs-identifier hs-var">hmac</span></a></span><span> </span><span class="annot"><span class="annottext">Digest hash
+</span><a href="#local-6989586621679276621"><span class="hs-identifier hs-var">key</span></a></span><span> </span><span class="annot"><span class="annottext">Digest a
+</span><a href="#local-6989586621679276669"><span class="hs-identifier hs-var">current</span></a></span><span>
+</span><span id="line-52"></span></pre></body></html>

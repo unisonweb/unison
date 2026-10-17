@@ -1,0 +1,518 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE Unsafe #-}</span><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# LANGUAGE MagicHash #-}</span><span>
+</span><span id="line-3"></span><span class="hs-pragma">{-# LANGUAGE NoImplicitPrelude #-}</span><span>
+</span><span id="line-4"></span><span class="hs-pragma">{-# LANGUAGE UnboxedTuples #-}</span><span>
+</span><span id="line-5"></span><span>
+</span><span id="line-6"></span><span class="hs-comment">-----------------------------------------------------------------------------</span><span>
+</span><span id="line-7"></span><span class="hs-comment">-- |</span><span>
+</span><span id="line-8"></span><span class="hs-comment">-- Module      :  GHC.Internal.Debug.Trace</span><span>
+</span><span id="line-9"></span><span class="hs-comment">-- Copyright   :  (c) The University of Glasgow 2001</span><span>
+</span><span id="line-10"></span><span class="hs-comment">-- License     :  BSD-style (see the file libraries/base/LICENSE)</span><span>
+</span><span id="line-11"></span><span class="hs-comment">--</span><span>
+</span><span id="line-12"></span><span class="hs-comment">-- Maintainer  :  libraries@haskell.org</span><span>
+</span><span id="line-13"></span><span class="hs-comment">-- Stability   :  provisional</span><span>
+</span><span id="line-14"></span><span class="hs-comment">-- Portability :  portable</span><span>
+</span><span id="line-15"></span><span class="hs-comment">--</span><span>
+</span><span id="line-16"></span><span class="hs-comment">-- Functions for tracing and monitoring execution.</span><span>
+</span><span id="line-17"></span><span class="hs-comment">--</span><span>
+</span><span id="line-18"></span><span class="hs-comment">-- These can be useful for investigating bugs or performance problems.</span><span>
+</span><span id="line-19"></span><span class="hs-comment">-- They should /not/ be used in production code.</span><span>
+</span><span id="line-20"></span><span class="hs-comment">--</span><span>
+</span><span id="line-21"></span><span class="hs-comment">-----------------------------------------------------------------------------</span><span>
+</span><span id="line-22"></span><span>
+</span><span id="line-23"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="GHC.Internal.Debug.Trace.html"><span class="hs-identifier">GHC.Internal.Debug.Trace</span></a></span><span> </span><span class="hs-special">(</span><span>
+</span><span id="line-24"></span><span>        </span><span class="annot"><span class="hs-comment">-- * Tracing</span></span><span>
+</span><span id="line-25"></span><span>        </span><span class="annot"><a href="GHC.Internal.Debug.Trace.html#trace"><span class="hs-identifier">trace</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-26"></span><span>        </span><span class="annot"><a href="GHC.Internal.Debug.Trace.html#traceId"><span class="hs-identifier">traceId</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-27"></span><span>        </span><span class="annot"><a href="GHC.Internal.Debug.Trace.html#traceShow"><span class="hs-identifier">traceShow</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-28"></span><span>        </span><span class="annot"><a href="GHC.Internal.Debug.Trace.html#traceShowId"><span class="hs-identifier">traceShowId</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-29"></span><span>        </span><span class="annot"><a href="GHC.Internal.Debug.Trace.html#traceWith"><span class="hs-identifier">traceWith</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-30"></span><span>        </span><span class="annot"><a href="GHC.Internal.Debug.Trace.html#traceShowWith"><span class="hs-identifier">traceShowWith</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-31"></span><span>        </span><span class="annot"><a href="GHC.Internal.Debug.Trace.html#traceStack"><span class="hs-identifier">traceStack</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-32"></span><span>        </span><span class="annot"><a href="GHC.Internal.Debug.Trace.html#traceIO"><span class="hs-identifier">traceIO</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-33"></span><span>        </span><span class="annot"><a href="GHC.Internal.Debug.Trace.html#traceM"><span class="hs-identifier">traceM</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-34"></span><span>        </span><span class="annot"><a href="GHC.Internal.Debug.Trace.html#traceShowM"><span class="hs-identifier">traceShowM</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-35"></span><span>        </span><span class="annot"><a href="GHC.Internal.Debug.Trace.html#putTraceMsg"><span class="hs-identifier">putTraceMsg</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-36"></span><span>
+</span><span id="line-37"></span><span>        </span><span class="annot"><span class="hs-comment">-- * Eventlog tracing</span></span><span>
+</span><span id="line-38"></span><span>        </span><span class="annot"><a href="GHC.Internal.Debug.Trace.html#traceEvent"><span class="hs-identifier">traceEvent</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-39"></span><span>        </span><span class="annot"><a href="GHC.Internal.Debug.Trace.html#traceEventWith"><span class="hs-identifier">traceEventWith</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-40"></span><span>        </span><span class="annot"><a href="GHC.Internal.Debug.Trace.html#traceEventIO"><span class="hs-identifier">traceEventIO</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-41"></span><span>        </span><span class="annot"><a href="GHC.Internal.Debug.Trace.html#flushEventLog"><span class="hs-identifier">flushEventLog</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-42"></span><span>
+</span><span id="line-43"></span><span>        </span><span class="annot"><span class="hs-comment">-- * Execution phase markers</span></span><span>
+</span><span id="line-44"></span><span>        </span><span class="annot"><a href="GHC.Internal.Debug.Trace.html#traceMarker"><span class="hs-identifier">traceMarker</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-45"></span><span>        </span><span class="annot"><a href="GHC.Internal.Debug.Trace.html#traceMarkerIO"><span class="hs-identifier">traceMarkerIO</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-46"></span><span>  </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-47"></span><span>
+</span><span id="line-48"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Internal.Foreign.C.String.html"><span class="hs-identifier">GHC.Internal.Foreign.C.String</span></a></span><span>
+</span><span id="line-49"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="GHC.Internal.Foreign.C.String.Encoding.html"><span class="hs-identifier">GHC.Internal.Foreign.C.String.Encoding</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Enc</span></span><span>
+</span><span id="line-50"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Internal.Base.html"><span class="hs-identifier">GHC.Internal.Base</span></a></span><span>
+</span><span id="line-51"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Internal.IO.Encoding.html"><span class="hs-identifier">GHC.Internal.IO.Encoding</span></a></span><span>
+</span><span id="line-52"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Internal.IO.Unsafe.html"><span class="hs-identifier">GHC.Internal.IO.Unsafe</span></a></span><span>
+</span><span id="line-53"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Internal.Ptr.html"><span class="hs-identifier">GHC.Internal.Ptr</span></a></span><span>
+</span><span id="line-54"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Internal.Show.html"><span class="hs-identifier">GHC.Internal.Show</span></a></span><span>
+</span><span id="line-55"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Internal.Stack.html"><span class="hs-identifier">GHC.Internal.Stack</span></a></span><span>
+</span><span id="line-56"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Internal.Data.List.html"><span class="hs-identifier">GHC.Internal.Data.List</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Internal.Data.Foldable.html#null"><span class="hs-identifier">null</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Internal.Data.OldList.html#partition"><span class="hs-identifier">partition</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-57"></span><span>
+</span><span id="line-58"></span><span class="hs-comment">-- | The 'traceIO' function outputs the trace message from the IO monad.</span><span>
+</span><span id="line-59"></span><span class="hs-comment">-- This sequences the output with respect to other IO actions.</span><span>
+</span><span id="line-60"></span><span class="hs-comment">--</span><span>
+</span><span id="line-61"></span><span class="hs-comment">-- @since base-4.5.0.0</span><span>
+</span><span id="line-62"></span><span class="annot"><a href="GHC.Internal.Debug.Trace.html#traceIO"><span class="hs-identifier hs-type">traceIO</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Internal.Base.html#String"><span class="hs-identifier hs-type">String</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="../../ghc-prim-0.12.0-595c/src/GHC.Types.html#IO"><span class="hs-identifier hs-type">IO</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-63"></span><span id="traceIO"><span class="annot"><span class="annottext">traceIO :: String -&gt; IO ()
+</span><a href="GHC.Internal.Debug.Trace.html#traceIO"><span class="hs-identifier hs-var hs-var">traceIO</span></a></span></span><span> </span><span id="local-6989586621679680062"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679680062"><span class="hs-identifier hs-var">msg</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-64"></span><span>    </span><span class="annot"><span class="annottext">String -&gt; (CString -&gt; IO ()) -&gt; IO ()
+forall a. String -&gt; (CString -&gt; IO a) -&gt; IO a
+</span><a href="GHC.Internal.Foreign.C.String.html#withCString"><span class="hs-identifier hs-var">withCString</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;%s\n&quot;</span></span><span> </span><span class="annot"><span class="annottext">((CString -&gt; IO ()) -&gt; IO ()) -&gt; (CString -&gt; IO ()) -&gt; IO ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="GHC.Internal.Base.html#%24"><span class="hs-operator hs-var">$</span></a></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679680064"><span class="annot"><span class="annottext">CString
+</span><a href="#local-6989586621679680064"><span class="hs-identifier hs-var">cfmt</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-65"></span><span>     </span><span class="hs-comment">-- NB: debugBelch can't deal with null bytes, so filter them</span><span>
+</span><span id="line-66"></span><span>     </span><span class="hs-comment">-- out so we don't accidentally truncate the message.  See #9395</span><span>
+</span><span id="line-67"></span><span>     </span><span class="hs-keyword">let</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679680067"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679680067"><span class="hs-identifier hs-var hs-var">nulls</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679680068"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679680068"><span class="hs-identifier hs-var hs-var">msg'</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Char -&gt; Bool) -&gt; String -&gt; (String, String)
+forall a. (a -&gt; Bool) -&gt; [a] -&gt; ([a], [a])
+</span><a href="GHC.Internal.Data.OldList.html#partition"><span class="hs-identifier hs-var">partition</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Char -&gt; Char -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><a href="../../ghc-prim-0.12.0-595c/src/GHC.Classes.html#%3D%3D"><span class="hs-operator hs-var">==</span></a></span><span class="annot"><span class="annottext">Char
+</span><span class="hs-char">'\0'</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679680062"><span class="hs-identifier hs-var">msg</span></a></span><span>
+</span><span id="line-68"></span><span>     </span><span class="annot"><span class="annottext">String -&gt; (CString -&gt; IO ()) -&gt; IO ()
+forall a. String -&gt; (CString -&gt; IO a) -&gt; IO a
+</span><a href="GHC.Internal.Foreign.C.String.html#withCString"><span class="hs-identifier hs-var">withCString</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679680068"><span class="hs-identifier hs-var">msg'</span></a></span><span> </span><span class="annot"><span class="annottext">((CString -&gt; IO ()) -&gt; IO ()) -&gt; (CString -&gt; IO ()) -&gt; IO ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="GHC.Internal.Base.html#%24"><span class="hs-operator hs-var">$</span></a></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679680069"><span class="annot"><span class="annottext">CString
+</span><a href="#local-6989586621679680069"><span class="hs-identifier hs-var">cmsg</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-69"></span><span>      </span><span class="annot"><span class="annottext">CString -&gt; CString -&gt; IO ()
+</span><a href="GHC.Internal.Debug.Trace.html#debugBelch"><span class="hs-identifier hs-var">debugBelch</span></a></span><span> </span><span class="annot"><span class="annottext">CString
+</span><a href="#local-6989586621679680064"><span class="hs-identifier hs-var">cfmt</span></a></span><span> </span><span class="annot"><span class="annottext">CString
+</span><a href="#local-6989586621679680069"><span class="hs-identifier hs-var">cmsg</span></a></span><span>
+</span><span id="line-70"></span><span>     </span><span class="annot"><span class="annottext">Bool -&gt; IO () -&gt; IO ()
+forall (f :: * -&gt; *). Applicative f =&gt; Bool -&gt; f () -&gt; f ()
+</span><a href="GHC.Internal.Base.html#when"><span class="hs-identifier hs-var">when</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Bool -&gt; Bool
+</span><a href="../../ghc-prim-0.12.0-595c/src/GHC.Classes.html#not"><span class="hs-identifier hs-var">not</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String -&gt; Bool
+forall a. [a] -&gt; Bool
+forall (t :: * -&gt; *) a. Foldable t =&gt; t a -&gt; Bool
+</span><a href="GHC.Internal.Data.Foldable.html#null"><span class="hs-identifier hs-var">null</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679680067"><span class="hs-identifier hs-var">nulls</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(IO () -&gt; IO ()) -&gt; IO () -&gt; IO ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="GHC.Internal.Base.html#%24"><span class="hs-operator hs-var">$</span></a></span><span>
+</span><span id="line-71"></span><span>       </span><span class="annot"><span class="annottext">String -&gt; (CString -&gt; IO ()) -&gt; IO ()
+forall a. String -&gt; (CString -&gt; IO a) -&gt; IO a
+</span><a href="GHC.Internal.Foreign.C.String.html#withCString"><span class="hs-identifier hs-var">withCString</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;WARNING: previous trace message had null bytes&quot;</span></span><span> </span><span class="annot"><span class="annottext">((CString -&gt; IO ()) -&gt; IO ()) -&gt; (CString -&gt; IO ()) -&gt; IO ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="GHC.Internal.Base.html#%24"><span class="hs-operator hs-var">$</span></a></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679680073"><span class="annot"><span class="annottext">CString
+</span><a href="#local-6989586621679680073"><span class="hs-identifier hs-var">cmsg</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-72"></span><span>         </span><span class="annot"><span class="annottext">CString -&gt; CString -&gt; IO ()
+</span><a href="GHC.Internal.Debug.Trace.html#debugBelch"><span class="hs-identifier hs-var">debugBelch</span></a></span><span> </span><span class="annot"><span class="annottext">CString
+</span><a href="#local-6989586621679680064"><span class="hs-identifier hs-var">cfmt</span></a></span><span> </span><span class="annot"><span class="annottext">CString
+</span><a href="#local-6989586621679680073"><span class="hs-identifier hs-var">cmsg</span></a></span><span>
+</span><span id="line-73"></span><span>
+</span><span id="line-74"></span><span class="hs-comment">-- don't use debugBelch() directly, because we cannot call varargs functions</span><span>
+</span><span id="line-75"></span><span class="hs-comment">-- using the FFI.</span><span>
+</span><span id="line-76"></span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-keyword">ccall</span></span><span> </span><span class="annot"><span class="hs-keyword">unsafe</span></span><span> </span><span class="annot"><span class="hs-string">&quot;HsBase.h debugBelch2&quot;</span></span><span>
+</span><span id="line-77"></span><span>   </span><span id="debugBelch"><span class="annot"><a href="GHC.Internal.Debug.Trace.html#debugBelch"><span class="hs-identifier hs-var">debugBelch</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Internal.Foreign.C.String.Encoding.html#CString"><span class="hs-identifier hs-type">CString</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Internal.Foreign.C.String.Encoding.html#CString"><span class="hs-identifier hs-type">CString</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="../../ghc-prim-0.12.0-595c/src/GHC.Types.html#IO"><span class="hs-identifier hs-type">IO</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-78"></span><span>
+</span><span id="line-79"></span><span class="annot"><span class="hs-comment">-- |</span></span><span>
+</span><span id="line-80"></span><span class="annot"><a href="GHC.Internal.Debug.Trace.html#putTraceMsg"><span class="hs-identifier hs-type">putTraceMsg</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Internal.Base.html#String"><span class="hs-identifier hs-type">String</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="../../ghc-prim-0.12.0-595c/src/GHC.Types.html#IO"><span class="hs-identifier hs-type">IO</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-81"></span><span id="putTraceMsg"><span class="annot"><span class="annottext">putTraceMsg :: String -&gt; IO ()
+</span><a href="GHC.Internal.Debug.Trace.html#putTraceMsg"><span class="hs-identifier hs-var hs-var">putTraceMsg</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; IO ()
+</span><a href="GHC.Internal.Debug.Trace.html#traceIO"><span class="hs-identifier hs-var">traceIO</span></a></span><span>
+</span><span id="line-82"></span><span class="hs-pragma">{-# DEPRECATED</span><span> </span><span class="hs-pragma">putTraceMsg</span><span> </span><span class="hs-pragma">&quot;Use 'GHC.Internal.Debug.Trace.traceIO'&quot;</span><span> </span><span class="hs-pragma">#-}</span><span> </span><span class="hs-comment">-- deprecated in 7.4</span><span>
+</span><span id="line-83"></span><span>
+</span><span id="line-84"></span><span>
+</span><span id="line-85"></span><span class="hs-pragma">{-# NOINLINE</span><span> </span><span class="annot"><a href="GHC.Internal.Debug.Trace.html#trace"><span class="hs-pragma hs-type">trace</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-86"></span><span class="annot"><span class="hs-comment">{-|
+The 'trace' function outputs the trace message given as its first argument,
+before returning the second argument as its result.
+
+For example, this returns the value of @f x@ and outputs the message to stderr.
+Depending on your terminal (settings), they may or may not be mixed.
+
+&gt;&gt;&gt; let x = 123; f = show
+&gt;&gt;&gt; trace (&quot;calling f with x = &quot; ++ show x) (f x)
+calling f with x = 123
+&quot;123&quot;
+
+The 'trace' function should /only/ be used for debugging, or for monitoring
+execution. The function is not referentially transparent: its type indicates
+that it is a pure function but it has the side effect of outputting the
+trace message.
+-}</span></span><span>
+</span><span id="line-103"></span><span id="local-6989586621679680000"><span class="annot"><a href="GHC.Internal.Debug.Trace.html#trace"><span class="hs-identifier hs-type">trace</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Internal.Base.html#String"><span class="hs-identifier hs-type">String</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679680000"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679680000"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-104"></span><span id="trace"><span class="annot"><span class="annottext">trace :: forall a. String -&gt; a -&gt; a
+</span><a href="GHC.Internal.Debug.Trace.html#trace"><span class="hs-identifier hs-var hs-var">trace</span></a></span></span><span> </span><span id="local-6989586621679680076"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679680076"><span class="hs-identifier hs-var">string</span></a></span></span><span> </span><span id="local-6989586621679680077"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679680077"><span class="hs-identifier hs-var">expr</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">IO a -&gt; a
+forall a. IO a -&gt; a
+</span><a href="GHC.Internal.IO.Unsafe.html#unsafePerformIO"><span class="hs-identifier hs-var">unsafePerformIO</span></a></span><span> </span><span class="annot"><span class="annottext">(IO a -&gt; a) -&gt; IO a -&gt; a
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="GHC.Internal.Base.html#%24"><span class="hs-operator hs-var">$</span></a></span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-105"></span><span>    </span><span class="annot"><span class="annottext">String -&gt; IO ()
+</span><a href="GHC.Internal.Debug.Trace.html#traceIO"><span class="hs-identifier hs-var">traceIO</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679680076"><span class="hs-identifier hs-var">string</span></a></span><span>
+</span><span id="line-106"></span><span>    </span><span class="annot"><span class="annottext">a -&gt; IO a
+forall a. a -&gt; IO a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><a href="GHC.Internal.Base.html#return"><span class="hs-identifier hs-var">return</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679680077"><span class="hs-identifier hs-var">expr</span></a></span><span>
+</span><span id="line-107"></span><span>
+</span><span id="line-108"></span><span class="annot"><span class="hs-comment">{-|
+Like 'trace' but returns the message instead of a third value.
+
+&gt;&gt;&gt; traceId &quot;hello&quot;
+hello
+&quot;hello&quot;
+
+@since base-4.7.0.0
+-}</span></span><span>
+</span><span id="line-117"></span><span class="annot"><a href="GHC.Internal.Debug.Trace.html#traceId"><span class="hs-identifier hs-type">traceId</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Internal.Base.html#String"><span class="hs-identifier hs-type">String</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Internal.Base.html#String"><span class="hs-identifier hs-type">String</span></a></span><span>
+</span><span id="line-118"></span><span id="traceId"><span class="annot"><span class="annottext">traceId :: String -&gt; String
+</span><a href="GHC.Internal.Debug.Trace.html#traceId"><span class="hs-identifier hs-var hs-var">traceId</span></a></span></span><span> </span><span id="local-6989586621679680079"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679680079"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; String -&gt; String
+forall a. String -&gt; a -&gt; a
+</span><a href="GHC.Internal.Debug.Trace.html#trace"><span class="hs-identifier hs-var">trace</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679680079"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679680079"><span class="hs-identifier hs-var">a</span></a></span><span>
+</span><span id="line-119"></span><span>
+</span><span id="line-120"></span><span class="annot"><span class="hs-comment">{-|
+Like 'trace', but uses 'show' on the argument to convert it to a 'String'.
+
+This makes it convenient for printing the values of interesting variables or
+expressions inside a function. For example, here we print the values of the
+variables @x@ and @y@:
+
+&gt;&gt;&gt; let f x y = traceShow (&quot;x&quot;, x, &quot;y&quot;, y) (x + y) in f (1+2) 5
+(&quot;x&quot;,3,&quot;y&quot;,5)
+8
+
+Note in this example we also create simple labels just by including some strings.
+
+-}</span></span><span>
+</span><span id="line-134"></span><span id="local-6989586621679680005"><span id="local-6989586621679680006"><span class="annot"><a href="GHC.Internal.Debug.Trace.html#traceShow"><span class="hs-identifier hs-type">traceShow</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Internal.Show.html#Show"><span class="hs-identifier hs-type">Show</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679680005"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679680005"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679680006"><span class="hs-identifier hs-type">b</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679680006"><span class="hs-identifier hs-type">b</span></a></span></span></span><span>
+</span><span id="line-135"></span><span id="traceShow"><span class="annot"><span class="annottext">traceShow :: forall a b. Show a =&gt; a -&gt; b -&gt; b
+</span><a href="GHC.Internal.Debug.Trace.html#traceShow"><span class="hs-identifier hs-var hs-var">traceShow</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; b -&gt; b
+forall a. String -&gt; a -&gt; a
+</span><a href="GHC.Internal.Debug.Trace.html#trace"><span class="hs-identifier hs-var">trace</span></a></span><span> </span><span class="annot"><span class="annottext">(String -&gt; b -&gt; b) -&gt; (a -&gt; String) -&gt; a -&gt; b -&gt; b
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><a href="GHC.Internal.Base.html#."><span class="hs-operator hs-var">.</span></a></span><span> </span><span class="annot"><span class="annottext">a -&gt; String
+forall a. Show a =&gt; a -&gt; String
+</span><a href="GHC.Internal.Show.html#show"><span class="hs-identifier hs-var">show</span></a></span><span>
+</span><span id="line-136"></span><span>
+</span><span id="line-137"></span><span class="annot"><span class="hs-comment">{-|
+Like 'traceShow' but returns the shown value instead of a third value.
+
+&gt;&gt;&gt; traceShowId (1+2+3, &quot;hello&quot; ++ &quot;world&quot;)
+(6,&quot;helloworld&quot;)
+(6,&quot;helloworld&quot;)
+
+@since base-4.7.0.0
+-}</span></span><span>
+</span><span id="line-146"></span><span id="local-6989586621679680013"><span class="annot"><a href="GHC.Internal.Debug.Trace.html#traceShowId"><span class="hs-identifier hs-type">traceShowId</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Internal.Show.html#Show"><span class="hs-identifier hs-type">Show</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679680013"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679680013"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679680013"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-147"></span><span id="traceShowId"><span class="annot"><span class="annottext">traceShowId :: forall a. Show a =&gt; a -&gt; a
+</span><a href="GHC.Internal.Debug.Trace.html#traceShowId"><span class="hs-identifier hs-var hs-var">traceShowId</span></a></span></span><span> </span><span id="local-6989586621679680086"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679680086"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; a -&gt; a
+forall a. String -&gt; a -&gt; a
+</span><a href="GHC.Internal.Debug.Trace.html#trace"><span class="hs-identifier hs-var">trace</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a -&gt; String
+forall a. Show a =&gt; a -&gt; String
+</span><a href="GHC.Internal.Show.html#show"><span class="hs-identifier hs-var">show</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679680086"><span class="hs-identifier hs-var">a</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679680086"><span class="hs-identifier hs-var">a</span></a></span><span>
+</span><span id="line-148"></span><span>
+</span><span id="line-149"></span><span class="annot"><span class="hs-comment">{-|
+Like 'trace', but outputs the result of calling a function on the argument.
+
+&gt;&gt;&gt; traceWith fst (&quot;hello&quot;,&quot;world&quot;)
+hello
+(&quot;hello&quot;,&quot;world&quot;)
+
+@since base-4.18.0.0
+-}</span></span><span>
+</span><span id="line-158"></span><span id="local-6989586621679680015"><span class="annot"><a href="GHC.Internal.Debug.Trace.html#traceWith"><span class="hs-identifier hs-type">traceWith</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679680015"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Internal.Base.html#String"><span class="hs-identifier hs-type">String</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679680015"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679680015"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-159"></span><span id="traceWith"><span class="annot"><span class="annottext">traceWith :: forall a. (a -&gt; String) -&gt; a -&gt; a
+</span><a href="GHC.Internal.Debug.Trace.html#traceWith"><span class="hs-identifier hs-var hs-var">traceWith</span></a></span></span><span> </span><span id="local-6989586621679680087"><span class="annot"><span class="annottext">a -&gt; String
+</span><a href="#local-6989586621679680087"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span id="local-6989586621679680088"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679680088"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; a -&gt; a
+forall a. String -&gt; a -&gt; a
+</span><a href="GHC.Internal.Debug.Trace.html#trace"><span class="hs-identifier hs-var">trace</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a -&gt; String
+</span><a href="#local-6989586621679680087"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679680088"><span class="hs-identifier hs-var">a</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679680088"><span class="hs-identifier hs-var">a</span></a></span><span>
+</span><span id="line-160"></span><span>
+</span><span id="line-161"></span><span class="annot"><span class="hs-comment">{-|
+Like 'traceWith', but uses 'show' on the result of the function to convert it to
+a 'String'.
+
+&gt;&gt;&gt; traceShowWith length [1,2,3]
+3
+[1,2,3]
+
+@since base-4.18.0.0
+-}</span></span><span>
+</span><span id="line-171"></span><span id="local-6989586621679680017"><span id="local-6989586621679680018"><span class="annot"><a href="GHC.Internal.Debug.Trace.html#traceShowWith"><span class="hs-identifier hs-type">traceShowWith</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Internal.Show.html#Show"><span class="hs-identifier hs-type">Show</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679680017"><span class="hs-identifier hs-type">b</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679680018"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679680017"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679680018"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679680018"><span class="hs-identifier hs-type">a</span></a></span></span></span><span>
+</span><span id="line-172"></span><span id="traceShowWith"><span class="annot"><span class="annottext">traceShowWith :: forall b a. Show b =&gt; (a -&gt; b) -&gt; a -&gt; a
+</span><a href="GHC.Internal.Debug.Trace.html#traceShowWith"><span class="hs-identifier hs-var hs-var">traceShowWith</span></a></span></span><span> </span><span id="local-6989586621679680091"><span class="annot"><span class="annottext">a -&gt; b
+</span><a href="#local-6989586621679680091"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(a -&gt; String) -&gt; a -&gt; a
+forall a. (a -&gt; String) -&gt; a -&gt; a
+</span><a href="GHC.Internal.Debug.Trace.html#traceWith"><span class="hs-identifier hs-var">traceWith</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">b -&gt; String
+forall a. Show a =&gt; a -&gt; String
+</span><a href="GHC.Internal.Show.html#show"><span class="hs-identifier hs-var">show</span></a></span><span> </span><span class="annot"><span class="annottext">(b -&gt; String) -&gt; (a -&gt; b) -&gt; a -&gt; String
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><a href="GHC.Internal.Base.html#."><span class="hs-operator hs-var">.</span></a></span><span> </span><span class="annot"><span class="annottext">a -&gt; b
+</span><a href="#local-6989586621679680091"><span class="hs-identifier hs-var">f</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-173"></span><span>
+</span><span id="line-174"></span><span class="annot"><span class="hs-comment">{-|
+Like 'trace' but returning unit in an arbitrary 'Applicative' context. Allows
+for convenient use in do-notation.
+
+Note that the application of 'traceM' is not an action in the 'Applicative'
+context, as 'traceIO' is in the 'IO' type. While the fresh bindings in the
+following example will force the 'traceM' expressions to be reduced every time
+the @do@-block is executed, @traceM &quot;not crashed&quot;@ would only be reduced once,
+and the message would only be printed once.  If your monad is in
+'Control.Monad.IO.Class.MonadIO', @'Control.Monad.IO.Class.liftIO' . 'traceIO'@
+may be a better option.
+
+&gt;&gt;&gt; :{
+do
+    x &lt;- Just 3
+    traceM (&quot;x: &quot; ++ show x)
+    y &lt;- pure 12
+    traceM (&quot;y: &quot; ++ show y)
+    pure (x*2 + y)
+:}
+x: 3
+y: 12
+Just 18
+
+@since base-4.7.0.0
+-}</span></span><span>
+</span><span id="line-200"></span><span id="local-6989586621679680021"><span class="annot"><a href="GHC.Internal.Debug.Trace.html#traceM"><span class="hs-identifier hs-type">traceM</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Internal.Base.html#Applicative"><span class="hs-identifier hs-type">Applicative</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679680021"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="GHC.Internal.Base.html#String"><span class="hs-identifier hs-type">String</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679680021"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span></span><span>
+</span><span id="line-201"></span><span id="traceM"><span class="annot"><span class="annottext">traceM :: forall (f :: * -&gt; *). Applicative f =&gt; String -&gt; f ()
+</span><a href="GHC.Internal.Debug.Trace.html#traceM"><span class="hs-identifier hs-var hs-var">traceM</span></a></span></span><span> </span><span id="local-6989586621679680094"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679680094"><span class="hs-identifier hs-var">string</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; f () -&gt; f ()
+forall a. String -&gt; a -&gt; a
+</span><a href="GHC.Internal.Debug.Trace.html#trace"><span class="hs-identifier hs-var">trace</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679680094"><span class="hs-identifier hs-var">string</span></a></span><span> </span><span class="annot"><span class="annottext">(f () -&gt; f ()) -&gt; f () -&gt; f ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="GHC.Internal.Base.html#%24"><span class="hs-operator hs-var">$</span></a></span><span> </span><span class="annot"><span class="annottext">() -&gt; f ()
+forall a. a -&gt; f a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><a href="GHC.Internal.Base.html#pure"><span class="hs-identifier hs-var">pure</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-202"></span><span>
+</span><span id="line-203"></span><span class="annot"><span class="hs-comment">{-|
+Like 'traceM', but uses 'show' on the argument to convert it to a 'String'.
+
+&gt;&gt;&gt; :{
+do
+    x &lt;- Just 3
+    traceShowM x
+    y &lt;- pure 12
+    traceShowM y
+    pure (x*2 + y)
+:}
+3
+12
+Just 18
+
+@since base-4.7.0.0
+-}</span></span><span>
+</span><span id="line-220"></span><span id="local-6989586621679680025"><span id="local-6989586621679680026"><span class="annot"><a href="GHC.Internal.Debug.Trace.html#traceShowM"><span class="hs-identifier hs-type">traceShowM</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Internal.Show.html#Show"><span class="hs-identifier hs-type">Show</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679680025"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Internal.Base.html#Applicative"><span class="hs-identifier hs-type">Applicative</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679680026"><span class="hs-identifier hs-type">f</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679680025"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679680026"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span></span></span><span>
+</span><span id="line-221"></span><span id="traceShowM"><span class="annot"><span class="annottext">traceShowM :: forall a (f :: * -&gt; *). (Show a, Applicative f) =&gt; a -&gt; f ()
+</span><a href="GHC.Internal.Debug.Trace.html#traceShowM"><span class="hs-identifier hs-var hs-var">traceShowM</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; f ()
+forall (f :: * -&gt; *). Applicative f =&gt; String -&gt; f ()
+</span><a href="GHC.Internal.Debug.Trace.html#traceM"><span class="hs-identifier hs-var">traceM</span></a></span><span> </span><span class="annot"><span class="annottext">(String -&gt; f ()) -&gt; (a -&gt; String) -&gt; a -&gt; f ()
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><a href="GHC.Internal.Base.html#."><span class="hs-operator hs-var">.</span></a></span><span> </span><span class="annot"><span class="annottext">a -&gt; String
+forall a. Show a =&gt; a -&gt; String
+</span><a href="GHC.Internal.Show.html#show"><span class="hs-identifier hs-var">show</span></a></span><span>
+</span><span id="line-222"></span><span>
+</span><span id="line-223"></span><span class="hs-comment">-- | like 'trace', but additionally prints a call stack if one is</span><span>
+</span><span id="line-224"></span><span class="hs-comment">-- available.</span><span>
+</span><span id="line-225"></span><span class="hs-comment">--</span><span>
+</span><span id="line-226"></span><span class="hs-comment">-- In the current GHC implementation, the call stack is only</span><span>
+</span><span id="line-227"></span><span class="hs-comment">-- available if the program was compiled with @-prof@; otherwise</span><span>
+</span><span id="line-228"></span><span class="hs-comment">-- 'traceStack' behaves exactly like 'trace'.  Entries in the call</span><span>
+</span><span id="line-229"></span><span class="hs-comment">-- stack correspond to @SCC@ annotations, so it is a good idea to use</span><span>
+</span><span id="line-230"></span><span class="hs-comment">-- @-fprof-auto@ or @-fprof-auto-calls@ to add SCC annotations automatically.</span><span>
+</span><span id="line-231"></span><span class="hs-comment">--</span><span>
+</span><span id="line-232"></span><span class="hs-comment">-- @since base-4.5.0.0</span><span>
+</span><span id="line-233"></span><span id="local-6989586621679680099"><span class="annot"><a href="GHC.Internal.Debug.Trace.html#traceStack"><span class="hs-identifier hs-type">traceStack</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Internal.Base.html#String"><span class="hs-identifier hs-type">String</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679680099"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679680099"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-234"></span><span id="traceStack"><span class="annot"><span class="annottext">traceStack :: forall a. String -&gt; a -&gt; a
+</span><a href="GHC.Internal.Debug.Trace.html#traceStack"><span class="hs-identifier hs-var hs-var">traceStack</span></a></span></span><span> </span><span id="local-6989586621679680106"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679680106"><span class="hs-identifier hs-var">str</span></a></span></span><span> </span><span id="local-6989586621679680107"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679680107"><span class="hs-identifier hs-var">expr</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">IO a -&gt; a
+forall a. IO a -&gt; a
+</span><a href="GHC.Internal.IO.Unsafe.html#unsafePerformIO"><span class="hs-identifier hs-var">unsafePerformIO</span></a></span><span> </span><span class="annot"><span class="annottext">(IO a -&gt; a) -&gt; IO a -&gt; a
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="GHC.Internal.Base.html#%24"><span class="hs-operator hs-var">$</span></a></span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-235"></span><span>   </span><span class="annot"><span class="annottext">String -&gt; IO ()
+</span><a href="GHC.Internal.Debug.Trace.html#traceIO"><span class="hs-identifier hs-var">traceIO</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679680106"><span class="hs-identifier hs-var">str</span></a></span><span>
+</span><span id="line-236"></span><span>   </span><span id="local-6989586621679680108"><span class="annot"><a href="#local-6989586621679680108"><span class="hs-identifier hs-var">stack</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">IO [String]
+</span><a href="GHC.Internal.Stack.CCS.html#currentCallStack"><span class="hs-identifier hs-var">currentCallStack</span></a></span><span>
+</span><span id="line-237"></span><span>   </span><span class="annot"><a href="GHC.Internal.Base.html#when"><span class="hs-identifier hs-type">when</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="../../ghc-prim-0.12.0-595c/src/GHC.Classes.html#not"><span class="hs-identifier hs-type">not</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Internal.Data.Foldable.html#null"><span class="hs-identifier hs-type">null</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679680108"><span class="hs-identifier hs-type">stack</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="annot"><a href="GHC.Internal.Base.html#%24"><span class="hs-operator hs-type">$</span></a></span><span> </span><span class="annot"><a href="GHC.Internal.Debug.Trace.html#traceIO"><span class="hs-identifier hs-type">traceIO</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Internal.Stack.CCS.html#renderStack"><span class="hs-identifier hs-type">renderStack</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679680108"><span class="hs-identifier hs-type">stack</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-238"></span><span>   </span><span class="annot"><a href="GHC.Internal.Base.html#return"><span class="hs-identifier hs-type">return</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679680107"><span class="hs-identifier hs-type">expr</span></a></span><span>
+</span><span id="line-239"></span><span>
+</span><span id="line-240"></span><span class="hs-pragma">{-# NOINLINE</span><span> </span><span class="annot"><a href="GHC.Internal.Debug.Trace.html#traceEvent"><span class="hs-pragma hs-type">traceEvent</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-241"></span><span class="hs-comment">-- | The 'traceEvent' function behaves like 'trace' with the difference that</span><span>
+</span><span id="line-242"></span><span class="hs-comment">-- the message is emitted to the eventlog, if eventlog profiling is available</span><span>
+</span><span id="line-243"></span><span class="hs-comment">-- and enabled at runtime.</span><span>
+</span><span id="line-244"></span><span class="hs-comment">--</span><span>
+</span><span id="line-245"></span><span class="hs-comment">-- It is suitable for use in pure code. In an IO context use 'traceEventIO'</span><span>
+</span><span id="line-246"></span><span class="hs-comment">-- instead.</span><span>
+</span><span id="line-247"></span><span class="hs-comment">--</span><span>
+</span><span id="line-248"></span><span class="hs-comment">-- Note that when using GHC's SMP runtime, it is possible (but rare) to get</span><span>
+</span><span id="line-249"></span><span class="hs-comment">-- duplicate events emitted if two CPUs simultaneously evaluate the same thunk</span><span>
+</span><span id="line-250"></span><span class="hs-comment">-- that uses 'traceEvent'.</span><span>
+</span><span id="line-251"></span><span class="hs-comment">--</span><span>
+</span><span id="line-252"></span><span class="hs-comment">-- @since base-4.5.0.0</span><span>
+</span><span id="line-253"></span><span id="local-6989586621679680111"><span class="annot"><a href="GHC.Internal.Debug.Trace.html#traceEvent"><span class="hs-identifier hs-type">traceEvent</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Internal.Base.html#String"><span class="hs-identifier hs-type">String</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679680111"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679680111"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-254"></span><span id="traceEvent"><span class="annot"><span class="annottext">traceEvent :: forall a. String -&gt; a -&gt; a
+</span><a href="GHC.Internal.Debug.Trace.html#traceEvent"><span class="hs-identifier hs-var hs-var">traceEvent</span></a></span></span><span> </span><span id="local-6989586621679680114"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679680114"><span class="hs-identifier hs-var">msg</span></a></span></span><span> </span><span id="local-6989586621679680115"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679680115"><span class="hs-identifier hs-var">expr</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">IO a -&gt; a
+forall a. IO a -&gt; a
+</span><a href="GHC.Internal.IO.Unsafe.html#unsafeDupablePerformIO"><span class="hs-identifier hs-var">unsafeDupablePerformIO</span></a></span><span> </span><span class="annot"><span class="annottext">(IO a -&gt; a) -&gt; IO a -&gt; a
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="GHC.Internal.Base.html#%24"><span class="hs-operator hs-var">$</span></a></span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-255"></span><span>    </span><span class="annot"><span class="annottext">String -&gt; IO ()
+</span><a href="GHC.Internal.Debug.Trace.html#traceEventIO"><span class="hs-identifier hs-var">traceEventIO</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679680114"><span class="hs-identifier hs-var">msg</span></a></span><span>
+</span><span id="line-256"></span><span>    </span><span class="annot"><span class="annottext">a -&gt; IO a
+forall a. a -&gt; IO a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><a href="GHC.Internal.Base.html#return"><span class="hs-identifier hs-var">return</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679680115"><span class="hs-identifier hs-var">expr</span></a></span><span>
+</span><span id="line-257"></span><span>
+</span><span id="line-258"></span><span class="hs-comment">-- | The 'traceEventIO' function emits a message to the eventlog, if eventlog</span><span>
+</span><span id="line-259"></span><span class="hs-comment">-- profiling is available and enabled at runtime.</span><span>
+</span><span id="line-260"></span><span class="hs-comment">--</span><span>
+</span><span id="line-261"></span><span class="hs-comment">-- Compared to 'traceEvent', 'traceEventIO' sequences the event with respect to</span><span>
+</span><span id="line-262"></span><span class="hs-comment">-- other IO actions.</span><span>
+</span><span id="line-263"></span><span class="hs-comment">--</span><span>
+</span><span id="line-264"></span><span class="hs-comment">-- @since base-4.5.0.0</span><span>
+</span><span id="line-265"></span><span class="annot"><a href="GHC.Internal.Debug.Trace.html#traceEventIO"><span class="hs-identifier hs-type">traceEventIO</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Internal.Base.html#String"><span class="hs-identifier hs-type">String</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="../../ghc-prim-0.12.0-595c/src/GHC.Types.html#IO"><span class="hs-identifier hs-type">IO</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-266"></span><span id="traceEventIO"><span class="annot"><span class="annottext">traceEventIO :: String -&gt; IO ()
+</span><a href="GHC.Internal.Debug.Trace.html#traceEventIO"><span class="hs-identifier hs-var hs-var">traceEventIO</span></a></span></span><span> </span><span id="local-6989586621679680117"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679680117"><span class="hs-identifier hs-var">msg</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-267"></span><span>  </span><span class="annot"><span class="annottext">TextEncoding -&gt; String -&gt; (CString -&gt; IO ()) -&gt; IO ()
+forall a. TextEncoding -&gt; String -&gt; (CString -&gt; IO a) -&gt; IO a
+</span><a href="GHC.Internal.Foreign.C.String.Encoding.html#withCString"><span class="hs-identifier hs-var">Enc.withCString</span></a></span><span> </span><span class="annot"><span class="annottext">TextEncoding
+</span><a href="GHC.Internal.IO.Encoding.html#utf8"><span class="hs-identifier hs-var">utf8</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679680117"><span class="hs-identifier hs-var">msg</span></a></span><span> </span><span class="annot"><span class="annottext">((CString -&gt; IO ()) -&gt; IO ()) -&gt; (CString -&gt; IO ()) -&gt; IO ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="GHC.Internal.Base.html#%24"><span class="hs-operator hs-var">$</span></a></span><span> </span><span class="hs-glyph">\</span><span class="hs-special">(</span><span class="annot"><a href="GHC.Internal.Ptr.html#Ptr"><span class="hs-identifier hs-type">Ptr</span></a></span><span> </span><span id="local-6989586621679680121"><span class="annot"><span class="annottext">Addr#
+</span><a href="#local-6989586621679680121"><span class="hs-identifier hs-var">p</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">(State# RealWorld -&gt; (# State# RealWorld, () #)) -&gt; IO ()
+forall a. (State# RealWorld -&gt; (# State# RealWorld, a #)) -&gt; IO a
+</span><a href="../../ghc-prim-0.12.0-595c/src/GHC.Types.html#IO"><span class="hs-identifier hs-var">IO</span></a></span><span> </span><span class="annot"><span class="annottext">((State# RealWorld -&gt; (# State# RealWorld, () #)) -&gt; IO ())
+-&gt; (State# RealWorld -&gt; (# State# RealWorld, () #)) -&gt; IO ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="GHC.Internal.Base.html#%24"><span class="hs-operator hs-var">$</span></a></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679680122"><span class="annot"><span class="annottext">State# RealWorld
+</span><a href="#local-6989586621679680122"><span class="hs-identifier hs-var">s</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-268"></span><span>    </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Addr# -&gt; State# RealWorld -&gt; State# RealWorld
+forall d. Addr# -&gt; State# d -&gt; State# d
+</span><a href="../../ghc-prim-0.12.0-595c/src/GHC.Prim.html#traceEvent%23"><span class="hs-identifier hs-var">traceEvent#</span></a></span><span> </span><span class="annot"><span class="annottext">Addr#
+</span><a href="#local-6989586621679680121"><span class="hs-identifier hs-var">p</span></a></span><span> </span><span class="annot"><span class="annottext">State# RealWorld
+</span><a href="#local-6989586621679680122"><span class="hs-identifier hs-var">s</span></a></span><span> </span><span class="hs-keyword">of</span><span> </span><span id="local-6989586621679680123"><span class="annot"><span class="annottext">State# RealWorld
+</span><a href="#local-6989586621679680123"><span class="hs-identifier hs-var">s'</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(#</span><span> </span><span class="annot"><span class="annottext">State# RealWorld
+</span><a href="#local-6989586621679680123"><span class="hs-identifier hs-var">s'</span></a></span><span class="hs-special">,</span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span> </span><span class="hs-special">#)</span><span>
+</span><span id="line-269"></span><span>
+</span><span id="line-270"></span><span class="hs-comment">-- | Like 'traceEvent', but emits the result of calling a function on its</span><span>
+</span><span id="line-271"></span><span class="hs-comment">-- argument.</span><span>
+</span><span id="line-272"></span><span class="hs-comment">--</span><span>
+</span><span id="line-273"></span><span class="hs-comment">-- @since base-4.18.0.0</span><span>
+</span><span id="line-274"></span><span id="local-6989586621679680124"><span class="annot"><a href="GHC.Internal.Debug.Trace.html#traceEventWith"><span class="hs-identifier hs-type">traceEventWith</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679680124"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Internal.Base.html#String"><span class="hs-identifier hs-type">String</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679680124"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679680124"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-275"></span><span id="traceEventWith"><span class="annot"><span class="annottext">traceEventWith :: forall a. (a -&gt; String) -&gt; a -&gt; a
+</span><a href="GHC.Internal.Debug.Trace.html#traceEventWith"><span class="hs-identifier hs-var hs-var">traceEventWith</span></a></span></span><span> </span><span id="local-6989586621679680125"><span class="annot"><span class="annottext">a -&gt; String
+</span><a href="#local-6989586621679680125"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span id="local-6989586621679680126"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679680126"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; a -&gt; a
+forall a. String -&gt; a -&gt; a
+</span><a href="GHC.Internal.Debug.Trace.html#traceEvent"><span class="hs-identifier hs-var">traceEvent</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a -&gt; String
+</span><a href="#local-6989586621679680125"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679680126"><span class="hs-identifier hs-var">a</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679680126"><span class="hs-identifier hs-var">a</span></a></span><span>
+</span><span id="line-276"></span><span>
+</span><span id="line-277"></span><span class="hs-pragma">{-# NOINLINE</span><span> </span><span class="annot"><a href="GHC.Internal.Debug.Trace.html#traceMarker"><span class="hs-pragma hs-type">traceMarker</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-278"></span><span class="hs-comment">-- | The 'traceMarker' function emits a marker to the eventlog, if eventlog</span><span>
+</span><span id="line-279"></span><span class="hs-comment">-- profiling is available and enabled at runtime. The @String@ is the name of</span><span>
+</span><span id="line-280"></span><span class="hs-comment">-- the marker. The name is just used in the profiling tools to help you keep</span><span>
+</span><span id="line-281"></span><span class="hs-comment">-- clear which marker is which.</span><span>
+</span><span id="line-282"></span><span class="hs-comment">--</span><span>
+</span><span id="line-283"></span><span class="hs-comment">-- This function is suitable for use in pure code. In an IO context use</span><span>
+</span><span id="line-284"></span><span class="hs-comment">-- 'traceMarkerIO' instead.</span><span>
+</span><span id="line-285"></span><span class="hs-comment">--</span><span>
+</span><span id="line-286"></span><span class="hs-comment">-- Note that when using GHC's SMP runtime, it is possible (but rare) to get</span><span>
+</span><span id="line-287"></span><span class="hs-comment">-- duplicate events emitted if two CPUs simultaneously evaluate the same thunk</span><span>
+</span><span id="line-288"></span><span class="hs-comment">-- that uses 'traceMarker'.</span><span>
+</span><span id="line-289"></span><span class="hs-comment">--</span><span>
+</span><span id="line-290"></span><span class="hs-comment">-- @since base-4.7.0.0</span><span>
+</span><span id="line-291"></span><span id="local-6989586621679680127"><span class="annot"><a href="GHC.Internal.Debug.Trace.html#traceMarker"><span class="hs-identifier hs-type">traceMarker</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Internal.Base.html#String"><span class="hs-identifier hs-type">String</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679680127"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679680127"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-292"></span><span id="traceMarker"><span class="annot"><span class="annottext">traceMarker :: forall a. String -&gt; a -&gt; a
+</span><a href="GHC.Internal.Debug.Trace.html#traceMarker"><span class="hs-identifier hs-var hs-var">traceMarker</span></a></span></span><span> </span><span id="local-6989586621679680130"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679680130"><span class="hs-identifier hs-var">msg</span></a></span></span><span> </span><span id="local-6989586621679680131"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679680131"><span class="hs-identifier hs-var">expr</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">IO a -&gt; a
+forall a. IO a -&gt; a
+</span><a href="GHC.Internal.IO.Unsafe.html#unsafeDupablePerformIO"><span class="hs-identifier hs-var">unsafeDupablePerformIO</span></a></span><span> </span><span class="annot"><span class="annottext">(IO a -&gt; a) -&gt; IO a -&gt; a
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="GHC.Internal.Base.html#%24"><span class="hs-operator hs-var">$</span></a></span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-293"></span><span>    </span><span class="annot"><span class="annottext">String -&gt; IO ()
+</span><a href="GHC.Internal.Debug.Trace.html#traceMarkerIO"><span class="hs-identifier hs-var">traceMarkerIO</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679680130"><span class="hs-identifier hs-var">msg</span></a></span><span>
+</span><span id="line-294"></span><span>    </span><span class="annot"><span class="annottext">a -&gt; IO a
+forall a. a -&gt; IO a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><a href="GHC.Internal.Base.html#return"><span class="hs-identifier hs-var">return</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679680131"><span class="hs-identifier hs-var">expr</span></a></span><span>
+</span><span id="line-295"></span><span>
+</span><span id="line-296"></span><span class="hs-comment">-- | The 'traceMarkerIO' function emits a marker to the eventlog, if eventlog</span><span>
+</span><span id="line-297"></span><span class="hs-comment">-- profiling is available and enabled at runtime.</span><span>
+</span><span id="line-298"></span><span class="hs-comment">--</span><span>
+</span><span id="line-299"></span><span class="hs-comment">-- Compared to 'traceMarker', 'traceMarkerIO' sequences the event with respect to</span><span>
+</span><span id="line-300"></span><span class="hs-comment">-- other IO actions.</span><span>
+</span><span id="line-301"></span><span class="hs-comment">--</span><span>
+</span><span id="line-302"></span><span class="hs-comment">-- @since base-4.7.0.0</span><span>
+</span><span id="line-303"></span><span class="annot"><a href="GHC.Internal.Debug.Trace.html#traceMarkerIO"><span class="hs-identifier hs-type">traceMarkerIO</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Internal.Base.html#String"><span class="hs-identifier hs-type">String</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="../../ghc-prim-0.12.0-595c/src/GHC.Types.html#IO"><span class="hs-identifier hs-type">IO</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-304"></span><span id="traceMarkerIO"><span class="annot"><span class="annottext">traceMarkerIO :: String -&gt; IO ()
+</span><a href="GHC.Internal.Debug.Trace.html#traceMarkerIO"><span class="hs-identifier hs-var hs-var">traceMarkerIO</span></a></span></span><span> </span><span id="local-6989586621679680132"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679680132"><span class="hs-identifier hs-var">msg</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-305"></span><span>  </span><span class="annot"><span class="annottext">TextEncoding -&gt; String -&gt; (CString -&gt; IO ()) -&gt; IO ()
+forall a. TextEncoding -&gt; String -&gt; (CString -&gt; IO a) -&gt; IO a
+</span><a href="GHC.Internal.Foreign.C.String.Encoding.html#withCString"><span class="hs-identifier hs-var">Enc.withCString</span></a></span><span> </span><span class="annot"><span class="annottext">TextEncoding
+</span><a href="GHC.Internal.IO.Encoding.html#utf8"><span class="hs-identifier hs-var">utf8</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679680132"><span class="hs-identifier hs-var">msg</span></a></span><span> </span><span class="annot"><span class="annottext">((CString -&gt; IO ()) -&gt; IO ()) -&gt; (CString -&gt; IO ()) -&gt; IO ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="GHC.Internal.Base.html#%24"><span class="hs-operator hs-var">$</span></a></span><span> </span><span class="hs-glyph">\</span><span class="hs-special">(</span><span class="annot"><a href="GHC.Internal.Ptr.html#Ptr"><span class="hs-identifier hs-type">Ptr</span></a></span><span> </span><span id="local-6989586621679680133"><span class="annot"><span class="annottext">Addr#
+</span><a href="#local-6989586621679680133"><span class="hs-identifier hs-var">p</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">(State# RealWorld -&gt; (# State# RealWorld, () #)) -&gt; IO ()
+forall a. (State# RealWorld -&gt; (# State# RealWorld, a #)) -&gt; IO a
+</span><a href="../../ghc-prim-0.12.0-595c/src/GHC.Types.html#IO"><span class="hs-identifier hs-var">IO</span></a></span><span> </span><span class="annot"><span class="annottext">((State# RealWorld -&gt; (# State# RealWorld, () #)) -&gt; IO ())
+-&gt; (State# RealWorld -&gt; (# State# RealWorld, () #)) -&gt; IO ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="GHC.Internal.Base.html#%24"><span class="hs-operator hs-var">$</span></a></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679680134"><span class="annot"><span class="annottext">State# RealWorld
+</span><a href="#local-6989586621679680134"><span class="hs-identifier hs-var">s</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-306"></span><span>    </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Addr# -&gt; State# RealWorld -&gt; State# RealWorld
+forall d. Addr# -&gt; State# d -&gt; State# d
+</span><a href="../../ghc-prim-0.12.0-595c/src/GHC.Prim.html#traceMarker%23"><span class="hs-identifier hs-var">traceMarker#</span></a></span><span> </span><span class="annot"><span class="annottext">Addr#
+</span><a href="#local-6989586621679680133"><span class="hs-identifier hs-var">p</span></a></span><span> </span><span class="annot"><span class="annottext">State# RealWorld
+</span><a href="#local-6989586621679680134"><span class="hs-identifier hs-var">s</span></a></span><span> </span><span class="hs-keyword">of</span><span> </span><span id="local-6989586621679680135"><span class="annot"><span class="annottext">State# RealWorld
+</span><a href="#local-6989586621679680135"><span class="hs-identifier hs-var">s'</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(#</span><span> </span><span class="annot"><span class="annottext">State# RealWorld
+</span><a href="#local-6989586621679680135"><span class="hs-identifier hs-var">s'</span></a></span><span class="hs-special">,</span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span> </span><span class="hs-special">#)</span><span>
+</span><span id="line-307"></span><span>
+</span><span id="line-308"></span><span class="hs-comment">-- | Immediately flush the event log, if enabled.</span><span>
+</span><span id="line-309"></span><span class="hs-comment">--</span><span>
+</span><span id="line-310"></span><span class="hs-comment">-- @since base-4.15.0.0</span><span>
+</span><span id="line-311"></span><span class="annot"><a href="GHC.Internal.Debug.Trace.html#flushEventLog"><span class="hs-identifier hs-type">flushEventLog</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="../../ghc-prim-0.12.0-595c/src/GHC.Types.html#IO"><span class="hs-identifier hs-type">IO</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-312"></span><span id="flushEventLog"><span class="annot"><span class="annottext">flushEventLog :: IO ()
+</span><a href="GHC.Internal.Debug.Trace.html#flushEventLog"><span class="hs-identifier hs-var hs-var">flushEventLog</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Ptr () -&gt; IO ()
+</span><a href="GHC.Internal.Debug.Trace.html#c_flushEventLog"><span class="hs-identifier hs-var">c_flushEventLog</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr ()
+forall a. Ptr a
+</span><a href="GHC.Internal.Ptr.html#nullPtr"><span class="hs-identifier hs-var">nullPtr</span></a></span><span>
+</span><span id="line-313"></span><span>
+</span><span id="line-314"></span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-keyword">ccall</span></span><span> </span><span class="annot"><span class="hs-string">&quot;flushEventLog&quot;</span></span><span> </span><span id="c_flushEventLog"><span class="annot"><a href="GHC.Internal.Debug.Trace.html#c_flushEventLog"><span class="hs-identifier hs-var">c_flushEventLog</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Internal.Ptr.html#Ptr"><span class="hs-identifier hs-type">Ptr</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="../../ghc-prim-0.12.0-595c/src/GHC.Types.html#IO"><span class="hs-identifier hs-type">IO</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-315"></span></pre></body></html>

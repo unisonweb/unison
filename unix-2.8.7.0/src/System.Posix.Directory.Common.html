@@ -1,0 +1,412 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LINE 1 &quot;libraries/unix/System/Posix/Directory/Common.hsc&quot; #-}</span><span>
+</span><span id="line-1"></span><span class="hs-pragma">{-# LANGUAGE CPP, Safe, CApiFFI, MultiWayIf, PatternSynonyms #-}</span><span>
+</span><span id="line-2"></span><span>
+</span><span id="line-3"></span><span class="hs-comment">-----------------------------------------------------------------------------</span><span>
+</span><span id="line-4"></span><span class="hs-comment">-- |</span><span>
+</span><span id="line-5"></span><span class="hs-comment">-- Module      :  System.Posix.Directory.Common</span><span>
+</span><span id="line-6"></span><span class="hs-comment">-- Copyright   :  (c) The University of Glasgow 2002</span><span>
+</span><span id="line-7"></span><span class="hs-comment">-- License     :  BSD-style (see the file libraries/base/LICENSE)</span><span>
+</span><span id="line-8"></span><span class="hs-comment">--</span><span>
+</span><span id="line-9"></span><span class="hs-comment">-- Maintainer  :  libraries@haskell.org</span><span>
+</span><span id="line-10"></span><span class="hs-comment">-- Stability   :  provisional</span><span>
+</span><span id="line-11"></span><span class="hs-comment">-- Portability :  non-portable (requires POSIX)</span><span>
+</span><span id="line-12"></span><span class="hs-comment">--</span><span>
+</span><span id="line-13"></span><span class="hs-comment">-- POSIX directory support</span><span>
+</span><span id="line-14"></span><span class="hs-comment">--</span><span>
+</span><span id="line-15"></span><span class="hs-comment">-----------------------------------------------------------------------------</span><span class="hs-cpp">
+
+
+
+#include &quot;HsUnixConfig.h&quot;
+</span><span>
+</span><span id="line-21"></span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">System.Posix.Directory.Common</span><span> </span><span class="hs-special">(</span><span>
+</span><span id="line-22"></span><span>       </span><span class="hs-identifier">DirStream</span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-23"></span><span>       </span><span class="hs-identifier">CDir</span><span class="hs-special">,</span><span>
+</span><span id="line-24"></span><span>       </span><span class="hs-identifier">CDirent</span><span class="hs-special">,</span><span>
+</span><span id="line-25"></span><span>       </span><span class="hs-identifier">DirStreamOffset</span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-26"></span><span>
+</span><span id="line-27"></span><span>       </span><span class="hs-identifier">DirStreamWithPath</span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-28"></span><span>       </span><span class="annot"><span class="hs-identifier">fromDirStreamWithPath</span></span><span class="hs-special">,</span><span>
+</span><span id="line-29"></span><span>       </span><span class="hs-identifier">toDirStreamWithPath</span><span class="hs-special">,</span><span>
+</span><span id="line-30"></span><span>       </span><span class="hs-identifier">DirEnt</span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-31"></span><span>       </span><span class="annot"><span class="hs-identifier">dirEntName</span></span><span class="hs-special">,</span><span>
+</span><span id="line-32"></span><span>       </span><span class="annot"><a href="System.Posix.Directory.Common.html#dirEntName"><span class="hs-identifier">dirEntType</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-33"></span><span>       </span><span class="hs-identifier">DirType</span><span class="hs-special">(</span><span> </span><span class="hs-identifier">DirType</span><span>
+</span><span id="line-34"></span><span>              </span><span class="hs-special">,</span><span> </span><span class="hs-identifier">UnknownType</span><span>
+</span><span id="line-35"></span><span>              </span><span class="hs-special">,</span><span> </span><span class="hs-identifier">NamedPipeType</span><span>
+</span><span id="line-36"></span><span>              </span><span class="hs-special">,</span><span> </span><span class="hs-identifier">CharacterDeviceType</span><span>
+</span><span id="line-37"></span><span>              </span><span class="hs-special">,</span><span> </span><span class="hs-identifier">DirectoryType</span><span>
+</span><span id="line-38"></span><span>              </span><span class="hs-special">,</span><span> </span><span class="hs-identifier">BlockDeviceType</span><span>
+</span><span id="line-39"></span><span>              </span><span class="hs-special">,</span><span> </span><span class="hs-identifier">RegularFileType</span><span>
+</span><span id="line-40"></span><span>              </span><span class="hs-special">,</span><span> </span><span class="hs-identifier">SymbolicLinkType</span><span>
+</span><span id="line-41"></span><span>              </span><span class="hs-special">,</span><span> </span><span class="hs-identifier">SocketType</span><span>
+</span><span id="line-42"></span><span>              </span><span class="hs-special">,</span><span> </span><span class="hs-identifier">WhiteoutType</span><span>
+</span><span id="line-43"></span><span>              </span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-44"></span><span>       </span><span class="hs-identifier">isUnknownType</span><span class="hs-special">,</span><span>
+</span><span id="line-45"></span><span>       </span><span class="hs-identifier">isNamedPipeType</span><span class="hs-special">,</span><span>
+</span><span id="line-46"></span><span>       </span><span class="hs-identifier">isCharacterDeviceType</span><span class="hs-special">,</span><span>
+</span><span id="line-47"></span><span>       </span><span class="hs-identifier">isDirectoryType</span><span class="hs-special">,</span><span>
+</span><span id="line-48"></span><span>       </span><span class="hs-identifier">isBlockDeviceType</span><span class="hs-special">,</span><span>
+</span><span id="line-49"></span><span>       </span><span class="annot"><a href="System.Posix.Directory.Common.html#isBlockDeviceType"><span class="hs-identifier">isRegularFileType</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-50"></span><span>       </span><span class="hs-identifier">isSymbolicLinkType</span><span class="hs-special">,</span><span>
+</span><span id="line-51"></span><span>       </span><span class="hs-identifier">isSocketType</span><span class="hs-special">,</span><span>
+</span><span id="line-52"></span><span>       </span><span class="hs-identifier">isWhiteoutType</span><span class="hs-special">,</span><span>
+</span><span id="line-53"></span><span>       </span><span class="annot"><a href="System.Posix.Directory.Common.html#isWhiteoutType"><span class="hs-identifier">getRealDirType</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-54"></span><span>       </span><span class="hs-identifier">unsafeOpenDirStreamFd</span><span class="hs-special">,</span><span>
+</span><span id="line-55"></span><span>       </span><span class="hs-identifier">readDirStreamWith</span><span class="hs-special">,</span><span>
+</span><span id="line-56"></span><span>       </span><span class="hs-identifier">readDirStreamWithPtr</span><span class="hs-special">,</span><span>
+</span><span id="line-57"></span><span>
+</span><span id="line-58"></span><span>       </span><span class="hs-identifier">rewindDirStream</span><span class="hs-special">,</span><span>
+</span><span id="line-59"></span><span>       </span><span class="hs-identifier">closeDirStream</span><span class="hs-special">,</span><span>
+</span><span id="line-60"></span><span>
+</span><span id="line-61"></span><span class="hs-pragma">{-# LINE 61 &quot;libraries/unix/System/Posix/Directory/Common.hsc&quot; #-}</span><span>
+</span><span id="line-61"></span><span>       </span><span class="hs-identifier">seekDirStream</span><span class="hs-special">,</span><span>
+</span><span id="line-62"></span><span>
+</span><span id="line-63"></span><span class="hs-pragma">{-# LINE 63 &quot;libraries/unix/System/Posix/Directory/Common.hsc&quot; #-}</span><span>
+</span><span id="line-63"></span><span>
+</span><span id="line-64"></span><span class="hs-pragma">{-# LINE 64 &quot;libraries/unix/System/Posix/Directory/Common.hsc&quot; #-}</span><span>
+</span><span id="line-64"></span><span>       </span><span class="hs-identifier">tellDirStream</span><span class="hs-special">,</span><span>
+</span><span id="line-65"></span><span>
+</span><span id="line-66"></span><span class="hs-pragma">{-# LINE 66 &quot;libraries/unix/System/Posix/Directory/Common.hsc&quot; #-}</span><span>
+</span><span id="line-66"></span><span>       </span><span class="hs-identifier">changeWorkingDirectoryFd</span><span class="hs-special">,</span><span>
+</span><span id="line-67"></span><span>  </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-68"></span><span>
+</span><span id="line-69"></span><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">Control.Exception</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">mask_</span><span class="hs-special">)</span><span>
+</span><span id="line-70"></span><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">Control.Monad</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">void</span><span class="hs-special">,</span><span> </span><span class="hs-identifier">when</span><span class="hs-special">)</span><span>
+</span><span id="line-71"></span><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">System.Posix.Types</span><span>
+</span><span id="line-72"></span><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">Foreign</span><span> </span><span class="hs-keyword">hiding</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">void</span><span class="hs-special">)</span><span>
+</span><span id="line-73"></span><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">Foreign.C</span><span>
+</span><span id="line-74"></span><span>
+</span><span id="line-75"></span><span>
+</span><span id="line-76"></span><span class="hs-pragma">{-# LINE 79 &quot;libraries/unix/System/Posix/Directory/Common.hsc&quot; #-}</span><span>
+</span><span id="line-79"></span><span>
+</span><span id="line-80"></span><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">System.Posix.Files.Common</span><span>
+</span><span id="line-81"></span><span>
+</span><span id="line-82"></span><span class="hs-keyword">newtype</span><span> </span><span class="hs-identifier">DirStream</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">DirStream</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">Ptr</span><span> </span><span class="hs-identifier">CDir</span><span class="hs-special">)</span><span>
+</span><span id="line-83"></span><span>
+</span><span id="line-84"></span><span class="hs-comment">-- | @since 2.8.6.0</span><span>
+</span><span id="line-85"></span><span class="hs-keyword">newtype</span><span> </span><span class="hs-identifier">DirStreamWithPath</span><span> </span><span class="hs-identifier">a</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">DirStreamWithPath</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">a</span><span class="hs-special">,</span><span> </span><span class="hs-identifier">Ptr</span><span> </span><span class="hs-identifier">CDir</span><span class="hs-special">)</span><span>
+</span><span id="line-86"></span><span>
+</span><span id="line-87"></span><span class="hs-comment">-- | Convert a 'DirStreamWithPath' to a 'DirStream'.</span><span>
+</span><span id="line-88"></span><span class="hs-comment">-- Note that the underlying pointer is shared by both values, hence any</span><span>
+</span><span id="line-89"></span><span class="hs-comment">-- modification to the resulting 'DirStream' will also modify the original</span><span>
+</span><span id="line-90"></span><span class="hs-comment">-- 'DirStreamWithPath'.</span><span>
+</span><span id="line-91"></span><span class="hs-comment">--</span><span>
+</span><span id="line-92"></span><span class="hs-comment">-- @since 2.8.6.0</span><span>
+</span><span id="line-93"></span><span class="hs-identifier">fromDirStreamWithPath</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">DirStreamWithPath</span><span> </span><span class="hs-identifier">a</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">DirStream</span><span>
+</span><span id="line-94"></span><span class="hs-identifier">fromDirStreamWithPath</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">DirStreamWithPath</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">_</span><span class="hs-special">,</span><span> </span><span class="hs-identifier">ptr</span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">DirStream</span><span> </span><span class="hs-identifier">ptr</span><span>
+</span><span id="line-95"></span><span>
+</span><span id="line-96"></span><span class="hs-comment">-- | Construct a 'DirStreamWithPath' from a 'DirStream'.</span><span>
+</span><span id="line-97"></span><span class="hs-comment">-- Note that the underlying pointer is shared by both values, hence any</span><span>
+</span><span id="line-98"></span><span class="hs-comment">-- modification to the pointer of the resulting 'DirStreamWithPath' will also</span><span>
+</span><span id="line-99"></span><span class="hs-comment">-- modify the original 'DirStream'.</span><span>
+</span><span id="line-100"></span><span class="hs-comment">--</span><span>
+</span><span id="line-101"></span><span class="hs-comment">-- @since 2.8.6.0</span><span>
+</span><span id="line-102"></span><span class="hs-identifier">toDirStreamWithPath</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">a</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">DirStream</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">DirStreamWithPath</span><span> </span><span class="hs-identifier">a</span><span>
+</span><span id="line-103"></span><span class="hs-identifier">toDirStreamWithPath</span><span> </span><span class="hs-identifier">path</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">DirStream</span><span> </span><span class="hs-identifier">ptr</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">DirStreamWithPath</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">path</span><span class="hs-special">,</span><span> </span><span class="hs-identifier">ptr</span><span class="hs-special">)</span><span>
+</span><span id="line-104"></span><span>
+</span><span id="line-105"></span><span class="hs-comment">-- | @since 2.8.6.0</span><span>
+</span><span id="line-106"></span><span class="hs-keyword">newtype</span><span> </span><span class="hs-identifier">DirEnt</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">DirEnt</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">Ptr</span><span> </span><span class="hs-identifier">CDirent</span><span class="hs-special">)</span><span>
+</span><span id="line-107"></span><span>
+</span><span id="line-108"></span><span class="hs-comment">-- We provide a hand-written instance here since GeneralizedNewtypeDeriving and</span><span>
+</span><span id="line-109"></span><span class="hs-comment">-- DerivingVia are not allowed in Safe Haskell.</span><span>
+</span><span id="line-110"></span><span class="hs-keyword">instance</span><span> </span><span class="hs-identifier">Storable</span><span> </span><span class="hs-identifier">DirEnt</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-111"></span><span>  </span><span class="hs-identifier">sizeOf</span><span> </span><span class="hs-identifier">_</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">sizeOf</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">undefined</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">Ptr</span><span> </span><span class="hs-identifier">CDirent</span><span class="hs-special">)</span><span>
+</span><span id="line-112"></span><span>  </span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="hs-pragma">sizeOf</span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-113"></span><span>
+</span><span id="line-114"></span><span>  </span><span class="hs-identifier">alignment</span><span> </span><span class="hs-identifier">_</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">alignment</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">undefined</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">Ptr</span><span> </span><span class="hs-identifier">CDirent</span><span class="hs-special">)</span><span>
+</span><span id="line-115"></span><span>  </span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="hs-pragma">alignment</span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-116"></span><span>
+</span><span id="line-117"></span><span>  </span><span class="hs-identifier">peek</span><span> </span><span class="hs-identifier">ptr</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">DirEnt</span><span> </span><span class="hs-operator">&lt;$&gt;</span><span> </span><span class="hs-identifier">peek</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">castPtr</span><span> </span><span class="hs-identifier">ptr</span><span class="hs-special">)</span><span>
+</span><span id="line-118"></span><span>  </span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="hs-pragma">peek</span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-119"></span><span>
+</span><span id="line-120"></span><span>  </span><span class="hs-identifier">poke</span><span> </span><span class="hs-identifier">ptr</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">DirEnt</span><span> </span><span class="hs-identifier">dEnt</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">poke</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">castPtr</span><span> </span><span class="hs-identifier">ptr</span><span class="hs-special">)</span><span> </span><span class="hs-identifier">dEnt</span><span>
+</span><span id="line-121"></span><span>  </span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="hs-pragma">poke</span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-122"></span><span>
+</span><span id="line-123"></span><span class="hs-keyword">data</span><span> </span><span class="hs-pragma">{-# CTYPE</span><span> </span><span class="hs-pragma">&quot;DIR&quot;</span><span> </span><span class="hs-pragma">#-}</span><span> </span><span class="hs-identifier">CDir</span><span>
+</span><span id="line-124"></span><span class="hs-keyword">data</span><span> </span><span class="hs-pragma">{-# CTYPE</span><span> </span><span class="hs-pragma">&quot;struct dirent&quot;</span><span> </span><span class="hs-pragma">#-}</span><span> </span><span class="hs-identifier">CDirent</span><span>
+</span><span id="line-125"></span><span>
+</span><span id="line-126"></span><span class="hs-comment">-- | The value of the @d_type@ field of a @dirent@ struct.</span><span>
+</span><span id="line-127"></span><span class="hs-comment">-- Note that the possible values of that type depend on the filesystem that is</span><span>
+</span><span id="line-128"></span><span class="hs-comment">-- queried. From @readdir(3)@:</span><span>
+</span><span id="line-129"></span><span class="hs-comment">--</span><span>
+</span><span id="line-130"></span><span class="hs-comment">-- &gt; Currently, only some filesystems (among them: Btrfs, ext2, ext3, and ext4)</span><span>
+</span><span id="line-131"></span><span class="hs-comment">-- &gt; have full support for returning the file type in d_type. All applications</span><span>
+</span><span id="line-132"></span><span class="hs-comment">-- &gt; must properly handle a return of DT_UNKNOWN.</span><span>
+</span><span id="line-133"></span><span class="hs-comment">--</span><span>
+</span><span id="line-134"></span><span class="hs-comment">-- For example, JFS is a filesystem that does not support @d_type@;</span><span>
+</span><span id="line-135"></span><span class="hs-comment">-- See https://github.com/haskell/ghcup-hs/issues/766</span><span>
+</span><span id="line-136"></span><span class="hs-comment">--</span><span>
+</span><span id="line-137"></span><span class="hs-comment">-- Furthermore, @dirent@ or the constants represented by the associated pattern</span><span>
+</span><span id="line-138"></span><span class="hs-comment">-- synonyms of this type may not be provided by the underlying platform. In that</span><span>
+</span><span id="line-139"></span><span class="hs-comment">-- case none of those patterns will match and the application must handle that</span><span>
+</span><span id="line-140"></span><span class="hs-comment">-- case accordingly.</span><span>
+</span><span id="line-141"></span><span class="hs-comment">--</span><span>
+</span><span id="line-142"></span><span class="hs-comment">-- @since 2.8.6.0</span><span>
+</span><span id="line-143"></span><span class="hs-keyword">newtype</span><span> </span><span class="hs-identifier">DirType</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">DirType</span><span> </span><span class="hs-identifier">CChar</span><span>
+</span><span id="line-144"></span><span>    </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">Eq</span><span class="hs-special">,</span><span> </span><span class="hs-identifier">Ord</span><span class="hs-special">,</span><span> </span><span class="hs-identifier">Show</span><span class="hs-special">)</span><span>
+</span><span id="line-145"></span><span>
+</span><span id="line-146"></span><span class="hs-comment">-- | The 'DirType' refers to an entry of unknown type.</span><span>
+</span><span id="line-147"></span><span class="hs-keyword">pattern</span><span> </span><span class="hs-identifier">UnknownType</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">DirType</span><span>
+</span><span id="line-148"></span><span class="hs-keyword">pattern</span><span> </span><span class="hs-identifier">UnknownType</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">DirType</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">CONST_DT_UNKNOWN</span><span class="hs-special">)</span><span>
+</span><span id="line-149"></span><span>
+</span><span id="line-150"></span><span class="hs-comment">-- | The 'DirType' refers to an entry that is a named pipe.</span><span>
+</span><span id="line-151"></span><span class="hs-keyword">pattern</span><span> </span><span class="hs-identifier">NamedPipeType</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">DirType</span><span>
+</span><span id="line-152"></span><span class="hs-keyword">pattern</span><span> </span><span class="hs-identifier">NamedPipeType</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">DirType</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">CONST_DT_FIFO</span><span class="hs-special">)</span><span>
+</span><span id="line-153"></span><span>
+</span><span id="line-154"></span><span class="hs-comment">-- | The 'DirType' refers to an entry that is a character device.</span><span>
+</span><span id="line-155"></span><span class="hs-keyword">pattern</span><span> </span><span class="hs-identifier">CharacterDeviceType</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">DirType</span><span>
+</span><span id="line-156"></span><span class="hs-keyword">pattern</span><span> </span><span class="hs-identifier">CharacterDeviceType</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">DirType</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">CONST_DT_CHR</span><span class="hs-special">)</span><span>
+</span><span id="line-157"></span><span>
+</span><span id="line-158"></span><span class="hs-comment">-- | The 'DirType' refers to an entry that is a directory.</span><span>
+</span><span id="line-159"></span><span class="hs-keyword">pattern</span><span> </span><span class="hs-identifier">DirectoryType</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">DirType</span><span>
+</span><span id="line-160"></span><span class="hs-keyword">pattern</span><span> </span><span class="hs-identifier">DirectoryType</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">DirType</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">CONST_DT_DIR</span><span class="hs-special">)</span><span>
+</span><span id="line-161"></span><span>
+</span><span id="line-162"></span><span class="hs-comment">-- | The 'DirType' refers to an entry that is a block device.</span><span>
+</span><span id="line-163"></span><span class="hs-keyword">pattern</span><span> </span><span class="hs-identifier">BlockDeviceType</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">DirType</span><span>
+</span><span id="line-164"></span><span class="hs-keyword">pattern</span><span> </span><span class="hs-identifier">BlockDeviceType</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">DirType</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">CONST_DT_BLK</span><span class="hs-special">)</span><span>
+</span><span id="line-165"></span><span>
+</span><span id="line-166"></span><span class="hs-comment">-- | The 'DirType' refers to an entry that is a regular file.</span><span>
+</span><span id="line-167"></span><span class="hs-keyword">pattern</span><span> </span><span class="hs-identifier">RegularFileType</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">DirType</span><span>
+</span><span id="line-168"></span><span class="hs-keyword">pattern</span><span> </span><span class="hs-identifier">RegularFileType</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">DirType</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">CONST_DT_REG</span><span class="hs-special">)</span><span>
+</span><span id="line-169"></span><span>
+</span><span id="line-170"></span><span class="hs-comment">-- | The 'DirType' refers to an entry that is a symbolic link.</span><span>
+</span><span id="line-171"></span><span class="hs-keyword">pattern</span><span> </span><span class="hs-identifier">SymbolicLinkType</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">DirType</span><span>
+</span><span id="line-172"></span><span class="hs-keyword">pattern</span><span> </span><span class="hs-identifier">SymbolicLinkType</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">DirType</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">CONST_DT_LNK</span><span class="hs-special">)</span><span>
+</span><span id="line-173"></span><span>
+</span><span id="line-174"></span><span class="hs-comment">-- | The 'DirType' refers to an entry that is a socket.</span><span>
+</span><span id="line-175"></span><span class="hs-keyword">pattern</span><span> </span><span class="hs-identifier">SocketType</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">DirType</span><span>
+</span><span id="line-176"></span><span class="hs-keyword">pattern</span><span> </span><span class="hs-identifier">SocketType</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">DirType</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">CONST_DT_SOCK</span><span class="hs-special">)</span><span>
+</span><span id="line-177"></span><span>
+</span><span id="line-178"></span><span class="hs-comment">-- | The 'DirType' refers to an entry that is a whiteout.</span><span>
+</span><span id="line-179"></span><span class="hs-keyword">pattern</span><span> </span><span class="hs-identifier">WhiteoutType</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">DirType</span><span>
+</span><span id="line-180"></span><span class="hs-keyword">pattern</span><span> </span><span class="hs-identifier">WhiteoutType</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">DirType</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">CONST_DT_WHT</span><span class="hs-special">)</span><span>
+</span><span id="line-181"></span><span>
+</span><span id="line-182"></span><span class="hs-comment">-- | Checks if this 'DirType' refers to an entry of unknown type.</span><span>
+</span><span id="line-183"></span><span class="hs-comment">--</span><span>
+</span><span id="line-184"></span><span class="hs-comment">-- @since 2.8.6.0</span><span>
+</span><span id="line-185"></span><span class="hs-identifier">isUnknownType</span><span>         </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">DirType</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">Bool</span><span>
+</span><span id="line-186"></span><span class="hs-comment">-- | Checks if this 'DirType' refers to a block device entry.</span><span>
+</span><span id="line-187"></span><span class="hs-comment">--</span><span>
+</span><span id="line-188"></span><span class="hs-comment">-- @since 2.8.6.0</span><span>
+</span><span id="line-189"></span><span class="hs-identifier">isBlockDeviceType</span><span>     </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">DirType</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">Bool</span><span>
+</span><span id="line-190"></span><span class="hs-comment">-- | Checks if this 'DirType' refers to a character device entry.</span><span>
+</span><span id="line-191"></span><span class="hs-comment">--</span><span>
+</span><span id="line-192"></span><span class="hs-comment">-- @since 2.8.6.0</span><span>
+</span><span id="line-193"></span><span class="hs-identifier">isCharacterDeviceType</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">DirType</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">Bool</span><span>
+</span><span id="line-194"></span><span class="hs-comment">-- | Checks if this 'DirType' refers to a named pipe entry.</span><span>
+</span><span id="line-195"></span><span class="hs-comment">--</span><span>
+</span><span id="line-196"></span><span class="hs-comment">-- @since 2.8.6.0</span><span>
+</span><span id="line-197"></span><span class="hs-identifier">isNamedPipeType</span><span>       </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">DirType</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">Bool</span><span>
+</span><span id="line-198"></span><span class="hs-comment">-- | Checks if this 'DirType' refers to a regular file entry.</span><span>
+</span><span id="line-199"></span><span class="hs-comment">--</span><span>
+</span><span id="line-200"></span><span class="hs-comment">-- @since 2.8.6.0</span><span>
+</span><span id="line-201"></span><span class="hs-identifier">isRegularFileType</span><span>     </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">DirType</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">Bool</span><span>
+</span><span id="line-202"></span><span class="hs-comment">-- | Checks if this 'DirType' refers to a directory entry.</span><span>
+</span><span id="line-203"></span><span class="hs-comment">--</span><span>
+</span><span id="line-204"></span><span class="hs-comment">-- @since 2.8.6.0</span><span>
+</span><span id="line-205"></span><span class="hs-identifier">isDirectoryType</span><span>       </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">DirType</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">Bool</span><span>
+</span><span id="line-206"></span><span class="hs-comment">-- | Checks if this 'DirType' refers to a symbolic link entry.</span><span>
+</span><span id="line-207"></span><span class="hs-comment">--</span><span>
+</span><span id="line-208"></span><span class="hs-comment">-- @since 2.8.6.0</span><span>
+</span><span id="line-209"></span><span class="hs-identifier">isSymbolicLinkType</span><span>    </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">DirType</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">Bool</span><span>
+</span><span id="line-210"></span><span class="hs-comment">-- | Checks if this 'DirType' refers to a socket entry.</span><span>
+</span><span id="line-211"></span><span class="hs-comment">--</span><span>
+</span><span id="line-212"></span><span class="hs-comment">-- @since 2.8.6.0</span><span>
+</span><span id="line-213"></span><span class="hs-identifier">isSocketType</span><span>          </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">DirType</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">Bool</span><span>
+</span><span id="line-214"></span><span class="hs-comment">-- | Checks if this 'DirType' refers to a whiteout entry.</span><span>
+</span><span id="line-215"></span><span class="hs-comment">--</span><span>
+</span><span id="line-216"></span><span class="hs-comment">-- @since 2.8.6.0</span><span>
+</span><span id="line-217"></span><span class="hs-identifier">isWhiteoutType</span><span>        </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">DirType</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">Bool</span><span>
+</span><span id="line-218"></span><span>
+</span><span id="line-219"></span><span class="hs-identifier">isUnknownType</span><span> </span><span class="hs-identifier">dtype</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">dtype</span><span> </span><span class="hs-operator">==</span><span> </span><span class="hs-identifier">UnknownType</span><span>
+</span><span id="line-220"></span><span class="hs-identifier">isBlockDeviceType</span><span> </span><span class="hs-identifier">dtype</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">dtype</span><span> </span><span class="hs-operator">==</span><span> </span><span class="hs-identifier">BlockDeviceType</span><span>
+</span><span id="line-221"></span><span class="hs-identifier">isCharacterDeviceType</span><span> </span><span class="hs-identifier">dtype</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">dtype</span><span> </span><span class="hs-operator">==</span><span> </span><span class="hs-identifier">CharacterDeviceType</span><span>
+</span><span id="line-222"></span><span class="hs-identifier">isNamedPipeType</span><span> </span><span class="hs-identifier">dtype</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">dtype</span><span> </span><span class="hs-operator">==</span><span> </span><span class="hs-identifier">NamedPipeType</span><span>
+</span><span id="line-223"></span><span class="hs-identifier">isRegularFileType</span><span> </span><span class="hs-identifier">dtype</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">dtype</span><span> </span><span class="hs-operator">==</span><span> </span><span class="hs-identifier">RegularFileType</span><span>
+</span><span id="line-224"></span><span class="hs-identifier">isDirectoryType</span><span> </span><span class="hs-identifier">dtype</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">dtype</span><span> </span><span class="hs-operator">==</span><span> </span><span class="hs-identifier">DirectoryType</span><span>
+</span><span id="line-225"></span><span class="hs-identifier">isSymbolicLinkType</span><span> </span><span class="hs-identifier">dtype</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">dtype</span><span> </span><span class="hs-operator">==</span><span> </span><span class="hs-identifier">SymbolicLinkType</span><span>
+</span><span id="line-226"></span><span class="hs-identifier">isSocketType</span><span> </span><span class="hs-identifier">dtype</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">dtype</span><span> </span><span class="hs-operator">==</span><span> </span><span class="hs-identifier">SocketType</span><span>
+</span><span id="line-227"></span><span class="hs-identifier">isWhiteoutType</span><span> </span><span class="hs-identifier">dtype</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">dtype</span><span> </span><span class="hs-operator">==</span><span> </span><span class="hs-identifier">WhiteoutType</span><span>
+</span><span id="line-228"></span><span>
+</span><span id="line-229"></span><span class="hs-comment">-- | @since 2.8.6.0</span><span>
+</span><span id="line-230"></span><span class="hs-identifier">getRealDirType</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">IO</span><span> </span><span class="hs-identifier">FileStatus</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">DirType</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">IO</span><span> </span><span class="hs-identifier">DirType</span><span>
+</span><span id="line-231"></span><span class="hs-identifier">getRealDirType</span><span> </span><span class="hs-identifier">_</span><span> </span><span class="hs-identifier">BlockDeviceType</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">return</span><span> </span><span class="hs-identifier">BlockDeviceType</span><span>
+</span><span id="line-232"></span><span class="hs-identifier">getRealDirType</span><span> </span><span class="hs-identifier">_</span><span> </span><span class="hs-identifier">CharacterDeviceType</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">return</span><span> </span><span class="hs-identifier">CharacterDeviceType</span><span>
+</span><span id="line-233"></span><span class="hs-identifier">getRealDirType</span><span> </span><span class="hs-identifier">_</span><span> </span><span class="hs-identifier">NamedPipeType</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">return</span><span> </span><span class="hs-identifier">NamedPipeType</span><span>
+</span><span id="line-234"></span><span class="hs-identifier">getRealDirType</span><span> </span><span class="hs-identifier">_</span><span> </span><span class="hs-identifier">RegularFileType</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">return</span><span> </span><span class="hs-identifier">RegularFileType</span><span>
+</span><span id="line-235"></span><span class="hs-identifier">getRealDirType</span><span> </span><span class="hs-identifier">_</span><span> </span><span class="hs-identifier">DirectoryType</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">return</span><span> </span><span class="hs-identifier">DirectoryType</span><span>
+</span><span id="line-236"></span><span class="hs-identifier">getRealDirType</span><span> </span><span class="hs-identifier">_</span><span> </span><span class="hs-identifier">SymbolicLinkType</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">return</span><span> </span><span class="hs-identifier">SymbolicLinkType</span><span>
+</span><span id="line-237"></span><span class="hs-identifier">getRealDirType</span><span> </span><span class="hs-identifier">_</span><span> </span><span class="hs-identifier">SocketType</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">return</span><span> </span><span class="hs-identifier">SocketType</span><span>
+</span><span id="line-238"></span><span class="hs-identifier">getRealDirType</span><span> </span><span class="hs-identifier">_</span><span> </span><span class="hs-identifier">WhiteoutType</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">return</span><span> </span><span class="hs-identifier">WhiteoutType</span><span>
+</span><span id="line-239"></span><span class="hs-identifier">getRealDirType</span><span> </span><span class="hs-identifier">getFileStatus</span><span> </span><span class="hs-identifier">_</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-240"></span><span>    </span><span class="hs-identifier">stat</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="hs-identifier">getFileStatus</span><span>
+</span><span id="line-241"></span><span>    </span><span class="hs-identifier">return</span><span> </span><span class="hs-operator">$</span><span> </span><span class="hs-keyword">if</span><span> </span><span class="hs-glyph">|</span><span> </span><span class="hs-identifier">isRegularFile</span><span> </span><span class="hs-identifier">stat</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">RegularFileType</span><span>
+</span><span id="line-242"></span><span>                </span><span class="hs-glyph">|</span><span> </span><span class="hs-identifier">isDirectory</span><span> </span><span class="hs-identifier">stat</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">DirectoryType</span><span>
+</span><span id="line-243"></span><span>                </span><span class="hs-glyph">|</span><span> </span><span class="hs-identifier">isSymbolicLink</span><span> </span><span class="hs-identifier">stat</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">SymbolicLinkType</span><span>
+</span><span id="line-244"></span><span>                </span><span class="hs-glyph">|</span><span> </span><span class="hs-identifier">isBlockDevice</span><span> </span><span class="hs-identifier">stat</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">BlockDeviceType</span><span>
+</span><span id="line-245"></span><span>                </span><span class="hs-glyph">|</span><span> </span><span class="hs-identifier">isCharacterDevice</span><span> </span><span class="hs-identifier">stat</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">CharacterDeviceType</span><span>
+</span><span id="line-246"></span><span>                </span><span class="hs-glyph">|</span><span> </span><span class="hs-identifier">isNamedPipe</span><span> </span><span class="hs-identifier">stat</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">NamedPipeType</span><span>
+</span><span id="line-247"></span><span>                </span><span class="hs-glyph">|</span><span> </span><span class="hs-identifier">isSocket</span><span> </span><span class="hs-identifier">stat</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">SocketType</span><span>
+</span><span id="line-248"></span><span>                </span><span class="hs-glyph">|</span><span> </span><span class="hs-identifier">otherwise</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">UnknownType</span><span>
+</span><span id="line-249"></span><span>
+</span><span id="line-250"></span><span class="hs-comment">-- | Call @fdopendir@ to obtain a directory stream for @fd@. @fd@ must not be</span><span>
+</span><span id="line-251"></span><span class="hs-comment">-- otherwise used after this.</span><span>
+</span><span id="line-252"></span><span class="hs-comment">--</span><span>
+</span><span id="line-253"></span><span class="hs-comment">-- On success, it is owned by the returned 'DirStream', which should be closed</span><span>
+</span><span id="line-254"></span><span class="hs-comment">-- via 'closeDirStream' when no longer needed.  On error, the file descriptor</span><span>
+</span><span id="line-255"></span><span class="hs-comment">-- is automatically closed and then an exception is thrown.  There is no code</span><span>
+</span><span id="line-256"></span><span class="hs-comment">-- path in which the file descriptor remains open and yet not owned by a</span><span>
+</span><span id="line-257"></span><span class="hs-comment">-- returned 'DirStream'.</span><span>
+</span><span id="line-258"></span><span class="hs-comment">--</span><span>
+</span><span id="line-259"></span><span class="hs-comment">-- The input file descriptor must not have been used with @threadWaitRead@ or</span><span>
+</span><span id="line-260"></span><span class="hs-comment">-- @threadWaitWrite@.</span><span>
+</span><span id="line-261"></span><span class="hs-comment">--</span><span>
+</span><span id="line-262"></span><span class="hs-comment">-- @since 2.8.6.0</span><span>
+</span><span id="line-263"></span><span class="hs-identifier">unsafeOpenDirStreamFd</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">Fd</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">IO</span><span> </span><span class="hs-identifier">DirStream</span><span>
+</span><span id="line-264"></span><span class="hs-identifier">unsafeOpenDirStreamFd</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">Fd</span><span> </span><span class="hs-identifier">fd</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">mask_</span><span> </span><span class="hs-operator">$</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-265"></span><span>    </span><span class="hs-identifier">ptr</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="hs-identifier">c_fdopendir</span><span> </span><span class="hs-identifier">fd</span><span>
+</span><span id="line-266"></span><span>    </span><span class="hs-identifier">when</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">ptr</span><span> </span><span class="hs-operator">==</span><span> </span><span class="hs-identifier">nullPtr</span><span class="hs-special">)</span><span> </span><span class="hs-operator">$</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-267"></span><span>        </span><span class="hs-identifier">errno</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="hs-identifier">getErrno</span><span>
+</span><span id="line-268"></span><span>        </span><span class="hs-identifier">void</span><span> </span><span class="hs-operator">$</span><span> </span><span class="hs-identifier">c_close</span><span> </span><span class="hs-identifier">fd</span><span>
+</span><span id="line-269"></span><span>        </span><span class="hs-identifier">ioError</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">errnoToIOError</span><span> </span><span class="hs-string">&quot;openDirStreamFd&quot;</span><span> </span><span class="hs-identifier">errno</span><span> </span><span class="hs-identifier">Nothing</span><span> </span><span class="hs-identifier">Nothing</span><span class="hs-special">)</span><span>
+</span><span id="line-270"></span><span>    </span><span class="hs-identifier">return</span><span> </span><span class="hs-operator">$</span><span> </span><span class="hs-identifier">DirStream</span><span> </span><span class="hs-identifier">ptr</span><span>
+</span><span id="line-271"></span><span>
+</span><span id="line-272"></span><span class="hs-comment">-- We need c_close here, because 'closeFd' throws exceptions on error,</span><span>
+</span><span id="line-273"></span><span class="hs-comment">-- but we want to silently close the (presumably directory) descriptor.</span><span>
+</span><span id="line-274"></span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">ccall</span><span> </span><span class="hs-keyword">unsafe</span><span> </span><span class="hs-string">&quot;HsUnix.h close&quot;</span><span>
+</span><span id="line-275"></span><span>   </span><span class="hs-identifier">c_close</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">CInt</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">IO</span><span> </span><span class="hs-identifier">CInt</span><span>
+</span><span id="line-276"></span><span>
+</span><span id="line-277"></span><span class="hs-comment">-- NOTE: It is /critical/ to use &quot;capi&quot; and &quot;dirent.h&quot; here, because system</span><span>
+</span><span id="line-278"></span><span class="hs-comment">-- headers on e.g. macOS alias this function, and linking directly to the</span><span>
+</span><span id="line-279"></span><span class="hs-comment">-- &quot;fdopendir&quot; symbol in libc leads to a crash!</span><span>
+</span><span id="line-280"></span><span class="hs-comment">--</span><span>
+</span><span id="line-281"></span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">capi</span><span> </span><span class="hs-keyword">unsafe</span><span> </span><span class="hs-string">&quot;dirent.h fdopendir&quot;</span><span>
+</span><span id="line-282"></span><span>    </span><span class="hs-identifier">c_fdopendir</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">CInt</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">IO</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">Ptr</span><span> </span><span class="hs-identifier">CDir</span><span class="hs-special">)</span><span>
+</span><span id="line-283"></span><span>
+</span><span id="line-284"></span><span>
+</span><span id="line-285"></span><span class="hs-comment">-- | @readDirStreamWith f dp@ calls @readdir@ to obtain the next directory entry</span><span>
+</span><span id="line-286"></span><span class="hs-comment">--   (@struct dirent@) for the open directory stream @dp@. If an entry is read,</span><span>
+</span><span id="line-287"></span><span class="hs-comment">--   it passes the pointer to that structure to the provided function @f@ for</span><span>
+</span><span id="line-288"></span><span class="hs-comment">--   processing. It returns the result of that function call wrapped in a @Just@</span><span>
+</span><span id="line-289"></span><span class="hs-comment">--   if an entry was read and @Nothing@ if the end of the directory stream was</span><span>
+</span><span id="line-290"></span><span class="hs-comment">--   reached.</span><span>
+</span><span id="line-291"></span><span class="hs-comment">--</span><span>
+</span><span id="line-292"></span><span class="hs-comment">--   __NOTE:__ The lifetime of the pointer wrapped in the `DirEnt` is limited to</span><span>
+</span><span id="line-293"></span><span class="hs-comment">--   invocation of the callback and it will be freed automatically after. Do not</span><span>
+</span><span id="line-294"></span><span class="hs-comment">--   pass it to the outside world!</span><span>
+</span><span id="line-295"></span><span class="hs-comment">--</span><span>
+</span><span id="line-296"></span><span class="hs-comment">-- @since 2.8.6.0</span><span>
+</span><span id="line-297"></span><span class="hs-identifier">readDirStreamWith</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">DirEnt</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">IO</span><span> </span><span class="hs-identifier">a</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">DirStream</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">IO</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">Maybe</span><span> </span><span class="hs-identifier">a</span><span class="hs-special">)</span><span>
+</span><span id="line-298"></span><span class="hs-identifier">readDirStreamWith</span><span> </span><span class="hs-identifier">f</span><span> </span><span class="hs-identifier">dstream</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">alloca</span><span>
+</span><span id="line-299"></span><span>  </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span class="hs-identifier">ptr_dEnt</span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">readDirStreamWithPtr</span><span> </span><span class="hs-identifier">ptr_dEnt</span><span> </span><span class="hs-identifier">f</span><span> </span><span class="hs-identifier">dstream</span><span class="hs-special">)</span><span>
+</span><span id="line-300"></span><span>
+</span><span id="line-301"></span><span class="hs-comment">-- | A version of 'readDirStreamWith' that takes a pre-allocated pointer in</span><span>
+</span><span id="line-302"></span><span class="hs-comment">--   addition to the other arguments. This pointer is used to store the pointer</span><span>
+</span><span id="line-303"></span><span class="hs-comment">--   to the next directory entry, if there is any. This function is intended for</span><span>
+</span><span id="line-304"></span><span class="hs-comment">--   use cases where you need to read a lot of directory entries and want to</span><span>
+</span><span id="line-305"></span><span class="hs-comment">--   reuse the pointer for each of them. Using for example 'readDirStream' or</span><span>
+</span><span id="line-306"></span><span class="hs-comment">--   'readDirStreamWith' in this scenario would allocate a new pointer for each</span><span>
+</span><span id="line-307"></span><span class="hs-comment">--   call of these functions.</span><span>
+</span><span id="line-308"></span><span class="hs-comment">--</span><span>
+</span><span id="line-309"></span><span class="hs-comment">--   __NOTE__: You are responsible for releasing the pointer after you are done.</span><span>
+</span><span id="line-310"></span><span class="hs-comment">--</span><span>
+</span><span id="line-311"></span><span class="hs-comment">-- @since 2.8.6.0</span><span>
+</span><span id="line-312"></span><span class="hs-identifier">readDirStreamWithPtr</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">Ptr</span><span> </span><span class="hs-identifier">DirEnt</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">DirEnt</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">IO</span><span> </span><span class="hs-identifier">a</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">DirStream</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">IO</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">Maybe</span><span> </span><span class="hs-identifier">a</span><span class="hs-special">)</span><span>
+</span><span id="line-313"></span><span class="hs-identifier">readDirStreamWithPtr</span><span> </span><span class="hs-identifier">ptr_dEnt</span><span> </span><span class="hs-identifier">f</span><span> </span><span class="hs-identifier">dstream</span><span class="hs-glyph">@</span><span class="hs-special">(</span><span class="hs-identifier">DirStream</span><span> </span><span class="hs-identifier">dirp</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-314"></span><span>  </span><span class="hs-identifier">resetErrno</span><span>
+</span><span id="line-315"></span><span>  </span><span class="hs-identifier">r</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="hs-identifier">c_readdir</span><span> </span><span class="hs-identifier">dirp</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">castPtr</span><span> </span><span class="hs-identifier">ptr_dEnt</span><span class="hs-special">)</span><span>
+</span><span id="line-316"></span><span>  </span><span class="hs-keyword">if</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">r</span><span> </span><span class="hs-operator">==</span><span> </span><span class="hs-number">0</span><span class="hs-special">)</span><span>
+</span><span id="line-317"></span><span>       </span><span class="hs-keyword">then</span><span> </span><span class="hs-keyword">do</span><span> </span><span class="hs-identifier">dEnt</span><span class="hs-glyph">@</span><span class="hs-special">(</span><span class="hs-identifier">DirEnt</span><span> </span><span class="hs-identifier">dEntPtr</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="hs-identifier">peek</span><span> </span><span class="hs-identifier">ptr_dEnt</span><span>
+</span><span id="line-318"></span><span>               </span><span class="hs-keyword">if</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">dEntPtr</span><span> </span><span class="hs-operator">==</span><span> </span><span class="hs-identifier">nullPtr</span><span class="hs-special">)</span><span>
+</span><span id="line-319"></span><span>                  </span><span class="hs-keyword">then</span><span> </span><span class="hs-identifier">return</span><span> </span><span class="hs-identifier">Nothing</span><span>
+</span><span id="line-320"></span><span>                  </span><span class="hs-keyword">else</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-321"></span><span>                   </span><span class="hs-identifier">res</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="hs-identifier">f</span><span> </span><span class="hs-identifier">dEnt</span><span>
+</span><span id="line-322"></span><span>                   </span><span class="hs-identifier">c_freeDirEnt</span><span> </span><span class="hs-identifier">dEntPtr</span><span>
+</span><span id="line-323"></span><span>                   </span><span class="hs-identifier">return</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">Just</span><span> </span><span class="hs-identifier">res</span><span class="hs-special">)</span><span>
+</span><span id="line-324"></span><span>       </span><span class="hs-keyword">else</span><span> </span><span class="hs-keyword">do</span><span> </span><span class="hs-identifier">errno</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="hs-identifier">getErrno</span><span>
+</span><span id="line-325"></span><span>               </span><span class="hs-keyword">if</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">errno</span><span> </span><span class="hs-operator">==</span><span> </span><span class="hs-identifier">eINTR</span><span class="hs-special">)</span><span>
+</span><span id="line-326"></span><span>                  </span><span class="hs-keyword">then</span><span> </span><span class="hs-identifier">readDirStreamWithPtr</span><span> </span><span class="hs-identifier">ptr_dEnt</span><span> </span><span class="hs-identifier">f</span><span> </span><span class="hs-identifier">dstream</span><span>
+</span><span id="line-327"></span><span>                  </span><span class="hs-keyword">else</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-328"></span><span>                   </span><span class="hs-keyword">let</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">Errno</span><span> </span><span class="hs-identifier">eo</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">errno</span><span>
+</span><span id="line-329"></span><span>                   </span><span class="hs-keyword">if</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">eo</span><span> </span><span class="hs-operator">==</span><span> </span><span class="hs-number">0</span><span class="hs-special">)</span><span>
+</span><span id="line-330"></span><span>                      </span><span class="hs-keyword">then</span><span> </span><span class="hs-identifier">return</span><span> </span><span class="hs-identifier">Nothing</span><span>
+</span><span id="line-331"></span><span>                      </span><span class="hs-keyword">else</span><span> </span><span class="hs-identifier">throwErrno</span><span> </span><span class="hs-string">&quot;readDirStream&quot;</span><span>
+</span><span id="line-332"></span><span>
+</span><span id="line-333"></span><span class="hs-comment">-- | @since 2.8.6.0</span><span>
+</span><span id="line-334"></span><span class="hs-identifier">dirEntName</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">DirEnt</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">IO</span><span> </span><span class="hs-identifier">CString</span><span>
+</span><span id="line-335"></span><span class="hs-identifier">dirEntName</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">DirEnt</span><span> </span><span class="hs-identifier">dEntPtr</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">d_name</span><span> </span><span class="hs-identifier">dEntPtr</span><span>
+</span><span id="line-336"></span><span>
+</span><span id="line-337"></span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">ccall</span><span> </span><span class="hs-keyword">unsafe</span><span> </span><span class="hs-string">&quot;__hscore_d_name&quot;</span><span>
+</span><span id="line-338"></span><span>  </span><span class="hs-identifier">d_name</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">Ptr</span><span> </span><span class="hs-identifier">CDirent</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">IO</span><span> </span><span class="hs-identifier">CString</span><span>
+</span><span id="line-339"></span><span>
+</span><span id="line-340"></span><span class="hs-comment">-- | @since 2.8.6.0</span><span>
+</span><span id="line-341"></span><span class="hs-identifier">dirEntType</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">DirEnt</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">IO</span><span> </span><span class="hs-identifier">DirType</span><span>
+</span><span id="line-342"></span><span class="hs-identifier">dirEntType</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">DirEnt</span><span> </span><span class="hs-identifier">dEntPtr</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">DirType</span><span> </span><span class="hs-operator">&lt;$&gt;</span><span> </span><span class="hs-identifier">d_type</span><span> </span><span class="hs-identifier">dEntPtr</span><span>
+</span><span id="line-343"></span><span>
+</span><span id="line-344"></span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">ccall</span><span> </span><span class="hs-keyword">unsafe</span><span> </span><span class="hs-string">&quot;__hscore_d_type&quot;</span><span>
+</span><span id="line-345"></span><span>  </span><span class="hs-identifier">d_type</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">Ptr</span><span> </span><span class="hs-identifier">CDirent</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">IO</span><span> </span><span class="hs-identifier">CChar</span><span>
+</span><span id="line-346"></span><span>
+</span><span id="line-347"></span><span class="hs-comment">-- traversing directories</span><span>
+</span><span id="line-348"></span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">ccall</span><span> </span><span class="hs-keyword">unsafe</span><span> </span><span class="hs-string">&quot;__hscore_readdir&quot;</span><span>
+</span><span id="line-349"></span><span>  </span><span class="hs-identifier">c_readdir</span><span>  </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">Ptr</span><span> </span><span class="hs-identifier">CDir</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">Ptr</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">Ptr</span><span> </span><span class="hs-identifier">CDirent</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">IO</span><span> </span><span class="hs-identifier">CInt</span><span>
+</span><span id="line-350"></span><span>
+</span><span id="line-351"></span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">ccall</span><span> </span><span class="hs-keyword">unsafe</span><span> </span><span class="hs-string">&quot;__hscore_free_dirent&quot;</span><span>
+</span><span id="line-352"></span><span>  </span><span class="hs-identifier">c_freeDirEnt</span><span>  </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">Ptr</span><span> </span><span class="hs-identifier">CDirent</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">IO</span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-353"></span><span>
+</span><span id="line-354"></span><span>
+</span><span id="line-355"></span><span class="hs-comment">-- | @rewindDirStream dp@ calls @rewinddir@ to reposition</span><span>
+</span><span id="line-356"></span><span class="hs-comment">--   the directory stream @dp@ at the beginning of the directory.</span><span>
+</span><span id="line-357"></span><span class="hs-identifier">rewindDirStream</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">DirStream</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">IO</span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-358"></span><span class="hs-identifier">rewindDirStream</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">DirStream</span><span> </span><span class="hs-identifier">dirp</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">c_rewinddir</span><span> </span><span class="hs-identifier">dirp</span><span>
+</span><span id="line-359"></span><span>
+</span><span id="line-360"></span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">ccall</span><span> </span><span class="hs-keyword">unsafe</span><span> </span><span class="hs-string">&quot;rewinddir&quot;</span><span>
+</span><span id="line-361"></span><span>   </span><span class="hs-identifier">c_rewinddir</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">Ptr</span><span> </span><span class="hs-identifier">CDir</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">IO</span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-362"></span><span>
+</span><span id="line-363"></span><span class="hs-comment">-- | @closeDirStream dp@ calls @closedir@ to close</span><span>
+</span><span id="line-364"></span><span class="hs-comment">--   the directory stream @dp@.</span><span>
+</span><span id="line-365"></span><span class="hs-identifier">closeDirStream</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">DirStream</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">IO</span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-366"></span><span class="hs-identifier">closeDirStream</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">DirStream</span><span> </span><span class="hs-identifier">dirp</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-367"></span><span>  </span><span class="hs-identifier">throwErrnoIfMinus1Retry_</span><span> </span><span class="hs-string">&quot;closeDirStream&quot;</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">c_closedir</span><span> </span><span class="hs-identifier">dirp</span><span class="hs-special">)</span><span>
+</span><span id="line-368"></span><span>
+</span><span id="line-369"></span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">ccall</span><span> </span><span class="hs-keyword">unsafe</span><span> </span><span class="hs-string">&quot;closedir&quot;</span><span>
+</span><span id="line-370"></span><span>   </span><span class="hs-identifier">c_closedir</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">Ptr</span><span> </span><span class="hs-identifier">CDir</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">IO</span><span> </span><span class="hs-identifier">CInt</span><span>
+</span><span id="line-371"></span><span>
+</span><span id="line-372"></span><span class="hs-keyword">newtype</span><span> </span><span class="hs-identifier">DirStreamOffset</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">DirStreamOffset</span><span> </span><span class="hs-identifier">COff</span><span>
+</span><span id="line-373"></span><span>
+</span><span id="line-374"></span><span>
+</span><span id="line-375"></span><span class="hs-pragma">{-# LINE 375 &quot;libraries/unix/System/Posix/Directory/Common.hsc&quot; #-}</span><span>
+</span><span id="line-375"></span><span class="hs-identifier">seekDirStream</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">DirStream</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">DirStreamOffset</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">IO</span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-376"></span><span class="hs-identifier">seekDirStream</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">DirStream</span><span> </span><span class="hs-identifier">dirp</span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">DirStreamOffset</span><span> </span><span class="hs-identifier">off</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-377"></span><span>  </span><span class="hs-identifier">c_seekdir</span><span> </span><span class="hs-identifier">dirp</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">fromIntegral</span><span> </span><span class="hs-identifier">off</span><span class="hs-special">)</span><span> </span><span class="hs-comment">-- TODO: check for CLong/COff overflow</span><span>
+</span><span id="line-378"></span><span>
+</span><span id="line-379"></span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">ccall</span><span> </span><span class="hs-keyword">unsafe</span><span> </span><span class="hs-string">&quot;seekdir&quot;</span><span>
+</span><span id="line-380"></span><span>  </span><span class="hs-identifier">c_seekdir</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">Ptr</span><span> </span><span class="hs-identifier">CDir</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">CLong</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">IO</span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-381"></span><span>
+</span><span id="line-382"></span><span class="hs-pragma">{-# LINE 382 &quot;libraries/unix/System/Posix/Directory/Common.hsc&quot; #-}</span><span>
+</span><span id="line-382"></span><span>
+</span><span id="line-383"></span><span>
+</span><span id="line-384"></span><span class="hs-pragma">{-# LINE 384 &quot;libraries/unix/System/Posix/Directory/Common.hsc&quot; #-}</span><span>
+</span><span id="line-384"></span><span class="hs-identifier">tellDirStream</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">DirStream</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">IO</span><span> </span><span class="hs-identifier">DirStreamOffset</span><span>
+</span><span id="line-385"></span><span class="hs-identifier">tellDirStream</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">DirStream</span><span> </span><span class="hs-identifier">dirp</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-386"></span><span>  </span><span class="hs-identifier">off</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="hs-identifier">c_telldir</span><span> </span><span class="hs-identifier">dirp</span><span>
+</span><span id="line-387"></span><span>  </span><span class="hs-identifier">return</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">DirStreamOffset</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">fromIntegral</span><span> </span><span class="hs-identifier">off</span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-comment">-- TODO: check for overflow</span><span>
+</span><span id="line-388"></span><span>
+</span><span id="line-389"></span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">ccall</span><span> </span><span class="hs-keyword">unsafe</span><span> </span><span class="hs-string">&quot;telldir&quot;</span><span>
+</span><span id="line-390"></span><span>  </span><span class="hs-identifier">c_telldir</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">Ptr</span><span> </span><span class="hs-identifier">CDir</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">IO</span><span> </span><span class="hs-identifier">CLong</span><span>
+</span><span id="line-391"></span><span>
+</span><span id="line-392"></span><span class="hs-pragma">{-# LINE 392 &quot;libraries/unix/System/Posix/Directory/Common.hsc&quot; #-}</span><span>
+</span><span id="line-392"></span><span>
+</span><span id="line-393"></span><span>
+</span><span id="line-394"></span><span class="hs-pragma">{-# LINE 394 &quot;libraries/unix/System/Posix/Directory/Common.hsc&quot; #-}</span><span>
+</span><span id="line-394"></span><span>
+</span><span id="line-395"></span><span class="hs-identifier">changeWorkingDirectoryFd</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">Fd</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">IO</span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-396"></span><span class="hs-identifier">changeWorkingDirectoryFd</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">Fd</span><span> </span><span class="hs-identifier">fd</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-397"></span><span>  </span><span class="hs-identifier">throwErrnoIfMinus1Retry_</span><span> </span><span class="hs-string">&quot;changeWorkingDirectoryFd&quot;</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">c_fchdir</span><span> </span><span class="hs-identifier">fd</span><span class="hs-special">)</span><span>
+</span><span id="line-398"></span><span>
+</span><span id="line-399"></span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">ccall</span><span> </span><span class="hs-keyword">unsafe</span><span> </span><span class="hs-string">&quot;fchdir&quot;</span><span>
+</span><span id="line-400"></span><span>  </span><span class="hs-identifier">c_fchdir</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">CInt</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">IO</span><span> </span><span class="hs-identifier">CInt</span><span>
+</span><span id="line-401"></span><span>
+</span><span id="line-402"></span><span>
+</span><span id="line-403"></span><span class="hs-pragma">{-# LINE 409 &quot;libraries/unix/System/Posix/Directory/Common.hsc&quot; #-}</span><span>
+</span><span id="line-409"></span></pre></body></html>

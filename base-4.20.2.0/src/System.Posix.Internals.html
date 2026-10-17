@@ -1,0 +1,31 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE Safe #-}</span><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# OPTIONS_HADDOCK not-home #-}</span><span>
+</span><span id="line-3"></span><span>
+</span><span id="line-4"></span><span class="hs-comment">-- |</span><span>
+</span><span id="line-5"></span><span class="hs-comment">-- Module      :  System.Posix.Internals</span><span>
+</span><span id="line-6"></span><span class="hs-comment">-- Copyright   :  (c) The University of Glasgow, 1992-2002</span><span>
+</span><span id="line-7"></span><span class="hs-comment">-- License     :  see libraries/base/LICENSE</span><span>
+</span><span id="line-8"></span><span class="hs-comment">--</span><span>
+</span><span id="line-9"></span><span class="hs-comment">-- Maintainer  :  ghc-devs@haskell.org</span><span>
+</span><span id="line-10"></span><span class="hs-comment">-- Stability   :  internal</span><span>
+</span><span id="line-11"></span><span class="hs-comment">-- Portability :  non-portable (requires POSIX)</span><span>
+</span><span id="line-12"></span><span class="hs-comment">--</span><span>
+</span><span id="line-13"></span><span class="hs-comment">-- POSIX support layer for the standard libraries.</span><span>
+</span><span id="line-14"></span><span class="hs-comment">--</span><span>
+</span><span id="line-15"></span><span class="hs-comment">-- /The API of this module is unstable and not meant to be consumed by the general public./</span><span>
+</span><span id="line-16"></span><span class="hs-comment">-- If you absolutely must depend on it, make sure to use a tight upper</span><span>
+</span><span id="line-17"></span><span class="hs-comment">-- bound, e.g., @base &lt; 4.X@ rather than @base &lt; 5@, because the interface can</span><span>
+</span><span id="line-18"></span><span class="hs-comment">-- change rapidly without much warning.</span><span>
+</span><span id="line-19"></span><span class="hs-comment">--</span><span>
+</span><span id="line-20"></span><span class="hs-comment">-- This module is built on *every* platform, including Win32.</span><span>
+</span><span id="line-21"></span><span class="hs-comment">--</span><span>
+</span><span id="line-22"></span><span class="hs-comment">-- Non-POSIX compliant in order to support the following features:</span><span>
+</span><span id="line-23"></span><span class="hs-comment">--  * S_ISSOCK (no sockets in POSIX)</span><span>
+</span><span id="line-24"></span><span class="hs-comment">--</span><span>
+</span><span id="line-25"></span><span>
+</span><span id="line-26"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="System.Posix.Internals.html"><span class="hs-identifier">System.Posix.Internals</span></a></span><span>
+</span><span id="line-27"></span><span>  </span><span class="hs-special">(</span><span> </span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.System.Posix.Internals.html"><span class="hs-identifier">GHC.Internal.System.Posix.Internals</span></a></span><span> </span><span class="hs-comment">-- TODO: deprecate</span><span>
+</span><span id="line-28"></span><span>  </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-29"></span><span>
+</span><span id="line-30"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.System.Posix.Internals.html"><span class="hs-identifier">GHC.Internal.System.Posix.Internals</span></a></span><span>
+</span><span id="line-31"></span></pre></body></html>

@@ -1,0 +1,161 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE DataKinds #-}</span><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# LANGUAGE DeriveDataTypeable #-}</span><span>
+</span><span id="line-3"></span><span class="hs-pragma">{-# LANGUAGE FlexibleInstances #-}</span><span>
+</span><span id="line-4"></span><span class="hs-pragma">{-# LANGUAGE OverloadedStrings #-}</span><span>
+</span><span id="line-5"></span><span class="hs-pragma">{-# LANGUAGE PolyKinds #-}</span><span>
+</span><span id="line-6"></span><span class="hs-pragma">{-# LANGUAGE TupleSections #-}</span><span>
+</span><span id="line-7"></span><span class="hs-pragma">{-# LANGUAGE TypeOperators #-}</span><span>
+</span><span id="line-8"></span><span class="hs-pragma">{-# OPTIONS_HADDOCK not-home #-}</span><span>
+</span><span id="line-9"></span><span>
+</span><span id="line-10"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Servant.API.QueryString.html"><span class="hs-identifier">Servant.API.QueryString</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Servant.API.QueryString.html#QueryString"><span class="hs-identifier">QueryString</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Servant.API.QueryString.html#DeepQuery"><span class="hs-identifier">DeepQuery</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Servant.API.QueryString.html#FromDeepQuery"><span class="hs-identifier">FromDeepQuery</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Servant.API.QueryString.html#ToDeepQuery"><span class="hs-identifier">ToDeepQuery</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Servant.API.QueryString.html#generateDeepParam"><span class="hs-identifier">generateDeepParam</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-11"></span><span>
+</span><span id="line-12"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Bifunctor</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Bifunctor</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">first</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Kind</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Type</span></span><span class="hs-special">)</span><span>
+</span><span id="line-14"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Map.Strict</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Map</span></span><span class="hs-special">)</span><span>
+</span><span id="line-15"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Map.Strict</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Map</span></span><span>
+</span><span id="line-16"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Text</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Text</span></span><span class="hs-special">)</span><span>
+</span><span id="line-17"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Text</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">T</span></span><span>
+</span><span id="line-18"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Typeable</span></span><span>
+</span><span id="line-19"></span><span>  </span><span class="hs-special">(</span><span> </span><span class="annot"><span class="hs-identifier">Typeable</span></span><span class="hs-special">,</span><span>
+</span><span id="line-20"></span><span>  </span><span class="hs-special">)</span><span>
+</span><span id="line-21"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">GHC.TypeLits</span></span><span>
+</span><span id="line-22"></span><span>  </span><span class="hs-special">(</span><span> </span><span class="annot"><span class="hs-identifier">Symbol</span></span><span class="hs-special">,</span><span>
+</span><span id="line-23"></span><span>  </span><span class="hs-special">)</span><span>
+</span><span id="line-24"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Web.HttpApiData</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">FromHttpApiData</span></span><span class="hs-special">)</span><span>
+</span><span id="line-25"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Web.Internal.HttpApiData</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">FromHttpApiData</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-26"></span><span>
+</span><span id="line-27"></span><span class="hs-comment">-- | Extract the whole query string from a request. This is useful for query strings</span><span>
+</span><span id="line-28"></span><span class="hs-comment">-- containing dynamic parameter names. For query strings with static parameter names,</span><span>
+</span><span id="line-29"></span><span class="hs-comment">-- 'QueryParam' is more suited.</span><span>
+</span><span id="line-30"></span><span class="hs-comment">--</span><span>
+</span><span id="line-31"></span><span class="hs-comment">-- Example:</span><span>
+</span><span id="line-32"></span><span class="hs-comment">--</span><span>
+</span><span id="line-33"></span><span class="hs-comment">-- &gt;&gt;&gt; -- /books?author=&lt;author name&gt;&amp;year=&lt;book year&gt;</span><span>
+</span><span id="line-34"></span><span class="hs-comment">-- &gt;&gt;&gt; type MyApi = &quot;books&quot; :&gt; QueryString :&gt; Get '[JSON] [Book]</span><span>
+</span><span id="line-35"></span><span class="hs-keyword">data</span><span> </span><span id="QueryString"><span class="annot"><a href="Servant.API.QueryString.html#QueryString"><span class="hs-identifier hs-var">QueryString</span></a></span></span><span>
+</span><span id="line-36"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Typeable</span></span><span class="hs-special">)</span><span>
+</span><span id="line-37"></span><span>
+</span><span id="line-38"></span><span class="hs-comment">-- | Extract an deep object from a query string.</span><span>
+</span><span id="line-39"></span><span class="hs-comment">--</span><span>
+</span><span id="line-40"></span><span class="hs-comment">-- Example:</span><span>
+</span><span id="line-41"></span><span class="hs-comment">--</span><span>
+</span><span id="line-42"></span><span class="hs-comment">-- &gt;&gt;&gt; -- /books?filter[author][name]=&lt;author name&gt;&amp;filter[year]=&lt;book year&gt;</span><span>
+</span><span id="line-43"></span><span class="hs-comment">-- &gt;&gt;&gt; type MyApi = &quot;books&quot; :&gt; DeepQuery &quot;filter&quot; BookQuery :&gt; Get '[JSON] [Book]</span><span>
+</span><span id="line-44"></span><span class="hs-keyword">data</span><span> </span><span id="DeepQuery"><span class="annot"><a href="Servant.API.QueryString.html#DeepQuery"><span class="hs-identifier hs-var">DeepQuery</span></a></span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679148558"><span class="annot"><a href="#local-6989586621679148558"><span class="hs-identifier hs-type">sym</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Symbol</span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679148559"><span class="annot"><a href="#local-6989586621679148559"><span class="hs-identifier hs-type">a</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Type</span></span><span class="hs-special">)</span><span>
+</span><span id="line-45"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Typeable</span></span><span class="hs-special">)</span><span>
+</span><span id="line-46"></span><span>
+</span><span id="line-47"></span><span class="hs-comment">-- $setup</span><span>
+</span><span id="line-48"></span><span class="hs-comment">-- &gt;&gt;&gt; :set -XOverloadedStrings</span><span>
+</span><span id="line-49"></span><span class="hs-comment">-- &gt;&gt;&gt; import Servant.API</span><span>
+</span><span id="line-50"></span><span class="hs-comment">-- &gt;&gt;&gt; import Data.Aeson</span><span>
+</span><span id="line-51"></span><span class="hs-comment">-- &gt;&gt;&gt; import Data.Text</span><span>
+</span><span id="line-52"></span><span class="hs-comment">-- &gt;&gt;&gt; data Book</span><span>
+</span><span id="line-53"></span><span class="hs-comment">-- &gt;&gt;&gt; data BookQuery</span><span>
+</span><span id="line-54"></span><span class="hs-comment">-- &gt;&gt;&gt; instance ToJSON Book where { toJSON = undefined }</span><span>
+</span><span id="line-55"></span><span>
+</span><span id="line-56"></span><span class="hs-comment">-- | Extract a deep object from (possibly nested) query parameters.</span><span>
+</span><span id="line-57"></span><span class="hs-comment">-- a param like @filter[a][b][c]=d@ will be represented as</span><span>
+</span><span id="line-58"></span><span class="hs-comment">-- @'([&quot;a&quot;, &quot;b&quot;, &quot;c&quot;], Just &quot;d&quot;)'@. Note that a parameter with no</span><span>
+</span><span id="line-59"></span><span class="hs-comment">-- nested field is possible: @filter=a@ will be represented as</span><span>
+</span><span id="line-60"></span><span class="hs-comment">-- @'([], Just &quot;a&quot;)'@</span><span>
+</span><span id="line-61"></span><span class="hs-keyword">class</span><span> </span><span id="FromDeepQuery"><span class="annot"><a href="Servant.API.QueryString.html#FromDeepQuery"><span class="hs-identifier hs-var">FromDeepQuery</span></a></span></span><span> </span><span id="local-6989586621679148511"><span class="annot"><a href="#local-6989586621679148511"><span class="hs-identifier hs-type">a</span></a></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-62"></span><span>  </span><span id="fromDeepQuery"><span class="annot"><a href="Servant.API.QueryString.html#fromDeepQuery"><span class="hs-identifier hs-type">fromDeepQuery</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="hs-special">(</span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span class="hs-special">]</span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span class="hs-special">)</span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Either</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="annot"><a href="#local-6989586621679148511"><span class="hs-identifier hs-type">a</span></a></span><span>
+</span><span id="line-63"></span><span>
+</span><span id="line-64"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679148512"><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">FromHttpApiData</span></span><span> </span><span class="annot"><a href="#local-6989586621679148512"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Servant.API.QueryString.html#FromDeepQuery"><span class="hs-identifier hs-type">FromDeepQuery</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Map</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span> </span><span class="annot"><a href="#local-6989586621679148512"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-65"></span><span>  </span><span id="local-6989586621679148574"><span class="annot"><span class="annottext">fromDeepQuery :: [([Text], Maybe Text)] -&gt; Either String (Map Text a)
+</span><a href="Servant.API.QueryString.html#fromDeepQuery"><span class="hs-identifier hs-var hs-var hs-var">fromDeepQuery</span></a></span></span><span> </span><span id="local-6989586621679148575"><span class="annot"><span class="annottext">[([Text], Maybe Text)]
+</span><a href="#local-6989586621679148575"><span class="hs-identifier hs-var">params</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-66"></span><span>    </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679148586"><span class="annot"><span class="annottext">parseParam :: ([t], Maybe Text) -&gt; Either String (t, a)
+</span><a href="#local-6989586621679148586"><span class="hs-identifier hs-var hs-var">parseParam</span></a></span></span><span> </span><span class="hs-special">(</span><span class="hs-special">[</span><span id="local-6989586621679148587"><span class="annot"><span class="annottext">t
+</span><a href="#local-6989586621679148587"><span class="hs-identifier hs-var">k</span></a></span></span><span class="hs-special">]</span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621679148588"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679148588"><span class="hs-identifier hs-var">rawV</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">t
+</span><a href="#local-6989586621679148587"><span class="hs-identifier hs-var">k</span></a></span><span class="hs-special">,</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(a -&gt; (t, a)) -&gt; Either String a -&gt; Either String (t, a)
+forall (f :: Type -&gt; Type) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">(Text -&gt; String) -&gt; Either Text a -&gt; Either String a
+forall a b c. (a -&gt; b) -&gt; Either a c -&gt; Either b c
+forall (p :: Type -&gt; Type -&gt; Type) a b c.
+Bifunctor p =&gt;
+(a -&gt; b) -&gt; p a c -&gt; p b c
+</span><span class="hs-identifier hs-var">first</span></span><span> </span><span class="annot"><span class="annottext">Text -&gt; String
+</span><span class="hs-identifier hs-var">T.unpack</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Text -&gt; Either Text a
+forall a. FromHttpApiData a =&gt; Text -&gt; Either Text a
+</span><span class="hs-identifier hs-var">parseQueryParam</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679148588"><span class="hs-identifier hs-var">rawV</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-67"></span><span>        </span><span class="annot"><a href="#local-6989586621679148586"><span class="hs-identifier hs-var">parseParam</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[t]
+</span><span class="hs-identifier">_</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Maybe Text
+</span><span class="hs-identifier hs-var">Nothing</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; Either String (t, a)
+forall a b. a -&gt; Either a b
+</span><span class="hs-identifier hs-var">Left</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Empty map value&quot;</span></span><span>
+</span><span id="line-68"></span><span>        </span><span class="annot"><a href="#local-6989586621679148586"><span class="hs-identifier hs-var">parseParam</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">[</span><span class="hs-special">]</span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Maybe Text
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; Either String (t, a)
+forall a b. a -&gt; Either a b
+</span><span class="hs-identifier hs-var">Left</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Empty map parameter&quot;</span></span><span>
+</span><span id="line-69"></span><span>        </span><span class="annot"><a href="#local-6989586621679148586"><span class="hs-identifier hs-var">parseParam</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[t]
+</span><span class="hs-identifier">_</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; Either String (t, a)
+forall a b. a -&gt; Either a b
+</span><span class="hs-identifier hs-var">Left</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Nested map values&quot;</span></span><span>
+</span><span id="line-70"></span><span>     </span><span class="hs-keyword">in</span><span> </span><span class="annot"><span class="annottext">[(Text, a)] -&gt; Map Text a
+forall k a. Ord k =&gt; [(k, a)] -&gt; Map k a
+</span><span class="hs-identifier hs-var">Map.fromList</span></span><span> </span><span class="annot"><span class="annottext">([(Text, a)] -&gt; Map Text a)
+-&gt; Either String [(Text, a)] -&gt; Either String (Map Text a)
+forall (f :: Type -&gt; Type) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">(([Text], Maybe Text) -&gt; Either String (Text, a))
+-&gt; [([Text], Maybe Text)] -&gt; Either String [(Text, a)]
+forall (t :: Type -&gt; Type) (f :: Type -&gt; Type) a b.
+(Traversable t, Applicative f) =&gt;
+(a -&gt; f b) -&gt; t a -&gt; f (t b)
+forall (f :: Type -&gt; Type) a b.
+Applicative f =&gt;
+(a -&gt; f b) -&gt; [a] -&gt; f [b]
+</span><span class="hs-identifier hs-var">traverse</span></span><span> </span><span class="annot"><span class="annottext">([Text], Maybe Text) -&gt; Either String (Text, a)
+forall {a} {t}.
+FromHttpApiData a =&gt;
+([t], Maybe Text) -&gt; Either String (t, a)
+</span><a href="#local-6989586621679148586"><span class="hs-identifier hs-var">parseParam</span></a></span><span> </span><span class="annot"><span class="annottext">[([Text], Maybe Text)]
+</span><a href="#local-6989586621679148575"><span class="hs-identifier hs-var">params</span></a></span><span>
+</span><span id="line-71"></span><span>
+</span><span id="line-72"></span><span class="hs-comment">-- | Generate query parameters from an object, using the deep object syntax.</span><span>
+</span><span id="line-73"></span><span class="hs-comment">-- A result of @'([&quot;a&quot;, &quot;b&quot;, &quot;c&quot;], Just &quot;d&quot;)'@ attributed to the @filter@</span><span>
+</span><span id="line-74"></span><span class="hs-comment">-- parameter name will result in the following query parameter:</span><span>
+</span><span id="line-75"></span><span class="hs-comment">-- @filter[a][b][c]=d@</span><span>
+</span><span id="line-76"></span><span class="hs-keyword">class</span><span> </span><span id="ToDeepQuery"><span class="annot"><a href="Servant.API.QueryString.html#ToDeepQuery"><span class="hs-identifier hs-var">ToDeepQuery</span></a></span></span><span> </span><span id="local-6989586621679148594"><span class="annot"><a href="#local-6989586621679148594"><span class="hs-identifier hs-type">a</span></a></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-77"></span><span>  </span><span id="toDeepQuery"><span class="annot"><a href="Servant.API.QueryString.html#toDeepQuery"><span class="hs-identifier hs-type">toDeepQuery</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="#local-6989586621679148594"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="hs-special">(</span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span class="hs-special">]</span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span class="hs-special">)</span><span class="hs-special">]</span><span>
+</span><span id="line-78"></span><span>
+</span><span id="line-79"></span><span class="hs-comment">-- | Turn a nested path into a deep object query param</span><span>
+</span><span id="line-80"></span><span class="hs-comment">--</span><span>
+</span><span id="line-81"></span><span class="hs-comment">-- &gt;&gt;&gt; generateDeepParam &quot;filter&quot; ([&quot;a&quot;, &quot;b&quot;, &quot;c&quot;], Just &quot;d&quot;)</span><span>
+</span><span id="line-82"></span><span class="hs-comment">-- (&quot;filter[a][b][c]&quot;,Just &quot;d&quot;)</span><span>
+</span><span id="line-83"></span><span class="annot"><a href="Servant.API.QueryString.html#generateDeepParam"><span class="hs-identifier hs-type">generateDeepParam</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span class="hs-special">]</span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span class="hs-special">)</span><span>
+</span><span id="line-84"></span><span id="generateDeepParam"><span class="annot"><span class="annottext">generateDeepParam :: Text -&gt; ([Text], Maybe Text) -&gt; (Text, Maybe Text)
+</span><a href="Servant.API.QueryString.html#generateDeepParam"><span class="hs-identifier hs-var hs-var">generateDeepParam</span></a></span></span><span> </span><span id="local-6989586621679148596"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679148596"><span class="hs-identifier hs-var">name</span></a></span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679148597"><span class="annot"><span class="annottext">[Text]
+</span><a href="#local-6989586621679148597"><span class="hs-identifier hs-var">keys</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679148598"><span class="annot"><span class="annottext">Maybe Text
+</span><a href="#local-6989586621679148598"><span class="hs-identifier hs-var">value</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-85"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679148605"><span class="annot"><span class="annottext">makeKeySegment :: a -&gt; a
+</span><a href="#local-6989586621679148605"><span class="hs-identifier hs-var hs-var">makeKeySegment</span></a></span></span><span> </span><span id="local-6989586621679148606"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679148606"><span class="hs-identifier hs-var">key</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">a
+</span><span class="hs-string">&quot;[&quot;</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; a -&gt; a
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679148606"><span class="hs-identifier hs-var">key</span></a></span><span> </span><span class="annot"><span class="annottext">a -&gt; a -&gt; a
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><span class="hs-string">&quot;]&quot;</span></span><span>
+</span><span id="line-86"></span><span>   </span><span class="hs-keyword">in</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679148596"><span class="hs-identifier hs-var">name</span></a></span><span> </span><span class="annot"><span class="annottext">Text -&gt; Text -&gt; Text
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">(Text -&gt; Text) -&gt; [Text] -&gt; Text
+forall m a. Monoid m =&gt; (a -&gt; m) -&gt; [a] -&gt; m
+forall (t :: Type -&gt; Type) m a.
+(Foldable t, Monoid m) =&gt;
+(a -&gt; m) -&gt; t a -&gt; m
+</span><span class="hs-identifier hs-var">foldMap</span></span><span> </span><span class="annot"><span class="annottext">Text -&gt; Text
+forall {a}. (Semigroup a, IsString a) =&gt; a -&gt; a
+</span><a href="#local-6989586621679148605"><span class="hs-identifier hs-var">makeKeySegment</span></a></span><span> </span><span class="annot"><span class="annottext">[Text]
+</span><a href="#local-6989586621679148597"><span class="hs-identifier hs-var">keys</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Maybe Text
+</span><a href="#local-6989586621679148598"><span class="hs-identifier hs-var">value</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-87"></span></pre></body></html>

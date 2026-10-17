@@ -1,0 +1,288 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-comment">-- |</span><span>
+</span><span id="line-2"></span><span class="hs-comment">-- The Owner teams API as described on</span><span>
+</span><span id="line-3"></span><span class="hs-comment">-- &lt;http://developer.github.com/v3/orgs/teams/&gt;.</span><span>
+</span><span id="line-4"></span><span>
+</span><span id="line-5"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="GitHub.Endpoints.Organizations.Teams.html"><span class="hs-identifier">GitHub.Endpoints.Organizations.Teams</span></a></span><span> </span><span class="hs-special">(</span><span>
+</span><span id="line-6"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Organizations.Teams.html#teamsOfR"><span class="hs-identifier">teamsOfR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-7"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Organizations.Teams.html#teamInfoForR"><span class="hs-identifier">teamInfoForR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-8"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Organizations.Teams.html#createTeamForR"><span class="hs-identifier">createTeamForR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-9"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Organizations.Teams.html#editTeamR"><span class="hs-identifier">editTeamR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-10"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Organizations.Teams.html#deleteTeamR"><span class="hs-identifier">deleteTeamR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-11"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Organizations.Teams.html#listTeamMembersR"><span class="hs-identifier">listTeamMembersR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-12"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Organizations.Teams.html#listTeamReposR"><span class="hs-identifier">listTeamReposR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-13"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Organizations.Teams.html#addOrUpdateTeamRepoR"><span class="hs-identifier">addOrUpdateTeamRepoR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-14"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Organizations.Teams.html#teamMembershipInfoForR"><span class="hs-identifier">teamMembershipInfoForR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-15"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Organizations.Teams.html#addTeamMembershipForR"><span class="hs-identifier">addTeamMembershipForR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-16"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Organizations.Teams.html#deleteTeamMembershipForR"><span class="hs-identifier">deleteTeamMembershipForR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-17"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Organizations.Teams.html#listTeamsCurrentR"><span class="hs-identifier">listTeamsCurrentR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-18"></span><span>    </span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="GitHub.Data.html"><span class="hs-identifier">GitHub.Data</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-19"></span><span>    </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-20"></span><span>
+</span><span id="line-21"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GitHub.Data.html"><span class="hs-identifier">GitHub.Data</span></a></span><span>
+</span><span id="line-22"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GitHub.Internal.Prelude.html"><span class="hs-identifier">GitHub.Internal.Prelude</span></a></span><span>
+</span><span id="line-23"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Prelude</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-24"></span><span>
+</span><span id="line-25"></span><span class="hs-comment">-- | List teams.</span><span>
+</span><span id="line-26"></span><span class="hs-comment">-- See &lt;https://developer.github.com/v3/orgs/teams/#list-teams&gt;</span><span>
+</span><span id="line-27"></span><span id="local-6989586621679554359"><span class="annot"><a href="GitHub.Endpoints.Organizations.Teams.html#teamsOfR"><span class="hs-identifier hs-type">teamsOfR</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GitHub.Data.Name.html#Name"><span class="hs-identifier hs-type">Name</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.Definitions.html#Organization"><span class="hs-identifier hs-type">Organization</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Request.html#FetchCount"><span class="hs-identifier hs-type">FetchCount</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Request.html#Request"><span class="hs-identifier hs-type">Request</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679554359"><span class="hs-identifier hs-type">k</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Vector</span></span><span> </span><span class="annot"><a href="GitHub.Data.Teams.html#SimpleTeam"><span class="hs-identifier hs-type">SimpleTeam</span></a></span><span class="hs-special">)</span></span><span>
+</span><span id="line-28"></span><span id="teamsOfR"><span class="annot"><span class="annottext">teamsOfR :: forall (k :: RW).
+Name Organization -&gt; FetchCount -&gt; Request k (Vector SimpleTeam)
+</span><a href="GitHub.Endpoints.Organizations.Teams.html#teamsOfR"><span class="hs-identifier hs-var hs-var">teamsOfR</span></a></span></span><span> </span><span id="local-6989586621679554460"><span class="annot"><span class="annottext">Name Organization
+</span><a href="#local-6989586621679554460"><span class="hs-identifier hs-var">org</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-29"></span><span>    </span><span class="annot"><span class="annottext">Paths -&gt; QueryString -&gt; FetchCount -&gt; Request k (Vector SimpleTeam)
+forall a (mt :: RW).
+FromJSON a =&gt;
+Paths -&gt; QueryString -&gt; FetchCount -&gt; Request mt (Vector a)
+</span><a href="GitHub.Data.Request.html#pagedQuery"><span class="hs-identifier hs-var">pagedQuery</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;orgs&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Name Organization -&gt; Text
+forall a. IsPathPart a =&gt; a -&gt; Text
+</span><a href="GitHub.Data.Request.html#toPathPart"><span class="hs-identifier hs-var">toPathPart</span></a></span><span> </span><span class="annot"><span class="annottext">Name Organization
+</span><a href="#local-6989586621679554460"><span class="hs-identifier hs-var">org</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;teams&quot;</span></span><span class="hs-special">]</span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span>
+</span><span id="line-30"></span><span>
+</span><span id="line-31"></span><span class="hs-comment">-- | Query team.</span><span>
+</span><span id="line-32"></span><span class="hs-comment">-- See &lt;https://developer.github.com/v3/orgs/teams/#get-team&gt;</span><span>
+</span><span id="line-33"></span><span id="local-6989586621679554371"><span class="annot"><a href="GitHub.Endpoints.Organizations.Teams.html#teamInfoForR"><span class="hs-identifier hs-type">teamInfoForR</span></a></span><span>  </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GitHub.Data.Id.html#Id"><span class="hs-identifier hs-type">Id</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.Teams.html#Team"><span class="hs-identifier hs-type">Team</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Request.html#Request"><span class="hs-identifier hs-type">Request</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679554371"><span class="hs-identifier hs-type">k</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.Teams.html#Team"><span class="hs-identifier hs-type">Team</span></a></span></span><span>
+</span><span id="line-34"></span><span id="teamInfoForR"><span class="annot"><span class="annottext">teamInfoForR :: forall (k :: RW). Id Team -&gt; Request k Team
+</span><a href="GitHub.Endpoints.Organizations.Teams.html#teamInfoForR"><span class="hs-identifier hs-var hs-var">teamInfoForR</span></a></span></span><span> </span><span id="local-6989586621679554465"><span class="annot"><span class="annottext">Id Team
+</span><a href="#local-6989586621679554465"><span class="hs-identifier hs-var">tid</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-35"></span><span>    </span><span class="annot"><span class="annottext">Paths -&gt; QueryString -&gt; Request k Team
+forall (mt :: RW) a. Paths -&gt; QueryString -&gt; Request mt a
+</span><a href="GitHub.Data.Request.html#query"><span class="hs-identifier hs-var">query</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;teams&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Id Team -&gt; Text
+forall a. IsPathPart a =&gt; a -&gt; Text
+</span><a href="GitHub.Data.Request.html#toPathPart"><span class="hs-identifier hs-var">toPathPart</span></a></span><span> </span><span class="annot"><span class="annottext">Id Team
+</span><a href="#local-6989586621679554465"><span class="hs-identifier hs-var">tid</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span>
+</span><span id="line-36"></span><span>
+</span><span id="line-37"></span><span class="hs-comment">-- | Create team.</span><span>
+</span><span id="line-38"></span><span class="hs-comment">-- See &lt;https://developer.github.com/v3/orgs/teams/#create-team&gt;</span><span>
+</span><span id="line-39"></span><span class="annot"><a href="GitHub.Endpoints.Organizations.Teams.html#createTeamForR"><span class="hs-identifier hs-type">createTeamForR</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GitHub.Data.Name.html#Name"><span class="hs-identifier hs-type">Name</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.Definitions.html#Organization"><span class="hs-identifier hs-type">Organization</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Teams.html#CreateTeam"><span class="hs-identifier hs-type">CreateTeam</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Request.html#Request"><span class="hs-identifier hs-type">Request</span></a></span><span> </span><span class="hs-special">'</span><span class="annot"><a href="GitHub.Data.Request.html#RW"><span class="hs-identifier hs-type">RW</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.Teams.html#Team"><span class="hs-identifier hs-type">Team</span></a></span><span>
+</span><span id="line-40"></span><span id="createTeamForR"><span class="annot"><span class="annottext">createTeamForR :: Name Organization -&gt; CreateTeam -&gt; Request 'RW Team
+</span><a href="GitHub.Endpoints.Organizations.Teams.html#createTeamForR"><span class="hs-identifier hs-var hs-var">createTeamForR</span></a></span></span><span> </span><span id="local-6989586621679554467"><span class="annot"><span class="annottext">Name Organization
+</span><a href="#local-6989586621679554467"><span class="hs-identifier hs-var">org</span></a></span></span><span> </span><span id="local-6989586621679554468"><span class="annot"><span class="annottext">CreateTeam
+</span><a href="#local-6989586621679554468"><span class="hs-identifier hs-var">cteam</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-41"></span><span>    </span><span class="annot"><span class="annottext">CommandMethod -&gt; Paths -&gt; ByteString -&gt; Request 'RW Team
+forall a. CommandMethod -&gt; Paths -&gt; ByteString -&gt; Request 'RW a
+</span><a href="GitHub.Data.Request.html#command"><span class="hs-identifier hs-var">command</span></a></span><span> </span><span class="annot"><span class="annottext">CommandMethod
+</span><a href="GitHub.Data.Request.html#Post"><span class="hs-identifier hs-var">Post</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;orgs&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Name Organization -&gt; Text
+forall a. IsPathPart a =&gt; a -&gt; Text
+</span><a href="GitHub.Data.Request.html#toPathPart"><span class="hs-identifier hs-var">toPathPart</span></a></span><span> </span><span class="annot"><span class="annottext">Name Organization
+</span><a href="#local-6989586621679554467"><span class="hs-identifier hs-var">org</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;teams&quot;</span></span><span class="hs-special">]</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">CreateTeam -&gt; ByteString
+forall a. ToJSON a =&gt; a -&gt; ByteString
+</span><span class="hs-identifier hs-var">encode</span></span><span> </span><span class="annot"><span class="annottext">CreateTeam
+</span><a href="#local-6989586621679554468"><span class="hs-identifier hs-var">cteam</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-42"></span><span>
+</span><span id="line-43"></span><span class="hs-comment">-- | Edit team.</span><span>
+</span><span id="line-44"></span><span class="hs-comment">-- See &lt;https://developer.github.com/v3/orgs/teams/#edit-team&gt;</span><span>
+</span><span id="line-45"></span><span class="annot"><a href="GitHub.Endpoints.Organizations.Teams.html#editTeamR"><span class="hs-identifier hs-type">editTeamR</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GitHub.Data.Id.html#Id"><span class="hs-identifier hs-type">Id</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.Teams.html#Team"><span class="hs-identifier hs-type">Team</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Teams.html#EditTeam"><span class="hs-identifier hs-type">EditTeam</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Request.html#Request"><span class="hs-identifier hs-type">Request</span></a></span><span> </span><span class="hs-special">'</span><span class="annot"><a href="GitHub.Data.Request.html#RW"><span class="hs-identifier hs-type">RW</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.Teams.html#Team"><span class="hs-identifier hs-type">Team</span></a></span><span>
+</span><span id="line-46"></span><span id="editTeamR"><span class="annot"><span class="annottext">editTeamR :: Id Team -&gt; EditTeam -&gt; Request 'RW Team
+</span><a href="GitHub.Endpoints.Organizations.Teams.html#editTeamR"><span class="hs-identifier hs-var hs-var">editTeamR</span></a></span></span><span> </span><span id="local-6989586621679554472"><span class="annot"><span class="annottext">Id Team
+</span><a href="#local-6989586621679554472"><span class="hs-identifier hs-var">tid</span></a></span></span><span> </span><span id="local-6989586621679554473"><span class="annot"><span class="annottext">EditTeam
+</span><a href="#local-6989586621679554473"><span class="hs-identifier hs-var">eteam</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-47"></span><span>    </span><span class="annot"><span class="annottext">CommandMethod -&gt; Paths -&gt; ByteString -&gt; Request 'RW Team
+forall a. CommandMethod -&gt; Paths -&gt; ByteString -&gt; Request 'RW a
+</span><a href="GitHub.Data.Request.html#command"><span class="hs-identifier hs-var">command</span></a></span><span> </span><span class="annot"><span class="annottext">CommandMethod
+</span><a href="GitHub.Data.Request.html#Patch"><span class="hs-identifier hs-var">Patch</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;teams&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Id Team -&gt; Text
+forall a. IsPathPart a =&gt; a -&gt; Text
+</span><a href="GitHub.Data.Request.html#toPathPart"><span class="hs-identifier hs-var">toPathPart</span></a></span><span> </span><span class="annot"><span class="annottext">Id Team
+</span><a href="#local-6989586621679554472"><span class="hs-identifier hs-var">tid</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">EditTeam -&gt; ByteString
+forall a. ToJSON a =&gt; a -&gt; ByteString
+</span><span class="hs-identifier hs-var">encode</span></span><span> </span><span class="annot"><span class="annottext">EditTeam
+</span><a href="#local-6989586621679554473"><span class="hs-identifier hs-var">eteam</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-48"></span><span>
+</span><span id="line-49"></span><span class="hs-comment">--</span><span>
+</span><span id="line-50"></span><span class="hs-comment">-- See &lt;https://developer.github.com/v3/orgs/teams/#delete-team&gt;</span><span>
+</span><span id="line-51"></span><span class="annot"><a href="GitHub.Endpoints.Organizations.Teams.html#deleteTeamR"><span class="hs-identifier hs-type">deleteTeamR</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GitHub.Data.Id.html#Id"><span class="hs-identifier hs-type">Id</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.Teams.html#Team"><span class="hs-identifier hs-type">Team</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Request.html#GenRequest"><span class="hs-identifier hs-type">GenRequest</span></a></span><span> </span><span class="hs-special">'</span><span class="annot"><a href="GitHub.Data.Request.html#MtUnit"><span class="hs-identifier hs-type">MtUnit</span></a></span><span> </span><span class="hs-special">'</span><span class="annot"><a href="GitHub.Data.Request.html#RW"><span class="hs-identifier hs-type">RW</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-52"></span><span id="deleteTeamR"><span class="annot"><span class="annottext">deleteTeamR :: Id Team -&gt; GenRequest 'MtUnit 'RW ()
+</span><a href="GitHub.Endpoints.Organizations.Teams.html#deleteTeamR"><span class="hs-identifier hs-var hs-var">deleteTeamR</span></a></span></span><span> </span><span id="local-6989586621679554475"><span class="annot"><span class="annottext">Id Team
+</span><a href="#local-6989586621679554475"><span class="hs-identifier hs-var">tid</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-53"></span><span>    </span><span class="annot"><span class="annottext">CommandMethod -&gt; Paths -&gt; ByteString -&gt; GenRequest 'MtUnit 'RW ()
+forall (mt :: MediaType (*)) a.
+CommandMethod -&gt; Paths -&gt; ByteString -&gt; GenRequest mt 'RW a
+</span><a href="GitHub.Data.Request.html#Command"><span class="hs-identifier hs-var">Command</span></a></span><span> </span><span class="annot"><span class="annottext">CommandMethod
+</span><a href="GitHub.Data.Request.html#Delete"><span class="hs-identifier hs-var">Delete</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;teams&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Id Team -&gt; Text
+forall a. IsPathPart a =&gt; a -&gt; Text
+</span><a href="GitHub.Data.Request.html#toPathPart"><span class="hs-identifier hs-var">toPathPart</span></a></span><span> </span><span class="annot"><span class="annottext">Id Team
+</span><a href="#local-6989586621679554475"><span class="hs-identifier hs-var">tid</span></a></span><span class="hs-special">]</span><span> </span><span class="annot"><span class="annottext">ByteString
+forall a. Monoid a =&gt; a
+</span><span class="hs-identifier hs-var">mempty</span></span><span>
+</span><span id="line-54"></span><span>
+</span><span id="line-55"></span><span class="hs-comment">-- | List team members.</span><span>
+</span><span id="line-56"></span><span class="hs-comment">--</span><span>
+</span><span id="line-57"></span><span class="hs-comment">-- See &lt;https://developer.github.com/v3/orgs/teams/#list-team-members&gt;</span><span>
+</span><span id="line-58"></span><span class="annot"><a href="GitHub.Endpoints.Organizations.Teams.html#listTeamMembersR"><span class="hs-identifier hs-type">listTeamMembersR</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GitHub.Data.Id.html#Id"><span class="hs-identifier hs-type">Id</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.Teams.html#Team"><span class="hs-identifier hs-type">Team</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Teams.html#TeamMemberRole"><span class="hs-identifier hs-type">TeamMemberRole</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Request.html#FetchCount"><span class="hs-identifier hs-type">FetchCount</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Request.html#Request"><span class="hs-identifier hs-type">Request</span></a></span><span> </span><span class="hs-special">'</span><span class="annot"><a href="GitHub.Data.Request.html#RA"><span class="hs-identifier hs-type">RA</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Vector</span></span><span> </span><span class="annot"><a href="GitHub.Data.Definitions.html#SimpleUser"><span class="hs-identifier hs-type">SimpleUser</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-59"></span><span id="listTeamMembersR"><span class="annot"><span class="annottext">listTeamMembersR :: Id Team
+-&gt; TeamMemberRole -&gt; FetchCount -&gt; Request 'RA (Vector SimpleUser)
+</span><a href="GitHub.Endpoints.Organizations.Teams.html#listTeamMembersR"><span class="hs-identifier hs-var hs-var">listTeamMembersR</span></a></span></span><span> </span><span id="local-6989586621679554478"><span class="annot"><span class="annottext">Id Team
+</span><a href="#local-6989586621679554478"><span class="hs-identifier hs-var">tid</span></a></span></span><span> </span><span id="local-6989586621679554479"><span class="annot"><span class="annottext">TeamMemberRole
+</span><a href="#local-6989586621679554479"><span class="hs-identifier hs-var">r</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-60"></span><span>    </span><span class="annot"><span class="annottext">Paths
+-&gt; QueryString -&gt; FetchCount -&gt; Request 'RA (Vector SimpleUser)
+forall a (mt :: RW).
+FromJSON a =&gt;
+Paths -&gt; QueryString -&gt; FetchCount -&gt; Request mt (Vector a)
+</span><a href="GitHub.Data.Request.html#pagedQuery"><span class="hs-identifier hs-var">pagedQuery</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;teams&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Id Team -&gt; Text
+forall a. IsPathPart a =&gt; a -&gt; Text
+</span><a href="GitHub.Data.Request.html#toPathPart"><span class="hs-identifier hs-var">toPathPart</span></a></span><span> </span><span class="annot"><span class="annottext">Id Team
+</span><a href="#local-6989586621679554478"><span class="hs-identifier hs-var">tid</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;members&quot;</span></span><span class="hs-special">]</span><span> </span><span class="hs-special">[</span><span class="hs-special">(</span><span class="annot"><span class="annottext">ByteString
+</span><span class="hs-string">&quot;role&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; Maybe ByteString
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679554480"><span class="hs-identifier hs-var">r'</span></a></span><span class="hs-special">)</span><span class="hs-special">]</span><span>
+</span><span id="line-61"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-62"></span><span>    </span><span id="local-6989586621679554480"><span class="annot"><span class="annottext">r' :: ByteString
+</span><a href="#local-6989586621679554480"><span class="hs-identifier hs-var hs-var">r'</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">TeamMemberRole
+</span><a href="#local-6989586621679554479"><span class="hs-identifier hs-var">r</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-63"></span><span>        </span><span class="annot"><span class="annottext">TeamMemberRole
+</span><a href="GitHub.Data.Teams.html#TeamMemberRoleAll"><span class="hs-identifier hs-var">TeamMemberRoleAll</span></a></span><span>         </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><span class="hs-string">&quot;all&quot;</span></span><span>
+</span><span id="line-64"></span><span>        </span><span class="annot"><span class="annottext">TeamMemberRole
+</span><a href="GitHub.Data.Teams.html#TeamMemberRoleMaintainer"><span class="hs-identifier hs-var">TeamMemberRoleMaintainer</span></a></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><span class="hs-string">&quot;maintainer&quot;</span></span><span>
+</span><span id="line-65"></span><span>        </span><span class="annot"><span class="annottext">TeamMemberRole
+</span><a href="GitHub.Data.Teams.html#TeamMemberRoleMember"><span class="hs-identifier hs-var">TeamMemberRoleMember</span></a></span><span>      </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><span class="hs-string">&quot;member&quot;</span></span><span>
+</span><span id="line-66"></span><span>
+</span><span id="line-67"></span><span class="hs-comment">-- | Query team repositories.</span><span>
+</span><span id="line-68"></span><span class="hs-comment">-- See &lt;https://developer.github.com/v3/orgs/teams/#list-team-repos&gt;</span><span>
+</span><span id="line-69"></span><span id="local-6989586621679554387"><span class="annot"><a href="GitHub.Endpoints.Organizations.Teams.html#listTeamReposR"><span class="hs-identifier hs-type">listTeamReposR</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GitHub.Data.Id.html#Id"><span class="hs-identifier hs-type">Id</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.Teams.html#Team"><span class="hs-identifier hs-type">Team</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Request.html#FetchCount"><span class="hs-identifier hs-type">FetchCount</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Request.html#Request"><span class="hs-identifier hs-type">Request</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679554387"><span class="hs-identifier hs-type">k</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Vector</span></span><span> </span><span class="annot"><a href="GitHub.Data.Repos.html#Repo"><span class="hs-identifier hs-type">Repo</span></a></span><span class="hs-special">)</span></span><span>
+</span><span id="line-70"></span><span id="listTeamReposR"><span class="annot"><span class="annottext">listTeamReposR :: forall (k :: RW). Id Team -&gt; FetchCount -&gt; Request k (Vector Repo)
+</span><a href="GitHub.Endpoints.Organizations.Teams.html#listTeamReposR"><span class="hs-identifier hs-var hs-var">listTeamReposR</span></a></span></span><span> </span><span id="local-6989586621679554492"><span class="annot"><span class="annottext">Id Team
+</span><a href="#local-6989586621679554492"><span class="hs-identifier hs-var">tid</span></a></span></span><span>  </span><span class="hs-glyph">=</span><span>
+</span><span id="line-71"></span><span>    </span><span class="annot"><span class="annottext">Paths -&gt; QueryString -&gt; FetchCount -&gt; Request k (Vector Repo)
+forall a (mt :: RW).
+FromJSON a =&gt;
+Paths -&gt; QueryString -&gt; FetchCount -&gt; Request mt (Vector a)
+</span><a href="GitHub.Data.Request.html#pagedQuery"><span class="hs-identifier hs-var">pagedQuery</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;teams&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Id Team -&gt; Text
+forall a. IsPathPart a =&gt; a -&gt; Text
+</span><a href="GitHub.Data.Request.html#toPathPart"><span class="hs-identifier hs-var">toPathPart</span></a></span><span> </span><span class="annot"><span class="annottext">Id Team
+</span><a href="#local-6989586621679554492"><span class="hs-identifier hs-var">tid</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;repos&quot;</span></span><span class="hs-special">]</span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span>
+</span><span id="line-72"></span><span>
+</span><span id="line-73"></span><span class="hs-comment">-- | Add or update a team repository.</span><span>
+</span><span id="line-74"></span><span class="hs-comment">-- See &lt;https://developer.github.com/v3/orgs/teams/#add-or-update-team-repository&gt;</span><span>
+</span><span id="line-75"></span><span class="annot"><a href="GitHub.Endpoints.Organizations.Teams.html#addOrUpdateTeamRepoR"><span class="hs-identifier hs-type">addOrUpdateTeamRepoR</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GitHub.Data.Id.html#Id"><span class="hs-identifier hs-type">Id</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.Teams.html#Team"><span class="hs-identifier hs-type">Team</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Name.html#Name"><span class="hs-identifier hs-type">Name</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.Definitions.html#Organization"><span class="hs-identifier hs-type">Organization</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Name.html#Name"><span class="hs-identifier hs-type">Name</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.Repos.html#Repo"><span class="hs-identifier hs-type">Repo</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Teams.html#Permission"><span class="hs-identifier hs-type">Permission</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Request.html#GenRequest"><span class="hs-identifier hs-type">GenRequest</span></a></span><span> </span><span class="hs-special">'</span><span class="annot"><a href="GitHub.Data.Request.html#MtUnit"><span class="hs-identifier hs-type">MtUnit</span></a></span><span> </span><span class="hs-special">'</span><span class="annot"><a href="GitHub.Data.Request.html#RW"><span class="hs-identifier hs-type">RW</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-76"></span><span id="addOrUpdateTeamRepoR"><span class="annot"><span class="annottext">addOrUpdateTeamRepoR :: Id Team
+-&gt; Name Organization
+-&gt; Name Repo
+-&gt; Permission
+-&gt; GenRequest 'MtUnit 'RW ()
+</span><a href="GitHub.Endpoints.Organizations.Teams.html#addOrUpdateTeamRepoR"><span class="hs-identifier hs-var hs-var">addOrUpdateTeamRepoR</span></a></span></span><span> </span><span id="local-6989586621679554493"><span class="annot"><span class="annottext">Id Team
+</span><a href="#local-6989586621679554493"><span class="hs-identifier hs-var">tid</span></a></span></span><span> </span><span id="local-6989586621679554494"><span class="annot"><span class="annottext">Name Organization
+</span><a href="#local-6989586621679554494"><span class="hs-identifier hs-var">org</span></a></span></span><span> </span><span id="local-6989586621679554495"><span class="annot"><span class="annottext">Name Repo
+</span><a href="#local-6989586621679554495"><span class="hs-identifier hs-var">repo</span></a></span></span><span> </span><span id="local-6989586621679554496"><span class="annot"><span class="annottext">Permission
+</span><a href="#local-6989586621679554496"><span class="hs-identifier hs-var">permission</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-77"></span><span>    </span><span class="annot"><span class="annottext">CommandMethod -&gt; Paths -&gt; ByteString -&gt; GenRequest 'MtUnit 'RW ()
+forall (mt :: MediaType (*)) a.
+CommandMethod -&gt; Paths -&gt; ByteString -&gt; GenRequest mt 'RW a
+</span><a href="GitHub.Data.Request.html#Command"><span class="hs-identifier hs-var">Command</span></a></span><span> </span><span class="annot"><span class="annottext">CommandMethod
+</span><a href="GitHub.Data.Request.html#Put"><span class="hs-identifier hs-var">Put</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;teams&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Id Team -&gt; Text
+forall a. IsPathPart a =&gt; a -&gt; Text
+</span><a href="GitHub.Data.Request.html#toPathPart"><span class="hs-identifier hs-var">toPathPart</span></a></span><span> </span><span class="annot"><span class="annottext">Id Team
+</span><a href="#local-6989586621679554493"><span class="hs-identifier hs-var">tid</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;repos&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Name Organization -&gt; Text
+forall a. IsPathPart a =&gt; a -&gt; Text
+</span><a href="GitHub.Data.Request.html#toPathPart"><span class="hs-identifier hs-var">toPathPart</span></a></span><span> </span><span class="annot"><span class="annottext">Name Organization
+</span><a href="#local-6989586621679554494"><span class="hs-identifier hs-var">org</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Name Repo -&gt; Text
+forall a. IsPathPart a =&gt; a -&gt; Text
+</span><a href="GitHub.Data.Request.html#toPathPart"><span class="hs-identifier hs-var">toPathPart</span></a></span><span> </span><span class="annot"><span class="annottext">Name Repo
+</span><a href="#local-6989586621679554495"><span class="hs-identifier hs-var">repo</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">AddTeamRepoPermission -&gt; ByteString
+forall a. ToJSON a =&gt; a -&gt; ByteString
+</span><span class="hs-identifier hs-var">encode</span></span><span> </span><span class="annot"><span class="annottext">(AddTeamRepoPermission -&gt; ByteString)
+-&gt; AddTeamRepoPermission -&gt; ByteString
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Permission -&gt; AddTeamRepoPermission
+</span><a href="GitHub.Data.Teams.html#AddTeamRepoPermission"><span class="hs-identifier hs-var">AddTeamRepoPermission</span></a></span><span> </span><span class="annot"><span class="annottext">Permission
+</span><a href="#local-6989586621679554496"><span class="hs-identifier hs-var">permission</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-78"></span><span>
+</span><span id="line-79"></span><span class="hs-comment">-- | Query team membership.</span><span>
+</span><span id="line-80"></span><span class="hs-comment">-- See &lt;https://developer.github.com/v3/orgs/teams/#get-team-membership</span><span>
+</span><span id="line-81"></span><span id="local-6989586621679554394"><span class="annot"><a href="GitHub.Endpoints.Organizations.Teams.html#teamMembershipInfoForR"><span class="hs-identifier hs-type">teamMembershipInfoForR</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GitHub.Data.Id.html#Id"><span class="hs-identifier hs-type">Id</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.Teams.html#Team"><span class="hs-identifier hs-type">Team</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Name.html#Name"><span class="hs-identifier hs-type">Name</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.Definitions.html#Owner"><span class="hs-identifier hs-type">Owner</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Request.html#Request"><span class="hs-identifier hs-type">Request</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679554394"><span class="hs-identifier hs-type">k</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.Teams.html#TeamMembership"><span class="hs-identifier hs-type">TeamMembership</span></a></span></span><span>
+</span><span id="line-82"></span><span id="teamMembershipInfoForR"><span class="annot"><span class="annottext">teamMembershipInfoForR :: forall (k :: RW). Id Team -&gt; Name Owner -&gt; Request k TeamMembership
+</span><a href="GitHub.Endpoints.Organizations.Teams.html#teamMembershipInfoForR"><span class="hs-identifier hs-var hs-var">teamMembershipInfoForR</span></a></span></span><span> </span><span id="local-6989586621679554503"><span class="annot"><span class="annottext">Id Team
+</span><a href="#local-6989586621679554503"><span class="hs-identifier hs-var">tid</span></a></span></span><span> </span><span id="local-6989586621679554504"><span class="annot"><span class="annottext">Name Owner
+</span><a href="#local-6989586621679554504"><span class="hs-identifier hs-var">user</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-83"></span><span>    </span><span class="annot"><span class="annottext">Paths -&gt; QueryString -&gt; Request k TeamMembership
+forall (mt :: RW) a. Paths -&gt; QueryString -&gt; Request mt a
+</span><a href="GitHub.Data.Request.html#query"><span class="hs-identifier hs-var">query</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;teams&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Id Team -&gt; Text
+forall a. IsPathPart a =&gt; a -&gt; Text
+</span><a href="GitHub.Data.Request.html#toPathPart"><span class="hs-identifier hs-var">toPathPart</span></a></span><span> </span><span class="annot"><span class="annottext">Id Team
+</span><a href="#local-6989586621679554503"><span class="hs-identifier hs-var">tid</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;memberships&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Name Owner -&gt; Text
+forall a. IsPathPart a =&gt; a -&gt; Text
+</span><a href="GitHub.Data.Request.html#toPathPart"><span class="hs-identifier hs-var">toPathPart</span></a></span><span> </span><span class="annot"><span class="annottext">Name Owner
+</span><a href="#local-6989586621679554504"><span class="hs-identifier hs-var">user</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span>
+</span><span id="line-84"></span><span>
+</span><span id="line-85"></span><span class="hs-comment">-- | Add team membership.</span><span>
+</span><span id="line-86"></span><span class="hs-comment">-- See &lt;https://developer.github.com/v3/orgs/teams/#add-team-membership&gt;</span><span>
+</span><span id="line-87"></span><span class="annot"><a href="GitHub.Endpoints.Organizations.Teams.html#addTeamMembershipForR"><span class="hs-identifier hs-type">addTeamMembershipForR</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GitHub.Data.Id.html#Id"><span class="hs-identifier hs-type">Id</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.Teams.html#Team"><span class="hs-identifier hs-type">Team</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Name.html#Name"><span class="hs-identifier hs-type">Name</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.Definitions.html#Owner"><span class="hs-identifier hs-type">Owner</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Teams.html#Role"><span class="hs-identifier hs-type">Role</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Request.html#Request"><span class="hs-identifier hs-type">Request</span></a></span><span> </span><span class="hs-special">'</span><span class="annot"><a href="GitHub.Data.Request.html#RW"><span class="hs-identifier hs-type">RW</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.Teams.html#TeamMembership"><span class="hs-identifier hs-type">TeamMembership</span></a></span><span>
+</span><span id="line-88"></span><span id="addTeamMembershipForR"><span class="annot"><span class="annottext">addTeamMembershipForR :: Id Team -&gt; Name Owner -&gt; Role -&gt; Request 'RW TeamMembership
+</span><a href="GitHub.Endpoints.Organizations.Teams.html#addTeamMembershipForR"><span class="hs-identifier hs-var hs-var">addTeamMembershipForR</span></a></span></span><span> </span><span id="local-6989586621679554505"><span class="annot"><span class="annottext">Id Team
+</span><a href="#local-6989586621679554505"><span class="hs-identifier hs-var">tid</span></a></span></span><span> </span><span id="local-6989586621679554506"><span class="annot"><span class="annottext">Name Owner
+</span><a href="#local-6989586621679554506"><span class="hs-identifier hs-var">user</span></a></span></span><span> </span><span id="local-6989586621679554507"><span class="annot"><span class="annottext">Role
+</span><a href="#local-6989586621679554507"><span class="hs-keyword hs-var">role</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-89"></span><span>    </span><span class="annot"><span class="annottext">CommandMethod -&gt; Paths -&gt; ByteString -&gt; Request 'RW TeamMembership
+forall a. CommandMethod -&gt; Paths -&gt; ByteString -&gt; Request 'RW a
+</span><a href="GitHub.Data.Request.html#command"><span class="hs-identifier hs-var">command</span></a></span><span> </span><span class="annot"><span class="annottext">CommandMethod
+</span><a href="GitHub.Data.Request.html#Put"><span class="hs-identifier hs-var">Put</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;teams&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Id Team -&gt; Text
+forall a. IsPathPart a =&gt; a -&gt; Text
+</span><a href="GitHub.Data.Request.html#toPathPart"><span class="hs-identifier hs-var">toPathPart</span></a></span><span> </span><span class="annot"><span class="annottext">Id Team
+</span><a href="#local-6989586621679554505"><span class="hs-identifier hs-var">tid</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;memberships&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Name Owner -&gt; Text
+forall a. IsPathPart a =&gt; a -&gt; Text
+</span><a href="GitHub.Data.Request.html#toPathPart"><span class="hs-identifier hs-var">toPathPart</span></a></span><span> </span><span class="annot"><span class="annottext">Name Owner
+</span><a href="#local-6989586621679554506"><span class="hs-identifier hs-var">user</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">CreateTeamMembership -&gt; ByteString
+forall a. ToJSON a =&gt; a -&gt; ByteString
+</span><span class="hs-identifier hs-var">encode</span></span><span> </span><span class="annot"><span class="annottext">(CreateTeamMembership -&gt; ByteString)
+-&gt; CreateTeamMembership -&gt; ByteString
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Role -&gt; CreateTeamMembership
+</span><a href="GitHub.Data.Teams.html#CreateTeamMembership"><span class="hs-identifier hs-var">CreateTeamMembership</span></a></span><span> </span><span class="annot"><span class="annottext">Role
+</span><a href="#local-6989586621679554507"><span class="hs-keyword hs-var">role</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-90"></span><span>
+</span><span id="line-91"></span><span class="hs-comment">-- | Remove team membership.</span><span>
+</span><span id="line-92"></span><span class="hs-comment">-- See &lt;https://developer.github.com/v3/orgs/teams/#remove-team-membership&gt;</span><span>
+</span><span id="line-93"></span><span class="annot"><a href="GitHub.Endpoints.Organizations.Teams.html#deleteTeamMembershipForR"><span class="hs-identifier hs-type">deleteTeamMembershipForR</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GitHub.Data.Id.html#Id"><span class="hs-identifier hs-type">Id</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.Teams.html#Team"><span class="hs-identifier hs-type">Team</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Name.html#Name"><span class="hs-identifier hs-type">Name</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.Definitions.html#Owner"><span class="hs-identifier hs-type">Owner</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Request.html#GenRequest"><span class="hs-identifier hs-type">GenRequest</span></a></span><span> </span><span class="hs-special">'</span><span class="annot"><a href="GitHub.Data.Request.html#MtUnit"><span class="hs-identifier hs-type">MtUnit</span></a></span><span> </span><span class="hs-special">'</span><span class="annot"><a href="GitHub.Data.Request.html#RW"><span class="hs-identifier hs-type">RW</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-94"></span><span id="deleteTeamMembershipForR"><span class="annot"><span class="annottext">deleteTeamMembershipForR :: Id Team -&gt; Name Owner -&gt; GenRequest 'MtUnit 'RW ()
+</span><a href="GitHub.Endpoints.Organizations.Teams.html#deleteTeamMembershipForR"><span class="hs-identifier hs-var hs-var">deleteTeamMembershipForR</span></a></span></span><span> </span><span id="local-6989586621679554509"><span class="annot"><span class="annottext">Id Team
+</span><a href="#local-6989586621679554509"><span class="hs-identifier hs-var">tid</span></a></span></span><span> </span><span id="local-6989586621679554510"><span class="annot"><span class="annottext">Name Owner
+</span><a href="#local-6989586621679554510"><span class="hs-identifier hs-var">user</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-95"></span><span>    </span><span class="annot"><span class="annottext">CommandMethod -&gt; Paths -&gt; ByteString -&gt; GenRequest 'MtUnit 'RW ()
+forall (mt :: MediaType (*)) a.
+CommandMethod -&gt; Paths -&gt; ByteString -&gt; GenRequest mt 'RW a
+</span><a href="GitHub.Data.Request.html#Command"><span class="hs-identifier hs-var">Command</span></a></span><span> </span><span class="annot"><span class="annottext">CommandMethod
+</span><a href="GitHub.Data.Request.html#Delete"><span class="hs-identifier hs-var">Delete</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;teams&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Id Team -&gt; Text
+forall a. IsPathPart a =&gt; a -&gt; Text
+</span><a href="GitHub.Data.Request.html#toPathPart"><span class="hs-identifier hs-var">toPathPart</span></a></span><span> </span><span class="annot"><span class="annottext">Id Team
+</span><a href="#local-6989586621679554509"><span class="hs-identifier hs-var">tid</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;memberships&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Name Owner -&gt; Text
+forall a. IsPathPart a =&gt; a -&gt; Text
+</span><a href="GitHub.Data.Request.html#toPathPart"><span class="hs-identifier hs-var">toPathPart</span></a></span><span> </span><span class="annot"><span class="annottext">Name Owner
+</span><a href="#local-6989586621679554510"><span class="hs-identifier hs-var">user</span></a></span><span class="hs-special">]</span><span> </span><span class="annot"><span class="annottext">ByteString
+forall a. Monoid a =&gt; a
+</span><span class="hs-identifier hs-var">mempty</span></span><span>
+</span><span id="line-96"></span><span>
+</span><span id="line-97"></span><span class="hs-comment">-- | List user teams.</span><span>
+</span><span id="line-98"></span><span class="hs-comment">-- See &lt;https://developer.github.com/v3/orgs/teams/#list-user-teams&gt;</span><span>
+</span><span id="line-99"></span><span class="annot"><a href="GitHub.Endpoints.Organizations.Teams.html#listTeamsCurrentR"><span class="hs-identifier hs-type">listTeamsCurrentR</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GitHub.Data.Request.html#FetchCount"><span class="hs-identifier hs-type">FetchCount</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Request.html#Request"><span class="hs-identifier hs-type">Request</span></a></span><span> </span><span class="hs-special">'</span><span class="annot"><a href="GitHub.Data.Request.html#RA"><span class="hs-identifier hs-type">RA</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Vector</span></span><span> </span><span class="annot"><a href="GitHub.Data.Teams.html#Team"><span class="hs-identifier hs-type">Team</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-100"></span><span id="listTeamsCurrentR"><span class="annot"><span class="annottext">listTeamsCurrentR :: FetchCount -&gt; Request 'RA (Vector Team)
+</span><a href="GitHub.Endpoints.Organizations.Teams.html#listTeamsCurrentR"><span class="hs-identifier hs-var hs-var">listTeamsCurrentR</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-101"></span><span>    </span><span class="annot"><span class="annottext">Paths -&gt; QueryString -&gt; FetchCount -&gt; Request 'RA (Vector Team)
+forall a (mt :: RW).
+FromJSON a =&gt;
+Paths -&gt; QueryString -&gt; FetchCount -&gt; Request mt (Vector a)
+</span><a href="GitHub.Data.Request.html#pagedQuery"><span class="hs-identifier hs-var">pagedQuery</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;user&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;teams&quot;</span></span><span class="hs-special">]</span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span>
+</span><span id="line-102"></span></pre></body></html>

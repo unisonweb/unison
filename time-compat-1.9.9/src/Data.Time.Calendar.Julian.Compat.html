@@ -1,0 +1,194 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE CPP #-}</span><span>
+</span><span id="line-2"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Data.Time.Calendar.Julian.Compat.html"><span class="hs-identifier">Data.Time.Calendar.Julian.Compat</span></a></span><span> </span><span class="hs-special">(</span><span>
+</span><span id="line-3"></span><span>    </span><span class="annot"><span class="hs-identifier">Year</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">MonthOfYear</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">DayOfMonth</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">DayOfYear</span></span><span class="hs-special">,</span><span>
+</span><span id="line-4"></span><span>
+</span><span id="line-5"></span><span>    </span><span class="hs-comment">-- JulianYearDay</span><span>
+</span><span id="line-6"></span><span>    </span><span class="annot"><span class="hs-identifier">toJulianYearAndDay</span></span><span class="hs-special">,</span><span>
+</span><span id="line-7"></span><span>    </span><span class="annot"><span class="hs-identifier">fromJulianYearAndDay</span></span><span class="hs-special">,</span><span>
+</span><span id="line-8"></span><span>    </span><span class="annot"><span class="hs-identifier">fromJulianYearAndDayValid</span></span><span class="hs-special">,</span><span>
+</span><span id="line-9"></span><span>    </span><span class="annot"><span class="hs-identifier">showJulianYearAndDay</span></span><span class="hs-special">,</span><span>
+</span><span id="line-10"></span><span>    </span><span class="annot"><span class="hs-identifier">isJulianLeapYear</span></span><span class="hs-special">,</span><span>
+</span><span id="line-11"></span><span>
+</span><span id="line-12"></span><span>    </span><span class="annot"><span class="hs-identifier">toJulian</span></span><span class="hs-special">,</span><span class="annot"><span class="hs-identifier">fromJulian</span></span><span class="hs-special">,</span><span>
+</span><span id="line-13"></span><span>    </span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><span class="hs-identifier">JulianYearMonthDay</span></span><span class="hs-special">,</span><span>
+</span><span id="line-14"></span><span>    </span><span class="annot"><span class="hs-identifier">fromJulianValid</span></span><span class="hs-special">,</span><span class="annot"><span class="hs-identifier">showJulian</span></span><span class="hs-special">,</span><span class="annot"><span class="hs-identifier">julianMonthLength</span></span><span class="hs-special">,</span><span>
+</span><span id="line-15"></span><span>
+</span><span id="line-16"></span><span>    </span><span class="hs-comment">-- calendrical arithmetic</span><span>
+</span><span id="line-17"></span><span>    </span><span class="hs-comment">-- e.g. &quot;one month after March 31st&quot;</span><span>
+</span><span id="line-18"></span><span>    </span><span class="annot"><span class="hs-identifier">addJulianMonthsClip</span></span><span class="hs-special">,</span><span class="annot"><span class="hs-identifier">addJulianMonthsRollOver</span></span><span class="hs-special">,</span><span>
+</span><span id="line-19"></span><span>    </span><span class="annot"><span class="hs-identifier">addJulianYearsClip</span></span><span class="hs-special">,</span><span class="annot"><span class="hs-identifier">addJulianYearsRollOver</span></span><span class="hs-special">,</span><span>
+</span><span id="line-20"></span><span>    </span><span class="annot"><span class="hs-identifier">addJulianDurationClip</span></span><span class="hs-special">,</span><span class="annot"><span class="hs-identifier">addJulianDurationRollOver</span></span><span class="hs-special">,</span><span>
+</span><span id="line-21"></span><span>    </span><span class="annot"><span class="hs-identifier">diffJulianDurationClip</span></span><span class="hs-special">,</span><span class="annot"><a href="Data.Time.Calendar.Julian.Compat.html#diffJulianDurationRollOver"><span class="hs-identifier">diffJulianDurationRollOver</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-22"></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-23"></span><span>
+</span><span id="line-24"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Data.Time.Orphans.html"><span class="hs-identifier">Data.Time.Orphans</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-cpp">
+
+#if MIN_VERSION_time(1,9,0) &amp;&amp; !MIN_VERSION_time(1,14,0)
+</span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Time.Calendar.Julian</span></span><span> </span><span class="hs-keyword">hiding</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">diffJulianDurationRollOver</span></span><span class="hs-special">)</span><span class="hs-cpp">
+#else
+</span><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">Data.Time.Calendar.Julian</span><span class="hs-cpp">
+#endif
+</span><span>
+</span><span id="line-32"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Data.Time.Calendar.Compat.html"><span class="hs-identifier">Data.Time.Calendar.Compat</span></a></span><span class="hs-cpp">
+
+#if !MIN_VERSION_time(1,11,0)
+</span><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">Data.Time.Calendar.Types</span><span class="hs-cpp">
+#endif
+</span><span class="hs-cpp">
+#if !MIN_VERSION_time(1,9,0)
+</span><span>
+</span><span id="line-40"></span><span class="hs-comment">-- | Add months (clipped to last day), then add days</span><span>
+</span><span id="line-41"></span><span class="hs-identifier">addJulianDurationClip</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">CalendarDiffDays</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">Day</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">Day</span><span>
+</span><span id="line-42"></span><span class="hs-identifier">addJulianDurationClip</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">CalendarDiffDays</span><span> </span><span class="hs-identifier">m</span><span> </span><span class="hs-identifier">d</span><span class="hs-special">)</span><span> </span><span class="hs-identifier">day</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">addDays</span><span> </span><span class="hs-identifier">d</span><span> </span><span class="hs-operator">$</span><span> </span><span class="hs-identifier">addJulianMonthsClip</span><span> </span><span class="hs-identifier">m</span><span> </span><span class="hs-identifier">day</span><span>
+</span><span id="line-43"></span><span>
+</span><span id="line-44"></span><span class="hs-comment">-- | Add months (rolling over to next month), then add days</span><span>
+</span><span id="line-45"></span><span class="hs-identifier">addJulianDurationRollOver</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">CalendarDiffDays</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">Day</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">Day</span><span>
+</span><span id="line-46"></span><span class="hs-identifier">addJulianDurationRollOver</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">CalendarDiffDays</span><span> </span><span class="hs-identifier">m</span><span> </span><span class="hs-identifier">d</span><span class="hs-special">)</span><span> </span><span class="hs-identifier">day</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">addDays</span><span> </span><span class="hs-identifier">d</span><span> </span><span class="hs-operator">$</span><span> </span><span class="hs-identifier">addJulianMonthsRollOver</span><span> </span><span class="hs-identifier">m</span><span> </span><span class="hs-identifier">day</span><span>
+</span><span id="line-47"></span><span>
+</span><span id="line-48"></span><span class="hs-comment">-- | Calendrical difference, with as many whole months as possible</span><span>
+</span><span id="line-49"></span><span class="hs-identifier">diffJulianDurationClip</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">Day</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">Day</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">CalendarDiffDays</span><span>
+</span><span id="line-50"></span><span class="hs-identifier">diffJulianDurationClip</span><span> </span><span class="hs-identifier">day2</span><span> </span><span class="hs-identifier">day1</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">let</span><span>
+</span><span id="line-51"></span><span>    </span><span class="hs-special">(</span><span class="hs-identifier">y1</span><span class="hs-special">,</span><span class="hs-identifier">m1</span><span class="hs-special">,</span><span class="hs-identifier">d1</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">toJulian</span><span> </span><span class="hs-identifier">day1</span><span>
+</span><span id="line-52"></span><span>    </span><span class="hs-special">(</span><span class="hs-identifier">y2</span><span class="hs-special">,</span><span class="hs-identifier">m2</span><span class="hs-special">,</span><span class="hs-identifier">d2</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">toJulian</span><span> </span><span class="hs-identifier">day2</span><span>
+</span><span id="line-53"></span><span>    </span><span class="hs-identifier">ym1</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">y1</span><span> </span><span class="hs-operator">*</span><span> </span><span class="hs-number">12</span><span> </span><span class="hs-operator">+</span><span> </span><span class="hs-identifier">toInteger</span><span> </span><span class="hs-identifier">m1</span><span>
+</span><span id="line-54"></span><span>    </span><span class="hs-identifier">ym2</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">y2</span><span> </span><span class="hs-operator">*</span><span> </span><span class="hs-number">12</span><span> </span><span class="hs-operator">+</span><span> </span><span class="hs-identifier">toInteger</span><span> </span><span class="hs-identifier">m2</span><span>
+</span><span id="line-55"></span><span>    </span><span class="hs-identifier">ymdiff</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">ym2</span><span> </span><span class="hs-glyph">-</span><span> </span><span class="hs-identifier">ym1</span><span>
+</span><span id="line-56"></span><span>    </span><span class="hs-identifier">ymAllowed</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-57"></span><span>        </span><span class="hs-keyword">if</span><span> </span><span class="hs-identifier">day2</span><span> </span><span class="hs-operator">&gt;=</span><span> </span><span class="hs-identifier">day1</span><span> </span><span class="hs-keyword">then</span><span>
+</span><span id="line-58"></span><span>        </span><span class="hs-keyword">if</span><span> </span><span class="hs-identifier">d2</span><span> </span><span class="hs-operator">&gt;=</span><span> </span><span class="hs-identifier">d1</span><span> </span><span class="hs-keyword">then</span><span> </span><span class="hs-identifier">ymdiff</span><span> </span><span class="hs-keyword">else</span><span> </span><span class="hs-identifier">ymdiff</span><span> </span><span class="hs-glyph">-</span><span> </span><span class="hs-number">1</span><span>
+</span><span id="line-59"></span><span>        </span><span class="hs-keyword">else</span><span> </span><span class="hs-keyword">if</span><span> </span><span class="hs-identifier">d2</span><span> </span><span class="hs-operator">&lt;=</span><span> </span><span class="hs-identifier">d1</span><span> </span><span class="hs-keyword">then</span><span> </span><span class="hs-identifier">ymdiff</span><span> </span><span class="hs-keyword">else</span><span> </span><span class="hs-identifier">ymdiff</span><span> </span><span class="hs-operator">+</span><span> </span><span class="hs-number">1</span><span>
+</span><span id="line-60"></span><span>    </span><span class="hs-identifier">dayAllowed</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">addJulianDurationClip</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">CalendarDiffDays</span><span> </span><span class="hs-identifier">ymAllowed</span><span> </span><span class="hs-number">0</span><span class="hs-special">)</span><span> </span><span class="hs-identifier">day1</span><span>
+</span><span id="line-61"></span><span>    </span><span class="hs-keyword">in</span><span> </span><span class="hs-identifier">CalendarDiffDays</span><span> </span><span class="hs-identifier">ymAllowed</span><span> </span><span class="hs-operator">$</span><span> </span><span class="hs-identifier">diffDays</span><span> </span><span class="hs-identifier">day2</span><span> </span><span class="hs-identifier">dayAllowed</span><span class="hs-cpp">
+
+#endif
+</span><span class="hs-cpp">
+#if !MIN_VERSION_time(1,14,0)
+</span><span>
+</span><span id="line-67"></span><span class="annot"><a href="Data.Time.Calendar.Julian.Compat.html#diffJulianDurationRollOver"><span class="hs-identifier hs-type">diffJulianDurationRollOver</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Day</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Day</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">CalendarDiffDays</span></span><span>
+</span><span id="line-68"></span><span id="diffJulianDurationRollOver"><span class="annot"><span class="annottext">diffJulianDurationRollOver :: Day -&gt; Day -&gt; CalendarDiffDays
+</span><a href="Data.Time.Calendar.Julian.Compat.html#diffJulianDurationRollOver"><span class="hs-identifier hs-var hs-var">diffJulianDurationRollOver</span></a></span></span><span> </span><span id="local-6989586621679072094"><span class="annot"><span class="annottext">Day
+</span><a href="#local-6989586621679072094"><span class="hs-identifier hs-var">day2</span></a></span></span><span> </span><span id="local-6989586621679072095"><span class="annot"><span class="annottext">Day
+</span><a href="#local-6989586621679072095"><span class="hs-identifier hs-var">day1</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-69"></span><span>    </span><span class="hs-keyword">let</span><span>
+</span><span id="line-70"></span><span>        </span><span class="hs-special">(</span><span id="local-6989586621679072096"><span class="annot"><span class="annottext">Year
+</span><a href="#local-6989586621679072096"><span class="hs-identifier hs-var">y1</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679072097"><span class="annot"><span class="annottext">MonthOfYear
+</span><a href="#local-6989586621679072097"><span class="hs-identifier hs-var">m1</span></a></span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">MonthOfYear
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Day -&gt; (Year, MonthOfYear, MonthOfYear)
+</span><span class="hs-identifier hs-var">toJulian</span></span><span> </span><span class="annot"><span class="annottext">Day
+</span><a href="#local-6989586621679072095"><span class="hs-identifier hs-var">day1</span></a></span><span>
+</span><span id="line-71"></span><span>        </span><span class="hs-special">(</span><span id="local-6989586621679072098"><span class="annot"><span class="annottext">Year
+</span><a href="#local-6989586621679072098"><span class="hs-identifier hs-var">y2</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679072099"><span class="annot"><span class="annottext">MonthOfYear
+</span><a href="#local-6989586621679072099"><span class="hs-identifier hs-var">m2</span></a></span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">MonthOfYear
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Day -&gt; (Year, MonthOfYear, MonthOfYear)
+</span><span class="hs-identifier hs-var">toJulian</span></span><span> </span><span class="annot"><span class="annottext">Day
+</span><a href="#local-6989586621679072094"><span class="hs-identifier hs-var">day2</span></a></span><span>
+</span><span id="line-72"></span><span>        </span><span id="local-6989586621679072106"><span class="annot"><span class="annottext">ym1 :: Year
+</span><a href="#local-6989586621679072106"><span class="hs-identifier hs-var hs-var">ym1</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Year
+</span><a href="#local-6989586621679072096"><span class="hs-identifier hs-var">y1</span></a></span><span> </span><span class="annot"><span class="annottext">Year -&gt; Year -&gt; Year
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">*</span></span><span> </span><span class="annot"><span class="annottext">Year
+</span><span class="hs-number">12</span></span><span> </span><span class="annot"><span class="annottext">Year -&gt; Year -&gt; Year
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">MonthOfYear -&gt; Year
+forall a. Integral a =&gt; a -&gt; Year
+</span><span class="hs-identifier hs-var">toInteger</span></span><span> </span><span class="annot"><span class="annottext">MonthOfYear
+</span><a href="#local-6989586621679072097"><span class="hs-identifier hs-var">m1</span></a></span><span>
+</span><span id="line-73"></span><span>        </span><span id="local-6989586621679072113"><span class="annot"><span class="annottext">ym2 :: Year
+</span><a href="#local-6989586621679072113"><span class="hs-identifier hs-var hs-var">ym2</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Year
+</span><a href="#local-6989586621679072098"><span class="hs-identifier hs-var">y2</span></a></span><span> </span><span class="annot"><span class="annottext">Year -&gt; Year -&gt; Year
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">*</span></span><span> </span><span class="annot"><span class="annottext">Year
+</span><span class="hs-number">12</span></span><span> </span><span class="annot"><span class="annottext">Year -&gt; Year -&gt; Year
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">MonthOfYear -&gt; Year
+forall a. Integral a =&gt; a -&gt; Year
+</span><span class="hs-identifier hs-var">toInteger</span></span><span> </span><span class="annot"><span class="annottext">MonthOfYear
+</span><a href="#local-6989586621679072099"><span class="hs-identifier hs-var">m2</span></a></span><span>
+</span><span id="line-74"></span><span>        </span><span id="local-6989586621679072115"><span class="annot"><span class="annottext">ymdiff :: Year
+</span><a href="#local-6989586621679072115"><span class="hs-identifier hs-var hs-var">ymdiff</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Year
+</span><a href="#local-6989586621679072113"><span class="hs-identifier hs-var">ym2</span></a></span><span> </span><span class="annot"><span class="annottext">Year -&gt; Year -&gt; Year
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">Year
+</span><a href="#local-6989586621679072106"><span class="hs-identifier hs-var">ym1</span></a></span><span>
+</span><span id="line-75"></span><span>        </span><span id="local-6989586621679072121"><span class="annot"><span class="annottext">findpos :: Year -&gt; CalendarDiffDays
+</span><a href="#local-6989586621679072121"><span class="hs-identifier hs-var hs-var">findpos</span></a></span></span><span> </span><span id="local-6989586621679072122"><span class="annot"><span class="annottext">Year
+</span><a href="#local-6989586621679072122"><span class="hs-identifier hs-var">mdiff</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-76"></span><span>            </span><span class="hs-keyword">let</span><span>
+</span><span id="line-77"></span><span>                </span><span id="local-6989586621679072123"><span class="annot"><span class="annottext">dayAllowed :: Day
+</span><a href="#local-6989586621679072123"><span class="hs-identifier hs-var hs-var">dayAllowed</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">CalendarDiffDays -&gt; Day -&gt; Day
+</span><span class="hs-identifier hs-var">addJulianDurationRollOver</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Year -&gt; Year -&gt; CalendarDiffDays
+</span><span class="hs-identifier hs-var">CalendarDiffDays</span></span><span> </span><span class="annot"><span class="annottext">Year
+</span><a href="#local-6989586621679072122"><span class="hs-identifier hs-var">mdiff</span></a></span><span> </span><span class="annot"><span class="annottext">Year
+</span><span class="hs-number">0</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Day
+</span><a href="#local-6989586621679072095"><span class="hs-identifier hs-var">day1</span></a></span><span>
+</span><span id="line-78"></span><span>                </span><span id="local-6989586621679072125"><span class="annot"><span class="annottext">dd :: Year
+</span><a href="#local-6989586621679072125"><span class="hs-identifier hs-var hs-var">dd</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Day -&gt; Day -&gt; Year
+</span><span class="hs-identifier hs-var">diffDays</span></span><span> </span><span class="annot"><span class="annottext">Day
+</span><a href="#local-6989586621679072094"><span class="hs-identifier hs-var">day2</span></a></span><span> </span><span class="annot"><span class="annottext">Day
+</span><a href="#local-6989586621679072123"><span class="hs-identifier hs-var">dayAllowed</span></a></span><span>
+</span><span id="line-79"></span><span>            </span><span class="hs-keyword">in</span><span>
+</span><span id="line-80"></span><span>                </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">Year
+</span><a href="#local-6989586621679072125"><span class="hs-identifier hs-var">dd</span></a></span><span> </span><span class="annot"><span class="annottext">Year -&gt; Year -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&gt;=</span></span><span> </span><span class="annot"><span class="annottext">Year
+</span><span class="hs-number">0</span></span><span> </span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="annottext">Year -&gt; Year -&gt; CalendarDiffDays
+</span><span class="hs-identifier hs-var">CalendarDiffDays</span></span><span> </span><span class="annot"><span class="annottext">Year
+</span><a href="#local-6989586621679072122"><span class="hs-identifier hs-var">mdiff</span></a></span><span> </span><span class="annot"><span class="annottext">Year
+</span><a href="#local-6989586621679072125"><span class="hs-identifier hs-var">dd</span></a></span><span> </span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="annottext">Year -&gt; CalendarDiffDays
+</span><a href="#local-6989586621679072121"><span class="hs-identifier hs-var">findpos</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Year -&gt; Year
+forall a. Enum a =&gt; a -&gt; a
+</span><span class="hs-identifier hs-var">pred</span></span><span> </span><span class="annot"><span class="annottext">Year
+</span><a href="#local-6989586621679072122"><span class="hs-identifier hs-var">mdiff</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-81"></span><span>        </span><span id="local-6989586621679072131"><span class="annot"><span class="annottext">findneg :: Year -&gt; CalendarDiffDays
+</span><a href="#local-6989586621679072131"><span class="hs-identifier hs-var hs-var">findneg</span></a></span></span><span> </span><span id="local-6989586621679072132"><span class="annot"><span class="annottext">Year
+</span><a href="#local-6989586621679072132"><span class="hs-identifier hs-var">mdiff</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-82"></span><span>            </span><span class="hs-keyword">let</span><span>
+</span><span id="line-83"></span><span>                </span><span id="local-6989586621679072133"><span class="annot"><span class="annottext">dayAllowed :: Day
+</span><a href="#local-6989586621679072133"><span class="hs-identifier hs-var hs-var">dayAllowed</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">CalendarDiffDays -&gt; Day -&gt; Day
+</span><span class="hs-identifier hs-var">addJulianDurationRollOver</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Year -&gt; Year -&gt; CalendarDiffDays
+</span><span class="hs-identifier hs-var">CalendarDiffDays</span></span><span> </span><span class="annot"><span class="annottext">Year
+</span><a href="#local-6989586621679072132"><span class="hs-identifier hs-var">mdiff</span></a></span><span> </span><span class="annot"><span class="annottext">Year
+</span><span class="hs-number">0</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Day
+</span><a href="#local-6989586621679072095"><span class="hs-identifier hs-var">day1</span></a></span><span>
+</span><span id="line-84"></span><span>                </span><span id="local-6989586621679072134"><span class="annot"><span class="annottext">dd :: Year
+</span><a href="#local-6989586621679072134"><span class="hs-identifier hs-var hs-var">dd</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Day -&gt; Day -&gt; Year
+</span><span class="hs-identifier hs-var">diffDays</span></span><span> </span><span class="annot"><span class="annottext">Day
+</span><a href="#local-6989586621679072094"><span class="hs-identifier hs-var">day2</span></a></span><span> </span><span class="annot"><span class="annottext">Day
+</span><a href="#local-6989586621679072133"><span class="hs-identifier hs-var">dayAllowed</span></a></span><span>
+</span><span id="line-85"></span><span>            </span><span class="hs-keyword">in</span><span>
+</span><span id="line-86"></span><span>                </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">Year
+</span><a href="#local-6989586621679072134"><span class="hs-identifier hs-var">dd</span></a></span><span> </span><span class="annot"><span class="annottext">Year -&gt; Year -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&lt;=</span></span><span> </span><span class="annot"><span class="annottext">Year
+</span><span class="hs-number">0</span></span><span> </span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="annottext">Year -&gt; Year -&gt; CalendarDiffDays
+</span><span class="hs-identifier hs-var">CalendarDiffDays</span></span><span> </span><span class="annot"><span class="annottext">Year
+</span><a href="#local-6989586621679072132"><span class="hs-identifier hs-var">mdiff</span></a></span><span> </span><span class="annot"><span class="annottext">Year
+</span><a href="#local-6989586621679072134"><span class="hs-identifier hs-var">dd</span></a></span><span> </span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="annottext">Year -&gt; CalendarDiffDays
+</span><a href="#local-6989586621679072121"><span class="hs-identifier hs-var">findpos</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Year -&gt; Year
+forall a. Enum a =&gt; a -&gt; a
+</span><span class="hs-identifier hs-var">succ</span></span><span> </span><span class="annot"><span class="annottext">Year
+</span><a href="#local-6989586621679072132"><span class="hs-identifier hs-var">mdiff</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-87"></span><span>    </span><span class="hs-keyword">in</span><span>
+</span><span id="line-88"></span><span>        </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">Day
+</span><a href="#local-6989586621679072094"><span class="hs-identifier hs-var">day2</span></a></span><span> </span><span class="annot"><span class="annottext">Day -&gt; Day -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&gt;=</span></span><span> </span><span class="annot"><span class="annottext">Day
+</span><a href="#local-6989586621679072095"><span class="hs-identifier hs-var">day1</span></a></span><span>
+</span><span id="line-89"></span><span>            </span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="annottext">Year -&gt; CalendarDiffDays
+</span><a href="#local-6989586621679072121"><span class="hs-identifier hs-var">findpos</span></a></span><span> </span><span class="annot"><span class="annottext">Year
+</span><a href="#local-6989586621679072115"><span class="hs-identifier hs-var">ymdiff</span></a></span><span>
+</span><span id="line-90"></span><span>            </span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="annottext">Year -&gt; CalendarDiffDays
+</span><a href="#local-6989586621679072131"><span class="hs-identifier hs-var">findneg</span></a></span><span> </span><span class="annot"><span class="annottext">Year
+</span><a href="#local-6989586621679072115"><span class="hs-identifier hs-var">ymdiff</span></a></span><span class="hs-cpp">
+#endif
+</span><span class="hs-cpp">
+#if !MIN_VERSION_time(1,11,0)
+</span><span class="hs-comment">-- | Bidirectional abstract constructor for the proleptic Julian calendar.</span><span>
+</span><span id="line-95"></span><span class="hs-comment">-- Invalid values will be clipped to the correct range, month first, then day.</span><span>
+</span><span id="line-96"></span><span class="hs-keyword">pattern</span><span> </span><span class="hs-identifier">JulianYearMonthDay</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">Year</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">MonthOfYear</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">DayOfMonth</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">Day</span><span>
+</span><span id="line-97"></span><span class="hs-keyword">pattern</span><span> </span><span class="hs-identifier">JulianYearMonthDay</span><span> </span><span class="hs-identifier">y</span><span> </span><span class="hs-identifier">m</span><span> </span><span class="hs-identifier">d</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">toJulian</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">y</span><span class="hs-special">,</span><span class="hs-identifier">m</span><span class="hs-special">,</span><span class="hs-identifier">d</span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-98"></span><span>    </span><span class="hs-identifier">JulianYearMonthDay</span><span> </span><span class="hs-identifier">y</span><span> </span><span class="hs-identifier">m</span><span> </span><span class="hs-identifier">d</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">fromJulian</span><span> </span><span class="hs-identifier">y</span><span> </span><span class="hs-identifier">m</span><span> </span><span class="hs-identifier">d</span><span>
+</span><span id="line-99"></span><span>
+</span><span id="line-100"></span><span class="hs-pragma">{-# COMPLETE</span><span> </span><span class="hs-pragma">JulianYearMonthDay</span><span> </span><span class="hs-pragma">#-}</span><span class="hs-cpp">
+#endif
+</span></pre></body></html>

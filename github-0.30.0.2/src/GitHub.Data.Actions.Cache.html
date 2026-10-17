@@ -1,0 +1,1088 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span id="local-6989586621679523237"><span id="local-6989586621679523238"><span id="local-6989586621679523239"><span id="local-6989586621679523240"><span id="local-6989586621679523241"><span id="local-6989586621679523242"></span></span></span></span></span></span><span class="hs-pragma">{-# LANGUAGE DataKinds         #-}</span><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# LANGUAGE FlexibleInstances #-}</span><span>
+</span><span id="line-3"></span><span class="hs-pragma">{-# LANGUAGE KindSignatures    #-}</span><span>
+</span><span id="line-4"></span><span>
+</span><span id="line-5"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="GitHub.Data.Actions.Cache.html"><span class="hs-identifier">GitHub.Data.Actions.Cache</span></a></span><span> </span><span class="hs-special">(</span><span>
+</span><span id="line-6"></span><span>    </span><span class="annot"><a href="GitHub.Data.Actions.Cache.html#Cache"><span class="hs-identifier">Cache</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-7"></span><span>    </span><span class="annot"><a href="GitHub.Data.Actions.Cache.html#RepositoryCacheUsage"><span class="hs-identifier">RepositoryCacheUsage</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-8"></span><span>    </span><span class="annot"><a href="GitHub.Data.Actions.Cache.html#OrganizationCacheUsage"><span class="hs-identifier">OrganizationCacheUsage</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-9"></span><span>    </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-10"></span><span>
+</span><span id="line-11"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GitHub.Data.Id.html"><span class="hs-identifier">GitHub.Data.Id</span></a></span><span>          </span><span class="hs-special">(</span><span class="annot"><a href="GitHub.Data.Id.html#Id"><span class="hs-identifier">Id</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-12"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GitHub.Internal.Prelude.html"><span class="hs-identifier">GitHub.Internal.Prelude</span></a></span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Prelude</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-14"></span><span>
+</span><span id="line-15"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GitHub.Data.Actions.Common.html"><span class="hs-identifier">GitHub.Data.Actions.Common</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GitHub.Data.Actions.Common.html#WithTotalCount"><span class="hs-identifier">WithTotalCount</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GitHub.Data.Actions.Common.html#WithTotalCount"><span class="hs-identifier">WithTotalCount</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-16"></span><span>
+</span><span id="line-17"></span><span class="hs-comment">-------------------------------------------------------------------------------</span><span>
+</span><span id="line-18"></span><span class="hs-comment">-- Cache</span><span>
+</span><span id="line-19"></span><span class="hs-comment">-------------------------------------------------------------------------------</span><span>
+</span><span id="line-20"></span><span>
+</span><span id="line-21"></span><span class="hs-keyword">data</span><span> </span><span id="Cache"><span class="annot"><a href="GitHub.Data.Actions.Cache.html#Cache"><span class="hs-identifier hs-var">Cache</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="Cache"><span class="annot"><a href="GitHub.Data.Actions.Cache.html#Cache"><span class="hs-identifier hs-var">Cache</span></a></span></span><span>
+</span><span id="line-22"></span><span>    </span><span class="hs-special">{</span><span> </span><span id="cacheId"><span class="annot"><span class="annottext">Cache -&gt; Id Cache
+</span><a href="GitHub.Data.Actions.Cache.html#cacheId"><span class="hs-identifier hs-var hs-var">cacheId</span></a></span></span><span>             </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="hs-special">(</span><span class="annot"><a href="GitHub.Data.Id.html#Id"><span class="hs-identifier hs-type">Id</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.Actions.Cache.html#Cache"><span class="hs-identifier hs-type">Cache</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-23"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="cacheRef"><span class="annot"><span class="annottext">Cache -&gt; Text
+</span><a href="GitHub.Data.Actions.Cache.html#cacheRef"><span class="hs-identifier hs-var hs-var">cacheRef</span></a></span></span><span>            </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span>
+</span><span id="line-24"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="cacheKey"><span class="annot"><span class="annottext">Cache -&gt; Text
+</span><a href="GitHub.Data.Actions.Cache.html#cacheKey"><span class="hs-identifier hs-var hs-var">cacheKey</span></a></span></span><span>            </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span>
+</span><span id="line-25"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="cacheVersion"><span class="annot"><span class="annottext">Cache -&gt; Text
+</span><a href="GitHub.Data.Actions.Cache.html#cacheVersion"><span class="hs-identifier hs-var hs-var">cacheVersion</span></a></span></span><span>        </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span>
+</span><span id="line-26"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="cacheLastAccessedAt"><span class="annot"><span class="annottext">Cache -&gt; UTCTime
+</span><a href="GitHub.Data.Actions.Cache.html#cacheLastAccessedAt"><span class="hs-identifier hs-var hs-var">cacheLastAccessedAt</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">UTCTime</span></span><span>
+</span><span id="line-27"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="cacheCreatedAt"><span class="annot"><span class="annottext">Cache -&gt; UTCTime
+</span><a href="GitHub.Data.Actions.Cache.html#cacheCreatedAt"><span class="hs-identifier hs-var hs-var">cacheCreatedAt</span></a></span></span><span>      </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">UTCTime</span></span><span>
+</span><span id="line-28"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="cacheSizeInBytes"><span class="annot"><span class="annottext">Cache -&gt; Int
+</span><a href="GitHub.Data.Actions.Cache.html#cacheSizeInBytes"><span class="hs-identifier hs-var hs-var">cacheSizeInBytes</span></a></span></span><span>    </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>
+</span><span id="line-29"></span><span>    </span><span class="hs-special">}</span><span>
+</span><span id="line-30"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679523253"><span id="local-6989586621679523268"><span id="local-6989586621679523272"><span class="annot"><span class="annottext">Int -&gt; Cache -&gt; ShowS
+[Cache] -&gt; ShowS
+Cache -&gt; String
+(Int -&gt; Cache -&gt; ShowS)
+-&gt; (Cache -&gt; String) -&gt; ([Cache] -&gt; ShowS) -&gt; Show Cache
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; Cache -&gt; ShowS
+showsPrec :: Int -&gt; Cache -&gt; ShowS
+$cshow :: Cache -&gt; String
+show :: Cache -&gt; String
+$cshowList :: [Cache] -&gt; ShowS
+showList :: [Cache] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679523279"><span id="local-6989586621679523293"><span id="local-6989586621679523303"><span id="local-6989586621679523305"><span id="local-6989586621679523307"><span id="local-6989586621679523313"><span id="local-6989586621679523318"><span id="local-6989586621679523321"><span id="local-6989586621679523324"><span id="local-6989586621679523327"><span id="local-6989586621679523330"><span id="local-6989586621679523333"><span id="local-6989586621679523338"><span id="local-6989586621679523343"><span class="annot"><span class="annottext">Typeable Cache
+Typeable Cache =&gt;
+(forall (c :: * -&gt; *).
+ (forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+ -&gt; (forall g. g -&gt; c g) -&gt; Cache -&gt; c Cache)
+-&gt; (forall (c :: * -&gt; *).
+    (forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+    -&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c Cache)
+-&gt; (Cache -&gt; Constr)
+-&gt; (Cache -&gt; DataType)
+-&gt; (forall (t :: * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d. Data d =&gt; c (t d)) -&gt; Maybe (c Cache))
+-&gt; (forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d e. (Data d, Data e) =&gt; c (t d e)) -&gt; Maybe (c Cache))
+-&gt; ((forall b. Data b =&gt; b -&gt; b) -&gt; Cache -&gt; Cache)
+-&gt; (forall r r'.
+    (r -&gt; r' -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; Cache -&gt; r)
+-&gt; (forall r r'.
+    (r' -&gt; r -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; Cache -&gt; r)
+-&gt; (forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; Cache -&gt; [u])
+-&gt; (forall u. Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; Cache -&gt; u)
+-&gt; (forall (m :: * -&gt; *).
+    Monad m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; Cache -&gt; m Cache)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; Cache -&gt; m Cache)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; Cache -&gt; m Cache)
+-&gt; Data Cache
+Cache -&gt; Constr
+Cache -&gt; DataType
+(forall b. Data b =&gt; b -&gt; b) -&gt; Cache -&gt; Cache
+forall a.
+Typeable a =&gt;
+(forall (c :: * -&gt; *).
+ (forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+ -&gt; (forall g. g -&gt; c g) -&gt; a -&gt; c a)
+-&gt; (forall (c :: * -&gt; *).
+    (forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+    -&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c a)
+-&gt; (a -&gt; Constr)
+-&gt; (a -&gt; DataType)
+-&gt; (forall (t :: * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d. Data d =&gt; c (t d)) -&gt; Maybe (c a))
+-&gt; (forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d e. (Data d, Data e) =&gt; c (t d e)) -&gt; Maybe (c a))
+-&gt; ((forall b. Data b =&gt; b -&gt; b) -&gt; a -&gt; a)
+-&gt; (forall r r'.
+    (r -&gt; r' -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; a -&gt; r)
+-&gt; (forall r r'.
+    (r' -&gt; r -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; a -&gt; r)
+-&gt; (forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; a -&gt; [u])
+-&gt; (forall u. Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; a -&gt; u)
+-&gt; (forall (m :: * -&gt; *).
+    Monad m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; a -&gt; m a)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; a -&gt; m a)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; a -&gt; m a)
+-&gt; Data a
+forall u. Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; Cache -&gt; u
+forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; Cache -&gt; [u]
+forall r r'.
+(r -&gt; r' -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; Cache -&gt; r
+forall r r'.
+(r' -&gt; r -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; Cache -&gt; r
+forall (m :: * -&gt; *).
+Monad m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; Cache -&gt; m Cache
+forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; Cache -&gt; m Cache
+forall (c :: * -&gt; *).
+(forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+-&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c Cache
+forall (c :: * -&gt; *).
+(forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+-&gt; (forall g. g -&gt; c g) -&gt; Cache -&gt; c Cache
+forall (t :: * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d. Data d =&gt; c (t d)) -&gt; Maybe (c Cache)
+forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d e. (Data d, Data e) =&gt; c (t d e)) -&gt; Maybe (c Cache)
+$cgfoldl :: forall (c :: * -&gt; *).
+(forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+-&gt; (forall g. g -&gt; c g) -&gt; Cache -&gt; c Cache
+gfoldl :: forall (c :: * -&gt; *).
+(forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+-&gt; (forall g. g -&gt; c g) -&gt; Cache -&gt; c Cache
+$cgunfold :: forall (c :: * -&gt; *).
+(forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+-&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c Cache
+gunfold :: forall (c :: * -&gt; *).
+(forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+-&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c Cache
+$ctoConstr :: Cache -&gt; Constr
+toConstr :: Cache -&gt; Constr
+$cdataTypeOf :: Cache -&gt; DataType
+dataTypeOf :: Cache -&gt; DataType
+$cdataCast1 :: forall (t :: * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d. Data d =&gt; c (t d)) -&gt; Maybe (c Cache)
+dataCast1 :: forall (t :: * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d. Data d =&gt; c (t d)) -&gt; Maybe (c Cache)
+$cdataCast2 :: forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d e. (Data d, Data e) =&gt; c (t d e)) -&gt; Maybe (c Cache)
+dataCast2 :: forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d e. (Data d, Data e) =&gt; c (t d e)) -&gt; Maybe (c Cache)
+$cgmapT :: (forall b. Data b =&gt; b -&gt; b) -&gt; Cache -&gt; Cache
+gmapT :: (forall b. Data b =&gt; b -&gt; b) -&gt; Cache -&gt; Cache
+$cgmapQl :: forall r r'.
+(r -&gt; r' -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; Cache -&gt; r
+gmapQl :: forall r r'.
+(r -&gt; r' -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; Cache -&gt; r
+$cgmapQr :: forall r r'.
+(r' -&gt; r -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; Cache -&gt; r
+gmapQr :: forall r r'.
+(r' -&gt; r -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; Cache -&gt; r
+$cgmapQ :: forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; Cache -&gt; [u]
+gmapQ :: forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; Cache -&gt; [u]
+$cgmapQi :: forall u. Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; Cache -&gt; u
+gmapQi :: forall u. Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; Cache -&gt; u
+$cgmapM :: forall (m :: * -&gt; *).
+Monad m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; Cache -&gt; m Cache
+gmapM :: forall (m :: * -&gt; *).
+Monad m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; Cache -&gt; m Cache
+$cgmapMp :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; Cache -&gt; m Cache
+gmapMp :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; Cache -&gt; m Cache
+$cgmapMo :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; Cache -&gt; m Cache
+gmapMo :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; Cache -&gt; m Cache
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Data</span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679523353"><span id="local-6989586621679523366"><span class="annot"><span class="annottext">Cache -&gt; Cache -&gt; Bool
+(Cache -&gt; Cache -&gt; Bool) -&gt; (Cache -&gt; Cache -&gt; Bool) -&gt; Eq Cache
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: Cache -&gt; Cache -&gt; Bool
+== :: Cache -&gt; Cache -&gt; Bool
+$c/= :: Cache -&gt; Cache -&gt; Bool
+/= :: Cache -&gt; Cache -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679523373"><span id="local-6989586621679523385"><span id="local-6989586621679523394"><span id="local-6989586621679523398"><span id="local-6989586621679523401"><span id="local-6989586621679523404"><span id="local-6989586621679523407"><span class="annot"><span class="annottext">Eq Cache
+Eq Cache =&gt;
+(Cache -&gt; Cache -&gt; Ordering)
+-&gt; (Cache -&gt; Cache -&gt; Bool)
+-&gt; (Cache -&gt; Cache -&gt; Bool)
+-&gt; (Cache -&gt; Cache -&gt; Bool)
+-&gt; (Cache -&gt; Cache -&gt; Bool)
+-&gt; (Cache -&gt; Cache -&gt; Cache)
+-&gt; (Cache -&gt; Cache -&gt; Cache)
+-&gt; Ord Cache
+Cache -&gt; Cache -&gt; Bool
+Cache -&gt; Cache -&gt; Ordering
+Cache -&gt; Cache -&gt; Cache
+forall a.
+Eq a =&gt;
+(a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+$ccompare :: Cache -&gt; Cache -&gt; Ordering
+compare :: Cache -&gt; Cache -&gt; Ordering
+$c&lt; :: Cache -&gt; Cache -&gt; Bool
+&lt; :: Cache -&gt; Cache -&gt; Bool
+$c&lt;= :: Cache -&gt; Cache -&gt; Bool
+&lt;= :: Cache -&gt; Cache -&gt; Bool
+$c&gt; :: Cache -&gt; Cache -&gt; Bool
+&gt; :: Cache -&gt; Cache -&gt; Bool
+$c&gt;= :: Cache -&gt; Cache -&gt; Bool
+&gt;= :: Cache -&gt; Cache -&gt; Bool
+$cmax :: Cache -&gt; Cache -&gt; Cache
+max :: Cache -&gt; Cache -&gt; Cache
+$cmin :: Cache -&gt; Cache -&gt; Cache
+min :: Cache -&gt; Cache -&gt; Cache
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679523415"><span id="local-6989586621679523417"><span class="annot"><span class="annottext">(forall x. Cache -&gt; Rep Cache x)
+-&gt; (forall x. Rep Cache x -&gt; Cache) -&gt; Generic Cache
+forall x. Rep Cache x -&gt; Cache
+forall x. Cache -&gt; Rep Cache x
+forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+$cfrom :: forall x. Cache -&gt; Rep Cache x
+from :: forall x. Cache -&gt; Rep Cache x
+$cto :: forall x. Rep Cache x -&gt; Cache
+to :: forall x. Rep Cache x -&gt; Cache
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Generic</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-31"></span><span>
+</span><span id="line-32"></span><span class="hs-keyword">data</span><span> </span><span id="RepositoryCacheUsage"><span class="annot"><a href="GitHub.Data.Actions.Cache.html#RepositoryCacheUsage"><span class="hs-identifier hs-var">RepositoryCacheUsage</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="RepositoryCacheUsage"><span class="annot"><a href="GitHub.Data.Actions.Cache.html#RepositoryCacheUsage"><span class="hs-identifier hs-var">RepositoryCacheUsage</span></a></span></span><span>
+</span><span id="line-33"></span><span>    </span><span class="hs-special">{</span><span> </span><span id="repositoryCacheUsageFullName"><span class="annot"><span class="annottext">RepositoryCacheUsage -&gt; Text
+</span><a href="GitHub.Data.Actions.Cache.html#repositoryCacheUsageFullName"><span class="hs-identifier hs-var hs-var">repositoryCacheUsageFullName</span></a></span></span><span>                </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span>
+</span><span id="line-34"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="repositoryCacheUsageActiveCachesSizeInBytes"><span class="annot"><span class="annottext">RepositoryCacheUsage -&gt; Int
+</span><a href="GitHub.Data.Actions.Cache.html#repositoryCacheUsageActiveCachesSizeInBytes"><span class="hs-identifier hs-var hs-var">repositoryCacheUsageActiveCachesSizeInBytes</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>
+</span><span id="line-35"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="repositoryCacheUsageActiveCachesCount"><span class="annot"><span class="annottext">RepositoryCacheUsage -&gt; Int
+</span><a href="GitHub.Data.Actions.Cache.html#repositoryCacheUsageActiveCachesCount"><span class="hs-identifier hs-var hs-var">repositoryCacheUsageActiveCachesCount</span></a></span></span><span>       </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>
+</span><span id="line-36"></span><span>    </span><span class="hs-special">}</span><span>
+</span><span id="line-37"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679523427"><span id="local-6989586621679523433"><span id="local-6989586621679523437"><span class="annot"><span class="annottext">Int -&gt; RepositoryCacheUsage -&gt; ShowS
+[RepositoryCacheUsage] -&gt; ShowS
+RepositoryCacheUsage -&gt; String
+(Int -&gt; RepositoryCacheUsage -&gt; ShowS)
+-&gt; (RepositoryCacheUsage -&gt; String)
+-&gt; ([RepositoryCacheUsage] -&gt; ShowS)
+-&gt; Show RepositoryCacheUsage
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; RepositoryCacheUsage -&gt; ShowS
+showsPrec :: Int -&gt; RepositoryCacheUsage -&gt; ShowS
+$cshow :: RepositoryCacheUsage -&gt; String
+show :: RepositoryCacheUsage -&gt; String
+$cshowList :: [RepositoryCacheUsage] -&gt; ShowS
+showList :: [RepositoryCacheUsage] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679523442"><span id="local-6989586621679523447"><span id="local-6989586621679523452"><span id="local-6989586621679523454"><span id="local-6989586621679523456"><span id="local-6989586621679523462"><span id="local-6989586621679523467"><span id="local-6989586621679523470"><span id="local-6989586621679523473"><span id="local-6989586621679523476"><span id="local-6989586621679523479"><span id="local-6989586621679523482"><span id="local-6989586621679523487"><span id="local-6989586621679523492"><span class="annot"><span class="annottext">Typeable RepositoryCacheUsage
+Typeable RepositoryCacheUsage =&gt;
+(forall (c :: * -&gt; *).
+ (forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+ -&gt; (forall g. g -&gt; c g)
+ -&gt; RepositoryCacheUsage
+ -&gt; c RepositoryCacheUsage)
+-&gt; (forall (c :: * -&gt; *).
+    (forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+    -&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c RepositoryCacheUsage)
+-&gt; (RepositoryCacheUsage -&gt; Constr)
+-&gt; (RepositoryCacheUsage -&gt; DataType)
+-&gt; (forall (t :: * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d. Data d =&gt; c (t d)) -&gt; Maybe (c RepositoryCacheUsage))
+-&gt; (forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d e. (Data d, Data e) =&gt; c (t d e))
+    -&gt; Maybe (c RepositoryCacheUsage))
+-&gt; ((forall b. Data b =&gt; b -&gt; b)
+    -&gt; RepositoryCacheUsage -&gt; RepositoryCacheUsage)
+-&gt; (forall r r'.
+    (r -&gt; r' -&gt; r)
+    -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; RepositoryCacheUsage -&gt; r)
+-&gt; (forall r r'.
+    (r' -&gt; r -&gt; r)
+    -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; RepositoryCacheUsage -&gt; r)
+-&gt; (forall u.
+    (forall d. Data d =&gt; d -&gt; u) -&gt; RepositoryCacheUsage -&gt; [u])
+-&gt; (forall u.
+    Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; RepositoryCacheUsage -&gt; u)
+-&gt; (forall (m :: * -&gt; *).
+    Monad m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d)
+    -&gt; RepositoryCacheUsage -&gt; m RepositoryCacheUsage)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d)
+    -&gt; RepositoryCacheUsage -&gt; m RepositoryCacheUsage)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d)
+    -&gt; RepositoryCacheUsage -&gt; m RepositoryCacheUsage)
+-&gt; Data RepositoryCacheUsage
+RepositoryCacheUsage -&gt; Constr
+RepositoryCacheUsage -&gt; DataType
+(forall b. Data b =&gt; b -&gt; b)
+-&gt; RepositoryCacheUsage -&gt; RepositoryCacheUsage
+forall a.
+Typeable a =&gt;
+(forall (c :: * -&gt; *).
+ (forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+ -&gt; (forall g. g -&gt; c g) -&gt; a -&gt; c a)
+-&gt; (forall (c :: * -&gt; *).
+    (forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+    -&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c a)
+-&gt; (a -&gt; Constr)
+-&gt; (a -&gt; DataType)
+-&gt; (forall (t :: * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d. Data d =&gt; c (t d)) -&gt; Maybe (c a))
+-&gt; (forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d e. (Data d, Data e) =&gt; c (t d e)) -&gt; Maybe (c a))
+-&gt; ((forall b. Data b =&gt; b -&gt; b) -&gt; a -&gt; a)
+-&gt; (forall r r'.
+    (r -&gt; r' -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; a -&gt; r)
+-&gt; (forall r r'.
+    (r' -&gt; r -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; a -&gt; r)
+-&gt; (forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; a -&gt; [u])
+-&gt; (forall u. Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; a -&gt; u)
+-&gt; (forall (m :: * -&gt; *).
+    Monad m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; a -&gt; m a)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; a -&gt; m a)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; a -&gt; m a)
+-&gt; Data a
+forall u.
+Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; RepositoryCacheUsage -&gt; u
+forall u.
+(forall d. Data d =&gt; d -&gt; u) -&gt; RepositoryCacheUsage -&gt; [u]
+forall r r'.
+(r -&gt; r' -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; RepositoryCacheUsage -&gt; r
+forall r r'.
+(r' -&gt; r -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; RepositoryCacheUsage -&gt; r
+forall (m :: * -&gt; *).
+Monad m =&gt;
+(forall d. Data d =&gt; d -&gt; m d)
+-&gt; RepositoryCacheUsage -&gt; m RepositoryCacheUsage
+forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d)
+-&gt; RepositoryCacheUsage -&gt; m RepositoryCacheUsage
+forall (c :: * -&gt; *).
+(forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+-&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c RepositoryCacheUsage
+forall (c :: * -&gt; *).
+(forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+-&gt; (forall g. g -&gt; c g)
+-&gt; RepositoryCacheUsage
+-&gt; c RepositoryCacheUsage
+forall (t :: * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d. Data d =&gt; c (t d)) -&gt; Maybe (c RepositoryCacheUsage)
+forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d e. (Data d, Data e) =&gt; c (t d e))
+-&gt; Maybe (c RepositoryCacheUsage)
+$cgfoldl :: forall (c :: * -&gt; *).
+(forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+-&gt; (forall g. g -&gt; c g)
+-&gt; RepositoryCacheUsage
+-&gt; c RepositoryCacheUsage
+gfoldl :: forall (c :: * -&gt; *).
+(forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+-&gt; (forall g. g -&gt; c g)
+-&gt; RepositoryCacheUsage
+-&gt; c RepositoryCacheUsage
+$cgunfold :: forall (c :: * -&gt; *).
+(forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+-&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c RepositoryCacheUsage
+gunfold :: forall (c :: * -&gt; *).
+(forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+-&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c RepositoryCacheUsage
+$ctoConstr :: RepositoryCacheUsage -&gt; Constr
+toConstr :: RepositoryCacheUsage -&gt; Constr
+$cdataTypeOf :: RepositoryCacheUsage -&gt; DataType
+dataTypeOf :: RepositoryCacheUsage -&gt; DataType
+$cdataCast1 :: forall (t :: * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d. Data d =&gt; c (t d)) -&gt; Maybe (c RepositoryCacheUsage)
+dataCast1 :: forall (t :: * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d. Data d =&gt; c (t d)) -&gt; Maybe (c RepositoryCacheUsage)
+$cdataCast2 :: forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d e. (Data d, Data e) =&gt; c (t d e))
+-&gt; Maybe (c RepositoryCacheUsage)
+dataCast2 :: forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d e. (Data d, Data e) =&gt; c (t d e))
+-&gt; Maybe (c RepositoryCacheUsage)
+$cgmapT :: (forall b. Data b =&gt; b -&gt; b)
+-&gt; RepositoryCacheUsage -&gt; RepositoryCacheUsage
+gmapT :: (forall b. Data b =&gt; b -&gt; b)
+-&gt; RepositoryCacheUsage -&gt; RepositoryCacheUsage
+$cgmapQl :: forall r r'.
+(r -&gt; r' -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; RepositoryCacheUsage -&gt; r
+gmapQl :: forall r r'.
+(r -&gt; r' -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; RepositoryCacheUsage -&gt; r
+$cgmapQr :: forall r r'.
+(r' -&gt; r -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; RepositoryCacheUsage -&gt; r
+gmapQr :: forall r r'.
+(r' -&gt; r -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; RepositoryCacheUsage -&gt; r
+$cgmapQ :: forall u.
+(forall d. Data d =&gt; d -&gt; u) -&gt; RepositoryCacheUsage -&gt; [u]
+gmapQ :: forall u.
+(forall d. Data d =&gt; d -&gt; u) -&gt; RepositoryCacheUsage -&gt; [u]
+$cgmapQi :: forall u.
+Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; RepositoryCacheUsage -&gt; u
+gmapQi :: forall u.
+Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; RepositoryCacheUsage -&gt; u
+$cgmapM :: forall (m :: * -&gt; *).
+Monad m =&gt;
+(forall d. Data d =&gt; d -&gt; m d)
+-&gt; RepositoryCacheUsage -&gt; m RepositoryCacheUsage
+gmapM :: forall (m :: * -&gt; *).
+Monad m =&gt;
+(forall d. Data d =&gt; d -&gt; m d)
+-&gt; RepositoryCacheUsage -&gt; m RepositoryCacheUsage
+$cgmapMp :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d)
+-&gt; RepositoryCacheUsage -&gt; m RepositoryCacheUsage
+gmapMp :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d)
+-&gt; RepositoryCacheUsage -&gt; m RepositoryCacheUsage
+$cgmapMo :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d)
+-&gt; RepositoryCacheUsage -&gt; m RepositoryCacheUsage
+gmapMo :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d)
+-&gt; RepositoryCacheUsage -&gt; m RepositoryCacheUsage
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Data</span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679523497"><span id="local-6989586621679523502"><span class="annot"><span class="annottext">RepositoryCacheUsage -&gt; RepositoryCacheUsage -&gt; Bool
+(RepositoryCacheUsage -&gt; RepositoryCacheUsage -&gt; Bool)
+-&gt; (RepositoryCacheUsage -&gt; RepositoryCacheUsage -&gt; Bool)
+-&gt; Eq RepositoryCacheUsage
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: RepositoryCacheUsage -&gt; RepositoryCacheUsage -&gt; Bool
+== :: RepositoryCacheUsage -&gt; RepositoryCacheUsage -&gt; Bool
+$c/= :: RepositoryCacheUsage -&gt; RepositoryCacheUsage -&gt; Bool
+/= :: RepositoryCacheUsage -&gt; RepositoryCacheUsage -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679523508"><span id="local-6989586621679523513"><span id="local-6989586621679523518"><span id="local-6989586621679523522"><span id="local-6989586621679523525"><span id="local-6989586621679523528"><span id="local-6989586621679523531"><span class="annot"><span class="annottext">Eq RepositoryCacheUsage
+Eq RepositoryCacheUsage =&gt;
+(RepositoryCacheUsage -&gt; RepositoryCacheUsage -&gt; Ordering)
+-&gt; (RepositoryCacheUsage -&gt; RepositoryCacheUsage -&gt; Bool)
+-&gt; (RepositoryCacheUsage -&gt; RepositoryCacheUsage -&gt; Bool)
+-&gt; (RepositoryCacheUsage -&gt; RepositoryCacheUsage -&gt; Bool)
+-&gt; (RepositoryCacheUsage -&gt; RepositoryCacheUsage -&gt; Bool)
+-&gt; (RepositoryCacheUsage
+    -&gt; RepositoryCacheUsage -&gt; RepositoryCacheUsage)
+-&gt; (RepositoryCacheUsage
+    -&gt; RepositoryCacheUsage -&gt; RepositoryCacheUsage)
+-&gt; Ord RepositoryCacheUsage
+RepositoryCacheUsage -&gt; RepositoryCacheUsage -&gt; Bool
+RepositoryCacheUsage -&gt; RepositoryCacheUsage -&gt; Ordering
+RepositoryCacheUsage
+-&gt; RepositoryCacheUsage -&gt; RepositoryCacheUsage
+forall a.
+Eq a =&gt;
+(a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+$ccompare :: RepositoryCacheUsage -&gt; RepositoryCacheUsage -&gt; Ordering
+compare :: RepositoryCacheUsage -&gt; RepositoryCacheUsage -&gt; Ordering
+$c&lt; :: RepositoryCacheUsage -&gt; RepositoryCacheUsage -&gt; Bool
+&lt; :: RepositoryCacheUsage -&gt; RepositoryCacheUsage -&gt; Bool
+$c&lt;= :: RepositoryCacheUsage -&gt; RepositoryCacheUsage -&gt; Bool
+&lt;= :: RepositoryCacheUsage -&gt; RepositoryCacheUsage -&gt; Bool
+$c&gt; :: RepositoryCacheUsage -&gt; RepositoryCacheUsage -&gt; Bool
+&gt; :: RepositoryCacheUsage -&gt; RepositoryCacheUsage -&gt; Bool
+$c&gt;= :: RepositoryCacheUsage -&gt; RepositoryCacheUsage -&gt; Bool
+&gt;= :: RepositoryCacheUsage -&gt; RepositoryCacheUsage -&gt; Bool
+$cmax :: RepositoryCacheUsage
+-&gt; RepositoryCacheUsage -&gt; RepositoryCacheUsage
+max :: RepositoryCacheUsage
+-&gt; RepositoryCacheUsage -&gt; RepositoryCacheUsage
+$cmin :: RepositoryCacheUsage
+-&gt; RepositoryCacheUsage -&gt; RepositoryCacheUsage
+min :: RepositoryCacheUsage
+-&gt; RepositoryCacheUsage -&gt; RepositoryCacheUsage
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679523534"><span id="local-6989586621679523536"><span class="annot"><span class="annottext">(forall x. RepositoryCacheUsage -&gt; Rep RepositoryCacheUsage x)
+-&gt; (forall x. Rep RepositoryCacheUsage x -&gt; RepositoryCacheUsage)
+-&gt; Generic RepositoryCacheUsage
+forall x. Rep RepositoryCacheUsage x -&gt; RepositoryCacheUsage
+forall x. RepositoryCacheUsage -&gt; Rep RepositoryCacheUsage x
+forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+$cfrom :: forall x. RepositoryCacheUsage -&gt; Rep RepositoryCacheUsage x
+from :: forall x. RepositoryCacheUsage -&gt; Rep RepositoryCacheUsage x
+$cto :: forall x. Rep RepositoryCacheUsage x -&gt; RepositoryCacheUsage
+to :: forall x. Rep RepositoryCacheUsage x -&gt; RepositoryCacheUsage
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Generic</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-38"></span><span>
+</span><span id="line-39"></span><span class="hs-keyword">data</span><span> </span><span id="OrganizationCacheUsage"><span class="annot"><a href="GitHub.Data.Actions.Cache.html#OrganizationCacheUsage"><span class="hs-identifier hs-var">OrganizationCacheUsage</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="OrganizationCacheUsage"><span class="annot"><a href="GitHub.Data.Actions.Cache.html#OrganizationCacheUsage"><span class="hs-identifier hs-var">OrganizationCacheUsage</span></a></span></span><span>
+</span><span id="line-40"></span><span>    </span><span class="hs-special">{</span><span> </span><span id="organizationCacheUsageTotalActiveCachesSizeInBytes"><span class="annot"><span class="annottext">OrganizationCacheUsage -&gt; Int
+</span><a href="GitHub.Data.Actions.Cache.html#organizationCacheUsageTotalActiveCachesSizeInBytes"><span class="hs-identifier hs-var hs-var">organizationCacheUsageTotalActiveCachesSizeInBytes</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>
+</span><span id="line-41"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="organizationCacheUsageTotalActiveCachesCount"><span class="annot"><span class="annottext">OrganizationCacheUsage -&gt; Int
+</span><a href="GitHub.Data.Actions.Cache.html#organizationCacheUsageTotalActiveCachesCount"><span class="hs-identifier hs-var hs-var">organizationCacheUsageTotalActiveCachesCount</span></a></span></span><span>       </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>
+</span><span id="line-42"></span><span>    </span><span class="hs-special">}</span><span>
+</span><span id="line-43"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679523542"><span id="local-6989586621679523547"><span id="local-6989586621679523551"><span class="annot"><span class="annottext">Int -&gt; OrganizationCacheUsage -&gt; ShowS
+[OrganizationCacheUsage] -&gt; ShowS
+OrganizationCacheUsage -&gt; String
+(Int -&gt; OrganizationCacheUsage -&gt; ShowS)
+-&gt; (OrganizationCacheUsage -&gt; String)
+-&gt; ([OrganizationCacheUsage] -&gt; ShowS)
+-&gt; Show OrganizationCacheUsage
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; OrganizationCacheUsage -&gt; ShowS
+showsPrec :: Int -&gt; OrganizationCacheUsage -&gt; ShowS
+$cshow :: OrganizationCacheUsage -&gt; String
+show :: OrganizationCacheUsage -&gt; String
+$cshowList :: [OrganizationCacheUsage] -&gt; ShowS
+showList :: [OrganizationCacheUsage] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679523556"><span id="local-6989586621679523560"><span id="local-6989586621679523564"><span id="local-6989586621679523566"><span id="local-6989586621679523568"><span id="local-6989586621679523574"><span id="local-6989586621679523579"><span id="local-6989586621679523582"><span id="local-6989586621679523585"><span id="local-6989586621679523588"><span id="local-6989586621679523591"><span id="local-6989586621679523594"><span id="local-6989586621679523599"><span id="local-6989586621679523604"><span class="annot"><span class="annottext">Typeable OrganizationCacheUsage
+Typeable OrganizationCacheUsage =&gt;
+(forall (c :: * -&gt; *).
+ (forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+ -&gt; (forall g. g -&gt; c g)
+ -&gt; OrganizationCacheUsage
+ -&gt; c OrganizationCacheUsage)
+-&gt; (forall (c :: * -&gt; *).
+    (forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+    -&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c OrganizationCacheUsage)
+-&gt; (OrganizationCacheUsage -&gt; Constr)
+-&gt; (OrganizationCacheUsage -&gt; DataType)
+-&gt; (forall (t :: * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d. Data d =&gt; c (t d)) -&gt; Maybe (c OrganizationCacheUsage))
+-&gt; (forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d e. (Data d, Data e) =&gt; c (t d e))
+    -&gt; Maybe (c OrganizationCacheUsage))
+-&gt; ((forall b. Data b =&gt; b -&gt; b)
+    -&gt; OrganizationCacheUsage -&gt; OrganizationCacheUsage)
+-&gt; (forall r r'.
+    (r -&gt; r' -&gt; r)
+    -&gt; r
+    -&gt; (forall d. Data d =&gt; d -&gt; r')
+    -&gt; OrganizationCacheUsage
+    -&gt; r)
+-&gt; (forall r r'.
+    (r' -&gt; r -&gt; r)
+    -&gt; r
+    -&gt; (forall d. Data d =&gt; d -&gt; r')
+    -&gt; OrganizationCacheUsage
+    -&gt; r)
+-&gt; (forall u.
+    (forall d. Data d =&gt; d -&gt; u) -&gt; OrganizationCacheUsage -&gt; [u])
+-&gt; (forall u.
+    Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; OrganizationCacheUsage -&gt; u)
+-&gt; (forall (m :: * -&gt; *).
+    Monad m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d)
+    -&gt; OrganizationCacheUsage -&gt; m OrganizationCacheUsage)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d)
+    -&gt; OrganizationCacheUsage -&gt; m OrganizationCacheUsage)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d)
+    -&gt; OrganizationCacheUsage -&gt; m OrganizationCacheUsage)
+-&gt; Data OrganizationCacheUsage
+OrganizationCacheUsage -&gt; Constr
+OrganizationCacheUsage -&gt; DataType
+(forall b. Data b =&gt; b -&gt; b)
+-&gt; OrganizationCacheUsage -&gt; OrganizationCacheUsage
+forall a.
+Typeable a =&gt;
+(forall (c :: * -&gt; *).
+ (forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+ -&gt; (forall g. g -&gt; c g) -&gt; a -&gt; c a)
+-&gt; (forall (c :: * -&gt; *).
+    (forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+    -&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c a)
+-&gt; (a -&gt; Constr)
+-&gt; (a -&gt; DataType)
+-&gt; (forall (t :: * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d. Data d =&gt; c (t d)) -&gt; Maybe (c a))
+-&gt; (forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d e. (Data d, Data e) =&gt; c (t d e)) -&gt; Maybe (c a))
+-&gt; ((forall b. Data b =&gt; b -&gt; b) -&gt; a -&gt; a)
+-&gt; (forall r r'.
+    (r -&gt; r' -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; a -&gt; r)
+-&gt; (forall r r'.
+    (r' -&gt; r -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; a -&gt; r)
+-&gt; (forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; a -&gt; [u])
+-&gt; (forall u. Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; a -&gt; u)
+-&gt; (forall (m :: * -&gt; *).
+    Monad m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; a -&gt; m a)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; a -&gt; m a)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; a -&gt; m a)
+-&gt; Data a
+forall u.
+Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; OrganizationCacheUsage -&gt; u
+forall u.
+(forall d. Data d =&gt; d -&gt; u) -&gt; OrganizationCacheUsage -&gt; [u]
+forall r r'.
+(r -&gt; r' -&gt; r)
+-&gt; r
+-&gt; (forall d. Data d =&gt; d -&gt; r')
+-&gt; OrganizationCacheUsage
+-&gt; r
+forall r r'.
+(r' -&gt; r -&gt; r)
+-&gt; r
+-&gt; (forall d. Data d =&gt; d -&gt; r')
+-&gt; OrganizationCacheUsage
+-&gt; r
+forall (m :: * -&gt; *).
+Monad m =&gt;
+(forall d. Data d =&gt; d -&gt; m d)
+-&gt; OrganizationCacheUsage -&gt; m OrganizationCacheUsage
+forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d)
+-&gt; OrganizationCacheUsage -&gt; m OrganizationCacheUsage
+forall (c :: * -&gt; *).
+(forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+-&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c OrganizationCacheUsage
+forall (c :: * -&gt; *).
+(forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+-&gt; (forall g. g -&gt; c g)
+-&gt; OrganizationCacheUsage
+-&gt; c OrganizationCacheUsage
+forall (t :: * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d. Data d =&gt; c (t d)) -&gt; Maybe (c OrganizationCacheUsage)
+forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d e. (Data d, Data e) =&gt; c (t d e))
+-&gt; Maybe (c OrganizationCacheUsage)
+$cgfoldl :: forall (c :: * -&gt; *).
+(forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+-&gt; (forall g. g -&gt; c g)
+-&gt; OrganizationCacheUsage
+-&gt; c OrganizationCacheUsage
+gfoldl :: forall (c :: * -&gt; *).
+(forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+-&gt; (forall g. g -&gt; c g)
+-&gt; OrganizationCacheUsage
+-&gt; c OrganizationCacheUsage
+$cgunfold :: forall (c :: * -&gt; *).
+(forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+-&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c OrganizationCacheUsage
+gunfold :: forall (c :: * -&gt; *).
+(forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+-&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c OrganizationCacheUsage
+$ctoConstr :: OrganizationCacheUsage -&gt; Constr
+toConstr :: OrganizationCacheUsage -&gt; Constr
+$cdataTypeOf :: OrganizationCacheUsage -&gt; DataType
+dataTypeOf :: OrganizationCacheUsage -&gt; DataType
+$cdataCast1 :: forall (t :: * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d. Data d =&gt; c (t d)) -&gt; Maybe (c OrganizationCacheUsage)
+dataCast1 :: forall (t :: * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d. Data d =&gt; c (t d)) -&gt; Maybe (c OrganizationCacheUsage)
+$cdataCast2 :: forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d e. (Data d, Data e) =&gt; c (t d e))
+-&gt; Maybe (c OrganizationCacheUsage)
+dataCast2 :: forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d e. (Data d, Data e) =&gt; c (t d e))
+-&gt; Maybe (c OrganizationCacheUsage)
+$cgmapT :: (forall b. Data b =&gt; b -&gt; b)
+-&gt; OrganizationCacheUsage -&gt; OrganizationCacheUsage
+gmapT :: (forall b. Data b =&gt; b -&gt; b)
+-&gt; OrganizationCacheUsage -&gt; OrganizationCacheUsage
+$cgmapQl :: forall r r'.
+(r -&gt; r' -&gt; r)
+-&gt; r
+-&gt; (forall d. Data d =&gt; d -&gt; r')
+-&gt; OrganizationCacheUsage
+-&gt; r
+gmapQl :: forall r r'.
+(r -&gt; r' -&gt; r)
+-&gt; r
+-&gt; (forall d. Data d =&gt; d -&gt; r')
+-&gt; OrganizationCacheUsage
+-&gt; r
+$cgmapQr :: forall r r'.
+(r' -&gt; r -&gt; r)
+-&gt; r
+-&gt; (forall d. Data d =&gt; d -&gt; r')
+-&gt; OrganizationCacheUsage
+-&gt; r
+gmapQr :: forall r r'.
+(r' -&gt; r -&gt; r)
+-&gt; r
+-&gt; (forall d. Data d =&gt; d -&gt; r')
+-&gt; OrganizationCacheUsage
+-&gt; r
+$cgmapQ :: forall u.
+(forall d. Data d =&gt; d -&gt; u) -&gt; OrganizationCacheUsage -&gt; [u]
+gmapQ :: forall u.
+(forall d. Data d =&gt; d -&gt; u) -&gt; OrganizationCacheUsage -&gt; [u]
+$cgmapQi :: forall u.
+Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; OrganizationCacheUsage -&gt; u
+gmapQi :: forall u.
+Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; OrganizationCacheUsage -&gt; u
+$cgmapM :: forall (m :: * -&gt; *).
+Monad m =&gt;
+(forall d. Data d =&gt; d -&gt; m d)
+-&gt; OrganizationCacheUsage -&gt; m OrganizationCacheUsage
+gmapM :: forall (m :: * -&gt; *).
+Monad m =&gt;
+(forall d. Data d =&gt; d -&gt; m d)
+-&gt; OrganizationCacheUsage -&gt; m OrganizationCacheUsage
+$cgmapMp :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d)
+-&gt; OrganizationCacheUsage -&gt; m OrganizationCacheUsage
+gmapMp :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d)
+-&gt; OrganizationCacheUsage -&gt; m OrganizationCacheUsage
+$cgmapMo :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d)
+-&gt; OrganizationCacheUsage -&gt; m OrganizationCacheUsage
+gmapMo :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d)
+-&gt; OrganizationCacheUsage -&gt; m OrganizationCacheUsage
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Data</span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679523609"><span id="local-6989586621679523613"><span class="annot"><span class="annottext">OrganizationCacheUsage -&gt; OrganizationCacheUsage -&gt; Bool
+(OrganizationCacheUsage -&gt; OrganizationCacheUsage -&gt; Bool)
+-&gt; (OrganizationCacheUsage -&gt; OrganizationCacheUsage -&gt; Bool)
+-&gt; Eq OrganizationCacheUsage
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: OrganizationCacheUsage -&gt; OrganizationCacheUsage -&gt; Bool
+== :: OrganizationCacheUsage -&gt; OrganizationCacheUsage -&gt; Bool
+$c/= :: OrganizationCacheUsage -&gt; OrganizationCacheUsage -&gt; Bool
+/= :: OrganizationCacheUsage -&gt; OrganizationCacheUsage -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679523619"><span id="local-6989586621679523623"><span id="local-6989586621679523627"><span id="local-6989586621679523631"><span id="local-6989586621679523634"><span id="local-6989586621679523637"><span id="local-6989586621679523640"><span class="annot"><span class="annottext">Eq OrganizationCacheUsage
+Eq OrganizationCacheUsage =&gt;
+(OrganizationCacheUsage -&gt; OrganizationCacheUsage -&gt; Ordering)
+-&gt; (OrganizationCacheUsage -&gt; OrganizationCacheUsage -&gt; Bool)
+-&gt; (OrganizationCacheUsage -&gt; OrganizationCacheUsage -&gt; Bool)
+-&gt; (OrganizationCacheUsage -&gt; OrganizationCacheUsage -&gt; Bool)
+-&gt; (OrganizationCacheUsage -&gt; OrganizationCacheUsage -&gt; Bool)
+-&gt; (OrganizationCacheUsage
+    -&gt; OrganizationCacheUsage -&gt; OrganizationCacheUsage)
+-&gt; (OrganizationCacheUsage
+    -&gt; OrganizationCacheUsage -&gt; OrganizationCacheUsage)
+-&gt; Ord OrganizationCacheUsage
+OrganizationCacheUsage -&gt; OrganizationCacheUsage -&gt; Bool
+OrganizationCacheUsage -&gt; OrganizationCacheUsage -&gt; Ordering
+OrganizationCacheUsage
+-&gt; OrganizationCacheUsage -&gt; OrganizationCacheUsage
+forall a.
+Eq a =&gt;
+(a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+$ccompare :: OrganizationCacheUsage -&gt; OrganizationCacheUsage -&gt; Ordering
+compare :: OrganizationCacheUsage -&gt; OrganizationCacheUsage -&gt; Ordering
+$c&lt; :: OrganizationCacheUsage -&gt; OrganizationCacheUsage -&gt; Bool
+&lt; :: OrganizationCacheUsage -&gt; OrganizationCacheUsage -&gt; Bool
+$c&lt;= :: OrganizationCacheUsage -&gt; OrganizationCacheUsage -&gt; Bool
+&lt;= :: OrganizationCacheUsage -&gt; OrganizationCacheUsage -&gt; Bool
+$c&gt; :: OrganizationCacheUsage -&gt; OrganizationCacheUsage -&gt; Bool
+&gt; :: OrganizationCacheUsage -&gt; OrganizationCacheUsage -&gt; Bool
+$c&gt;= :: OrganizationCacheUsage -&gt; OrganizationCacheUsage -&gt; Bool
+&gt;= :: OrganizationCacheUsage -&gt; OrganizationCacheUsage -&gt; Bool
+$cmax :: OrganizationCacheUsage
+-&gt; OrganizationCacheUsage -&gt; OrganizationCacheUsage
+max :: OrganizationCacheUsage
+-&gt; OrganizationCacheUsage -&gt; OrganizationCacheUsage
+$cmin :: OrganizationCacheUsage
+-&gt; OrganizationCacheUsage -&gt; OrganizationCacheUsage
+min :: OrganizationCacheUsage
+-&gt; OrganizationCacheUsage -&gt; OrganizationCacheUsage
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679523643"><span id="local-6989586621679523645"><span class="annot"><span class="annottext">(forall x. OrganizationCacheUsage -&gt; Rep OrganizationCacheUsage x)
+-&gt; (forall x.
+    Rep OrganizationCacheUsage x -&gt; OrganizationCacheUsage)
+-&gt; Generic OrganizationCacheUsage
+forall x. Rep OrganizationCacheUsage x -&gt; OrganizationCacheUsage
+forall x. OrganizationCacheUsage -&gt; Rep OrganizationCacheUsage x
+forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+$cfrom :: forall x. OrganizationCacheUsage -&gt; Rep OrganizationCacheUsage x
+from :: forall x. OrganizationCacheUsage -&gt; Rep OrganizationCacheUsage x
+$cto :: forall x. Rep OrganizationCacheUsage x -&gt; OrganizationCacheUsage
+to :: forall x. Rep OrganizationCacheUsage x -&gt; OrganizationCacheUsage
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Generic</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-44"></span><span>
+</span><span id="line-45"></span><span class="hs-comment">-------------------------------------------------------------------------------</span><span>
+</span><span id="line-46"></span><span class="hs-comment">-- JSON instances</span><span>
+</span><span id="line-47"></span><span class="hs-comment">-------------------------------------------------------------------------------</span><span>
+</span><span id="line-48"></span><span>
+</span><span id="line-49"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679523649"><span id="local-6989586621679523653"><span class="annot"><span class="hs-identifier hs-type">FromJSON</span></span><span> </span><span class="annot"><a href="GitHub.Data.Actions.Cache.html#Cache"><span class="hs-identifier hs-type">Cache</span></a></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-50"></span><span>    </span><span id="local-6989586621679523684"><span class="annot"><span class="annottext">parseJSON :: Value -&gt; Parser Cache
+</span><a href="#local-6989586621679523684"><span class="hs-identifier hs-var hs-var hs-var">parseJSON</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; (Object -&gt; Parser Cache) -&gt; Value -&gt; Parser Cache
+forall a. String -&gt; (Object -&gt; Parser a) -&gt; Value -&gt; Parser a
+</span><span class="hs-identifier hs-var">withObject</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Cache&quot;</span></span><span> </span><span class="annot"><span class="annottext">((Object -&gt; Parser Cache) -&gt; Value -&gt; Parser Cache)
+-&gt; (Object -&gt; Parser Cache) -&gt; Value -&gt; Parser Cache
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679523687"><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679523687"><span class="hs-identifier hs-var">o</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Id Cache
+-&gt; Text -&gt; Text -&gt; Text -&gt; UTCTime -&gt; UTCTime -&gt; Int -&gt; Cache
+</span><a href="GitHub.Data.Actions.Cache.html#Cache"><span class="hs-identifier hs-var">Cache</span></a></span><span>
+</span><span id="line-51"></span><span>        </span><span class="annot"><span class="annottext">(Id Cache
+ -&gt; Text -&gt; Text -&gt; Text -&gt; UTCTime -&gt; UTCTime -&gt; Int -&gt; Cache)
+-&gt; Parser (Id Cache)
+-&gt; Parser
+     (Text -&gt; Text -&gt; Text -&gt; UTCTime -&gt; UTCTime -&gt; Int -&gt; Cache)
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679523687"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser (Id Cache)
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">.:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;id&quot;</span></span><span>
+</span><span id="line-52"></span><span>        </span><span class="annot"><span class="annottext">Parser (Text -&gt; Text -&gt; Text -&gt; UTCTime -&gt; UTCTime -&gt; Int -&gt; Cache)
+-&gt; Parser Text
+-&gt; Parser (Text -&gt; Text -&gt; UTCTime -&gt; UTCTime -&gt; Int -&gt; Cache)
+forall a b. Parser (a -&gt; b) -&gt; Parser a -&gt; Parser b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679523687"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser Text
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">.:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;ref&quot;</span></span><span>
+</span><span id="line-53"></span><span>        </span><span class="annot"><span class="annottext">Parser (Text -&gt; Text -&gt; UTCTime -&gt; UTCTime -&gt; Int -&gt; Cache)
+-&gt; Parser Text
+-&gt; Parser (Text -&gt; UTCTime -&gt; UTCTime -&gt; Int -&gt; Cache)
+forall a b. Parser (a -&gt; b) -&gt; Parser a -&gt; Parser b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679523687"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser Text
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">.:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;key&quot;</span></span><span>
+</span><span id="line-54"></span><span>        </span><span class="annot"><span class="annottext">Parser (Text -&gt; UTCTime -&gt; UTCTime -&gt; Int -&gt; Cache)
+-&gt; Parser Text -&gt; Parser (UTCTime -&gt; UTCTime -&gt; Int -&gt; Cache)
+forall a b. Parser (a -&gt; b) -&gt; Parser a -&gt; Parser b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679523687"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser Text
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">.:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;version&quot;</span></span><span>
+</span><span id="line-55"></span><span>        </span><span class="annot"><span class="annottext">Parser (UTCTime -&gt; UTCTime -&gt; Int -&gt; Cache)
+-&gt; Parser UTCTime -&gt; Parser (UTCTime -&gt; Int -&gt; Cache)
+forall a b. Parser (a -&gt; b) -&gt; Parser a -&gt; Parser b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679523687"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser UTCTime
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">.:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;last_accessed_at&quot;</span></span><span>
+</span><span id="line-56"></span><span>        </span><span class="annot"><span class="annottext">Parser (UTCTime -&gt; Int -&gt; Cache)
+-&gt; Parser UTCTime -&gt; Parser (Int -&gt; Cache)
+forall a b. Parser (a -&gt; b) -&gt; Parser a -&gt; Parser b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679523687"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser UTCTime
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">.:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;created_at&quot;</span></span><span>
+</span><span id="line-57"></span><span>        </span><span class="annot"><span class="annottext">Parser (Int -&gt; Cache) -&gt; Parser Int -&gt; Parser Cache
+forall a b. Parser (a -&gt; b) -&gt; Parser a -&gt; Parser b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679523687"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser Int
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">.:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;size_in_bytes&quot;</span></span><span>
+</span><span id="line-58"></span><span>
+</span><span id="line-59"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679523692"><span id="local-6989586621679523696"><span class="annot"><span class="hs-identifier hs-type">FromJSON</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GitHub.Data.Actions.Common.html#WithTotalCount"><span class="hs-identifier hs-type">WithTotalCount</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.Actions.Cache.html#Cache"><span class="hs-identifier hs-type">Cache</span></a></span><span class="hs-special">)</span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-60"></span><span>    </span><span id="local-6989586621679523706"><span class="annot"><span class="annottext">parseJSON :: Value -&gt; Parser (WithTotalCount Cache)
+</span><span class="hs-identifier hs-var hs-var hs-var">parseJSON</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+-&gt; (Object -&gt; Parser (WithTotalCount Cache))
+-&gt; Value
+-&gt; Parser (WithTotalCount Cache)
+forall a. String -&gt; (Object -&gt; Parser a) -&gt; Value -&gt; Parser a
+</span><span class="hs-identifier hs-var">withObject</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;CacheList&quot;</span></span><span> </span><span class="annot"><span class="annottext">((Object -&gt; Parser (WithTotalCount Cache))
+ -&gt; Value -&gt; Parser (WithTotalCount Cache))
+-&gt; (Object -&gt; Parser (WithTotalCount Cache))
+-&gt; Value
+-&gt; Parser (WithTotalCount Cache)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679523707"><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679523707"><span class="hs-identifier hs-var">o</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Vector Cache -&gt; Int -&gt; WithTotalCount Cache
+forall a. Vector a -&gt; Int -&gt; WithTotalCount a
+</span><a href="GitHub.Data.Actions.Common.html#WithTotalCount"><span class="hs-identifier hs-var">WithTotalCount</span></a></span><span>
+</span><span id="line-61"></span><span>        </span><span class="annot"><span class="annottext">(Vector Cache -&gt; Int -&gt; WithTotalCount Cache)
+-&gt; Parser (Vector Cache) -&gt; Parser (Int -&gt; WithTotalCount Cache)
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679523707"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser (Vector Cache)
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">.:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;actions_caches&quot;</span></span><span>
+</span><span id="line-62"></span><span>        </span><span class="annot"><span class="annottext">Parser (Int -&gt; WithTotalCount Cache)
+-&gt; Parser Int -&gt; Parser (WithTotalCount Cache)
+forall a b. Parser (a -&gt; b) -&gt; Parser a -&gt; Parser b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679523707"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser Int
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">.:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;total_count&quot;</span></span><span>
+</span><span id="line-63"></span><span>
+</span><span id="line-64"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679523710"><span id="local-6989586621679523714"><span class="annot"><span class="hs-identifier hs-type">FromJSON</span></span><span> </span><span class="annot"><a href="GitHub.Data.Actions.Cache.html#OrganizationCacheUsage"><span class="hs-identifier hs-type">OrganizationCacheUsage</span></a></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-65"></span><span>    </span><span id="local-6989586621679523722"><span class="annot"><span class="annottext">parseJSON :: Value -&gt; Parser OrganizationCacheUsage
+</span><span class="hs-identifier hs-var hs-var hs-var">parseJSON</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+-&gt; (Object -&gt; Parser OrganizationCacheUsage)
+-&gt; Value
+-&gt; Parser OrganizationCacheUsage
+forall a. String -&gt; (Object -&gt; Parser a) -&gt; Value -&gt; Parser a
+</span><span class="hs-identifier hs-var">withObject</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;OrganizationCacheUsage&quot;</span></span><span> </span><span class="annot"><span class="annottext">((Object -&gt; Parser OrganizationCacheUsage)
+ -&gt; Value -&gt; Parser OrganizationCacheUsage)
+-&gt; (Object -&gt; Parser OrganizationCacheUsage)
+-&gt; Value
+-&gt; Parser OrganizationCacheUsage
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679523723"><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679523723"><span class="hs-identifier hs-var">o</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; OrganizationCacheUsage
+</span><a href="GitHub.Data.Actions.Cache.html#OrganizationCacheUsage"><span class="hs-identifier hs-var">OrganizationCacheUsage</span></a></span><span>
+</span><span id="line-66"></span><span>        </span><span class="annot"><span class="annottext">(Int -&gt; Int -&gt; OrganizationCacheUsage)
+-&gt; Parser Int -&gt; Parser (Int -&gt; OrganizationCacheUsage)
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679523723"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser Int
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">.:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;total_active_caches_size_in_bytes&quot;</span></span><span>
+</span><span id="line-67"></span><span>        </span><span class="annot"><span class="annottext">Parser (Int -&gt; OrganizationCacheUsage)
+-&gt; Parser Int -&gt; Parser OrganizationCacheUsage
+forall a b. Parser (a -&gt; b) -&gt; Parser a -&gt; Parser b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679523723"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser Int
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">.:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;total_active_caches_count&quot;</span></span><span>
+</span><span id="line-68"></span><span>
+</span><span id="line-69"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679523726"><span id="local-6989586621679523730"><span class="annot"><span class="hs-identifier hs-type">FromJSON</span></span><span> </span><span class="annot"><a href="GitHub.Data.Actions.Cache.html#RepositoryCacheUsage"><span class="hs-identifier hs-type">RepositoryCacheUsage</span></a></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-70"></span><span>    </span><span id="local-6989586621679523741"><span class="annot"><span class="annottext">parseJSON :: Value -&gt; Parser RepositoryCacheUsage
+</span><span class="hs-identifier hs-var hs-var hs-var">parseJSON</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+-&gt; (Object -&gt; Parser RepositoryCacheUsage)
+-&gt; Value
+-&gt; Parser RepositoryCacheUsage
+forall a. String -&gt; (Object -&gt; Parser a) -&gt; Value -&gt; Parser a
+</span><span class="hs-identifier hs-var">withObject</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;RepositoryCacheUsage&quot;</span></span><span> </span><span class="annot"><span class="annottext">((Object -&gt; Parser RepositoryCacheUsage)
+ -&gt; Value -&gt; Parser RepositoryCacheUsage)
+-&gt; (Object -&gt; Parser RepositoryCacheUsage)
+-&gt; Value
+-&gt; Parser RepositoryCacheUsage
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679523742"><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679523742"><span class="hs-identifier hs-var">o</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Text -&gt; Int -&gt; Int -&gt; RepositoryCacheUsage
+</span><a href="GitHub.Data.Actions.Cache.html#RepositoryCacheUsage"><span class="hs-identifier hs-var">RepositoryCacheUsage</span></a></span><span>
+</span><span id="line-71"></span><span>        </span><span class="annot"><span class="annottext">(Text -&gt; Int -&gt; Int -&gt; RepositoryCacheUsage)
+-&gt; Parser Text -&gt; Parser (Int -&gt; Int -&gt; RepositoryCacheUsage)
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679523742"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser Text
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">.:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;full_name&quot;</span></span><span>
+</span><span id="line-72"></span><span>        </span><span class="annot"><span class="annottext">Parser (Int -&gt; Int -&gt; RepositoryCacheUsage)
+-&gt; Parser Int -&gt; Parser (Int -&gt; RepositoryCacheUsage)
+forall a b. Parser (a -&gt; b) -&gt; Parser a -&gt; Parser b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679523742"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser Int
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">.:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;active_caches_size_in_bytes&quot;</span></span><span>
+</span><span id="line-73"></span><span>        </span><span class="annot"><span class="annottext">Parser (Int -&gt; RepositoryCacheUsage)
+-&gt; Parser Int -&gt; Parser RepositoryCacheUsage
+forall a b. Parser (a -&gt; b) -&gt; Parser a -&gt; Parser b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679523742"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser Int
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">.:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;active_caches_count&quot;</span></span><span>
+</span><span id="line-74"></span><span>
+</span><span id="line-75"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679523745"><span id="local-6989586621679523749"><span class="annot"><span class="hs-identifier hs-type">FromJSON</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GitHub.Data.Actions.Common.html#WithTotalCount"><span class="hs-identifier hs-type">WithTotalCount</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.Actions.Cache.html#RepositoryCacheUsage"><span class="hs-identifier hs-type">RepositoryCacheUsage</span></a></span><span class="hs-special">)</span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-76"></span><span>    </span><span id="local-6989586621679523758"><span class="annot"><span class="annottext">parseJSON :: Value -&gt; Parser (WithTotalCount RepositoryCacheUsage)
+</span><span class="hs-identifier hs-var hs-var hs-var">parseJSON</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+-&gt; (Object -&gt; Parser (WithTotalCount RepositoryCacheUsage))
+-&gt; Value
+-&gt; Parser (WithTotalCount RepositoryCacheUsage)
+forall a. String -&gt; (Object -&gt; Parser a) -&gt; Value -&gt; Parser a
+</span><span class="hs-identifier hs-var">withObject</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;CacheUsageList&quot;</span></span><span> </span><span class="annot"><span class="annottext">((Object -&gt; Parser (WithTotalCount RepositoryCacheUsage))
+ -&gt; Value -&gt; Parser (WithTotalCount RepositoryCacheUsage))
+-&gt; (Object -&gt; Parser (WithTotalCount RepositoryCacheUsage))
+-&gt; Value
+-&gt; Parser (WithTotalCount RepositoryCacheUsage)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679523759"><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679523759"><span class="hs-identifier hs-var">o</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Vector RepositoryCacheUsage
+-&gt; Int -&gt; WithTotalCount RepositoryCacheUsage
+forall a. Vector a -&gt; Int -&gt; WithTotalCount a
+</span><a href="GitHub.Data.Actions.Common.html#WithTotalCount"><span class="hs-identifier hs-var">WithTotalCount</span></a></span><span>
+</span><span id="line-77"></span><span>        </span><span class="annot"><span class="annottext">(Vector RepositoryCacheUsage
+ -&gt; Int -&gt; WithTotalCount RepositoryCacheUsage)
+-&gt; Parser (Vector RepositoryCacheUsage)
+-&gt; Parser (Int -&gt; WithTotalCount RepositoryCacheUsage)
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679523759"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser (Vector RepositoryCacheUsage)
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">.:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;repository_cache_usages&quot;</span></span><span>
+</span><span id="line-78"></span><span>        </span><span class="annot"><span class="annottext">Parser (Int -&gt; WithTotalCount RepositoryCacheUsage)
+-&gt; Parser Int -&gt; Parser (WithTotalCount RepositoryCacheUsage)
+forall a b. Parser (a -&gt; b) -&gt; Parser a -&gt; Parser b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679523759"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser Int
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">.:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;total_count&quot;</span></span><span>
+</span><span id="line-79"></span></pre></body></html>

@@ -1,0 +1,76 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-comment">-- |</span><span>
+</span><span id="line-2"></span><span class="hs-comment">-- The repo invitations API as described on</span><span>
+</span><span id="line-3"></span><span class="hs-comment">-- &lt;https://developer.github.com/v3/repos/invitations/&gt;.</span><span>
+</span><span id="line-4"></span><span>
+</span><span id="line-5"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="GitHub.Endpoints.Repos.Invitations.html"><span class="hs-identifier">GitHub.Endpoints.Repos.Invitations</span></a></span><span> </span><span class="hs-special">(</span><span>
+</span><span id="line-6"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Repos.Invitations.html#listInvitationsOnR"><span class="hs-identifier">listInvitationsOnR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-7"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Repos.Invitations.html#listInvitationsForR"><span class="hs-identifier">listInvitationsForR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-8"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Repos.Invitations.html#acceptInvitationFromR"><span class="hs-identifier">acceptInvitationFromR</span></a></span><span>
+</span><span id="line-9"></span><span>    </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-10"></span><span>
+</span><span id="line-11"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GitHub.Data.html"><span class="hs-identifier">GitHub.Data</span></a></span><span>
+</span><span id="line-12"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GitHub.Internal.Prelude.html"><span class="hs-identifier">GitHub.Internal.Prelude</span></a></span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Prelude</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-14"></span><span>
+</span><span id="line-15"></span><span class="hs-comment">-- | List open invitations of a repository</span><span>
+</span><span id="line-16"></span><span class="hs-comment">-- See &lt;https://developer.github.com/v3/repos/invitations/#list-invitations-for-a-repository&gt;</span><span>
+</span><span id="line-17"></span><span id="local-6989586621679535622"><span class="annot"><a href="GitHub.Endpoints.Repos.Invitations.html#listInvitationsOnR"><span class="hs-identifier hs-type">listInvitationsOnR</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GitHub.Data.Name.html#Name"><span class="hs-identifier hs-type">Name</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.Definitions.html#Owner"><span class="hs-identifier hs-type">Owner</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Name.html#Name"><span class="hs-identifier hs-type">Name</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.Repos.html#Repo"><span class="hs-identifier hs-type">Repo</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Request.html#FetchCount"><span class="hs-identifier hs-type">FetchCount</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Request.html#GenRequest"><span class="hs-identifier hs-type">GenRequest</span></a></span><span> </span><span class="hs-special">'</span><span class="annot"><a href="GitHub.Data.Request.html#MtJSON"><span class="hs-identifier hs-type">MtJSON</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679535622"><span class="hs-identifier hs-type">k</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Vector</span></span><span> </span><span class="annot"><a href="GitHub.Data.Invitation.html#RepoInvitation"><span class="hs-identifier hs-type">RepoInvitation</span></a></span><span class="hs-special">)</span></span><span>
+</span><span id="line-18"></span><span id="listInvitationsOnR"><span class="annot"><span class="annottext">listInvitationsOnR :: forall (k :: RW).
+Name Owner
+-&gt; Name Repo
+-&gt; FetchCount
+-&gt; GenRequest 'MtJSON k (Vector RepoInvitation)
+</span><a href="GitHub.Endpoints.Repos.Invitations.html#listInvitationsOnR"><span class="hs-identifier hs-var hs-var">listInvitationsOnR</span></a></span></span><span> </span><span id="local-6989586621679535671"><span class="annot"><span class="annottext">Name Owner
+</span><a href="#local-6989586621679535671"><span class="hs-identifier hs-var">user</span></a></span></span><span> </span><span id="local-6989586621679535672"><span class="annot"><span class="annottext">Name Repo
+</span><a href="#local-6989586621679535672"><span class="hs-identifier hs-var">repo</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-19"></span><span>    </span><span class="annot"><span class="annottext">Paths
+-&gt; QueryString
+-&gt; FetchCount
+-&gt; GenRequest 'MtJSON k (Vector RepoInvitation)
+forall a (t :: * -&gt; *) b (mt :: MediaType (*)) (rw :: RW).
+(a ~ t b, Foldable t, Semigroup a) =&gt;
+Paths -&gt; QueryString -&gt; FetchCount -&gt; GenRequest mt rw a
+</span><a href="GitHub.Data.Request.html#PagedQuery"><span class="hs-identifier hs-var">PagedQuery</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;repos&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Name Owner -&gt; Text
+forall a. IsPathPart a =&gt; a -&gt; Text
+</span><a href="GitHub.Data.Request.html#toPathPart"><span class="hs-identifier hs-var">toPathPart</span></a></span><span> </span><span class="annot"><span class="annottext">Name Owner
+</span><a href="#local-6989586621679535671"><span class="hs-identifier hs-var">user</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Name Repo -&gt; Text
+forall a. IsPathPart a =&gt; a -&gt; Text
+</span><a href="GitHub.Data.Request.html#toPathPart"><span class="hs-identifier hs-var">toPathPart</span></a></span><span> </span><span class="annot"><span class="annottext">Name Repo
+</span><a href="#local-6989586621679535672"><span class="hs-identifier hs-var">repo</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;invitations&quot;</span></span><span class="hs-special">]</span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span>
+</span><span id="line-20"></span><span>
+</span><span id="line-21"></span><span class="hs-comment">-- | List a user's repository invitations</span><span>
+</span><span id="line-22"></span><span class="hs-comment">-- See &lt;https://developer.github.com/v3/repos/invitations/#list-a-users-repository-invitations&gt;</span><span>
+</span><span id="line-23"></span><span id="local-6989586621679535641"><span class="annot"><a href="GitHub.Endpoints.Repos.Invitations.html#listInvitationsForR"><span class="hs-identifier hs-type">listInvitationsForR</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GitHub.Data.Request.html#FetchCount"><span class="hs-identifier hs-type">FetchCount</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Request.html#Request"><span class="hs-identifier hs-type">Request</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679535641"><span class="hs-identifier hs-type">k</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Vector</span></span><span> </span><span class="annot"><a href="GitHub.Data.Invitation.html#RepoInvitation"><span class="hs-identifier hs-type">RepoInvitation</span></a></span><span class="hs-special">)</span></span><span>
+</span><span id="line-24"></span><span id="listInvitationsForR"><span class="annot"><span class="annottext">listInvitationsForR :: forall (k :: RW). FetchCount -&gt; Request k (Vector RepoInvitation)
+</span><a href="GitHub.Endpoints.Repos.Invitations.html#listInvitationsForR"><span class="hs-identifier hs-var hs-var">listInvitationsForR</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-25"></span><span>    </span><span class="annot"><span class="annottext">Paths
+-&gt; QueryString -&gt; FetchCount -&gt; Request k (Vector RepoInvitation)
+forall a (mt :: RW).
+FromJSON a =&gt;
+Paths -&gt; QueryString -&gt; FetchCount -&gt; Request mt (Vector a)
+</span><a href="GitHub.Data.Request.html#pagedQuery"><span class="hs-identifier hs-var">pagedQuery</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;user&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;repository_invitations&quot;</span></span><span class="hs-special">]</span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span>
+</span><span id="line-26"></span><span>
+</span><span id="line-27"></span><span>
+</span><span id="line-28"></span><span class="hs-comment">-- | Accept a repository invitation</span><span>
+</span><span id="line-29"></span><span class="hs-comment">-- See &lt;https://developer.github.com/v3/repos/invitations/#accept-a-repository-invitation&gt;</span><span>
+</span><span id="line-30"></span><span class="annot"><a href="GitHub.Endpoints.Repos.Invitations.html#acceptInvitationFromR"><span class="hs-identifier hs-type">acceptInvitationFromR</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GitHub.Data.Id.html#Id"><span class="hs-identifier hs-type">Id</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.Invitation.html#RepoInvitation"><span class="hs-identifier hs-type">RepoInvitation</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Request.html#GenRequest"><span class="hs-identifier hs-type">GenRequest</span></a></span><span> </span><span class="hs-special">'</span><span class="annot"><a href="GitHub.Data.Request.html#MtUnit"><span class="hs-identifier hs-type">MtUnit</span></a></span><span> </span><span class="hs-special">'</span><span class="annot"><a href="GitHub.Data.Request.html#RW"><span class="hs-identifier hs-type">RW</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-31"></span><span id="acceptInvitationFromR"><span class="annot"><span class="annottext">acceptInvitationFromR :: Id RepoInvitation -&gt; GenRequest 'MtUnit 'RW ()
+</span><a href="GitHub.Endpoints.Repos.Invitations.html#acceptInvitationFromR"><span class="hs-identifier hs-var hs-var">acceptInvitationFromR</span></a></span></span><span> </span><span id="local-6989586621679535680"><span class="annot"><span class="annottext">Id RepoInvitation
+</span><a href="#local-6989586621679535680"><span class="hs-identifier hs-var">invId</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-32"></span><span>    </span><span class="annot"><span class="annottext">CommandMethod -&gt; Paths -&gt; ByteString -&gt; GenRequest 'MtUnit 'RW ()
+forall (mt :: MediaType (*)) a.
+CommandMethod -&gt; Paths -&gt; ByteString -&gt; GenRequest mt 'RW a
+</span><a href="GitHub.Data.Request.html#Command"><span class="hs-identifier hs-var">Command</span></a></span><span> </span><span class="annot"><span class="annottext">CommandMethod
+</span><a href="GitHub.Data.Request.html#Patch"><span class="hs-identifier hs-var">Patch</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;user&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;repository_invitations&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Id RepoInvitation -&gt; Text
+forall a. IsPathPart a =&gt; a -&gt; Text
+</span><a href="GitHub.Data.Request.html#toPathPart"><span class="hs-identifier hs-var">toPathPart</span></a></span><span> </span><span class="annot"><span class="annottext">Id RepoInvitation
+</span><a href="#local-6989586621679535680"><span class="hs-identifier hs-var">invId</span></a></span><span class="hs-special">]</span><span> </span><span class="annot"><span class="annottext">ByteString
+forall a. Monoid a =&gt; a
+</span><span class="hs-identifier hs-var">mempty</span></span><span>
+</span><span id="line-33"></span></pre></body></html>

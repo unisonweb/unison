@@ -1,0 +1,1473 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span id="local-6989586621679506665"><span id="local-6989586621679506666"><span id="local-6989586621679506667"><span id="local-6989586621679506668"><span id="local-6989586621679506669"><span id="local-6989586621679506670"><span id="local-6989586621679506671"><span id="local-6989586621679506672"><span id="local-6989586621679506673"><span id="local-6989586621679506674"><span id="local-6989586621679506675"><span id="local-6989586621679506676"><span id="local-6989586621679506677"></span></span></span></span></span></span></span></span></span></span></span></span></span><span class="hs-pragma">{-# LANGUAGE NoImplicitPrelude  #-}</span><span>
+</span><span id="line-2"></span><span>
+</span><span id="line-3"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="GitHub.Data.Statuses.html"><span class="hs-identifier">GitHub.Data.Statuses</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-4"></span><span>
+</span><span id="line-5"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GitHub.Data.Definitions.html"><span class="hs-identifier">GitHub.Data.Definitions</span></a></span><span>
+</span><span id="line-6"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GitHub.Data.Name.html"><span class="hs-identifier">GitHub.Data.Name</span></a></span><span>        </span><span class="hs-special">(</span><span class="annot"><a href="GitHub.Data.Name.html#Name"><span class="hs-identifier">Name</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-7"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GitHub.Data.Id.html"><span class="hs-identifier">GitHub.Data.Id</span></a></span><span>          </span><span class="hs-special">(</span><span class="annot"><a href="GitHub.Data.Id.html#Id"><span class="hs-identifier">Id</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-8"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GitHub.Data.URL.html"><span class="hs-identifier">GitHub.Data.URL</span></a></span><span>         </span><span class="hs-special">(</span><span class="annot"><a href="GitHub.Data.URL.html#URL"><span class="hs-identifier">URL</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-9"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GitHub.Internal.Prelude.html"><span class="hs-identifier">GitHub.Internal.Prelude</span></a></span><span>
+</span><span id="line-10"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Prelude</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-11"></span><span>
+</span><span id="line-12"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GitHub.Data.GitData.html"><span class="hs-identifier">GitHub.Data.GitData</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GitHub.Data.GitData.html#Commit"><span class="hs-identifier">Commit</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GitHub.Data.Repos.html"><span class="hs-identifier">GitHub.Data.Repos</span></a></span><span>   </span><span class="hs-special">(</span><span class="annot"><a href="GitHub.Data.Repos.html#RepoRef"><span class="hs-identifier">RepoRef</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-14"></span><span>
+</span><span id="line-15"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Text</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">T</span></span><span>
+</span><span id="line-16"></span><span>
+</span><span id="line-17"></span><span class="hs-keyword">data</span><span> </span><span id="StatusState"><span class="annot"><a href="GitHub.Data.Statuses.html#StatusState"><span class="hs-identifier hs-var">StatusState</span></a></span></span><span>
+</span><span id="line-18"></span><span>    </span><span class="hs-glyph">=</span><span> </span><span id="StatusPending"><span class="annot"><a href="GitHub.Data.Statuses.html#StatusPending"><span class="hs-identifier hs-var">StatusPending</span></a></span></span><span>
+</span><span id="line-19"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span id="StatusSuccess"><span class="annot"><a href="GitHub.Data.Statuses.html#StatusSuccess"><span class="hs-identifier hs-var">StatusSuccess</span></a></span></span><span>
+</span><span id="line-20"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span id="StatusError"><span class="annot"><a href="GitHub.Data.Statuses.html#StatusError"><span class="hs-identifier hs-var">StatusError</span></a></span></span><span>
+</span><span id="line-21"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span id="StatusFailure"><span class="annot"><a href="GitHub.Data.Statuses.html#StatusFailure"><span class="hs-identifier hs-var">StatusFailure</span></a></span></span><span>
+</span><span id="line-22"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679506683"><span id="local-6989586621679506685"><span id="local-6989586621679506689"><span class="annot"><span class="annottext">Int -&gt; StatusState -&gt; ShowS
+[StatusState] -&gt; ShowS
+StatusState -&gt; String
+(Int -&gt; StatusState -&gt; ShowS)
+-&gt; (StatusState -&gt; String)
+-&gt; ([StatusState] -&gt; ShowS)
+-&gt; Show StatusState
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; StatusState -&gt; ShowS
+showsPrec :: Int -&gt; StatusState -&gt; ShowS
+$cshow :: StatusState -&gt; String
+show :: StatusState -&gt; String
+$cshowList :: [StatusState] -&gt; ShowS
+showList :: [StatusState] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679506696"><span id="local-6989586621679506698"><span id="local-6989586621679506700"><span id="local-6989586621679506702"><span id="local-6989586621679506704"><span id="local-6989586621679506710"><span id="local-6989586621679506715"><span id="local-6989586621679506718"><span id="local-6989586621679506721"><span id="local-6989586621679506724"><span id="local-6989586621679506727"><span id="local-6989586621679506730"><span id="local-6989586621679506735"><span id="local-6989586621679506740"><span class="annot"><span class="annottext">Typeable StatusState
+Typeable StatusState =&gt;
+(forall (c :: * -&gt; *).
+ (forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+ -&gt; (forall g. g -&gt; c g) -&gt; StatusState -&gt; c StatusState)
+-&gt; (forall (c :: * -&gt; *).
+    (forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+    -&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c StatusState)
+-&gt; (StatusState -&gt; Constr)
+-&gt; (StatusState -&gt; DataType)
+-&gt; (forall (t :: * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d. Data d =&gt; c (t d)) -&gt; Maybe (c StatusState))
+-&gt; (forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d e. (Data d, Data e) =&gt; c (t d e))
+    -&gt; Maybe (c StatusState))
+-&gt; ((forall b. Data b =&gt; b -&gt; b) -&gt; StatusState -&gt; StatusState)
+-&gt; (forall r r'.
+    (r -&gt; r' -&gt; r)
+    -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; StatusState -&gt; r)
+-&gt; (forall r r'.
+    (r' -&gt; r -&gt; r)
+    -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; StatusState -&gt; r)
+-&gt; (forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; StatusState -&gt; [u])
+-&gt; (forall u.
+    Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; StatusState -&gt; u)
+-&gt; (forall (m :: * -&gt; *).
+    Monad m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; StatusState -&gt; m StatusState)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; StatusState -&gt; m StatusState)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; StatusState -&gt; m StatusState)
+-&gt; Data StatusState
+StatusState -&gt; Constr
+StatusState -&gt; DataType
+(forall b. Data b =&gt; b -&gt; b) -&gt; StatusState -&gt; StatusState
+forall a.
+Typeable a =&gt;
+(forall (c :: * -&gt; *).
+ (forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+ -&gt; (forall g. g -&gt; c g) -&gt; a -&gt; c a)
+-&gt; (forall (c :: * -&gt; *).
+    (forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+    -&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c a)
+-&gt; (a -&gt; Constr)
+-&gt; (a -&gt; DataType)
+-&gt; (forall (t :: * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d. Data d =&gt; c (t d)) -&gt; Maybe (c a))
+-&gt; (forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d e. (Data d, Data e) =&gt; c (t d e)) -&gt; Maybe (c a))
+-&gt; ((forall b. Data b =&gt; b -&gt; b) -&gt; a -&gt; a)
+-&gt; (forall r r'.
+    (r -&gt; r' -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; a -&gt; r)
+-&gt; (forall r r'.
+    (r' -&gt; r -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; a -&gt; r)
+-&gt; (forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; a -&gt; [u])
+-&gt; (forall u. Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; a -&gt; u)
+-&gt; (forall (m :: * -&gt; *).
+    Monad m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; a -&gt; m a)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; a -&gt; m a)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; a -&gt; m a)
+-&gt; Data a
+forall u. Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; StatusState -&gt; u
+forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; StatusState -&gt; [u]
+forall r r'.
+(r -&gt; r' -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; StatusState -&gt; r
+forall r r'.
+(r' -&gt; r -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; StatusState -&gt; r
+forall (m :: * -&gt; *).
+Monad m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; StatusState -&gt; m StatusState
+forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; StatusState -&gt; m StatusState
+forall (c :: * -&gt; *).
+(forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+-&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c StatusState
+forall (c :: * -&gt; *).
+(forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+-&gt; (forall g. g -&gt; c g) -&gt; StatusState -&gt; c StatusState
+forall (t :: * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d. Data d =&gt; c (t d)) -&gt; Maybe (c StatusState)
+forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d e. (Data d, Data e) =&gt; c (t d e))
+-&gt; Maybe (c StatusState)
+$cgfoldl :: forall (c :: * -&gt; *).
+(forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+-&gt; (forall g. g -&gt; c g) -&gt; StatusState -&gt; c StatusState
+gfoldl :: forall (c :: * -&gt; *).
+(forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+-&gt; (forall g. g -&gt; c g) -&gt; StatusState -&gt; c StatusState
+$cgunfold :: forall (c :: * -&gt; *).
+(forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+-&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c StatusState
+gunfold :: forall (c :: * -&gt; *).
+(forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+-&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c StatusState
+$ctoConstr :: StatusState -&gt; Constr
+toConstr :: StatusState -&gt; Constr
+$cdataTypeOf :: StatusState -&gt; DataType
+dataTypeOf :: StatusState -&gt; DataType
+$cdataCast1 :: forall (t :: * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d. Data d =&gt; c (t d)) -&gt; Maybe (c StatusState)
+dataCast1 :: forall (t :: * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d. Data d =&gt; c (t d)) -&gt; Maybe (c StatusState)
+$cdataCast2 :: forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d e. (Data d, Data e) =&gt; c (t d e))
+-&gt; Maybe (c StatusState)
+dataCast2 :: forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d e. (Data d, Data e) =&gt; c (t d e))
+-&gt; Maybe (c StatusState)
+$cgmapT :: (forall b. Data b =&gt; b -&gt; b) -&gt; StatusState -&gt; StatusState
+gmapT :: (forall b. Data b =&gt; b -&gt; b) -&gt; StatusState -&gt; StatusState
+$cgmapQl :: forall r r'.
+(r -&gt; r' -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; StatusState -&gt; r
+gmapQl :: forall r r'.
+(r -&gt; r' -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; StatusState -&gt; r
+$cgmapQr :: forall r r'.
+(r' -&gt; r -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; StatusState -&gt; r
+gmapQr :: forall r r'.
+(r' -&gt; r -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; StatusState -&gt; r
+$cgmapQ :: forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; StatusState -&gt; [u]
+gmapQ :: forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; StatusState -&gt; [u]
+$cgmapQi :: forall u. Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; StatusState -&gt; u
+gmapQi :: forall u. Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; StatusState -&gt; u
+$cgmapM :: forall (m :: * -&gt; *).
+Monad m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; StatusState -&gt; m StatusState
+gmapM :: forall (m :: * -&gt; *).
+Monad m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; StatusState -&gt; m StatusState
+$cgmapMp :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; StatusState -&gt; m StatusState
+gmapMp :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; StatusState -&gt; m StatusState
+$cgmapMo :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; StatusState -&gt; m StatusState
+gmapMo :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; StatusState -&gt; m StatusState
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Data</span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679506750"><span id="local-6989586621679506760"><span id="local-6989586621679506767"><span id="local-6989586621679506781"><span id="local-6989586621679506784"><span id="local-6989586621679506789"><span id="local-6989586621679506795"><span id="local-6989586621679506799"><span class="annot"><span class="annottext">Int -&gt; StatusState
+StatusState -&gt; Int
+StatusState -&gt; [StatusState]
+StatusState -&gt; StatusState
+StatusState -&gt; StatusState -&gt; [StatusState]
+StatusState -&gt; StatusState -&gt; StatusState -&gt; [StatusState]
+(StatusState -&gt; StatusState)
+-&gt; (StatusState -&gt; StatusState)
+-&gt; (Int -&gt; StatusState)
+-&gt; (StatusState -&gt; Int)
+-&gt; (StatusState -&gt; [StatusState])
+-&gt; (StatusState -&gt; StatusState -&gt; [StatusState])
+-&gt; (StatusState -&gt; StatusState -&gt; [StatusState])
+-&gt; (StatusState -&gt; StatusState -&gt; StatusState -&gt; [StatusState])
+-&gt; Enum StatusState
+forall a.
+(a -&gt; a)
+-&gt; (a -&gt; a)
+-&gt; (Int -&gt; a)
+-&gt; (a -&gt; Int)
+-&gt; (a -&gt; [a])
+-&gt; (a -&gt; a -&gt; [a])
+-&gt; (a -&gt; a -&gt; [a])
+-&gt; (a -&gt; a -&gt; a -&gt; [a])
+-&gt; Enum a
+$csucc :: StatusState -&gt; StatusState
+succ :: StatusState -&gt; StatusState
+$cpred :: StatusState -&gt; StatusState
+pred :: StatusState -&gt; StatusState
+$ctoEnum :: Int -&gt; StatusState
+toEnum :: Int -&gt; StatusState
+$cfromEnum :: StatusState -&gt; Int
+fromEnum :: StatusState -&gt; Int
+$cenumFrom :: StatusState -&gt; [StatusState]
+enumFrom :: StatusState -&gt; [StatusState]
+$cenumFromThen :: StatusState -&gt; StatusState -&gt; [StatusState]
+enumFromThen :: StatusState -&gt; StatusState -&gt; [StatusState]
+$cenumFromTo :: StatusState -&gt; StatusState -&gt; [StatusState]
+enumFromTo :: StatusState -&gt; StatusState -&gt; [StatusState]
+$cenumFromThenTo :: StatusState -&gt; StatusState -&gt; StatusState -&gt; [StatusState]
+enumFromThenTo :: StatusState -&gt; StatusState -&gt; StatusState -&gt; [StatusState]
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Enum</span></span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679506807"><span id="local-6989586621679506809"><span class="annot"><span class="annottext">StatusState
+StatusState -&gt; StatusState -&gt; Bounded StatusState
+forall a. a -&gt; a -&gt; Bounded a
+$cminBound :: StatusState
+minBound :: StatusState
+$cmaxBound :: StatusState
+maxBound :: StatusState
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Bounded</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679506815"><span id="local-6989586621679506819"><span class="annot"><span class="annottext">StatusState -&gt; StatusState -&gt; Bool
+(StatusState -&gt; StatusState -&gt; Bool)
+-&gt; (StatusState -&gt; StatusState -&gt; Bool) -&gt; Eq StatusState
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: StatusState -&gt; StatusState -&gt; Bool
+== :: StatusState -&gt; StatusState -&gt; Bool
+$c/= :: StatusState -&gt; StatusState -&gt; Bool
+/= :: StatusState -&gt; StatusState -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679506826"><span id="local-6989586621679506830"><span id="local-6989586621679506834"><span id="local-6989586621679506838"><span id="local-6989586621679506841"><span id="local-6989586621679506844"><span id="local-6989586621679506847"><span class="annot"><span class="annottext">Eq StatusState
+Eq StatusState =&gt;
+(StatusState -&gt; StatusState -&gt; Ordering)
+-&gt; (StatusState -&gt; StatusState -&gt; Bool)
+-&gt; (StatusState -&gt; StatusState -&gt; Bool)
+-&gt; (StatusState -&gt; StatusState -&gt; Bool)
+-&gt; (StatusState -&gt; StatusState -&gt; Bool)
+-&gt; (StatusState -&gt; StatusState -&gt; StatusState)
+-&gt; (StatusState -&gt; StatusState -&gt; StatusState)
+-&gt; Ord StatusState
+StatusState -&gt; StatusState -&gt; Bool
+StatusState -&gt; StatusState -&gt; Ordering
+StatusState -&gt; StatusState -&gt; StatusState
+forall a.
+Eq a =&gt;
+(a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+$ccompare :: StatusState -&gt; StatusState -&gt; Ordering
+compare :: StatusState -&gt; StatusState -&gt; Ordering
+$c&lt; :: StatusState -&gt; StatusState -&gt; Bool
+&lt; :: StatusState -&gt; StatusState -&gt; Bool
+$c&lt;= :: StatusState -&gt; StatusState -&gt; Bool
+&lt;= :: StatusState -&gt; StatusState -&gt; Bool
+$c&gt; :: StatusState -&gt; StatusState -&gt; Bool
+&gt; :: StatusState -&gt; StatusState -&gt; Bool
+$c&gt;= :: StatusState -&gt; StatusState -&gt; Bool
+&gt;= :: StatusState -&gt; StatusState -&gt; Bool
+$cmax :: StatusState -&gt; StatusState -&gt; StatusState
+max :: StatusState -&gt; StatusState -&gt; StatusState
+$cmin :: StatusState -&gt; StatusState -&gt; StatusState
+min :: StatusState -&gt; StatusState -&gt; StatusState
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679506855"><span id="local-6989586621679506857"><span class="annot"><span class="annottext">(forall x. StatusState -&gt; Rep StatusState x)
+-&gt; (forall x. Rep StatusState x -&gt; StatusState)
+-&gt; Generic StatusState
+forall x. Rep StatusState x -&gt; StatusState
+forall x. StatusState -&gt; Rep StatusState x
+forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+$cfrom :: forall x. StatusState -&gt; Rep StatusState x
+from :: forall x. StatusState -&gt; Rep StatusState x
+$cto :: forall x. Rep StatusState x -&gt; StatusState
+to :: forall x. Rep StatusState x -&gt; StatusState
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Generic</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-23"></span><span>
+</span><span id="line-24"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679506863"><span class="annot"><span class="hs-identifier hs-type">NFData</span></span><span> </span><span class="annot"><a href="GitHub.Data.Statuses.html#StatusState"><span class="hs-identifier hs-type">StatusState</span></a></span></span><span>
+</span><span id="line-25"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679506882"><span id="local-6989586621679506889"><span id="local-6989586621679506895"><span class="annot"><span class="hs-identifier hs-type">Binary</span></span><span> </span><span class="annot"><a href="GitHub.Data.Statuses.html#StatusState"><span class="hs-identifier hs-type">StatusState</span></a></span></span></span></span><span>
+</span><span id="line-26"></span><span>
+</span><span id="line-27"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679506940"><span id="local-6989586621679506944"><span class="annot"><span class="hs-identifier hs-type">FromJSON</span></span><span> </span><span class="annot"><a href="GitHub.Data.Statuses.html#StatusState"><span class="hs-identifier hs-type">StatusState</span></a></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-28"></span><span>    </span><span id="local-6989586621679506968"><span class="annot"><span class="annottext">parseJSON :: Value -&gt; Parser StatusState
+</span><a href="#local-6989586621679506968"><span class="hs-identifier hs-var hs-var hs-var">parseJSON</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+-&gt; (Text -&gt; Parser StatusState) -&gt; Value -&gt; Parser StatusState
+forall a. String -&gt; (Text -&gt; Parser a) -&gt; Value -&gt; Parser a
+</span><span class="hs-identifier hs-var">withText</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;StatusState&quot;</span></span><span> </span><span class="annot"><span class="annottext">((Text -&gt; Parser StatusState) -&gt; Value -&gt; Parser StatusState)
+-&gt; (Text -&gt; Parser StatusState) -&gt; Value -&gt; Parser StatusState
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679506971"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679506971"><span class="hs-identifier hs-var">t</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Text -&gt; Text
+</span><span class="hs-identifier hs-var">T.toLower</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679506971"><span class="hs-identifier hs-var">t</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-29"></span><span>        </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;pending&quot;</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">StatusState -&gt; Parser StatusState
+forall a. a -&gt; Parser a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">StatusState
+</span><a href="GitHub.Data.Statuses.html#StatusPending"><span class="hs-identifier hs-var">StatusPending</span></a></span><span>
+</span><span id="line-30"></span><span>        </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;success&quot;</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">StatusState -&gt; Parser StatusState
+forall a. a -&gt; Parser a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">StatusState
+</span><a href="GitHub.Data.Statuses.html#StatusSuccess"><span class="hs-identifier hs-var">StatusSuccess</span></a></span><span>
+</span><span id="line-31"></span><span>        </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;error&quot;</span></span><span>   </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">StatusState -&gt; Parser StatusState
+forall a. a -&gt; Parser a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">StatusState
+</span><a href="GitHub.Data.Statuses.html#StatusError"><span class="hs-identifier hs-var">StatusError</span></a></span><span>
+</span><span id="line-32"></span><span>        </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;failure&quot;</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">StatusState -&gt; Parser StatusState
+forall a. a -&gt; Parser a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">StatusState
+</span><a href="GitHub.Data.Statuses.html#StatusFailure"><span class="hs-identifier hs-var">StatusFailure</span></a></span><span>
+</span><span id="line-33"></span><span>        </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-identifier">_</span></span><span>         </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">String -&gt; Parser StatusState
+forall a. String -&gt; Parser a
+forall (m :: * -&gt; *) a. MonadFail m =&gt; String -&gt; m a
+</span><span class="hs-identifier hs-var">fail</span></span><span> </span><span class="annot"><span class="annottext">(String -&gt; Parser StatusState) -&gt; String -&gt; Parser StatusState
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Unknown StatusState: &quot;</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; ShowS
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Text -&gt; String
+</span><span class="hs-identifier hs-var">T.unpack</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679506971"><span class="hs-identifier hs-var">t</span></a></span><span>
+</span><span id="line-34"></span><span>
+</span><span id="line-35"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679506976"><span id="local-6989586621679506980"><span id="local-6989586621679506983"><span id="local-6989586621679506986"><span class="annot"><span class="hs-identifier hs-type">ToJSON</span></span><span> </span><span class="annot"><a href="GitHub.Data.Statuses.html#StatusState"><span class="hs-identifier hs-type">StatusState</span></a></span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-36"></span><span>  </span><span id="local-6989586621679506993"><span class="annot"><span class="annottext">toJSON :: StatusState -&gt; Value
+</span><a href="#local-6989586621679506993"><span class="hs-identifier hs-var hs-var hs-var">toJSON</span></a></span></span><span> </span><span class="annot"><span class="annottext">StatusState
+</span><a href="GitHub.Data.Statuses.html#StatusPending"><span class="hs-identifier hs-var">StatusPending</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Text -&gt; Value
+</span><span class="hs-identifier hs-var">String</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;pending&quot;</span></span><span>
+</span><span id="line-37"></span><span>  </span><span class="annot"><span class="hs-identifier hs-var">toJSON</span></span><span> </span><span class="annot"><span class="annottext">StatusState
+</span><a href="GitHub.Data.Statuses.html#StatusSuccess"><span class="hs-identifier hs-var">StatusSuccess</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Text -&gt; Value
+</span><span class="hs-identifier hs-var">String</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;success&quot;</span></span><span>
+</span><span id="line-38"></span><span>  </span><span class="annot"><span class="hs-identifier hs-var">toJSON</span></span><span> </span><span class="annot"><span class="annottext">StatusState
+</span><a href="GitHub.Data.Statuses.html#StatusError"><span class="hs-identifier hs-var">StatusError</span></a></span><span>   </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Text -&gt; Value
+</span><span class="hs-identifier hs-var">String</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;error&quot;</span></span><span>
+</span><span id="line-39"></span><span>  </span><span class="annot"><span class="hs-identifier hs-var">toJSON</span></span><span> </span><span class="annot"><span class="annottext">StatusState
+</span><a href="GitHub.Data.Statuses.html#StatusFailure"><span class="hs-identifier hs-var">StatusFailure</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Text -&gt; Value
+</span><span class="hs-identifier hs-var">String</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;failure&quot;</span></span><span>
+</span><span id="line-40"></span><span>
+</span><span id="line-41"></span><span>
+</span><span id="line-42"></span><span class="hs-keyword">data</span><span> </span><span id="Status"><span class="annot"><a href="GitHub.Data.Statuses.html#Status"><span class="hs-identifier hs-var">Status</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="Status"><span class="annot"><a href="GitHub.Data.Statuses.html#Status"><span class="hs-identifier hs-var">Status</span></a></span></span><span>
+</span><span id="line-43"></span><span>    </span><span class="hs-special">{</span><span> </span><span id="statusCreatedAt"><span class="annot"><span class="annottext">Status -&gt; UTCTime
+</span><a href="GitHub.Data.Statuses.html#statusCreatedAt"><span class="hs-identifier hs-var hs-var">statusCreatedAt</span></a></span></span><span>   </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">UTCTime</span></span><span>
+</span><span id="line-44"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="statusUpdatedAt"><span class="annot"><span class="annottext">Status -&gt; UTCTime
+</span><a href="GitHub.Data.Statuses.html#statusUpdatedAt"><span class="hs-identifier hs-var hs-var">statusUpdatedAt</span></a></span></span><span>   </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">UTCTime</span></span><span>
+</span><span id="line-45"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="statusState"><span class="annot"><span class="annottext">Status -&gt; StatusState
+</span><a href="GitHub.Data.Statuses.html#statusState"><span class="hs-identifier hs-var hs-var">statusState</span></a></span></span><span>       </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><a href="GitHub.Data.Statuses.html#StatusState"><span class="hs-identifier hs-type">StatusState</span></a></span><span>
+</span><span id="line-46"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="statusTargetUrl"><span class="annot"><span class="annottext">Status -&gt; Maybe URL
+</span><a href="GitHub.Data.Statuses.html#statusTargetUrl"><span class="hs-identifier hs-var hs-var">statusTargetUrl</span></a></span></span><span>   </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="GitHub.Data.URL.html#URL"><span class="hs-identifier hs-type">URL</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-47"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="statusDescription"><span class="annot"><span class="annottext">Status -&gt; Maybe Text
+</span><a href="GitHub.Data.Statuses.html#statusDescription"><span class="hs-identifier hs-var hs-var">statusDescription</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span class="hs-special">)</span><span>
+</span><span id="line-48"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="statusId"><span class="annot"><span class="annottext">Status -&gt; Id Status
+</span><a href="GitHub.Data.Statuses.html#statusId"><span class="hs-identifier hs-var hs-var">statusId</span></a></span></span><span>          </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="hs-special">(</span><span class="annot"><a href="GitHub.Data.Id.html#Id"><span class="hs-identifier hs-type">Id</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.Statuses.html#Status"><span class="hs-identifier hs-type">Status</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-49"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="statusUrl"><span class="annot"><span class="annottext">Status -&gt; URL
+</span><a href="GitHub.Data.Statuses.html#statusUrl"><span class="hs-identifier hs-var hs-var">statusUrl</span></a></span></span><span>         </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><a href="GitHub.Data.URL.html#URL"><span class="hs-identifier hs-type">URL</span></a></span><span>
+</span><span id="line-50"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="statusContext"><span class="annot"><span class="annottext">Status -&gt; Maybe Text
+</span><a href="GitHub.Data.Statuses.html#statusContext"><span class="hs-identifier hs-var hs-var">statusContext</span></a></span></span><span>     </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span class="hs-special">)</span><span>
+</span><span id="line-51"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="statusCreator"><span class="annot"><span class="annottext">Status -&gt; Maybe SimpleUser
+</span><a href="GitHub.Data.Statuses.html#statusCreator"><span class="hs-identifier hs-var hs-var">statusCreator</span></a></span></span><span>     </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="GitHub.Data.Definitions.html#SimpleUser"><span class="hs-identifier hs-type">SimpleUser</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-52"></span><span>    </span><span class="hs-special">}</span><span>
+</span><span id="line-53"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679507007"><span id="local-6989586621679507025"><span id="local-6989586621679507029"><span class="annot"><span class="annottext">Int -&gt; Status -&gt; ShowS
+[Status] -&gt; ShowS
+Status -&gt; String
+(Int -&gt; Status -&gt; ShowS)
+-&gt; (Status -&gt; String) -&gt; ([Status] -&gt; ShowS) -&gt; Show Status
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; Status -&gt; ShowS
+showsPrec :: Int -&gt; Status -&gt; ShowS
+$cshow :: Status -&gt; String
+show :: Status -&gt; String
+$cshowList :: [Status] -&gt; ShowS
+showList :: [Status] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679507037"><span id="local-6989586621679507055"><span id="local-6989586621679507069"><span id="local-6989586621679507071"><span id="local-6989586621679507073"><span id="local-6989586621679507079"><span id="local-6989586621679507084"><span id="local-6989586621679507087"><span id="local-6989586621679507090"><span id="local-6989586621679507093"><span id="local-6989586621679507096"><span id="local-6989586621679507099"><span id="local-6989586621679507104"><span id="local-6989586621679507109"><span class="annot"><span class="annottext">Typeable Status
+Typeable Status =&gt;
+(forall (c :: * -&gt; *).
+ (forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+ -&gt; (forall g. g -&gt; c g) -&gt; Status -&gt; c Status)
+-&gt; (forall (c :: * -&gt; *).
+    (forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+    -&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c Status)
+-&gt; (Status -&gt; Constr)
+-&gt; (Status -&gt; DataType)
+-&gt; (forall (t :: * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d. Data d =&gt; c (t d)) -&gt; Maybe (c Status))
+-&gt; (forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d e. (Data d, Data e) =&gt; c (t d e)) -&gt; Maybe (c Status))
+-&gt; ((forall b. Data b =&gt; b -&gt; b) -&gt; Status -&gt; Status)
+-&gt; (forall r r'.
+    (r -&gt; r' -&gt; r)
+    -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; Status -&gt; r)
+-&gt; (forall r r'.
+    (r' -&gt; r -&gt; r)
+    -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; Status -&gt; r)
+-&gt; (forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; Status -&gt; [u])
+-&gt; (forall u. Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; Status -&gt; u)
+-&gt; (forall (m :: * -&gt; *).
+    Monad m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; Status -&gt; m Status)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; Status -&gt; m Status)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; Status -&gt; m Status)
+-&gt; Data Status
+Status -&gt; Constr
+Status -&gt; DataType
+(forall b. Data b =&gt; b -&gt; b) -&gt; Status -&gt; Status
+forall a.
+Typeable a =&gt;
+(forall (c :: * -&gt; *).
+ (forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+ -&gt; (forall g. g -&gt; c g) -&gt; a -&gt; c a)
+-&gt; (forall (c :: * -&gt; *).
+    (forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+    -&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c a)
+-&gt; (a -&gt; Constr)
+-&gt; (a -&gt; DataType)
+-&gt; (forall (t :: * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d. Data d =&gt; c (t d)) -&gt; Maybe (c a))
+-&gt; (forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d e. (Data d, Data e) =&gt; c (t d e)) -&gt; Maybe (c a))
+-&gt; ((forall b. Data b =&gt; b -&gt; b) -&gt; a -&gt; a)
+-&gt; (forall r r'.
+    (r -&gt; r' -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; a -&gt; r)
+-&gt; (forall r r'.
+    (r' -&gt; r -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; a -&gt; r)
+-&gt; (forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; a -&gt; [u])
+-&gt; (forall u. Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; a -&gt; u)
+-&gt; (forall (m :: * -&gt; *).
+    Monad m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; a -&gt; m a)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; a -&gt; m a)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; a -&gt; m a)
+-&gt; Data a
+forall u. Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; Status -&gt; u
+forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; Status -&gt; [u]
+forall r r'.
+(r -&gt; r' -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; Status -&gt; r
+forall r r'.
+(r' -&gt; r -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; Status -&gt; r
+forall (m :: * -&gt; *).
+Monad m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; Status -&gt; m Status
+forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; Status -&gt; m Status
+forall (c :: * -&gt; *).
+(forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+-&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c Status
+forall (c :: * -&gt; *).
+(forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+-&gt; (forall g. g -&gt; c g) -&gt; Status -&gt; c Status
+forall (t :: * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d. Data d =&gt; c (t d)) -&gt; Maybe (c Status)
+forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d e. (Data d, Data e) =&gt; c (t d e)) -&gt; Maybe (c Status)
+$cgfoldl :: forall (c :: * -&gt; *).
+(forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+-&gt; (forall g. g -&gt; c g) -&gt; Status -&gt; c Status
+gfoldl :: forall (c :: * -&gt; *).
+(forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+-&gt; (forall g. g -&gt; c g) -&gt; Status -&gt; c Status
+$cgunfold :: forall (c :: * -&gt; *).
+(forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+-&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c Status
+gunfold :: forall (c :: * -&gt; *).
+(forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+-&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c Status
+$ctoConstr :: Status -&gt; Constr
+toConstr :: Status -&gt; Constr
+$cdataTypeOf :: Status -&gt; DataType
+dataTypeOf :: Status -&gt; DataType
+$cdataCast1 :: forall (t :: * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d. Data d =&gt; c (t d)) -&gt; Maybe (c Status)
+dataCast1 :: forall (t :: * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d. Data d =&gt; c (t d)) -&gt; Maybe (c Status)
+$cdataCast2 :: forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d e. (Data d, Data e) =&gt; c (t d e)) -&gt; Maybe (c Status)
+dataCast2 :: forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d e. (Data d, Data e) =&gt; c (t d e)) -&gt; Maybe (c Status)
+$cgmapT :: (forall b. Data b =&gt; b -&gt; b) -&gt; Status -&gt; Status
+gmapT :: (forall b. Data b =&gt; b -&gt; b) -&gt; Status -&gt; Status
+$cgmapQl :: forall r r'.
+(r -&gt; r' -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; Status -&gt; r
+gmapQl :: forall r r'.
+(r -&gt; r' -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; Status -&gt; r
+$cgmapQr :: forall r r'.
+(r' -&gt; r -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; Status -&gt; r
+gmapQr :: forall r r'.
+(r' -&gt; r -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; Status -&gt; r
+$cgmapQ :: forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; Status -&gt; [u]
+gmapQ :: forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; Status -&gt; [u]
+$cgmapQi :: forall u. Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; Status -&gt; u
+gmapQi :: forall u. Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; Status -&gt; u
+$cgmapM :: forall (m :: * -&gt; *).
+Monad m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; Status -&gt; m Status
+gmapM :: forall (m :: * -&gt; *).
+Monad m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; Status -&gt; m Status
+$cgmapMp :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; Status -&gt; m Status
+gmapMp :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; Status -&gt; m Status
+$cgmapMo :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; Status -&gt; m Status
+gmapMo :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; Status -&gt; m Status
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Data</span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679507116"><span id="local-6989586621679507133"><span class="annot"><span class="annottext">Status -&gt; Status -&gt; Bool
+(Status -&gt; Status -&gt; Bool)
+-&gt; (Status -&gt; Status -&gt; Bool) -&gt; Eq Status
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: Status -&gt; Status -&gt; Bool
+== :: Status -&gt; Status -&gt; Bool
+$c/= :: Status -&gt; Status -&gt; Bool
+/= :: Status -&gt; Status -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679507141"><span id="local-6989586621679507158"><span id="local-6989586621679507172"><span id="local-6989586621679507176"><span id="local-6989586621679507179"><span id="local-6989586621679507182"><span id="local-6989586621679507185"><span class="annot"><span class="annottext">Eq Status
+Eq Status =&gt;
+(Status -&gt; Status -&gt; Ordering)
+-&gt; (Status -&gt; Status -&gt; Bool)
+-&gt; (Status -&gt; Status -&gt; Bool)
+-&gt; (Status -&gt; Status -&gt; Bool)
+-&gt; (Status -&gt; Status -&gt; Bool)
+-&gt; (Status -&gt; Status -&gt; Status)
+-&gt; (Status -&gt; Status -&gt; Status)
+-&gt; Ord Status
+Status -&gt; Status -&gt; Bool
+Status -&gt; Status -&gt; Ordering
+Status -&gt; Status -&gt; Status
+forall a.
+Eq a =&gt;
+(a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+$ccompare :: Status -&gt; Status -&gt; Ordering
+compare :: Status -&gt; Status -&gt; Ordering
+$c&lt; :: Status -&gt; Status -&gt; Bool
+&lt; :: Status -&gt; Status -&gt; Bool
+$c&lt;= :: Status -&gt; Status -&gt; Bool
+&lt;= :: Status -&gt; Status -&gt; Bool
+$c&gt; :: Status -&gt; Status -&gt; Bool
+&gt; :: Status -&gt; Status -&gt; Bool
+$c&gt;= :: Status -&gt; Status -&gt; Bool
+&gt;= :: Status -&gt; Status -&gt; Bool
+$cmax :: Status -&gt; Status -&gt; Status
+max :: Status -&gt; Status -&gt; Status
+$cmin :: Status -&gt; Status -&gt; Status
+min :: Status -&gt; Status -&gt; Status
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679507191"><span id="local-6989586621679507193"><span class="annot"><span class="annottext">(forall x. Status -&gt; Rep Status x)
+-&gt; (forall x. Rep Status x -&gt; Status) -&gt; Generic Status
+forall x. Rep Status x -&gt; Status
+forall x. Status -&gt; Rep Status x
+forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+$cfrom :: forall x. Status -&gt; Rep Status x
+from :: forall x. Status -&gt; Rep Status x
+$cto :: forall x. Rep Status x -&gt; Status
+to :: forall x. Rep Status x -&gt; Status
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Generic</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-54"></span><span>
+</span><span id="line-55"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679507197"><span id="local-6989586621679507201"><span class="annot"><span class="hs-identifier hs-type">FromJSON</span></span><span> </span><span class="annot"><a href="GitHub.Data.Statuses.html#Status"><span class="hs-identifier hs-type">Status</span></a></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-56"></span><span>  </span><span id="local-6989586621679507237"><span class="annot"><span class="annottext">parseJSON :: Value -&gt; Parser Status
+</span><span class="hs-identifier hs-var hs-var hs-var">parseJSON</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; (Object -&gt; Parser Status) -&gt; Value -&gt; Parser Status
+forall a. String -&gt; (Object -&gt; Parser a) -&gt; Value -&gt; Parser a
+</span><span class="hs-identifier hs-var">withObject</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Status&quot;</span></span><span> </span><span class="annot"><span class="annottext">((Object -&gt; Parser Status) -&gt; Value -&gt; Parser Status)
+-&gt; (Object -&gt; Parser Status) -&gt; Value -&gt; Parser Status
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679507239"><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679507239"><span class="hs-identifier hs-var">o</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">UTCTime
+-&gt; UTCTime
+-&gt; StatusState
+-&gt; Maybe URL
+-&gt; Maybe Text
+-&gt; Id Status
+-&gt; URL
+-&gt; Maybe Text
+-&gt; Maybe SimpleUser
+-&gt; Status
+</span><a href="GitHub.Data.Statuses.html#Status"><span class="hs-identifier hs-var">Status</span></a></span><span>
+</span><span id="line-57"></span><span>      </span><span class="annot"><span class="annottext">(UTCTime
+ -&gt; UTCTime
+ -&gt; StatusState
+ -&gt; Maybe URL
+ -&gt; Maybe Text
+ -&gt; Id Status
+ -&gt; URL
+ -&gt; Maybe Text
+ -&gt; Maybe SimpleUser
+ -&gt; Status)
+-&gt; Parser UTCTime
+-&gt; Parser
+     (UTCTime
+      -&gt; StatusState
+      -&gt; Maybe URL
+      -&gt; Maybe Text
+      -&gt; Id Status
+      -&gt; URL
+      -&gt; Maybe Text
+      -&gt; Maybe SimpleUser
+      -&gt; Status)
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679507239"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser UTCTime
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">.:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;created_at&quot;</span></span><span>
+</span><span id="line-58"></span><span>      </span><span class="annot"><span class="annottext">Parser
+  (UTCTime
+   -&gt; StatusState
+   -&gt; Maybe URL
+   -&gt; Maybe Text
+   -&gt; Id Status
+   -&gt; URL
+   -&gt; Maybe Text
+   -&gt; Maybe SimpleUser
+   -&gt; Status)
+-&gt; Parser UTCTime
+-&gt; Parser
+     (StatusState
+      -&gt; Maybe URL
+      -&gt; Maybe Text
+      -&gt; Id Status
+      -&gt; URL
+      -&gt; Maybe Text
+      -&gt; Maybe SimpleUser
+      -&gt; Status)
+forall a b. Parser (a -&gt; b) -&gt; Parser a -&gt; Parser b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679507239"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser UTCTime
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">.:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;updated_at&quot;</span></span><span>
+</span><span id="line-59"></span><span>      </span><span class="annot"><span class="annottext">Parser
+  (StatusState
+   -&gt; Maybe URL
+   -&gt; Maybe Text
+   -&gt; Id Status
+   -&gt; URL
+   -&gt; Maybe Text
+   -&gt; Maybe SimpleUser
+   -&gt; Status)
+-&gt; Parser StatusState
+-&gt; Parser
+     (Maybe URL
+      -&gt; Maybe Text
+      -&gt; Id Status
+      -&gt; URL
+      -&gt; Maybe Text
+      -&gt; Maybe SimpleUser
+      -&gt; Status)
+forall a b. Parser (a -&gt; b) -&gt; Parser a -&gt; Parser b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679507239"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser StatusState
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">.:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;state&quot;</span></span><span>
+</span><span id="line-60"></span><span>      </span><span class="annot"><span class="annottext">Parser
+  (Maybe URL
+   -&gt; Maybe Text
+   -&gt; Id Status
+   -&gt; URL
+   -&gt; Maybe Text
+   -&gt; Maybe SimpleUser
+   -&gt; Status)
+-&gt; Parser (Maybe URL)
+-&gt; Parser
+     (Maybe Text
+      -&gt; Id Status -&gt; URL -&gt; Maybe Text -&gt; Maybe SimpleUser -&gt; Status)
+forall a b. Parser (a -&gt; b) -&gt; Parser a -&gt; Parser b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679507239"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser (Maybe URL)
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser (Maybe a)
+</span><span class="hs-operator hs-var">.:?</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;target_url&quot;</span></span><span>
+</span><span id="line-61"></span><span>      </span><span class="annot"><span class="annottext">Parser
+  (Maybe Text
+   -&gt; Id Status -&gt; URL -&gt; Maybe Text -&gt; Maybe SimpleUser -&gt; Status)
+-&gt; Parser (Maybe Text)
+-&gt; Parser
+     (Id Status -&gt; URL -&gt; Maybe Text -&gt; Maybe SimpleUser -&gt; Status)
+forall a b. Parser (a -&gt; b) -&gt; Parser a -&gt; Parser b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679507239"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser (Maybe Text)
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser (Maybe a)
+</span><span class="hs-operator hs-var">.:?</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;description&quot;</span></span><span>
+</span><span id="line-62"></span><span>      </span><span class="annot"><span class="annottext">Parser
+  (Id Status -&gt; URL -&gt; Maybe Text -&gt; Maybe SimpleUser -&gt; Status)
+-&gt; Parser (Id Status)
+-&gt; Parser (URL -&gt; Maybe Text -&gt; Maybe SimpleUser -&gt; Status)
+forall a b. Parser (a -&gt; b) -&gt; Parser a -&gt; Parser b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679507239"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser (Id Status)
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">.:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;id&quot;</span></span><span>
+</span><span id="line-63"></span><span>      </span><span class="annot"><span class="annottext">Parser (URL -&gt; Maybe Text -&gt; Maybe SimpleUser -&gt; Status)
+-&gt; Parser URL -&gt; Parser (Maybe Text -&gt; Maybe SimpleUser -&gt; Status)
+forall a b. Parser (a -&gt; b) -&gt; Parser a -&gt; Parser b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679507239"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser URL
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">.:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;url&quot;</span></span><span>
+</span><span id="line-64"></span><span>      </span><span class="annot"><span class="annottext">Parser (Maybe Text -&gt; Maybe SimpleUser -&gt; Status)
+-&gt; Parser (Maybe Text) -&gt; Parser (Maybe SimpleUser -&gt; Status)
+forall a b. Parser (a -&gt; b) -&gt; Parser a -&gt; Parser b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679507239"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser (Maybe Text)
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser (Maybe a)
+</span><span class="hs-operator hs-var">.:?</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;context&quot;</span></span><span>
+</span><span id="line-65"></span><span>      </span><span class="annot"><span class="annottext">Parser (Maybe SimpleUser -&gt; Status)
+-&gt; Parser (Maybe SimpleUser) -&gt; Parser Status
+forall a b. Parser (a -&gt; b) -&gt; Parser a -&gt; Parser b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679507239"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser (Maybe SimpleUser)
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser (Maybe a)
+</span><span class="hs-operator hs-var">.:?</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;creator&quot;</span></span><span>
+</span><span id="line-66"></span><span>
+</span><span id="line-67"></span><span>
+</span><span id="line-68"></span><span class="hs-keyword">data</span><span> </span><span id="NewStatus"><span class="annot"><a href="GitHub.Data.Statuses.html#NewStatus"><span class="hs-identifier hs-var">NewStatus</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="NewStatus"><span class="annot"><a href="GitHub.Data.Statuses.html#NewStatus"><span class="hs-identifier hs-var">NewStatus</span></a></span></span><span>
+</span><span id="line-69"></span><span>    </span><span class="hs-special">{</span><span> </span><span id="newStatusState"><span class="annot"><span class="annottext">NewStatus -&gt; StatusState
+</span><a href="GitHub.Data.Statuses.html#newStatusState"><span class="hs-identifier hs-var hs-var">newStatusState</span></a></span></span><span>       </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><a href="GitHub.Data.Statuses.html#StatusState"><span class="hs-identifier hs-type">StatusState</span></a></span><span>
+</span><span id="line-70"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="newStatusTargetUrl"><span class="annot"><span class="annottext">NewStatus -&gt; Maybe URL
+</span><a href="GitHub.Data.Statuses.html#newStatusTargetUrl"><span class="hs-identifier hs-var hs-var">newStatusTargetUrl</span></a></span></span><span>   </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="GitHub.Data.URL.html#URL"><span class="hs-identifier hs-type">URL</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-71"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="newStatusDescription"><span class="annot"><span class="annottext">NewStatus -&gt; Maybe Text
+</span><a href="GitHub.Data.Statuses.html#newStatusDescription"><span class="hs-identifier hs-var hs-var">newStatusDescription</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span class="hs-special">)</span><span>
+</span><span id="line-72"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="newStatusContext"><span class="annot"><span class="annottext">NewStatus -&gt; Maybe Text
+</span><a href="GitHub.Data.Statuses.html#newStatusContext"><span class="hs-identifier hs-var hs-var">newStatusContext</span></a></span></span><span>     </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span class="hs-special">)</span><span>
+</span><span id="line-73"></span><span>    </span><span class="hs-special">}</span><span>
+</span><span id="line-74"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679507249"><span id="local-6989586621679507258"><span id="local-6989586621679507262"><span class="annot"><span class="annottext">Int -&gt; NewStatus -&gt; ShowS
+[NewStatus] -&gt; ShowS
+NewStatus -&gt; String
+(Int -&gt; NewStatus -&gt; ShowS)
+-&gt; (NewStatus -&gt; String)
+-&gt; ([NewStatus] -&gt; ShowS)
+-&gt; Show NewStatus
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; NewStatus -&gt; ShowS
+showsPrec :: Int -&gt; NewStatus -&gt; ShowS
+$cshow :: NewStatus -&gt; String
+show :: NewStatus -&gt; String
+$cshowList :: [NewStatus] -&gt; ShowS
+showList :: [NewStatus] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679507267"><span id="local-6989586621679507275"><span id="local-6989586621679507283"><span id="local-6989586621679507285"><span id="local-6989586621679507287"><span id="local-6989586621679507293"><span id="local-6989586621679507298"><span id="local-6989586621679507301"><span id="local-6989586621679507304"><span id="local-6989586621679507307"><span id="local-6989586621679507310"><span id="local-6989586621679507313"><span id="local-6989586621679507318"><span id="local-6989586621679507323"><span class="annot"><span class="annottext">Typeable NewStatus
+Typeable NewStatus =&gt;
+(forall (c :: * -&gt; *).
+ (forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+ -&gt; (forall g. g -&gt; c g) -&gt; NewStatus -&gt; c NewStatus)
+-&gt; (forall (c :: * -&gt; *).
+    (forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+    -&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c NewStatus)
+-&gt; (NewStatus -&gt; Constr)
+-&gt; (NewStatus -&gt; DataType)
+-&gt; (forall (t :: * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d. Data d =&gt; c (t d)) -&gt; Maybe (c NewStatus))
+-&gt; (forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d e. (Data d, Data e) =&gt; c (t d e)) -&gt; Maybe (c NewStatus))
+-&gt; ((forall b. Data b =&gt; b -&gt; b) -&gt; NewStatus -&gt; NewStatus)
+-&gt; (forall r r'.
+    (r -&gt; r' -&gt; r)
+    -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; NewStatus -&gt; r)
+-&gt; (forall r r'.
+    (r' -&gt; r -&gt; r)
+    -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; NewStatus -&gt; r)
+-&gt; (forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; NewStatus -&gt; [u])
+-&gt; (forall u.
+    Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; NewStatus -&gt; u)
+-&gt; (forall (m :: * -&gt; *).
+    Monad m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; NewStatus -&gt; m NewStatus)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; NewStatus -&gt; m NewStatus)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; NewStatus -&gt; m NewStatus)
+-&gt; Data NewStatus
+NewStatus -&gt; Constr
+NewStatus -&gt; DataType
+(forall b. Data b =&gt; b -&gt; b) -&gt; NewStatus -&gt; NewStatus
+forall a.
+Typeable a =&gt;
+(forall (c :: * -&gt; *).
+ (forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+ -&gt; (forall g. g -&gt; c g) -&gt; a -&gt; c a)
+-&gt; (forall (c :: * -&gt; *).
+    (forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+    -&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c a)
+-&gt; (a -&gt; Constr)
+-&gt; (a -&gt; DataType)
+-&gt; (forall (t :: * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d. Data d =&gt; c (t d)) -&gt; Maybe (c a))
+-&gt; (forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d e. (Data d, Data e) =&gt; c (t d e)) -&gt; Maybe (c a))
+-&gt; ((forall b. Data b =&gt; b -&gt; b) -&gt; a -&gt; a)
+-&gt; (forall r r'.
+    (r -&gt; r' -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; a -&gt; r)
+-&gt; (forall r r'.
+    (r' -&gt; r -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; a -&gt; r)
+-&gt; (forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; a -&gt; [u])
+-&gt; (forall u. Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; a -&gt; u)
+-&gt; (forall (m :: * -&gt; *).
+    Monad m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; a -&gt; m a)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; a -&gt; m a)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; a -&gt; m a)
+-&gt; Data a
+forall u. Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; NewStatus -&gt; u
+forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; NewStatus -&gt; [u]
+forall r r'.
+(r -&gt; r' -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; NewStatus -&gt; r
+forall r r'.
+(r' -&gt; r -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; NewStatus -&gt; r
+forall (m :: * -&gt; *).
+Monad m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; NewStatus -&gt; m NewStatus
+forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; NewStatus -&gt; m NewStatus
+forall (c :: * -&gt; *).
+(forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+-&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c NewStatus
+forall (c :: * -&gt; *).
+(forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+-&gt; (forall g. g -&gt; c g) -&gt; NewStatus -&gt; c NewStatus
+forall (t :: * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d. Data d =&gt; c (t d)) -&gt; Maybe (c NewStatus)
+forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d e. (Data d, Data e) =&gt; c (t d e)) -&gt; Maybe (c NewStatus)
+$cgfoldl :: forall (c :: * -&gt; *).
+(forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+-&gt; (forall g. g -&gt; c g) -&gt; NewStatus -&gt; c NewStatus
+gfoldl :: forall (c :: * -&gt; *).
+(forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+-&gt; (forall g. g -&gt; c g) -&gt; NewStatus -&gt; c NewStatus
+$cgunfold :: forall (c :: * -&gt; *).
+(forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+-&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c NewStatus
+gunfold :: forall (c :: * -&gt; *).
+(forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+-&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c NewStatus
+$ctoConstr :: NewStatus -&gt; Constr
+toConstr :: NewStatus -&gt; Constr
+$cdataTypeOf :: NewStatus -&gt; DataType
+dataTypeOf :: NewStatus -&gt; DataType
+$cdataCast1 :: forall (t :: * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d. Data d =&gt; c (t d)) -&gt; Maybe (c NewStatus)
+dataCast1 :: forall (t :: * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d. Data d =&gt; c (t d)) -&gt; Maybe (c NewStatus)
+$cdataCast2 :: forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d e. (Data d, Data e) =&gt; c (t d e)) -&gt; Maybe (c NewStatus)
+dataCast2 :: forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d e. (Data d, Data e) =&gt; c (t d e)) -&gt; Maybe (c NewStatus)
+$cgmapT :: (forall b. Data b =&gt; b -&gt; b) -&gt; NewStatus -&gt; NewStatus
+gmapT :: (forall b. Data b =&gt; b -&gt; b) -&gt; NewStatus -&gt; NewStatus
+$cgmapQl :: forall r r'.
+(r -&gt; r' -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; NewStatus -&gt; r
+gmapQl :: forall r r'.
+(r -&gt; r' -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; NewStatus -&gt; r
+$cgmapQr :: forall r r'.
+(r' -&gt; r -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; NewStatus -&gt; r
+gmapQr :: forall r r'.
+(r' -&gt; r -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; NewStatus -&gt; r
+$cgmapQ :: forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; NewStatus -&gt; [u]
+gmapQ :: forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; NewStatus -&gt; [u]
+$cgmapQi :: forall u. Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; NewStatus -&gt; u
+gmapQi :: forall u. Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; NewStatus -&gt; u
+$cgmapM :: forall (m :: * -&gt; *).
+Monad m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; NewStatus -&gt; m NewStatus
+gmapM :: forall (m :: * -&gt; *).
+Monad m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; NewStatus -&gt; m NewStatus
+$cgmapMp :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; NewStatus -&gt; m NewStatus
+gmapMp :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; NewStatus -&gt; m NewStatus
+$cgmapMo :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; NewStatus -&gt; m NewStatus
+gmapMo :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; NewStatus -&gt; m NewStatus
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Data</span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679507328"><span id="local-6989586621679507336"><span class="annot"><span class="annottext">NewStatus -&gt; NewStatus -&gt; Bool
+(NewStatus -&gt; NewStatus -&gt; Bool)
+-&gt; (NewStatus -&gt; NewStatus -&gt; Bool) -&gt; Eq NewStatus
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: NewStatus -&gt; NewStatus -&gt; Bool
+== :: NewStatus -&gt; NewStatus -&gt; Bool
+$c/= :: NewStatus -&gt; NewStatus -&gt; Bool
+/= :: NewStatus -&gt; NewStatus -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679507342"><span id="local-6989586621679507350"><span id="local-6989586621679507358"><span id="local-6989586621679507362"><span id="local-6989586621679507365"><span id="local-6989586621679507368"><span id="local-6989586621679507371"><span class="annot"><span class="annottext">Eq NewStatus
+Eq NewStatus =&gt;
+(NewStatus -&gt; NewStatus -&gt; Ordering)
+-&gt; (NewStatus -&gt; NewStatus -&gt; Bool)
+-&gt; (NewStatus -&gt; NewStatus -&gt; Bool)
+-&gt; (NewStatus -&gt; NewStatus -&gt; Bool)
+-&gt; (NewStatus -&gt; NewStatus -&gt; Bool)
+-&gt; (NewStatus -&gt; NewStatus -&gt; NewStatus)
+-&gt; (NewStatus -&gt; NewStatus -&gt; NewStatus)
+-&gt; Ord NewStatus
+NewStatus -&gt; NewStatus -&gt; Bool
+NewStatus -&gt; NewStatus -&gt; Ordering
+NewStatus -&gt; NewStatus -&gt; NewStatus
+forall a.
+Eq a =&gt;
+(a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+$ccompare :: NewStatus -&gt; NewStatus -&gt; Ordering
+compare :: NewStatus -&gt; NewStatus -&gt; Ordering
+$c&lt; :: NewStatus -&gt; NewStatus -&gt; Bool
+&lt; :: NewStatus -&gt; NewStatus -&gt; Bool
+$c&lt;= :: NewStatus -&gt; NewStatus -&gt; Bool
+&lt;= :: NewStatus -&gt; NewStatus -&gt; Bool
+$c&gt; :: NewStatus -&gt; NewStatus -&gt; Bool
+&gt; :: NewStatus -&gt; NewStatus -&gt; Bool
+$c&gt;= :: NewStatus -&gt; NewStatus -&gt; Bool
+&gt;= :: NewStatus -&gt; NewStatus -&gt; Bool
+$cmax :: NewStatus -&gt; NewStatus -&gt; NewStatus
+max :: NewStatus -&gt; NewStatus -&gt; NewStatus
+$cmin :: NewStatus -&gt; NewStatus -&gt; NewStatus
+min :: NewStatus -&gt; NewStatus -&gt; NewStatus
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679507374"><span id="local-6989586621679507376"><span class="annot"><span class="annottext">(forall x. NewStatus -&gt; Rep NewStatus x)
+-&gt; (forall x. Rep NewStatus x -&gt; NewStatus) -&gt; Generic NewStatus
+forall x. Rep NewStatus x -&gt; NewStatus
+forall x. NewStatus -&gt; Rep NewStatus x
+forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+$cfrom :: forall x. NewStatus -&gt; Rep NewStatus x
+from :: forall x. NewStatus -&gt; Rep NewStatus x
+$cto :: forall x. Rep NewStatus x -&gt; NewStatus
+to :: forall x. Rep NewStatus x -&gt; NewStatus
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Generic</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-75"></span><span>
+</span><span id="line-76"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679507379"><span class="annot"><span class="hs-identifier hs-type">NFData</span></span><span> </span><span class="annot"><a href="GitHub.Data.Statuses.html#NewStatus"><span class="hs-identifier hs-type">NewStatus</span></a></span></span><span>
+</span><span id="line-77"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679507407"><span id="local-6989586621679507414"><span id="local-6989586621679507420"><span class="annot"><span class="hs-identifier hs-type">Binary</span></span><span> </span><span class="annot"><a href="GitHub.Data.Statuses.html#NewStatus"><span class="hs-identifier hs-type">NewStatus</span></a></span></span></span></span><span>
+</span><span id="line-78"></span><span>
+</span><span id="line-79"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679507463"><span id="local-6989586621679507467"><span id="local-6989586621679507470"><span id="local-6989586621679507473"><span class="annot"><span class="hs-identifier hs-type">ToJSON</span></span><span> </span><span class="annot"><a href="GitHub.Data.Statuses.html#NewStatus"><span class="hs-identifier hs-type">NewStatus</span></a></span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-80"></span><span>    </span><span id="local-6989586621679507495"><span class="annot"><span class="annottext">toJSON :: NewStatus -&gt; Value
+</span><span class="hs-identifier hs-var hs-var hs-var">toJSON</span></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GitHub.Data.Statuses.html#NewStatus"><span class="hs-identifier hs-type">NewStatus</span></a></span><span> </span><span id="local-6989586621679507496"><span class="annot"><span class="annottext">StatusState
+</span><a href="#local-6989586621679507496"><span class="hs-identifier hs-var">s</span></a></span></span><span> </span><span id="local-6989586621679507497"><span class="annot"><span class="annottext">Maybe URL
+</span><a href="#local-6989586621679507497"><span class="hs-identifier hs-var">t</span></a></span></span><span> </span><span id="local-6989586621679507498"><span class="annot"><span class="annottext">Maybe Text
+</span><a href="#local-6989586621679507498"><span class="hs-identifier hs-var">d</span></a></span></span><span> </span><span id="local-6989586621679507499"><span class="annot"><span class="annottext">Maybe Text
+</span><a href="#local-6989586621679507499"><span class="hs-identifier hs-var">c</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Pair] -&gt; Value
+</span><span class="hs-identifier hs-var">object</span></span><span> </span><span class="annot"><span class="annottext">([Pair] -&gt; Value) -&gt; [Pair] -&gt; Value
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">(Pair -&gt; Bool) -&gt; [Pair] -&gt; [Pair]
+forall a. (a -&gt; Bool) -&gt; [a] -&gt; [a]
+</span><span class="hs-identifier hs-var">filter</span></span><span> </span><span class="annot"><span class="annottext">Pair -&gt; Bool
+forall {a}. (a, Value) -&gt; Bool
+</span><a href="#local-6989586621679507501"><span class="hs-identifier hs-var">notNull</span></a></span><span> </span><span class="annot"><span class="annottext">([Pair] -&gt; [Pair]) -&gt; [Pair] -&gt; [Pair]
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-81"></span><span>        </span><span class="hs-special">[</span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;state&quot;</span></span><span>       </span><span class="annot"><span class="annottext">Key -&gt; StatusState -&gt; Pair
+forall v. ToJSON v =&gt; Key -&gt; v -&gt; Pair
+forall e kv v. (KeyValue e kv, ToJSON v) =&gt; Key -&gt; v -&gt; kv
+</span><span class="hs-operator hs-var">.=</span></span><span> </span><span class="annot"><span class="annottext">StatusState
+</span><a href="#local-6989586621679507496"><span class="hs-identifier hs-var">s</span></a></span><span>
+</span><span id="line-82"></span><span>        </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;target_url&quot;</span></span><span>  </span><span class="annot"><span class="annottext">Key -&gt; Maybe URL -&gt; Pair
+forall v. ToJSON v =&gt; Key -&gt; v -&gt; Pair
+forall e kv v. (KeyValue e kv, ToJSON v) =&gt; Key -&gt; v -&gt; kv
+</span><span class="hs-operator hs-var">.=</span></span><span> </span><span class="annot"><span class="annottext">Maybe URL
+</span><a href="#local-6989586621679507497"><span class="hs-identifier hs-var">t</span></a></span><span>
+</span><span id="line-83"></span><span>        </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;description&quot;</span></span><span> </span><span class="annot"><span class="annottext">Key -&gt; Maybe Text -&gt; Pair
+forall v. ToJSON v =&gt; Key -&gt; v -&gt; Pair
+forall e kv v. (KeyValue e kv, ToJSON v) =&gt; Key -&gt; v -&gt; kv
+</span><span class="hs-operator hs-var">.=</span></span><span> </span><span class="annot"><span class="annottext">Maybe Text
+</span><a href="#local-6989586621679507498"><span class="hs-identifier hs-var">d</span></a></span><span>
+</span><span id="line-84"></span><span>        </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;context&quot;</span></span><span>     </span><span class="annot"><span class="annottext">Key -&gt; Maybe Text -&gt; Pair
+forall v. ToJSON v =&gt; Key -&gt; v -&gt; Pair
+forall e kv v. (KeyValue e kv, ToJSON v) =&gt; Key -&gt; v -&gt; kv
+</span><span class="hs-operator hs-var">.=</span></span><span> </span><span class="annot"><span class="annottext">Maybe Text
+</span><a href="#local-6989586621679507499"><span class="hs-identifier hs-var">c</span></a></span><span>
+</span><span id="line-85"></span><span>        </span><span class="hs-special">]</span><span>
+</span><span id="line-86"></span><span>      </span><span class="hs-keyword">where</span><span>
+</span><span id="line-87"></span><span>        </span><span id="local-6989586621679507501"><span class="annot"><span class="annottext">notNull :: (a, Value) -&gt; Bool
+</span><a href="#local-6989586621679507501"><span class="hs-identifier hs-var hs-var">notNull</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a
+</span><span class="hs-identifier">_</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Value
+</span><span class="hs-identifier hs-var">Null</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span>
+</span><span id="line-88"></span><span>        </span><span class="annot"><a href="#local-6989586621679507501"><span class="hs-identifier hs-var">notNull</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a
+</span><span class="hs-identifier">_</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Value
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span>    </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>
+</span><span id="line-89"></span><span>
+</span><span id="line-90"></span><span>
+</span><span id="line-91"></span><span class="hs-keyword">data</span><span> </span><span id="CombinedStatus"><span class="annot"><a href="GitHub.Data.Statuses.html#CombinedStatus"><span class="hs-identifier hs-var">CombinedStatus</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="CombinedStatus"><span class="annot"><a href="GitHub.Data.Statuses.html#CombinedStatus"><span class="hs-identifier hs-var">CombinedStatus</span></a></span></span><span>
+</span><span id="line-92"></span><span>    </span><span class="hs-special">{</span><span> </span><span id="combinedStatusState"><span class="annot"><span class="annottext">CombinedStatus -&gt; StatusState
+</span><a href="GitHub.Data.Statuses.html#combinedStatusState"><span class="hs-identifier hs-var hs-var">combinedStatusState</span></a></span></span><span>      </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><a href="GitHub.Data.Statuses.html#StatusState"><span class="hs-identifier hs-type">StatusState</span></a></span><span>
+</span><span id="line-93"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="combinedStatusSha"><span class="annot"><span class="annottext">CombinedStatus -&gt; Name Commit
+</span><a href="GitHub.Data.Statuses.html#combinedStatusSha"><span class="hs-identifier hs-var hs-var">combinedStatusSha</span></a></span></span><span>        </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="hs-special">(</span><span class="annot"><a href="GitHub.Data.Name.html#Name"><span class="hs-identifier hs-type">Name</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.GitData.html#Commit"><span class="hs-identifier hs-type">Commit</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-94"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="combinedStatusTotalCount"><span class="annot"><span class="annottext">CombinedStatus -&gt; Int
+</span><a href="GitHub.Data.Statuses.html#combinedStatusTotalCount"><span class="hs-identifier hs-var hs-var">combinedStatusTotalCount</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>
+</span><span id="line-95"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="combinedStatusStatuses"><span class="annot"><span class="annottext">CombinedStatus -&gt; Vector Status
+</span><a href="GitHub.Data.Statuses.html#combinedStatusStatuses"><span class="hs-identifier hs-var hs-var">combinedStatusStatuses</span></a></span></span><span>   </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Vector</span></span><span> </span><span class="annot"><a href="GitHub.Data.Statuses.html#Status"><span class="hs-identifier hs-type">Status</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-96"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="combinedStatusRepository"><span class="annot"><span class="annottext">CombinedStatus -&gt; RepoRef
+</span><a href="GitHub.Data.Statuses.html#combinedStatusRepository"><span class="hs-identifier hs-var hs-var">combinedStatusRepository</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><a href="GitHub.Data.Repos.html#RepoRef"><span class="hs-identifier hs-type">RepoRef</span></a></span><span>
+</span><span id="line-97"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="combinedStatusCommitUrl"><span class="annot"><span class="annottext">CombinedStatus -&gt; URL
+</span><a href="GitHub.Data.Statuses.html#combinedStatusCommitUrl"><span class="hs-identifier hs-var hs-var">combinedStatusCommitUrl</span></a></span></span><span>  </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><a href="GitHub.Data.URL.html#URL"><span class="hs-identifier hs-type">URL</span></a></span><span>
+</span><span id="line-98"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="combinedStatusUrl"><span class="annot"><span class="annottext">CombinedStatus -&gt; URL
+</span><a href="GitHub.Data.Statuses.html#combinedStatusUrl"><span class="hs-identifier hs-var hs-var">combinedStatusUrl</span></a></span></span><span>        </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><a href="GitHub.Data.URL.html#URL"><span class="hs-identifier hs-type">URL</span></a></span><span>
+</span><span id="line-99"></span><span>    </span><span class="hs-special">}</span><span>
+</span><span id="line-100"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679507513"><span id="local-6989586621679507527"><span id="local-6989586621679507531"><span class="annot"><span class="annottext">Int -&gt; CombinedStatus -&gt; ShowS
+[CombinedStatus] -&gt; ShowS
+CombinedStatus -&gt; String
+(Int -&gt; CombinedStatus -&gt; ShowS)
+-&gt; (CombinedStatus -&gt; String)
+-&gt; ([CombinedStatus] -&gt; ShowS)
+-&gt; Show CombinedStatus
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; CombinedStatus -&gt; ShowS
+showsPrec :: Int -&gt; CombinedStatus -&gt; ShowS
+$cshow :: CombinedStatus -&gt; String
+show :: CombinedStatus -&gt; String
+$cshowList :: [CombinedStatus] -&gt; ShowS
+showList :: [CombinedStatus] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679507536"><span id="local-6989586621679507551"><span id="local-6989586621679507562"><span id="local-6989586621679507564"><span id="local-6989586621679507566"><span id="local-6989586621679507572"><span id="local-6989586621679507577"><span id="local-6989586621679507580"><span id="local-6989586621679507583"><span id="local-6989586621679507586"><span id="local-6989586621679507589"><span id="local-6989586621679507592"><span id="local-6989586621679507597"><span id="local-6989586621679507602"><span class="annot"><span class="annottext">Typeable CombinedStatus
+Typeable CombinedStatus =&gt;
+(forall (c :: * -&gt; *).
+ (forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+ -&gt; (forall g. g -&gt; c g) -&gt; CombinedStatus -&gt; c CombinedStatus)
+-&gt; (forall (c :: * -&gt; *).
+    (forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+    -&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c CombinedStatus)
+-&gt; (CombinedStatus -&gt; Constr)
+-&gt; (CombinedStatus -&gt; DataType)
+-&gt; (forall (t :: * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d. Data d =&gt; c (t d)) -&gt; Maybe (c CombinedStatus))
+-&gt; (forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d e. (Data d, Data e) =&gt; c (t d e))
+    -&gt; Maybe (c CombinedStatus))
+-&gt; ((forall b. Data b =&gt; b -&gt; b)
+    -&gt; CombinedStatus -&gt; CombinedStatus)
+-&gt; (forall r r'.
+    (r -&gt; r' -&gt; r)
+    -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; CombinedStatus -&gt; r)
+-&gt; (forall r r'.
+    (r' -&gt; r -&gt; r)
+    -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; CombinedStatus -&gt; r)
+-&gt; (forall u.
+    (forall d. Data d =&gt; d -&gt; u) -&gt; CombinedStatus -&gt; [u])
+-&gt; (forall u.
+    Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; CombinedStatus -&gt; u)
+-&gt; (forall (m :: * -&gt; *).
+    Monad m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d)
+    -&gt; CombinedStatus -&gt; m CombinedStatus)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d)
+    -&gt; CombinedStatus -&gt; m CombinedStatus)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d)
+    -&gt; CombinedStatus -&gt; m CombinedStatus)
+-&gt; Data CombinedStatus
+CombinedStatus -&gt; Constr
+CombinedStatus -&gt; DataType
+(forall b. Data b =&gt; b -&gt; b) -&gt; CombinedStatus -&gt; CombinedStatus
+forall a.
+Typeable a =&gt;
+(forall (c :: * -&gt; *).
+ (forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+ -&gt; (forall g. g -&gt; c g) -&gt; a -&gt; c a)
+-&gt; (forall (c :: * -&gt; *).
+    (forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+    -&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c a)
+-&gt; (a -&gt; Constr)
+-&gt; (a -&gt; DataType)
+-&gt; (forall (t :: * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d. Data d =&gt; c (t d)) -&gt; Maybe (c a))
+-&gt; (forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d e. (Data d, Data e) =&gt; c (t d e)) -&gt; Maybe (c a))
+-&gt; ((forall b. Data b =&gt; b -&gt; b) -&gt; a -&gt; a)
+-&gt; (forall r r'.
+    (r -&gt; r' -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; a -&gt; r)
+-&gt; (forall r r'.
+    (r' -&gt; r -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; a -&gt; r)
+-&gt; (forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; a -&gt; [u])
+-&gt; (forall u. Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; a -&gt; u)
+-&gt; (forall (m :: * -&gt; *).
+    Monad m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; a -&gt; m a)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; a -&gt; m a)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; a -&gt; m a)
+-&gt; Data a
+forall u.
+Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; CombinedStatus -&gt; u
+forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; CombinedStatus -&gt; [u]
+forall r r'.
+(r -&gt; r' -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; CombinedStatus -&gt; r
+forall r r'.
+(r' -&gt; r -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; CombinedStatus -&gt; r
+forall (m :: * -&gt; *).
+Monad m =&gt;
+(forall d. Data d =&gt; d -&gt; m d)
+-&gt; CombinedStatus -&gt; m CombinedStatus
+forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d)
+-&gt; CombinedStatus -&gt; m CombinedStatus
+forall (c :: * -&gt; *).
+(forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+-&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c CombinedStatus
+forall (c :: * -&gt; *).
+(forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+-&gt; (forall g. g -&gt; c g) -&gt; CombinedStatus -&gt; c CombinedStatus
+forall (t :: * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d. Data d =&gt; c (t d)) -&gt; Maybe (c CombinedStatus)
+forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d e. (Data d, Data e) =&gt; c (t d e))
+-&gt; Maybe (c CombinedStatus)
+$cgfoldl :: forall (c :: * -&gt; *).
+(forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+-&gt; (forall g. g -&gt; c g) -&gt; CombinedStatus -&gt; c CombinedStatus
+gfoldl :: forall (c :: * -&gt; *).
+(forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+-&gt; (forall g. g -&gt; c g) -&gt; CombinedStatus -&gt; c CombinedStatus
+$cgunfold :: forall (c :: * -&gt; *).
+(forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+-&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c CombinedStatus
+gunfold :: forall (c :: * -&gt; *).
+(forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+-&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c CombinedStatus
+$ctoConstr :: CombinedStatus -&gt; Constr
+toConstr :: CombinedStatus -&gt; Constr
+$cdataTypeOf :: CombinedStatus -&gt; DataType
+dataTypeOf :: CombinedStatus -&gt; DataType
+$cdataCast1 :: forall (t :: * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d. Data d =&gt; c (t d)) -&gt; Maybe (c CombinedStatus)
+dataCast1 :: forall (t :: * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d. Data d =&gt; c (t d)) -&gt; Maybe (c CombinedStatus)
+$cdataCast2 :: forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d e. (Data d, Data e) =&gt; c (t d e))
+-&gt; Maybe (c CombinedStatus)
+dataCast2 :: forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d e. (Data d, Data e) =&gt; c (t d e))
+-&gt; Maybe (c CombinedStatus)
+$cgmapT :: (forall b. Data b =&gt; b -&gt; b) -&gt; CombinedStatus -&gt; CombinedStatus
+gmapT :: (forall b. Data b =&gt; b -&gt; b) -&gt; CombinedStatus -&gt; CombinedStatus
+$cgmapQl :: forall r r'.
+(r -&gt; r' -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; CombinedStatus -&gt; r
+gmapQl :: forall r r'.
+(r -&gt; r' -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; CombinedStatus -&gt; r
+$cgmapQr :: forall r r'.
+(r' -&gt; r -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; CombinedStatus -&gt; r
+gmapQr :: forall r r'.
+(r' -&gt; r -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; CombinedStatus -&gt; r
+$cgmapQ :: forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; CombinedStatus -&gt; [u]
+gmapQ :: forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; CombinedStatus -&gt; [u]
+$cgmapQi :: forall u.
+Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; CombinedStatus -&gt; u
+gmapQi :: forall u.
+Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; CombinedStatus -&gt; u
+$cgmapM :: forall (m :: * -&gt; *).
+Monad m =&gt;
+(forall d. Data d =&gt; d -&gt; m d)
+-&gt; CombinedStatus -&gt; m CombinedStatus
+gmapM :: forall (m :: * -&gt; *).
+Monad m =&gt;
+(forall d. Data d =&gt; d -&gt; m d)
+-&gt; CombinedStatus -&gt; m CombinedStatus
+$cgmapMp :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d)
+-&gt; CombinedStatus -&gt; m CombinedStatus
+gmapMp :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d)
+-&gt; CombinedStatus -&gt; m CombinedStatus
+$cgmapMo :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d)
+-&gt; CombinedStatus -&gt; m CombinedStatus
+gmapMo :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d)
+-&gt; CombinedStatus -&gt; m CombinedStatus
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Data</span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679507608"><span id="local-6989586621679507621"><span class="annot"><span class="annottext">CombinedStatus -&gt; CombinedStatus -&gt; Bool
+(CombinedStatus -&gt; CombinedStatus -&gt; Bool)
+-&gt; (CombinedStatus -&gt; CombinedStatus -&gt; Bool) -&gt; Eq CombinedStatus
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: CombinedStatus -&gt; CombinedStatus -&gt; Bool
+== :: CombinedStatus -&gt; CombinedStatus -&gt; Bool
+$c/= :: CombinedStatus -&gt; CombinedStatus -&gt; Bool
+/= :: CombinedStatus -&gt; CombinedStatus -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679507627"><span id="local-6989586621679507640"><span id="local-6989586621679507650"><span id="local-6989586621679507654"><span id="local-6989586621679507657"><span id="local-6989586621679507660"><span id="local-6989586621679507663"><span class="annot"><span class="annottext">Eq CombinedStatus
+Eq CombinedStatus =&gt;
+(CombinedStatus -&gt; CombinedStatus -&gt; Ordering)
+-&gt; (CombinedStatus -&gt; CombinedStatus -&gt; Bool)
+-&gt; (CombinedStatus -&gt; CombinedStatus -&gt; Bool)
+-&gt; (CombinedStatus -&gt; CombinedStatus -&gt; Bool)
+-&gt; (CombinedStatus -&gt; CombinedStatus -&gt; Bool)
+-&gt; (CombinedStatus -&gt; CombinedStatus -&gt; CombinedStatus)
+-&gt; (CombinedStatus -&gt; CombinedStatus -&gt; CombinedStatus)
+-&gt; Ord CombinedStatus
+CombinedStatus -&gt; CombinedStatus -&gt; Bool
+CombinedStatus -&gt; CombinedStatus -&gt; Ordering
+CombinedStatus -&gt; CombinedStatus -&gt; CombinedStatus
+forall a.
+Eq a =&gt;
+(a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+$ccompare :: CombinedStatus -&gt; CombinedStatus -&gt; Ordering
+compare :: CombinedStatus -&gt; CombinedStatus -&gt; Ordering
+$c&lt; :: CombinedStatus -&gt; CombinedStatus -&gt; Bool
+&lt; :: CombinedStatus -&gt; CombinedStatus -&gt; Bool
+$c&lt;= :: CombinedStatus -&gt; CombinedStatus -&gt; Bool
+&lt;= :: CombinedStatus -&gt; CombinedStatus -&gt; Bool
+$c&gt; :: CombinedStatus -&gt; CombinedStatus -&gt; Bool
+&gt; :: CombinedStatus -&gt; CombinedStatus -&gt; Bool
+$c&gt;= :: CombinedStatus -&gt; CombinedStatus -&gt; Bool
+&gt;= :: CombinedStatus -&gt; CombinedStatus -&gt; Bool
+$cmax :: CombinedStatus -&gt; CombinedStatus -&gt; CombinedStatus
+max :: CombinedStatus -&gt; CombinedStatus -&gt; CombinedStatus
+$cmin :: CombinedStatus -&gt; CombinedStatus -&gt; CombinedStatus
+min :: CombinedStatus -&gt; CombinedStatus -&gt; CombinedStatus
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679507666"><span id="local-6989586621679507668"><span class="annot"><span class="annottext">(forall x. CombinedStatus -&gt; Rep CombinedStatus x)
+-&gt; (forall x. Rep CombinedStatus x -&gt; CombinedStatus)
+-&gt; Generic CombinedStatus
+forall x. Rep CombinedStatus x -&gt; CombinedStatus
+forall x. CombinedStatus -&gt; Rep CombinedStatus x
+forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+$cfrom :: forall x. CombinedStatus -&gt; Rep CombinedStatus x
+from :: forall x. CombinedStatus -&gt; Rep CombinedStatus x
+$cto :: forall x. Rep CombinedStatus x -&gt; CombinedStatus
+to :: forall x. Rep CombinedStatus x -&gt; CombinedStatus
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Generic</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-101"></span><span>
+</span><span id="line-102"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679507672"><span id="local-6989586621679507676"><span class="annot"><span class="hs-identifier hs-type">FromJSON</span></span><span> </span><span class="annot"><a href="GitHub.Data.Statuses.html#CombinedStatus"><span class="hs-identifier hs-type">CombinedStatus</span></a></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-103"></span><span>    </span><span id="local-6989586621679507704"><span class="annot"><span class="annottext">parseJSON :: Value -&gt; Parser CombinedStatus
+</span><span class="hs-identifier hs-var hs-var hs-var">parseJSON</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+-&gt; (Object -&gt; Parser CombinedStatus)
+-&gt; Value
+-&gt; Parser CombinedStatus
+forall a. String -&gt; (Object -&gt; Parser a) -&gt; Value -&gt; Parser a
+</span><span class="hs-identifier hs-var">withObject</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;CombinedStatus&quot;</span></span><span> </span><span class="annot"><span class="annottext">((Object -&gt; Parser CombinedStatus)
+ -&gt; Value -&gt; Parser CombinedStatus)
+-&gt; (Object -&gt; Parser CombinedStatus)
+-&gt; Value
+-&gt; Parser CombinedStatus
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679507705"><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679507705"><span class="hs-identifier hs-var">o</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">StatusState
+-&gt; Name Commit
+-&gt; Int
+-&gt; Vector Status
+-&gt; RepoRef
+-&gt; URL
+-&gt; URL
+-&gt; CombinedStatus
+</span><a href="GitHub.Data.Statuses.html#CombinedStatus"><span class="hs-identifier hs-var">CombinedStatus</span></a></span><span>
+</span><span id="line-104"></span><span>        </span><span class="annot"><span class="annottext">(StatusState
+ -&gt; Name Commit
+ -&gt; Int
+ -&gt; Vector Status
+ -&gt; RepoRef
+ -&gt; URL
+ -&gt; URL
+ -&gt; CombinedStatus)
+-&gt; Parser StatusState
+-&gt; Parser
+     (Name Commit
+      -&gt; Int -&gt; Vector Status -&gt; RepoRef -&gt; URL -&gt; URL -&gt; CombinedStatus)
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679507705"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser StatusState
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">.:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;state&quot;</span></span><span>
+</span><span id="line-105"></span><span>        </span><span class="annot"><span class="annottext">Parser
+  (Name Commit
+   -&gt; Int -&gt; Vector Status -&gt; RepoRef -&gt; URL -&gt; URL -&gt; CombinedStatus)
+-&gt; Parser (Name Commit)
+-&gt; Parser
+     (Int -&gt; Vector Status -&gt; RepoRef -&gt; URL -&gt; URL -&gt; CombinedStatus)
+forall a b. Parser (a -&gt; b) -&gt; Parser a -&gt; Parser b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679507705"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser (Name Commit)
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">.:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;sha&quot;</span></span><span>
+</span><span id="line-106"></span><span>        </span><span class="annot"><span class="annottext">Parser
+  (Int -&gt; Vector Status -&gt; RepoRef -&gt; URL -&gt; URL -&gt; CombinedStatus)
+-&gt; Parser Int
+-&gt; Parser
+     (Vector Status -&gt; RepoRef -&gt; URL -&gt; URL -&gt; CombinedStatus)
+forall a b. Parser (a -&gt; b) -&gt; Parser a -&gt; Parser b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679507705"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser Int
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">.:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;total_count&quot;</span></span><span>
+</span><span id="line-107"></span><span>        </span><span class="annot"><span class="annottext">Parser (Vector Status -&gt; RepoRef -&gt; URL -&gt; URL -&gt; CombinedStatus)
+-&gt; Parser (Vector Status)
+-&gt; Parser (RepoRef -&gt; URL -&gt; URL -&gt; CombinedStatus)
+forall a b. Parser (a -&gt; b) -&gt; Parser a -&gt; Parser b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679507705"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser (Vector Status)
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">.:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;statuses&quot;</span></span><span>
+</span><span id="line-108"></span><span>        </span><span class="annot"><span class="annottext">Parser (RepoRef -&gt; URL -&gt; URL -&gt; CombinedStatus)
+-&gt; Parser RepoRef -&gt; Parser (URL -&gt; URL -&gt; CombinedStatus)
+forall a b. Parser (a -&gt; b) -&gt; Parser a -&gt; Parser b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679507705"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser RepoRef
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">.:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;repository&quot;</span></span><span>
+</span><span id="line-109"></span><span>        </span><span class="annot"><span class="annottext">Parser (URL -&gt; URL -&gt; CombinedStatus)
+-&gt; Parser URL -&gt; Parser (URL -&gt; CombinedStatus)
+forall a b. Parser (a -&gt; b) -&gt; Parser a -&gt; Parser b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679507705"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser URL
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">.:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;commit_url&quot;</span></span><span>
+</span><span id="line-110"></span><span>        </span><span class="annot"><span class="annottext">Parser (URL -&gt; CombinedStatus)
+-&gt; Parser URL -&gt; Parser CombinedStatus
+forall a b. Parser (a -&gt; b) -&gt; Parser a -&gt; Parser b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679507705"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser URL
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">.:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;url&quot;</span></span><span>
+</span><span id="line-111"></span></pre></body></html>

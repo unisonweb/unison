@@ -1,0 +1,88 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE Safe #-}</span><span>
+</span><span id="line-2"></span><span>
+</span><span id="line-3"></span><span class="hs-comment">-- |</span><span>
+</span><span id="line-4"></span><span class="hs-comment">--</span><span>
+</span><span id="line-5"></span><span class="hs-comment">-- Module      :  Data.Typeable</span><span>
+</span><span id="line-6"></span><span class="hs-comment">-- Copyright   :  (c) The University of Glasgow, CWI 2001--2004</span><span>
+</span><span id="line-7"></span><span class="hs-comment">-- License     :  BSD-style (see the file libraries/base/LICENSE)</span><span>
+</span><span id="line-8"></span><span class="hs-comment">--</span><span>
+</span><span id="line-9"></span><span class="hs-comment">-- Maintainer  :  libraries@haskell.org</span><span>
+</span><span id="line-10"></span><span class="hs-comment">-- Stability   :  stable</span><span>
+</span><span id="line-11"></span><span class="hs-comment">-- Portability :  portable</span><span>
+</span><span id="line-12"></span><span class="hs-comment">--</span><span>
+</span><span id="line-13"></span><span class="hs-comment">-- The 'Typeable' class reifies types to some extent by associating type</span><span>
+</span><span id="line-14"></span><span class="hs-comment">-- representations to types. These type representations can be compared,</span><span>
+</span><span id="line-15"></span><span class="hs-comment">-- and one can in turn define a type-safe cast operation. To this end,</span><span>
+</span><span id="line-16"></span><span class="hs-comment">-- an unsafe cast is guarded by a test for type (representation)</span><span>
+</span><span id="line-17"></span><span class="hs-comment">-- equivalence. The module &quot;Data.Dynamic&quot; uses Typeable for an</span><span>
+</span><span id="line-18"></span><span class="hs-comment">-- implementation of dynamics. The module &quot;Data.Data&quot; uses Typeable</span><span>
+</span><span id="line-19"></span><span class="hs-comment">-- and type-safe cast (but not dynamics) to support the \&quot;Scrap your</span><span>
+</span><span id="line-20"></span><span class="hs-comment">-- boilerplate\&quot; style of generic programming.</span><span>
+</span><span id="line-21"></span><span class="hs-comment">--</span><span>
+</span><span id="line-22"></span><span class="hs-comment">-- == Compatibility Notes</span><span>
+</span><span id="line-23"></span><span class="hs-comment">--</span><span>
+</span><span id="line-24"></span><span class="hs-comment">-- Since GHC 8.2, GHC has supported type-indexed type representations.</span><span>
+</span><span id="line-25"></span><span class="hs-comment">-- &quot;Data.Typeable&quot; provides type representations which are qualified over this</span><span>
+</span><span id="line-26"></span><span class="hs-comment">-- index, providing an interface very similar to the &quot;Typeable&quot; notion seen in</span><span>
+</span><span id="line-27"></span><span class="hs-comment">-- previous releases. For the type-indexed interface, see &quot;Type.Reflection&quot;.</span><span>
+</span><span id="line-28"></span><span class="hs-comment">--</span><span>
+</span><span id="line-29"></span><span class="hs-comment">-- Since GHC 7.10, all types automatically have 'Typeable' instances derived.</span><span>
+</span><span id="line-30"></span><span class="hs-comment">-- This is in contrast to previous releases where 'Typeable' had to be</span><span>
+</span><span id="line-31"></span><span class="hs-comment">-- explicitly derived using the @DeriveDataTypeable@ language extension.</span><span>
+</span><span id="line-32"></span><span class="hs-comment">--</span><span>
+</span><span id="line-33"></span><span class="hs-comment">-- Since GHC 7.8, 'Typeable' is poly-kinded. The changes required for this might</span><span>
+</span><span id="line-34"></span><span class="hs-comment">-- break some old programs involving 'Typeable'. More details on this, including</span><span>
+</span><span id="line-35"></span><span class="hs-comment">-- how to fix your code, can be found on the</span><span>
+</span><span id="line-36"></span><span class="hs-comment">-- &lt;https://gitlab.haskell.org/ghc/ghc/wikis/ghc-kinds/poly-typeable PolyTypeable wiki page&gt;</span><span>
+</span><span id="line-37"></span><span class="hs-comment">--</span><span>
+</span><span id="line-38"></span><span>
+</span><span id="line-39"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Data.Typeable.html"><span class="hs-identifier">Data.Typeable</span></a></span><span>
+</span><span id="line-40"></span><span>    </span><span class="hs-special">(</span><span class="annot"><span class="hs-comment">-- *  The Typeable class</span></span><span>
+</span><span id="line-41"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Data.Typeable.Internal.html#Typeable"><span class="hs-identifier">Typeable</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-42"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Data.Typeable.html#typeOf"><span class="hs-identifier">typeOf</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-43"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Data.Typeable.html#typeRep"><span class="hs-identifier">typeRep</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-44"></span><span>     </span><span class="annot"><span class="hs-comment">-- *  Propositional equality</span></span><span>
+</span><span id="line-45"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Data.Type.Equality.html#%3A~%3A"><span class="hs-operator">(:~:)</span></a></span><span class="hs-special">(</span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Data.Type.Equality.html#Refl"><span class="hs-identifier">Refl</span></a></span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-46"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Data.Type.Equality.html#%3A~~%3A"><span class="hs-operator">(:~~:)</span></a></span><span class="hs-special">(</span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Data.Type.Equality.html#HRefl"><span class="hs-identifier">HRefl</span></a></span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-47"></span><span>     </span><span class="annot"><span class="hs-comment">-- *  Type-safe cast</span></span><span>
+</span><span id="line-48"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Data.Typeable.html#cast"><span class="hs-identifier">cast</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-49"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Data.Typeable.html#eqT"><span class="hs-identifier">eqT</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-50"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Data.Typeable.html#heqT"><span class="hs-identifier">heqT</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-51"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Data.Typeable.html#decT"><span class="hs-identifier">decT</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-52"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Data.Typeable.html#hdecT"><span class="hs-identifier">hdecT</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-53"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Data.Typeable.html#gcast"><span class="hs-identifier">gcast</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-54"></span><span>     </span><span class="annot"><span class="hs-comment">-- *  Generalized casts for higher-order kinds</span></span><span>
+</span><span id="line-55"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Data.Typeable.html#gcast1"><span class="hs-identifier">gcast1</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-56"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Data.Typeable.html#gcast2"><span class="hs-identifier">gcast2</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-57"></span><span>     </span><span class="annot"><span class="hs-comment">-- *  A canonical proxy type</span></span><span>
+</span><span id="line-58"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Data.Proxy.html#Proxy"><span class="hs-identifier">Proxy</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-59"></span><span>     </span><span class="annot"><span class="hs-comment">-- *  Type representations</span></span><span>
+</span><span id="line-60"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Data.Typeable.html#TypeRep"><span class="hs-identifier">TypeRep</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-61"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Data.Typeable.html#rnfTypeRep"><span class="hs-identifier">rnfTypeRep</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-62"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Data.Typeable.html#showsTypeRep"><span class="hs-identifier">showsTypeRep</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-63"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Data.Typeable.html#mkFunTy"><span class="hs-identifier">mkFunTy</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-64"></span><span>     </span><span class="annot"><span class="hs-comment">-- *  Observing type representations</span></span><span>
+</span><span id="line-65"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Data.Typeable.html#funResultTy"><span class="hs-identifier">funResultTy</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-66"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Data.Typeable.html#splitTyConApp"><span class="hs-identifier">splitTyConApp</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-67"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Data.Typeable.html#typeRepArgs"><span class="hs-identifier">typeRepArgs</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-68"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Data.Typeable.html#typeRepTyCon"><span class="hs-identifier">typeRepTyCon</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-69"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Data.Typeable.html#typeRepFingerprint"><span class="hs-identifier">typeRepFingerprint</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-70"></span><span>     </span><span class="annot"><span class="hs-comment">-- *  Type constructors</span></span><span>
+</span><span id="line-71"></span><span>     </span><span class="annot"><a href="../../ghc-prim-0.12.0-595c/src/GHC.Types.html#TyCon"><span class="hs-identifier">TyCon</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-72"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Data.Typeable.Internal.html#tyConPackage"><span class="hs-identifier">tyConPackage</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-73"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Data.Typeable.Internal.html#tyConModule"><span class="hs-identifier">tyConModule</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-74"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Data.Typeable.Internal.html#tyConName"><span class="hs-identifier">tyConName</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-75"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Data.Typeable.Internal.html#rnfTyCon"><span class="hs-identifier">rnfTyCon</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-76"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Data.Typeable.Internal.html#tyConFingerprint"><span class="hs-identifier">tyConFingerprint</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-77"></span><span>     </span><span class="annot"><span class="hs-comment">-- *  For backwards compatibility</span></span><span>
+</span><span id="line-78"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Data.Typeable.html#typeOf1"><span class="hs-identifier">typeOf1</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-79"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Data.Typeable.html#typeOf2"><span class="hs-identifier">typeOf2</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-80"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Data.Typeable.html#typeOf3"><span class="hs-identifier">typeOf3</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-81"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Data.Typeable.html#typeOf4"><span class="hs-identifier">typeOf4</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-82"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Data.Typeable.html#typeOf5"><span class="hs-identifier">typeOf5</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-83"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Data.Typeable.html#typeOf6"><span class="hs-identifier">typeOf6</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-84"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Data.Typeable.html#typeOf7"><span class="hs-identifier">typeOf7</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-85"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Data.Typeable.Internal.html#trLiftedRep"><span class="hs-identifier">trLiftedRep</span></a></span><span>
+</span><span id="line-86"></span><span>     </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-87"></span><span>
+</span><span id="line-88"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Data.Typeable.html"><span class="hs-identifier">GHC.Internal.Data.Typeable</span></a></span></pre></body></html>

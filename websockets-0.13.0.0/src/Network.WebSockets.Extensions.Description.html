@@ -1,0 +1,239 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="annot"><span class="hs-comment">-- | Code for parsing extensions headers.</span></span><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# LANGUAGE OverloadedStrings #-}</span><span>
+</span><span id="line-3"></span><span class="hs-pragma">{-# LANGUAGE RecordWildCards   #-}</span><span>
+</span><span id="line-4"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Network.WebSockets.Extensions.Description.html"><span class="hs-identifier">Network.WebSockets.Extensions.Description</span></a></span><span>
+</span><span id="line-5"></span><span>    </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="Network.WebSockets.Extensions.Description.html#ExtensionParam"><span class="hs-identifier">ExtensionParam</span></a></span><span>
+</span><span id="line-6"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Network.WebSockets.Extensions.Description.html#ExtensionDescription"><span class="hs-identifier">ExtensionDescription</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-7"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Network.WebSockets.Extensions.Description.html#ExtensionDescriptions"><span class="hs-identifier">ExtensionDescriptions</span></a></span><span>
+</span><span id="line-8"></span><span>
+</span><span id="line-9"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Network.WebSockets.Extensions.Description.html#parseExtensionDescriptions"><span class="hs-identifier">parseExtensionDescriptions</span></a></span><span>
+</span><span id="line-10"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Network.WebSockets.Extensions.Description.html#encodeExtensionDescriptions"><span class="hs-identifier">encodeExtensionDescriptions</span></a></span><span>
+</span><span id="line-11"></span><span>    </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-12"></span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Control.Applicative</span></span><span>              </span><span class="hs-special">(</span><span class="annot"><span class="hs-operator">(*&gt;)</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-operator">(&lt;*)</span></span><span class="hs-special">)</span><span>
+</span><span id="line-14"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Attoparsec.ByteString</span></span><span>       </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">A</span></span><span>
+</span><span id="line-15"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Attoparsec.ByteString.Char8</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">AC8</span></span><span>
+</span><span id="line-16"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.ByteString</span></span><span>                  </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">B</span></span><span>
+</span><span id="line-17"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.Monoid</span></span><span>                      </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">mconcat</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">mappend</span></span><span class="hs-special">)</span><span>
+</span><span id="line-18"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Prelude</span></span><span>
+</span><span id="line-19"></span><span>
+</span><span id="line-20"></span><span class="hs-keyword">type</span><span> </span><span id="ExtensionParam"><span class="annot"><a href="Network.WebSockets.Extensions.Description.html#ExtensionParam"><span class="hs-identifier hs-var">ExtensionParam</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">B.ByteString</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">B.ByteString</span></span><span class="hs-special">)</span><span>
+</span><span id="line-21"></span><span>
+</span><span id="line-22"></span><span class="hs-keyword">data</span><span> </span><span id="ExtensionDescription"><span class="annot"><a href="Network.WebSockets.Extensions.Description.html#ExtensionDescription"><span class="hs-identifier hs-var">ExtensionDescription</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="ExtensionDescription"><span class="annot"><a href="Network.WebSockets.Extensions.Description.html#ExtensionDescription"><span class="hs-identifier hs-var">ExtensionDescription</span></a></span></span><span>
+</span><span id="line-23"></span><span>    </span><span class="hs-special">{</span><span> </span><span id="extName"><span class="annot"><span class="annottext">ExtensionDescription -&gt; ByteString
+</span><a href="Network.WebSockets.Extensions.Description.html#extName"><span class="hs-identifier hs-var hs-var">extName</span></a></span></span><span>   </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">B.ByteString</span></span><span>
+</span><span id="line-24"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="extParams"><span class="annot"><span class="annottext">ExtensionDescription -&gt; [ExtensionParam]
+</span><a href="Network.WebSockets.Extensions.Description.html#extParams"><span class="hs-identifier hs-var hs-var">extParams</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="hs-special">[</span><span class="annot"><a href="Network.WebSockets.Extensions.Description.html#ExtensionParam"><span class="hs-identifier hs-type">ExtensionParam</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-25"></span><span>    </span><span class="hs-special">}</span><span> </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679088330"><span id="local-6989586621679088337"><span class="annot"><span class="annottext">ExtensionDescription -&gt; ExtensionDescription -&gt; Bool
+(ExtensionDescription -&gt; ExtensionDescription -&gt; Bool)
+-&gt; (ExtensionDescription -&gt; ExtensionDescription -&gt; Bool)
+-&gt; Eq ExtensionDescription
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: ExtensionDescription -&gt; ExtensionDescription -&gt; Bool
+== :: ExtensionDescription -&gt; ExtensionDescription -&gt; Bool
+$c/= :: ExtensionDescription -&gt; ExtensionDescription -&gt; Bool
+/= :: ExtensionDescription -&gt; ExtensionDescription -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679088345"><span id="local-6989586621679088354"><span id="local-6989586621679088358"><span class="annot"><span class="annottext">Int -&gt; ExtensionDescription -&gt; ShowS
+[ExtensionDescription] -&gt; ShowS
+ExtensionDescription -&gt; String
+(Int -&gt; ExtensionDescription -&gt; ShowS)
+-&gt; (ExtensionDescription -&gt; String)
+-&gt; ([ExtensionDescription] -&gt; ShowS)
+-&gt; Show ExtensionDescription
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; ExtensionDescription -&gt; ShowS
+showsPrec :: Int -&gt; ExtensionDescription -&gt; ShowS
+$cshow :: ExtensionDescription -&gt; String
+show :: ExtensionDescription -&gt; String
+$cshowList :: [ExtensionDescription] -&gt; ShowS
+showList :: [ExtensionDescription] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-26"></span><span>
+</span><span id="line-27"></span><span class="annot"><a href="Network.WebSockets.Extensions.Description.html#parseExtensionDescription"><span class="hs-identifier hs-type">parseExtensionDescription</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">A.Parser</span></span><span> </span><span class="annot"><a href="Network.WebSockets.Extensions.Description.html#ExtensionDescription"><span class="hs-identifier hs-type">ExtensionDescription</span></a></span><span>
+</span><span id="line-28"></span><span id="parseExtensionDescription"><span class="annot"><span class="annottext">parseExtensionDescription :: Parser ExtensionDescription
+</span><a href="Network.WebSockets.Extensions.Description.html#parseExtensionDescription"><span class="hs-identifier hs-var hs-var">parseExtensionDescription</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-29"></span><span>    </span><span id="local-6989586621679088366"><span class="annot"><a href="#local-6989586621679088366"><span class="hs-identifier hs-var">extName</span></a></span></span><span>   </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Parser ByteString ByteString
+</span><a href="#local-6989586621679088367"><span class="hs-identifier hs-var">parseIdentifier</span></a></span><span>
+</span><span id="line-30"></span><span>    </span><span id="local-6989586621679088368"><span class="annot"><a href="#local-6989586621679088368"><span class="hs-identifier hs-var">extParams</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="hs-identifier hs-type">A.many'</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679088370"><span class="hs-identifier hs-type">token</span></a></span><span> </span><span class="annot"><span class="hs-char">';'</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">*&gt;</span></span><span> </span><span class="annot"><a href="#local-6989586621679088371"><span class="hs-identifier hs-type">parseParam</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-31"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">return</span></span><span> </span><span class="annot"><a href="Network.WebSockets.Extensions.Description.html#ExtensionDescription"><span class="hs-identifier hs-type">ExtensionDescription</span></a></span><span> </span><span class="hs-special">{</span><span class="annot"><a href="Network.WebSockets.Extensions.Description.html#extName"><span class="hs-glyph hs-var hs-var hs-type hs-type">..</span></a></span><span class="hs-special">}</span><span>
+</span><span id="line-32"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-33"></span><span>    </span><span id="local-6989586621679088367"><span class="annot"><span class="annottext">parseIdentifier :: Parser ByteString ByteString
+</span><a href="#local-6989586621679088367"><span class="hs-identifier hs-var hs-var">parseIdentifier</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Char -&gt; Bool) -&gt; Parser ByteString ByteString
+</span><span class="hs-identifier hs-var">AC8.takeWhile</span></span><span> </span><span class="annot"><span class="annottext">Char -&gt; Bool
+</span><a href="#local-6989586621679088374"><span class="hs-identifier hs-var">isIdentifierChar</span></a></span><span> </span><span class="annot"><span class="annottext">Parser ByteString ByteString
+-&gt; Parser ByteString () -&gt; Parser ByteString ByteString
+forall a b.
+Parser ByteString a -&gt; Parser ByteString b -&gt; Parser ByteString a
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f a -&gt; f b -&gt; f a
+</span><span class="hs-operator hs-var">&lt;*</span></span><span> </span><span class="annot"><span class="annottext">Parser ByteString ()
+</span><span class="hs-identifier hs-var">AC8.skipSpace</span></span><span>
+</span><span id="line-34"></span><span>
+</span><span id="line-35"></span><span>    </span><span id="local-6989586621679088370"><span class="annot"><span class="annottext">token :: Char -&gt; Parser ByteString Word8
+</span><a href="#local-6989586621679088370"><span class="hs-identifier hs-var hs-var">token</span></a></span></span><span> </span><span id="local-6989586621679088377"><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621679088377"><span class="hs-identifier hs-var">c</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Char -&gt; Parser ByteString Word8
+</span><span class="hs-identifier hs-var">AC8.char8</span></span><span> </span><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621679088377"><span class="hs-identifier hs-var">c</span></a></span><span> </span><span class="annot"><span class="annottext">Parser ByteString Word8
+-&gt; Parser ByteString () -&gt; Parser ByteString Word8
+forall a b.
+Parser ByteString a -&gt; Parser ByteString b -&gt; Parser ByteString a
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f a -&gt; f b -&gt; f a
+</span><span class="hs-operator hs-var">&lt;*</span></span><span> </span><span class="annot"><span class="annottext">Parser ByteString ()
+</span><span class="hs-identifier hs-var">AC8.skipSpace</span></span><span>
+</span><span id="line-36"></span><span>
+</span><span id="line-37"></span><span>    </span><span id="local-6989586621679088374"><span class="annot"><span class="annottext">isIdentifierChar :: Char -&gt; Bool
+</span><a href="#local-6989586621679088374"><span class="hs-identifier hs-var hs-var">isIdentifierChar</span></a></span></span><span> </span><span id="local-6989586621679088389"><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621679088389"><span class="hs-identifier hs-var">c</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-38"></span><span>        </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621679088389"><span class="hs-identifier hs-var">c</span></a></span><span> </span><span class="annot"><span class="annottext">Char -&gt; Char -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&gt;=</span></span><span> </span><span class="annot"><span class="annottext">Char
+</span><span class="hs-char">'a'</span></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">&amp;&amp;</span></span><span> </span><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621679088389"><span class="hs-identifier hs-var">c</span></a></span><span> </span><span class="annot"><span class="annottext">Char -&gt; Char -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&lt;=</span></span><span> </span><span class="annot"><span class="annottext">Char
+</span><span class="hs-char">'z'</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">||</span></span><span>
+</span><span id="line-39"></span><span>        </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621679088389"><span class="hs-identifier hs-var">c</span></a></span><span> </span><span class="annot"><span class="annottext">Char -&gt; Char -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&gt;=</span></span><span> </span><span class="annot"><span class="annottext">Char
+</span><span class="hs-char">'A'</span></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">&amp;&amp;</span></span><span> </span><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621679088389"><span class="hs-identifier hs-var">c</span></a></span><span> </span><span class="annot"><span class="annottext">Char -&gt; Char -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&lt;=</span></span><span> </span><span class="annot"><span class="annottext">Char
+</span><span class="hs-char">'Z'</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">||</span></span><span>
+</span><span id="line-40"></span><span>        </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621679088389"><span class="hs-identifier hs-var">c</span></a></span><span> </span><span class="annot"><span class="annottext">Char -&gt; Char -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&gt;=</span></span><span> </span><span class="annot"><span class="annottext">Char
+</span><span class="hs-char">'0'</span></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">&amp;&amp;</span></span><span> </span><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621679088389"><span class="hs-identifier hs-var">c</span></a></span><span> </span><span class="annot"><span class="annottext">Char -&gt; Char -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&lt;=</span></span><span> </span><span class="annot"><span class="annottext">Char
+</span><span class="hs-char">'9'</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">||</span></span><span>
+</span><span id="line-41"></span><span>        </span><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621679088389"><span class="hs-identifier hs-var">c</span></a></span><span> </span><span class="annot"><span class="annottext">Char -&gt; Char -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">Char
+</span><span class="hs-char">'-'</span></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">||</span></span><span> </span><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621679088389"><span class="hs-identifier hs-var">c</span></a></span><span> </span><span class="annot"><span class="annottext">Char -&gt; Char -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">Char
+</span><span class="hs-char">'_'</span></span><span>
+</span><span id="line-42"></span><span>
+</span><span id="line-43"></span><span>    </span><span class="annot"><a href="#local-6989586621679088371"><span class="hs-identifier hs-type">parseParam</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">A.Parser</span></span><span> </span><span class="annot"><a href="Network.WebSockets.Extensions.Description.html#ExtensionParam"><span class="hs-identifier hs-type">ExtensionParam</span></a></span><span>
+</span><span id="line-44"></span><span>    </span><span id="local-6989586621679088371"><span class="annot"><span class="annottext">parseParam :: Parser ByteString ExtensionParam
+</span><a href="#local-6989586621679088371"><span class="hs-identifier hs-var hs-var">parseParam</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-45"></span><span>        </span><span id="local-6989586621679088393"><span class="annot"><a href="#local-6989586621679088393"><span class="hs-identifier hs-var">name</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Parser ByteString ByteString
+</span><a href="#local-6989586621679088367"><span class="hs-identifier hs-var">parseIdentifier</span></a></span><span>
+</span><span id="line-46"></span><span>        </span><span id="local-6989586621679088394"><span class="annot"><a href="#local-6989586621679088394"><span class="hs-identifier hs-var">val</span></a></span></span><span>  </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="hs-identifier hs-type">A.option</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Nothing</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">$</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">fmap</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">$</span></span><span> </span><span class="annot"><a href="#local-6989586621679088370"><span class="hs-identifier hs-type">token</span></a></span><span> </span><span class="annot"><span class="hs-char">'='</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">*&gt;</span></span><span> </span><span class="annot"><a href="#local-6989586621679088367"><span class="hs-identifier hs-type">parseIdentifier</span></a></span><span>
+</span><span id="line-47"></span><span>        </span><span class="annot"><span class="hs-identifier hs-type">return</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679088393"><span class="hs-identifier hs-type">name</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679088394"><span class="hs-identifier hs-type">val</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-48"></span><span>
+</span><span id="line-49"></span><span class="annot"><a href="Network.WebSockets.Extensions.Description.html#encodeExtensionDescription"><span class="hs-identifier hs-type">encodeExtensionDescription</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Network.WebSockets.Extensions.Description.html#ExtensionDescription"><span class="hs-identifier hs-type">ExtensionDescription</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">B.ByteString</span></span><span>
+</span><span id="line-50"></span><span id="encodeExtensionDescription"><span class="annot"><span class="annottext">encodeExtensionDescription :: ExtensionDescription -&gt; ByteString
+</span><a href="Network.WebSockets.Extensions.Description.html#encodeExtensionDescription"><span class="hs-identifier hs-var hs-var">encodeExtensionDescription</span></a></span></span><span> </span><span class="annot"><a href="Network.WebSockets.Extensions.Description.html#ExtensionDescription"><span class="hs-identifier hs-type">ExtensionDescription</span></a></span><span> </span><span class="hs-special">{</span><span id="local-6989586621679088397"><span id="local-6989586621679088398"><span class="annot"><span class="annottext">[ExtensionParam]
+ByteString
+extName :: ExtensionDescription -&gt; ByteString
+extParams :: ExtensionDescription -&gt; [ExtensionParam]
+extName :: ByteString
+extParams :: [ExtensionParam]
+</span><a href="Network.WebSockets.Extensions.Description.html#extName"><span class="hs-glyph hs-var hs-var hs-var hs-var">..</span></a></span></span></span><span class="hs-special">}</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-51"></span><span>    </span><span class="annot"><span class="annottext">[ByteString] -&gt; ByteString
+forall a. Monoid a =&gt; [a] -&gt; a
+</span><span class="hs-identifier hs-var">mconcat</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679088397"><span class="hs-identifier hs-var">extName</span></a></span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; [ByteString] -&gt; [ByteString]
+forall a. a -&gt; [a] -&gt; [a]
+</span><span class="hs-glyph hs-var">:</span></span><span> </span><span class="annot"><span class="annottext">(ExtensionParam -&gt; ByteString) -&gt; [ExtensionParam] -&gt; [ByteString]
+forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+</span><span class="hs-identifier hs-var">map</span></span><span> </span><span class="annot"><span class="annottext">ExtensionParam -&gt; ByteString
+forall {a}. (Monoid a, IsString a) =&gt; (a, Maybe a) -&gt; a
+</span><a href="#local-6989586621679088399"><span class="hs-identifier hs-var">encodeParam</span></a></span><span> </span><span class="annot"><span class="annottext">[ExtensionParam]
+</span><a href="#local-6989586621679088398"><span class="hs-identifier hs-var">extParams</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-52"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-53"></span><span>    </span><span id="local-6989586621679088399"><span class="annot"><span class="annottext">encodeParam :: (a, Maybe a) -&gt; a
+</span><a href="#local-6989586621679088399"><span class="hs-identifier hs-var hs-var">encodeParam</span></a></span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679088412"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679088412"><span class="hs-identifier hs-var">key</span></a></span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span class="hs-special">)</span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">a
+</span><span class="hs-string">&quot;;&quot;</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; a -&gt; a
+forall a. Monoid a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">`mappend`</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679088412"><span class="hs-identifier hs-var">key</span></a></span><span>
+</span><span id="line-54"></span><span>    </span><span class="annot"><a href="#local-6989586621679088399"><span class="hs-identifier hs-var">encodeParam</span></a></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679088413"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679088413"><span class="hs-identifier hs-var">key</span></a></span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621679088414"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679088414"><span class="hs-identifier hs-var">val</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">a
+</span><span class="hs-string">&quot;;&quot;</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; a -&gt; a
+forall a. Monoid a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">`mappend`</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679088413"><span class="hs-identifier hs-var">key</span></a></span><span> </span><span class="annot"><span class="annottext">a -&gt; a -&gt; a
+forall a. Monoid a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">`mappend`</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><span class="hs-string">&quot;=&quot;</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; a -&gt; a
+forall a. Monoid a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">`mappend`</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679088414"><span class="hs-identifier hs-var">val</span></a></span><span>
+</span><span id="line-55"></span><span>
+</span><span id="line-56"></span><span class="hs-keyword">type</span><span> </span><span id="ExtensionDescriptions"><span class="annot"><a href="Network.WebSockets.Extensions.Description.html#ExtensionDescriptions"><span class="hs-identifier hs-var">ExtensionDescriptions</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Network.WebSockets.Extensions.Description.html#ExtensionDescription"><span class="hs-identifier hs-type">ExtensionDescription</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-57"></span><span>
+</span><span id="line-58"></span><span class="annot"><a href="Network.WebSockets.Extensions.Description.html#parseExtensionDescriptions"><span class="hs-identifier hs-type">parseExtensionDescriptions</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">B.ByteString</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Either</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="annot"><a href="Network.WebSockets.Extensions.Description.html#ExtensionDescriptions"><span class="hs-identifier hs-type">ExtensionDescriptions</span></a></span><span>
+</span><span id="line-59"></span><span id="parseExtensionDescriptions"><span class="annot"><span class="annottext">parseExtensionDescriptions :: ByteString -&gt; Either String [ExtensionDescription]
+</span><a href="Network.WebSockets.Extensions.Description.html#parseExtensionDescriptions"><span class="hs-identifier hs-var hs-var">parseExtensionDescriptions</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Parser [ExtensionDescription]
+-&gt; ByteString -&gt; Either String [ExtensionDescription]
+forall a. Parser a -&gt; ByteString -&gt; Either String a
+</span><span class="hs-identifier hs-var">A.parseOnly</span></span><span> </span><span class="annot"><span class="annottext">(Parser [ExtensionDescription]
+ -&gt; ByteString -&gt; Either String [ExtensionDescription])
+-&gt; Parser [ExtensionDescription]
+-&gt; ByteString
+-&gt; Either String [ExtensionDescription]
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-60"></span><span>    </span><span class="annot"><span class="annottext">Parser ByteString ()
+</span><span class="hs-identifier hs-var">AC8.skipSpace</span></span><span> </span><span class="annot"><span class="annottext">Parser ByteString ()
+-&gt; Parser [ExtensionDescription] -&gt; Parser [ExtensionDescription]
+forall a b.
+Parser ByteString a -&gt; Parser ByteString b -&gt; Parser ByteString b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f a -&gt; f b -&gt; f b
+</span><span class="hs-operator hs-var">*&gt;</span></span><span>
+</span><span id="line-61"></span><span>    </span><span class="annot"><span class="annottext">Parser ExtensionDescription
+-&gt; Parser ByteString Word8 -&gt; Parser [ExtensionDescription]
+forall (f :: * -&gt; *) a s. Alternative f =&gt; f a -&gt; f s -&gt; f [a]
+</span><span class="hs-identifier hs-var">A.sepBy</span></span><span> </span><span class="annot"><span class="annottext">Parser ExtensionDescription
+</span><a href="Network.WebSockets.Extensions.Description.html#parseExtensionDescription"><span class="hs-identifier hs-var">parseExtensionDescription</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Char -&gt; Parser ByteString Word8
+</span><span class="hs-identifier hs-var">AC8.char8</span></span><span> </span><span class="annot"><span class="annottext">Char
+</span><span class="hs-char">','</span></span><span> </span><span class="annot"><span class="annottext">Parser ByteString Word8
+-&gt; Parser ByteString () -&gt; Parser ByteString Word8
+forall a b.
+Parser ByteString a -&gt; Parser ByteString b -&gt; Parser ByteString a
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f a -&gt; f b -&gt; f a
+</span><span class="hs-operator hs-var">&lt;*</span></span><span> </span><span class="annot"><span class="annottext">Parser ByteString ()
+</span><span class="hs-identifier hs-var">AC8.skipSpace</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Parser [ExtensionDescription]
+-&gt; Parser ByteString () -&gt; Parser [ExtensionDescription]
+forall a b.
+Parser ByteString a -&gt; Parser ByteString b -&gt; Parser ByteString a
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f a -&gt; f b -&gt; f a
+</span><span class="hs-operator hs-var">&lt;*</span></span><span>
+</span><span id="line-62"></span><span>    </span><span class="annot"><span class="annottext">Parser ByteString ()
+forall t. Chunk t =&gt; Parser t ()
+</span><span class="hs-identifier hs-var">A.endOfInput</span></span><span>
+</span><span id="line-63"></span><span>
+</span><span id="line-64"></span><span class="annot"><a href="Network.WebSockets.Extensions.Description.html#encodeExtensionDescriptions"><span class="hs-identifier hs-type">encodeExtensionDescriptions</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Network.WebSockets.Extensions.Description.html#ExtensionDescriptions"><span class="hs-identifier hs-type">ExtensionDescriptions</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">B.ByteString</span></span><span>
+</span><span id="line-65"></span><span id="encodeExtensionDescriptions"><span class="annot"><span class="annottext">encodeExtensionDescriptions :: [ExtensionDescription] -&gt; ByteString
+</span><a href="Network.WebSockets.Extensions.Description.html#encodeExtensionDescriptions"><span class="hs-identifier hs-var hs-var">encodeExtensionDescriptions</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; [ByteString] -&gt; ByteString
+</span><span class="hs-identifier hs-var">B.intercalate</span></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><span class="hs-string">&quot;,&quot;</span></span><span> </span><span class="annot"><span class="annottext">([ByteString] -&gt; ByteString)
+-&gt; ([ExtensionDescription] -&gt; [ByteString])
+-&gt; [ExtensionDescription]
+-&gt; ByteString
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">(ExtensionDescription -&gt; ByteString)
+-&gt; [ExtensionDescription] -&gt; [ByteString]
+forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+</span><span class="hs-identifier hs-var">map</span></span><span> </span><span class="annot"><span class="annottext">ExtensionDescription -&gt; ByteString
+</span><a href="Network.WebSockets.Extensions.Description.html#encodeExtensionDescription"><span class="hs-identifier hs-var">encodeExtensionDescription</span></a></span><span>
+</span><span id="line-66"></span></pre></body></html>

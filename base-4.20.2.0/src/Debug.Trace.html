@@ -1,0 +1,96 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-comment">-- |</span><span>
+</span><span id="line-2"></span><span class="hs-comment">--</span><span>
+</span><span id="line-3"></span><span class="hs-comment">-- Module      :  Debug.Trace</span><span>
+</span><span id="line-4"></span><span class="hs-comment">-- Copyright   :  (c) The University of Glasgow 2001</span><span>
+</span><span id="line-5"></span><span class="hs-comment">-- License     :  BSD-style (see the file libraries/base/LICENSE)</span><span>
+</span><span id="line-6"></span><span class="hs-comment">--</span><span>
+</span><span id="line-7"></span><span class="hs-comment">-- Maintainer  :  libraries@haskell.org</span><span>
+</span><span id="line-8"></span><span class="hs-comment">-- Stability   :  provisional</span><span>
+</span><span id="line-9"></span><span class="hs-comment">-- Portability :  portable</span><span>
+</span><span id="line-10"></span><span class="hs-comment">--</span><span>
+</span><span id="line-11"></span><span class="hs-comment">-- Functions for tracing and monitoring execution.</span><span>
+</span><span id="line-12"></span><span class="hs-comment">--</span><span>
+</span><span id="line-13"></span><span class="hs-comment">-- These can be useful for investigating bugs or performance problems.</span><span>
+</span><span id="line-14"></span><span class="hs-comment">-- They should /not/ be used in production code.</span><span>
+</span><span id="line-15"></span><span class="hs-comment">--</span><span>
+</span><span id="line-16"></span><span>
+</span><span id="line-17"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Debug.Trace.html"><span class="hs-identifier">Debug.Trace</span></a></span><span>
+</span><span id="line-18"></span><span>    </span><span class="hs-special">(</span><span class="annot"><span class="hs-comment">-- * Tracing</span></span><span>
+</span><span id="line-19"></span><span>     </span><span class="annot"><span class="hs-comment">-- $tracing</span></span><span>
+</span><span id="line-20"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Debug.Trace.html#trace"><span class="hs-identifier">trace</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-21"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Debug.Trace.html#traceId"><span class="hs-identifier">traceId</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-22"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Debug.Trace.html#traceShow"><span class="hs-identifier">traceShow</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-23"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Debug.Trace.html#traceShowId"><span class="hs-identifier">traceShowId</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-24"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Debug.Trace.html#traceWith"><span class="hs-identifier">traceWith</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-25"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Debug.Trace.html#traceShowWith"><span class="hs-identifier">traceShowWith</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-26"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Debug.Trace.html#traceStack"><span class="hs-identifier">traceStack</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-27"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Debug.Trace.html#traceIO"><span class="hs-identifier">traceIO</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-28"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Debug.Trace.html#traceM"><span class="hs-identifier">traceM</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-29"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Debug.Trace.html#traceShowM"><span class="hs-identifier">traceShowM</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-30"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Debug.Trace.html#putTraceMsg"><span class="hs-identifier">putTraceMsg</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-31"></span><span>
+</span><span id="line-32"></span><span>     </span><span class="annot"><span class="hs-comment">-- * Eventlog tracing</span></span><span>
+</span><span id="line-33"></span><span>     </span><span class="annot"><span class="hs-comment">-- $eventlog_tracing</span></span><span>
+</span><span id="line-34"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Debug.Trace.html#traceEvent"><span class="hs-identifier">traceEvent</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-35"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Debug.Trace.html#traceEventWith"><span class="hs-identifier">traceEventWith</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-36"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Debug.Trace.html#traceEventIO"><span class="hs-identifier">traceEventIO</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-37"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Debug.Trace.html#flushEventLog"><span class="hs-identifier">flushEventLog</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-38"></span><span>
+</span><span id="line-39"></span><span>     </span><span class="annot"><span class="hs-comment">-- * Execution phase markers</span></span><span>
+</span><span id="line-40"></span><span>     </span><span class="annot"><span class="hs-comment">-- $markers</span></span><span>
+</span><span id="line-41"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Debug.Trace.html#traceMarker"><span class="hs-identifier">traceMarker</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-42"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Debug.Trace.html#traceMarkerIO"><span class="hs-identifier">traceMarkerIO</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-43"></span><span>     </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-44"></span><span>
+</span><span id="line-45"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Debug.Trace.html"><span class="hs-identifier">GHC.Internal.Debug.Trace</span></a></span><span>
+</span><span id="line-46"></span><span>
+</span><span id="line-47"></span><span class="hs-comment">-- $setup</span><span>
+</span><span id="line-48"></span><span class="hs-comment">-- &gt;&gt;&gt; import Prelude</span><span>
+</span><span id="line-49"></span><span>
+</span><span id="line-50"></span><span class="hs-comment">-- $tracing</span><span>
+</span><span id="line-51"></span><span class="hs-comment">--</span><span>
+</span><span id="line-52"></span><span class="hs-comment">-- The 'trace', 'traceShow' and 'traceIO' functions print messages to an output</span><span>
+</span><span id="line-53"></span><span class="hs-comment">-- stream. They are intended for \&quot;printf debugging\&quot;, that is: tracing the flow</span><span>
+</span><span id="line-54"></span><span class="hs-comment">-- of execution and printing interesting values.</span><span>
+</span><span id="line-55"></span><span class="hs-comment">--</span><span>
+</span><span id="line-56"></span><span class="hs-comment">-- All these functions evaluate the message completely before printing</span><span>
+</span><span id="line-57"></span><span class="hs-comment">-- it; so if the message is not fully defined, none of it will be</span><span>
+</span><span id="line-58"></span><span class="hs-comment">-- printed.</span><span>
+</span><span id="line-59"></span><span class="hs-comment">--</span><span>
+</span><span id="line-60"></span><span class="hs-comment">-- The usual output stream is 'GHC.Internal.System.IO.stderr'. For Windows GUI applications</span><span>
+</span><span id="line-61"></span><span class="hs-comment">-- (that have no stderr) the output is directed to the Windows debug console.</span><span>
+</span><span id="line-62"></span><span class="hs-comment">-- Some implementations of these functions may decorate the string that\'s</span><span>
+</span><span id="line-63"></span><span class="hs-comment">-- output to indicate that you\'re tracing.</span><span>
+</span><span id="line-64"></span><span>
+</span><span id="line-65"></span><span class="hs-comment">-- $eventlog_tracing</span><span>
+</span><span id="line-66"></span><span class="hs-comment">--</span><span>
+</span><span id="line-67"></span><span class="hs-comment">-- Eventlog tracing is a performance profiling system. These functions emit</span><span>
+</span><span id="line-68"></span><span class="hs-comment">-- extra events into the eventlog. In combination with eventlog profiling</span><span>
+</span><span id="line-69"></span><span class="hs-comment">-- tools these functions can be used for monitoring execution and</span><span>
+</span><span id="line-70"></span><span class="hs-comment">-- investigating performance problems.</span><span>
+</span><span id="line-71"></span><span class="hs-comment">--</span><span>
+</span><span id="line-72"></span><span class="hs-comment">-- Currently only GHC provides eventlog profiling, see the GHC user guide for</span><span>
+</span><span id="line-73"></span><span class="hs-comment">-- details on how to use it. These function exists for other Haskell</span><span>
+</span><span id="line-74"></span><span class="hs-comment">-- implementations but no events are emitted. Note that the string message is</span><span>
+</span><span id="line-75"></span><span class="hs-comment">-- always evaluated, whether or not profiling is available or enabled.</span><span>
+</span><span id="line-76"></span><span>
+</span><span id="line-77"></span><span class="hs-comment">-- $markers</span><span>
+</span><span id="line-78"></span><span class="hs-comment">--</span><span>
+</span><span id="line-79"></span><span class="hs-comment">-- When looking at a profile for the execution of a program we often want to</span><span>
+</span><span id="line-80"></span><span class="hs-comment">-- be able to mark certain points or phases in the execution and see that</span><span>
+</span><span id="line-81"></span><span class="hs-comment">-- visually in the profile.</span><span>
+</span><span id="line-82"></span><span class="hs-comment">--</span><span>
+</span><span id="line-83"></span><span class="hs-comment">-- For example, a program might have several distinct phases with different</span><span>
+</span><span id="line-84"></span><span class="hs-comment">-- performance or resource behaviour in each phase. To properly interpret the</span><span>
+</span><span id="line-85"></span><span class="hs-comment">-- profile graph we really want to see when each phase starts and ends.</span><span>
+</span><span id="line-86"></span><span class="hs-comment">--</span><span>
+</span><span id="line-87"></span><span class="hs-comment">-- Markers let us do this: we can annotate the program to emit a marker at</span><span>
+</span><span id="line-88"></span><span class="hs-comment">-- an appropriate point during execution and then see that in a profile.</span><span>
+</span><span id="line-89"></span><span class="hs-comment">--</span><span>
+</span><span id="line-90"></span><span class="hs-comment">-- Currently this feature is only supported in GHC by the eventlog tracing</span><span>
+</span><span id="line-91"></span><span class="hs-comment">-- system, but in future it may also be supported by the heap profiling or</span><span>
+</span><span id="line-92"></span><span class="hs-comment">-- other profiling tools. These function exists for other Haskell</span><span>
+</span><span id="line-93"></span><span class="hs-comment">-- implementations but they have no effect. Note that the string message is</span><span>
+</span><span id="line-94"></span><span class="hs-comment">-- always evaluated, whether or not profiling is available or enabled.</span><span>
+</span><span id="line-95"></span><span>
+</span><span id="line-96"></span></pre></body></html>

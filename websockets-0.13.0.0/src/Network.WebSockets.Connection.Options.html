@@ -1,0 +1,265 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE CPP #-}</span><span>
+</span><span id="line-2"></span><span class="hs-comment">--------------------------------------------------------------------------------</span><span>
+</span><span id="line-3"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Network.WebSockets.Connection.Options.html"><span class="hs-identifier">Network.WebSockets.Connection.Options</span></a></span><span>
+</span><span id="line-4"></span><span>    </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="Network.WebSockets.Connection.Options.html#ConnectionOptions"><span class="hs-identifier">ConnectionOptions</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-5"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Network.WebSockets.Connection.Options.html#defaultConnectionOptions"><span class="hs-identifier">defaultConnectionOptions</span></a></span><span>
+</span><span id="line-6"></span><span>
+</span><span id="line-7"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Network.WebSockets.Connection.Options.html#CompressionOptions"><span class="hs-identifier">CompressionOptions</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-8"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Network.WebSockets.Connection.Options.html#PermessageDeflate"><span class="hs-identifier">PermessageDeflate</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-9"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Network.WebSockets.Connection.Options.html#defaultPermessageDeflate"><span class="hs-identifier">defaultPermessageDeflate</span></a></span><span>
+</span><span id="line-10"></span><span>
+</span><span id="line-11"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Network.WebSockets.Connection.Options.html#SizeLimit"><span class="hs-identifier">SizeLimit</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-12"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Network.WebSockets.Connection.Options.html#atMostSizeLimit"><span class="hs-identifier">atMostSizeLimit</span></a></span><span>
+</span><span id="line-13"></span><span>    </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-14"></span><span>
+</span><span id="line-15"></span><span>
+</span><span id="line-16"></span><span class="hs-comment">--------------------------------------------------------------------------------</span><span>
+</span><span id="line-17"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.Int</span></span><span>    </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Int64</span></span><span class="hs-special">)</span><span>
+</span><span id="line-18"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.Monoid</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Monoid</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-19"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Prelude</span></span><span>
+</span><span id="line-20"></span><span>
+</span><span id="line-21"></span><span>
+</span><span id="line-22"></span><span class="hs-comment">--------------------------------------------------------------------------------</span><span>
+</span><span id="line-23"></span><span class="hs-comment">-- | Set options for a 'Connection'.  Please do not use this constructor</span><span>
+</span><span id="line-24"></span><span class="hs-comment">-- directly, but rather use 'defaultConnectionOptions' and then set the fields</span><span>
+</span><span id="line-25"></span><span class="hs-comment">-- you want, e.g.:</span><span>
+</span><span id="line-26"></span><span class="hs-comment">--</span><span>
+</span><span id="line-27"></span><span class="hs-comment">-- &gt; myOptions = defaultConnectionOptions {connectionStrictUnicode = True}</span><span>
+</span><span id="line-28"></span><span class="hs-comment">--</span><span>
+</span><span id="line-29"></span><span class="hs-comment">-- This way your code does not break if the library introduces new fields.</span><span>
+</span><span id="line-30"></span><span class="hs-keyword">data</span><span> </span><span id="ConnectionOptions"><span class="annot"><a href="Network.WebSockets.Connection.Options.html#ConnectionOptions"><span class="hs-identifier hs-var">ConnectionOptions</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="ConnectionOptions"><span class="annot"><a href="Network.WebSockets.Connection.Options.html#ConnectionOptions"><span class="hs-identifier hs-var">ConnectionOptions</span></a></span></span><span>
+</span><span id="line-31"></span><span>    </span><span class="hs-special">{</span><span> </span><span id="connectionOnPong"><span class="annot"><span class="annottext">ConnectionOptions -&gt; IO ()
+</span><a href="Network.WebSockets.Connection.Options.html#connectionOnPong"><span class="hs-identifier hs-var hs-var">connectionOnPong</span></a></span></span><span>                </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-32"></span><span>      </span><span class="hs-comment">-- ^ Whenever a 'pong' is received, this IO action is executed. It can be</span><span>
+</span><span id="line-33"></span><span>      </span><span class="hs-comment">-- used to tickle connections or fire missiles.</span><span>
+</span><span id="line-34"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="connectionTimeout"><span class="annot"><span class="annottext">ConnectionOptions -&gt; Int
+</span><a href="Network.WebSockets.Connection.Options.html#connectionTimeout"><span class="hs-identifier hs-var hs-var">connectionTimeout</span></a></span></span><span>               </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>
+</span><span id="line-35"></span><span>      </span><span class="annot"><span class="hs-comment">-- ^ Timeout for connection establishment in seconds. Only used in the client.</span></span><span>
+</span><span id="line-36"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="connectionCompressionOptions"><span class="annot"><span class="annottext">ConnectionOptions -&gt; CompressionOptions
+</span><a href="Network.WebSockets.Connection.Options.html#connectionCompressionOptions"><span class="hs-identifier hs-var hs-var">connectionCompressionOptions</span></a></span></span><span>    </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><a href="Network.WebSockets.Connection.Options.html#CompressionOptions"><span class="hs-identifier hs-type">CompressionOptions</span></a></span><span>
+</span><span id="line-37"></span><span>      </span><span class="annot"><span class="hs-comment">-- ^ Enable 'PermessageDeflate'.</span></span><span>
+</span><span id="line-38"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="connectionStrictUnicode"><span class="annot"><span class="annottext">ConnectionOptions -&gt; Bool
+</span><a href="Network.WebSockets.Connection.Options.html#connectionStrictUnicode"><span class="hs-identifier hs-var hs-var">connectionStrictUnicode</span></a></span></span><span>         </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>
+</span><span id="line-39"></span><span>      </span><span class="hs-comment">-- ^ Enable strict unicode on the connection.  This means that if a client</span><span>
+</span><span id="line-40"></span><span>      </span><span class="hs-comment">-- (or server) sends invalid UTF-8, we will throw a 'UnicodeException'</span><span>
+</span><span id="line-41"></span><span>      </span><span class="hs-comment">-- rather than replacing it by the unicode replacement character U+FFFD.</span><span>
+</span><span id="line-42"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="connectionFramePayloadSizeLimit"><span class="annot"><span class="annottext">ConnectionOptions -&gt; SizeLimit
+</span><a href="Network.WebSockets.Connection.Options.html#connectionFramePayloadSizeLimit"><span class="hs-identifier hs-var hs-var">connectionFramePayloadSizeLimit</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><a href="Network.WebSockets.Connection.Options.html#SizeLimit"><span class="hs-identifier hs-type">SizeLimit</span></a></span><span>
+</span><span id="line-43"></span><span>      </span><span class="hs-comment">-- ^ The maximum size for incoming frame payload size in bytes.  If a</span><span>
+</span><span id="line-44"></span><span>      </span><span class="hs-comment">-- frame exceeds this limit, a 'ParseException' is thrown.</span><span>
+</span><span id="line-45"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="connectionMessageDataSizeLimit"><span class="annot"><span class="annottext">ConnectionOptions -&gt; SizeLimit
+</span><a href="Network.WebSockets.Connection.Options.html#connectionMessageDataSizeLimit"><span class="hs-identifier hs-var hs-var">connectionMessageDataSizeLimit</span></a></span></span><span>  </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><a href="Network.WebSockets.Connection.Options.html#SizeLimit"><span class="hs-identifier hs-type">SizeLimit</span></a></span><span>
+</span><span id="line-46"></span><span>      </span><span class="hs-comment">-- ^ 'connectionFrameSizeLimit' is often not enough since a malicious</span><span>
+</span><span id="line-47"></span><span>      </span><span class="hs-comment">-- client can send many small frames to create a huge message.  This limit</span><span>
+</span><span id="line-48"></span><span>      </span><span class="hs-comment">-- allows you to protect from that.  If a message exceeds this limit, a</span><span>
+</span><span id="line-49"></span><span>      </span><span class="hs-comment">-- 'ParseException' is thrown.</span><span>
+</span><span id="line-50"></span><span>      </span><span class="hs-comment">--</span><span>
+</span><span id="line-51"></span><span>      </span><span class="hs-comment">-- Note that, if compression is enabled, we check the size of the</span><span>
+</span><span id="line-52"></span><span>      </span><span class="hs-comment">-- compressed messages, as well as the size of the uncompressed messages</span><span>
+</span><span id="line-53"></span><span>      </span><span class="hs-comment">-- as we are deflating them to ensure we don't use too much memory in any</span><span>
+</span><span id="line-54"></span><span>      </span><span class="hs-comment">-- case.</span><span>
+</span><span id="line-55"></span><span>    </span><span class="hs-special">}</span><span>
+</span><span id="line-56"></span><span>
+</span><span id="line-57"></span><span>
+</span><span id="line-58"></span><span class="hs-comment">--------------------------------------------------------------------------------</span><span>
+</span><span id="line-59"></span><span class="hs-comment">-- | The default connection options:</span><span>
+</span><span id="line-60"></span><span class="hs-comment">--</span><span>
+</span><span id="line-61"></span><span class="hs-comment">-- * Nothing happens when a pong is received.</span><span>
+</span><span id="line-62"></span><span class="hs-comment">-- * Compression is disabled.</span><span>
+</span><span id="line-63"></span><span class="hs-comment">-- * Lenient unicode decoding.</span><span>
+</span><span id="line-64"></span><span class="hs-comment">-- * 30 second timeout for connection establishment.</span><span>
+</span><span id="line-65"></span><span class="annot"><a href="Network.WebSockets.Connection.Options.html#defaultConnectionOptions"><span class="hs-identifier hs-type">defaultConnectionOptions</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Network.WebSockets.Connection.Options.html#ConnectionOptions"><span class="hs-identifier hs-type">ConnectionOptions</span></a></span><span>
+</span><span id="line-66"></span><span id="defaultConnectionOptions"><span class="annot"><span class="annottext">defaultConnectionOptions :: ConnectionOptions
+</span><a href="Network.WebSockets.Connection.Options.html#defaultConnectionOptions"><span class="hs-identifier hs-var hs-var">defaultConnectionOptions</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="Network.WebSockets.Connection.Options.html#ConnectionOptions"><span class="hs-identifier hs-type">ConnectionOptions</span></a></span><span>
+</span><span id="line-67"></span><span>    </span><span class="hs-special">{</span><span> </span><span class="annot"><span class="annottext">connectionOnPong :: IO ()
+</span><a href="Network.WebSockets.Connection.Options.html#connectionOnPong"><span class="hs-identifier hs-var">connectionOnPong</span></a></span><span>                </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">() -&gt; IO ()
+forall a. a -&gt; IO a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-68"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">connectionTimeout :: Int
+</span><a href="Network.WebSockets.Connection.Options.html#connectionTimeout"><span class="hs-identifier hs-var">connectionTimeout</span></a></span><span>               </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">30</span></span><span>
+</span><span id="line-69"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">connectionCompressionOptions :: CompressionOptions
+</span><a href="Network.WebSockets.Connection.Options.html#connectionCompressionOptions"><span class="hs-identifier hs-var">connectionCompressionOptions</span></a></span><span>    </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">CompressionOptions
+</span><a href="Network.WebSockets.Connection.Options.html#NoCompression"><span class="hs-identifier hs-var">NoCompression</span></a></span><span>
+</span><span id="line-70"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">connectionStrictUnicode :: Bool
+</span><a href="Network.WebSockets.Connection.Options.html#connectionStrictUnicode"><span class="hs-identifier hs-var">connectionStrictUnicode</span></a></span><span>         </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span>
+</span><span id="line-71"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">connectionFramePayloadSizeLimit :: SizeLimit
+</span><a href="Network.WebSockets.Connection.Options.html#connectionFramePayloadSizeLimit"><span class="hs-identifier hs-var">connectionFramePayloadSizeLimit</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">SizeLimit
+forall a. Monoid a =&gt; a
+</span><span class="hs-identifier hs-var">mempty</span></span><span>
+</span><span id="line-72"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">connectionMessageDataSizeLimit :: SizeLimit
+</span><a href="Network.WebSockets.Connection.Options.html#connectionMessageDataSizeLimit"><span class="hs-identifier hs-var">connectionMessageDataSizeLimit</span></a></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">SizeLimit
+forall a. Monoid a =&gt; a
+</span><span class="hs-identifier hs-var">mempty</span></span><span>
+</span><span id="line-73"></span><span>    </span><span class="hs-special">}</span><span>
+</span><span id="line-74"></span><span>
+</span><span id="line-75"></span><span>
+</span><span id="line-76"></span><span class="hs-comment">--------------------------------------------------------------------------------</span><span>
+</span><span id="line-77"></span><span class="hs-keyword">data</span><span> </span><span id="CompressionOptions"><span class="annot"><a href="Network.WebSockets.Connection.Options.html#CompressionOptions"><span class="hs-identifier hs-var">CompressionOptions</span></a></span></span><span>
+</span><span id="line-78"></span><span>    </span><span class="hs-glyph">=</span><span> </span><span id="NoCompression"><span class="annot"><a href="Network.WebSockets.Connection.Options.html#NoCompression"><span class="hs-identifier hs-var">NoCompression</span></a></span></span><span>
+</span><span id="line-79"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span id="PermessageDeflateCompression"><span class="annot"><a href="Network.WebSockets.Connection.Options.html#PermessageDeflateCompression"><span class="hs-identifier hs-var">PermessageDeflateCompression</span></a></span></span><span> </span><span class="annot"><a href="Network.WebSockets.Connection.Options.html#PermessageDeflate"><span class="hs-identifier hs-type">PermessageDeflate</span></a></span><span>
+</span><span id="line-80"></span><span>    </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679088122"><span id="local-6989586621679088129"><span class="annot"><span class="annottext">CompressionOptions -&gt; CompressionOptions -&gt; Bool
+(CompressionOptions -&gt; CompressionOptions -&gt; Bool)
+-&gt; (CompressionOptions -&gt; CompressionOptions -&gt; Bool)
+-&gt; Eq CompressionOptions
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: CompressionOptions -&gt; CompressionOptions -&gt; Bool
+== :: CompressionOptions -&gt; CompressionOptions -&gt; Bool
+$c/= :: CompressionOptions -&gt; CompressionOptions -&gt; Bool
+/= :: CompressionOptions -&gt; CompressionOptions -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679088134"><span id="local-6989586621679088140"><span id="local-6989586621679088144"><span class="annot"><span class="annottext">Int -&gt; CompressionOptions -&gt; ShowS
+[CompressionOptions] -&gt; ShowS
+CompressionOptions -&gt; String
+(Int -&gt; CompressionOptions -&gt; ShowS)
+-&gt; (CompressionOptions -&gt; String)
+-&gt; ([CompressionOptions] -&gt; ShowS)
+-&gt; Show CompressionOptions
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; CompressionOptions -&gt; ShowS
+showsPrec :: Int -&gt; CompressionOptions -&gt; ShowS
+$cshow :: CompressionOptions -&gt; String
+show :: CompressionOptions -&gt; String
+$cshowList :: [CompressionOptions] -&gt; ShowS
+showList :: [CompressionOptions] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-81"></span><span>
+</span><span id="line-82"></span><span>
+</span><span id="line-83"></span><span class="hs-comment">--------------------------------------------------------------------------------</span><span>
+</span><span id="line-84"></span><span class="hs-comment">-- | Four extension parameters are defined for &quot;permessage-deflate&quot; to</span><span>
+</span><span id="line-85"></span><span class="hs-comment">-- help endpoints manage per-connection resource usage.</span><span>
+</span><span id="line-86"></span><span class="hs-comment">--</span><span>
+</span><span id="line-87"></span><span class="hs-comment">-- - &quot;server_no_context_takeover&quot;</span><span>
+</span><span id="line-88"></span><span class="hs-comment">-- - &quot;client_no_context_takeover&quot;</span><span>
+</span><span id="line-89"></span><span class="hs-comment">-- - &quot;server_max_window_bits&quot;</span><span>
+</span><span id="line-90"></span><span class="hs-comment">-- - &quot;client_max_window_bits&quot;</span><span>
+</span><span id="line-91"></span><span class="hs-keyword">data</span><span> </span><span id="PermessageDeflate"><span class="annot"><a href="Network.WebSockets.Connection.Options.html#PermessageDeflate"><span class="hs-identifier hs-var">PermessageDeflate</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="PermessageDeflate"><span class="annot"><a href="Network.WebSockets.Connection.Options.html#PermessageDeflate"><span class="hs-identifier hs-var">PermessageDeflate</span></a></span></span><span>
+</span><span id="line-92"></span><span>    </span><span class="hs-special">{</span><span> </span><span id="serverNoContextTakeover"><span class="annot"><span class="annottext">PermessageDeflate -&gt; Bool
+</span><a href="Network.WebSockets.Connection.Options.html#serverNoContextTakeover"><span class="hs-identifier hs-var hs-var">serverNoContextTakeover</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>
+</span><span id="line-93"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="clientNoContextTakeover"><span class="annot"><span class="annottext">PermessageDeflate -&gt; Bool
+</span><a href="Network.WebSockets.Connection.Options.html#clientNoContextTakeover"><span class="hs-identifier hs-var hs-var">clientNoContextTakeover</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>
+</span><span id="line-94"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="serverMaxWindowBits"><span class="annot"><span class="annottext">PermessageDeflate -&gt; Int
+</span><a href="Network.WebSockets.Connection.Options.html#serverMaxWindowBits"><span class="hs-identifier hs-var hs-var">serverMaxWindowBits</span></a></span></span><span>     </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>
+</span><span id="line-95"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="clientMaxWindowBits"><span class="annot"><span class="annottext">PermessageDeflate -&gt; Int
+</span><a href="Network.WebSockets.Connection.Options.html#clientMaxWindowBits"><span class="hs-identifier hs-var hs-var">clientMaxWindowBits</span></a></span></span><span>     </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>
+</span><span id="line-96"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="pdCompressionLevel"><span class="annot"><span class="annottext">PermessageDeflate -&gt; Int
+</span><a href="Network.WebSockets.Connection.Options.html#pdCompressionLevel"><span class="hs-identifier hs-var hs-var">pdCompressionLevel</span></a></span></span><span>      </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>
+</span><span id="line-97"></span><span>    </span><span class="hs-special">}</span><span> </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679088154"><span id="local-6989586621679088163"><span class="annot"><span class="annottext">PermessageDeflate -&gt; PermessageDeflate -&gt; Bool
+(PermessageDeflate -&gt; PermessageDeflate -&gt; Bool)
+-&gt; (PermessageDeflate -&gt; PermessageDeflate -&gt; Bool)
+-&gt; Eq PermessageDeflate
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: PermessageDeflate -&gt; PermessageDeflate -&gt; Bool
+== :: PermessageDeflate -&gt; PermessageDeflate -&gt; Bool
+$c/= :: PermessageDeflate -&gt; PermessageDeflate -&gt; Bool
+/= :: PermessageDeflate -&gt; PermessageDeflate -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679088166"><span id="local-6989586621679088176"><span id="local-6989586621679088179"><span class="annot"><span class="annottext">Int -&gt; PermessageDeflate -&gt; ShowS
+[PermessageDeflate] -&gt; ShowS
+PermessageDeflate -&gt; String
+(Int -&gt; PermessageDeflate -&gt; ShowS)
+-&gt; (PermessageDeflate -&gt; String)
+-&gt; ([PermessageDeflate] -&gt; ShowS)
+-&gt; Show PermessageDeflate
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; PermessageDeflate -&gt; ShowS
+showsPrec :: Int -&gt; PermessageDeflate -&gt; ShowS
+$cshow :: PermessageDeflate -&gt; String
+show :: PermessageDeflate -&gt; String
+$cshowList :: [PermessageDeflate] -&gt; ShowS
+showList :: [PermessageDeflate] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-98"></span><span>
+</span><span id="line-99"></span><span>
+</span><span id="line-100"></span><span class="hs-comment">--------------------------------------------------------------------------------</span><span>
+</span><span id="line-101"></span><span class="annot"><a href="Network.WebSockets.Connection.Options.html#defaultPermessageDeflate"><span class="hs-identifier hs-type">defaultPermessageDeflate</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Network.WebSockets.Connection.Options.html#PermessageDeflate"><span class="hs-identifier hs-type">PermessageDeflate</span></a></span><span>
+</span><span id="line-102"></span><span id="defaultPermessageDeflate"><span class="annot"><span class="annottext">defaultPermessageDeflate :: PermessageDeflate
+</span><a href="Network.WebSockets.Connection.Options.html#defaultPermessageDeflate"><span class="hs-identifier hs-var hs-var">defaultPermessageDeflate</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Int -&gt; Int -&gt; Int -&gt; PermessageDeflate
+</span><a href="Network.WebSockets.Connection.Options.html#PermessageDeflate"><span class="hs-identifier hs-var">PermessageDeflate</span></a></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">15</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">15</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">8</span></span><span>
+</span><span id="line-103"></span><span>
+</span><span id="line-104"></span><span>
+</span><span id="line-105"></span><span class="hs-comment">--------------------------------------------------------------------------------</span><span>
+</span><span id="line-106"></span><span class="annot"><span class="hs-comment">-- | A size limit, in bytes.  The 'Monoid' instance takes the minimum limit.</span></span><span>
+</span><span id="line-107"></span><span class="hs-keyword">data</span><span> </span><span id="SizeLimit"><span class="annot"><a href="Network.WebSockets.Connection.Options.html#SizeLimit"><span class="hs-identifier hs-var">SizeLimit</span></a></span></span><span>
+</span><span id="line-108"></span><span>    </span><span class="hs-glyph">=</span><span> </span><span id="NoSizeLimit"><span class="annot"><a href="Network.WebSockets.Connection.Options.html#NoSizeLimit"><span class="hs-identifier hs-var">NoSizeLimit</span></a></span></span><span>
+</span><span id="line-109"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span id="SizeLimit"><span class="annot"><a href="Network.WebSockets.Connection.Options.html#SizeLimit"><span class="hs-identifier hs-var">SizeLimit</span></a></span></span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">Int64</span></span><span>
+</span><span id="line-110"></span><span>    </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679088184"><span id="local-6989586621679088190"><span class="annot"><span class="annottext">SizeLimit -&gt; SizeLimit -&gt; Bool
+(SizeLimit -&gt; SizeLimit -&gt; Bool)
+-&gt; (SizeLimit -&gt; SizeLimit -&gt; Bool) -&gt; Eq SizeLimit
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: SizeLimit -&gt; SizeLimit -&gt; Bool
+== :: SizeLimit -&gt; SizeLimit -&gt; Bool
+$c/= :: SizeLimit -&gt; SizeLimit -&gt; Bool
+/= :: SizeLimit -&gt; SizeLimit -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679088194"><span id="local-6989586621679088199"><span id="local-6989586621679088203"><span class="annot"><span class="annottext">Int -&gt; SizeLimit -&gt; ShowS
+[SizeLimit] -&gt; ShowS
+SizeLimit -&gt; String
+(Int -&gt; SizeLimit -&gt; ShowS)
+-&gt; (SizeLimit -&gt; String)
+-&gt; ([SizeLimit] -&gt; ShowS)
+-&gt; Show SizeLimit
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; SizeLimit -&gt; ShowS
+showsPrec :: Int -&gt; SizeLimit -&gt; ShowS
+$cshow :: SizeLimit -&gt; String
+show :: SizeLimit -&gt; String
+$cshowList :: [SizeLimit] -&gt; ShowS
+showList :: [SizeLimit] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-111"></span><span>
+</span><span id="line-112"></span><span>
+</span><span id="line-113"></span><span class="hs-comment">--------------------------------------------------------------------------------</span><span>
+</span><span id="line-114"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679088210"><span id="local-6989586621679088213"><span class="annot"><span class="hs-identifier hs-type">Monoid</span></span><span> </span><span class="annot"><a href="Network.WebSockets.Connection.Options.html#SizeLimit"><span class="hs-identifier hs-type">SizeLimit</span></a></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-115"></span><span>    </span><span id="local-6989586621679088216"><span class="annot"><span class="annottext">mempty :: SizeLimit
+</span><span class="hs-identifier hs-var hs-var hs-var">mempty</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">SizeLimit
+</span><a href="Network.WebSockets.Connection.Options.html#NoSizeLimit"><span class="hs-identifier hs-var">NoSizeLimit</span></a></span><span class="hs-cpp">
+
+#if !MIN_VERSION_base(4,11,0)
+</span><span>    </span><span class="hs-identifier">mappend</span><span> </span><span class="hs-identifier">NoSizeLimit</span><span>   </span><span class="hs-identifier">y</span><span>             </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">y</span><span>
+</span><span id="line-119"></span><span>    </span><span class="hs-identifier">mappend</span><span> </span><span class="hs-identifier">x</span><span>             </span><span class="hs-identifier">NoSizeLimit</span><span>   </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">x</span><span>
+</span><span id="line-120"></span><span>    </span><span class="hs-identifier">mappend</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">SizeLimit</span><span> </span><span class="hs-identifier">x</span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">SizeLimit</span><span> </span><span class="hs-identifier">y</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">SizeLimit</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">min</span><span> </span><span class="hs-identifier">x</span><span> </span><span class="hs-identifier">y</span><span class="hs-special">)</span><span class="hs-cpp">
+#else
+</span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679088219"><span id="local-6989586621679088222"><span class="annot"><span class="hs-identifier hs-type">Semigroup</span></span><span> </span><span class="annot"><a href="Network.WebSockets.Connection.Options.html#SizeLimit"><span class="hs-identifier hs-type">SizeLimit</span></a></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-123"></span><span>    </span><span id="local-6989586621679088228"><span class="annot"><span class="annottext">&lt;&gt; :: SizeLimit -&gt; SizeLimit -&gt; SizeLimit
+</span><span class="hs-operator hs-var hs-var hs-var">(&lt;&gt;)</span></span></span><span>    </span><span class="annot"><span class="annottext">SizeLimit
+</span><a href="Network.WebSockets.Connection.Options.html#NoSizeLimit"><span class="hs-identifier hs-var">NoSizeLimit</span></a></span><span>   </span><span id="local-6989586621679088229"><span class="annot"><span class="annottext">SizeLimit
+</span><a href="#local-6989586621679088229"><span class="hs-identifier hs-var">y</span></a></span></span><span>             </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">SizeLimit
+</span><a href="#local-6989586621679088229"><span class="hs-identifier hs-var">y</span></a></span><span>
+</span><span id="line-124"></span><span>    </span><span class="annot"><span class="hs-operator hs-var">(&lt;&gt;)</span></span><span>    </span><span id="local-6989586621679088230"><span class="annot"><span class="annottext">SizeLimit
+</span><a href="#local-6989586621679088230"><span class="hs-identifier hs-var">x</span></a></span></span><span>             </span><span class="annot"><span class="annottext">SizeLimit
+</span><a href="Network.WebSockets.Connection.Options.html#NoSizeLimit"><span class="hs-identifier hs-var">NoSizeLimit</span></a></span><span>   </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">SizeLimit
+</span><a href="#local-6989586621679088230"><span class="hs-identifier hs-var">x</span></a></span><span>
+</span><span id="line-125"></span><span>    </span><span class="annot"><span class="hs-operator hs-var">(&lt;&gt;)</span></span><span>    </span><span class="hs-special">(</span><span class="annot"><a href="Network.WebSockets.Connection.Options.html#SizeLimit"><span class="hs-identifier hs-type">SizeLimit</span></a></span><span> </span><span id="local-6989586621679088231"><span class="annot"><span class="annottext">Int64
+</span><a href="#local-6989586621679088231"><span class="hs-identifier hs-var">x</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Network.WebSockets.Connection.Options.html#SizeLimit"><span class="hs-identifier hs-type">SizeLimit</span></a></span><span> </span><span id="local-6989586621679088232"><span class="annot"><span class="annottext">Int64
+</span><a href="#local-6989586621679088232"><span class="hs-identifier hs-var">y</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int64 -&gt; SizeLimit
+</span><a href="Network.WebSockets.Connection.Options.html#SizeLimit"><span class="hs-identifier hs-var">SizeLimit</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int64 -&gt; Int64 -&gt; Int64
+forall a. Ord a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-identifier hs-var">min</span></span><span> </span><span class="annot"><span class="annottext">Int64
+</span><a href="#local-6989586621679088231"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">Int64
+</span><a href="#local-6989586621679088232"><span class="hs-identifier hs-var">y</span></a></span><span class="hs-special">)</span><span class="hs-cpp">
+#endif
+</span><span>
+</span><span id="line-128"></span><span class="hs-comment">--------------------------------------------------------------------------------</span><span>
+</span><span id="line-129"></span><span class="annot"><a href="Network.WebSockets.Connection.Options.html#atMostSizeLimit"><span class="hs-identifier hs-type">atMostSizeLimit</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int64</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Network.WebSockets.Connection.Options.html#SizeLimit"><span class="hs-identifier hs-type">SizeLimit</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>
+</span><span id="line-130"></span><span id="atMostSizeLimit"><span class="annot"><span class="annottext">atMostSizeLimit :: Int64 -&gt; SizeLimit -&gt; Bool
+</span><a href="Network.WebSockets.Connection.Options.html#atMostSizeLimit"><span class="hs-identifier hs-var hs-var">atMostSizeLimit</span></a></span></span><span> </span><span class="annot"><span class="annottext">Int64
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">SizeLimit
+</span><a href="Network.WebSockets.Connection.Options.html#NoSizeLimit"><span class="hs-identifier hs-var">NoSizeLimit</span></a></span><span>   </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>
+</span><span id="line-131"></span><span class="annot"><a href="Network.WebSockets.Connection.Options.html#atMostSizeLimit"><span class="hs-identifier hs-var">atMostSizeLimit</span></a></span><span> </span><span id="local-6989586621679088234"><span class="annot"><span class="annottext">Int64
+</span><a href="#local-6989586621679088234"><span class="hs-identifier hs-var">s</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Network.WebSockets.Connection.Options.html#SizeLimit"><span class="hs-identifier hs-type">SizeLimit</span></a></span><span> </span><span id="local-6989586621679088235"><span class="annot"><span class="annottext">Int64
+</span><a href="#local-6989586621679088235"><span class="hs-identifier hs-var">l</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int64
+</span><a href="#local-6989586621679088234"><span class="hs-identifier hs-var">s</span></a></span><span> </span><span class="annot"><span class="annottext">Int64 -&gt; Int64 -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&lt;=</span></span><span> </span><span class="annot"><span class="annottext">Int64
+</span><a href="#local-6989586621679088235"><span class="hs-identifier hs-var">l</span></a></span><span>
+</span><span id="line-132"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Network.WebSockets.Connection.Options.html#atMostSizeLimit"><span class="hs-pragma hs-type">atMostSizeLimit</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-133"></span></pre></body></html>

@@ -1,0 +1,156 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# OPTIONS_GHC -fno-warn-deprecations #-}</span><span>
+</span><span id="line-2"></span><span class="annot"><span class="hs-comment">-- | Stability: unstable</span></span><span>
+</span><span id="line-3"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Extension.html"><span class="hs-identifier">Test.Hspec.Core.Extension</span></a></span><span> </span><span class="hs-pragma">{-# WARNING</span><span> </span><span class="hs-pragma">&quot;This API is experimental.&quot;</span><span> </span><span class="hs-pragma">#-}</span><span> </span><span class="hs-special">(</span><span>
+</span><span id="line-4"></span><span class="annot"><span class="hs-comment">-- * Lifecycle of a test run</span></span><span>
+</span><span id="line-5"></span><span class="annot"><span class="hs-comment">{- |
+A test run goes through four distinct phases:
+
+1. A tree of spec items and a default `Config` are constructed in `SpecM`.
+2. Command-line options are parsed.  This transforms the default `Config` that was constructed in phase 1.
+3. The tree of spec items is transformed in various ways, depending on specific `Config` values.
+4. Each spec item is executed and its result is reported to the user.
+
+An extension can directly influence phase 1, and indirectly influence phases 2-4.
+
+When writing extensions the following imports are recommended:
+
+@
+import &quot;Test.Hspec.Core.Extension&quot;
+import &quot;Test.Hspec.Core.Extension.Config&quot; qualified as Config
+import &quot;Test.Hspec.Core.Extension.Option&quot; qualified as Option
+import &quot;Test.Hspec.Core.Extension.Item&quot; qualified as Item
+import &quot;Test.Hspec.Core.Extension.Spec&quot; qualified as Spec
+import &quot;Test.Hspec.Core.Extension.Tree&quot; qualified as Tree
+@
+-}</span></span><span>
+</span><span id="line-26"></span><span>
+</span><span id="line-27"></span><span class="annot"><span class="hs-comment">-- ** Phase 1: Constructing a spec tree</span></span><span>
+</span><span id="line-28"></span><span class="annot"><span class="hs-comment">{- |
+- An extension can use @Spec.`Test.Hspec.Core.Extension.Spec.mapItems`@ to transform spec items in phase 1.
+
+    * @Item.`setAnnotation`@ can be used to add custom metadata to a spec `Item`.
+
+- An extension can use `modifyConfig` to modify the default config.
+
+    * @Config.`Test.Hspec.Core.Extension.Config.setAnnotation`@ can be used to add custom metadata to the default `Config`.
+-}</span></span><span>
+</span><span id="line-37"></span><span>  </span><span class="annot"><a href="Test.Hspec.Core.Spec.Monad.html#runIO"><span class="hs-identifier">runIO</span></a></span><span>
+</span><span id="line-38"></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Spec.Monad.html#modifyConfig"><span class="hs-identifier">modifyConfig</span></a></span><span>
+</span><span id="line-39"></span><span>
+</span><span id="line-40"></span><span class="annot"><span class="hs-comment">-- ** Phase 2: Parsing command-line options</span></span><span>
+</span><span id="line-41"></span><span class="annot"><span class="hs-comment">{- |
+An extension can use `registerOptions` during phase 1 to register custom command-line options, and as a consequence indirectly influence this phase.
+
+* Options can use @Config.`Test.Hspec.Core.Extension.Config.setAnnotation`@ to add custom metadata to the `Config`.
+-}</span></span><span>
+</span><span id="line-46"></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Extension.Config.Type.html#Option"><span class="hs-identifier">Option</span></a></span><span>
+</span><span id="line-47"></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Extension.html#registerOptions"><span class="hs-identifier">registerOptions</span></a></span><span>
+</span><span id="line-48"></span><span>
+</span><span id="line-49"></span><span class="annot"><span class="hs-comment">-- ** Phase 3: Transforming the spec tree</span></span><span>
+</span><span id="line-50"></span><span class="annot"><span class="hs-comment">{- |
+An extension can use `registerTransformation` during phase 1 to indirectly influence this phase.
+-}</span></span><span>
+</span><span id="line-53"></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Extension.html#registerTransformation"><span class="hs-identifier">registerTransformation</span></a></span><span>
+</span><span id="line-54"></span><span>
+</span><span id="line-55"></span><span class="annot"><span class="hs-comment">-- ** Phase 4: Reporting results</span></span><span>
+</span><span id="line-56"></span><span class="annot"><span class="hs-comment">{- |
+An extension can register a [custom formatter](https://hspec.github.io/extending-hspec-formatter.html) in phase 1 to indirectly influence this phase.
+-}</span></span><span>
+</span><span id="line-59"></span><span>
+</span><span id="line-60"></span><span class="annot"><span class="hs-comment">-- * Types</span></span><span>
+</span><span id="line-61"></span><span class="annot"><span class="hs-comment">{- |
+Operations on these types are provided by the following modules respectively:
+
+* &quot;Test.Hspec.Core.Extension.Config&quot;
+* &quot;Test.Hspec.Core.Extension.Item&quot;
+* &quot;Test.Hspec.Core.Extension.Spec&quot;
+* &quot;Test.Hspec.Core.Extension.Tree&quot;
+-}</span></span><span>
+</span><span id="line-69"></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Config.Definition.html#Config"><span class="hs-identifier">Config</span></a></span><span>
+</span><span id="line-70"></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Tree.html#Item"><span class="hs-identifier">Item</span></a></span><span>
+</span><span id="line-71"></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Spec.Monad.html#SpecM"><span class="hs-identifier">SpecM</span></a></span><span>
+</span><span id="line-72"></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Spec.Monad.html#SpecWith"><span class="hs-identifier">SpecWith</span></a></span><span>
+</span><span id="line-73"></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Extension.Tree.html#SpecTree"><span class="hs-identifier">SpecTree</span></a></span><span>
+</span><span id="line-74"></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-75"></span><span>
+</span><span id="line-76"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Prelude</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-77"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><a href="Test.Hspec.Core.Compat.html"><span class="hs-identifier">Test.Hspec.Core.Compat</span></a></span><span>
+</span><span id="line-78"></span><span>
+</span><span id="line-79"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.CallStack</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">CallStack</span></span><span>
+</span><span id="line-80"></span><span>
+</span><span id="line-81"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="GetOpt.Declarative.html"><span class="hs-identifier">GetOpt.Declarative</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Declarative</span></span><span>
+</span><span id="line-82"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><a href="Test.Hspec.Core.Spec.html"><span class="hs-identifier">Test.Hspec.Core.Spec</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Test.Hspec.Core.Spec.Monad.html#SpecM"><span class="hs-identifier">SpecM</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Spec.Monad.html#SpecWith"><span class="hs-identifier">SpecWith</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Spec.Monad.html#runIO"><span class="hs-identifier">runIO</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Spec.Monad.html#modifyConfig"><span class="hs-identifier">modifyConfig</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-83"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Spec.html"><span class="hs-identifier">Test.Hspec.Core.Spec</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Core</span></span><span>
+</span><span id="line-84"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Config.Definition.html"><span class="hs-identifier">Test.Hspec.Core.Config.Definition</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Core</span></span><span>
+</span><span id="line-85"></span><span>
+</span><span id="line-86"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><a href="Test.Hspec.Core.Extension.Config.html"><span class="hs-identifier">Test.Hspec.Core.Extension.Config</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Test.Hspec.Core.Config.Definition.html#Config"><span class="hs-identifier">Config</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-87"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Extension.Config.Type.html"><span class="hs-identifier">Test.Hspec.Core.Extension.Config.Type</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Config</span></span><span>
+</span><span id="line-88"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><a href="Test.Hspec.Core.Extension.Option.html"><span class="hs-identifier">Test.Hspec.Core.Extension.Option</span></a></span><span>
+</span><span id="line-89"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><a href="Test.Hspec.Core.Extension.Item.html"><span class="hs-identifier">Test.Hspec.Core.Extension.Item</span></a></span><span>
+</span><span id="line-90"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><a href="Test.Hspec.Core.Extension.Tree.html"><span class="hs-identifier">Test.Hspec.Core.Extension.Tree</span></a></span><span>
+</span><span id="line-91"></span><span>
+</span><span id="line-92"></span><span id="local-6989586621679147618"><span class="annot"><a href="Test.Hspec.Core.Extension.html#registerOptions"><span class="hs-identifier hs-type">registerOptions</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">HasCallStack</span></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Test.Hspec.Core.Extension.Config.Type.html#Option"><span class="hs-identifier hs-type">Option</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Spec.Monad.html#SpecWith"><span class="hs-identifier hs-type">SpecWith</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679147618"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-93"></span><span id="registerOptions"><span class="annot"><span class="annottext">registerOptions :: forall a. HasCallStack =&gt; [Option] -&gt; SpecWith a
+</span><a href="Test.Hspec.Core.Extension.html#registerOptions"><span class="hs-identifier hs-var hs-var">registerOptions</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Config -&gt; Config) -&gt; SpecWith a
+forall a. (Config -&gt; Config) -&gt; SpecWith a
+</span><a href="Test.Hspec.Core.Spec.Monad.html#modifyConfig"><span class="hs-identifier hs-var">Core.modifyConfig</span></a></span><span> </span><span class="annot"><span class="annottext">((Config -&gt; Config) -&gt; SpecWith a)
+-&gt; ([Option] -&gt; Config -&gt; Config) -&gt; [Option] -&gt; SpecWith a
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; [Option Config] -&gt; Config -&gt; Config
+</span><a href="Test.Hspec.Core.Config.Definition.html#addExtensionOptions"><span class="hs-identifier hs-var">Core.addExtensionOptions</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679147650"><span class="hs-identifier hs-var">section</span></a></span><span> </span><span class="annot"><span class="annottext">([Option Config] -&gt; Config -&gt; Config)
+-&gt; ([Option] -&gt; [Option Config]) -&gt; [Option] -&gt; Config -&gt; Config
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">(Option -&gt; Option Config) -&gt; [Option] -&gt; [Option Config]
+forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+</span><span class="hs-identifier hs-var">map</span></span><span> </span><span class="annot"><span class="annottext">Option -&gt; Option Config
+</span><a href="#local-6989586621679147651"><span class="hs-identifier hs-var">liftOption</span></a></span><span>
+</span><span id="line-94"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-95"></span><span>    </span><span id="local-6989586621679147650"><span class="annot"><span class="annottext">section :: String
+</span><a href="#local-6989586621679147650"><span class="hs-identifier hs-var hs-var">section</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;OPTIONS FOR &quot;</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; String -&gt; String
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679147654"><span class="hs-identifier hs-var">package</span></a></span><span>
+</span><span id="line-96"></span><span>    </span><span id="local-6989586621679147654"><span class="annot"><span class="annottext">package :: String
+</span><a href="#local-6989586621679147654"><span class="hs-identifier hs-var hs-var">package</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+-&gt; ((String, SrcLoc) -&gt; String) -&gt; Maybe (String, SrcLoc) -&gt; String
+forall b a. b -&gt; (a -&gt; b) -&gt; Maybe a -&gt; b
+</span><span class="hs-identifier hs-var">maybe</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;main&quot;</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">SrcLoc -&gt; String
+</span><span class="hs-identifier hs-var">CallStack.srcLocPackage</span></span><span> </span><span class="annot"><span class="annottext">(SrcLoc -&gt; String)
+-&gt; ((String, SrcLoc) -&gt; SrcLoc) -&gt; (String, SrcLoc) -&gt; String
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">(String, SrcLoc) -&gt; SrcLoc
+forall a b. (a, b) -&gt; b
+</span><span class="hs-identifier hs-var">snd</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Maybe (String, SrcLoc)
+HasCallStack =&gt; Maybe (String, SrcLoc)
+</span><span class="hs-identifier hs-var">CallStack.callSite</span></span><span>
+</span><span id="line-97"></span><span>
+</span><span id="line-98"></span><span>    </span><span class="annot"><a href="#local-6989586621679147651"><span class="hs-identifier hs-type">liftOption</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Extension.Config.Type.html#Option"><span class="hs-identifier hs-type">Option</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GetOpt.Declarative.Types.html#Option"><span class="hs-identifier hs-type">Declarative.Option</span></a></span><span> </span><span class="annot"><a href="Test.Hspec.Core.Config.Definition.html#Config"><span class="hs-identifier hs-type">Core.Config</span></a></span><span>
+</span><span id="line-99"></span><span>    </span><span id="local-6989586621679147651"><span class="annot"><span class="annottext">liftOption :: Option -&gt; Option Config
+</span><a href="#local-6989586621679147651"><span class="hs-identifier hs-var hs-var">liftOption</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Option -&gt; Option Config
+</span><a href="Test.Hspec.Core.Extension.Config.Type.html#unOption"><span class="hs-identifier hs-var">Config.unOption</span></a></span><span>
+</span><span id="line-100"></span><span>
+</span><span id="line-101"></span><span class="annot"><span class="hs-comment">{- |
+Register a transformation that transforms the spec tree in phase 3.
+
+The registered transformation can use:
+
+- @Tree.`mapItems`@ to modify spec items
+- @Tree.`filterItems`@ to discard spec items
+- @Config.`Test.Hspec.Core.Extension.Config.getAnnotation`@ to access custom config metadata
+- @Item.`getAnnotation`@ to access custom item metadata
+-}</span></span><span>
+</span><span id="line-111"></span><span id="local-6989586621679147637"><span class="annot"><a href="Test.Hspec.Core.Extension.html#registerTransformation"><span class="hs-identifier hs-type">registerTransformation</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Test.Hspec.Core.Config.Definition.html#Config"><span class="hs-identifier hs-type">Config</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Test.Hspec.Core.Extension.Tree.html#SpecTree"><span class="hs-identifier hs-type">SpecTree</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Test.Hspec.Core.Extension.Tree.html#SpecTree"><span class="hs-identifier hs-type">SpecTree</span></a></span><span class="hs-special">]</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Spec.Monad.html#SpecWith"><span class="hs-identifier hs-type">SpecWith</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679147637"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-112"></span><span id="registerTransformation"><span class="annot"><span class="annottext">registerTransformation :: forall a. (Config -&gt; [SpecTree] -&gt; [SpecTree]) -&gt; SpecWith a
+</span><a href="Test.Hspec.Core.Extension.html#registerTransformation"><span class="hs-identifier hs-var hs-var">registerTransformation</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Config -&gt; Config) -&gt; SpecWith a
+forall a. (Config -&gt; Config) -&gt; SpecWith a
+</span><a href="Test.Hspec.Core.Spec.Monad.html#modifyConfig"><span class="hs-identifier hs-var">modifyConfig</span></a></span><span> </span><span class="annot"><span class="annottext">((Config -&gt; Config) -&gt; SpecWith a)
+-&gt; ((Config -&gt; [SpecTree] -&gt; [SpecTree]) -&gt; Config -&gt; Config)
+-&gt; (Config -&gt; [SpecTree] -&gt; [SpecTree])
+-&gt; SpecWith a
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">(Config -&gt; [SpecTree] -&gt; [SpecTree]) -&gt; Config -&gt; Config
+</span><a href="Test.Hspec.Core.Extension.Config.Type.html#addSpecTransformation"><span class="hs-identifier hs-var">Config.addSpecTransformation</span></a></span><span>
+</span><span id="line-113"></span></pre></body></html>

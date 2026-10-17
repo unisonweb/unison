@@ -1,0 +1,70 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE CPP #-}</span><span>
+</span><span id="line-2"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Data.Time.Calendar.MonthDay.Compat.html"><span class="hs-identifier">Data.Time.Calendar.MonthDay.Compat</span></a></span><span> </span><span class="hs-special">(</span><span>
+</span><span id="line-3"></span><span>    </span><span class="annot"><span class="hs-identifier">MonthOfYear</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">DayOfMonth</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">DayOfYear</span></span><span class="hs-special">,</span><span>
+</span><span id="line-4"></span><span>    </span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><span class="hs-identifier">January</span></span><span class="hs-special">,</span><span>
+</span><span id="line-5"></span><span>    </span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><span class="hs-identifier">February</span></span><span class="hs-special">,</span><span>
+</span><span id="line-6"></span><span>    </span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><span class="hs-identifier">March</span></span><span class="hs-special">,</span><span>
+</span><span id="line-7"></span><span>    </span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><span class="hs-identifier">April</span></span><span class="hs-special">,</span><span>
+</span><span id="line-8"></span><span>    </span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><span class="hs-identifier">May</span></span><span class="hs-special">,</span><span>
+</span><span id="line-9"></span><span>    </span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><span class="hs-identifier">June</span></span><span class="hs-special">,</span><span>
+</span><span id="line-10"></span><span>    </span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><span class="hs-identifier">July</span></span><span class="hs-special">,</span><span>
+</span><span id="line-11"></span><span>    </span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><span class="hs-identifier">August</span></span><span class="hs-special">,</span><span>
+</span><span id="line-12"></span><span>    </span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><span class="hs-identifier">September</span></span><span class="hs-special">,</span><span>
+</span><span id="line-13"></span><span>    </span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><span class="hs-identifier">October</span></span><span class="hs-special">,</span><span>
+</span><span id="line-14"></span><span>    </span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><span class="hs-identifier">November</span></span><span class="hs-special">,</span><span>
+</span><span id="line-15"></span><span>    </span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><span class="hs-identifier">December</span></span><span class="hs-special">,</span><span>
+</span><span id="line-16"></span><span>    </span><span class="annot"><span class="hs-identifier">monthAndDayToDayOfYear</span></span><span class="hs-special">,</span><span>
+</span><span id="line-17"></span><span>    </span><span class="annot"><span class="hs-identifier">monthAndDayToDayOfYearValid</span></span><span class="hs-special">,</span><span>
+</span><span id="line-18"></span><span>    </span><span class="annot"><span class="hs-identifier">dayOfYearToMonthAndDay</span></span><span class="hs-special">,</span><span>
+</span><span id="line-19"></span><span>    </span><span class="annot"><span class="hs-identifier">monthLength</span></span><span class="hs-special">,</span><span>
+</span><span id="line-20"></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-21"></span><span>
+</span><span id="line-22"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Data.Time.Orphans.html"><span class="hs-identifier">Data.Time.Orphans</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-23"></span><span>
+</span><span id="line-24"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Time.Calendar.MonthDay</span></span><span class="hs-cpp">
+
+#if !MIN_VERSION_time(1,11,0)
+</span><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">Data.Time.Calendar.Types</span><span class="hs-cpp">
+#endif
+</span><span class="hs-cpp">
+#if !MIN_VERSION_time(1,12,0)
+</span><span class="hs-keyword">pattern</span><span> </span><span class="hs-identifier">January</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">MonthOfYear</span><span>
+</span><span id="line-32"></span><span class="hs-keyword">pattern</span><span> </span><span class="hs-identifier">January</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-number">1</span><span>
+</span><span id="line-33"></span><span>
+</span><span id="line-34"></span><span class="hs-keyword">pattern</span><span> </span><span class="hs-identifier">February</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">MonthOfYear</span><span>
+</span><span id="line-35"></span><span class="hs-keyword">pattern</span><span> </span><span class="hs-identifier">February</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-number">2</span><span>
+</span><span id="line-36"></span><span>
+</span><span id="line-37"></span><span class="hs-keyword">pattern</span><span> </span><span class="hs-identifier">March</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">MonthOfYear</span><span>
+</span><span id="line-38"></span><span class="hs-keyword">pattern</span><span> </span><span class="hs-identifier">March</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-number">3</span><span>
+</span><span id="line-39"></span><span>
+</span><span id="line-40"></span><span class="hs-keyword">pattern</span><span> </span><span class="hs-identifier">April</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">MonthOfYear</span><span>
+</span><span id="line-41"></span><span class="hs-keyword">pattern</span><span> </span><span class="hs-identifier">April</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-number">4</span><span>
+</span><span id="line-42"></span><span>
+</span><span id="line-43"></span><span class="hs-keyword">pattern</span><span> </span><span class="hs-identifier">May</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">MonthOfYear</span><span>
+</span><span id="line-44"></span><span class="hs-keyword">pattern</span><span> </span><span class="hs-identifier">May</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-number">5</span><span>
+</span><span id="line-45"></span><span>
+</span><span id="line-46"></span><span class="hs-keyword">pattern</span><span> </span><span class="hs-identifier">June</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">MonthOfYear</span><span>
+</span><span id="line-47"></span><span class="hs-keyword">pattern</span><span> </span><span class="hs-identifier">June</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-number">6</span><span>
+</span><span id="line-48"></span><span>
+</span><span id="line-49"></span><span class="hs-keyword">pattern</span><span> </span><span class="hs-identifier">July</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">MonthOfYear</span><span>
+</span><span id="line-50"></span><span class="hs-keyword">pattern</span><span> </span><span class="hs-identifier">July</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-number">7</span><span>
+</span><span id="line-51"></span><span>
+</span><span id="line-52"></span><span class="hs-keyword">pattern</span><span> </span><span class="hs-identifier">August</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">MonthOfYear</span><span>
+</span><span id="line-53"></span><span class="hs-keyword">pattern</span><span> </span><span class="hs-identifier">August</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-number">8</span><span>
+</span><span id="line-54"></span><span>
+</span><span id="line-55"></span><span class="hs-keyword">pattern</span><span> </span><span class="hs-identifier">September</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">MonthOfYear</span><span>
+</span><span id="line-56"></span><span class="hs-keyword">pattern</span><span> </span><span class="hs-identifier">September</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-number">9</span><span>
+</span><span id="line-57"></span><span>
+</span><span id="line-58"></span><span class="hs-keyword">pattern</span><span> </span><span class="hs-identifier">October</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">MonthOfYear</span><span>
+</span><span id="line-59"></span><span class="hs-keyword">pattern</span><span> </span><span class="hs-identifier">October</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-number">10</span><span>
+</span><span id="line-60"></span><span>
+</span><span id="line-61"></span><span class="hs-keyword">pattern</span><span> </span><span class="hs-identifier">November</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">MonthOfYear</span><span>
+</span><span id="line-62"></span><span class="hs-keyword">pattern</span><span> </span><span class="hs-identifier">November</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-number">11</span><span>
+</span><span id="line-63"></span><span>
+</span><span id="line-64"></span><span class="hs-comment">-- | The twelve 'MonthOfYear' patterns form a @COMPLETE@ set.</span><span>
+</span><span id="line-65"></span><span class="hs-keyword">pattern</span><span> </span><span class="hs-identifier">December</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">MonthOfYear</span><span>
+</span><span id="line-66"></span><span class="hs-keyword">pattern</span><span> </span><span class="hs-identifier">December</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-number">12</span><span>
+</span><span id="line-67"></span><span>
+</span><span id="line-68"></span><span class="hs-pragma">{-# COMPLETE</span><span> </span><span class="hs-pragma">January</span><span class="hs-pragma">,</span><span> </span><span class="hs-pragma">February</span><span class="hs-pragma">,</span><span> </span><span class="hs-pragma">March</span><span class="hs-pragma">,</span><span> </span><span class="hs-pragma">April</span><span class="hs-pragma">,</span><span> </span><span class="hs-pragma">May</span><span class="hs-pragma">,</span><span> </span><span class="hs-pragma">June</span><span class="hs-pragma">,</span><span> </span><span class="hs-pragma">July</span><span class="hs-pragma">,</span><span> </span><span class="hs-pragma">August</span><span class="hs-pragma">,</span><span> </span><span class="hs-pragma">September</span><span class="hs-pragma">,</span><span> </span><span class="hs-pragma">October</span><span class="hs-pragma">,</span><span> </span><span class="hs-pragma">November</span><span class="hs-pragma">,</span><span> </span><span class="hs-pragma">December</span><span> </span><span class="hs-pragma">#-}</span><span class="hs-cpp">
+#endif
+</span></pre></body></html>

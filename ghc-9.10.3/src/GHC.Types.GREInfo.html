@@ -1,0 +1,1179 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span id="local-6989586621682394094"><span id="local-6989586621682394095"><span id="local-6989586621682394096"><span id="local-6989586621682394097"><span id="local-6989586621682394098"><span id="local-6989586621682394099"><span id="local-6989586621682394100"><span id="local-6989586621682394101"><span id="local-6989586621682394102"><span id="local-6989586621682394103"><span id="local-6989586621682394104"><span id="local-6989586621682394105"><span id="local-6989586621682394106"><span id="local-6989586621682394107"><span id="local-6989586621682394108"></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span><span class="hs-pragma">{-# LANGUAGE DeriveDataTypeable #-}</span><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# LANGUAGE DerivingStrategies #-}</span><span>
+</span><span id="line-3"></span><span>
+</span><span id="line-4"></span><span class="hs-comment">-- | Renamer-level information about 'Name's.</span><span>
+</span><span id="line-5"></span><span class="hs-comment">--</span><span>
+</span><span id="line-6"></span><span class="hs-comment">-- Renamer equivalent of 'TyThing'.</span><span>
+</span><span id="line-7"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="GHC.Types.GREInfo.html"><span class="hs-identifier">GHC.Types.GREInfo</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-8"></span><span>
+</span><span id="line-9"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Prelude.html"><span class="hs-identifier">GHC.Prelude</span></a></span><span>
+</span><span id="line-10"></span><span>
+</span><span id="line-11"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Types.Basic.html"><span class="hs-identifier">GHC.Types.Basic</span></a></span><span>
+</span><span id="line-12"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Types.FieldLabel.html"><span class="hs-identifier">GHC.Types.FieldLabel</span></a></span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Types.Name.html"><span class="hs-identifier">GHC.Types.Name</span></a></span><span>
+</span><span id="line-14"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Types.Unique.html"><span class="hs-identifier">GHC.Types.Unique</span></a></span><span>
+</span><span id="line-15"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Types.Unique.Set.html"><span class="hs-identifier">GHC.Types.Unique.Set</span></a></span><span>
+</span><span id="line-16"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Utils.Outputable.html"><span class="hs-identifier">GHC.Utils.Outputable</span></a></span><span>
+</span><span id="line-17"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Utils.Panic.html"><span class="hs-identifier">GHC.Utils.Panic</span></a></span><span>
+</span><span id="line-18"></span><span>
+</span><span id="line-19"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../deepseq-1.5.0.0-a9b7/src/Control.DeepSeq.html"><span class="hs-identifier">Control.DeepSeq</span></a></span><span> </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="../../deepseq-1.5.0.0-a9b7/src/Control.DeepSeq.html#NFData"><span class="hs-identifier">NFData</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><a href="../../deepseq-1.5.0.0-a9b7/src/Control.DeepSeq.html#deepseq"><span class="hs-identifier">deepseq</span></a></span><span> </span><span class="hs-special">)</span><span>
+</span><span id="line-20"></span><span>
+</span><span id="line-21"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.20.2.0-6654/src/Data.Data.html"><span class="hs-identifier">Data.Data</span></a></span><span> </span><span class="hs-special">(</span><span> </span><span class="annot"><span class="hs-identifier">Data</span></span><span> </span><span class="hs-special">)</span><span>
+</span><span id="line-22"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.20.2.0-6654/src/Data.List.NonEmpty.html"><span class="hs-identifier">Data.List.NonEmpty</span></a></span><span> </span><span class="hs-special">(</span><span> </span><span class="annot"><span class="hs-identifier">NonEmpty</span></span><span> </span><span class="hs-special">)</span><span>
+</span><span id="line-23"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="../../base-4.20.2.0-6654/src/Data.List.NonEmpty.html"><span class="hs-identifier">Data.List.NonEmpty</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">NonEmpty</span></span><span>
+</span><span id="line-24"></span><span>
+</span><span id="line-25"></span><span class="annot"><span class="hs-comment">{-**********************************************************************
+*                                                                      *
+                           GREInfo
+*                                                                      *
+************************************************************************
+
+Note [GREInfo]
+~~~~~~~~~~~~~~
+In the renamer, we sometimes need a bit more information about a 'Name', e.g.
+whether it is a type constructor, class, data constructor, record field, etc.
+
+For example, when typechecking record construction, the renamer needs to look
+up the fields of the data constructor being used (see e.g. GHC.Rename.Pat.rnHsRecFields).
+Extra information also allows us to provide better error messages when a fatal
+error occurs in the renamer, as it allows us to distinguish classes, type families,
+type synonyms, etc.
+
+For imported Names, we have access to the full type information in the form of
+a TyThing (although see Note [Retrieving the GREInfo from interfaces]).
+However, for Names in the module currently being renamed, we don't
+yet have full information. Instead of using TyThing, we use the GREInfo type,
+and this information gets affixed to each element in the GlobalRdrEnv.
+
+This allows us to treat imported and local Names in a consistent manner:
+always look at the GREInfo.
+
+Note [Retrieving the GREInfo from interfaces]
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+If we have a TyThing, we can easily compute the corresponding GREInfo: this is
+done in GHC.Types.TyThing.tyThingGREInfo.
+
+However, one often needs to produce GlobalRdrElts (and thus their GREInfos)
+directly after loading interface files, before they are typechecked. For example:
+
+  - GHC.Tc.Module.tcRnModuleTcRnM first calls tcRnImports, which starts off
+    calling rnImports which transitively calls filterImports. That function
+    is responsible for coughing up GlobalRdrElts (and their GREInfos) obtained
+    from interfaces, but we will only typecheck the interfaces after we have
+    finished processing the imports (see e.g. the logic at the start of tcRnImports
+    which sets eps_is_boot, which decides whether we should look in the boot
+    or non-boot interface for any particular module).
+  - GHC.Tc.Utils.Backpack.mergeSignatures first loads the relevant signature
+    interfaces to merge them, but only later on does it typecheck them.
+
+In both of these examples, what's important is that we **lazily** produce the
+GREInfo: it should only be consulted once the interfaces have been typechecked,
+which will add the necessary information to the type-level environment.
+In particular, the respective functions 'filterImports' and 'mergeSignatures'
+should NOT force the gre_info field.
+
+We delay the loading of interfaces by making the gre_info field of 'GlobalRdrElt'
+a thunk which, when forced, loads the interface, looks up the 'Name' in the type
+environment to get its associated TyThing, and computes the GREInfo from that.
+See 'GHC.Rename.Env.lookupGREInfo'.
+
+A possible alternative design would be to change the AvailInfo datatype to also
+store GREInfo. We currently don't do that, as this would mean that every time
+an interface re-exports something it has to also provide its GREInfo, which
+could lead to bloat.
+
+Note [Forcing GREInfo]
+~~~~~~~~~~~~~~~~~~~~~~
+The GREInfo field of a GlobalRdrElt needs to be lazy, as explained in
+Note [Retrieving the GREInfo from interfaces]. For imported things, this field
+is usually a thunk which looks up the GREInfo in a type environment
+(see GHC.Rename.Env.lookupGREInfo).
+
+We thus need to be careful not to introduce space leaks: such thunks could end
+up retaining old type environments, which would violate invariant (5) of
+Note [GHC Heap Invariants] in GHC.Driver.Make. This can happen, for example,
+when reloading in GHCi (see e.g. test T15369, which can trigger the ghci leak check
+if we're not careful).
+
+A naive approach is to simply deeply force the whole GlobalRdrEnv. However,
+forcing the GREInfo thunks can force the loading of interface files which we
+otherwise might not need to load, so it leads to wasted work.
+
+Instead, whenever we are about to store the GlobalRdrEnv somewhere (such as
+in ModDetails), we dehydrate it by stripping away the GREInfo field, turning it
+into (). See 'forceGlobalRdrEnv' and its cousin 'hydrateGlobalRdrEnv',
+as well as Note [IfGlobalRdrEnv] in GHC.Types.Name.Reader.
+
+Search for references to this note in the code for illustration.
+-}</span></span><span>
+</span><span id="line-109"></span><span>
+</span><span id="line-110"></span><span class="hs-comment">-- | Information about a 'Name' that is pertinent to the renamer.</span><span>
+</span><span id="line-111"></span><span class="hs-comment">--</span><span>
+</span><span id="line-112"></span><span class="hs-comment">-- See Note [GREInfo]</span><span>
+</span><span id="line-113"></span><span class="hs-keyword">data</span><span> </span><span id="GREInfo"><span class="annot"><a href="GHC.Types.GREInfo.html#GREInfo"><span class="hs-identifier hs-var">GREInfo</span></a></span></span><span>
+</span><span id="line-114"></span><span>      </span><span class="annot"><span class="hs-comment">-- | No particular information... e.g. a function</span></span><span>
+</span><span id="line-115"></span><span>    </span><span class="hs-glyph">=</span><span> </span><span id="Vanilla"><span class="annot"><a href="GHC.Types.GREInfo.html#Vanilla"><span class="hs-identifier hs-var">Vanilla</span></a></span></span><span>
+</span><span id="line-116"></span><span>      </span><span class="annot"><span class="hs-comment">-- | An unbound GRE... could be anything</span></span><span>
+</span><span id="line-117"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span id="UnboundGRE"><span class="annot"><a href="GHC.Types.GREInfo.html#UnboundGRE"><span class="hs-identifier hs-var">UnboundGRE</span></a></span></span><span>
+</span><span id="line-118"></span><span>      </span><span class="annot"><span class="hs-comment">-- | 'TyCon'</span></span><span>
+</span><span id="line-119"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span id="IAmTyCon"><span class="annot"><a href="GHC.Types.GREInfo.html#IAmTyCon"><span class="hs-identifier hs-var">IAmTyCon</span></a></span></span><span>    </span><span class="hs-glyph">!</span><span class="hs-special">(</span><span class="annot"><a href="GHC.Types.Basic.html#TyConFlavour"><span class="hs-identifier hs-type">TyConFlavour</span></a></span><span> </span><span class="annot"><a href="GHC.Types.Name.html#Name"><span class="hs-identifier hs-type">Name</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-120"></span><span>      </span><span class="annot"><span class="hs-comment">-- | 'ConLike'</span></span><span>
+</span><span id="line-121"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span id="IAmConLike"><span class="annot"><a href="GHC.Types.GREInfo.html#IAmConLike"><span class="hs-identifier hs-var">IAmConLike</span></a></span></span><span>  </span><span class="hs-glyph">!</span><span class="annot"><a href="GHC.Types.GREInfo.html#ConInfo"><span class="hs-identifier hs-type">ConInfo</span></a></span><span>
+</span><span id="line-122"></span><span>      </span><span class="hs-comment">-- ^ The constructor fields.</span><span>
+</span><span id="line-123"></span><span>      </span><span class="hs-comment">-- See Note [Local constructor info in the renamer].</span><span>
+</span><span id="line-124"></span><span>      </span><span class="hs-comment">-- | Record field</span><span>
+</span><span id="line-125"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span id="IAmRecField"><span class="annot"><a href="GHC.Types.GREInfo.html#IAmRecField"><span class="hs-identifier hs-var">IAmRecField</span></a></span></span><span> </span><span class="hs-glyph">!</span><span class="annot"><a href="GHC.Types.GREInfo.html#RecFieldInfo"><span class="hs-identifier hs-type">RecFieldInfo</span></a></span><span>
+</span><span id="line-126"></span><span>
+</span><span id="line-127"></span><span>    </span><span class="hs-keyword">deriving</span><span> </span><span id="local-6989586621682394135"><span id="local-6989586621682394144"><span id="local-6989586621682394150"><span id="local-6989586621682394152"><span id="local-6989586621682394154"><span id="local-6989586621682394160"><span id="local-6989586621682394165"><span id="local-6989586621682394168"><span id="local-6989586621682394171"><span id="local-6989586621682394174"><span id="local-6989586621682394177"><span id="local-6989586621682394180"><span id="local-6989586621682394185"><span id="local-6989586621682394190"><span class="annot"><span class="annottext">Typeable GREInfo
+Typeable GREInfo =&gt;
+(forall (c :: * -&gt; *).
+ (forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+ -&gt; (forall g. g -&gt; c g) -&gt; GREInfo -&gt; c GREInfo)
+-&gt; (forall (c :: * -&gt; *).
+    (forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+    -&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c GREInfo)
+-&gt; (GREInfo -&gt; Constr)
+-&gt; (GREInfo -&gt; DataType)
+-&gt; (forall (t :: * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d. Data d =&gt; c (t d)) -&gt; Maybe (c GREInfo))
+-&gt; (forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d e. (Data d, Data e) =&gt; c (t d e)) -&gt; Maybe (c GREInfo))
+-&gt; ((forall b. Data b =&gt; b -&gt; b) -&gt; GREInfo -&gt; GREInfo)
+-&gt; (forall r r'.
+    (r -&gt; r' -&gt; r)
+    -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; GREInfo -&gt; r)
+-&gt; (forall r r'.
+    (r' -&gt; r -&gt; r)
+    -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; GREInfo -&gt; r)
+-&gt; (forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; GREInfo -&gt; [u])
+-&gt; (forall u.
+    Arity -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; GREInfo -&gt; u)
+-&gt; (forall (m :: * -&gt; *).
+    Monad m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; GREInfo -&gt; m GREInfo)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; GREInfo -&gt; m GREInfo)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; GREInfo -&gt; m GREInfo)
+-&gt; Data GREInfo
+GREInfo -&gt; Constr
+GREInfo -&gt; DataType
+(forall b. Data b =&gt; b -&gt; b) -&gt; GREInfo -&gt; GREInfo
+forall a.
+Typeable a =&gt;
+(forall (c :: * -&gt; *).
+ (forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+ -&gt; (forall g. g -&gt; c g) -&gt; a -&gt; c a)
+-&gt; (forall (c :: * -&gt; *).
+    (forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+    -&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c a)
+-&gt; (a -&gt; Constr)
+-&gt; (a -&gt; DataType)
+-&gt; (forall (t :: * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d. Data d =&gt; c (t d)) -&gt; Maybe (c a))
+-&gt; (forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d e. (Data d, Data e) =&gt; c (t d e)) -&gt; Maybe (c a))
+-&gt; ((forall b. Data b =&gt; b -&gt; b) -&gt; a -&gt; a)
+-&gt; (forall r r'.
+    (r -&gt; r' -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; a -&gt; r)
+-&gt; (forall r r'.
+    (r' -&gt; r -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; a -&gt; r)
+-&gt; (forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; a -&gt; [u])
+-&gt; (forall u. Arity -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; a -&gt; u)
+-&gt; (forall (m :: * -&gt; *).
+    Monad m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; a -&gt; m a)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; a -&gt; m a)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; a -&gt; m a)
+-&gt; Data a
+forall u. Arity -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; GREInfo -&gt; u
+forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; GREInfo -&gt; [u]
+forall r r'.
+(r -&gt; r' -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; GREInfo -&gt; r
+forall r r'.
+(r' -&gt; r -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; GREInfo -&gt; r
+forall (m :: * -&gt; *).
+Monad m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; GREInfo -&gt; m GREInfo
+forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; GREInfo -&gt; m GREInfo
+forall (c :: * -&gt; *).
+(forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+-&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c GREInfo
+forall (c :: * -&gt; *).
+(forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+-&gt; (forall g. g -&gt; c g) -&gt; GREInfo -&gt; c GREInfo
+forall (t :: * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d. Data d =&gt; c (t d)) -&gt; Maybe (c GREInfo)
+forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d e. (Data d, Data e) =&gt; c (t d e)) -&gt; Maybe (c GREInfo)
+$cgfoldl :: forall (c :: * -&gt; *).
+(forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+-&gt; (forall g. g -&gt; c g) -&gt; GREInfo -&gt; c GREInfo
+gfoldl :: forall (c :: * -&gt; *).
+(forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+-&gt; (forall g. g -&gt; c g) -&gt; GREInfo -&gt; c GREInfo
+$cgunfold :: forall (c :: * -&gt; *).
+(forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+-&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c GREInfo
+gunfold :: forall (c :: * -&gt; *).
+(forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+-&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c GREInfo
+$ctoConstr :: GREInfo -&gt; Constr
+toConstr :: GREInfo -&gt; Constr
+$cdataTypeOf :: GREInfo -&gt; DataType
+dataTypeOf :: GREInfo -&gt; DataType
+$cdataCast1 :: forall (t :: * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d. Data d =&gt; c (t d)) -&gt; Maybe (c GREInfo)
+dataCast1 :: forall (t :: * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d. Data d =&gt; c (t d)) -&gt; Maybe (c GREInfo)
+$cdataCast2 :: forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d e. (Data d, Data e) =&gt; c (t d e)) -&gt; Maybe (c GREInfo)
+dataCast2 :: forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d e. (Data d, Data e) =&gt; c (t d e)) -&gt; Maybe (c GREInfo)
+$cgmapT :: (forall b. Data b =&gt; b -&gt; b) -&gt; GREInfo -&gt; GREInfo
+gmapT :: (forall b. Data b =&gt; b -&gt; b) -&gt; GREInfo -&gt; GREInfo
+$cgmapQl :: forall r r'.
+(r -&gt; r' -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; GREInfo -&gt; r
+gmapQl :: forall r r'.
+(r -&gt; r' -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; GREInfo -&gt; r
+$cgmapQr :: forall r r'.
+(r' -&gt; r -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; GREInfo -&gt; r
+gmapQr :: forall r r'.
+(r' -&gt; r -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; GREInfo -&gt; r
+$cgmapQ :: forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; GREInfo -&gt; [u]
+gmapQ :: forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; GREInfo -&gt; [u]
+$cgmapQi :: forall u. Arity -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; GREInfo -&gt; u
+gmapQi :: forall u. Arity -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; GREInfo -&gt; u
+$cgmapM :: forall (m :: * -&gt; *).
+Monad m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; GREInfo -&gt; m GREInfo
+gmapM :: forall (m :: * -&gt; *).
+Monad m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; GREInfo -&gt; m GREInfo
+$cgmapMp :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; GREInfo -&gt; m GREInfo
+gmapMp :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; GREInfo -&gt; m GREInfo
+$cgmapMo :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; GREInfo -&gt; m GREInfo
+gmapMo :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; GREInfo -&gt; m GREInfo
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Data</span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span><span>
+</span><span id="line-128"></span><span>
+</span><span id="line-129"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="../../deepseq-1.5.0.0-a9b7/src/Control.DeepSeq.html#NFData"><span class="hs-identifier hs-type">NFData</span></a></span><span> </span><span class="annot"><a href="GHC.Types.GREInfo.html#GREInfo"><span class="hs-identifier hs-type">GREInfo</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-130"></span><span>  </span><span id="local-6989586621682394211"><span class="annot"><span class="annottext">rnf :: GREInfo -&gt; ()
+</span><a href="#local-6989586621682394211"><span class="hs-identifier hs-var hs-var hs-var">rnf</span></a></span></span><span> </span><span class="annot"><span class="annottext">GREInfo
+</span><a href="GHC.Types.GREInfo.html#Vanilla"><span class="hs-identifier hs-var">Vanilla</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-131"></span><span>  </span><span class="annot"><a href="../../deepseq-1.5.0.0-a9b7/src/Control.DeepSeq.html#rnf"><span class="hs-identifier hs-var">rnf</span></a></span><span> </span><span class="annot"><span class="annottext">GREInfo
+</span><a href="GHC.Types.GREInfo.html#UnboundGRE"><span class="hs-identifier hs-var">UnboundGRE</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-132"></span><span>  </span><span class="annot"><a href="../../deepseq-1.5.0.0-a9b7/src/Control.DeepSeq.html#rnf"><span class="hs-identifier hs-var">rnf</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Types.GREInfo.html#IAmTyCon"><span class="hs-identifier hs-type">IAmTyCon</span></a></span><span> </span><span id="local-6989586621682394213"><span class="annot"><span class="annottext">TyConFlavour Name
+</span><a href="#local-6989586621682394213"><span class="hs-identifier hs-var">tc</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">TyConFlavour Name -&gt; ()
+forall a. NFData a =&gt; a -&gt; ()
+</span><a href="../../deepseq-1.5.0.0-a9b7/src/Control.DeepSeq.html#rnf"><span class="hs-identifier hs-var">rnf</span></a></span><span> </span><span class="annot"><span class="annottext">TyConFlavour Name
+</span><a href="#local-6989586621682394213"><span class="hs-identifier hs-var">tc</span></a></span><span>
+</span><span id="line-133"></span><span>  </span><span class="annot"><a href="../../deepseq-1.5.0.0-a9b7/src/Control.DeepSeq.html#rnf"><span class="hs-identifier hs-var">rnf</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Types.GREInfo.html#IAmConLike"><span class="hs-identifier hs-type">IAmConLike</span></a></span><span> </span><span id="local-6989586621682394214"><span class="annot"><span class="annottext">ConInfo
+</span><a href="#local-6989586621682394214"><span class="hs-identifier hs-var">info</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ConInfo -&gt; ()
+forall a. NFData a =&gt; a -&gt; ()
+</span><a href="../../deepseq-1.5.0.0-a9b7/src/Control.DeepSeq.html#rnf"><span class="hs-identifier hs-var">rnf</span></a></span><span> </span><span class="annot"><span class="annottext">ConInfo
+</span><a href="#local-6989586621682394214"><span class="hs-identifier hs-var">info</span></a></span><span>
+</span><span id="line-134"></span><span>  </span><span class="annot"><a href="../../deepseq-1.5.0.0-a9b7/src/Control.DeepSeq.html#rnf"><span class="hs-identifier hs-var">rnf</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Types.GREInfo.html#IAmRecField"><span class="hs-identifier hs-type">IAmRecField</span></a></span><span> </span><span id="local-6989586621682394215"><span class="annot"><span class="annottext">RecFieldInfo
+</span><a href="#local-6989586621682394215"><span class="hs-identifier hs-var">info</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">RecFieldInfo -&gt; ()
+forall a. NFData a =&gt; a -&gt; ()
+</span><a href="../../deepseq-1.5.0.0-a9b7/src/Control.DeepSeq.html#rnf"><span class="hs-identifier hs-var">rnf</span></a></span><span> </span><span class="annot"><span class="annottext">RecFieldInfo
+</span><a href="#local-6989586621682394215"><span class="hs-identifier hs-var">info</span></a></span><span>
+</span><span id="line-135"></span><span>
+</span><span id="line-136"></span><span class="annot"><a href="GHC.Types.GREInfo.html#plusGREInfo"><span class="hs-identifier hs-type">plusGREInfo</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Types.GREInfo.html#GREInfo"><span class="hs-identifier hs-type">GREInfo</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Types.GREInfo.html#GREInfo"><span class="hs-identifier hs-type">GREInfo</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Types.GREInfo.html#GREInfo"><span class="hs-identifier hs-type">GREInfo</span></a></span><span>
+</span><span id="line-137"></span><span id="plusGREInfo"><span class="annot"><span class="annottext">plusGREInfo :: GREInfo -&gt; GREInfo -&gt; GREInfo
+</span><a href="GHC.Types.GREInfo.html#plusGREInfo"><span class="hs-identifier hs-var hs-var">plusGREInfo</span></a></span></span><span> </span><span class="annot"><span class="annottext">GREInfo
+</span><a href="GHC.Types.GREInfo.html#Vanilla"><span class="hs-identifier hs-var">Vanilla</span></a></span><span> </span><span class="annot"><span class="annottext">GREInfo
+</span><a href="GHC.Types.GREInfo.html#Vanilla"><span class="hs-identifier hs-var">Vanilla</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">GREInfo
+</span><a href="GHC.Types.GREInfo.html#Vanilla"><span class="hs-identifier hs-var">Vanilla</span></a></span><span>
+</span><span id="line-138"></span><span class="annot"><a href="GHC.Types.GREInfo.html#plusGREInfo"><span class="hs-identifier hs-var">plusGREInfo</span></a></span><span> </span><span class="annot"><span class="annottext">GREInfo
+</span><a href="GHC.Types.GREInfo.html#UnboundGRE"><span class="hs-identifier hs-var">UnboundGRE</span></a></span><span> </span><span class="annot"><span class="annottext">GREInfo
+</span><a href="GHC.Types.GREInfo.html#UnboundGRE"><span class="hs-identifier hs-var">UnboundGRE</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">GREInfo
+</span><a href="GHC.Types.GREInfo.html#UnboundGRE"><span class="hs-identifier hs-var">UnboundGRE</span></a></span><span>
+</span><span id="line-139"></span><span class="annot"><a href="GHC.Types.GREInfo.html#plusGREInfo"><span class="hs-identifier hs-var">plusGREInfo</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Types.GREInfo.html#IAmTyCon"><span class="hs-identifier hs-type">IAmTyCon</span></a></span><span> </span><span class="hs-special">{</span><span class="hs-special">}</span><span class="hs-special">)</span><span>    </span><span id="local-6989586621682394217"><span class="annot"><span class="annottext">info2 :: GREInfo
+</span><a href="#local-6989586621682394217"><span class="hs-identifier hs-var">info2</span></a></span></span><span class="hs-glyph">@</span><span class="hs-special">(</span><span class="annot"><a href="GHC.Types.GREInfo.html#IAmTyCon"><span class="hs-identifier hs-type">IAmTyCon</span></a></span><span> </span><span class="hs-special">{</span><span class="hs-special">}</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">GREInfo
+</span><a href="#local-6989586621682394217"><span class="hs-identifier hs-var">info2</span></a></span><span>
+</span><span id="line-140"></span><span class="annot"><a href="GHC.Types.GREInfo.html#plusGREInfo"><span class="hs-identifier hs-var">plusGREInfo</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Types.GREInfo.html#IAmConLike"><span class="hs-identifier hs-type">IAmConLike</span></a></span><span> </span><span class="hs-special">{</span><span class="hs-special">}</span><span class="hs-special">)</span><span>  </span><span id="local-6989586621682394218"><span class="annot"><span class="annottext">info2 :: GREInfo
+</span><a href="#local-6989586621682394218"><span class="hs-identifier hs-var">info2</span></a></span></span><span class="hs-glyph">@</span><span class="hs-special">(</span><span class="annot"><a href="GHC.Types.GREInfo.html#IAmConLike"><span class="hs-identifier hs-type">IAmConLike</span></a></span><span> </span><span class="hs-special">{</span><span class="hs-special">}</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">GREInfo
+</span><a href="#local-6989586621682394218"><span class="hs-identifier hs-var">info2</span></a></span><span>
+</span><span id="line-141"></span><span class="annot"><a href="GHC.Types.GREInfo.html#plusGREInfo"><span class="hs-identifier hs-var">plusGREInfo</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Types.GREInfo.html#IAmRecField"><span class="hs-identifier hs-type">IAmRecField</span></a></span><span> </span><span class="hs-special">{</span><span class="hs-special">}</span><span class="hs-special">)</span><span> </span><span id="local-6989586621682394219"><span class="annot"><span class="annottext">info2 :: GREInfo
+</span><a href="#local-6989586621682394219"><span class="hs-identifier hs-var">info2</span></a></span></span><span class="hs-glyph">@</span><span class="hs-special">(</span><span class="annot"><a href="GHC.Types.GREInfo.html#IAmRecField"><span class="hs-identifier hs-type">IAmRecField</span></a></span><span> </span><span class="hs-special">{</span><span class="hs-special">}</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">GREInfo
+</span><a href="#local-6989586621682394219"><span class="hs-identifier hs-var">info2</span></a></span><span>
+</span><span id="line-142"></span><span class="annot"><a href="GHC.Types.GREInfo.html#plusGREInfo"><span class="hs-identifier hs-var">plusGREInfo</span></a></span><span> </span><span id="local-6989586621682394220"><span class="annot"><span class="annottext">GREInfo
+</span><a href="#local-6989586621682394220"><span class="hs-identifier hs-var">info1</span></a></span></span><span> </span><span id="local-6989586621682394221"><span class="annot"><span class="annottext">GREInfo
+</span><a href="#local-6989586621682394221"><span class="hs-identifier hs-var">info2</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; SDoc -&gt; GREInfo
+forall a. HasCallStack =&gt; String -&gt; SDoc -&gt; a
+</span><a href="GHC.Utils.Panic.html#pprPanic"><span class="hs-identifier hs-var">pprPanic</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;plusInfo&quot;</span></span><span> </span><span class="annot"><span class="annottext">(SDoc -&gt; GREInfo) -&gt; SDoc -&gt; GREInfo
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-143"></span><span>  </span><span class="annot"><span class="annottext">[SDoc] -&gt; SDoc
+forall doc. IsDoc doc =&gt; [doc] -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#vcat"><span class="hs-identifier hs-var">vcat</span></a></span><span> </span><span class="hs-special">[</span><span> </span><span class="annot"><span class="annottext">String -&gt; SDoc
+forall doc. IsLine doc =&gt; String -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#text"><span class="hs-identifier hs-var">text</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;info1:&quot;</span></span><span> </span><span class="annot"><span class="annottext">SDoc -&gt; SDoc -&gt; SDoc
+forall doc. IsLine doc =&gt; doc -&gt; doc -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#%3C%2B%3E"><span class="hs-operator hs-var">&lt;+&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">GREInfo -&gt; SDoc
+forall a. Outputable a =&gt; a -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#ppr"><span class="hs-identifier hs-var">ppr</span></a></span><span> </span><span class="annot"><span class="annottext">GREInfo
+</span><a href="#local-6989586621682394220"><span class="hs-identifier hs-var">info1</span></a></span><span>
+</span><span id="line-144"></span><span>       </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String -&gt; SDoc
+forall doc. IsLine doc =&gt; String -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#text"><span class="hs-identifier hs-var">text</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;info2:&quot;</span></span><span> </span><span class="annot"><span class="annottext">SDoc -&gt; SDoc -&gt; SDoc
+forall doc. IsLine doc =&gt; doc -&gt; doc -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#%3C%2B%3E"><span class="hs-operator hs-var">&lt;+&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">GREInfo -&gt; SDoc
+forall a. Outputable a =&gt; a -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#ppr"><span class="hs-identifier hs-var">ppr</span></a></span><span> </span><span class="annot"><span class="annottext">GREInfo
+</span><a href="#local-6989586621682394221"><span class="hs-identifier hs-var">info2</span></a></span><span> </span><span class="hs-special">]</span><span>
+</span><span id="line-145"></span><span>
+</span><span id="line-146"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="GHC.Utils.Outputable.html#Outputable"><span class="hs-identifier hs-type">Outputable</span></a></span><span> </span><span class="annot"><a href="GHC.Types.GREInfo.html#GREInfo"><span class="hs-identifier hs-type">GREInfo</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-147"></span><span>  </span><span id="local-6989586621682394243"><span class="annot"><span class="annottext">ppr :: GREInfo -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#ppr"><span class="hs-identifier hs-var hs-var hs-var">ppr</span></a></span></span><span> </span><span class="annot"><span class="annottext">GREInfo
+</span><a href="GHC.Types.GREInfo.html#Vanilla"><span class="hs-identifier hs-var">Vanilla</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; SDoc
+forall doc. IsLine doc =&gt; String -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#text"><span class="hs-identifier hs-var">text</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Vanilla&quot;</span></span><span>
+</span><span id="line-148"></span><span>  </span><span class="annot"><a href="GHC.Utils.Outputable.html#ppr"><span class="hs-identifier hs-var">ppr</span></a></span><span> </span><span class="annot"><span class="annottext">GREInfo
+</span><a href="GHC.Types.GREInfo.html#UnboundGRE"><span class="hs-identifier hs-var">UnboundGRE</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; SDoc
+forall doc. IsLine doc =&gt; String -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#text"><span class="hs-identifier hs-var">text</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;UnboundGRE&quot;</span></span><span>
+</span><span id="line-149"></span><span>  </span><span class="annot"><a href="GHC.Utils.Outputable.html#ppr"><span class="hs-identifier hs-var">ppr</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Types.GREInfo.html#IAmTyCon"><span class="hs-identifier hs-type">IAmTyCon</span></a></span><span> </span><span id="local-6989586621682394244"><span class="annot"><span class="annottext">TyConFlavour Name
+</span><a href="#local-6989586621682394244"><span class="hs-identifier hs-var">flav</span></a></span></span><span class="hs-special">)</span><span>
+</span><span id="line-150"></span><span>    </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; SDoc
+forall doc. IsLine doc =&gt; String -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#text"><span class="hs-identifier hs-var">text</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;TyCon&quot;</span></span><span> </span><span class="annot"><span class="annottext">SDoc -&gt; SDoc -&gt; SDoc
+forall doc. IsLine doc =&gt; doc -&gt; doc -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#%3C%2B%3E"><span class="hs-operator hs-var">&lt;+&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">TyConFlavour Name -&gt; SDoc
+forall a. Outputable a =&gt; a -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#ppr"><span class="hs-identifier hs-var">ppr</span></a></span><span> </span><span class="annot"><span class="annottext">TyConFlavour Name
+</span><a href="#local-6989586621682394244"><span class="hs-identifier hs-var">flav</span></a></span><span>
+</span><span id="line-151"></span><span>  </span><span class="annot"><a href="GHC.Utils.Outputable.html#ppr"><span class="hs-identifier hs-var">ppr</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Types.GREInfo.html#IAmConLike"><span class="hs-identifier hs-type">IAmConLike</span></a></span><span> </span><span id="local-6989586621682394245"><span class="annot"><span class="annottext">ConInfo
+</span><a href="#local-6989586621682394245"><span class="hs-identifier hs-var">info</span></a></span></span><span class="hs-special">)</span><span>
+</span><span id="line-152"></span><span>    </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; SDoc
+forall doc. IsLine doc =&gt; String -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#text"><span class="hs-identifier hs-var">text</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;ConLike&quot;</span></span><span> </span><span class="annot"><span class="annottext">SDoc -&gt; SDoc -&gt; SDoc
+forall doc. IsLine doc =&gt; doc -&gt; doc -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#%3C%2B%3E"><span class="hs-operator hs-var">&lt;+&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">ConInfo -&gt; SDoc
+forall a. Outputable a =&gt; a -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#ppr"><span class="hs-identifier hs-var">ppr</span></a></span><span> </span><span class="annot"><span class="annottext">ConInfo
+</span><a href="#local-6989586621682394245"><span class="hs-identifier hs-var">info</span></a></span><span>
+</span><span id="line-153"></span><span>  </span><span class="annot"><a href="GHC.Utils.Outputable.html#ppr"><span class="hs-identifier hs-var">ppr</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Types.GREInfo.html#IAmRecField"><span class="hs-identifier hs-type">IAmRecField</span></a></span><span> </span><span id="local-6989586621682394246"><span class="annot"><span class="annottext">RecFieldInfo
+</span><a href="#local-6989586621682394246"><span class="hs-identifier hs-var">info</span></a></span></span><span class="hs-special">)</span><span>
+</span><span id="line-154"></span><span>    </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; SDoc
+forall doc. IsLine doc =&gt; String -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#text"><span class="hs-identifier hs-var">text</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;RecField&quot;</span></span><span> </span><span class="annot"><span class="annottext">SDoc -&gt; SDoc -&gt; SDoc
+forall doc. IsLine doc =&gt; doc -&gt; doc -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#%3C%2B%3E"><span class="hs-operator hs-var">&lt;+&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">RecFieldInfo -&gt; SDoc
+forall a. Outputable a =&gt; a -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#ppr"><span class="hs-identifier hs-var">ppr</span></a></span><span> </span><span class="annot"><span class="annottext">RecFieldInfo
+</span><a href="#local-6989586621682394246"><span class="hs-identifier hs-var">info</span></a></span><span>
+</span><span id="line-155"></span><span>
+</span><span id="line-156"></span><span class="annot"><span class="hs-comment">{-**********************************************************************
+*                                                                      *
+                      Constructor info
+*                                                                      *
+************************************************************************
+
+Note [Local constructor info in the renamer]
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+As explained in Note [GREInfo], information pertinent to the renamer is
+stored using the GREInfo datatype. What information do we need about constructors?
+
+Consider the following example:
+
+  data T = T1 { x, y :: Int }
+         | T2 { x :: Int }
+         | T3
+         | T4 Int Bool
+
+We need to know:
+* The fields of the data constructor, so that
+  - We can complain if you say `T1 { v = 3 }`, where `v` is not a field of `T1`
+    See the following call stack
+    * GHC.Rename.Expr.rnExpr (RecordCon case)
+    * GHC.Rename.Pat.rnHsRecFields
+    * GHC.Rename.Env.lookupRecFieldOcc
+  - Ditto if you pattern match on `T1 { v = x }`.
+    See the following call stack
+    * GHC.Rename.Pat.rnHsRecPatsAndThen
+    * GHC.Rename.Pat.rnHsRecFields
+    * GHC.Rename.Env.lookupRecFieldOcc
+  - We can fill in the dots if you say `T1 {..}` in construction or pattern matching
+    See GHC.Rename.Pat.rnHsRecFields.rn_dotdot
+
+* Whether the constructor is nullary.
+  We need to know this to accept `T2 {..}`, and `T3 {..}`, but reject `T4 {..}`,
+  in both construction and pattern matching.
+  See GHC.Rename.Pat.rnHsRecFields.rn_dotdot
+  and Note [Nullary constructors and empty record wildcards]
+
+Note [Nullary constructors and empty record wildcards]
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+A nullary constructor is one with no arguments.
+For example, both `data T = MkT` and `data T = MkT {}` are nullary.
+
+For consistency and TH convenience, it was agreed that a `{..}`
+match or usage on nullary constructors would be accepted.
+This is done as as per https://github.com/ghc-proposals/ghc-proposals/blob/master/proposals/0496-empty-record-wildcards.rst
+-}</span></span><span>
+</span><span id="line-204"></span><span>
+</span><span id="line-205"></span><span class="hs-comment">-- | Information about the record fields of a constructor.</span><span>
+</span><span id="line-206"></span><span class="hs-comment">--</span><span>
+</span><span id="line-207"></span><span class="hs-comment">-- See Note [Local constructor info in the renamer]</span><span>
+</span><span id="line-208"></span><span class="hs-keyword">data</span><span> </span><span id="ConInfo"><span class="annot"><a href="GHC.Types.GREInfo.html#ConInfo"><span class="hs-identifier hs-var">ConInfo</span></a></span></span><span>
+</span><span id="line-209"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span id="ConHasRecordFields"><span class="annot"><a href="GHC.Types.GREInfo.html#ConHasRecordFields"><span class="hs-identifier hs-var">ConHasRecordFields</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">NonEmpty</span></span><span> </span><span class="annot"><a href="GHC.Types.FieldLabel.html#FieldLabel"><span class="hs-identifier hs-type">FieldLabel</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-210"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="ConHasPositionalArgs"><span class="annot"><a href="GHC.Types.GREInfo.html#ConHasPositionalArgs"><span class="hs-identifier hs-var">ConHasPositionalArgs</span></a></span></span><span>
+</span><span id="line-211"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="ConIsNullary"><span class="annot"><a href="GHC.Types.GREInfo.html#ConIsNullary"><span class="hs-identifier hs-var">ConIsNullary</span></a></span></span><span>
+</span><span id="line-212"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">stock</span></span><span> </span><span id="local-6989586621682394251"><span id="local-6989586621682394259"><span class="annot"><span class="annottext">ConInfo -&gt; ConInfo -&gt; Bool
+(ConInfo -&gt; ConInfo -&gt; Bool)
+-&gt; (ConInfo -&gt; ConInfo -&gt; Bool) -&gt; Eq ConInfo
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: ConInfo -&gt; ConInfo -&gt; Bool
+== :: ConInfo -&gt; ConInfo -&gt; Bool
+$c/= :: ConInfo -&gt; ConInfo -&gt; Bool
+/= :: ConInfo -&gt; ConInfo -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span>
+</span><span id="line-213"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span id="local-6989586621682394267"><span id="local-6989586621682394272"><span id="local-6989586621682394276"><span id="local-6989586621682394278"><span id="local-6989586621682394280"><span id="local-6989586621682394285"><span id="local-6989586621682394290"><span id="local-6989586621682394293"><span id="local-6989586621682394296"><span id="local-6989586621682394299"><span id="local-6989586621682394302"><span id="local-6989586621682394305"><span id="local-6989586621682394310"><span id="local-6989586621682394315"><span class="annot"><span class="annottext">Typeable ConInfo
+Typeable ConInfo =&gt;
+(forall (c :: * -&gt; *).
+ (forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+ -&gt; (forall g. g -&gt; c g) -&gt; ConInfo -&gt; c ConInfo)
+-&gt; (forall (c :: * -&gt; *).
+    (forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+    -&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c ConInfo)
+-&gt; (ConInfo -&gt; Constr)
+-&gt; (ConInfo -&gt; DataType)
+-&gt; (forall (t :: * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d. Data d =&gt; c (t d)) -&gt; Maybe (c ConInfo))
+-&gt; (forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d e. (Data d, Data e) =&gt; c (t d e)) -&gt; Maybe (c ConInfo))
+-&gt; ((forall b. Data b =&gt; b -&gt; b) -&gt; ConInfo -&gt; ConInfo)
+-&gt; (forall r r'.
+    (r -&gt; r' -&gt; r)
+    -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; ConInfo -&gt; r)
+-&gt; (forall r r'.
+    (r' -&gt; r -&gt; r)
+    -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; ConInfo -&gt; r)
+-&gt; (forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; ConInfo -&gt; [u])
+-&gt; (forall u.
+    Arity -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; ConInfo -&gt; u)
+-&gt; (forall (m :: * -&gt; *).
+    Monad m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; ConInfo -&gt; m ConInfo)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; ConInfo -&gt; m ConInfo)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; ConInfo -&gt; m ConInfo)
+-&gt; Data ConInfo
+ConInfo -&gt; Constr
+ConInfo -&gt; DataType
+(forall b. Data b =&gt; b -&gt; b) -&gt; ConInfo -&gt; ConInfo
+forall a.
+Typeable a =&gt;
+(forall (c :: * -&gt; *).
+ (forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+ -&gt; (forall g. g -&gt; c g) -&gt; a -&gt; c a)
+-&gt; (forall (c :: * -&gt; *).
+    (forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+    -&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c a)
+-&gt; (a -&gt; Constr)
+-&gt; (a -&gt; DataType)
+-&gt; (forall (t :: * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d. Data d =&gt; c (t d)) -&gt; Maybe (c a))
+-&gt; (forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d e. (Data d, Data e) =&gt; c (t d e)) -&gt; Maybe (c a))
+-&gt; ((forall b. Data b =&gt; b -&gt; b) -&gt; a -&gt; a)
+-&gt; (forall r r'.
+    (r -&gt; r' -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; a -&gt; r)
+-&gt; (forall r r'.
+    (r' -&gt; r -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; a -&gt; r)
+-&gt; (forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; a -&gt; [u])
+-&gt; (forall u. Arity -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; a -&gt; u)
+-&gt; (forall (m :: * -&gt; *).
+    Monad m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; a -&gt; m a)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; a -&gt; m a)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; a -&gt; m a)
+-&gt; Data a
+forall u. Arity -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; ConInfo -&gt; u
+forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; ConInfo -&gt; [u]
+forall r r'.
+(r -&gt; r' -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; ConInfo -&gt; r
+forall r r'.
+(r' -&gt; r -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; ConInfo -&gt; r
+forall (m :: * -&gt; *).
+Monad m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; ConInfo -&gt; m ConInfo
+forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; ConInfo -&gt; m ConInfo
+forall (c :: * -&gt; *).
+(forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+-&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c ConInfo
+forall (c :: * -&gt; *).
+(forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+-&gt; (forall g. g -&gt; c g) -&gt; ConInfo -&gt; c ConInfo
+forall (t :: * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d. Data d =&gt; c (t d)) -&gt; Maybe (c ConInfo)
+forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d e. (Data d, Data e) =&gt; c (t d e)) -&gt; Maybe (c ConInfo)
+$cgfoldl :: forall (c :: * -&gt; *).
+(forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+-&gt; (forall g. g -&gt; c g) -&gt; ConInfo -&gt; c ConInfo
+gfoldl :: forall (c :: * -&gt; *).
+(forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+-&gt; (forall g. g -&gt; c g) -&gt; ConInfo -&gt; c ConInfo
+$cgunfold :: forall (c :: * -&gt; *).
+(forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+-&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c ConInfo
+gunfold :: forall (c :: * -&gt; *).
+(forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+-&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c ConInfo
+$ctoConstr :: ConInfo -&gt; Constr
+toConstr :: ConInfo -&gt; Constr
+$cdataTypeOf :: ConInfo -&gt; DataType
+dataTypeOf :: ConInfo -&gt; DataType
+$cdataCast1 :: forall (t :: * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d. Data d =&gt; c (t d)) -&gt; Maybe (c ConInfo)
+dataCast1 :: forall (t :: * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d. Data d =&gt; c (t d)) -&gt; Maybe (c ConInfo)
+$cdataCast2 :: forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d e. (Data d, Data e) =&gt; c (t d e)) -&gt; Maybe (c ConInfo)
+dataCast2 :: forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d e. (Data d, Data e) =&gt; c (t d e)) -&gt; Maybe (c ConInfo)
+$cgmapT :: (forall b. Data b =&gt; b -&gt; b) -&gt; ConInfo -&gt; ConInfo
+gmapT :: (forall b. Data b =&gt; b -&gt; b) -&gt; ConInfo -&gt; ConInfo
+$cgmapQl :: forall r r'.
+(r -&gt; r' -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; ConInfo -&gt; r
+gmapQl :: forall r r'.
+(r -&gt; r' -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; ConInfo -&gt; r
+$cgmapQr :: forall r r'.
+(r' -&gt; r -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; ConInfo -&gt; r
+gmapQr :: forall r r'.
+(r' -&gt; r -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; ConInfo -&gt; r
+$cgmapQ :: forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; ConInfo -&gt; [u]
+gmapQ :: forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; ConInfo -&gt; [u]
+$cgmapQi :: forall u. Arity -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; ConInfo -&gt; u
+gmapQi :: forall u. Arity -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; ConInfo -&gt; u
+$cgmapM :: forall (m :: * -&gt; *).
+Monad m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; ConInfo -&gt; m ConInfo
+gmapM :: forall (m :: * -&gt; *).
+Monad m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; ConInfo -&gt; m ConInfo
+$cgmapMp :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; ConInfo -&gt; m ConInfo
+gmapMp :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; ConInfo -&gt; m ConInfo
+$cgmapMo :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; ConInfo -&gt; m ConInfo
+gmapMo :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; ConInfo -&gt; m ConInfo
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Data</span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span><span>
+</span><span id="line-214"></span><span>
+</span><span id="line-215"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="../../deepseq-1.5.0.0-a9b7/src/Control.DeepSeq.html#NFData"><span class="hs-identifier hs-type">NFData</span></a></span><span> </span><span class="annot"><a href="GHC.Types.GREInfo.html#ConInfo"><span class="hs-identifier hs-type">ConInfo</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-216"></span><span>  </span><span id="local-6989586621682394325"><span class="annot"><span class="annottext">rnf :: ConInfo -&gt; ()
+</span><a href="../../deepseq-1.5.0.0-a9b7/src/Control.DeepSeq.html#rnf"><span class="hs-identifier hs-var hs-var hs-var">rnf</span></a></span></span><span> </span><span class="annot"><span class="annottext">ConInfo
+</span><a href="GHC.Types.GREInfo.html#ConIsNullary"><span class="hs-identifier hs-var">ConIsNullary</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-217"></span><span>  </span><span class="annot"><a href="../../deepseq-1.5.0.0-a9b7/src/Control.DeepSeq.html#rnf"><span class="hs-identifier hs-var">rnf</span></a></span><span> </span><span class="annot"><span class="annottext">ConInfo
+</span><a href="GHC.Types.GREInfo.html#ConHasPositionalArgs"><span class="hs-identifier hs-var">ConHasPositionalArgs</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-218"></span><span>  </span><span class="annot"><a href="../../deepseq-1.5.0.0-a9b7/src/Control.DeepSeq.html#rnf"><span class="hs-identifier hs-var">rnf</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Types.GREInfo.html#ConHasRecordFields"><span class="hs-identifier hs-type">ConHasRecordFields</span></a></span><span> </span><span id="local-6989586621682394326"><span class="annot"><span class="annottext">NonEmpty FieldLabel
+</span><a href="#local-6989586621682394326"><span class="hs-identifier hs-var">flds</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">NonEmpty FieldLabel -&gt; ()
+forall a. NFData a =&gt; a -&gt; ()
+</span><a href="../../deepseq-1.5.0.0-a9b7/src/Control.DeepSeq.html#rnf"><span class="hs-identifier hs-var">rnf</span></a></span><span> </span><span class="annot"><span class="annottext">NonEmpty FieldLabel
+</span><a href="#local-6989586621682394326"><span class="hs-identifier hs-var">flds</span></a></span><span>
+</span><span id="line-219"></span><span>
+</span><span id="line-220"></span><span class="annot"><a href="GHC.Types.GREInfo.html#mkConInfo"><span class="hs-identifier hs-type">mkConInfo</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Types.Basic.html#Arity"><span class="hs-identifier hs-type">Arity</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="GHC.Types.FieldLabel.html#FieldLabel"><span class="hs-identifier hs-type">FieldLabel</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Types.GREInfo.html#ConInfo"><span class="hs-identifier hs-type">ConInfo</span></a></span><span>
+</span><span id="line-221"></span><span id="mkConInfo"><span class="annot"><span class="annottext">mkConInfo :: Arity -&gt; [FieldLabel] -&gt; ConInfo
+</span><a href="GHC.Types.GREInfo.html#mkConInfo"><span class="hs-identifier hs-var hs-var">mkConInfo</span></a></span></span><span> </span><span class="annot"><span class="annottext">Arity
+</span><span class="hs-number">0</span></span><span> </span><span class="annot"><span class="annottext">[FieldLabel]
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ConInfo
+</span><a href="GHC.Types.GREInfo.html#ConIsNullary"><span class="hs-identifier hs-var">ConIsNullary</span></a></span><span>
+</span><span id="line-222"></span><span class="annot"><a href="GHC.Types.GREInfo.html#mkConInfo"><span class="hs-identifier hs-var">mkConInfo</span></a></span><span> </span><span class="annot"><span class="annottext">Arity
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621682394328"><span class="annot"><span class="annottext">[FieldLabel]
+</span><a href="#local-6989586621682394328"><span class="hs-identifier hs-var">fields</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ConInfo
+-&gt; (NonEmpty FieldLabel -&gt; ConInfo)
+-&gt; Maybe (NonEmpty FieldLabel)
+-&gt; ConInfo
+forall b a. b -&gt; (a -&gt; b) -&gt; Maybe a -&gt; b
+</span><span class="hs-identifier hs-var">maybe</span></span><span> </span><span class="annot"><span class="annottext">ConInfo
+</span><a href="GHC.Types.GREInfo.html#ConHasPositionalArgs"><span class="hs-identifier hs-var">ConHasPositionalArgs</span></a></span><span> </span><span class="annot"><span class="annottext">NonEmpty FieldLabel -&gt; ConInfo
+</span><a href="GHC.Types.GREInfo.html#ConHasRecordFields"><span class="hs-identifier hs-var">ConHasRecordFields</span></a></span><span>
+</span><span id="line-223"></span><span>                   </span><span class="annot"><span class="annottext">(Maybe (NonEmpty FieldLabel) -&gt; ConInfo)
+-&gt; Maybe (NonEmpty FieldLabel) -&gt; ConInfo
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">[FieldLabel] -&gt; Maybe (NonEmpty FieldLabel)
+forall a. [a] -&gt; Maybe (NonEmpty a)
+</span><a href="../../base-4.20.2.0-6654/src/Data.List.NonEmpty.html#nonEmpty"><span class="hs-identifier hs-var">NonEmpty.nonEmpty</span></a></span><span> </span><span class="annot"><span class="annottext">[FieldLabel]
+</span><a href="#local-6989586621682394328"><span class="hs-identifier hs-var">fields</span></a></span><span>
+</span><span id="line-224"></span><span>
+</span><span id="line-225"></span><span class="annot"><a href="GHC.Types.GREInfo.html#conInfoFields"><span class="hs-identifier hs-type">conInfoFields</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Types.GREInfo.html#ConInfo"><span class="hs-identifier hs-type">ConInfo</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="GHC.Types.FieldLabel.html#FieldLabel"><span class="hs-identifier hs-type">FieldLabel</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-226"></span><span id="conInfoFields"><span class="annot"><span class="annottext">conInfoFields :: ConInfo -&gt; [FieldLabel]
+</span><a href="GHC.Types.GREInfo.html#conInfoFields"><span class="hs-identifier hs-var hs-var">conInfoFields</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Types.GREInfo.html#ConHasRecordFields"><span class="hs-identifier hs-type">ConHasRecordFields</span></a></span><span> </span><span id="local-6989586621682394332"><span class="annot"><span class="annottext">NonEmpty FieldLabel
+</span><a href="#local-6989586621682394332"><span class="hs-identifier hs-var">fields</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">NonEmpty FieldLabel -&gt; [FieldLabel]
+forall a. NonEmpty a -&gt; [a]
+</span><a href="../../base-4.20.2.0-6654/src/Data.List.NonEmpty.html#toList"><span class="hs-identifier hs-var">NonEmpty.toList</span></a></span><span> </span><span class="annot"><span class="annottext">NonEmpty FieldLabel
+</span><a href="#local-6989586621682394332"><span class="hs-identifier hs-var">fields</span></a></span><span>
+</span><span id="line-227"></span><span class="annot"><a href="GHC.Types.GREInfo.html#conInfoFields"><span class="hs-identifier hs-var">conInfoFields</span></a></span><span> </span><span class="annot"><span class="annottext">ConInfo
+</span><a href="GHC.Types.GREInfo.html#ConHasPositionalArgs"><span class="hs-identifier hs-var">ConHasPositionalArgs</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span>
+</span><span id="line-228"></span><span class="annot"><a href="GHC.Types.GREInfo.html#conInfoFields"><span class="hs-identifier hs-var">conInfoFields</span></a></span><span> </span><span class="annot"><span class="annottext">ConInfo
+</span><a href="GHC.Types.GREInfo.html#ConIsNullary"><span class="hs-identifier hs-var">ConIsNullary</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span>
+</span><span id="line-229"></span><span>
+</span><span id="line-230"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="GHC.Utils.Outputable.html#Outputable"><span class="hs-identifier hs-type">Outputable</span></a></span><span> </span><span class="annot"><a href="GHC.Types.GREInfo.html#ConInfo"><span class="hs-identifier hs-type">ConInfo</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-231"></span><span>  </span><span id="local-6989586621682394344"><span class="annot"><span class="annottext">ppr :: ConInfo -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#ppr"><span class="hs-identifier hs-var hs-var hs-var">ppr</span></a></span></span><span> </span><span class="annot"><span class="annottext">ConInfo
+</span><a href="GHC.Types.GREInfo.html#ConIsNullary"><span class="hs-identifier hs-var">ConIsNullary</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; SDoc
+forall doc. IsLine doc =&gt; String -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#text"><span class="hs-identifier hs-var">text</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;ConIsNullary&quot;</span></span><span>
+</span><span id="line-232"></span><span>  </span><span class="annot"><a href="GHC.Utils.Outputable.html#ppr"><span class="hs-identifier hs-var">ppr</span></a></span><span> </span><span class="annot"><span class="annottext">ConInfo
+</span><a href="GHC.Types.GREInfo.html#ConHasPositionalArgs"><span class="hs-identifier hs-var">ConHasPositionalArgs</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; SDoc
+forall doc. IsLine doc =&gt; String -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#text"><span class="hs-identifier hs-var">text</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;ConHasPositionalArgs&quot;</span></span><span>
+</span><span id="line-233"></span><span>  </span><span class="annot"><a href="GHC.Utils.Outputable.html#ppr"><span class="hs-identifier hs-var">ppr</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Types.GREInfo.html#ConHasRecordFields"><span class="hs-identifier hs-type">ConHasRecordFields</span></a></span><span> </span><span id="local-6989586621682394345"><span class="annot"><span class="annottext">NonEmpty FieldLabel
+</span><a href="#local-6989586621682394345"><span class="hs-identifier hs-var">fieldLabels</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-234"></span><span>    </span><span class="annot"><span class="annottext">String -&gt; SDoc
+forall doc. IsLine doc =&gt; String -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#text"><span class="hs-identifier hs-var">text</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;ConHasRecordFields&quot;</span></span><span> </span><span class="annot"><span class="annottext">SDoc -&gt; SDoc -&gt; SDoc
+forall doc. IsLine doc =&gt; doc -&gt; doc -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#%3C%2B%3E"><span class="hs-operator hs-var">&lt;+&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">SDoc -&gt; SDoc
+forall doc. IsLine doc =&gt; doc -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#braces"><span class="hs-identifier hs-var">braces</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">NonEmpty FieldLabel -&gt; SDoc
+forall a. Outputable a =&gt; a -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#ppr"><span class="hs-identifier hs-var">ppr</span></a></span><span> </span><span class="annot"><span class="annottext">NonEmpty FieldLabel
+</span><a href="#local-6989586621682394345"><span class="hs-identifier hs-var">fieldLabels</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-235"></span><span>
+</span><span id="line-236"></span><span class="hs-comment">-- | The 'Name' of a 'ConLike'.</span><span>
+</span><span id="line-237"></span><span class="hs-comment">--</span><span>
+</span><span id="line-238"></span><span class="hs-comment">-- Useful when we are in the renamer and don't yet have a full 'DataCon' or</span><span>
+</span><span id="line-239"></span><span class="hs-comment">-- 'PatSyn' to hand.</span><span>
+</span><span id="line-240"></span><span class="hs-keyword">data</span><span> </span><span id="ConLikeName"><span class="annot"><a href="GHC.Types.GREInfo.html#ConLikeName"><span class="hs-identifier hs-var">ConLikeName</span></a></span></span><span>
+</span><span id="line-241"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span id="DataConName"><span class="annot"><a href="GHC.Types.GREInfo.html#DataConName"><span class="hs-identifier hs-var">DataConName</span></a></span></span><span> </span><span class="hs-special">{</span><span> </span><span id="conLikeName_Name"><span class="annot"><span class="annottext">ConLikeName -&gt; Name
+</span><a href="GHC.Types.GREInfo.html#conLikeName_Name"><span class="hs-identifier hs-var hs-var">conLikeName_Name</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><a href="GHC.Types.Name.html#Name"><span class="hs-identifier hs-type">Name</span></a></span><span> </span><span class="hs-special">}</span><span>
+</span><span id="line-242"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="PatSynName"><span class="annot"><a href="GHC.Types.GREInfo.html#PatSynName"><span class="hs-identifier hs-var">PatSynName</span></a></span></span><span>  </span><span class="hs-special">{</span><span> </span><span id="conLikeName_Name"><span class="annot"><a href="GHC.Types.GREInfo.html#conLikeName_Name"><span class="hs-identifier hs-var">conLikeName_Name</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><a href="GHC.Types.Name.html#Name"><span class="hs-identifier hs-type">Name</span></a></span><span> </span><span class="hs-special">}</span><span>
+</span><span id="line-243"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621682394351"><span id="local-6989586621682394358"><span class="annot"><span class="annottext">ConLikeName -&gt; ConLikeName -&gt; Bool
+(ConLikeName -&gt; ConLikeName -&gt; Bool)
+-&gt; (ConLikeName -&gt; ConLikeName -&gt; Bool) -&gt; Eq ConLikeName
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: ConLikeName -&gt; ConLikeName -&gt; Bool
+== :: ConLikeName -&gt; ConLikeName -&gt; Bool
+$c/= :: ConLikeName -&gt; ConLikeName -&gt; Bool
+/= :: ConLikeName -&gt; ConLikeName -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682394364"><span id="local-6989586621682394368"><span id="local-6989586621682394372"><span id="local-6989586621682394374"><span id="local-6989586621682394376"><span id="local-6989586621682394382"><span id="local-6989586621682394387"><span id="local-6989586621682394390"><span id="local-6989586621682394393"><span id="local-6989586621682394396"><span id="local-6989586621682394399"><span id="local-6989586621682394402"><span id="local-6989586621682394407"><span id="local-6989586621682394412"><span class="annot"><span class="annottext">Typeable ConLikeName
+Typeable ConLikeName =&gt;
+(forall (c :: * -&gt; *).
+ (forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+ -&gt; (forall g. g -&gt; c g) -&gt; ConLikeName -&gt; c ConLikeName)
+-&gt; (forall (c :: * -&gt; *).
+    (forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+    -&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c ConLikeName)
+-&gt; (ConLikeName -&gt; Constr)
+-&gt; (ConLikeName -&gt; DataType)
+-&gt; (forall (t :: * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d. Data d =&gt; c (t d)) -&gt; Maybe (c ConLikeName))
+-&gt; (forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d e. (Data d, Data e) =&gt; c (t d e))
+    -&gt; Maybe (c ConLikeName))
+-&gt; ((forall b. Data b =&gt; b -&gt; b) -&gt; ConLikeName -&gt; ConLikeName)
+-&gt; (forall r r'.
+    (r -&gt; r' -&gt; r)
+    -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; ConLikeName -&gt; r)
+-&gt; (forall r r'.
+    (r' -&gt; r -&gt; r)
+    -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; ConLikeName -&gt; r)
+-&gt; (forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; ConLikeName -&gt; [u])
+-&gt; (forall u.
+    Arity -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; ConLikeName -&gt; u)
+-&gt; (forall (m :: * -&gt; *).
+    Monad m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; ConLikeName -&gt; m ConLikeName)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; ConLikeName -&gt; m ConLikeName)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; ConLikeName -&gt; m ConLikeName)
+-&gt; Data ConLikeName
+ConLikeName -&gt; Constr
+ConLikeName -&gt; DataType
+(forall b. Data b =&gt; b -&gt; b) -&gt; ConLikeName -&gt; ConLikeName
+forall a.
+Typeable a =&gt;
+(forall (c :: * -&gt; *).
+ (forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+ -&gt; (forall g. g -&gt; c g) -&gt; a -&gt; c a)
+-&gt; (forall (c :: * -&gt; *).
+    (forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+    -&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c a)
+-&gt; (a -&gt; Constr)
+-&gt; (a -&gt; DataType)
+-&gt; (forall (t :: * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d. Data d =&gt; c (t d)) -&gt; Maybe (c a))
+-&gt; (forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d e. (Data d, Data e) =&gt; c (t d e)) -&gt; Maybe (c a))
+-&gt; ((forall b. Data b =&gt; b -&gt; b) -&gt; a -&gt; a)
+-&gt; (forall r r'.
+    (r -&gt; r' -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; a -&gt; r)
+-&gt; (forall r r'.
+    (r' -&gt; r -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; a -&gt; r)
+-&gt; (forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; a -&gt; [u])
+-&gt; (forall u. Arity -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; a -&gt; u)
+-&gt; (forall (m :: * -&gt; *).
+    Monad m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; a -&gt; m a)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; a -&gt; m a)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; a -&gt; m a)
+-&gt; Data a
+forall u. Arity -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; ConLikeName -&gt; u
+forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; ConLikeName -&gt; [u]
+forall r r'.
+(r -&gt; r' -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; ConLikeName -&gt; r
+forall r r'.
+(r' -&gt; r -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; ConLikeName -&gt; r
+forall (m :: * -&gt; *).
+Monad m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; ConLikeName -&gt; m ConLikeName
+forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; ConLikeName -&gt; m ConLikeName
+forall (c :: * -&gt; *).
+(forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+-&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c ConLikeName
+forall (c :: * -&gt; *).
+(forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+-&gt; (forall g. g -&gt; c g) -&gt; ConLikeName -&gt; c ConLikeName
+forall (t :: * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d. Data d =&gt; c (t d)) -&gt; Maybe (c ConLikeName)
+forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d e. (Data d, Data e) =&gt; c (t d e))
+-&gt; Maybe (c ConLikeName)
+$cgfoldl :: forall (c :: * -&gt; *).
+(forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+-&gt; (forall g. g -&gt; c g) -&gt; ConLikeName -&gt; c ConLikeName
+gfoldl :: forall (c :: * -&gt; *).
+(forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+-&gt; (forall g. g -&gt; c g) -&gt; ConLikeName -&gt; c ConLikeName
+$cgunfold :: forall (c :: * -&gt; *).
+(forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+-&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c ConLikeName
+gunfold :: forall (c :: * -&gt; *).
+(forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+-&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c ConLikeName
+$ctoConstr :: ConLikeName -&gt; Constr
+toConstr :: ConLikeName -&gt; Constr
+$cdataTypeOf :: ConLikeName -&gt; DataType
+dataTypeOf :: ConLikeName -&gt; DataType
+$cdataCast1 :: forall (t :: * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d. Data d =&gt; c (t d)) -&gt; Maybe (c ConLikeName)
+dataCast1 :: forall (t :: * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d. Data d =&gt; c (t d)) -&gt; Maybe (c ConLikeName)
+$cdataCast2 :: forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d e. (Data d, Data e) =&gt; c (t d e))
+-&gt; Maybe (c ConLikeName)
+dataCast2 :: forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d e. (Data d, Data e) =&gt; c (t d e))
+-&gt; Maybe (c ConLikeName)
+$cgmapT :: (forall b. Data b =&gt; b -&gt; b) -&gt; ConLikeName -&gt; ConLikeName
+gmapT :: (forall b. Data b =&gt; b -&gt; b) -&gt; ConLikeName -&gt; ConLikeName
+$cgmapQl :: forall r r'.
+(r -&gt; r' -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; ConLikeName -&gt; r
+gmapQl :: forall r r'.
+(r -&gt; r' -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; ConLikeName -&gt; r
+$cgmapQr :: forall r r'.
+(r' -&gt; r -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; ConLikeName -&gt; r
+gmapQr :: forall r r'.
+(r' -&gt; r -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; ConLikeName -&gt; r
+$cgmapQ :: forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; ConLikeName -&gt; [u]
+gmapQ :: forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; ConLikeName -&gt; [u]
+$cgmapQi :: forall u. Arity -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; ConLikeName -&gt; u
+gmapQi :: forall u. Arity -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; ConLikeName -&gt; u
+$cgmapM :: forall (m :: * -&gt; *).
+Monad m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; ConLikeName -&gt; m ConLikeName
+gmapM :: forall (m :: * -&gt; *).
+Monad m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; ConLikeName -&gt; m ConLikeName
+$cgmapMp :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; ConLikeName -&gt; m ConLikeName
+gmapMp :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; ConLikeName -&gt; m ConLikeName
+$cgmapMo :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; ConLikeName -&gt; m ConLikeName
+gmapMo :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; ConLikeName -&gt; m ConLikeName
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Data</span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-244"></span><span>
+</span><span id="line-245"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="GHC.Utils.Outputable.html#Outputable"><span class="hs-identifier hs-type">Outputable</span></a></span><span> </span><span class="annot"><a href="GHC.Types.GREInfo.html#ConLikeName"><span class="hs-identifier hs-type">ConLikeName</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-246"></span><span>  </span><span id="local-6989586621682394420"><span class="annot"><span class="annottext">ppr :: ConLikeName -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#ppr"><span class="hs-identifier hs-var hs-var hs-var">ppr</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Name -&gt; SDoc
+forall a. Outputable a =&gt; a -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#ppr"><span class="hs-identifier hs-var">ppr</span></a></span><span> </span><span class="annot"><span class="annottext">(Name -&gt; SDoc) -&gt; (ConLikeName -&gt; Name) -&gt; ConLikeName -&gt; SDoc
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">ConLikeName -&gt; Name
+</span><a href="GHC.Types.GREInfo.html#conLikeName_Name"><span class="hs-identifier hs-var">conLikeName_Name</span></a></span><span>
+</span><span id="line-247"></span><span>
+</span><span id="line-248"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="GHC.Types.Unique.html#Uniquable"><span class="hs-identifier hs-type">Uniquable</span></a></span><span> </span><span class="annot"><a href="GHC.Types.GREInfo.html#ConLikeName"><span class="hs-identifier hs-type">ConLikeName</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-249"></span><span>  </span><span id="local-6989586621682394427"><span class="annot"><span class="annottext">getUnique :: ConLikeName -&gt; Unique
+</span><a href="#local-6989586621682394427"><span class="hs-identifier hs-var hs-var hs-var">getUnique</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Name -&gt; Unique
+forall a. Uniquable a =&gt; a -&gt; Unique
+</span><a href="GHC.Types.Unique.html#getUnique"><span class="hs-identifier hs-var">getUnique</span></a></span><span> </span><span class="annot"><span class="annottext">(Name -&gt; Unique) -&gt; (ConLikeName -&gt; Name) -&gt; ConLikeName -&gt; Unique
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">ConLikeName -&gt; Name
+</span><a href="GHC.Types.GREInfo.html#conLikeName_Name"><span class="hs-identifier hs-var">conLikeName_Name</span></a></span><span>
+</span><span id="line-250"></span><span>
+</span><span id="line-251"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="../../deepseq-1.5.0.0-a9b7/src/Control.DeepSeq.html#NFData"><span class="hs-identifier hs-type">NFData</span></a></span><span> </span><span class="annot"><a href="GHC.Types.GREInfo.html#ConLikeName"><span class="hs-identifier hs-type">ConLikeName</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-252"></span><span>  </span><span id="local-6989586621682394432"><span class="annot"><span class="annottext">rnf :: ConLikeName -&gt; ()
+</span><a href="../../deepseq-1.5.0.0-a9b7/src/Control.DeepSeq.html#rnf"><span class="hs-identifier hs-var hs-var hs-var">rnf</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Name -&gt; ()
+forall a. NFData a =&gt; a -&gt; ()
+</span><a href="../../deepseq-1.5.0.0-a9b7/src/Control.DeepSeq.html#rnf"><span class="hs-identifier hs-var">rnf</span></a></span><span> </span><span class="annot"><span class="annottext">(Name -&gt; ()) -&gt; (ConLikeName -&gt; Name) -&gt; ConLikeName -&gt; ()
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">ConLikeName -&gt; Name
+</span><a href="GHC.Types.GREInfo.html#conLikeName_Name"><span class="hs-identifier hs-var">conLikeName_Name</span></a></span><span>
+</span><span id="line-253"></span><span>
+</span><span id="line-254"></span><span class="annot"><span class="hs-comment">{-**********************************************************************
+*                                                                      *
+                      Record field info
+*                                                                      *
+**********************************************************************-}</span></span><span>
+</span><span id="line-259"></span><span>
+</span><span id="line-260"></span><span class="hs-keyword">data</span><span> </span><span id="RecFieldInfo"><span class="annot"><a href="GHC.Types.GREInfo.html#RecFieldInfo"><span class="hs-identifier hs-var">RecFieldInfo</span></a></span></span><span>
+</span><span id="line-261"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span id="RecFieldInfo"><span class="annot"><a href="GHC.Types.GREInfo.html#RecFieldInfo"><span class="hs-identifier hs-var">RecFieldInfo</span></a></span></span><span>
+</span><span id="line-262"></span><span>      </span><span class="hs-special">{</span><span> </span><span id="recFieldLabel"><span class="annot"><span class="annottext">RecFieldInfo -&gt; FieldLabel
+</span><a href="GHC.Types.GREInfo.html#recFieldLabel"><span class="hs-identifier hs-var hs-var">recFieldLabel</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><a href="GHC.Types.FieldLabel.html#FieldLabel"><span class="hs-identifier hs-type">FieldLabel</span></a></span><span>
+</span><span id="line-263"></span><span>      </span><span class="hs-special">,</span><span> </span><span id="recFieldCons"><span class="annot"><span class="annottext">RecFieldInfo -&gt; UniqSet ConLikeName
+</span><a href="GHC.Types.GREInfo.html#recFieldCons"><span class="hs-identifier hs-var hs-var">recFieldCons</span></a></span></span><span>  </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="hs-special">(</span><span class="annot"><a href="GHC.Types.Unique.Set.html#UniqSet"><span class="hs-identifier hs-type">UniqSet</span></a></span><span> </span><span class="annot"><a href="GHC.Types.GREInfo.html#ConLikeName"><span class="hs-identifier hs-type">ConLikeName</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-264"></span><span>         </span><span class="hs-comment">-- ^ The constructors which have this field label.</span><span>
+</span><span id="line-265"></span><span>         </span><span class="hs-comment">-- Always non-empty.</span><span>
+</span><span id="line-266"></span><span>         </span><span class="hs-comment">--</span><span>
+</span><span id="line-267"></span><span>         </span><span class="hs-comment">-- NB: these constructors will always share a single parent,</span><span>
+</span><span id="line-268"></span><span>         </span><span class="hs-comment">-- as the field label disambiguates between parents in the presence</span><span>
+</span><span id="line-269"></span><span>         </span><span class="hs-comment">-- of duplicate record fields.</span><span>
+</span><span id="line-270"></span><span>      </span><span class="hs-special">}</span><span>
+</span><span id="line-271"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621682394437"><span id="local-6989586621682394442"><span class="annot"><span class="annottext">RecFieldInfo -&gt; RecFieldInfo -&gt; Bool
+(RecFieldInfo -&gt; RecFieldInfo -&gt; Bool)
+-&gt; (RecFieldInfo -&gt; RecFieldInfo -&gt; Bool) -&gt; Eq RecFieldInfo
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: RecFieldInfo -&gt; RecFieldInfo -&gt; Bool
+== :: RecFieldInfo -&gt; RecFieldInfo -&gt; Bool
+$c/= :: RecFieldInfo -&gt; RecFieldInfo -&gt; Bool
+/= :: RecFieldInfo -&gt; RecFieldInfo -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682394448"><span id="local-6989586621682394454"><span id="local-6989586621682394459"><span id="local-6989586621682394461"><span id="local-6989586621682394463"><span id="local-6989586621682394468"><span id="local-6989586621682394473"><span id="local-6989586621682394476"><span id="local-6989586621682394479"><span id="local-6989586621682394482"><span id="local-6989586621682394485"><span id="local-6989586621682394488"><span id="local-6989586621682394493"><span id="local-6989586621682394498"><span class="annot"><span class="annottext">Typeable RecFieldInfo
+Typeable RecFieldInfo =&gt;
+(forall (c :: * -&gt; *).
+ (forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+ -&gt; (forall g. g -&gt; c g) -&gt; RecFieldInfo -&gt; c RecFieldInfo)
+-&gt; (forall (c :: * -&gt; *).
+    (forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+    -&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c RecFieldInfo)
+-&gt; (RecFieldInfo -&gt; Constr)
+-&gt; (RecFieldInfo -&gt; DataType)
+-&gt; (forall (t :: * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d. Data d =&gt; c (t d)) -&gt; Maybe (c RecFieldInfo))
+-&gt; (forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d e. (Data d, Data e) =&gt; c (t d e))
+    -&gt; Maybe (c RecFieldInfo))
+-&gt; ((forall b. Data b =&gt; b -&gt; b) -&gt; RecFieldInfo -&gt; RecFieldInfo)
+-&gt; (forall r r'.
+    (r -&gt; r' -&gt; r)
+    -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; RecFieldInfo -&gt; r)
+-&gt; (forall r r'.
+    (r' -&gt; r -&gt; r)
+    -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; RecFieldInfo -&gt; r)
+-&gt; (forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; RecFieldInfo -&gt; [u])
+-&gt; (forall u.
+    Arity -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; RecFieldInfo -&gt; u)
+-&gt; (forall (m :: * -&gt; *).
+    Monad m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; RecFieldInfo -&gt; m RecFieldInfo)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; RecFieldInfo -&gt; m RecFieldInfo)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; RecFieldInfo -&gt; m RecFieldInfo)
+-&gt; Data RecFieldInfo
+RecFieldInfo -&gt; Constr
+RecFieldInfo -&gt; DataType
+(forall b. Data b =&gt; b -&gt; b) -&gt; RecFieldInfo -&gt; RecFieldInfo
+forall a.
+Typeable a =&gt;
+(forall (c :: * -&gt; *).
+ (forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+ -&gt; (forall g. g -&gt; c g) -&gt; a -&gt; c a)
+-&gt; (forall (c :: * -&gt; *).
+    (forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+    -&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c a)
+-&gt; (a -&gt; Constr)
+-&gt; (a -&gt; DataType)
+-&gt; (forall (t :: * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d. Data d =&gt; c (t d)) -&gt; Maybe (c a))
+-&gt; (forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d e. (Data d, Data e) =&gt; c (t d e)) -&gt; Maybe (c a))
+-&gt; ((forall b. Data b =&gt; b -&gt; b) -&gt; a -&gt; a)
+-&gt; (forall r r'.
+    (r -&gt; r' -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; a -&gt; r)
+-&gt; (forall r r'.
+    (r' -&gt; r -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; a -&gt; r)
+-&gt; (forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; a -&gt; [u])
+-&gt; (forall u. Arity -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; a -&gt; u)
+-&gt; (forall (m :: * -&gt; *).
+    Monad m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; a -&gt; m a)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; a -&gt; m a)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; a -&gt; m a)
+-&gt; Data a
+forall u.
+Arity -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; RecFieldInfo -&gt; u
+forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; RecFieldInfo -&gt; [u]
+forall r r'.
+(r -&gt; r' -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; RecFieldInfo -&gt; r
+forall r r'.
+(r' -&gt; r -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; RecFieldInfo -&gt; r
+forall (m :: * -&gt; *).
+Monad m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; RecFieldInfo -&gt; m RecFieldInfo
+forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; RecFieldInfo -&gt; m RecFieldInfo
+forall (c :: * -&gt; *).
+(forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+-&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c RecFieldInfo
+forall (c :: * -&gt; *).
+(forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+-&gt; (forall g. g -&gt; c g) -&gt; RecFieldInfo -&gt; c RecFieldInfo
+forall (t :: * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d. Data d =&gt; c (t d)) -&gt; Maybe (c RecFieldInfo)
+forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d e. (Data d, Data e) =&gt; c (t d e))
+-&gt; Maybe (c RecFieldInfo)
+$cgfoldl :: forall (c :: * -&gt; *).
+(forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+-&gt; (forall g. g -&gt; c g) -&gt; RecFieldInfo -&gt; c RecFieldInfo
+gfoldl :: forall (c :: * -&gt; *).
+(forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+-&gt; (forall g. g -&gt; c g) -&gt; RecFieldInfo -&gt; c RecFieldInfo
+$cgunfold :: forall (c :: * -&gt; *).
+(forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+-&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c RecFieldInfo
+gunfold :: forall (c :: * -&gt; *).
+(forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+-&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c RecFieldInfo
+$ctoConstr :: RecFieldInfo -&gt; Constr
+toConstr :: RecFieldInfo -&gt; Constr
+$cdataTypeOf :: RecFieldInfo -&gt; DataType
+dataTypeOf :: RecFieldInfo -&gt; DataType
+$cdataCast1 :: forall (t :: * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d. Data d =&gt; c (t d)) -&gt; Maybe (c RecFieldInfo)
+dataCast1 :: forall (t :: * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d. Data d =&gt; c (t d)) -&gt; Maybe (c RecFieldInfo)
+$cdataCast2 :: forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d e. (Data d, Data e) =&gt; c (t d e))
+-&gt; Maybe (c RecFieldInfo)
+dataCast2 :: forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d e. (Data d, Data e) =&gt; c (t d e))
+-&gt; Maybe (c RecFieldInfo)
+$cgmapT :: (forall b. Data b =&gt; b -&gt; b) -&gt; RecFieldInfo -&gt; RecFieldInfo
+gmapT :: (forall b. Data b =&gt; b -&gt; b) -&gt; RecFieldInfo -&gt; RecFieldInfo
+$cgmapQl :: forall r r'.
+(r -&gt; r' -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; RecFieldInfo -&gt; r
+gmapQl :: forall r r'.
+(r -&gt; r' -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; RecFieldInfo -&gt; r
+$cgmapQr :: forall r r'.
+(r' -&gt; r -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; RecFieldInfo -&gt; r
+gmapQr :: forall r r'.
+(r' -&gt; r -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; RecFieldInfo -&gt; r
+$cgmapQ :: forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; RecFieldInfo -&gt; [u]
+gmapQ :: forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; RecFieldInfo -&gt; [u]
+$cgmapQi :: forall u.
+Arity -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; RecFieldInfo -&gt; u
+gmapQi :: forall u.
+Arity -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; RecFieldInfo -&gt; u
+$cgmapM :: forall (m :: * -&gt; *).
+Monad m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; RecFieldInfo -&gt; m RecFieldInfo
+gmapM :: forall (m :: * -&gt; *).
+Monad m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; RecFieldInfo -&gt; m RecFieldInfo
+$cgmapMp :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; RecFieldInfo -&gt; m RecFieldInfo
+gmapMp :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; RecFieldInfo -&gt; m RecFieldInfo
+$cgmapMo :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; RecFieldInfo -&gt; m RecFieldInfo
+gmapMo :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; RecFieldInfo -&gt; m RecFieldInfo
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Data</span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-272"></span><span>
+</span><span id="line-273"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="../../deepseq-1.5.0.0-a9b7/src/Control.DeepSeq.html#NFData"><span class="hs-identifier hs-type">NFData</span></a></span><span> </span><span class="annot"><a href="GHC.Types.GREInfo.html#RecFieldInfo"><span class="hs-identifier hs-type">RecFieldInfo</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-274"></span><span>  </span><span id="local-6989586621682394505"><span class="annot"><span class="annottext">rnf :: RecFieldInfo -&gt; ()
+</span><a href="../../deepseq-1.5.0.0-a9b7/src/Control.DeepSeq.html#rnf"><span class="hs-identifier hs-var hs-var hs-var">rnf</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Types.GREInfo.html#RecFieldInfo"><span class="hs-identifier hs-type">RecFieldInfo</span></a></span><span> </span><span id="local-6989586621682394506"><span class="annot"><span class="annottext">FieldLabel
+</span><a href="#local-6989586621682394506"><span class="hs-identifier hs-var">lbl</span></a></span></span><span> </span><span id="local-6989586621682394507"><span class="annot"><span class="annottext">UniqSet ConLikeName
+</span><a href="#local-6989586621682394507"><span class="hs-identifier hs-var">cons</span></a></span></span><span class="hs-special">)</span><span>
+</span><span id="line-275"></span><span>    </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">FieldLabel -&gt; ()
+forall a. NFData a =&gt; a -&gt; ()
+</span><a href="../../deepseq-1.5.0.0-a9b7/src/Control.DeepSeq.html#rnf"><span class="hs-identifier hs-var">rnf</span></a></span><span> </span><span class="annot"><span class="annottext">FieldLabel
+</span><a href="#local-6989586621682394506"><span class="hs-identifier hs-var">lbl</span></a></span><span> </span><span class="annot"><span class="annottext">() -&gt; () -&gt; ()
+forall a b. a -&gt; b -&gt; b
+</span><span class="hs-operator hs-var">`seq`</span></span><span> </span><span class="annot"><span class="annottext">(ConLikeName -&gt; () -&gt; ()) -&gt; () -&gt; UniqSet ConLikeName -&gt; ()
+forall elt a. (elt -&gt; a -&gt; a) -&gt; a -&gt; UniqSet elt -&gt; a
+</span><a href="GHC.Types.Unique.Set.html#nonDetStrictFoldUniqSet"><span class="hs-identifier hs-var">nonDetStrictFoldUniqSet</span></a></span><span> </span><span class="annot"><span class="annottext">ConLikeName -&gt; () -&gt; ()
+forall a b. NFData a =&gt; a -&gt; b -&gt; b
+</span><a href="../../deepseq-1.5.0.0-a9b7/src/Control.DeepSeq.html#deepseq"><span class="hs-identifier hs-var">deepseq</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">UniqSet ConLikeName
+</span><a href="#local-6989586621682394507"><span class="hs-identifier hs-var">cons</span></a></span><span>
+</span><span id="line-276"></span><span>
+</span><span id="line-277"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="GHC.Utils.Outputable.html#Outputable"><span class="hs-identifier hs-type">Outputable</span></a></span><span> </span><span class="annot"><a href="GHC.Types.GREInfo.html#RecFieldInfo"><span class="hs-identifier hs-type">RecFieldInfo</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-278"></span><span>  </span><span id="local-6989586621682394522"><span class="annot"><span class="annottext">ppr :: RecFieldInfo -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#ppr"><span class="hs-identifier hs-var hs-var hs-var">ppr</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Types.GREInfo.html#RecFieldInfo"><span class="hs-identifier hs-type">RecFieldInfo</span></a></span><span> </span><span class="hs-special">{</span><span> </span><span class="annot"><span class="annottext">recFieldLabel :: RecFieldInfo -&gt; FieldLabel
+</span><a href="GHC.Types.GREInfo.html#recFieldLabel"><span class="hs-identifier hs-var">recFieldLabel</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="local-6989586621682394523"><span class="annot"><span class="annottext">FieldLabel
+</span><a href="#local-6989586621682394523"><span class="hs-identifier hs-var">fl</span></a></span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">recFieldCons :: RecFieldInfo -&gt; UniqSet ConLikeName
+</span><a href="GHC.Types.GREInfo.html#recFieldCons"><span class="hs-identifier hs-var">recFieldCons</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="local-6989586621682394524"><span class="annot"><span class="annottext">UniqSet ConLikeName
+</span><a href="#local-6989586621682394524"><span class="hs-identifier hs-var">cons</span></a></span></span><span> </span><span class="hs-special">}</span><span class="hs-special">)</span><span>
+</span><span id="line-279"></span><span>    </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; SDoc
+forall doc. IsLine doc =&gt; String -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#text"><span class="hs-identifier hs-var">text</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;RecFieldInfo&quot;</span></span><span> </span><span class="annot"><span class="annottext">SDoc -&gt; SDoc -&gt; SDoc
+forall doc. IsLine doc =&gt; doc -&gt; doc -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#%3C%2B%3E"><span class="hs-operator hs-var">&lt;+&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">SDoc -&gt; SDoc
+forall doc. IsLine doc =&gt; doc -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#braces"><span class="hs-identifier hs-var">braces</span></a></span><span>
+</span><span id="line-280"></span><span>      </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String -&gt; SDoc
+forall doc. IsLine doc =&gt; String -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#text"><span class="hs-identifier hs-var">text</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;recFieldLabel:&quot;</span></span><span> </span><span class="annot"><span class="annottext">SDoc -&gt; SDoc -&gt; SDoc
+forall doc. IsLine doc =&gt; doc -&gt; doc -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#%3C%2B%3E"><span class="hs-operator hs-var">&lt;+&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">FieldLabel -&gt; SDoc
+forall a. Outputable a =&gt; a -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#ppr"><span class="hs-identifier hs-var">ppr</span></a></span><span> </span><span class="annot"><span class="annottext">FieldLabel
+</span><a href="#local-6989586621682394523"><span class="hs-identifier hs-var">fl</span></a></span><span> </span><span class="annot"><span class="annottext">SDoc -&gt; SDoc -&gt; SDoc
+forall doc. IsLine doc =&gt; doc -&gt; doc -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#%3C%3E"><span class="hs-operator hs-var">&lt;&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">SDoc
+forall doc. IsLine doc =&gt; doc
+</span><a href="GHC.Utils.Outputable.html#comma"><span class="hs-identifier hs-var">comma</span></a></span><span>
+</span><span id="line-281"></span><span>      </span><span class="annot"><span class="annottext">SDoc -&gt; SDoc -&gt; SDoc
+forall doc. IsLine doc =&gt; doc -&gt; doc -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#%3C%2B%3E"><span class="hs-operator hs-var">&lt;+&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">String -&gt; SDoc
+forall doc. IsLine doc =&gt; String -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#text"><span class="hs-identifier hs-var">text</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;recFieldCons:&quot;</span></span><span> </span><span class="annot"><span class="annottext">SDoc -&gt; SDoc -&gt; SDoc
+forall doc. IsLine doc =&gt; doc -&gt; doc -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#%3C%2B%3E"><span class="hs-operator hs-var">&lt;+&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">(ConLikeName -&gt; SDoc) -&gt; [ConLikeName] -&gt; SDoc
+forall a. (a -&gt; SDoc) -&gt; [a] -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#pprWithCommas"><span class="hs-identifier hs-var">pprWithCommas</span></a></span><span> </span><span class="annot"><span class="annottext">ConLikeName -&gt; SDoc
+forall a. Outputable a =&gt; a -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#ppr"><span class="hs-identifier hs-var">ppr</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">UniqSet ConLikeName -&gt; [ConLikeName]
+forall elt. UniqSet elt -&gt; [elt]
+</span><a href="GHC.Types.Unique.Set.html#nonDetEltsUniqSet"><span class="hs-identifier hs-var">nonDetEltsUniqSet</span></a></span><span> </span><span class="annot"><span class="annottext">UniqSet ConLikeName
+</span><a href="#local-6989586621682394524"><span class="hs-identifier hs-var">cons</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-282"></span></pre></body></html>

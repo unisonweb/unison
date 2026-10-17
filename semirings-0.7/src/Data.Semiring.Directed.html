@@ -1,0 +1,344 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span id="local-6989586621679114433"><span id="local-6989586621679114434"></span></span><span class="hs-pragma">{-# LANGUAGE CPP                        #-}</span><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# LANGUAGE DataKinds                  #-}</span><span>
+</span><span id="line-3"></span><span class="hs-pragma">{-# LANGUAGE DeriveDataTypeable         #-}</span><span>
+</span><span id="line-4"></span><span class="hs-pragma">{-# LANGUAGE DeriveGeneric              #-}</span><span>
+</span><span id="line-5"></span><span class="hs-pragma">{-# LANGUAGE GeneralizedNewtypeDeriving #-}</span><span>
+</span><span id="line-6"></span><span class="hs-pragma">{-# LANGUAGE KindSignatures             #-}</span><span>
+</span><span id="line-7"></span><span class="hs-pragma">{-# LANGUAGE ScopedTypeVariables        #-}</span><span>
+</span><span id="line-8"></span><span class="hs-pragma">{-# LANGUAGE Trustworthy                #-}</span><span>
+</span><span id="line-9"></span><span>
+</span><span id="line-10"></span><span class="hs-comment">-----------------------------------------------------------------------------</span><span>
+</span><span id="line-11"></span><span class="hs-comment">-- |</span><span>
+</span><span id="line-12"></span><span class="hs-comment">--   A &quot;directed semiring&quot; refers to the semiring composed of the union of upwards</span><span>
+</span><span id="line-13"></span><span class="hs-comment">--   directed sets as multiplication, and intersection of downwards directed sets</span><span>
+</span><span id="line-14"></span><span class="hs-comment">--   as addition.</span><span>
+</span><span id="line-15"></span><span class="hs-comment">-----------------------------------------------------------------------------</span><span>
+</span><span id="line-16"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Data.Semiring.Directed.html"><span class="hs-identifier">Data.Semiring.Directed</span></a></span><span>
+</span><span id="line-17"></span><span>  </span><span class="hs-special">(</span><span> </span><span class="annot"><span class="hs-comment">-- * Directed semirings</span></span><span>
+</span><span id="line-18"></span><span>    </span><span class="annot"><a href="Data.Semiring.Directed.html#Directed"><span class="hs-identifier">Directed</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-19"></span><span>  </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-20"></span><span>
+</span><span id="line-21"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Data</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Data</span></span><span class="hs-special">)</span><span>
+</span><span id="line-22"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Coerce</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">coerce</span></span><span class="hs-special">)</span><span>
+</span><span id="line-23"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Data.Semiring.html"><span class="hs-identifier">Data.Semiring</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Semiring.html#Semiring"><span class="hs-identifier">Semiring</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-24"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Semigroup</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Min</span></span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Min</span></span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">Max</span></span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Max</span></span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-operator">(&lt;&gt;)</span></span><span class="hs-special">)</span><span>
+</span><span id="line-25"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Typeable</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Typeable</span></span><span class="hs-special">)</span><span>
+</span><span id="line-26"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">GHC.Generics</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Generic</span></span><span class="hs-special">)</span><span>
+</span><span id="line-27"></span><span>
+</span><span id="line-28"></span><span class="hs-comment">-- | Wrapper for the semiring of upwards and downwards directed sets.</span><span>
+</span><span id="line-29"></span><span class="hs-comment">--</span><span>
+</span><span id="line-30"></span><span class="hs-comment">-- For the individual join/meet monoids associated with either</span><span>
+</span><span id="line-31"></span><span class="hs-comment">-- algebra, see @'Max' 'Ordering', and @'Min' 'Ordering'@.</span><span>
+</span><span id="line-32"></span><span class="hs-keyword">newtype</span><span> </span><span id="Directed"><span class="annot"><a href="Data.Semiring.Directed.html#Directed"><span class="hs-identifier hs-var">Directed</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="Directed"><span class="annot"><a href="Data.Semiring.Directed.html#Directed"><span class="hs-identifier hs-var">Directed</span></a></span></span><span> </span><span class="hs-special">{</span><span> </span><span>
+</span><span id="line-33"></span><span>  </span><span class="annot"><span class="hs-comment">-- | @since 0.7</span></span><span>
+</span><span id="line-34"></span><span>  </span><span id="getDirected"><span class="annot"><span class="annottext">Directed -&gt; Ordering
+</span><a href="Data.Semiring.Directed.html#getDirected"><span class="hs-identifier hs-var hs-var">getDirected</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ordering</span></span><span> </span><span>
+</span><span id="line-35"></span><span>  </span><span class="hs-special">}</span><span>
+</span><span id="line-36"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span> </span><span>
+</span><span id="line-37"></span><span>    </span><span class="annot"><span class="hs-comment">-- | @since 0.7</span></span><span>
+</span><span id="line-38"></span><span>    </span><span id="local-6989586621679114440"><span id="local-6989586621679114445"><span class="annot"><span class="annottext">Directed
+Directed -&gt; Directed -&gt; Bounded Directed
+forall a. a -&gt; a -&gt; Bounded a
+$cminBound :: Directed
+minBound :: Directed
+$cmaxBound :: Directed
+maxBound :: Directed
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Bounded</span></span></span></span><span class="hs-special">,</span><span> </span><span>
+</span><span id="line-39"></span><span>    </span><span class="annot"><span class="hs-comment">-- | @since 0.7</span></span><span>
+</span><span id="line-40"></span><span>    </span><span id="local-6989586621679114453"><span id="local-6989586621679114458"><span id="local-6989586621679114462"><span id="local-6989586621679114466"><span id="local-6989586621679114470"><span id="local-6989586621679114474"><span id="local-6989586621679114478"><span id="local-6989586621679114482"><span class="annot"><span class="annottext">Int -&gt; Directed
+Directed -&gt; Int
+Directed -&gt; [Directed]
+Directed -&gt; Directed
+Directed -&gt; Directed -&gt; [Directed]
+Directed -&gt; Directed -&gt; Directed -&gt; [Directed]
+(Directed -&gt; Directed)
+-&gt; (Directed -&gt; Directed)
+-&gt; (Int -&gt; Directed)
+-&gt; (Directed -&gt; Int)
+-&gt; (Directed -&gt; [Directed])
+-&gt; (Directed -&gt; Directed -&gt; [Directed])
+-&gt; (Directed -&gt; Directed -&gt; [Directed])
+-&gt; (Directed -&gt; Directed -&gt; Directed -&gt; [Directed])
+-&gt; Enum Directed
+forall a.
+(a -&gt; a)
+-&gt; (a -&gt; a)
+-&gt; (Int -&gt; a)
+-&gt; (a -&gt; Int)
+-&gt; (a -&gt; [a])
+-&gt; (a -&gt; a -&gt; [a])
+-&gt; (a -&gt; a -&gt; [a])
+-&gt; (a -&gt; a -&gt; a -&gt; [a])
+-&gt; Enum a
+$csucc :: Directed -&gt; Directed
+succ :: Directed -&gt; Directed
+$cpred :: Directed -&gt; Directed
+pred :: Directed -&gt; Directed
+$ctoEnum :: Int -&gt; Directed
+toEnum :: Int -&gt; Directed
+$cfromEnum :: Directed -&gt; Int
+fromEnum :: Directed -&gt; Int
+$cenumFrom :: Directed -&gt; [Directed]
+enumFrom :: Directed -&gt; [Directed]
+$cenumFromThen :: Directed -&gt; Directed -&gt; [Directed]
+enumFromThen :: Directed -&gt; Directed -&gt; [Directed]
+$cenumFromTo :: Directed -&gt; Directed -&gt; [Directed]
+enumFromTo :: Directed -&gt; Directed -&gt; [Directed]
+$cenumFromThenTo :: Directed -&gt; Directed -&gt; Directed -&gt; [Directed]
+enumFromThenTo :: Directed -&gt; Directed -&gt; Directed -&gt; [Directed]
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Enum</span></span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span>
+</span><span id="line-41"></span><span>    </span><span class="annot"><span class="hs-comment">-- | @since 0.7</span></span><span>
+</span><span id="line-42"></span><span>    </span><span id="local-6989586621679114492"><span id="local-6989586621679114497"><span class="annot"><span class="annottext">Directed -&gt; Directed -&gt; Bool
+(Directed -&gt; Directed -&gt; Bool)
+-&gt; (Directed -&gt; Directed -&gt; Bool) -&gt; Eq Directed
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: Directed -&gt; Directed -&gt; Bool
+== :: Directed -&gt; Directed -&gt; Bool
+$c/= :: Directed -&gt; Directed -&gt; Bool
+/= :: Directed -&gt; Directed -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span>
+</span><span id="line-43"></span><span>    </span><span class="annot"><span class="hs-comment">-- | @since 0.7</span></span><span>
+</span><span id="line-44"></span><span>    </span><span id="local-6989586621679114504"><span id="local-6989586621679114506"><span class="annot"><span class="annottext">(forall x. Directed -&gt; Rep Directed x)
+-&gt; (forall x. Rep Directed x -&gt; Directed) -&gt; Generic Directed
+forall x. Rep Directed x -&gt; Directed
+forall x. Directed -&gt; Rep Directed x
+forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+$cfrom :: forall x. Directed -&gt; Rep Directed x
+from :: forall x. Directed -&gt; Rep Directed x
+$cto :: forall x. Rep Directed x -&gt; Directed
+to :: forall x. Rep Directed x -&gt; Directed
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Generic</span></span></span></span><span class="hs-special">,</span><span>
+</span><span id="line-45"></span><span>    </span><span class="annot"><span class="hs-comment">-- | @since 0.7</span></span><span>
+</span><span id="line-46"></span><span>    </span><span id="local-6989586621679114512"><span id="local-6989586621679114518"><span id="local-6989586621679114522"><span class="annot"><span class="annottext">Int -&gt; Directed -&gt; ShowS
+[Directed] -&gt; ShowS
+Directed -&gt; String
+(Int -&gt; Directed -&gt; ShowS)
+-&gt; (Directed -&gt; String) -&gt; ([Directed] -&gt; ShowS) -&gt; Show Directed
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; Directed -&gt; ShowS
+showsPrec :: Int -&gt; Directed -&gt; ShowS
+$cshow :: Directed -&gt; String
+show :: Directed -&gt; String
+$cshowList :: [Directed] -&gt; ShowS
+showList :: [Directed] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span>
+</span><span id="line-47"></span><span>    </span><span class="annot"><span class="hs-comment">-- | @since 0.7</span></span><span>
+</span><span id="line-48"></span><span>    </span><span id="local-6989586621679114527"><span id="local-6989586621679114531"><span id="local-6989586621679114534"><span id="local-6989586621679114544"><span class="annot"><span class="annottext">ReadPrec [Directed]
+ReadPrec Directed
+Int -&gt; ReadS Directed
+ReadS [Directed]
+(Int -&gt; ReadS Directed)
+-&gt; ReadS [Directed]
+-&gt; ReadPrec Directed
+-&gt; ReadPrec [Directed]
+-&gt; Read Directed
+forall a.
+(Int -&gt; ReadS a)
+-&gt; ReadS [a] -&gt; ReadPrec a -&gt; ReadPrec [a] -&gt; Read a
+$creadsPrec :: Int -&gt; ReadS Directed
+readsPrec :: Int -&gt; ReadS Directed
+$creadList :: ReadS [Directed]
+readList :: ReadS [Directed]
+$creadPrec :: ReadPrec Directed
+readPrec :: ReadPrec Directed
+$creadListPrec :: ReadPrec [Directed]
+readListPrec :: ReadPrec [Directed]
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Read</span></span></span></span></span></span><span class="hs-special">,</span><span>
+</span><span id="line-49"></span><span>    </span><span class="annot"><span class="hs-comment">-- | @since 0.7</span></span><span>
+</span><span id="line-50"></span><span>    </span><span id="local-6989586621679114553"><span id="local-6989586621679114557"><span id="local-6989586621679114560"><span id="local-6989586621679114562"><span id="local-6989586621679114564"><span id="local-6989586621679114570"><span id="local-6989586621679114575"><span id="local-6989586621679114578"><span id="local-6989586621679114581"><span id="local-6989586621679114584"><span id="local-6989586621679114587"><span id="local-6989586621679114590"><span id="local-6989586621679114595"><span id="local-6989586621679114600"><span class="annot"><span class="annottext">Typeable Directed
+Typeable Directed =&gt;
+(forall (c :: * -&gt; *).
+ (forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+ -&gt; (forall g. g -&gt; c g) -&gt; Directed -&gt; c Directed)
+-&gt; (forall (c :: * -&gt; *).
+    (forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+    -&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c Directed)
+-&gt; (Directed -&gt; Constr)
+-&gt; (Directed -&gt; DataType)
+-&gt; (forall (t :: * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d. Data d =&gt; c (t d)) -&gt; Maybe (c Directed))
+-&gt; (forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d e. (Data d, Data e) =&gt; c (t d e)) -&gt; Maybe (c Directed))
+-&gt; ((forall b. Data b =&gt; b -&gt; b) -&gt; Directed -&gt; Directed)
+-&gt; (forall r r'.
+    (r -&gt; r' -&gt; r)
+    -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; Directed -&gt; r)
+-&gt; (forall r r'.
+    (r' -&gt; r -&gt; r)
+    -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; Directed -&gt; r)
+-&gt; (forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; Directed -&gt; [u])
+-&gt; (forall u. Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; Directed -&gt; u)
+-&gt; (forall (m :: * -&gt; *).
+    Monad m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; Directed -&gt; m Directed)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; Directed -&gt; m Directed)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; Directed -&gt; m Directed)
+-&gt; Data Directed
+Directed -&gt; Constr
+Directed -&gt; DataType
+(forall b. Data b =&gt; b -&gt; b) -&gt; Directed -&gt; Directed
+forall a.
+Typeable a =&gt;
+(forall (c :: * -&gt; *).
+ (forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+ -&gt; (forall g. g -&gt; c g) -&gt; a -&gt; c a)
+-&gt; (forall (c :: * -&gt; *).
+    (forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+    -&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c a)
+-&gt; (a -&gt; Constr)
+-&gt; (a -&gt; DataType)
+-&gt; (forall (t :: * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d. Data d =&gt; c (t d)) -&gt; Maybe (c a))
+-&gt; (forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d e. (Data d, Data e) =&gt; c (t d e)) -&gt; Maybe (c a))
+-&gt; ((forall b. Data b =&gt; b -&gt; b) -&gt; a -&gt; a)
+-&gt; (forall r r'.
+    (r -&gt; r' -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; a -&gt; r)
+-&gt; (forall r r'.
+    (r' -&gt; r -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; a -&gt; r)
+-&gt; (forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; a -&gt; [u])
+-&gt; (forall u. Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; a -&gt; u)
+-&gt; (forall (m :: * -&gt; *).
+    Monad m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; a -&gt; m a)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; a -&gt; m a)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; a -&gt; m a)
+-&gt; Data a
+forall u. Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; Directed -&gt; u
+forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; Directed -&gt; [u]
+forall r r'.
+(r -&gt; r' -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; Directed -&gt; r
+forall r r'.
+(r' -&gt; r -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; Directed -&gt; r
+forall (m :: * -&gt; *).
+Monad m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; Directed -&gt; m Directed
+forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; Directed -&gt; m Directed
+forall (c :: * -&gt; *).
+(forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+-&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c Directed
+forall (c :: * -&gt; *).
+(forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+-&gt; (forall g. g -&gt; c g) -&gt; Directed -&gt; c Directed
+forall (t :: * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d. Data d =&gt; c (t d)) -&gt; Maybe (c Directed)
+forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d e. (Data d, Data e) =&gt; c (t d e)) -&gt; Maybe (c Directed)
+$cgfoldl :: forall (c :: * -&gt; *).
+(forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+-&gt; (forall g. g -&gt; c g) -&gt; Directed -&gt; c Directed
+gfoldl :: forall (c :: * -&gt; *).
+(forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+-&gt; (forall g. g -&gt; c g) -&gt; Directed -&gt; c Directed
+$cgunfold :: forall (c :: * -&gt; *).
+(forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+-&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c Directed
+gunfold :: forall (c :: * -&gt; *).
+(forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+-&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c Directed
+$ctoConstr :: Directed -&gt; Constr
+toConstr :: Directed -&gt; Constr
+$cdataTypeOf :: Directed -&gt; DataType
+dataTypeOf :: Directed -&gt; DataType
+$cdataCast1 :: forall (t :: * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d. Data d =&gt; c (t d)) -&gt; Maybe (c Directed)
+dataCast1 :: forall (t :: * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d. Data d =&gt; c (t d)) -&gt; Maybe (c Directed)
+$cdataCast2 :: forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d e. (Data d, Data e) =&gt; c (t d e)) -&gt; Maybe (c Directed)
+dataCast2 :: forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d e. (Data d, Data e) =&gt; c (t d e)) -&gt; Maybe (c Directed)
+$cgmapT :: (forall b. Data b =&gt; b -&gt; b) -&gt; Directed -&gt; Directed
+gmapT :: (forall b. Data b =&gt; b -&gt; b) -&gt; Directed -&gt; Directed
+$cgmapQl :: forall r r'.
+(r -&gt; r' -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; Directed -&gt; r
+gmapQl :: forall r r'.
+(r -&gt; r' -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; Directed -&gt; r
+$cgmapQr :: forall r r'.
+(r' -&gt; r -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; Directed -&gt; r
+gmapQr :: forall r r'.
+(r' -&gt; r -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; Directed -&gt; r
+$cgmapQ :: forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; Directed -&gt; [u]
+gmapQ :: forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; Directed -&gt; [u]
+$cgmapQi :: forall u. Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; Directed -&gt; u
+gmapQi :: forall u. Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; Directed -&gt; u
+$cgmapM :: forall (m :: * -&gt; *).
+Monad m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; Directed -&gt; m Directed
+gmapM :: forall (m :: * -&gt; *).
+Monad m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; Directed -&gt; m Directed
+$cgmapMp :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; Directed -&gt; m Directed
+gmapMp :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; Directed -&gt; m Directed
+$cgmapMo :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; Directed -&gt; m Directed
+gmapMo :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; Directed -&gt; m Directed
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Data</span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span>
+</span><span id="line-51"></span><span>    </span><span class="annot"><span class="hs-comment">-- | @since 0.7</span></span><span>
+</span><span id="line-52"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">Typeable</span></span><span> </span><span>
+</span><span id="line-53"></span><span>    </span><span class="hs-special">)</span><span>
+</span><span id="line-54"></span><span>
+</span><span id="line-55"></span><span class="annot"><span class="hs-comment">-- | @since 0.7</span></span><span>
+</span><span id="line-56"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679114614"><span class="annot"><a href="Data.Semiring.html#Semiring"><span class="hs-identifier hs-type">Semiring</span></a></span><span> </span><span class="annot"><a href="Data.Semiring.Directed.html#Directed"><span class="hs-identifier hs-type">Directed</span></a></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-57"></span><span>  </span><span id="local-6989586621679114623"><span class="annot"><span class="annottext">plus :: Directed -&gt; Directed -&gt; Directed
+</span><a href="#local-6989586621679114623"><span class="hs-identifier hs-var hs-var hs-var">plus</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Max Ordering -&gt; Max Ordering -&gt; Max Ordering)
+-&gt; Directed -&gt; Directed -&gt; Directed
+forall a b. Coercible a b =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">coerce</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Max Ordering -&gt; Max Ordering -&gt; Max Ordering
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">(&lt;&gt;)</span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Max</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ordering</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Max</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ordering</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Max</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ordering</span></span><span class="hs-special">)</span><span>
+</span><span id="line-58"></span><span>  </span><span id="local-6989586621679114630"><span class="annot"><span class="annottext">zero :: Directed
+</span><a href="#local-6989586621679114630"><span class="hs-identifier hs-var hs-var hs-var">zero</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Max Ordering -&gt; Directed
+forall a b. Coercible a b =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">coerce</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Max Ordering
+forall a. Monoid a =&gt; a
+</span><span class="hs-identifier hs-var">mempty</span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Max</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ordering</span></span><span class="hs-special">)</span><span>
+</span><span id="line-59"></span><span>  </span><span id="local-6989586621679114636"><span class="annot"><span class="annottext">times :: Directed -&gt; Directed -&gt; Directed
+</span><a href="#local-6989586621679114636"><span class="hs-identifier hs-var hs-var hs-var">times</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Min Ordering -&gt; Min Ordering -&gt; Min Ordering)
+-&gt; Directed -&gt; Directed -&gt; Directed
+forall a b. Coercible a b =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">coerce</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Min Ordering -&gt; Min Ordering -&gt; Min Ordering
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">(&lt;&gt;)</span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Min</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ordering</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Min</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ordering</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Min</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ordering</span></span><span class="hs-special">)</span><span>
+</span><span id="line-60"></span><span>  </span><span id="local-6989586621679114643"><span class="annot"><span class="annottext">one :: Directed
+</span><a href="#local-6989586621679114643"><span class="hs-identifier hs-var hs-var hs-var">one</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Min Ordering -&gt; Directed
+forall a b. Coercible a b =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">coerce</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Min Ordering
+forall a. Monoid a =&gt; a
+</span><span class="hs-identifier hs-var">mempty</span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Min</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ordering</span></span><span class="hs-special">)</span><span>
+</span><span id="line-61"></span></pre></body></html>

@@ -1,0 +1,61 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE Safe #-}</span><span>
+</span><span id="line-2"></span><span>
+</span><span id="line-3"></span><span class="hs-comment">-- |</span><span>
+</span><span id="line-4"></span><span class="hs-comment">--</span><span>
+</span><span id="line-5"></span><span class="hs-comment">-- Module      :  Foreign.Marshal.Alloc</span><span>
+</span><span id="line-6"></span><span class="hs-comment">-- Copyright   :  (c) The FFI task force 2001</span><span>
+</span><span id="line-7"></span><span class="hs-comment">-- License     :  BSD-style (see the file libraries/base/LICENSE)</span><span>
+</span><span id="line-8"></span><span class="hs-comment">--</span><span>
+</span><span id="line-9"></span><span class="hs-comment">-- Maintainer  :  ffi@haskell.org</span><span>
+</span><span id="line-10"></span><span class="hs-comment">-- Stability   :  provisional</span><span>
+</span><span id="line-11"></span><span class="hs-comment">-- Portability :  portable</span><span>
+</span><span id="line-12"></span><span class="hs-comment">--</span><span>
+</span><span id="line-13"></span><span class="hs-comment">-- The module &quot;Foreign.Marshal.Alloc&quot; provides operations to allocate and</span><span>
+</span><span id="line-14"></span><span class="hs-comment">-- deallocate blocks of raw memory (i.e., unstructured chunks of memory</span><span>
+</span><span id="line-15"></span><span class="hs-comment">-- outside of the area maintained by the Haskell storage manager).  These</span><span>
+</span><span id="line-16"></span><span class="hs-comment">-- memory blocks are commonly used to pass compound data structures to</span><span>
+</span><span id="line-17"></span><span class="hs-comment">-- foreign functions or to provide space in which compound result values</span><span>
+</span><span id="line-18"></span><span class="hs-comment">-- are obtained from foreign functions.</span><span>
+</span><span id="line-19"></span><span class="hs-comment">--</span><span>
+</span><span id="line-20"></span><span class="hs-comment">-- If any of the allocation functions fails, an exception is thrown.</span><span>
+</span><span id="line-21"></span><span class="hs-comment">-- In some cases, memory exhaustion may mean the process is terminated.</span><span>
+</span><span id="line-22"></span><span class="hs-comment">-- If 'free' or 'reallocBytes' is applied to a memory area</span><span>
+</span><span id="line-23"></span><span class="hs-comment">-- that has been allocated with 'alloca' or 'allocaBytes', the</span><span>
+</span><span id="line-24"></span><span class="hs-comment">-- behaviour is undefined.  Any further access to memory areas allocated with</span><span>
+</span><span id="line-25"></span><span class="hs-comment">-- 'alloca' or 'allocaBytes', after the computation that was passed to</span><span>
+</span><span id="line-26"></span><span class="hs-comment">-- the allocation function has terminated, leads to undefined behaviour.  Any</span><span>
+</span><span id="line-27"></span><span class="hs-comment">-- further access to the memory area referenced by a pointer passed to</span><span>
+</span><span id="line-28"></span><span class="hs-comment">-- 'realloc', 'reallocBytes', or 'free' entails undefined</span><span>
+</span><span id="line-29"></span><span class="hs-comment">-- behaviour.</span><span>
+</span><span id="line-30"></span><span class="hs-comment">--</span><span>
+</span><span id="line-31"></span><span class="hs-comment">-- All storage allocated by functions that allocate based on a /size in bytes/</span><span>
+</span><span id="line-32"></span><span class="hs-comment">-- must be sufficiently aligned for any of the basic foreign types</span><span>
+</span><span id="line-33"></span><span class="hs-comment">-- that fits into the newly allocated storage. All storage allocated by</span><span>
+</span><span id="line-34"></span><span class="hs-comment">-- functions that allocate based on a specific type must be sufficiently</span><span>
+</span><span id="line-35"></span><span class="hs-comment">-- aligned for that type. Array allocation routines need to obey the same</span><span>
+</span><span id="line-36"></span><span class="hs-comment">-- alignment constraints for each array element.</span><span>
+</span><span id="line-37"></span><span class="hs-comment">--</span><span>
+</span><span id="line-38"></span><span class="hs-comment">-- The underlying implementation is wrapping the @&lt;stdlib.h&gt;@</span><span>
+</span><span id="line-39"></span><span class="hs-comment">-- @malloc@, @realloc@, and @free@.</span><span>
+</span><span id="line-40"></span><span class="hs-comment">-- In other words it should be safe to allocate using C-@malloc@,</span><span>
+</span><span id="line-41"></span><span class="hs-comment">-- and free memory with 'free' from this module.</span><span>
+</span><span id="line-42"></span><span class="hs-comment">--</span><span>
+</span><span id="line-43"></span><span>
+</span><span id="line-44"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Foreign.Marshal.Alloc.html"><span class="hs-identifier">Foreign.Marshal.Alloc</span></a></span><span>
+</span><span id="line-45"></span><span>    </span><span class="hs-special">(</span><span class="annot"><span class="hs-comment">-- *  Memory allocation</span></span><span>
+</span><span id="line-46"></span><span>     </span><span class="annot"><span class="hs-comment">-- **  Local allocation</span></span><span>
+</span><span id="line-47"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Foreign.Marshal.Alloc.html#alloca"><span class="hs-identifier">alloca</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-48"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Foreign.Marshal.Alloc.html#allocaBytes"><span class="hs-identifier">allocaBytes</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-49"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Foreign.Marshal.Alloc.html#allocaBytesAligned"><span class="hs-identifier">allocaBytesAligned</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-50"></span><span>     </span><span class="annot"><span class="hs-comment">-- **  Dynamic allocation</span></span><span>
+</span><span id="line-51"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Foreign.Marshal.Alloc.html#malloc"><span class="hs-identifier">malloc</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-52"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Foreign.Marshal.Alloc.html#mallocBytes"><span class="hs-identifier">mallocBytes</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-53"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Foreign.Marshal.Alloc.html#calloc"><span class="hs-identifier">calloc</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-54"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Foreign.Marshal.Alloc.html#callocBytes"><span class="hs-identifier">callocBytes</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-55"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Foreign.Marshal.Alloc.html#realloc"><span class="hs-identifier">realloc</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-56"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Foreign.Marshal.Alloc.html#reallocBytes"><span class="hs-identifier">reallocBytes</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-57"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Foreign.Marshal.Alloc.html#free"><span class="hs-identifier">free</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-58"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Foreign.Marshal.Alloc.html#finalizerFree"><span class="hs-identifier">finalizerFree</span></a></span><span>
+</span><span id="line-59"></span><span>     </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-60"></span><span>
+</span><span id="line-61"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Foreign.Marshal.Alloc.html"><span class="hs-identifier">GHC.Internal.Foreign.Marshal.Alloc</span></a></span></pre></body></html>

@@ -1,0 +1,217 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-comment">{- ORMOLU_DISABLE -}</span><span>
+</span><span id="line-2"></span><span class="hs-comment">{- HLINT ignore -}</span><span>
+</span><span id="line-3"></span><span class="hs-comment">-- THIS IS A GENERATED FILE, DO NOT EDIT</span><span>
+</span><span id="line-4"></span><span>
+</span><span id="line-5"></span><span class="hs-pragma">{-# OPTIONS_GHC -Wno-unused-imports #-}</span><span>
+</span><span id="line-6"></span><span class="hs-pragma">{-# OPTIONS_GHC -Wno-unused-matches #-}</span><span>
+</span><span id="line-7"></span><span class="hs-pragma">{-# OPTIONS_GHC -Wno-deprecations #-}</span><span>
+</span><span id="line-8"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.PrepareRenameDefaultBehavior.html"><span class="hs-identifier">Language.LSP.Protocol.Internal.Types.PrepareRenameDefaultBehavior</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-9"></span><span>
+</span><span id="line-10"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.DeepSeq</span></span><span>
+</span><span id="line-11"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Hashable</span></span><span>
+</span><span id="line-12"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">GHC.Generics</span></span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Utils.Misc.html"><span class="hs-identifier">Language.LSP.Protocol.Utils.Misc</span></a></span><span>
+</span><span id="line-14"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Prettyprinter</span></span><span>
+</span><span id="line-15"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Aeson</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Aeson</span></span><span>
+</span><span id="line-16"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Data.Row.Aeson.html"><span class="hs-identifier">Data.Row.Aeson</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Aeson</span></span><span>
+</span><span id="line-17"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Data.Row.Hashable.html"><span class="hs-identifier">Data.Row.Hashable</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Hashable</span></span><span>
+</span><span id="line-18"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Types.Common.html"><span class="hs-identifier">Language.LSP.Protocol.Types.Common</span></a></span><span>
+</span><span id="line-19"></span><span>
+</span><span id="line-20"></span><span class="annot"><span class="hs-comment">{-|
+@since 3.18.0
+@proposed
+-}</span></span><span>
+</span><span id="line-24"></span><span class="hs-keyword">data</span><span> </span><span id="PrepareRenameDefaultBehavior"><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.PrepareRenameDefaultBehavior.html#PrepareRenameDefaultBehavior"><span class="hs-identifier hs-var">PrepareRenameDefaultBehavior</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="PrepareRenameDefaultBehavior"><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.PrepareRenameDefaultBehavior.html#PrepareRenameDefaultBehavior"><span class="hs-identifier hs-var">PrepareRenameDefaultBehavior</span></a></span></span><span> </span><span>
+</span><span id="line-25"></span><span>  </span><span class="hs-special">{</span><span> </span><span class="annot"><span class="hs-comment">{-|
+
+  -}</span></span><span>
+</span><span id="line-28"></span><span>  </span><span id="_defaultBehavior"><span class="annot"><span class="annottext">PrepareRenameDefaultBehavior -&gt; Bool
+</span><a href="Language.LSP.Protocol.Internal.Types.PrepareRenameDefaultBehavior.html#_defaultBehavior"><span class="hs-identifier hs-var hs-var">_defaultBehavior</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>
+</span><span id="line-29"></span><span>  </span><span class="hs-special">}</span><span>
+</span><span id="line-30"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">stock</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621682519800"><span id="local-6989586621682519806"><span id="local-6989586621682519810"><span class="annot"><span class="annottext">Int -&gt; PrepareRenameDefaultBehavior -&gt; ShowS
+[PrepareRenameDefaultBehavior] -&gt; ShowS
+PrepareRenameDefaultBehavior -&gt; String
+(Int -&gt; PrepareRenameDefaultBehavior -&gt; ShowS)
+-&gt; (PrepareRenameDefaultBehavior -&gt; String)
+-&gt; ([PrepareRenameDefaultBehavior] -&gt; ShowS)
+-&gt; Show PrepareRenameDefaultBehavior
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; PrepareRenameDefaultBehavior -&gt; ShowS
+showsPrec :: Int -&gt; PrepareRenameDefaultBehavior -&gt; ShowS
+$cshow :: PrepareRenameDefaultBehavior -&gt; String
+show :: PrepareRenameDefaultBehavior -&gt; String
+$cshowList :: [PrepareRenameDefaultBehavior] -&gt; ShowS
+showList :: [PrepareRenameDefaultBehavior] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682519815"><span id="local-6989586621682519819"><span class="annot"><span class="annottext">PrepareRenameDefaultBehavior
+-&gt; PrepareRenameDefaultBehavior -&gt; Bool
+(PrepareRenameDefaultBehavior
+ -&gt; PrepareRenameDefaultBehavior -&gt; Bool)
+-&gt; (PrepareRenameDefaultBehavior
+    -&gt; PrepareRenameDefaultBehavior -&gt; Bool)
+-&gt; Eq PrepareRenameDefaultBehavior
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: PrepareRenameDefaultBehavior
+-&gt; PrepareRenameDefaultBehavior -&gt; Bool
+== :: PrepareRenameDefaultBehavior
+-&gt; PrepareRenameDefaultBehavior -&gt; Bool
+$c/= :: PrepareRenameDefaultBehavior
+-&gt; PrepareRenameDefaultBehavior -&gt; Bool
+/= :: PrepareRenameDefaultBehavior
+-&gt; PrepareRenameDefaultBehavior -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682519826"><span id="local-6989586621682519830"><span id="local-6989586621682519833"><span id="local-6989586621682519837"><span id="local-6989586621682519840"><span id="local-6989586621682519843"><span id="local-6989586621682519846"><span class="annot"><span class="annottext">Eq PrepareRenameDefaultBehavior
+Eq PrepareRenameDefaultBehavior =&gt;
+(PrepareRenameDefaultBehavior
+ -&gt; PrepareRenameDefaultBehavior -&gt; Ordering)
+-&gt; (PrepareRenameDefaultBehavior
+    -&gt; PrepareRenameDefaultBehavior -&gt; Bool)
+-&gt; (PrepareRenameDefaultBehavior
+    -&gt; PrepareRenameDefaultBehavior -&gt; Bool)
+-&gt; (PrepareRenameDefaultBehavior
+    -&gt; PrepareRenameDefaultBehavior -&gt; Bool)
+-&gt; (PrepareRenameDefaultBehavior
+    -&gt; PrepareRenameDefaultBehavior -&gt; Bool)
+-&gt; (PrepareRenameDefaultBehavior
+    -&gt; PrepareRenameDefaultBehavior -&gt; PrepareRenameDefaultBehavior)
+-&gt; (PrepareRenameDefaultBehavior
+    -&gt; PrepareRenameDefaultBehavior -&gt; PrepareRenameDefaultBehavior)
+-&gt; Ord PrepareRenameDefaultBehavior
+PrepareRenameDefaultBehavior
+-&gt; PrepareRenameDefaultBehavior -&gt; Bool
+PrepareRenameDefaultBehavior
+-&gt; PrepareRenameDefaultBehavior -&gt; Ordering
+PrepareRenameDefaultBehavior
+-&gt; PrepareRenameDefaultBehavior -&gt; PrepareRenameDefaultBehavior
+forall a.
+Eq a =&gt;
+(a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+$ccompare :: PrepareRenameDefaultBehavior
+-&gt; PrepareRenameDefaultBehavior -&gt; Ordering
+compare :: PrepareRenameDefaultBehavior
+-&gt; PrepareRenameDefaultBehavior -&gt; Ordering
+$c&lt; :: PrepareRenameDefaultBehavior
+-&gt; PrepareRenameDefaultBehavior -&gt; Bool
+&lt; :: PrepareRenameDefaultBehavior
+-&gt; PrepareRenameDefaultBehavior -&gt; Bool
+$c&lt;= :: PrepareRenameDefaultBehavior
+-&gt; PrepareRenameDefaultBehavior -&gt; Bool
+&lt;= :: PrepareRenameDefaultBehavior
+-&gt; PrepareRenameDefaultBehavior -&gt; Bool
+$c&gt; :: PrepareRenameDefaultBehavior
+-&gt; PrepareRenameDefaultBehavior -&gt; Bool
+&gt; :: PrepareRenameDefaultBehavior
+-&gt; PrepareRenameDefaultBehavior -&gt; Bool
+$c&gt;= :: PrepareRenameDefaultBehavior
+-&gt; PrepareRenameDefaultBehavior -&gt; Bool
+&gt;= :: PrepareRenameDefaultBehavior
+-&gt; PrepareRenameDefaultBehavior -&gt; Bool
+$cmax :: PrepareRenameDefaultBehavior
+-&gt; PrepareRenameDefaultBehavior -&gt; PrepareRenameDefaultBehavior
+max :: PrepareRenameDefaultBehavior
+-&gt; PrepareRenameDefaultBehavior -&gt; PrepareRenameDefaultBehavior
+$cmin :: PrepareRenameDefaultBehavior
+-&gt; PrepareRenameDefaultBehavior -&gt; PrepareRenameDefaultBehavior
+min :: PrepareRenameDefaultBehavior
+-&gt; PrepareRenameDefaultBehavior -&gt; PrepareRenameDefaultBehavior
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682519854"><span id="local-6989586621682519856"><span class="annot"><span class="annottext">(forall x.
+ PrepareRenameDefaultBehavior -&gt; Rep PrepareRenameDefaultBehavior x)
+-&gt; (forall x.
+    Rep PrepareRenameDefaultBehavior x -&gt; PrepareRenameDefaultBehavior)
+-&gt; Generic PrepareRenameDefaultBehavior
+forall x.
+Rep PrepareRenameDefaultBehavior x -&gt; PrepareRenameDefaultBehavior
+forall x.
+PrepareRenameDefaultBehavior -&gt; Rep PrepareRenameDefaultBehavior x
+forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+$cfrom :: forall x.
+PrepareRenameDefaultBehavior -&gt; Rep PrepareRenameDefaultBehavior x
+from :: forall x.
+PrepareRenameDefaultBehavior -&gt; Rep PrepareRenameDefaultBehavior x
+$cto :: forall x.
+Rep PrepareRenameDefaultBehavior x -&gt; PrepareRenameDefaultBehavior
+to :: forall x.
+Rep PrepareRenameDefaultBehavior x -&gt; PrepareRenameDefaultBehavior
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Generic</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-31"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">anyclass</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621682519862"><span class="annot"><span class="annottext">PrepareRenameDefaultBehavior -&gt; ()
+(PrepareRenameDefaultBehavior -&gt; ())
+-&gt; NFData PrepareRenameDefaultBehavior
+forall a. (a -&gt; ()) -&gt; NFData a
+$crnf :: PrepareRenameDefaultBehavior -&gt; ()
+rnf :: PrepareRenameDefaultBehavior -&gt; ()
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">NFData</span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682519879"><span id="local-6989586621682519886"><span class="annot"><span class="annottext">Eq PrepareRenameDefaultBehavior
+Eq PrepareRenameDefaultBehavior =&gt;
+(Int -&gt; PrepareRenameDefaultBehavior -&gt; Int)
+-&gt; (PrepareRenameDefaultBehavior -&gt; Int)
+-&gt; Hashable PrepareRenameDefaultBehavior
+Int -&gt; PrepareRenameDefaultBehavior -&gt; Int
+PrepareRenameDefaultBehavior -&gt; Int
+forall a. Eq a =&gt; (Int -&gt; a -&gt; Int) -&gt; (a -&gt; Int) -&gt; Hashable a
+$chashWithSalt :: Int -&gt; PrepareRenameDefaultBehavior -&gt; Int
+hashWithSalt :: Int -&gt; PrepareRenameDefaultBehavior -&gt; Int
+$chash :: PrepareRenameDefaultBehavior -&gt; Int
+hash :: PrepareRenameDefaultBehavior -&gt; Int
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Hashable</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-32"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span id="local-6989586621682519897"><span id="local-6989586621682519903"><span class="annot"><span class="annottext">(forall ann. PrepareRenameDefaultBehavior -&gt; Doc ann)
+-&gt; (forall ann. [PrepareRenameDefaultBehavior] -&gt; Doc ann)
+-&gt; Pretty PrepareRenameDefaultBehavior
+forall ann. [PrepareRenameDefaultBehavior] -&gt; Doc ann
+forall ann. PrepareRenameDefaultBehavior -&gt; Doc ann
+forall a.
+(forall ann. a -&gt; Doc ann)
+-&gt; (forall ann. [a] -&gt; Doc ann) -&gt; Pretty a
+$cpretty :: forall ann. PrepareRenameDefaultBehavior -&gt; Doc ann
+pretty :: forall ann. PrepareRenameDefaultBehavior -&gt; Doc ann
+$cprettyList :: forall ann. [PrepareRenameDefaultBehavior] -&gt; Doc ann
+prettyList :: forall ann. [PrepareRenameDefaultBehavior] -&gt; Doc ann
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Pretty</span></span></span></span><span> </span><span class="hs-keyword">via</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.LSP.Protocol.Utils.Misc.html#ViaJSON"><span class="hs-identifier hs-type">ViaJSON</span></a></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.PrepareRenameDefaultBehavior.html#PrepareRenameDefaultBehavior"><span class="hs-identifier hs-type">PrepareRenameDefaultBehavior</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-33"></span><span>
+</span><span id="line-34"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621682519914"><span id="local-6989586621682519917"><span id="local-6989586621682519920"><span id="local-6989586621682519923"><span class="annot"><span class="hs-identifier hs-type">Aeson.ToJSON</span></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.PrepareRenameDefaultBehavior.html#PrepareRenameDefaultBehavior"><span class="hs-identifier hs-type">PrepareRenameDefaultBehavior</span></a></span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-35"></span><span>  </span><span id="local-6989586621682519936"><span class="annot"><span class="annottext">toJSON :: PrepareRenameDefaultBehavior -&gt; Value
+</span><a href="#local-6989586621682519936"><span class="hs-identifier hs-var hs-var hs-var">toJSON</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.PrepareRenameDefaultBehavior.html#PrepareRenameDefaultBehavior"><span class="hs-identifier hs-type">PrepareRenameDefaultBehavior</span></a></span><span> </span><span id="local-6989586621682519938"><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621682519938"><span class="hs-identifier hs-var">arg0</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Pair] -&gt; Value
+</span><span class="hs-identifier hs-var">Aeson.object</span></span><span> </span><span class="annot"><span class="annottext">([Pair] -&gt; Value) -&gt; [Pair] -&gt; Value
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">[[Pair]] -&gt; [Pair]
+forall (t :: * -&gt; *) a. Foldable t =&gt; t [a] -&gt; [a]
+</span><span class="hs-identifier hs-var">concat</span></span><span> </span><span class="annot"><span class="annottext">([[Pair]] -&gt; [Pair]) -&gt; [[Pair]] -&gt; [Pair]
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>  </span><span class="hs-special">[</span><span class="hs-special">[</span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;defaultBehavior&quot;</span></span><span> </span><span class="annot"><span class="annottext">Key -&gt; Bool -&gt; Pair
+forall v. ToJSON v =&gt; Key -&gt; v -&gt; Pair
+forall e kv v. (KeyValue e kv, ToJSON v) =&gt; Key -&gt; v -&gt; kv
+</span><span class="hs-operator hs-var">Aeson..=</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621682519938"><span class="hs-identifier hs-var">arg0</span></a></span><span class="hs-special">]</span><span class="hs-special">]</span><span>
+</span><span id="line-36"></span><span>
+</span><span id="line-37"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621682519944"><span id="local-6989586621682519948"><span class="annot"><span class="hs-identifier hs-type">Aeson.FromJSON</span></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.PrepareRenameDefaultBehavior.html#PrepareRenameDefaultBehavior"><span class="hs-identifier hs-type">PrepareRenameDefaultBehavior</span></a></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-38"></span><span>  </span><span id="local-6989586621682519956"><span class="annot"><span class="annottext">parseJSON :: Value -&gt; Parser PrepareRenameDefaultBehavior
+</span><a href="#local-6989586621682519956"><span class="hs-identifier hs-var hs-var hs-var">parseJSON</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+-&gt; (Object -&gt; Parser PrepareRenameDefaultBehavior)
+-&gt; Value
+-&gt; Parser PrepareRenameDefaultBehavior
+forall a. String -&gt; (Object -&gt; Parser a) -&gt; Value -&gt; Parser a
+</span><span class="hs-identifier hs-var">Aeson.withObject</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;PrepareRenameDefaultBehavior&quot;</span></span><span> </span><span class="annot"><span class="annottext">((Object -&gt; Parser PrepareRenameDefaultBehavior)
+ -&gt; Value -&gt; Parser PrepareRenameDefaultBehavior)
+-&gt; (Object -&gt; Parser PrepareRenameDefaultBehavior)
+-&gt; Value
+-&gt; Parser PrepareRenameDefaultBehavior
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621682519959"><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621682519959"><span class="hs-identifier hs-var">arg</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Bool -&gt; PrepareRenameDefaultBehavior
+</span><a href="Language.LSP.Protocol.Internal.Types.PrepareRenameDefaultBehavior.html#PrepareRenameDefaultBehavior"><span class="hs-identifier hs-var">PrepareRenameDefaultBehavior</span></a></span><span> </span><span class="annot"><span class="annottext">(Bool -&gt; PrepareRenameDefaultBehavior)
+-&gt; Parser Bool -&gt; Parser PrepareRenameDefaultBehavior
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621682519959"><span class="hs-identifier hs-var">arg</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser Bool
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">Aeson..:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;defaultBehavior&quot;</span></span><span>
+</span><span id="line-39"></span></pre></body></html>

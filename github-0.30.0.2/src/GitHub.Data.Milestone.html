@@ -1,0 +1,1073 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span id="local-6989586621679488698"><span id="local-6989586621679488699"><span id="local-6989586621679488700"><span id="local-6989586621679488701"><span id="local-6989586621679488702"><span id="local-6989586621679488703"></span></span></span></span></span></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="GitHub.Data.Milestone.html"><span class="hs-identifier">GitHub.Data.Milestone</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-2"></span><span>
+</span><span id="line-3"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GitHub.Data.Definitions.html"><span class="hs-identifier">GitHub.Data.Definitions</span></a></span><span>
+</span><span id="line-4"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GitHub.Data.Id.html"><span class="hs-identifier">GitHub.Data.Id</span></a></span><span>          </span><span class="hs-special">(</span><span class="annot"><a href="GitHub.Data.Id.html#Id"><span class="hs-identifier">Id</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-5"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GitHub.Data.URL.html"><span class="hs-identifier">GitHub.Data.URL</span></a></span><span>         </span><span class="hs-special">(</span><span class="annot"><a href="GitHub.Data.URL.html#URL"><span class="hs-identifier">URL</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-6"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GitHub.Internal.Prelude.html"><span class="hs-identifier">GitHub.Internal.Prelude</span></a></span><span>
+</span><span id="line-7"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Prelude</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-8"></span><span>
+</span><span id="line-9"></span><span class="hs-keyword">data</span><span> </span><span id="Milestone"><span class="annot"><a href="GitHub.Data.Milestone.html#Milestone"><span class="hs-identifier hs-var">Milestone</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="Milestone"><span class="annot"><a href="GitHub.Data.Milestone.html#Milestone"><span class="hs-identifier hs-var">Milestone</span></a></span></span><span>
+</span><span id="line-10"></span><span>    </span><span class="hs-special">{</span><span> </span><span id="milestoneCreator"><span class="annot"><span class="annottext">Milestone -&gt; SimpleUser
+</span><a href="GitHub.Data.Milestone.html#milestoneCreator"><span class="hs-identifier hs-var hs-var">milestoneCreator</span></a></span></span><span>      </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><a href="GitHub.Data.Definitions.html#SimpleUser"><span class="hs-identifier hs-type">SimpleUser</span></a></span><span>
+</span><span id="line-11"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="milestoneDueOn"><span class="annot"><span class="annottext">Milestone -&gt; Maybe UTCTime
+</span><a href="GitHub.Data.Milestone.html#milestoneDueOn"><span class="hs-identifier hs-var hs-var">milestoneDueOn</span></a></span></span><span>        </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">UTCTime</span></span><span class="hs-special">)</span><span>
+</span><span id="line-12"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="milestoneOpenIssues"><span class="annot"><span class="annottext">Milestone -&gt; Int
+</span><a href="GitHub.Data.Milestone.html#milestoneOpenIssues"><span class="hs-identifier hs-var hs-var">milestoneOpenIssues</span></a></span></span><span>   </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>
+</span><span id="line-13"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="milestoneNumber"><span class="annot"><span class="annottext">Milestone -&gt; Id Milestone
+</span><a href="GitHub.Data.Milestone.html#milestoneNumber"><span class="hs-identifier hs-var hs-var">milestoneNumber</span></a></span></span><span>       </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="hs-special">(</span><span class="annot"><a href="GitHub.Data.Id.html#Id"><span class="hs-identifier hs-type">Id</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.Milestone.html#Milestone"><span class="hs-identifier hs-type">Milestone</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-14"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="milestoneClosedIssues"><span class="annot"><span class="annottext">Milestone -&gt; Int
+</span><a href="GitHub.Data.Milestone.html#milestoneClosedIssues"><span class="hs-identifier hs-var hs-var">milestoneClosedIssues</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>
+</span><span id="line-15"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="milestoneDescription"><span class="annot"><span class="annottext">Milestone -&gt; Maybe Text
+</span><a href="GitHub.Data.Milestone.html#milestoneDescription"><span class="hs-identifier hs-var hs-var">milestoneDescription</span></a></span></span><span>  </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span class="hs-special">)</span><span>
+</span><span id="line-16"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="milestoneTitle"><span class="annot"><span class="annottext">Milestone -&gt; Text
+</span><a href="GitHub.Data.Milestone.html#milestoneTitle"><span class="hs-identifier hs-var hs-var">milestoneTitle</span></a></span></span><span>        </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span>
+</span><span id="line-17"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="milestoneUrl"><span class="annot"><span class="annottext">Milestone -&gt; URL
+</span><a href="GitHub.Data.Milestone.html#milestoneUrl"><span class="hs-identifier hs-var hs-var">milestoneUrl</span></a></span></span><span>          </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><a href="GitHub.Data.URL.html#URL"><span class="hs-identifier hs-type">URL</span></a></span><span>
+</span><span id="line-18"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="milestoneCreatedAt"><span class="annot"><span class="annottext">Milestone -&gt; UTCTime
+</span><a href="GitHub.Data.Milestone.html#milestoneCreatedAt"><span class="hs-identifier hs-var hs-var">milestoneCreatedAt</span></a></span></span><span>    </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">UTCTime</span></span><span>
+</span><span id="line-19"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="milestoneState"><span class="annot"><span class="annottext">Milestone -&gt; Text
+</span><a href="GitHub.Data.Milestone.html#milestoneState"><span class="hs-identifier hs-var hs-var">milestoneState</span></a></span></span><span>        </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span>
+</span><span id="line-20"></span><span>    </span><span class="hs-special">}</span><span>
+</span><span id="line-21"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679488716"><span id="local-6989586621679488737"><span id="local-6989586621679488741"><span class="annot"><span class="annottext">Int -&gt; Milestone -&gt; ShowS
+[Milestone] -&gt; ShowS
+Milestone -&gt; String
+(Int -&gt; Milestone -&gt; ShowS)
+-&gt; (Milestone -&gt; String)
+-&gt; ([Milestone] -&gt; ShowS)
+-&gt; Show Milestone
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; Milestone -&gt; ShowS
+showsPrec :: Int -&gt; Milestone -&gt; ShowS
+$cshow :: Milestone -&gt; String
+show :: Milestone -&gt; String
+$cshowList :: [Milestone] -&gt; ShowS
+showList :: [Milestone] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679488750"><span id="local-6989586621679488770"><span id="local-6989586621679488783"><span id="local-6989586621679488785"><span id="local-6989586621679488787"><span id="local-6989586621679488793"><span id="local-6989586621679488798"><span id="local-6989586621679488801"><span id="local-6989586621679488804"><span id="local-6989586621679488807"><span id="local-6989586621679488810"><span id="local-6989586621679488813"><span id="local-6989586621679488818"><span id="local-6989586621679488823"><span class="annot"><span class="annottext">Typeable Milestone
+Typeable Milestone =&gt;
+(forall (c :: * -&gt; *).
+ (forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+ -&gt; (forall g. g -&gt; c g) -&gt; Milestone -&gt; c Milestone)
+-&gt; (forall (c :: * -&gt; *).
+    (forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+    -&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c Milestone)
+-&gt; (Milestone -&gt; Constr)
+-&gt; (Milestone -&gt; DataType)
+-&gt; (forall (t :: * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d. Data d =&gt; c (t d)) -&gt; Maybe (c Milestone))
+-&gt; (forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d e. (Data d, Data e) =&gt; c (t d e)) -&gt; Maybe (c Milestone))
+-&gt; ((forall b. Data b =&gt; b -&gt; b) -&gt; Milestone -&gt; Milestone)
+-&gt; (forall r r'.
+    (r -&gt; r' -&gt; r)
+    -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; Milestone -&gt; r)
+-&gt; (forall r r'.
+    (r' -&gt; r -&gt; r)
+    -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; Milestone -&gt; r)
+-&gt; (forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; Milestone -&gt; [u])
+-&gt; (forall u.
+    Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; Milestone -&gt; u)
+-&gt; (forall (m :: * -&gt; *).
+    Monad m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; Milestone -&gt; m Milestone)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; Milestone -&gt; m Milestone)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; Milestone -&gt; m Milestone)
+-&gt; Data Milestone
+Milestone -&gt; Constr
+Milestone -&gt; DataType
+(forall b. Data b =&gt; b -&gt; b) -&gt; Milestone -&gt; Milestone
+forall a.
+Typeable a =&gt;
+(forall (c :: * -&gt; *).
+ (forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+ -&gt; (forall g. g -&gt; c g) -&gt; a -&gt; c a)
+-&gt; (forall (c :: * -&gt; *).
+    (forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+    -&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c a)
+-&gt; (a -&gt; Constr)
+-&gt; (a -&gt; DataType)
+-&gt; (forall (t :: * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d. Data d =&gt; c (t d)) -&gt; Maybe (c a))
+-&gt; (forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d e. (Data d, Data e) =&gt; c (t d e)) -&gt; Maybe (c a))
+-&gt; ((forall b. Data b =&gt; b -&gt; b) -&gt; a -&gt; a)
+-&gt; (forall r r'.
+    (r -&gt; r' -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; a -&gt; r)
+-&gt; (forall r r'.
+    (r' -&gt; r -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; a -&gt; r)
+-&gt; (forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; a -&gt; [u])
+-&gt; (forall u. Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; a -&gt; u)
+-&gt; (forall (m :: * -&gt; *).
+    Monad m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; a -&gt; m a)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; a -&gt; m a)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; a -&gt; m a)
+-&gt; Data a
+forall u. Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; Milestone -&gt; u
+forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; Milestone -&gt; [u]
+forall r r'.
+(r -&gt; r' -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; Milestone -&gt; r
+forall r r'.
+(r' -&gt; r -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; Milestone -&gt; r
+forall (m :: * -&gt; *).
+Monad m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; Milestone -&gt; m Milestone
+forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; Milestone -&gt; m Milestone
+forall (c :: * -&gt; *).
+(forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+-&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c Milestone
+forall (c :: * -&gt; *).
+(forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+-&gt; (forall g. g -&gt; c g) -&gt; Milestone -&gt; c Milestone
+forall (t :: * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d. Data d =&gt; c (t d)) -&gt; Maybe (c Milestone)
+forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d e. (Data d, Data e) =&gt; c (t d e)) -&gt; Maybe (c Milestone)
+$cgfoldl :: forall (c :: * -&gt; *).
+(forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+-&gt; (forall g. g -&gt; c g) -&gt; Milestone -&gt; c Milestone
+gfoldl :: forall (c :: * -&gt; *).
+(forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+-&gt; (forall g. g -&gt; c g) -&gt; Milestone -&gt; c Milestone
+$cgunfold :: forall (c :: * -&gt; *).
+(forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+-&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c Milestone
+gunfold :: forall (c :: * -&gt; *).
+(forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+-&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c Milestone
+$ctoConstr :: Milestone -&gt; Constr
+toConstr :: Milestone -&gt; Constr
+$cdataTypeOf :: Milestone -&gt; DataType
+dataTypeOf :: Milestone -&gt; DataType
+$cdataCast1 :: forall (t :: * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d. Data d =&gt; c (t d)) -&gt; Maybe (c Milestone)
+dataCast1 :: forall (t :: * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d. Data d =&gt; c (t d)) -&gt; Maybe (c Milestone)
+$cdataCast2 :: forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d e. (Data d, Data e) =&gt; c (t d e)) -&gt; Maybe (c Milestone)
+dataCast2 :: forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d e. (Data d, Data e) =&gt; c (t d e)) -&gt; Maybe (c Milestone)
+$cgmapT :: (forall b. Data b =&gt; b -&gt; b) -&gt; Milestone -&gt; Milestone
+gmapT :: (forall b. Data b =&gt; b -&gt; b) -&gt; Milestone -&gt; Milestone
+$cgmapQl :: forall r r'.
+(r -&gt; r' -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; Milestone -&gt; r
+gmapQl :: forall r r'.
+(r -&gt; r' -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; Milestone -&gt; r
+$cgmapQr :: forall r r'.
+(r' -&gt; r -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; Milestone -&gt; r
+gmapQr :: forall r r'.
+(r' -&gt; r -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; Milestone -&gt; r
+$cgmapQ :: forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; Milestone -&gt; [u]
+gmapQ :: forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; Milestone -&gt; [u]
+$cgmapQi :: forall u. Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; Milestone -&gt; u
+gmapQi :: forall u. Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; Milestone -&gt; u
+$cgmapM :: forall (m :: * -&gt; *).
+Monad m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; Milestone -&gt; m Milestone
+gmapM :: forall (m :: * -&gt; *).
+Monad m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; Milestone -&gt; m Milestone
+$cgmapMp :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; Milestone -&gt; m Milestone
+gmapMp :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; Milestone -&gt; m Milestone
+$cgmapMo :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; Milestone -&gt; m Milestone
+gmapMo :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; Milestone -&gt; m Milestone
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Data</span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679488833"><span id="local-6989586621679488852"><span class="annot"><span class="annottext">Milestone -&gt; Milestone -&gt; Bool
+(Milestone -&gt; Milestone -&gt; Bool)
+-&gt; (Milestone -&gt; Milestone -&gt; Bool) -&gt; Eq Milestone
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: Milestone -&gt; Milestone -&gt; Bool
+== :: Milestone -&gt; Milestone -&gt; Bool
+$c/= :: Milestone -&gt; Milestone -&gt; Bool
+/= :: Milestone -&gt; Milestone -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679488861"><span id="local-6989586621679488879"><span id="local-6989586621679488893"><span id="local-6989586621679488897"><span id="local-6989586621679488900"><span id="local-6989586621679488903"><span id="local-6989586621679488906"><span class="annot"><span class="annottext">Eq Milestone
+Eq Milestone =&gt;
+(Milestone -&gt; Milestone -&gt; Ordering)
+-&gt; (Milestone -&gt; Milestone -&gt; Bool)
+-&gt; (Milestone -&gt; Milestone -&gt; Bool)
+-&gt; (Milestone -&gt; Milestone -&gt; Bool)
+-&gt; (Milestone -&gt; Milestone -&gt; Bool)
+-&gt; (Milestone -&gt; Milestone -&gt; Milestone)
+-&gt; (Milestone -&gt; Milestone -&gt; Milestone)
+-&gt; Ord Milestone
+Milestone -&gt; Milestone -&gt; Bool
+Milestone -&gt; Milestone -&gt; Ordering
+Milestone -&gt; Milestone -&gt; Milestone
+forall a.
+Eq a =&gt;
+(a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+$ccompare :: Milestone -&gt; Milestone -&gt; Ordering
+compare :: Milestone -&gt; Milestone -&gt; Ordering
+$c&lt; :: Milestone -&gt; Milestone -&gt; Bool
+&lt; :: Milestone -&gt; Milestone -&gt; Bool
+$c&lt;= :: Milestone -&gt; Milestone -&gt; Bool
+&lt;= :: Milestone -&gt; Milestone -&gt; Bool
+$c&gt; :: Milestone -&gt; Milestone -&gt; Bool
+&gt; :: Milestone -&gt; Milestone -&gt; Bool
+$c&gt;= :: Milestone -&gt; Milestone -&gt; Bool
+&gt;= :: Milestone -&gt; Milestone -&gt; Bool
+$cmax :: Milestone -&gt; Milestone -&gt; Milestone
+max :: Milestone -&gt; Milestone -&gt; Milestone
+$cmin :: Milestone -&gt; Milestone -&gt; Milestone
+min :: Milestone -&gt; Milestone -&gt; Milestone
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679488916"><span id="local-6989586621679488918"><span class="annot"><span class="annottext">(forall x. Milestone -&gt; Rep Milestone x)
+-&gt; (forall x. Rep Milestone x -&gt; Milestone) -&gt; Generic Milestone
+forall x. Rep Milestone x -&gt; Milestone
+forall x. Milestone -&gt; Rep Milestone x
+forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+$cfrom :: forall x. Milestone -&gt; Rep Milestone x
+from :: forall x. Milestone -&gt; Rep Milestone x
+$cto :: forall x. Rep Milestone x -&gt; Milestone
+to :: forall x. Rep Milestone x -&gt; Milestone
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Generic</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-22"></span><span>
+</span><span id="line-23"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679488924"><span class="annot"><span class="hs-identifier hs-type">NFData</span></span><span> </span><span class="annot"><a href="GitHub.Data.Milestone.html#Milestone"><span class="hs-identifier hs-type">Milestone</span></a></span></span><span>
+</span><span id="line-24"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679488978"><span id="local-6989586621679488985"><span id="local-6989586621679488991"><span class="annot"><span class="hs-identifier hs-type">Binary</span></span><span> </span><span class="annot"><a href="GitHub.Data.Milestone.html#Milestone"><span class="hs-identifier hs-type">Milestone</span></a></span></span></span></span><span>
+</span><span id="line-25"></span><span>
+</span><span id="line-26"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679489081"><span id="local-6989586621679489085"><span class="annot"><span class="hs-identifier hs-type">FromJSON</span></span><span> </span><span class="annot"><a href="GitHub.Data.Milestone.html#Milestone"><span class="hs-identifier hs-type">Milestone</span></a></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-27"></span><span>    </span><span id="local-6989586621679489130"><span class="annot"><span class="annottext">parseJSON :: Value -&gt; Parser Milestone
+</span><a href="#local-6989586621679489130"><span class="hs-identifier hs-var hs-var hs-var">parseJSON</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; (Object -&gt; Parser Milestone) -&gt; Value -&gt; Parser Milestone
+forall a. String -&gt; (Object -&gt; Parser a) -&gt; Value -&gt; Parser a
+</span><span class="hs-identifier hs-var">withObject</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Milestone&quot;</span></span><span> </span><span class="annot"><span class="annottext">((Object -&gt; Parser Milestone) -&gt; Value -&gt; Parser Milestone)
+-&gt; (Object -&gt; Parser Milestone) -&gt; Value -&gt; Parser Milestone
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679489133"><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679489133"><span class="hs-identifier hs-var">o</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">SimpleUser
+-&gt; Maybe UTCTime
+-&gt; Int
+-&gt; Id Milestone
+-&gt; Int
+-&gt; Maybe Text
+-&gt; Text
+-&gt; URL
+-&gt; UTCTime
+-&gt; Text
+-&gt; Milestone
+</span><a href="GitHub.Data.Milestone.html#Milestone"><span class="hs-identifier hs-var">Milestone</span></a></span><span>
+</span><span id="line-28"></span><span>        </span><span class="annot"><span class="annottext">(SimpleUser
+ -&gt; Maybe UTCTime
+ -&gt; Int
+ -&gt; Id Milestone
+ -&gt; Int
+ -&gt; Maybe Text
+ -&gt; Text
+ -&gt; URL
+ -&gt; UTCTime
+ -&gt; Text
+ -&gt; Milestone)
+-&gt; Parser SimpleUser
+-&gt; Parser
+     (Maybe UTCTime
+      -&gt; Int
+      -&gt; Id Milestone
+      -&gt; Int
+      -&gt; Maybe Text
+      -&gt; Text
+      -&gt; URL
+      -&gt; UTCTime
+      -&gt; Text
+      -&gt; Milestone)
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679489133"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser SimpleUser
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">.:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;creator&quot;</span></span><span>
+</span><span id="line-29"></span><span>        </span><span class="annot"><span class="annottext">Parser
+  (Maybe UTCTime
+   -&gt; Int
+   -&gt; Id Milestone
+   -&gt; Int
+   -&gt; Maybe Text
+   -&gt; Text
+   -&gt; URL
+   -&gt; UTCTime
+   -&gt; Text
+   -&gt; Milestone)
+-&gt; Parser (Maybe UTCTime)
+-&gt; Parser
+     (Int
+      -&gt; Id Milestone
+      -&gt; Int
+      -&gt; Maybe Text
+      -&gt; Text
+      -&gt; URL
+      -&gt; UTCTime
+      -&gt; Text
+      -&gt; Milestone)
+forall a b. Parser (a -&gt; b) -&gt; Parser a -&gt; Parser b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679489133"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser (Maybe UTCTime)
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">.:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;due_on&quot;</span></span><span>
+</span><span id="line-30"></span><span>        </span><span class="annot"><span class="annottext">Parser
+  (Int
+   -&gt; Id Milestone
+   -&gt; Int
+   -&gt; Maybe Text
+   -&gt; Text
+   -&gt; URL
+   -&gt; UTCTime
+   -&gt; Text
+   -&gt; Milestone)
+-&gt; Parser Int
+-&gt; Parser
+     (Id Milestone
+      -&gt; Int
+      -&gt; Maybe Text
+      -&gt; Text
+      -&gt; URL
+      -&gt; UTCTime
+      -&gt; Text
+      -&gt; Milestone)
+forall a b. Parser (a -&gt; b) -&gt; Parser a -&gt; Parser b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679489133"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser Int
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">.:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;open_issues&quot;</span></span><span>
+</span><span id="line-31"></span><span>        </span><span class="annot"><span class="annottext">Parser
+  (Id Milestone
+   -&gt; Int
+   -&gt; Maybe Text
+   -&gt; Text
+   -&gt; URL
+   -&gt; UTCTime
+   -&gt; Text
+   -&gt; Milestone)
+-&gt; Parser (Id Milestone)
+-&gt; Parser
+     (Int -&gt; Maybe Text -&gt; Text -&gt; URL -&gt; UTCTime -&gt; Text -&gt; Milestone)
+forall a b. Parser (a -&gt; b) -&gt; Parser a -&gt; Parser b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679489133"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser (Id Milestone)
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">.:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;number&quot;</span></span><span>
+</span><span id="line-32"></span><span>        </span><span class="annot"><span class="annottext">Parser
+  (Int -&gt; Maybe Text -&gt; Text -&gt; URL -&gt; UTCTime -&gt; Text -&gt; Milestone)
+-&gt; Parser Int
+-&gt; Parser
+     (Maybe Text -&gt; Text -&gt; URL -&gt; UTCTime -&gt; Text -&gt; Milestone)
+forall a b. Parser (a -&gt; b) -&gt; Parser a -&gt; Parser b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679489133"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser Int
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">.:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;closed_issues&quot;</span></span><span>
+</span><span id="line-33"></span><span>        </span><span class="annot"><span class="annottext">Parser (Maybe Text -&gt; Text -&gt; URL -&gt; UTCTime -&gt; Text -&gt; Milestone)
+-&gt; Parser (Maybe Text)
+-&gt; Parser (Text -&gt; URL -&gt; UTCTime -&gt; Text -&gt; Milestone)
+forall a b. Parser (a -&gt; b) -&gt; Parser a -&gt; Parser b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679489133"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser (Maybe Text)
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">.:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;description&quot;</span></span><span>
+</span><span id="line-34"></span><span>        </span><span class="annot"><span class="annottext">Parser (Text -&gt; URL -&gt; UTCTime -&gt; Text -&gt; Milestone)
+-&gt; Parser Text -&gt; Parser (URL -&gt; UTCTime -&gt; Text -&gt; Milestone)
+forall a b. Parser (a -&gt; b) -&gt; Parser a -&gt; Parser b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679489133"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser Text
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">.:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;title&quot;</span></span><span>
+</span><span id="line-35"></span><span>        </span><span class="annot"><span class="annottext">Parser (URL -&gt; UTCTime -&gt; Text -&gt; Milestone)
+-&gt; Parser URL -&gt; Parser (UTCTime -&gt; Text -&gt; Milestone)
+forall a b. Parser (a -&gt; b) -&gt; Parser a -&gt; Parser b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679489133"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser URL
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">.:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;url&quot;</span></span><span>
+</span><span id="line-36"></span><span>        </span><span class="annot"><span class="annottext">Parser (UTCTime -&gt; Text -&gt; Milestone)
+-&gt; Parser UTCTime -&gt; Parser (Text -&gt; Milestone)
+forall a b. Parser (a -&gt; b) -&gt; Parser a -&gt; Parser b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679489133"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser UTCTime
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">.:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;created_at&quot;</span></span><span>
+</span><span id="line-37"></span><span>        </span><span class="annot"><span class="annottext">Parser (Text -&gt; Milestone) -&gt; Parser Text -&gt; Parser Milestone
+forall a b. Parser (a -&gt; b) -&gt; Parser a -&gt; Parser b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679489133"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser Text
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">.:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;state&quot;</span></span><span>
+</span><span id="line-38"></span><span>
+</span><span id="line-39"></span><span class="hs-keyword">data</span><span> </span><span id="NewMilestone"><span class="annot"><a href="GitHub.Data.Milestone.html#NewMilestone"><span class="hs-identifier hs-var">NewMilestone</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="NewMilestone"><span class="annot"><a href="GitHub.Data.Milestone.html#NewMilestone"><span class="hs-identifier hs-var">NewMilestone</span></a></span></span><span>
+</span><span id="line-40"></span><span>    </span><span class="hs-special">{</span><span> </span><span id="newMilestoneTitle"><span class="annot"><span class="annottext">NewMilestone -&gt; Text
+</span><a href="GitHub.Data.Milestone.html#newMilestoneTitle"><span class="hs-identifier hs-var hs-var">newMilestoneTitle</span></a></span></span><span>       </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span>
+</span><span id="line-41"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="newMilestoneState"><span class="annot"><span class="annottext">NewMilestone -&gt; Text
+</span><a href="GitHub.Data.Milestone.html#newMilestoneState"><span class="hs-identifier hs-var hs-var">newMilestoneState</span></a></span></span><span>       </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span>
+</span><span id="line-42"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="newMilestoneDescription"><span class="annot"><span class="annottext">NewMilestone -&gt; Maybe Text
+</span><a href="GitHub.Data.Milestone.html#newMilestoneDescription"><span class="hs-identifier hs-var hs-var">newMilestoneDescription</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span class="hs-special">)</span><span>
+</span><span id="line-43"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="newMilestoneDueOn"><span class="annot"><span class="annottext">NewMilestone -&gt; Maybe UTCTime
+</span><a href="GitHub.Data.Milestone.html#newMilestoneDueOn"><span class="hs-identifier hs-var hs-var">newMilestoneDueOn</span></a></span></span><span>       </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">UTCTime</span></span><span class="hs-special">)</span><span>
+</span><span id="line-44"></span><span>    </span><span class="hs-special">}</span><span>
+</span><span id="line-45"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679489142"><span id="local-6989586621679489150"><span id="local-6989586621679489154"><span class="annot"><span class="annottext">Int -&gt; NewMilestone -&gt; ShowS
+[NewMilestone] -&gt; ShowS
+NewMilestone -&gt; String
+(Int -&gt; NewMilestone -&gt; ShowS)
+-&gt; (NewMilestone -&gt; String)
+-&gt; ([NewMilestone] -&gt; ShowS)
+-&gt; Show NewMilestone
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; NewMilestone -&gt; ShowS
+showsPrec :: Int -&gt; NewMilestone -&gt; ShowS
+$cshow :: NewMilestone -&gt; String
+show :: NewMilestone -&gt; String
+$cshowList :: [NewMilestone] -&gt; ShowS
+showList :: [NewMilestone] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679489159"><span id="local-6989586621679489167"><span id="local-6989586621679489175"><span id="local-6989586621679489177"><span id="local-6989586621679489179"><span id="local-6989586621679489185"><span id="local-6989586621679489190"><span id="local-6989586621679489193"><span id="local-6989586621679489196"><span id="local-6989586621679489199"><span id="local-6989586621679489202"><span id="local-6989586621679489205"><span id="local-6989586621679489210"><span id="local-6989586621679489215"><span class="annot"><span class="annottext">Typeable NewMilestone
+Typeable NewMilestone =&gt;
+(forall (c :: * -&gt; *).
+ (forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+ -&gt; (forall g. g -&gt; c g) -&gt; NewMilestone -&gt; c NewMilestone)
+-&gt; (forall (c :: * -&gt; *).
+    (forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+    -&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c NewMilestone)
+-&gt; (NewMilestone -&gt; Constr)
+-&gt; (NewMilestone -&gt; DataType)
+-&gt; (forall (t :: * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d. Data d =&gt; c (t d)) -&gt; Maybe (c NewMilestone))
+-&gt; (forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d e. (Data d, Data e) =&gt; c (t d e))
+    -&gt; Maybe (c NewMilestone))
+-&gt; ((forall b. Data b =&gt; b -&gt; b) -&gt; NewMilestone -&gt; NewMilestone)
+-&gt; (forall r r'.
+    (r -&gt; r' -&gt; r)
+    -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; NewMilestone -&gt; r)
+-&gt; (forall r r'.
+    (r' -&gt; r -&gt; r)
+    -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; NewMilestone -&gt; r)
+-&gt; (forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; NewMilestone -&gt; [u])
+-&gt; (forall u.
+    Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; NewMilestone -&gt; u)
+-&gt; (forall (m :: * -&gt; *).
+    Monad m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; NewMilestone -&gt; m NewMilestone)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; NewMilestone -&gt; m NewMilestone)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; NewMilestone -&gt; m NewMilestone)
+-&gt; Data NewMilestone
+NewMilestone -&gt; Constr
+NewMilestone -&gt; DataType
+(forall b. Data b =&gt; b -&gt; b) -&gt; NewMilestone -&gt; NewMilestone
+forall a.
+Typeable a =&gt;
+(forall (c :: * -&gt; *).
+ (forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+ -&gt; (forall g. g -&gt; c g) -&gt; a -&gt; c a)
+-&gt; (forall (c :: * -&gt; *).
+    (forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+    -&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c a)
+-&gt; (a -&gt; Constr)
+-&gt; (a -&gt; DataType)
+-&gt; (forall (t :: * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d. Data d =&gt; c (t d)) -&gt; Maybe (c a))
+-&gt; (forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d e. (Data d, Data e) =&gt; c (t d e)) -&gt; Maybe (c a))
+-&gt; ((forall b. Data b =&gt; b -&gt; b) -&gt; a -&gt; a)
+-&gt; (forall r r'.
+    (r -&gt; r' -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; a -&gt; r)
+-&gt; (forall r r'.
+    (r' -&gt; r -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; a -&gt; r)
+-&gt; (forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; a -&gt; [u])
+-&gt; (forall u. Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; a -&gt; u)
+-&gt; (forall (m :: * -&gt; *).
+    Monad m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; a -&gt; m a)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; a -&gt; m a)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; a -&gt; m a)
+-&gt; Data a
+forall u. Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; NewMilestone -&gt; u
+forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; NewMilestone -&gt; [u]
+forall r r'.
+(r -&gt; r' -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; NewMilestone -&gt; r
+forall r r'.
+(r' -&gt; r -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; NewMilestone -&gt; r
+forall (m :: * -&gt; *).
+Monad m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; NewMilestone -&gt; m NewMilestone
+forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; NewMilestone -&gt; m NewMilestone
+forall (c :: * -&gt; *).
+(forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+-&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c NewMilestone
+forall (c :: * -&gt; *).
+(forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+-&gt; (forall g. g -&gt; c g) -&gt; NewMilestone -&gt; c NewMilestone
+forall (t :: * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d. Data d =&gt; c (t d)) -&gt; Maybe (c NewMilestone)
+forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d e. (Data d, Data e) =&gt; c (t d e))
+-&gt; Maybe (c NewMilestone)
+$cgfoldl :: forall (c :: * -&gt; *).
+(forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+-&gt; (forall g. g -&gt; c g) -&gt; NewMilestone -&gt; c NewMilestone
+gfoldl :: forall (c :: * -&gt; *).
+(forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+-&gt; (forall g. g -&gt; c g) -&gt; NewMilestone -&gt; c NewMilestone
+$cgunfold :: forall (c :: * -&gt; *).
+(forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+-&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c NewMilestone
+gunfold :: forall (c :: * -&gt; *).
+(forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+-&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c NewMilestone
+$ctoConstr :: NewMilestone -&gt; Constr
+toConstr :: NewMilestone -&gt; Constr
+$cdataTypeOf :: NewMilestone -&gt; DataType
+dataTypeOf :: NewMilestone -&gt; DataType
+$cdataCast1 :: forall (t :: * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d. Data d =&gt; c (t d)) -&gt; Maybe (c NewMilestone)
+dataCast1 :: forall (t :: * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d. Data d =&gt; c (t d)) -&gt; Maybe (c NewMilestone)
+$cdataCast2 :: forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d e. (Data d, Data e) =&gt; c (t d e))
+-&gt; Maybe (c NewMilestone)
+dataCast2 :: forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d e. (Data d, Data e) =&gt; c (t d e))
+-&gt; Maybe (c NewMilestone)
+$cgmapT :: (forall b. Data b =&gt; b -&gt; b) -&gt; NewMilestone -&gt; NewMilestone
+gmapT :: (forall b. Data b =&gt; b -&gt; b) -&gt; NewMilestone -&gt; NewMilestone
+$cgmapQl :: forall r r'.
+(r -&gt; r' -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; NewMilestone -&gt; r
+gmapQl :: forall r r'.
+(r -&gt; r' -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; NewMilestone -&gt; r
+$cgmapQr :: forall r r'.
+(r' -&gt; r -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; NewMilestone -&gt; r
+gmapQr :: forall r r'.
+(r' -&gt; r -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; NewMilestone -&gt; r
+$cgmapQ :: forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; NewMilestone -&gt; [u]
+gmapQ :: forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; NewMilestone -&gt; [u]
+$cgmapQi :: forall u. Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; NewMilestone -&gt; u
+gmapQi :: forall u. Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; NewMilestone -&gt; u
+$cgmapM :: forall (m :: * -&gt; *).
+Monad m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; NewMilestone -&gt; m NewMilestone
+gmapM :: forall (m :: * -&gt; *).
+Monad m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; NewMilestone -&gt; m NewMilestone
+$cgmapMp :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; NewMilestone -&gt; m NewMilestone
+gmapMp :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; NewMilestone -&gt; m NewMilestone
+$cgmapMo :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; NewMilestone -&gt; m NewMilestone
+gmapMo :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; NewMilestone -&gt; m NewMilestone
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Data</span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679489220"><span id="local-6989586621679489227"><span class="annot"><span class="annottext">NewMilestone -&gt; NewMilestone -&gt; Bool
+(NewMilestone -&gt; NewMilestone -&gt; Bool)
+-&gt; (NewMilestone -&gt; NewMilestone -&gt; Bool) -&gt; Eq NewMilestone
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: NewMilestone -&gt; NewMilestone -&gt; Bool
+== :: NewMilestone -&gt; NewMilestone -&gt; Bool
+$c/= :: NewMilestone -&gt; NewMilestone -&gt; Bool
+/= :: NewMilestone -&gt; NewMilestone -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679489233"><span id="local-6989586621679489240"><span id="local-6989586621679489247"><span id="local-6989586621679489251"><span id="local-6989586621679489254"><span id="local-6989586621679489257"><span id="local-6989586621679489260"><span class="annot"><span class="annottext">Eq NewMilestone
+Eq NewMilestone =&gt;
+(NewMilestone -&gt; NewMilestone -&gt; Ordering)
+-&gt; (NewMilestone -&gt; NewMilestone -&gt; Bool)
+-&gt; (NewMilestone -&gt; NewMilestone -&gt; Bool)
+-&gt; (NewMilestone -&gt; NewMilestone -&gt; Bool)
+-&gt; (NewMilestone -&gt; NewMilestone -&gt; Bool)
+-&gt; (NewMilestone -&gt; NewMilestone -&gt; NewMilestone)
+-&gt; (NewMilestone -&gt; NewMilestone -&gt; NewMilestone)
+-&gt; Ord NewMilestone
+NewMilestone -&gt; NewMilestone -&gt; Bool
+NewMilestone -&gt; NewMilestone -&gt; Ordering
+NewMilestone -&gt; NewMilestone -&gt; NewMilestone
+forall a.
+Eq a =&gt;
+(a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+$ccompare :: NewMilestone -&gt; NewMilestone -&gt; Ordering
+compare :: NewMilestone -&gt; NewMilestone -&gt; Ordering
+$c&lt; :: NewMilestone -&gt; NewMilestone -&gt; Bool
+&lt; :: NewMilestone -&gt; NewMilestone -&gt; Bool
+$c&lt;= :: NewMilestone -&gt; NewMilestone -&gt; Bool
+&lt;= :: NewMilestone -&gt; NewMilestone -&gt; Bool
+$c&gt; :: NewMilestone -&gt; NewMilestone -&gt; Bool
+&gt; :: NewMilestone -&gt; NewMilestone -&gt; Bool
+$c&gt;= :: NewMilestone -&gt; NewMilestone -&gt; Bool
+&gt;= :: NewMilestone -&gt; NewMilestone -&gt; Bool
+$cmax :: NewMilestone -&gt; NewMilestone -&gt; NewMilestone
+max :: NewMilestone -&gt; NewMilestone -&gt; NewMilestone
+$cmin :: NewMilestone -&gt; NewMilestone -&gt; NewMilestone
+min :: NewMilestone -&gt; NewMilestone -&gt; NewMilestone
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679489263"><span id="local-6989586621679489265"><span class="annot"><span class="annottext">(forall x. NewMilestone -&gt; Rep NewMilestone x)
+-&gt; (forall x. Rep NewMilestone x -&gt; NewMilestone)
+-&gt; Generic NewMilestone
+forall x. Rep NewMilestone x -&gt; NewMilestone
+forall x. NewMilestone -&gt; Rep NewMilestone x
+forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+$cfrom :: forall x. NewMilestone -&gt; Rep NewMilestone x
+from :: forall x. NewMilestone -&gt; Rep NewMilestone x
+$cto :: forall x. Rep NewMilestone x -&gt; NewMilestone
+to :: forall x. Rep NewMilestone x -&gt; NewMilestone
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Generic</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-46"></span><span>
+</span><span id="line-47"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679489268"><span class="annot"><span class="hs-identifier hs-type">NFData</span></span><span> </span><span class="annot"><a href="GitHub.Data.Milestone.html#NewMilestone"><span class="hs-identifier hs-type">NewMilestone</span></a></span></span><span>
+</span><span id="line-48"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679489290"><span id="local-6989586621679489297"><span id="local-6989586621679489303"><span class="annot"><span class="hs-identifier hs-type">Binary</span></span><span> </span><span class="annot"><a href="GitHub.Data.Milestone.html#NewMilestone"><span class="hs-identifier hs-type">NewMilestone</span></a></span></span></span></span><span>
+</span><span id="line-49"></span><span>
+</span><span id="line-50"></span><span>
+</span><span id="line-51"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679489337"><span id="local-6989586621679489341"><span id="local-6989586621679489344"><span id="local-6989586621679489347"><span class="annot"><span class="hs-identifier hs-type">ToJSON</span></span><span> </span><span class="annot"><a href="GitHub.Data.Milestone.html#NewMilestone"><span class="hs-identifier hs-type">NewMilestone</span></a></span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-52"></span><span>    </span><span id="local-6989586621679489369"><span class="annot"><span class="annottext">toJSON :: NewMilestone -&gt; Value
+</span><a href="#local-6989586621679489369"><span class="hs-identifier hs-var hs-var hs-var">toJSON</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GitHub.Data.Milestone.html#NewMilestone"><span class="hs-identifier hs-type">NewMilestone</span></a></span><span> </span><span id="local-6989586621679489371"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679489371"><span class="hs-identifier hs-var">title</span></a></span></span><span> </span><span id="local-6989586621679489372"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679489372"><span class="hs-identifier hs-var">state</span></a></span></span><span> </span><span id="local-6989586621679489373"><span class="annot"><span class="annottext">Maybe Text
+</span><a href="#local-6989586621679489373"><span class="hs-identifier hs-var">desc</span></a></span></span><span> </span><span id="local-6989586621679489374"><span class="annot"><span class="annottext">Maybe UTCTime
+</span><a href="#local-6989586621679489374"><span class="hs-identifier hs-var">due</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Pair] -&gt; Value
+</span><span class="hs-identifier hs-var">object</span></span><span> </span><span class="annot"><span class="annottext">([Pair] -&gt; Value) -&gt; [Pair] -&gt; Value
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">(Pair -&gt; Bool) -&gt; [Pair] -&gt; [Pair]
+forall a. (a -&gt; Bool) -&gt; [a] -&gt; [a]
+</span><span class="hs-identifier hs-var">filter</span></span><span> </span><span class="annot"><span class="annottext">Pair -&gt; Bool
+forall {a}. (a, Value) -&gt; Bool
+</span><a href="#local-6989586621679489376"><span class="hs-identifier hs-var">notNull</span></a></span><span>
+</span><span id="line-53"></span><span>        </span><span class="hs-special">[</span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;title&quot;</span></span><span>       </span><span class="annot"><span class="annottext">Key -&gt; Text -&gt; Pair
+forall v. ToJSON v =&gt; Key -&gt; v -&gt; Pair
+forall e kv v. (KeyValue e kv, ToJSON v) =&gt; Key -&gt; v -&gt; kv
+</span><span class="hs-operator hs-var">.=</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679489371"><span class="hs-identifier hs-var">title</span></a></span><span>
+</span><span id="line-54"></span><span>        </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;state&quot;</span></span><span>       </span><span class="annot"><span class="annottext">Key -&gt; Text -&gt; Pair
+forall v. ToJSON v =&gt; Key -&gt; v -&gt; Pair
+forall e kv v. (KeyValue e kv, ToJSON v) =&gt; Key -&gt; v -&gt; kv
+</span><span class="hs-operator hs-var">.=</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679489372"><span class="hs-identifier hs-var">state</span></a></span><span>
+</span><span id="line-55"></span><span>        </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;description&quot;</span></span><span> </span><span class="annot"><span class="annottext">Key -&gt; Maybe Text -&gt; Pair
+forall v. ToJSON v =&gt; Key -&gt; v -&gt; Pair
+forall e kv v. (KeyValue e kv, ToJSON v) =&gt; Key -&gt; v -&gt; kv
+</span><span class="hs-operator hs-var">.=</span></span><span> </span><span class="annot"><span class="annottext">Maybe Text
+</span><a href="#local-6989586621679489373"><span class="hs-identifier hs-var">desc</span></a></span><span>
+</span><span id="line-56"></span><span>        </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;due_on&quot;</span></span><span>      </span><span class="annot"><span class="annottext">Key -&gt; Maybe UTCTime -&gt; Pair
+forall v. ToJSON v =&gt; Key -&gt; v -&gt; Pair
+forall e kv v. (KeyValue e kv, ToJSON v) =&gt; Key -&gt; v -&gt; kv
+</span><span class="hs-operator hs-var">.=</span></span><span> </span><span class="annot"><span class="annottext">Maybe UTCTime
+</span><a href="#local-6989586621679489374"><span class="hs-identifier hs-var">due</span></a></span><span>
+</span><span id="line-57"></span><span>        </span><span class="hs-special">]</span><span>
+</span><span id="line-58"></span><span>      </span><span class="hs-keyword">where</span><span>
+</span><span id="line-59"></span><span>        </span><span id="local-6989586621679489376"><span class="annot"><span class="annottext">notNull :: (a, Value) -&gt; Bool
+</span><a href="#local-6989586621679489376"><span class="hs-identifier hs-var hs-var">notNull</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a
+</span><span class="hs-identifier">_</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Value
+</span><span class="hs-identifier hs-var">Null</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span>
+</span><span id="line-60"></span><span>        </span><span class="annot"><a href="#local-6989586621679489376"><span class="hs-identifier hs-var">notNull</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a
+</span><span class="hs-identifier">_</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Value
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span>    </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>
+</span><span id="line-61"></span><span>
+</span><span id="line-62"></span><span class="hs-keyword">data</span><span> </span><span id="UpdateMilestone"><span class="annot"><a href="GitHub.Data.Milestone.html#UpdateMilestone"><span class="hs-identifier hs-var">UpdateMilestone</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="UpdateMilestone"><span class="annot"><a href="GitHub.Data.Milestone.html#UpdateMilestone"><span class="hs-identifier hs-var">UpdateMilestone</span></a></span></span><span>
+</span><span id="line-63"></span><span>  </span><span class="hs-special">{</span><span> </span><span id="updateMilestoneTitle"><span class="annot"><span class="annottext">UpdateMilestone -&gt; Maybe Text
+</span><a href="GitHub.Data.Milestone.html#updateMilestoneTitle"><span class="hs-identifier hs-var hs-var">updateMilestoneTitle</span></a></span></span><span>       </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span class="hs-special">)</span><span>
+</span><span id="line-64"></span><span>  </span><span class="hs-special">,</span><span> </span><span id="updateMilestoneState"><span class="annot"><span class="annottext">UpdateMilestone -&gt; Maybe Text
+</span><a href="GitHub.Data.Milestone.html#updateMilestoneState"><span class="hs-identifier hs-var hs-var">updateMilestoneState</span></a></span></span><span>       </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span class="hs-special">)</span><span>
+</span><span id="line-65"></span><span>  </span><span class="hs-special">,</span><span> </span><span id="updateMilestoneDescription"><span class="annot"><span class="annottext">UpdateMilestone -&gt; Maybe Text
+</span><a href="GitHub.Data.Milestone.html#updateMilestoneDescription"><span class="hs-identifier hs-var hs-var">updateMilestoneDescription</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span class="hs-special">)</span><span>
+</span><span id="line-66"></span><span>  </span><span class="hs-special">,</span><span> </span><span id="updateMilestoneDueOn"><span class="annot"><span class="annottext">UpdateMilestone -&gt; Maybe UTCTime
+</span><a href="GitHub.Data.Milestone.html#updateMilestoneDueOn"><span class="hs-identifier hs-var hs-var">updateMilestoneDueOn</span></a></span></span><span>       </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">UTCTime</span></span><span class="hs-special">)</span><span>
+</span><span id="line-67"></span><span>  </span><span class="hs-special">}</span><span>
+</span><span id="line-68"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679489385"><span id="local-6989586621679489394"><span id="local-6989586621679489398"><span class="annot"><span class="annottext">Int -&gt; UpdateMilestone -&gt; ShowS
+[UpdateMilestone] -&gt; ShowS
+UpdateMilestone -&gt; String
+(Int -&gt; UpdateMilestone -&gt; ShowS)
+-&gt; (UpdateMilestone -&gt; String)
+-&gt; ([UpdateMilestone] -&gt; ShowS)
+-&gt; Show UpdateMilestone
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; UpdateMilestone -&gt; ShowS
+showsPrec :: Int -&gt; UpdateMilestone -&gt; ShowS
+$cshow :: UpdateMilestone -&gt; String
+show :: UpdateMilestone -&gt; String
+$cshowList :: [UpdateMilestone] -&gt; ShowS
+showList :: [UpdateMilestone] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679489403"><span id="local-6989586621679489411"><span id="local-6989586621679489419"><span id="local-6989586621679489421"><span id="local-6989586621679489423"><span id="local-6989586621679489429"><span id="local-6989586621679489434"><span id="local-6989586621679489437"><span id="local-6989586621679489440"><span id="local-6989586621679489443"><span id="local-6989586621679489446"><span id="local-6989586621679489449"><span id="local-6989586621679489454"><span id="local-6989586621679489459"><span class="annot"><span class="annottext">Typeable UpdateMilestone
+Typeable UpdateMilestone =&gt;
+(forall (c :: * -&gt; *).
+ (forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+ -&gt; (forall g. g -&gt; c g) -&gt; UpdateMilestone -&gt; c UpdateMilestone)
+-&gt; (forall (c :: * -&gt; *).
+    (forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+    -&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c UpdateMilestone)
+-&gt; (UpdateMilestone -&gt; Constr)
+-&gt; (UpdateMilestone -&gt; DataType)
+-&gt; (forall (t :: * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d. Data d =&gt; c (t d)) -&gt; Maybe (c UpdateMilestone))
+-&gt; (forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d e. (Data d, Data e) =&gt; c (t d e))
+    -&gt; Maybe (c UpdateMilestone))
+-&gt; ((forall b. Data b =&gt; b -&gt; b)
+    -&gt; UpdateMilestone -&gt; UpdateMilestone)
+-&gt; (forall r r'.
+    (r -&gt; r' -&gt; r)
+    -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; UpdateMilestone -&gt; r)
+-&gt; (forall r r'.
+    (r' -&gt; r -&gt; r)
+    -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; UpdateMilestone -&gt; r)
+-&gt; (forall u.
+    (forall d. Data d =&gt; d -&gt; u) -&gt; UpdateMilestone -&gt; [u])
+-&gt; (forall u.
+    Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; UpdateMilestone -&gt; u)
+-&gt; (forall (m :: * -&gt; *).
+    Monad m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d)
+    -&gt; UpdateMilestone -&gt; m UpdateMilestone)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d)
+    -&gt; UpdateMilestone -&gt; m UpdateMilestone)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d)
+    -&gt; UpdateMilestone -&gt; m UpdateMilestone)
+-&gt; Data UpdateMilestone
+UpdateMilestone -&gt; Constr
+UpdateMilestone -&gt; DataType
+(forall b. Data b =&gt; b -&gt; b) -&gt; UpdateMilestone -&gt; UpdateMilestone
+forall a.
+Typeable a =&gt;
+(forall (c :: * -&gt; *).
+ (forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+ -&gt; (forall g. g -&gt; c g) -&gt; a -&gt; c a)
+-&gt; (forall (c :: * -&gt; *).
+    (forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+    -&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c a)
+-&gt; (a -&gt; Constr)
+-&gt; (a -&gt; DataType)
+-&gt; (forall (t :: * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d. Data d =&gt; c (t d)) -&gt; Maybe (c a))
+-&gt; (forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d e. (Data d, Data e) =&gt; c (t d e)) -&gt; Maybe (c a))
+-&gt; ((forall b. Data b =&gt; b -&gt; b) -&gt; a -&gt; a)
+-&gt; (forall r r'.
+    (r -&gt; r' -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; a -&gt; r)
+-&gt; (forall r r'.
+    (r' -&gt; r -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; a -&gt; r)
+-&gt; (forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; a -&gt; [u])
+-&gt; (forall u. Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; a -&gt; u)
+-&gt; (forall (m :: * -&gt; *).
+    Monad m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; a -&gt; m a)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; a -&gt; m a)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; a -&gt; m a)
+-&gt; Data a
+forall u.
+Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; UpdateMilestone -&gt; u
+forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; UpdateMilestone -&gt; [u]
+forall r r'.
+(r -&gt; r' -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; UpdateMilestone -&gt; r
+forall r r'.
+(r' -&gt; r -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; UpdateMilestone -&gt; r
+forall (m :: * -&gt; *).
+Monad m =&gt;
+(forall d. Data d =&gt; d -&gt; m d)
+-&gt; UpdateMilestone -&gt; m UpdateMilestone
+forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d)
+-&gt; UpdateMilestone -&gt; m UpdateMilestone
+forall (c :: * -&gt; *).
+(forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+-&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c UpdateMilestone
+forall (c :: * -&gt; *).
+(forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+-&gt; (forall g. g -&gt; c g) -&gt; UpdateMilestone -&gt; c UpdateMilestone
+forall (t :: * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d. Data d =&gt; c (t d)) -&gt; Maybe (c UpdateMilestone)
+forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d e. (Data d, Data e) =&gt; c (t d e))
+-&gt; Maybe (c UpdateMilestone)
+$cgfoldl :: forall (c :: * -&gt; *).
+(forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+-&gt; (forall g. g -&gt; c g) -&gt; UpdateMilestone -&gt; c UpdateMilestone
+gfoldl :: forall (c :: * -&gt; *).
+(forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+-&gt; (forall g. g -&gt; c g) -&gt; UpdateMilestone -&gt; c UpdateMilestone
+$cgunfold :: forall (c :: * -&gt; *).
+(forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+-&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c UpdateMilestone
+gunfold :: forall (c :: * -&gt; *).
+(forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+-&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c UpdateMilestone
+$ctoConstr :: UpdateMilestone -&gt; Constr
+toConstr :: UpdateMilestone -&gt; Constr
+$cdataTypeOf :: UpdateMilestone -&gt; DataType
+dataTypeOf :: UpdateMilestone -&gt; DataType
+$cdataCast1 :: forall (t :: * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d. Data d =&gt; c (t d)) -&gt; Maybe (c UpdateMilestone)
+dataCast1 :: forall (t :: * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d. Data d =&gt; c (t d)) -&gt; Maybe (c UpdateMilestone)
+$cdataCast2 :: forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d e. (Data d, Data e) =&gt; c (t d e))
+-&gt; Maybe (c UpdateMilestone)
+dataCast2 :: forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d e. (Data d, Data e) =&gt; c (t d e))
+-&gt; Maybe (c UpdateMilestone)
+$cgmapT :: (forall b. Data b =&gt; b -&gt; b) -&gt; UpdateMilestone -&gt; UpdateMilestone
+gmapT :: (forall b. Data b =&gt; b -&gt; b) -&gt; UpdateMilestone -&gt; UpdateMilestone
+$cgmapQl :: forall r r'.
+(r -&gt; r' -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; UpdateMilestone -&gt; r
+gmapQl :: forall r r'.
+(r -&gt; r' -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; UpdateMilestone -&gt; r
+$cgmapQr :: forall r r'.
+(r' -&gt; r -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; UpdateMilestone -&gt; r
+gmapQr :: forall r r'.
+(r' -&gt; r -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; UpdateMilestone -&gt; r
+$cgmapQ :: forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; UpdateMilestone -&gt; [u]
+gmapQ :: forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; UpdateMilestone -&gt; [u]
+$cgmapQi :: forall u.
+Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; UpdateMilestone -&gt; u
+gmapQi :: forall u.
+Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; UpdateMilestone -&gt; u
+$cgmapM :: forall (m :: * -&gt; *).
+Monad m =&gt;
+(forall d. Data d =&gt; d -&gt; m d)
+-&gt; UpdateMilestone -&gt; m UpdateMilestone
+gmapM :: forall (m :: * -&gt; *).
+Monad m =&gt;
+(forall d. Data d =&gt; d -&gt; m d)
+-&gt; UpdateMilestone -&gt; m UpdateMilestone
+$cgmapMp :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d)
+-&gt; UpdateMilestone -&gt; m UpdateMilestone
+gmapMp :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d)
+-&gt; UpdateMilestone -&gt; m UpdateMilestone
+$cgmapMo :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d)
+-&gt; UpdateMilestone -&gt; m UpdateMilestone
+gmapMo :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d)
+-&gt; UpdateMilestone -&gt; m UpdateMilestone
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Data</span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679489464"><span id="local-6989586621679489472"><span class="annot"><span class="annottext">UpdateMilestone -&gt; UpdateMilestone -&gt; Bool
+(UpdateMilestone -&gt; UpdateMilestone -&gt; Bool)
+-&gt; (UpdateMilestone -&gt; UpdateMilestone -&gt; Bool)
+-&gt; Eq UpdateMilestone
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: UpdateMilestone -&gt; UpdateMilestone -&gt; Bool
+== :: UpdateMilestone -&gt; UpdateMilestone -&gt; Bool
+$c/= :: UpdateMilestone -&gt; UpdateMilestone -&gt; Bool
+/= :: UpdateMilestone -&gt; UpdateMilestone -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679489478"><span id="local-6989586621679489486"><span id="local-6989586621679489494"><span id="local-6989586621679489498"><span id="local-6989586621679489501"><span id="local-6989586621679489504"><span id="local-6989586621679489507"><span class="annot"><span class="annottext">Eq UpdateMilestone
+Eq UpdateMilestone =&gt;
+(UpdateMilestone -&gt; UpdateMilestone -&gt; Ordering)
+-&gt; (UpdateMilestone -&gt; UpdateMilestone -&gt; Bool)
+-&gt; (UpdateMilestone -&gt; UpdateMilestone -&gt; Bool)
+-&gt; (UpdateMilestone -&gt; UpdateMilestone -&gt; Bool)
+-&gt; (UpdateMilestone -&gt; UpdateMilestone -&gt; Bool)
+-&gt; (UpdateMilestone -&gt; UpdateMilestone -&gt; UpdateMilestone)
+-&gt; (UpdateMilestone -&gt; UpdateMilestone -&gt; UpdateMilestone)
+-&gt; Ord UpdateMilestone
+UpdateMilestone -&gt; UpdateMilestone -&gt; Bool
+UpdateMilestone -&gt; UpdateMilestone -&gt; Ordering
+UpdateMilestone -&gt; UpdateMilestone -&gt; UpdateMilestone
+forall a.
+Eq a =&gt;
+(a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+$ccompare :: UpdateMilestone -&gt; UpdateMilestone -&gt; Ordering
+compare :: UpdateMilestone -&gt; UpdateMilestone -&gt; Ordering
+$c&lt; :: UpdateMilestone -&gt; UpdateMilestone -&gt; Bool
+&lt; :: UpdateMilestone -&gt; UpdateMilestone -&gt; Bool
+$c&lt;= :: UpdateMilestone -&gt; UpdateMilestone -&gt; Bool
+&lt;= :: UpdateMilestone -&gt; UpdateMilestone -&gt; Bool
+$c&gt; :: UpdateMilestone -&gt; UpdateMilestone -&gt; Bool
+&gt; :: UpdateMilestone -&gt; UpdateMilestone -&gt; Bool
+$c&gt;= :: UpdateMilestone -&gt; UpdateMilestone -&gt; Bool
+&gt;= :: UpdateMilestone -&gt; UpdateMilestone -&gt; Bool
+$cmax :: UpdateMilestone -&gt; UpdateMilestone -&gt; UpdateMilestone
+max :: UpdateMilestone -&gt; UpdateMilestone -&gt; UpdateMilestone
+$cmin :: UpdateMilestone -&gt; UpdateMilestone -&gt; UpdateMilestone
+min :: UpdateMilestone -&gt; UpdateMilestone -&gt; UpdateMilestone
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679489510"><span id="local-6989586621679489512"><span class="annot"><span class="annottext">(forall x. UpdateMilestone -&gt; Rep UpdateMilestone x)
+-&gt; (forall x. Rep UpdateMilestone x -&gt; UpdateMilestone)
+-&gt; Generic UpdateMilestone
+forall x. Rep UpdateMilestone x -&gt; UpdateMilestone
+forall x. UpdateMilestone -&gt; Rep UpdateMilestone x
+forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+$cfrom :: forall x. UpdateMilestone -&gt; Rep UpdateMilestone x
+from :: forall x. UpdateMilestone -&gt; Rep UpdateMilestone x
+$cto :: forall x. Rep UpdateMilestone x -&gt; UpdateMilestone
+to :: forall x. Rep UpdateMilestone x -&gt; UpdateMilestone
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Generic</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-69"></span><span>
+</span><span id="line-70"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679489515"><span class="annot"><span class="hs-identifier hs-type">NFData</span></span><span> </span><span class="annot"><a href="GitHub.Data.Milestone.html#UpdateMilestone"><span class="hs-identifier hs-type">UpdateMilestone</span></a></span></span><span>
+</span><span id="line-71"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679489536"><span id="local-6989586621679489543"><span id="local-6989586621679489549"><span class="annot"><span class="hs-identifier hs-type">Binary</span></span><span> </span><span class="annot"><a href="GitHub.Data.Milestone.html#UpdateMilestone"><span class="hs-identifier hs-type">UpdateMilestone</span></a></span></span></span></span><span>
+</span><span id="line-72"></span><span>
+</span><span id="line-73"></span><span>
+</span><span id="line-74"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679489581"><span id="local-6989586621679489585"><span id="local-6989586621679489588"><span id="local-6989586621679489591"><span class="annot"><span class="hs-identifier hs-type">ToJSON</span></span><span> </span><span class="annot"><a href="GitHub.Data.Milestone.html#UpdateMilestone"><span class="hs-identifier hs-type">UpdateMilestone</span></a></span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-75"></span><span>  </span><span id="local-6989586621679489609"><span class="annot"><span class="annottext">toJSON :: UpdateMilestone -&gt; Value
+</span><span class="hs-identifier hs-var hs-var hs-var">toJSON</span></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GitHub.Data.Milestone.html#UpdateMilestone"><span class="hs-identifier hs-type">UpdateMilestone</span></a></span><span> </span><span id="local-6989586621679489610"><span class="annot"><span class="annottext">Maybe Text
+</span><a href="#local-6989586621679489610"><span class="hs-identifier hs-var">title</span></a></span></span><span> </span><span id="local-6989586621679489611"><span class="annot"><span class="annottext">Maybe Text
+</span><a href="#local-6989586621679489611"><span class="hs-identifier hs-var">state</span></a></span></span><span> </span><span id="local-6989586621679489612"><span class="annot"><span class="annottext">Maybe Text
+</span><a href="#local-6989586621679489612"><span class="hs-identifier hs-var">desc</span></a></span></span><span> </span><span id="local-6989586621679489613"><span class="annot"><span class="annottext">Maybe UTCTime
+</span><a href="#local-6989586621679489613"><span class="hs-identifier hs-var">due</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Pair] -&gt; Value
+</span><span class="hs-identifier hs-var">object</span></span><span> </span><span class="annot"><span class="annottext">([Pair] -&gt; Value) -&gt; [Pair] -&gt; Value
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">(Pair -&gt; Bool) -&gt; [Pair] -&gt; [Pair]
+forall a. (a -&gt; Bool) -&gt; [a] -&gt; [a]
+</span><span class="hs-identifier hs-var">filter</span></span><span> </span><span class="annot"><span class="annottext">Pair -&gt; Bool
+forall {a}. (a, Value) -&gt; Bool
+</span><a href="#local-6989586621679489614"><span class="hs-identifier hs-var">notNull</span></a></span><span>
+</span><span id="line-76"></span><span>      </span><span class="hs-special">[</span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;title&quot;</span></span><span>       </span><span class="annot"><span class="annottext">Key -&gt; Maybe Text -&gt; Pair
+forall v. ToJSON v =&gt; Key -&gt; v -&gt; Pair
+forall e kv v. (KeyValue e kv, ToJSON v) =&gt; Key -&gt; v -&gt; kv
+</span><span class="hs-operator hs-var">.=</span></span><span> </span><span class="annot"><span class="annottext">Maybe Text
+</span><a href="#local-6989586621679489610"><span class="hs-identifier hs-var">title</span></a></span><span>
+</span><span id="line-77"></span><span>      </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;state&quot;</span></span><span>       </span><span class="annot"><span class="annottext">Key -&gt; Maybe Text -&gt; Pair
+forall v. ToJSON v =&gt; Key -&gt; v -&gt; Pair
+forall e kv v. (KeyValue e kv, ToJSON v) =&gt; Key -&gt; v -&gt; kv
+</span><span class="hs-operator hs-var">.=</span></span><span> </span><span class="annot"><span class="annottext">Maybe Text
+</span><a href="#local-6989586621679489611"><span class="hs-identifier hs-var">state</span></a></span><span>
+</span><span id="line-78"></span><span>      </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;description&quot;</span></span><span> </span><span class="annot"><span class="annottext">Key -&gt; Maybe Text -&gt; Pair
+forall v. ToJSON v =&gt; Key -&gt; v -&gt; Pair
+forall e kv v. (KeyValue e kv, ToJSON v) =&gt; Key -&gt; v -&gt; kv
+</span><span class="hs-operator hs-var">.=</span></span><span> </span><span class="annot"><span class="annottext">Maybe Text
+</span><a href="#local-6989586621679489612"><span class="hs-identifier hs-var">desc</span></a></span><span>
+</span><span id="line-79"></span><span>      </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;due_on&quot;</span></span><span>      </span><span class="annot"><span class="annottext">Key -&gt; Maybe UTCTime -&gt; Pair
+forall v. ToJSON v =&gt; Key -&gt; v -&gt; Pair
+forall e kv v. (KeyValue e kv, ToJSON v) =&gt; Key -&gt; v -&gt; kv
+</span><span class="hs-operator hs-var">.=</span></span><span> </span><span class="annot"><span class="annottext">Maybe UTCTime
+</span><a href="#local-6989586621679489613"><span class="hs-identifier hs-var">due</span></a></span><span>
+</span><span id="line-80"></span><span>      </span><span class="hs-special">]</span><span>
+</span><span id="line-81"></span><span>    </span><span class="hs-keyword">where</span><span>
+</span><span id="line-82"></span><span>      </span><span id="local-6989586621679489614"><span class="annot"><span class="annottext">notNull :: (a, Value) -&gt; Bool
+</span><a href="#local-6989586621679489614"><span class="hs-identifier hs-var hs-var">notNull</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a
+</span><span class="hs-identifier">_</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Value
+</span><span class="hs-identifier hs-var">Null</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span>
+</span><span id="line-83"></span><span>      </span><span class="annot"><a href="#local-6989586621679489614"><span class="hs-identifier hs-var">notNull</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a
+</span><span class="hs-identifier">_</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Value
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span>    </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>
+</span><span id="line-84"></span></pre></body></html>

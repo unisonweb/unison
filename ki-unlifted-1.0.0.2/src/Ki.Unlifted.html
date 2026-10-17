@@ -1,0 +1,190 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-comment">-- | The `ki` API, generalized to use 'MonadUnliftIO'.</span><span>
+</span><span id="line-2"></span><span class="hs-comment">--</span><span>
+</span><span id="line-3"></span><span class="hs-comment">-- __Note__: See @[Ki](https://hackage.haskell.org/package/ki/docs/Ki.html)@ for the main module documentation. Any</span><span>
+</span><span id="line-4"></span><span class="hs-comment">-- documentation you see here is incidental, and only a result of re-exporting symbols directly from</span><span>
+</span><span id="line-5"></span><span class="hs-comment">-- @[Ki](https://hackage.haskell.org/package/ki/docs/Ki.html)@.</span><span>
+</span><span id="line-6"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Ki.Unlifted.html"><span class="hs-identifier">Ki.Unlifted</span></a></span><span>
+</span><span id="line-7"></span><span>  </span><span class="hs-special">(</span><span> </span><span class="annot"><span class="hs-identifier">Ki.Scope</span></span><span class="hs-special">,</span><span>
+</span><span id="line-8"></span><span>    </span><span class="annot"><span class="hs-identifier">Ki.Thread</span></span><span class="hs-special">,</span><span>
+</span><span id="line-9"></span><span>    </span><span class="annot"><a href="Ki.Unlifted.html#scoped"><span class="hs-identifier">scoped</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-10"></span><span>    </span><span class="annot"><a href="Ki.Unlifted.html#fork"><span class="hs-identifier">fork</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-11"></span><span>    </span><span class="annot"><a href="Ki.Unlifted.html#forkTry"><span class="hs-identifier">forkTry</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-12"></span><span>    </span><span class="annot"><span class="hs-identifier">Ki.await</span></span><span class="hs-special">,</span><span>
+</span><span id="line-13"></span><span>    </span><span class="annot"><span class="hs-identifier">Ki.awaitAll</span></span><span class="hs-special">,</span><span>
+</span><span id="line-14"></span><span>    </span><span class="annot"><a href="Ki.Unlifted.html#fork_"><span class="hs-identifier">fork_</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-15"></span><span>    </span><span class="annot"><a href="Ki.Unlifted.html#forkWith"><span class="hs-identifier">forkWith</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-16"></span><span>    </span><span class="annot"><a href="Ki.Unlifted.html#forkWith_"><span class="hs-identifier">forkWith_</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-17"></span><span>    </span><span class="annot"><a href="Ki.Unlifted.html#forkTryWith"><span class="hs-identifier">forkTryWith</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-18"></span><span>    </span><span class="annot"><span class="hs-identifier">Ki.ThreadOptions</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-19"></span><span>    </span><span class="annot"><span class="hs-identifier">Ki.defaultThreadOptions</span></span><span class="hs-special">,</span><span>
+</span><span id="line-20"></span><span>    </span><span class="annot"><span class="hs-identifier">Ki.ThreadAffinity</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-21"></span><span>    </span><span class="annot"><span class="hs-identifier">Ki.ByteCount</span></span><span class="hs-special">,</span><span>
+</span><span id="line-22"></span><span>    </span><span class="annot"><span class="hs-identifier">Ki.kilobytes</span></span><span class="hs-special">,</span><span>
+</span><span id="line-23"></span><span>    </span><span class="annot"><span class="hs-identifier">Ki.megabytes</span></span><span class="hs-special">,</span><span>
+</span><span id="line-24"></span><span>  </span><span class="hs-special">)</span><span>
+</span><span id="line-25"></span><span class="hs-keyword">where</span><span>
+</span><span id="line-26"></span><span>
+</span><span id="line-27"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Exception</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Exception</span></span><span class="hs-special">)</span><span>
+</span><span id="line-28"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Monad.IO.Unlift</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">MonadUnliftIO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">withRunInIO</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-29"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Void</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Void</span></span><span class="hs-special">)</span><span>
+</span><span id="line-30"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Ki</span></span><span>
+</span><span id="line-31"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Prelude</span></span><span>
+</span><span id="line-32"></span><span>
+</span><span id="line-33"></span><span class="annot"><a href="Ki.Unlifted.html#fork"><span class="hs-identifier hs-type">fork</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-keyword">forall</span><span> </span><span id="local-6989586621679047373"><span class="annot"><a href="#local-6989586621679047373"><span class="hs-identifier hs-type">a</span></a></span></span><span> </span><span id="local-6989586621679047370"><span class="annot"><a href="#local-6989586621679047370"><span class="hs-identifier hs-type">m</span></a></span></span><span class="hs-operator">.</span><span> </span><span class="annot"><span class="hs-identifier hs-type">MonadUnliftIO</span></span><span> </span><span class="annot"><a href="#local-6989586621679047370"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ki.Scope</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679047370"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679047373"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679047370"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ki.Thread</span></span><span> </span><span class="annot"><a href="#local-6989586621679047373"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-34"></span><span id="fork"><span class="annot"><span class="annottext">fork :: forall a (m :: * -&gt; *).
+MonadUnliftIO m =&gt;
+Scope -&gt; m a -&gt; m (Thread a)
+</span><a href="Ki.Unlifted.html#fork"><span class="hs-identifier hs-var hs-var">fork</span></a></span></span><span> </span><span id="local-6989586621679047430"><span class="annot"><span class="annottext">Scope
+</span><a href="#local-6989586621679047430"><span class="hs-identifier hs-var">scope</span></a></span></span><span> </span><span id="local-6989586621679047431"><span class="annot"><span class="annottext">m a
+</span><a href="#local-6989586621679047431"><span class="hs-identifier hs-var">action</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-35"></span><span>  </span><span class="annot"><span class="annottext">((forall a. m a -&gt; IO a) -&gt; IO (Thread a)) -&gt; m (Thread a)
+forall b. ((forall a. m a -&gt; IO a) -&gt; IO b) -&gt; m b
+forall (m :: * -&gt; *) b.
+MonadUnliftIO m =&gt;
+((forall a. m a -&gt; IO a) -&gt; IO b) -&gt; m b
+</span><span class="hs-identifier hs-var">withRunInIO</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679047432"><span class="annot"><span class="annottext">forall a. m a -&gt; IO a
+</span><a href="#local-6989586621679047432"><span class="hs-identifier hs-var">unlift</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Scope -&gt; IO a -&gt; IO (Thread a)
+forall a. Scope -&gt; IO a -&gt; IO (Thread a)
+</span><span class="hs-identifier hs-var">Ki.fork</span></span><span> </span><span class="annot"><span class="annottext">Scope
+</span><a href="#local-6989586621679047430"><span class="hs-identifier hs-var">scope</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">m a -&gt; IO a
+forall a. m a -&gt; IO a
+</span><a href="#local-6989586621679047432"><span class="hs-identifier hs-var">unlift</span></a></span><span> </span><span class="annot"><span class="annottext">m a
+</span><a href="#local-6989586621679047431"><span class="hs-identifier hs-var">action</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-36"></span><span>
+</span><span id="line-37"></span><span id="local-6989586621679047381"><span class="annot"><a href="Ki.Unlifted.html#fork_"><span class="hs-identifier hs-type">fork_</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">MonadUnliftIO</span></span><span> </span><span class="annot"><a href="#local-6989586621679047381"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ki.Scope</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679047381"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Void</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679047381"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span></span><span>
+</span><span id="line-38"></span><span id="fork_"><span class="annot"><span class="annottext">fork_ :: forall (m :: * -&gt; *). MonadUnliftIO m =&gt; Scope -&gt; m Void -&gt; m ()
+</span><a href="Ki.Unlifted.html#fork_"><span class="hs-identifier hs-var hs-var">fork_</span></a></span></span><span> </span><span id="local-6989586621679047436"><span class="annot"><span class="annottext">Scope
+</span><a href="#local-6989586621679047436"><span class="hs-identifier hs-var">scope</span></a></span></span><span> </span><span id="local-6989586621679047437"><span class="annot"><span class="annottext">m Void
+</span><a href="#local-6989586621679047437"><span class="hs-identifier hs-var">action</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-39"></span><span>  </span><span class="annot"><span class="annottext">((forall a. m a -&gt; IO a) -&gt; IO ()) -&gt; m ()
+forall b. ((forall a. m a -&gt; IO a) -&gt; IO b) -&gt; m b
+forall (m :: * -&gt; *) b.
+MonadUnliftIO m =&gt;
+((forall a. m a -&gt; IO a) -&gt; IO b) -&gt; m b
+</span><span class="hs-identifier hs-var">withRunInIO</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679047438"><span class="annot"><span class="annottext">forall a. m a -&gt; IO a
+</span><a href="#local-6989586621679047438"><span class="hs-identifier hs-var">unlift</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Scope -&gt; IO Void -&gt; IO ()
+</span><span class="hs-identifier hs-var">Ki.fork_</span></span><span> </span><span class="annot"><span class="annottext">Scope
+</span><a href="#local-6989586621679047436"><span class="hs-identifier hs-var">scope</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">m Void -&gt; IO Void
+forall a. m a -&gt; IO a
+</span><a href="#local-6989586621679047438"><span class="hs-identifier hs-var">unlift</span></a></span><span> </span><span class="annot"><span class="annottext">m Void
+</span><a href="#local-6989586621679047437"><span class="hs-identifier hs-var">action</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-40"></span><span>
+</span><span id="line-41"></span><span class="annot"><a href="Ki.Unlifted.html#forkWith"><span class="hs-identifier hs-type">forkWith</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-keyword">forall</span><span> </span><span id="local-6989586621679047385"><span class="annot"><a href="#local-6989586621679047385"><span class="hs-identifier hs-type">a</span></a></span></span><span> </span><span id="local-6989586621679047383"><span class="annot"><a href="#local-6989586621679047383"><span class="hs-identifier hs-type">m</span></a></span></span><span class="hs-operator">.</span><span> </span><span class="annot"><span class="hs-identifier hs-type">MonadUnliftIO</span></span><span> </span><span class="annot"><a href="#local-6989586621679047383"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ki.Scope</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ki.ThreadOptions</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679047383"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679047385"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679047383"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ki.Thread</span></span><span> </span><span class="annot"><a href="#local-6989586621679047385"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-42"></span><span id="forkWith"><span class="annot"><span class="annottext">forkWith :: forall a (m :: * -&gt; *).
+MonadUnliftIO m =&gt;
+Scope -&gt; ThreadOptions -&gt; m a -&gt; m (Thread a)
+</span><a href="Ki.Unlifted.html#forkWith"><span class="hs-identifier hs-var hs-var">forkWith</span></a></span></span><span> </span><span id="local-6989586621679047442"><span class="annot"><span class="annottext">Scope
+</span><a href="#local-6989586621679047442"><span class="hs-identifier hs-var">scope</span></a></span></span><span> </span><span id="local-6989586621679047443"><span class="annot"><span class="annottext">ThreadOptions
+</span><a href="#local-6989586621679047443"><span class="hs-identifier hs-var">opts</span></a></span></span><span> </span><span id="local-6989586621679047444"><span class="annot"><span class="annottext">m a
+</span><a href="#local-6989586621679047444"><span class="hs-identifier hs-var">action</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-43"></span><span>  </span><span class="annot"><span class="annottext">((forall a. m a -&gt; IO a) -&gt; IO (Thread a)) -&gt; m (Thread a)
+forall b. ((forall a. m a -&gt; IO a) -&gt; IO b) -&gt; m b
+forall (m :: * -&gt; *) b.
+MonadUnliftIO m =&gt;
+((forall a. m a -&gt; IO a) -&gt; IO b) -&gt; m b
+</span><span class="hs-identifier hs-var">withRunInIO</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679047445"><span class="annot"><span class="annottext">forall a. m a -&gt; IO a
+</span><a href="#local-6989586621679047445"><span class="hs-identifier hs-var">unlift</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Scope -&gt; ThreadOptions -&gt; IO a -&gt; IO (Thread a)
+forall a. Scope -&gt; ThreadOptions -&gt; IO a -&gt; IO (Thread a)
+</span><span class="hs-identifier hs-var">Ki.forkWith</span></span><span> </span><span class="annot"><span class="annottext">Scope
+</span><a href="#local-6989586621679047442"><span class="hs-identifier hs-var">scope</span></a></span><span> </span><span class="annot"><span class="annottext">ThreadOptions
+</span><a href="#local-6989586621679047443"><span class="hs-identifier hs-var">opts</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">m a -&gt; IO a
+forall a. m a -&gt; IO a
+</span><a href="#local-6989586621679047445"><span class="hs-identifier hs-var">unlift</span></a></span><span> </span><span class="annot"><span class="annottext">m a
+</span><a href="#local-6989586621679047444"><span class="hs-identifier hs-var">action</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-44"></span><span>
+</span><span id="line-45"></span><span id="local-6989586621679047389"><span class="annot"><a href="Ki.Unlifted.html#forkWith_"><span class="hs-identifier hs-type">forkWith_</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">MonadUnliftIO</span></span><span> </span><span class="annot"><a href="#local-6989586621679047389"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ki.Scope</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ki.ThreadOptions</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679047389"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Void</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679047389"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span></span><span>
+</span><span id="line-46"></span><span id="forkWith_"><span class="annot"><span class="annottext">forkWith_ :: forall (m :: * -&gt; *).
+MonadUnliftIO m =&gt;
+Scope -&gt; ThreadOptions -&gt; m Void -&gt; m ()
+</span><a href="Ki.Unlifted.html#forkWith_"><span class="hs-identifier hs-var hs-var">forkWith_</span></a></span></span><span> </span><span id="local-6989586621679047449"><span class="annot"><span class="annottext">Scope
+</span><a href="#local-6989586621679047449"><span class="hs-identifier hs-var">scope</span></a></span></span><span> </span><span id="local-6989586621679047450"><span class="annot"><span class="annottext">ThreadOptions
+</span><a href="#local-6989586621679047450"><span class="hs-identifier hs-var">opts</span></a></span></span><span> </span><span id="local-6989586621679047451"><span class="annot"><span class="annottext">m Void
+</span><a href="#local-6989586621679047451"><span class="hs-identifier hs-var">action</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-47"></span><span>  </span><span class="annot"><span class="annottext">((forall a. m a -&gt; IO a) -&gt; IO ()) -&gt; m ()
+forall b. ((forall a. m a -&gt; IO a) -&gt; IO b) -&gt; m b
+forall (m :: * -&gt; *) b.
+MonadUnliftIO m =&gt;
+((forall a. m a -&gt; IO a) -&gt; IO b) -&gt; m b
+</span><span class="hs-identifier hs-var">withRunInIO</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679047452"><span class="annot"><span class="annottext">forall a. m a -&gt; IO a
+</span><a href="#local-6989586621679047452"><span class="hs-identifier hs-var">unlift</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Scope -&gt; ThreadOptions -&gt; IO Void -&gt; IO ()
+</span><span class="hs-identifier hs-var">Ki.forkWith_</span></span><span> </span><span class="annot"><span class="annottext">Scope
+</span><a href="#local-6989586621679047449"><span class="hs-identifier hs-var">scope</span></a></span><span> </span><span class="annot"><span class="annottext">ThreadOptions
+</span><a href="#local-6989586621679047450"><span class="hs-identifier hs-var">opts</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">m Void -&gt; IO Void
+forall a. m a -&gt; IO a
+</span><a href="#local-6989586621679047452"><span class="hs-identifier hs-var">unlift</span></a></span><span> </span><span class="annot"><span class="annottext">m Void
+</span><a href="#local-6989586621679047451"><span class="hs-identifier hs-var">action</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-48"></span><span>
+</span><span id="line-49"></span><span id="local-6989586621679047391"><span id="local-6989586621679047393"><span id="local-6989586621679047394"><span class="annot"><a href="Ki.Unlifted.html#forkTry"><span class="hs-identifier hs-type">forkTry</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Exception</span></span><span> </span><span class="annot"><a href="#local-6989586621679047391"><span class="hs-identifier hs-type">e</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">MonadUnliftIO</span></span><span> </span><span class="annot"><a href="#local-6989586621679047393"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ki.Scope</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679047393"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679047394"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679047393"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ki.Thread</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Either</span></span><span> </span><span class="annot"><a href="#local-6989586621679047391"><span class="hs-identifier hs-type">e</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679047394"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span></span></span></span><span>
+</span><span id="line-50"></span><span id="forkTry"><span class="annot"><span class="annottext">forkTry :: forall e (m :: * -&gt; *) a.
+(Exception e, MonadUnliftIO m) =&gt;
+Scope -&gt; m a -&gt; m (Thread (Either e a))
+</span><a href="Ki.Unlifted.html#forkTry"><span class="hs-identifier hs-var hs-var">forkTry</span></a></span></span><span> </span><span id="local-6989586621679047458"><span class="annot"><span class="annottext">Scope
+</span><a href="#local-6989586621679047458"><span class="hs-identifier hs-var">scope</span></a></span></span><span> </span><span id="local-6989586621679047459"><span class="annot"><span class="annottext">m a
+</span><a href="#local-6989586621679047459"><span class="hs-identifier hs-var">action</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-51"></span><span>  </span><span class="annot"><span class="annottext">((forall a. m a -&gt; IO a) -&gt; IO (Thread (Either e a)))
+-&gt; m (Thread (Either e a))
+forall b. ((forall a. m a -&gt; IO a) -&gt; IO b) -&gt; m b
+forall (m :: * -&gt; *) b.
+MonadUnliftIO m =&gt;
+((forall a. m a -&gt; IO a) -&gt; IO b) -&gt; m b
+</span><span class="hs-identifier hs-var">withRunInIO</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679047460"><span class="annot"><span class="annottext">forall a. m a -&gt; IO a
+</span><a href="#local-6989586621679047460"><span class="hs-identifier hs-var">unlift</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Scope -&gt; IO a -&gt; IO (Thread (Either e a))
+forall e a.
+Exception e =&gt;
+Scope -&gt; IO a -&gt; IO (Thread (Either e a))
+</span><span class="hs-identifier hs-var">Ki.forkTry</span></span><span> </span><span class="annot"><span class="annottext">Scope
+</span><a href="#local-6989586621679047458"><span class="hs-identifier hs-var">scope</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">m a -&gt; IO a
+forall a. m a -&gt; IO a
+</span><a href="#local-6989586621679047460"><span class="hs-identifier hs-var">unlift</span></a></span><span> </span><span class="annot"><span class="annottext">m a
+</span><a href="#local-6989586621679047459"><span class="hs-identifier hs-var">action</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-52"></span><span>
+</span><span id="line-53"></span><span id="local-6989586621679047400"><span id="local-6989586621679047401"><span id="local-6989586621679047402"><span class="annot"><a href="Ki.Unlifted.html#forkTryWith"><span class="hs-identifier hs-type">forkTryWith</span></a></span><span> </span><span class="hs-glyph">::</span><span>
+</span><span id="line-54"></span><span>  </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Exception</span></span><span> </span><span class="annot"><a href="#local-6989586621679047400"><span class="hs-identifier hs-type">e</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">MonadUnliftIO</span></span><span> </span><span class="annot"><a href="#local-6989586621679047401"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span>
+</span><span id="line-55"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">Ki.Scope</span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-56"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">Ki.ThreadOptions</span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-57"></span><span>  </span><span class="annot"><a href="#local-6989586621679047401"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679047402"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-58"></span><span>  </span><span class="annot"><a href="#local-6989586621679047401"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ki.Thread</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Either</span></span><span> </span><span class="annot"><a href="#local-6989586621679047400"><span class="hs-identifier hs-type">e</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679047402"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span></span></span></span><span>
+</span><span id="line-59"></span><span id="forkTryWith"><span class="annot"><span class="annottext">forkTryWith :: forall e (m :: * -&gt; *) a.
+(Exception e, MonadUnliftIO m) =&gt;
+Scope -&gt; ThreadOptions -&gt; m a -&gt; m (Thread (Either e a))
+</span><a href="Ki.Unlifted.html#forkTryWith"><span class="hs-identifier hs-var hs-var">forkTryWith</span></a></span></span><span> </span><span id="local-6989586621679047466"><span class="annot"><span class="annottext">Scope
+</span><a href="#local-6989586621679047466"><span class="hs-identifier hs-var">scope</span></a></span></span><span> </span><span id="local-6989586621679047467"><span class="annot"><span class="annottext">ThreadOptions
+</span><a href="#local-6989586621679047467"><span class="hs-identifier hs-var">opts</span></a></span></span><span> </span><span id="local-6989586621679047468"><span class="annot"><span class="annottext">m a
+</span><a href="#local-6989586621679047468"><span class="hs-identifier hs-var">action</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-60"></span><span>  </span><span class="annot"><span class="annottext">((forall a. m a -&gt; IO a) -&gt; IO (Thread (Either e a)))
+-&gt; m (Thread (Either e a))
+forall b. ((forall a. m a -&gt; IO a) -&gt; IO b) -&gt; m b
+forall (m :: * -&gt; *) b.
+MonadUnliftIO m =&gt;
+((forall a. m a -&gt; IO a) -&gt; IO b) -&gt; m b
+</span><span class="hs-identifier hs-var">withRunInIO</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679047469"><span class="annot"><span class="annottext">forall a. m a -&gt; IO a
+</span><a href="#local-6989586621679047469"><span class="hs-identifier hs-var">unlift</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Scope -&gt; ThreadOptions -&gt; IO a -&gt; IO (Thread (Either e a))
+forall e a.
+Exception e =&gt;
+Scope -&gt; ThreadOptions -&gt; IO a -&gt; IO (Thread (Either e a))
+</span><span class="hs-identifier hs-var">Ki.forkTryWith</span></span><span> </span><span class="annot"><span class="annottext">Scope
+</span><a href="#local-6989586621679047466"><span class="hs-identifier hs-var">scope</span></a></span><span> </span><span class="annot"><span class="annottext">ThreadOptions
+</span><a href="#local-6989586621679047467"><span class="hs-identifier hs-var">opts</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">m a -&gt; IO a
+forall a. m a -&gt; IO a
+</span><a href="#local-6989586621679047469"><span class="hs-identifier hs-var">unlift</span></a></span><span> </span><span class="annot"><span class="annottext">m a
+</span><a href="#local-6989586621679047468"><span class="hs-identifier hs-var">action</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-61"></span><span>
+</span><span id="line-62"></span><span class="annot"><a href="Ki.Unlifted.html#scoped"><span class="hs-identifier hs-type">scoped</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-keyword">forall</span><span> </span><span id="local-6989586621679047409"><span class="annot"><a href="#local-6989586621679047409"><span class="hs-identifier hs-type">a</span></a></span></span><span> </span><span id="local-6989586621679047408"><span class="annot"><a href="#local-6989586621679047408"><span class="hs-identifier hs-type">m</span></a></span></span><span class="hs-operator">.</span><span> </span><span class="annot"><span class="hs-identifier hs-type">MonadUnliftIO</span></span><span> </span><span class="annot"><a href="#local-6989586621679047408"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ki.Scope</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679047408"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679047409"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679047408"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679047409"><span class="hs-identifier hs-type">a</span></a></span><span>
+</span><span id="line-63"></span><span id="scoped"><span class="annot"><span class="annottext">scoped :: forall a (m :: * -&gt; *). MonadUnliftIO m =&gt; (Scope -&gt; m a) -&gt; m a
+</span><a href="Ki.Unlifted.html#scoped"><span class="hs-identifier hs-var hs-var">scoped</span></a></span></span><span> </span><span id="local-6989586621679047473"><span class="annot"><span class="annottext">Scope -&gt; m a
+</span><a href="#local-6989586621679047473"><span class="hs-identifier hs-var">action</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-64"></span><span>  </span><span class="annot"><span class="annottext">((forall a. m a -&gt; IO a) -&gt; IO a) -&gt; m a
+forall b. ((forall a. m a -&gt; IO a) -&gt; IO b) -&gt; m b
+forall (m :: * -&gt; *) b.
+MonadUnliftIO m =&gt;
+((forall a. m a -&gt; IO a) -&gt; IO b) -&gt; m b
+</span><span class="hs-identifier hs-var">withRunInIO</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679047474"><span class="annot"><span class="annottext">forall a. m a -&gt; IO a
+</span><a href="#local-6989586621679047474"><span class="hs-identifier hs-var">unlift</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">(Scope -&gt; IO a) -&gt; IO a
+forall a. (Scope -&gt; IO a) -&gt; IO a
+</span><span class="hs-identifier hs-var">Ki.scoped</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679047476"><span class="annot"><span class="annottext">Scope
+</span><a href="#local-6989586621679047476"><span class="hs-identifier hs-var">scope</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">m a -&gt; IO a
+forall a. m a -&gt; IO a
+</span><a href="#local-6989586621679047474"><span class="hs-identifier hs-var">unlift</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Scope -&gt; m a
+</span><a href="#local-6989586621679047473"><span class="hs-identifier hs-var">action</span></a></span><span> </span><span class="annot"><span class="annottext">Scope
+</span><a href="#local-6989586621679047476"><span class="hs-identifier hs-var">scope</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-65"></span></pre></body></html>

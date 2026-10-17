@@ -1,0 +1,209 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE DeriveGeneric #-}</span><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# LANGUAGE PatternSynonyms #-}</span><span>
+</span><span id="line-3"></span><span>
+</span><span id="line-4"></span><span class="hs-comment">-- |</span><span>
+</span><span id="line-5"></span><span class="hs-comment">-- Module      : Network.TLS.Crypto.Types</span><span>
+</span><span id="line-6"></span><span class="hs-comment">-- License     : BSD-style</span><span>
+</span><span id="line-7"></span><span class="hs-comment">-- Maintainer  : Kazu Yamamoto &lt;kazu@iij.ad.jp&gt;</span><span>
+</span><span id="line-8"></span><span class="hs-comment">-- Stability   : experimental</span><span>
+</span><span id="line-9"></span><span class="hs-comment">-- Portability : unknown</span><span>
+</span><span id="line-10"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Network.TLS.Crypto.Types.html"><span class="hs-identifier">Network.TLS.Crypto.Types</span></a></span><span> </span><span class="hs-special">(</span><span>
+</span><span id="line-11"></span><span>    </span><span class="annot"><a href="Network.TLS.Crypto.Types.html#Group"><span class="hs-identifier">Group</span></a></span><span> </span><span class="hs-special">(</span><span>
+</span><span id="line-12"></span><span>        </span><span class="annot"><a href="Network.TLS.Crypto.Types.html#Group"><span class="hs-identifier">Group</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-13"></span><span>        </span><span class="annot"><a href="Network.TLS.Crypto.Types.html#P256"><span class="hs-identifier">P256</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-14"></span><span>        </span><span class="annot"><a href="Network.TLS.Crypto.Types.html#P384"><span class="hs-identifier">P384</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-15"></span><span>        </span><span class="annot"><a href="Network.TLS.Crypto.Types.html#P521"><span class="hs-identifier">P521</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-16"></span><span>        </span><span class="annot"><a href="Network.TLS.Crypto.Types.html#X25519"><span class="hs-identifier">X25519</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-17"></span><span>        </span><span class="annot"><a href="Network.TLS.Crypto.Types.html#X448"><span class="hs-identifier">X448</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-18"></span><span>        </span><span class="annot"><a href="Network.TLS.Crypto.Types.html#FFDHE2048"><span class="hs-identifier">FFDHE2048</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-19"></span><span>        </span><span class="annot"><a href="Network.TLS.Crypto.Types.html#FFDHE3072"><span class="hs-identifier">FFDHE3072</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-20"></span><span>        </span><span class="annot"><a href="Network.TLS.Crypto.Types.html#FFDHE4096"><span class="hs-identifier">FFDHE4096</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-21"></span><span>        </span><span class="annot"><a href="Network.TLS.Crypto.Types.html#FFDHE6144"><span class="hs-identifier">FFDHE6144</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-22"></span><span>        </span><span class="annot"><a href="Network.TLS.Crypto.Types.html#FFDHE8192"><span class="hs-identifier">FFDHE8192</span></a></span><span>
+</span><span id="line-23"></span><span>    </span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-24"></span><span>    </span><span class="annot"><a href="Network.TLS.Crypto.Types.html#availableFFGroups"><span class="hs-identifier">availableFFGroups</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-25"></span><span>    </span><span class="annot"><a href="Network.TLS.Crypto.Types.html#availableECGroups"><span class="hs-identifier">availableECGroups</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-26"></span><span>    </span><span class="annot"><a href="Network.TLS.Crypto.Types.html#supportedNamedGroups"><span class="hs-identifier">supportedNamedGroups</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-27"></span><span>    </span><span class="annot"><a href="Network.TLS.Crypto.Types.html#KeyExchangeSignatureAlg"><span class="hs-identifier">KeyExchangeSignatureAlg</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-28"></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-29"></span><span>
+</span><span id="line-30"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Codec.Serialise</span></span><span>
+</span><span id="line-31"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Word</span></span><span>
+</span><span id="line-32"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">GHC.Generics</span></span><span>
+</span><span id="line-33"></span><span>
+</span><span id="line-34"></span><span class="hs-keyword">newtype</span><span> </span><span id="Group"><span class="annot"><a href="Network.TLS.Crypto.Types.html#Group"><span class="hs-identifier hs-var">Group</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="Group"><span class="annot"><a href="Network.TLS.Crypto.Types.html#Group"><span class="hs-identifier hs-var">Group</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word16</span></span><span> </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679235337"><span id="local-6989586621679235342"><span class="annot"><span class="annottext">Group -&gt; Group -&gt; Bool
+(Group -&gt; Group -&gt; Bool) -&gt; (Group -&gt; Group -&gt; Bool) -&gt; Eq Group
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: Group -&gt; Group -&gt; Bool
+== :: Group -&gt; Group -&gt; Bool
+$c/= :: Group -&gt; Group -&gt; Bool
+/= :: Group -&gt; Group -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679235349"><span id="local-6989586621679235351"><span class="annot"><span class="annottext">(forall x. Group -&gt; Rep Group x)
+-&gt; (forall x. Rep Group x -&gt; Group) -&gt; Generic Group
+forall x. Rep Group x -&gt; Group
+forall x. Group -&gt; Rep Group x
+forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+$cfrom :: forall x. Group -&gt; Rep Group x
+from :: forall x. Group -&gt; Rep Group x
+$cto :: forall x. Rep Group x -&gt; Group
+to :: forall x. Rep Group x -&gt; Group
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Generic</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-35"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679235357"><span id="local-6989586621679235364"><span id="local-6989586621679235370"><span id="local-6989586621679235373"><span class="annot"><span class="hs-identifier hs-type">Serialise</span></span><span> </span><span class="annot"><a href="Network.TLS.Crypto.Types.html#Group"><span class="hs-identifier hs-type">Group</span></a></span></span></span></span></span><span>
+</span><span id="line-36"></span><span>
+</span><span id="line-37"></span><span class="hs-comment">{- FOURMOLU_DISABLE -}</span><span>
+</span><span id="line-38"></span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="Network.TLS.Crypto.Types.html#P256"><span class="hs-identifier hs-type">P256</span></a></span><span>      </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Network.TLS.Crypto.Types.html#Group"><span class="hs-identifier hs-type">Group</span></a></span><span>
+</span><span id="line-39"></span><span class="hs-keyword">pattern</span><span> </span><span id="P256"><span id="%24mP256"><span id="%24bP256"><span class="annot"><span class="annottext">$mP256 :: forall {r}. Group -&gt; ((# #) -&gt; r) -&gt; ((# #) -&gt; r) -&gt; r
+$bP256 :: Group
+</span><a href="Network.TLS.Crypto.Types.html#P256"><span class="hs-identifier hs-var hs-var hs-var">P256</span></a></span></span></span></span><span>       </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="Network.TLS.Crypto.Types.html#Group"><span class="hs-identifier hs-type">Group</span></a></span><span> </span><span class="annot"><span class="hs-number">23</span></span><span>
+</span><span id="line-40"></span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="Network.TLS.Crypto.Types.html#P384"><span class="hs-identifier hs-type">P384</span></a></span><span>      </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Network.TLS.Crypto.Types.html#Group"><span class="hs-identifier hs-type">Group</span></a></span><span>
+</span><span id="line-41"></span><span class="hs-keyword">pattern</span><span> </span><span id="P384"><span id="%24mP384"><span id="%24bP384"><span class="annot"><span class="annottext">$mP384 :: forall {r}. Group -&gt; ((# #) -&gt; r) -&gt; ((# #) -&gt; r) -&gt; r
+$bP384 :: Group
+</span><a href="Network.TLS.Crypto.Types.html#P384"><span class="hs-identifier hs-var hs-var hs-var">P384</span></a></span></span></span></span><span>       </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="Network.TLS.Crypto.Types.html#Group"><span class="hs-identifier hs-type">Group</span></a></span><span> </span><span class="annot"><span class="hs-number">24</span></span><span>
+</span><span id="line-42"></span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="Network.TLS.Crypto.Types.html#P521"><span class="hs-identifier hs-type">P521</span></a></span><span>      </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Network.TLS.Crypto.Types.html#Group"><span class="hs-identifier hs-type">Group</span></a></span><span>
+</span><span id="line-43"></span><span class="hs-keyword">pattern</span><span> </span><span id="P521"><span id="%24mP521"><span id="%24bP521"><span class="annot"><span class="annottext">$mP521 :: forall {r}. Group -&gt; ((# #) -&gt; r) -&gt; ((# #) -&gt; r) -&gt; r
+$bP521 :: Group
+</span><a href="Network.TLS.Crypto.Types.html#P521"><span class="hs-identifier hs-var hs-var hs-var">P521</span></a></span></span></span></span><span>       </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="Network.TLS.Crypto.Types.html#Group"><span class="hs-identifier hs-type">Group</span></a></span><span> </span><span class="annot"><span class="hs-number">25</span></span><span>
+</span><span id="line-44"></span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="Network.TLS.Crypto.Types.html#X25519"><span class="hs-identifier hs-type">X25519</span></a></span><span>    </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Network.TLS.Crypto.Types.html#Group"><span class="hs-identifier hs-type">Group</span></a></span><span>
+</span><span id="line-45"></span><span class="hs-keyword">pattern</span><span> </span><span id="X25519"><span id="%24mX25519"><span id="%24bX25519"><span class="annot"><span class="annottext">$mX25519 :: forall {r}. Group -&gt; ((# #) -&gt; r) -&gt; ((# #) -&gt; r) -&gt; r
+$bX25519 :: Group
+</span><a href="Network.TLS.Crypto.Types.html#X25519"><span class="hs-identifier hs-var hs-var hs-var">X25519</span></a></span></span></span></span><span>     </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="Network.TLS.Crypto.Types.html#Group"><span class="hs-identifier hs-type">Group</span></a></span><span> </span><span class="annot"><span class="hs-number">29</span></span><span>
+</span><span id="line-46"></span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="Network.TLS.Crypto.Types.html#X448"><span class="hs-identifier hs-type">X448</span></a></span><span>      </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Network.TLS.Crypto.Types.html#Group"><span class="hs-identifier hs-type">Group</span></a></span><span>
+</span><span id="line-47"></span><span class="hs-keyword">pattern</span><span> </span><span id="X448"><span id="%24mX448"><span id="%24bX448"><span class="annot"><span class="annottext">$mX448 :: forall {r}. Group -&gt; ((# #) -&gt; r) -&gt; ((# #) -&gt; r) -&gt; r
+$bX448 :: Group
+</span><a href="Network.TLS.Crypto.Types.html#X448"><span class="hs-identifier hs-var hs-var hs-var">X448</span></a></span></span></span></span><span>       </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="Network.TLS.Crypto.Types.html#Group"><span class="hs-identifier hs-type">Group</span></a></span><span> </span><span class="annot"><span class="hs-number">30</span></span><span>
+</span><span id="line-48"></span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="Network.TLS.Crypto.Types.html#FFDHE2048"><span class="hs-identifier hs-type">FFDHE2048</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Network.TLS.Crypto.Types.html#Group"><span class="hs-identifier hs-type">Group</span></a></span><span>
+</span><span id="line-49"></span><span class="hs-keyword">pattern</span><span> </span><span id="FFDHE2048"><span id="%24mFFDHE2048"><span id="%24bFFDHE2048"><span class="annot"><span class="annottext">$mFFDHE2048 :: forall {r}. Group -&gt; ((# #) -&gt; r) -&gt; ((# #) -&gt; r) -&gt; r
+$bFFDHE2048 :: Group
+</span><a href="Network.TLS.Crypto.Types.html#FFDHE2048"><span class="hs-identifier hs-var hs-var hs-var">FFDHE2048</span></a></span></span></span></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="Network.TLS.Crypto.Types.html#Group"><span class="hs-identifier hs-type">Group</span></a></span><span> </span><span class="annot"><span class="hs-number">256</span></span><span>
+</span><span id="line-50"></span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="Network.TLS.Crypto.Types.html#FFDHE3072"><span class="hs-identifier hs-type">FFDHE3072</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Network.TLS.Crypto.Types.html#Group"><span class="hs-identifier hs-type">Group</span></a></span><span>
+</span><span id="line-51"></span><span class="hs-keyword">pattern</span><span> </span><span id="FFDHE3072"><span id="%24mFFDHE3072"><span id="%24bFFDHE3072"><span class="annot"><span class="annottext">$mFFDHE3072 :: forall {r}. Group -&gt; ((# #) -&gt; r) -&gt; ((# #) -&gt; r) -&gt; r
+$bFFDHE3072 :: Group
+</span><a href="Network.TLS.Crypto.Types.html#FFDHE3072"><span class="hs-identifier hs-var hs-var hs-var">FFDHE3072</span></a></span></span></span></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="Network.TLS.Crypto.Types.html#Group"><span class="hs-identifier hs-type">Group</span></a></span><span> </span><span class="annot"><span class="hs-number">257</span></span><span>
+</span><span id="line-52"></span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="Network.TLS.Crypto.Types.html#FFDHE4096"><span class="hs-identifier hs-type">FFDHE4096</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Network.TLS.Crypto.Types.html#Group"><span class="hs-identifier hs-type">Group</span></a></span><span>
+</span><span id="line-53"></span><span class="hs-keyword">pattern</span><span> </span><span id="FFDHE4096"><span id="%24mFFDHE4096"><span id="%24bFFDHE4096"><span class="annot"><span class="annottext">$mFFDHE4096 :: forall {r}. Group -&gt; ((# #) -&gt; r) -&gt; ((# #) -&gt; r) -&gt; r
+$bFFDHE4096 :: Group
+</span><a href="Network.TLS.Crypto.Types.html#FFDHE4096"><span class="hs-identifier hs-var hs-var hs-var">FFDHE4096</span></a></span></span></span></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="Network.TLS.Crypto.Types.html#Group"><span class="hs-identifier hs-type">Group</span></a></span><span> </span><span class="annot"><span class="hs-number">258</span></span><span>
+</span><span id="line-54"></span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="Network.TLS.Crypto.Types.html#FFDHE6144"><span class="hs-identifier hs-type">FFDHE6144</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Network.TLS.Crypto.Types.html#Group"><span class="hs-identifier hs-type">Group</span></a></span><span>
+</span><span id="line-55"></span><span class="hs-keyword">pattern</span><span> </span><span id="FFDHE6144"><span id="%24mFFDHE6144"><span id="%24bFFDHE6144"><span class="annot"><span class="annottext">$mFFDHE6144 :: forall {r}. Group -&gt; ((# #) -&gt; r) -&gt; ((# #) -&gt; r) -&gt; r
+$bFFDHE6144 :: Group
+</span><a href="Network.TLS.Crypto.Types.html#FFDHE6144"><span class="hs-identifier hs-var hs-var hs-var">FFDHE6144</span></a></span></span></span></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="Network.TLS.Crypto.Types.html#Group"><span class="hs-identifier hs-type">Group</span></a></span><span> </span><span class="annot"><span class="hs-number">259</span></span><span>
+</span><span id="line-56"></span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="Network.TLS.Crypto.Types.html#FFDHE8192"><span class="hs-identifier hs-type">FFDHE8192</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Network.TLS.Crypto.Types.html#Group"><span class="hs-identifier hs-type">Group</span></a></span><span>
+</span><span id="line-57"></span><span class="hs-keyword">pattern</span><span> </span><span id="FFDHE8192"><span id="%24mFFDHE8192"><span id="%24bFFDHE8192"><span class="annot"><span class="annottext">$mFFDHE8192 :: forall {r}. Group -&gt; ((# #) -&gt; r) -&gt; ((# #) -&gt; r) -&gt; r
+$bFFDHE8192 :: Group
+</span><a href="Network.TLS.Crypto.Types.html#FFDHE8192"><span class="hs-identifier hs-var hs-var hs-var">FFDHE8192</span></a></span></span></span></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="Network.TLS.Crypto.Types.html#Group"><span class="hs-identifier hs-type">Group</span></a></span><span> </span><span class="annot"><span class="hs-number">260</span></span><span>
+</span><span id="line-58"></span><span>
+</span><span id="line-59"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679235430"><span id="local-6989586621679235435"><span class="annot"><span class="hs-identifier hs-type">Show</span></span><span> </span><span class="annot"><a href="Network.TLS.Crypto.Types.html#Group"><span class="hs-identifier hs-type">Group</span></a></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-60"></span><span>    </span><span id="local-6989586621679235440"><span class="annot"><span class="annottext">show :: Group -&gt; String
+</span><a href="#local-6989586621679235440"><span class="hs-identifier hs-var hs-var hs-var">show</span></a></span></span><span> </span><span class="annot"><span class="annottext">Group
+</span><a href="Network.TLS.Crypto.Types.html#P256"><span class="hs-identifier hs-var">P256</span></a></span><span>      </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;P256&quot;</span></span><span>
+</span><span id="line-61"></span><span>    </span><span class="annot"><span class="hs-identifier hs-var">show</span></span><span> </span><span class="annot"><span class="annottext">Group
+</span><a href="Network.TLS.Crypto.Types.html#P384"><span class="hs-identifier hs-var">P384</span></a></span><span>      </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;P384&quot;</span></span><span>
+</span><span id="line-62"></span><span>    </span><span class="annot"><span class="hs-identifier hs-var">show</span></span><span> </span><span class="annot"><span class="annottext">Group
+</span><a href="Network.TLS.Crypto.Types.html#P521"><span class="hs-identifier hs-var">P521</span></a></span><span>      </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;P521&quot;</span></span><span>
+</span><span id="line-63"></span><span>    </span><span class="annot"><span class="hs-identifier hs-var">show</span></span><span> </span><span class="annot"><span class="annottext">Group
+</span><a href="Network.TLS.Crypto.Types.html#X25519"><span class="hs-identifier hs-var">X25519</span></a></span><span>    </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;X25519&quot;</span></span><span>
+</span><span id="line-64"></span><span>    </span><span class="annot"><span class="hs-identifier hs-var">show</span></span><span> </span><span class="annot"><span class="annottext">Group
+</span><a href="Network.TLS.Crypto.Types.html#X448"><span class="hs-identifier hs-var">X448</span></a></span><span>      </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;X448&quot;</span></span><span>
+</span><span id="line-65"></span><span>    </span><span class="annot"><span class="hs-identifier hs-var">show</span></span><span> </span><span class="annot"><span class="annottext">Group
+</span><a href="Network.TLS.Crypto.Types.html#FFDHE2048"><span class="hs-identifier hs-var">FFDHE2048</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;FFDHE2048&quot;</span></span><span>
+</span><span id="line-66"></span><span>    </span><span class="annot"><span class="hs-identifier hs-var">show</span></span><span> </span><span class="annot"><span class="annottext">Group
+</span><a href="Network.TLS.Crypto.Types.html#FFDHE3072"><span class="hs-identifier hs-var">FFDHE3072</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;FFDHE3072&quot;</span></span><span>
+</span><span id="line-67"></span><span>    </span><span class="annot"><span class="hs-identifier hs-var">show</span></span><span> </span><span class="annot"><span class="annottext">Group
+</span><a href="Network.TLS.Crypto.Types.html#FFDHE4096"><span class="hs-identifier hs-var">FFDHE4096</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;FFDHE4096&quot;</span></span><span>
+</span><span id="line-68"></span><span>    </span><span class="annot"><span class="hs-identifier hs-var">show</span></span><span> </span><span class="annot"><span class="annottext">Group
+</span><a href="Network.TLS.Crypto.Types.html#FFDHE6144"><span class="hs-identifier hs-var">FFDHE6144</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;FFDHE6144&quot;</span></span><span>
+</span><span id="line-69"></span><span>    </span><span class="annot"><span class="hs-identifier hs-var">show</span></span><span> </span><span class="annot"><span class="annottext">Group
+</span><a href="Network.TLS.Crypto.Types.html#FFDHE8192"><span class="hs-identifier hs-var">FFDHE8192</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;FFDHE8192&quot;</span></span><span>
+</span><span id="line-70"></span><span>    </span><span class="annot"><span class="hs-identifier hs-var">show</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Network.TLS.Crypto.Types.html#Group"><span class="hs-identifier hs-type">Group</span></a></span><span> </span><span id="local-6989586621679235442"><span class="annot"><span class="annottext">Word16
+</span><a href="#local-6989586621679235442"><span class="hs-identifier hs-var">x</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Group &quot;</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; ShowS
+forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">Word16 -&gt; String
+forall a. Show a =&gt; a -&gt; String
+</span><span class="hs-identifier hs-var">show</span></span><span> </span><span class="annot"><span class="annottext">Word16
+</span><a href="#local-6989586621679235442"><span class="hs-identifier hs-var">x</span></a></span><span>
+</span><span id="line-71"></span><span class="hs-comment">{- FOURMOLU_ENABLE -}</span><span>
+</span><span id="line-72"></span><span>
+</span><span id="line-73"></span><span class="annot"><a href="Network.TLS.Crypto.Types.html#availableFFGroups"><span class="hs-identifier hs-type">availableFFGroups</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Network.TLS.Crypto.Types.html#Group"><span class="hs-identifier hs-type">Group</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-74"></span><span id="availableFFGroups"><span class="annot"><span class="annottext">availableFFGroups :: [Group]
+</span><a href="Network.TLS.Crypto.Types.html#availableFFGroups"><span class="hs-identifier hs-var hs-var">availableFFGroups</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Group
+</span><a href="Network.TLS.Crypto.Types.html#FFDHE2048"><span class="hs-identifier hs-var">FFDHE2048</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Group
+</span><a href="Network.TLS.Crypto.Types.html#FFDHE3072"><span class="hs-identifier hs-var">FFDHE3072</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Group
+</span><a href="Network.TLS.Crypto.Types.html#FFDHE4096"><span class="hs-identifier hs-var">FFDHE4096</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Group
+</span><a href="Network.TLS.Crypto.Types.html#FFDHE6144"><span class="hs-identifier hs-var">FFDHE6144</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Group
+</span><a href="Network.TLS.Crypto.Types.html#FFDHE8192"><span class="hs-identifier hs-var">FFDHE8192</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-75"></span><span>
+</span><span id="line-76"></span><span class="annot"><a href="Network.TLS.Crypto.Types.html#availableECGroups"><span class="hs-identifier hs-type">availableECGroups</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Network.TLS.Crypto.Types.html#Group"><span class="hs-identifier hs-type">Group</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-77"></span><span id="availableECGroups"><span class="annot"><span class="annottext">availableECGroups :: [Group]
+</span><a href="Network.TLS.Crypto.Types.html#availableECGroups"><span class="hs-identifier hs-var hs-var">availableECGroups</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Group
+</span><a href="Network.TLS.Crypto.Types.html#P256"><span class="hs-identifier hs-var">P256</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Group
+</span><a href="Network.TLS.Crypto.Types.html#P384"><span class="hs-identifier hs-var">P384</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Group
+</span><a href="Network.TLS.Crypto.Types.html#P521"><span class="hs-identifier hs-var">P521</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Group
+</span><a href="Network.TLS.Crypto.Types.html#X25519"><span class="hs-identifier hs-var">X25519</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Group
+</span><a href="Network.TLS.Crypto.Types.html#X448"><span class="hs-identifier hs-var">X448</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-78"></span><span>
+</span><span id="line-79"></span><span class="annot"><a href="Network.TLS.Crypto.Types.html#supportedNamedGroups"><span class="hs-identifier hs-type">supportedNamedGroups</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Network.TLS.Crypto.Types.html#Group"><span class="hs-identifier hs-type">Group</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-80"></span><span id="supportedNamedGroups"><span class="annot"><span class="annottext">supportedNamedGroups :: [Group]
+</span><a href="Network.TLS.Crypto.Types.html#supportedNamedGroups"><span class="hs-identifier hs-var hs-var">supportedNamedGroups</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-81"></span><span>    </span><span class="hs-special">[</span><span> </span><span class="annot"><span class="annottext">Group
+</span><a href="Network.TLS.Crypto.Types.html#X25519"><span class="hs-identifier hs-var">X25519</span></a></span><span>
+</span><span id="line-82"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Group
+</span><a href="Network.TLS.Crypto.Types.html#X448"><span class="hs-identifier hs-var">X448</span></a></span><span>
+</span><span id="line-83"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Group
+</span><a href="Network.TLS.Crypto.Types.html#P256"><span class="hs-identifier hs-var">P256</span></a></span><span>
+</span><span id="line-84"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Group
+</span><a href="Network.TLS.Crypto.Types.html#FFDHE2048"><span class="hs-identifier hs-var">FFDHE2048</span></a></span><span>
+</span><span id="line-85"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Group
+</span><a href="Network.TLS.Crypto.Types.html#FFDHE3072"><span class="hs-identifier hs-var">FFDHE3072</span></a></span><span>
+</span><span id="line-86"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Group
+</span><a href="Network.TLS.Crypto.Types.html#FFDHE4096"><span class="hs-identifier hs-var">FFDHE4096</span></a></span><span>
+</span><span id="line-87"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Group
+</span><a href="Network.TLS.Crypto.Types.html#P384"><span class="hs-identifier hs-var">P384</span></a></span><span>
+</span><span id="line-88"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Group
+</span><a href="Network.TLS.Crypto.Types.html#FFDHE6144"><span class="hs-identifier hs-var">FFDHE6144</span></a></span><span>
+</span><span id="line-89"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Group
+</span><a href="Network.TLS.Crypto.Types.html#FFDHE8192"><span class="hs-identifier hs-var">FFDHE8192</span></a></span><span>
+</span><span id="line-90"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Group
+</span><a href="Network.TLS.Crypto.Types.html#P521"><span class="hs-identifier hs-var">P521</span></a></span><span>
+</span><span id="line-91"></span><span>    </span><span class="hs-special">]</span><span>
+</span><span id="line-92"></span><span>
+</span><span id="line-93"></span><span class="hs-comment">-- Key-exchange signature algorithm, in close relation to ciphers</span><span>
+</span><span id="line-94"></span><span class="hs-comment">-- (before TLS 1.3).</span><span>
+</span><span id="line-95"></span><span class="hs-keyword">data</span><span> </span><span id="KeyExchangeSignatureAlg"><span class="annot"><a href="Network.TLS.Crypto.Types.html#KeyExchangeSignatureAlg"><span class="hs-identifier hs-var">KeyExchangeSignatureAlg</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="KX_RSA"><span class="annot"><a href="Network.TLS.Crypto.Types.html#KX_RSA"><span class="hs-identifier hs-var">KX_RSA</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span id="KX_DSA"><span class="annot"><a href="Network.TLS.Crypto.Types.html#KX_DSA"><span class="hs-identifier hs-var">KX_DSA</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span id="KX_ECDSA"><span class="annot"><a href="Network.TLS.Crypto.Types.html#KX_ECDSA"><span class="hs-identifier hs-var">KX_ECDSA</span></a></span></span><span>
+</span><span id="line-96"></span><span>    </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679235447"><span id="local-6989586621679235449"><span id="local-6989586621679235453"><span class="annot"><span class="annottext">Int -&gt; KeyExchangeSignatureAlg -&gt; ShowS
+[KeyExchangeSignatureAlg] -&gt; ShowS
+KeyExchangeSignatureAlg -&gt; String
+(Int -&gt; KeyExchangeSignatureAlg -&gt; ShowS)
+-&gt; (KeyExchangeSignatureAlg -&gt; String)
+-&gt; ([KeyExchangeSignatureAlg] -&gt; ShowS)
+-&gt; Show KeyExchangeSignatureAlg
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; KeyExchangeSignatureAlg -&gt; ShowS
+showsPrec :: Int -&gt; KeyExchangeSignatureAlg -&gt; ShowS
+$cshow :: KeyExchangeSignatureAlg -&gt; String
+show :: KeyExchangeSignatureAlg -&gt; String
+$cshowList :: [KeyExchangeSignatureAlg] -&gt; ShowS
+showList :: [KeyExchangeSignatureAlg] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679235457"><span id="local-6989586621679235462"><span class="annot"><span class="annottext">KeyExchangeSignatureAlg -&gt; KeyExchangeSignatureAlg -&gt; Bool
+(KeyExchangeSignatureAlg -&gt; KeyExchangeSignatureAlg -&gt; Bool)
+-&gt; (KeyExchangeSignatureAlg -&gt; KeyExchangeSignatureAlg -&gt; Bool)
+-&gt; Eq KeyExchangeSignatureAlg
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: KeyExchangeSignatureAlg -&gt; KeyExchangeSignatureAlg -&gt; Bool
+== :: KeyExchangeSignatureAlg -&gt; KeyExchangeSignatureAlg -&gt; Bool
+$c/= :: KeyExchangeSignatureAlg -&gt; KeyExchangeSignatureAlg -&gt; Bool
+/= :: KeyExchangeSignatureAlg -&gt; KeyExchangeSignatureAlg -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-97"></span></pre></body></html>

@@ -1,0 +1,553 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE CPP #-}</span><span>
+</span><span id="line-2"></span><span>
+</span><span id="line-3"></span><span class="hs-comment">-- This file is also included by &quot;Data.ByteString.ReadInt&quot;, after defining</span><span>
+</span><span id="line-4"></span><span class="hs-comment">-- &quot;BYTESTRING_STRICT&quot;.  The two modules share much of their code, but</span><span>
+</span><span id="line-5"></span><span class="hs-comment">-- the lazy version adds an outer loop over the chunks.</span><span class="hs-cpp">
+
+#ifdef BYTESTRING_STRICT
+</span><span class="hs-keyword">module</span><span> </span><span class="hs-identifier">Data.ByteString.ReadInt</span><span class="hs-cpp">
+#else
+</span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Data.ByteString.Lazy.ReadInt.html"><span class="hs-identifier">Data.ByteString.Lazy.ReadInt</span></a></span><span class="hs-cpp">
+#endif
+</span><span>    </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="Data.ByteString.Lazy.ReadInt.html#readInt"><span class="hs-identifier">readInt</span></a></span><span>
+</span><span id="line-13"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.ByteString.Lazy.ReadInt.html#readInt8"><span class="hs-identifier">readInt8</span></a></span><span>
+</span><span id="line-14"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.ByteString.Lazy.ReadInt.html#readInt16"><span class="hs-identifier">readInt16</span></a></span><span>
+</span><span id="line-15"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.ByteString.Lazy.ReadInt.html#readInt32"><span class="hs-identifier">readInt32</span></a></span><span>
+</span><span id="line-16"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.ByteString.Lazy.ReadInt.html#readWord"><span class="hs-identifier">readWord</span></a></span><span>
+</span><span id="line-17"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.ByteString.Lazy.ReadInt.html#readWord8"><span class="hs-identifier">readWord8</span></a></span><span>
+</span><span id="line-18"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.ByteString.Lazy.ReadInt.html#readWord16"><span class="hs-identifier">readWord16</span></a></span><span>
+</span><span id="line-19"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.ByteString.Lazy.ReadInt.html#readWord32"><span class="hs-identifier">readWord32</span></a></span><span>
+</span><span id="line-20"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.ByteString.Lazy.ReadInt.html#readInt64"><span class="hs-identifier">readInt64</span></a></span><span>
+</span><span id="line-21"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.ByteString.Lazy.ReadInt.html#readWord64"><span class="hs-identifier">readWord64</span></a></span><span>
+</span><span id="line-22"></span><span>    </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-23"></span><span>
+</span><span id="line-24"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Data.ByteString.Internal.html"><span class="hs-identifier">Data.ByteString.Internal</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">BI</span></span><span class="hs-cpp">
+#ifdef BYTESTRING_STRICT
+</span><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">Data.ByteString</span><span class="hs-cpp">
+#else
+</span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Data.ByteString.Lazy.html"><span class="hs-identifier">Data.ByteString.Lazy</span></a></span><span>
+</span><span id="line-29"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Data.ByteString.Lazy.Internal.html"><span class="hs-identifier">Data.ByteString.Lazy.Internal</span></a></span><span class="hs-cpp">
+#endif
+</span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.20.2.0-6654/src/Data.Bits.html"><span class="hs-identifier">Data.Bits</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">FiniteBits</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">isSigned</span></span><span class="hs-special">)</span><span>
+</span><span id="line-32"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Data.ByteString.Internal.html"><span class="hs-identifier">Data.ByteString.Internal</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="Data.ByteString.Internal.Type.html#BS"><span class="hs-identifier">BS</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">plusForeignPtr</span></span><span class="hs-special">)</span><span>
+</span><span id="line-33"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.20.2.0-6654/src/Data.Int.html"><span class="hs-identifier">Data.Int</span></a></span><span>
+</span><span id="line-34"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.20.2.0-6654/src/Data.Word.html"><span class="hs-identifier">Data.Word</span></a></span><span>
+</span><span id="line-35"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.20.2.0-6654/src/Foreign.ForeignPtr.html"><span class="hs-identifier">Foreign.ForeignPtr</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">ForeignPtr</span></span><span class="hs-special">)</span><span>
+</span><span id="line-36"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.20.2.0-6654/src/Foreign.Ptr.html"><span class="hs-identifier">Foreign.Ptr</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">minusPtr</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">plusPtr</span></span><span class="hs-special">)</span><span>
+</span><span id="line-37"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.20.2.0-6654/src/Foreign.Storable.html"><span class="hs-identifier">Foreign.Storable</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Storable</span></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-38"></span><span>
+</span><span id="line-39"></span><span class="hs-comment">----- Public API</span><span>
+</span><span id="line-40"></span><span>
+</span><span id="line-41"></span><span class="hs-comment">-- | Try to read a signed 'Int' value from the 'ByteString', returning</span><span>
+</span><span id="line-42"></span><span class="hs-comment">-- @Just (val, str)@ on success, where @val@ is the value read and @str@ is the</span><span>
+</span><span id="line-43"></span><span class="hs-comment">-- rest of the input string.  If the sequence of digits decodes to a value</span><span>
+</span><span id="line-44"></span><span class="hs-comment">-- larger than can be represented by an 'Int', the returned value will be</span><span>
+</span><span id="line-45"></span><span class="hs-comment">-- 'Nothing'.</span><span>
+</span><span id="line-46"></span><span class="hs-comment">--</span><span>
+</span><span id="line-47"></span><span class="hs-comment">-- 'readInt' does not ignore leading whitespace, the value must start</span><span>
+</span><span id="line-48"></span><span class="hs-comment">-- immediately at the beginning of the input string.</span><span>
+</span><span id="line-49"></span><span class="hs-comment">--</span><span>
+</span><span id="line-50"></span><span class="hs-comment">-- ==== __Examples__</span><span>
+</span><span id="line-51"></span><span class="hs-comment">-- &gt;&gt;&gt; readInt &quot;-1729 sum of cubes&quot;</span><span>
+</span><span id="line-52"></span><span class="hs-comment">-- Just (-1729,&quot; sum of cubes&quot;)</span><span>
+</span><span id="line-53"></span><span class="hs-comment">-- &gt;&gt;&gt; readInt &quot;+1: readInt also accepts a leading '+'&quot;</span><span>
+</span><span id="line-54"></span><span class="hs-comment">-- Just (1, &quot;: readInt also accepts a leading '+'&quot;)</span><span>
+</span><span id="line-55"></span><span class="hs-comment">-- &gt;&gt;&gt; readInt &quot;not a decimal number&quot;</span><span>
+</span><span id="line-56"></span><span class="hs-comment">-- Nothing</span><span>
+</span><span id="line-57"></span><span class="hs-comment">-- &gt;&gt;&gt; readInt &quot;12345678901234567890 overflows maxBound&quot;</span><span>
+</span><span id="line-58"></span><span class="hs-comment">-- Nothing</span><span>
+</span><span id="line-59"></span><span class="hs-comment">-- &gt;&gt;&gt; readInt &quot;-12345678901234567890 underflows minBound&quot;</span><span>
+</span><span id="line-60"></span><span class="hs-comment">-- Nothing</span><span>
+</span><span id="line-61"></span><span class="hs-comment">--</span><span>
+</span><span id="line-62"></span><span class="annot"><a href="Data.ByteString.Lazy.ReadInt.html#readInt"><span class="hs-identifier hs-type">readInt</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Data.ByteString.Lazy.Internal.html#ByteString"><span class="hs-identifier hs-type">ByteString</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="../../ghc-prim-0.12.0-595c/src/GHC.Types.html#Int"><span class="hs-identifier hs-type">Int</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.ByteString.Lazy.Internal.html#ByteString"><span class="hs-identifier hs-type">ByteString</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-63"></span><span id="readInt"><span class="annot"><span class="annottext">readInt :: ByteString -&gt; Maybe (Int, ByteString)
+</span><a href="Data.ByteString.Lazy.ReadInt.html#readInt"><span class="hs-identifier hs-var hs-var">readInt</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; Maybe (Int, ByteString)
+forall a.
+(Integral a, FiniteBits a, Bounded a) =&gt;
+ByteString -&gt; Maybe (a, ByteString)
+</span><a href="Data.ByteString.Lazy.ReadInt.html#_read"><span class="hs-identifier hs-var">_read</span></a></span><span>
+</span><span id="line-64"></span><span>
+</span><span id="line-65"></span><span class="annot"><span class="hs-comment">-- | A variant of 'readInt' specialised to 'Int32'.</span></span><span>
+</span><span id="line-66"></span><span class="annot"><a href="Data.ByteString.Lazy.ReadInt.html#readInt32"><span class="hs-identifier hs-type">readInt32</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Data.ByteString.Lazy.Internal.html#ByteString"><span class="hs-identifier hs-type">ByteString</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Int32</span></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.ByteString.Lazy.Internal.html#ByteString"><span class="hs-identifier hs-type">ByteString</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-67"></span><span id="readInt32"><span class="annot"><span class="annottext">readInt32 :: ByteString -&gt; Maybe (Int32, ByteString)
+</span><a href="Data.ByteString.Lazy.ReadInt.html#readInt32"><span class="hs-identifier hs-var hs-var">readInt32</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; Maybe (Int32, ByteString)
+forall a.
+(Integral a, FiniteBits a, Bounded a) =&gt;
+ByteString -&gt; Maybe (a, ByteString)
+</span><a href="Data.ByteString.Lazy.ReadInt.html#_read"><span class="hs-identifier hs-var">_read</span></a></span><span>
+</span><span id="line-68"></span><span>
+</span><span id="line-69"></span><span class="annot"><span class="hs-comment">-- | A variant of 'readInt' specialised to 'Int16'.</span></span><span>
+</span><span id="line-70"></span><span class="annot"><a href="Data.ByteString.Lazy.ReadInt.html#readInt16"><span class="hs-identifier hs-type">readInt16</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Data.ByteString.Lazy.Internal.html#ByteString"><span class="hs-identifier hs-type">ByteString</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Int16</span></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.ByteString.Lazy.Internal.html#ByteString"><span class="hs-identifier hs-type">ByteString</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-71"></span><span id="readInt16"><span class="annot"><span class="annottext">readInt16 :: ByteString -&gt; Maybe (Int16, ByteString)
+</span><a href="Data.ByteString.Lazy.ReadInt.html#readInt16"><span class="hs-identifier hs-var hs-var">readInt16</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; Maybe (Int16, ByteString)
+forall a.
+(Integral a, FiniteBits a, Bounded a) =&gt;
+ByteString -&gt; Maybe (a, ByteString)
+</span><a href="Data.ByteString.Lazy.ReadInt.html#_read"><span class="hs-identifier hs-var">_read</span></a></span><span>
+</span><span id="line-72"></span><span>
+</span><span id="line-73"></span><span class="annot"><span class="hs-comment">-- | A variant of 'readInt' specialised to 'Int8'.</span></span><span>
+</span><span id="line-74"></span><span class="annot"><a href="Data.ByteString.Lazy.ReadInt.html#readInt8"><span class="hs-identifier hs-type">readInt8</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Data.ByteString.Lazy.Internal.html#ByteString"><span class="hs-identifier hs-type">ByteString</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Int8</span></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.ByteString.Lazy.Internal.html#ByteString"><span class="hs-identifier hs-type">ByteString</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-75"></span><span id="readInt8"><span class="annot"><span class="annottext">readInt8 :: ByteString -&gt; Maybe (Int8, ByteString)
+</span><a href="Data.ByteString.Lazy.ReadInt.html#readInt8"><span class="hs-identifier hs-var hs-var">readInt8</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; Maybe (Int8, ByteString)
+forall a.
+(Integral a, FiniteBits a, Bounded a) =&gt;
+ByteString -&gt; Maybe (a, ByteString)
+</span><a href="Data.ByteString.Lazy.ReadInt.html#_read"><span class="hs-identifier hs-var">_read</span></a></span><span>
+</span><span id="line-76"></span><span>
+</span><span id="line-77"></span><span class="hs-comment">-- | Try to read a 'Word' value from the 'ByteString', returning</span><span>
+</span><span id="line-78"></span><span class="hs-comment">-- @Just (val, str)@ on success, where @val@ is the value read and @str@ is the</span><span>
+</span><span id="line-79"></span><span class="hs-comment">-- rest of the input string.  If the sequence of digits decodes to a value</span><span>
+</span><span id="line-80"></span><span class="hs-comment">-- larger than can be represented by a 'Word', the returned value will be</span><span>
+</span><span id="line-81"></span><span class="hs-comment">-- 'Nothing'.</span><span>
+</span><span id="line-82"></span><span class="hs-comment">--</span><span>
+</span><span id="line-83"></span><span class="hs-comment">-- 'readWord' does not ignore leading whitespace, the value must start with a</span><span>
+</span><span id="line-84"></span><span class="hs-comment">-- decimal digit immediately at the beginning of the input string.  Leading @+@</span><span>
+</span><span id="line-85"></span><span class="hs-comment">-- signs are not accepted.</span><span>
+</span><span id="line-86"></span><span class="hs-comment">--</span><span>
+</span><span id="line-87"></span><span class="hs-comment">-- ==== __Examples__</span><span>
+</span><span id="line-88"></span><span class="hs-comment">-- &gt;&gt;&gt; readWord &quot;1729 sum of cubes&quot;</span><span>
+</span><span id="line-89"></span><span class="hs-comment">-- Just (1729,&quot; sum of cubes&quot;)</span><span>
+</span><span id="line-90"></span><span class="hs-comment">-- &gt;&gt;&gt; readWord &quot;+1729 has an explicit sign&quot;</span><span>
+</span><span id="line-91"></span><span class="hs-comment">-- Nothing</span><span>
+</span><span id="line-92"></span><span class="hs-comment">-- &gt;&gt;&gt; readWord &quot;not a decimal number&quot;</span><span>
+</span><span id="line-93"></span><span class="hs-comment">-- Nothing</span><span>
+</span><span id="line-94"></span><span class="hs-comment">-- &gt;&gt;&gt; readWord &quot;98765432109876543210 overflows maxBound&quot;</span><span>
+</span><span id="line-95"></span><span class="hs-comment">-- Nothing</span><span>
+</span><span id="line-96"></span><span class="hs-comment">--</span><span>
+</span><span id="line-97"></span><span class="annot"><a href="Data.ByteString.Lazy.ReadInt.html#readWord"><span class="hs-identifier hs-type">readWord</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Data.ByteString.Lazy.Internal.html#ByteString"><span class="hs-identifier hs-type">ByteString</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="../../ghc-prim-0.12.0-595c/src/GHC.Types.html#Word"><span class="hs-identifier hs-type">Word</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.ByteString.Lazy.Internal.html#ByteString"><span class="hs-identifier hs-type">ByteString</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-98"></span><span id="readWord"><span class="annot"><span class="annottext">readWord :: ByteString -&gt; Maybe (Word, ByteString)
+</span><a href="Data.ByteString.Lazy.ReadInt.html#readWord"><span class="hs-identifier hs-var hs-var">readWord</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; Maybe (Word, ByteString)
+forall a.
+(Integral a, FiniteBits a, Bounded a) =&gt;
+ByteString -&gt; Maybe (a, ByteString)
+</span><a href="Data.ByteString.Lazy.ReadInt.html#_read"><span class="hs-identifier hs-var">_read</span></a></span><span>
+</span><span id="line-99"></span><span>
+</span><span id="line-100"></span><span class="annot"><span class="hs-comment">-- | A variant of 'readWord' specialised to 'Word32'.</span></span><span>
+</span><span id="line-101"></span><span class="annot"><a href="Data.ByteString.Lazy.ReadInt.html#readWord32"><span class="hs-identifier hs-type">readWord32</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Data.ByteString.Lazy.Internal.html#ByteString"><span class="hs-identifier hs-type">ByteString</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Word32</span></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.ByteString.Lazy.Internal.html#ByteString"><span class="hs-identifier hs-type">ByteString</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-102"></span><span id="readWord32"><span class="annot"><span class="annottext">readWord32 :: ByteString -&gt; Maybe (Word32, ByteString)
+</span><a href="Data.ByteString.Lazy.ReadInt.html#readWord32"><span class="hs-identifier hs-var hs-var">readWord32</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; Maybe (Word32, ByteString)
+forall a.
+(Integral a, FiniteBits a, Bounded a) =&gt;
+ByteString -&gt; Maybe (a, ByteString)
+</span><a href="Data.ByteString.Lazy.ReadInt.html#_read"><span class="hs-identifier hs-var">_read</span></a></span><span>
+</span><span id="line-103"></span><span>
+</span><span id="line-104"></span><span class="annot"><span class="hs-comment">-- | A variant of 'readWord' specialised to 'Word16'.</span></span><span>
+</span><span id="line-105"></span><span class="annot"><a href="Data.ByteString.Lazy.ReadInt.html#readWord16"><span class="hs-identifier hs-type">readWord16</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Data.ByteString.Lazy.Internal.html#ByteString"><span class="hs-identifier hs-type">ByteString</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Word16</span></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.ByteString.Lazy.Internal.html#ByteString"><span class="hs-identifier hs-type">ByteString</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-106"></span><span id="readWord16"><span class="annot"><span class="annottext">readWord16 :: ByteString -&gt; Maybe (Word16, ByteString)
+</span><a href="Data.ByteString.Lazy.ReadInt.html#readWord16"><span class="hs-identifier hs-var hs-var">readWord16</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; Maybe (Word16, ByteString)
+forall a.
+(Integral a, FiniteBits a, Bounded a) =&gt;
+ByteString -&gt; Maybe (a, ByteString)
+</span><a href="Data.ByteString.Lazy.ReadInt.html#_read"><span class="hs-identifier hs-var">_read</span></a></span><span>
+</span><span id="line-107"></span><span>
+</span><span id="line-108"></span><span class="annot"><span class="hs-comment">-- | A variant of 'readWord' specialised to 'Word8'.</span></span><span>
+</span><span id="line-109"></span><span class="annot"><a href="Data.ByteString.Lazy.ReadInt.html#readWord8"><span class="hs-identifier hs-type">readWord8</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Data.ByteString.Lazy.Internal.html#ByteString"><span class="hs-identifier hs-type">ByteString</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Word8</span></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.ByteString.Lazy.Internal.html#ByteString"><span class="hs-identifier hs-type">ByteString</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-110"></span><span id="readWord8"><span class="annot"><span class="annottext">readWord8 :: ByteString -&gt; Maybe (Word8, ByteString)
+</span><a href="Data.ByteString.Lazy.ReadInt.html#readWord8"><span class="hs-identifier hs-var hs-var">readWord8</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; Maybe (Word8, ByteString)
+forall a.
+(Integral a, FiniteBits a, Bounded a) =&gt;
+ByteString -&gt; Maybe (a, ByteString)
+</span><a href="Data.ByteString.Lazy.ReadInt.html#_read"><span class="hs-identifier hs-var">_read</span></a></span><span>
+</span><span id="line-111"></span><span>
+</span><span id="line-112"></span><span class="annot"><span class="hs-comment">-- | A variant of 'readInt' specialised to 'Int64'.</span></span><span>
+</span><span id="line-113"></span><span class="annot"><a href="Data.ByteString.Lazy.ReadInt.html#readInt64"><span class="hs-identifier hs-type">readInt64</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Data.ByteString.Lazy.Internal.html#ByteString"><span class="hs-identifier hs-type">ByteString</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Int64</span></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.ByteString.Lazy.Internal.html#ByteString"><span class="hs-identifier hs-type">ByteString</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-114"></span><span id="readInt64"><span class="annot"><span class="annottext">readInt64 :: ByteString -&gt; Maybe (Int64, ByteString)
+</span><a href="Data.ByteString.Lazy.ReadInt.html#readInt64"><span class="hs-identifier hs-var hs-var">readInt64</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; Maybe (Int64, ByteString)
+forall a.
+(Integral a, FiniteBits a, Bounded a) =&gt;
+ByteString -&gt; Maybe (a, ByteString)
+</span><a href="Data.ByteString.Lazy.ReadInt.html#_read"><span class="hs-identifier hs-var">_read</span></a></span><span>
+</span><span id="line-115"></span><span>
+</span><span id="line-116"></span><span class="annot"><span class="hs-comment">-- | A variant of 'readWord' specialised to 'Word64'.</span></span><span>
+</span><span id="line-117"></span><span class="annot"><a href="Data.ByteString.Lazy.ReadInt.html#readWord64"><span class="hs-identifier hs-type">readWord64</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Data.ByteString.Lazy.Internal.html#ByteString"><span class="hs-identifier hs-type">ByteString</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Word64</span></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.ByteString.Lazy.Internal.html#ByteString"><span class="hs-identifier hs-type">ByteString</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-118"></span><span id="readWord64"><span class="annot"><span class="annottext">readWord64 :: ByteString -&gt; Maybe (Word64, ByteString)
+</span><a href="Data.ByteString.Lazy.ReadInt.html#readWord64"><span class="hs-identifier hs-var hs-var">readWord64</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; Maybe (Word64, ByteString)
+forall a.
+(Integral a, FiniteBits a, Bounded a) =&gt;
+ByteString -&gt; Maybe (a, ByteString)
+</span><a href="Data.ByteString.Lazy.ReadInt.html#_read"><span class="hs-identifier hs-var">_read</span></a></span><span>
+</span><span id="line-119"></span><span>
+</span><span id="line-120"></span><span class="annot"><span class="hs-comment">-- | Polymorphic Int*/Word* reader</span></span><span>
+</span><span id="line-121"></span><span class="annot"><a href="Data.ByteString.Lazy.ReadInt.html#_read"><span class="hs-identifier hs-type">_read</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-keyword">forall</span><span> </span><span id="local-6989586621679124574"><span class="annot"><a href="#local-6989586621679124574"><span class="hs-identifier hs-type">a</span></a></span></span><span class="hs-operator">.</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Integral</span></span><span> </span><span class="annot"><a href="#local-6989586621679124574"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">FiniteBits</span></span><span> </span><span class="annot"><a href="#local-6989586621679124574"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bounded</span></span><span> </span><span class="annot"><a href="#local-6989586621679124574"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-122"></span><span>      </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Data.ByteString.Lazy.Internal.html#ByteString"><span class="hs-identifier hs-type">ByteString</span></a></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679124574"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.ByteString.Lazy.Internal.html#ByteString"><span class="hs-identifier hs-type">ByteString</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-123"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Data.ByteString.Lazy.ReadInt.html#_read"><span class="hs-pragma hs-type">_read</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-124"></span><span id="_read"><span class="annot"><span class="annottext">_read :: forall a.
+(Integral a, FiniteBits a, Bounded a) =&gt;
+ByteString -&gt; Maybe (a, ByteString)
+</span><a href="Data.ByteString.Lazy.ReadInt.html#_read"><span class="hs-identifier hs-var hs-var">_read</span></a></span></span><span>
+</span><span id="line-125"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">forall a. Bits a =&gt; a -&gt; Bool
+</span><span class="hs-identifier hs-var">isSigned</span></span><span> </span><span class="hs-glyph">@</span><span class="annot"><a href="#local-6989586621679124574"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><span class="hs-number">0</span></span><span>
+</span><span id="line-126"></span><span>      </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span> </span><span id="local-6989586621679124737"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679124737"><span class="hs-identifier hs-var">bs</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; Maybe (Word64, ByteString, Word64)
+</span><a href="#local-6989586621679124738"><span class="hs-identifier hs-var">signed</span></a></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679124737"><span class="hs-identifier hs-var">bs</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe (Word64, ByteString, Word64)
+-&gt; ((Word64, ByteString, Word64) -&gt; Maybe (a, ByteString))
+-&gt; Maybe (a, ByteString)
+forall a b. Maybe a -&gt; (a -&gt; Maybe b) -&gt; Maybe b
+forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; (a -&gt; m b) -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;=</span></span><span> </span><span class="hs-glyph">\</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679124739"><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679124739"><span class="hs-identifier hs-var">r</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679124740"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679124740"><span class="hs-identifier hs-var">s</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679124741"><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679124741"><span class="hs-identifier hs-var">d1</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word64 -&gt; ByteString -&gt; Word64 -&gt; Maybe (a, ByteString)
+forall a.
+(Integral a, Bounded a) =&gt;
+Word64 -&gt; ByteString -&gt; Word64 -&gt; Maybe (a, ByteString)
+</span><a href="Data.ByteString.Lazy.ReadInt.html#_readDecimal"><span class="hs-identifier hs-var">_readDecimal</span></a></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679124739"><span class="hs-identifier hs-var">r</span></a></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679124740"><span class="hs-identifier hs-var">s</span></a></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679124741"><span class="hs-identifier hs-var">d1</span></a></span><span>
+</span><span id="line-127"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span>
+</span><span id="line-128"></span><span>      </span><span class="hs-comment">-- When the input is @16^n-1@, as is the case with 'maxBound' for</span><span>
+</span><span id="line-129"></span><span>      </span><span class="hs-comment">-- all the Word* types, the last decimal digit of 'maxBound' is 5.</span><span>
+</span><span id="line-130"></span><span>      </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span> </span><span id="local-6989586621679124743"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679124743"><span class="hs-identifier hs-var">bs</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word64 -&gt; ByteString -&gt; Maybe (Word64, ByteString, Word64)
+</span><a href="#local-6989586621679124744"><span class="hs-identifier hs-var">unsigned</span></a></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><span class="hs-number">5</span></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679124743"><span class="hs-identifier hs-var">bs</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe (Word64, ByteString, Word64)
+-&gt; ((Word64, ByteString, Word64) -&gt; Maybe (a, ByteString))
+-&gt; Maybe (a, ByteString)
+forall a b. Maybe a -&gt; (a -&gt; Maybe b) -&gt; Maybe b
+forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; (a -&gt; m b) -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;=</span></span><span> </span><span class="hs-glyph">\</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679124745"><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679124745"><span class="hs-identifier hs-var">r</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679124746"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679124746"><span class="hs-identifier hs-var">s</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679124747"><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679124747"><span class="hs-identifier hs-var">d1</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word64 -&gt; ByteString -&gt; Word64 -&gt; Maybe (a, ByteString)
+forall a.
+(Integral a, Bounded a) =&gt;
+Word64 -&gt; ByteString -&gt; Word64 -&gt; Maybe (a, ByteString)
+</span><a href="Data.ByteString.Lazy.ReadInt.html#_readDecimal"><span class="hs-identifier hs-var">_readDecimal</span></a></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679124745"><span class="hs-identifier hs-var">r</span></a></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679124746"><span class="hs-identifier hs-var">s</span></a></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679124747"><span class="hs-identifier hs-var">d1</span></a></span><span>
+</span><span id="line-131"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-132"></span><span>    </span><span class="hs-comment">-- Returns:</span><span>
+</span><span id="line-133"></span><span>    </span><span class="hs-comment">--  * Mod 10 min/max bound remainder</span><span>
+</span><span id="line-134"></span><span>    </span><span class="hs-comment">--  * 2nd and later digits</span><span>
+</span><span id="line-135"></span><span>    </span><span class="hs-comment">--  * 1st digit</span><span>
+</span><span id="line-136"></span><span>    </span><span class="hs-comment">--</span><span>
+</span><span id="line-137"></span><span>    </span><span class="hs-comment">-- When the input is @8*16^n-1@, as is the case with 'maxBound' for</span><span>
+</span><span id="line-138"></span><span>    </span><span class="hs-comment">-- all the Int* types, the last decimal digit of 'maxBound' is 7.</span><span>
+</span><span id="line-139"></span><span>    </span><span class="hs-comment">--</span><span>
+</span><span id="line-140"></span><span>    </span><span class="annot"><a href="#local-6989586621679124738"><span class="hs-identifier hs-type">signed</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Data.ByteString.Lazy.Internal.html#ByteString"><span class="hs-identifier hs-type">ByteString</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Word64</span></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.ByteString.Lazy.Internal.html#ByteString"><span class="hs-identifier hs-type">ByteString</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word64</span></span><span class="hs-special">)</span><span>
+</span><span id="line-141"></span><span>    </span><span id="local-6989586621679124738"><span class="annot"><span class="annottext">signed :: ByteString -&gt; Maybe (Word64, ByteString, Word64)
+</span><a href="#local-6989586621679124738"><span class="hs-identifier hs-var hs-var">signed</span></a></span></span><span> </span><span id="local-6989586621679124748"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679124748"><span class="hs-identifier hs-var">bs</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-142"></span><span>        </span><span class="hs-special">(</span><span id="local-6989586621679124749"><span class="annot"><a href="#local-6989586621679124749"><span class="hs-identifier hs-var">w</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679124750"><span class="annot"><a href="#local-6989586621679124750"><span class="hs-identifier hs-var">s</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; Maybe (Word8, ByteString)
+</span><a href="Data.ByteString.Lazy.html#uncons"><span class="hs-identifier hs-var">uncons</span></a></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679124748"><span class="hs-identifier hs-var">bs</span></a></span><span>
+</span><span id="line-143"></span><span>        </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679124752"><span class="annot"><a href="#local-6989586621679124752"><span class="hs-identifier hs-var hs-var">d1</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word8 -&gt; Word64
+</span><a href="Data.ByteString.Lazy.ReadInt.html#fromDigit"><span class="hs-identifier hs-var">fromDigit</span></a></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679124749"><span class="hs-identifier hs-var">w</span></a></span><span>
+</span><span id="line-144"></span><span>        </span><span class="hs-keyword">if</span><span> </span><span class="hs-glyph">|</span><span> </span><span class="annot"><a href="#local-6989586621679124752"><span class="hs-identifier hs-type">d1</span></a></span><span> </span><span class="annot"><a href="../../ghc-prim-0.12.0-595c/src/GHC.Classes.html#%3C%3D"><span class="hs-operator hs-type">&lt;=</span></a></span><span> </span><span class="annot"><span class="hs-number">9</span></span><span>   </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-number">7</span></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679124750"><span class="hs-identifier hs-type">s</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679124752"><span class="hs-identifier hs-type">d1</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-comment">-- leading digit</span><span>
+</span><span id="line-145"></span><span>           </span><span class="hs-glyph">|</span><span> </span><span class="annot"><a href="#local-6989586621679124749"><span class="hs-identifier hs-type">w</span></a></span><span> </span><span class="annot"><a href="../../ghc-prim-0.12.0-595c/src/GHC.Classes.html#%3D%3D"><span class="hs-operator hs-type">==</span></a></span><span> </span><span class="annot"><span class="hs-number">0x2d</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679124744"><span class="hs-identifier hs-type">unsigned</span></a></span><span> </span><span class="annot"><span class="hs-number">8</span></span><span> </span><span class="annot"><a href="#local-6989586621679124750"><span class="hs-identifier hs-type">s</span></a></span><span>    </span><span class="hs-comment">-- minus sign</span><span>
+</span><span id="line-146"></span><span>           </span><span class="hs-glyph">|</span><span> </span><span class="annot"><a href="#local-6989586621679124749"><span class="hs-identifier hs-type">w</span></a></span><span> </span><span class="annot"><a href="../../ghc-prim-0.12.0-595c/src/GHC.Classes.html#%3D%3D"><span class="hs-operator hs-type">==</span></a></span><span> </span><span class="annot"><span class="hs-number">0x2b</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679124744"><span class="hs-identifier hs-type">unsigned</span></a></span><span> </span><span class="annot"><span class="hs-number">7</span></span><span> </span><span class="annot"><a href="#local-6989586621679124750"><span class="hs-identifier hs-type">s</span></a></span><span>    </span><span class="hs-comment">-- plus sign</span><span>
+</span><span id="line-147"></span><span>           </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="hs-identifier hs-type">otherwise</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Nothing</span></span><span>         </span><span class="hs-comment">-- not a number</span><span>
+</span><span id="line-148"></span><span>
+</span><span id="line-149"></span><span>    </span><span class="annot"><a href="#local-6989586621679124744"><span class="hs-identifier hs-type">unsigned</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word64</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Data.ByteString.Lazy.Internal.html#ByteString"><span class="hs-identifier hs-type">ByteString</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Word64</span></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.ByteString.Lazy.Internal.html#ByteString"><span class="hs-identifier hs-type">ByteString</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word64</span></span><span class="hs-special">)</span><span>
+</span><span id="line-150"></span><span>    </span><span id="local-6989586621679124744"><span class="annot"><span class="annottext">unsigned :: Word64 -&gt; ByteString -&gt; Maybe (Word64, ByteString, Word64)
+</span><a href="#local-6989586621679124744"><span class="hs-identifier hs-var hs-var">unsigned</span></a></span></span><span> </span><span id="local-6989586621679124755"><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679124755"><span class="hs-identifier hs-var">r</span></a></span></span><span> </span><span id="local-6989586621679124756"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679124756"><span class="hs-identifier hs-var">bs</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-151"></span><span>        </span><span class="hs-special">(</span><span id="local-6989586621679124757"><span class="annot"><a href="#local-6989586621679124757"><span class="hs-identifier hs-var">w</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679124758"><span class="annot"><a href="#local-6989586621679124758"><span class="hs-identifier hs-var">s</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; Maybe (Word8, ByteString)
+</span><a href="Data.ByteString.Lazy.html#uncons"><span class="hs-identifier hs-var">uncons</span></a></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679124756"><span class="hs-identifier hs-var">bs</span></a></span><span>
+</span><span id="line-152"></span><span>        </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679124759"><span class="annot"><a href="#local-6989586621679124759"><span class="hs-identifier hs-var hs-var">d1</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word8 -&gt; Word64
+</span><a href="Data.ByteString.Lazy.ReadInt.html#fromDigit"><span class="hs-identifier hs-var">fromDigit</span></a></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679124757"><span class="hs-identifier hs-var">w</span></a></span><span>
+</span><span id="line-153"></span><span>        </span><span class="hs-keyword">if</span><span> </span><span class="hs-glyph">|</span><span> </span><span class="annot"><a href="#local-6989586621679124759"><span class="hs-identifier hs-type">d1</span></a></span><span> </span><span class="annot"><a href="../../ghc-prim-0.12.0-595c/src/GHC.Classes.html#%3C%3D"><span class="hs-operator hs-type">&lt;=</span></a></span><span> </span><span class="annot"><span class="hs-number">9</span></span><span>   </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679124755"><span class="hs-identifier hs-type">r</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679124758"><span class="hs-identifier hs-type">s</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679124759"><span class="hs-identifier hs-type">d1</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-comment">-- leading digit</span><span>
+</span><span id="line-154"></span><span>           </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="hs-identifier hs-type">otherwise</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Nothing</span></span><span>         </span><span class="hs-comment">-- not a number</span><span>
+</span><span id="line-155"></span><span>
+</span><span id="line-156"></span><span class="hs-comment">----- Fixed-width unsigned reader</span><span>
+</span><span id="line-157"></span><span>
+</span><span id="line-158"></span><span class="hs-comment">-- | Intermediate result from scanning a chunk, final output is</span><span>
+</span><span id="line-159"></span><span class="hs-comment">-- converted to the requested type once all chunks are processed.</span><span>
+</span><span id="line-160"></span><span class="hs-comment">--</span><span>
+</span><span id="line-161"></span><span class="hs-keyword">data</span><span> </span><span id="Result"><span class="annot"><a href="Data.ByteString.Lazy.ReadInt.html#Result"><span class="hs-identifier hs-var">Result</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="Overflow"><span class="annot"><a href="Data.ByteString.Lazy.ReadInt.html#Overflow"><span class="hs-identifier hs-var">Overflow</span></a></span></span><span>
+</span><span id="line-162"></span><span>            </span><span class="hs-glyph">|</span><span> </span><span id="Result"><span class="annot"><a href="Data.ByteString.Lazy.ReadInt.html#Result"><span class="hs-identifier hs-var">Result</span></a></span></span><span> </span><span class="hs-glyph">!</span><span class="annot"><a href="../../ghc-prim-0.12.0-595c/src/GHC.Types.html#Int"><span class="hs-identifier hs-type">Int</span></a></span><span>    </span><span class="hs-comment">-- number of bytes (digits) read</span><span>
+</span><span id="line-163"></span><span>                     </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">Word64</span></span><span> </span><span class="hs-comment">-- accumulator value</span><span>
+</span><span id="line-164"></span><span>
+</span><span id="line-165"></span><span class="annot"><a href="Data.ByteString.Lazy.ReadInt.html#_readDecimal"><span class="hs-identifier hs-type">_readDecimal</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-keyword">forall</span><span> </span><span id="local-6989586621679124585"><span class="annot"><a href="#local-6989586621679124585"><span class="hs-identifier hs-type">a</span></a></span></span><span class="hs-operator">.</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Integral</span></span><span> </span><span class="annot"><a href="#local-6989586621679124585"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bounded</span></span><span> </span><span class="annot"><a href="#local-6989586621679124585"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-166"></span><span>             </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word64</span></span><span>     </span><span class="annot"><span class="hs-comment">-- ^ abs(maxBound/minBound) `mod` 10</span></span><span>
+</span><span id="line-167"></span><span>             </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Data.ByteString.Lazy.Internal.html#ByteString"><span class="hs-identifier hs-type">ByteString</span></a></span><span> </span><span class="annot"><span class="hs-comment">-- ^ Input string</span></span><span>
+</span><span id="line-168"></span><span>             </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word64</span></span><span>     </span><span class="annot"><span class="hs-comment">-- ^ First digit value</span></span><span>
+</span><span id="line-169"></span><span>             </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679124585"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.ByteString.Lazy.Internal.html#ByteString"><span class="hs-identifier hs-type">ByteString</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-170"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Data.ByteString.Lazy.ReadInt.html#_readDecimal"><span class="hs-pragma hs-type">_readDecimal</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-171"></span><span id="_readDecimal"><span class="annot"><span class="annottext">_readDecimal :: forall a.
+(Integral a, Bounded a) =&gt;
+Word64 -&gt; ByteString -&gt; Word64 -&gt; Maybe (a, ByteString)
+</span><a href="Data.ByteString.Lazy.ReadInt.html#_readDecimal"><span class="hs-identifier hs-var hs-var">_readDecimal</span></a></span></span><span> </span><span class="hs-glyph">!</span><span id="local-6989586621679124777"><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679124777"><span class="hs-identifier hs-var">r</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; Word64 -&gt; Maybe (a, ByteString)
+</span><a href="#local-6989586621679124778"><span class="hs-identifier hs-var">consume</span></a></span><span>
+</span><span id="line-172"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-173"></span><span>    </span><span class="annot"><a href="#local-6989586621679124778"><span class="hs-identifier hs-type">consume</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Data.ByteString.Lazy.Internal.html#ByteString"><span class="hs-identifier hs-type">ByteString</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word64</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679124585"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.ByteString.Lazy.Internal.html#ByteString"><span class="hs-identifier hs-type">ByteString</span></a></span><span class="hs-special">)</span><span class="hs-cpp">
+#ifdef BYTESTRING_STRICT
+</span><span>    </span><span class="hs-identifier">consume</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">BS</span><span> </span><span class="hs-identifier">fp</span><span> </span><span class="hs-identifier">len</span><span class="hs-special">)</span><span> </span><span class="hs-identifier">a</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="hs-identifier">_digits</span><span> </span><span class="hs-identifier">q</span><span> </span><span class="hs-identifier">r</span><span> </span><span class="hs-identifier">fp</span><span> </span><span class="hs-identifier">len</span><span> </span><span class="hs-identifier">a</span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-176"></span><span>        </span><span class="hs-identifier">Result</span><span> </span><span class="hs-identifier">used</span><span> </span><span class="hs-identifier">acc</span><span>
+</span><span id="line-177"></span><span>            </span><span class="hs-glyph">|</span><span> </span><span class="hs-identifier">used</span><span> </span><span class="hs-operator">==</span><span> </span><span class="hs-identifier">len</span><span>
+</span><span id="line-178"></span><span>              </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">convert</span><span> </span><span class="hs-identifier">acc</span><span> </span><span class="hs-identifier">empty</span><span>
+</span><span id="line-179"></span><span>            </span><span class="hs-glyph">|</span><span> </span><span class="hs-identifier">otherwise</span><span>
+</span><span id="line-180"></span><span>              </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">convert</span><span> </span><span class="hs-identifier">acc</span><span> </span><span class="hs-operator">$</span><span> </span><span class="hs-identifier">BS</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">fp</span><span> </span><span class="hs-special">`</span><span class="hs-identifier">plusForeignPtr</span><span class="hs-special">`</span><span> </span><span class="hs-identifier">used</span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">len</span><span> </span><span class="hs-glyph">-</span><span> </span><span class="hs-identifier">used</span><span class="hs-special">)</span><span>
+</span><span id="line-181"></span><span>        </span><span class="hs-identifier">_</span><span>   </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">Nothing</span><span class="hs-cpp">
+#else
+</span><span>    </span><span class="hs-comment">-- All done</span><span>
+</span><span id="line-184"></span><span>    </span><span id="local-6989586621679124778"><span class="annot"><span class="annottext">consume :: ByteString -&gt; Word64 -&gt; Maybe (a, ByteString)
+</span><a href="#local-6989586621679124778"><span class="hs-identifier hs-var hs-var">consume</span></a></span></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="Data.ByteString.Lazy.Internal.html#Empty"><span class="hs-identifier hs-var">Empty</span></a></span><span> </span><span id="local-6989586621679124780"><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679124780"><span class="hs-identifier hs-var">acc</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word64 -&gt; ByteString -&gt; Maybe (a, ByteString)
+</span><a href="#local-6989586621679124781"><span class="hs-identifier hs-var">convert</span></a></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679124780"><span class="hs-identifier hs-var">acc</span></a></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="Data.ByteString.Lazy.Internal.html#Empty"><span class="hs-identifier hs-var">Empty</span></a></span><span>
+</span><span id="line-185"></span><span>    </span><span class="hs-comment">-- Process next chunk</span><span>
+</span><span id="line-186"></span><span>    </span><span class="annot"><a href="#local-6989586621679124778"><span class="hs-identifier hs-var">consume</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.ByteString.Lazy.Internal.html#Chunk"><span class="hs-identifier hs-type">Chunk</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.ByteString.Internal.Type.html#BS"><span class="hs-identifier hs-type">BS</span></a></span><span> </span><span id="local-6989586621679124783"><span class="annot"><span class="annottext">ForeignPtr Word8
+</span><a href="#local-6989586621679124783"><span class="hs-identifier hs-var">fp</span></a></span></span><span> </span><span id="local-6989586621679124784"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679124784"><span class="hs-identifier hs-var">len</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621679124785"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679124785"><span class="hs-identifier hs-var">cs</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621679124786"><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679124786"><span class="hs-identifier hs-var">acc</span></a></span></span><span>
+</span><span id="line-187"></span><span>        </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Word64 -&gt; Word64 -&gt; ForeignPtr Word8 -&gt; Int -&gt; Word64 -&gt; Result
+</span><a href="Data.ByteString.Lazy.ReadInt.html#_digits"><span class="hs-identifier hs-var">_digits</span></a></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679124788"><span class="hs-identifier hs-var">q</span></a></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679124777"><span class="hs-identifier hs-var">r</span></a></span><span> </span><span class="annot"><span class="annottext">ForeignPtr Word8
+</span><a href="#local-6989586621679124783"><span class="hs-identifier hs-var">fp</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679124784"><span class="hs-identifier hs-var">len</span></a></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679124786"><span class="hs-identifier hs-var">acc</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-188"></span><span>            </span><span class="annot"><a href="Data.ByteString.Lazy.ReadInt.html#Result"><span class="hs-identifier hs-type">Result</span></a></span><span> </span><span id="local-6989586621679124789"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679124789"><span class="hs-identifier hs-var">used</span></a></span></span><span> </span><span id="local-6989586621679124790"><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679124790"><span class="hs-identifier hs-var">acc'</span></a></span></span><span>
+</span><span id="line-189"></span><span>                </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679124789"><span class="hs-identifier hs-var">used</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><a href="../../ghc-prim-0.12.0-595c/src/GHC.Classes.html#%3D%3D"><span class="hs-operator hs-var">==</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679124784"><span class="hs-identifier hs-var">len</span></a></span><span>
+</span><span id="line-190"></span><span>                  </span><span class="hs-comment">-- process remaining chunks</span><span>
+</span><span id="line-191"></span><span>                  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; Word64 -&gt; Maybe (a, ByteString)
+</span><a href="#local-6989586621679124778"><span class="hs-identifier hs-var">consume</span></a></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679124785"><span class="hs-identifier hs-var">cs</span></a></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679124790"><span class="hs-identifier hs-var">acc'</span></a></span><span>
+</span><span id="line-192"></span><span>                </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span>
+</span><span id="line-193"></span><span>                  </span><span class="hs-comment">-- ran into a non-digit</span><span>
+</span><span id="line-194"></span><span>                  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word64 -&gt; ByteString -&gt; Maybe (a, ByteString)
+</span><a href="#local-6989586621679124781"><span class="hs-identifier hs-var">convert</span></a></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679124790"><span class="hs-identifier hs-var">acc'</span></a></span><span> </span><span class="annot"><span class="annottext">(ByteString -&gt; Maybe (a, ByteString))
+-&gt; ByteString -&gt; Maybe (a, ByteString)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-195"></span><span>                     </span><span class="annot"><span class="annottext">ByteString -&gt; ByteString -&gt; ByteString
+</span><a href="Data.ByteString.Lazy.Internal.html#Chunk"><span class="hs-identifier hs-var">Chunk</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ForeignPtr Word8 -&gt; Int -&gt; ByteString
+</span><a href="Data.ByteString.Internal.Type.html#BS"><span class="hs-identifier hs-var">BS</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">ForeignPtr Word8
+</span><a href="#local-6989586621679124783"><span class="hs-identifier hs-var">fp</span></a></span><span> </span><span class="annot"><span class="annottext">ForeignPtr Word8 -&gt; Int -&gt; ForeignPtr Word8
+forall a b. ForeignPtr a -&gt; Int -&gt; ForeignPtr b
+</span><span class="hs-operator hs-var">`plusForeignPtr`</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679124789"><span class="hs-identifier hs-var">used</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679124784"><span class="hs-identifier hs-var">len</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679124789"><span class="hs-identifier hs-var">used</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679124785"><span class="hs-identifier hs-var">cs</span></a></span><span>
+</span><span id="line-196"></span><span>            </span><span class="annot"><span class="annottext">Result
+</span><span class="hs-identifier">_</span></span><span>     </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Maybe (a, ByteString)
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span class="hs-cpp">
+#endif
+</span><span>    </span><span class="annot"><a href="#local-6989586621679124781"><span class="hs-identifier hs-type">convert</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word64</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Data.ByteString.Lazy.Internal.html#ByteString"><span class="hs-identifier hs-type">ByteString</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679124585"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.ByteString.Lazy.Internal.html#ByteString"><span class="hs-identifier hs-type">ByteString</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-199"></span><span>    </span><span id="local-6989586621679124781"><span class="annot"><span class="annottext">convert :: Word64 -&gt; ByteString -&gt; Maybe (a, ByteString)
+</span><a href="#local-6989586621679124781"><span class="hs-identifier hs-var hs-var">convert</span></a></span></span><span> </span><span class="hs-glyph">!</span><span id="local-6989586621679124791"><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679124791"><span class="hs-identifier hs-var">acc</span></a></span></span><span> </span><span id="local-6989586621679124792"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679124792"><span class="hs-identifier hs-var">rest</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-200"></span><span>        </span><span class="hs-keyword">let</span><span> </span><span class="hs-glyph">!</span><span id="local-6989586621679124801"><span class="annot"><span class="annottext">i :: a
+</span><a href="#local-6989586621679124801"><span class="hs-identifier hs-var hs-var">i</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679124777"><span class="hs-identifier hs-var">r</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-201"></span><span>                </span><span class="hs-comment">-- minBound @Int* `mod` 10 == 8</span><span>
+</span><span id="line-202"></span><span>                </span><span class="annot"><span class="annottext">Word64
+</span><span class="hs-number">8</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">a -&gt; a
+forall a. Num a =&gt; a -&gt; a
+</span><span class="hs-identifier hs-var">negate</span></span><span> </span><span class="annot"><span class="annottext">(a -&gt; a) -&gt; a -&gt; a
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="hs-glyph">@</span><span class="annot"><span class="hs-identifier hs-type">Word64</span></span><span> </span><span class="hs-glyph">@</span><span class="annot"><a href="#local-6989586621679124585"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679124791"><span class="hs-identifier hs-var">acc</span></a></span><span>
+</span><span id="line-203"></span><span>                </span><span class="annot"><span class="annottext">Word64
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="hs-glyph">@</span><span class="annot"><span class="hs-identifier hs-type">Word64</span></span><span> </span><span class="hs-glyph">@</span><span class="annot"><a href="#local-6989586621679124585"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679124791"><span class="hs-identifier hs-var">acc</span></a></span><span>
+</span><span id="line-204"></span><span>         </span><span class="hs-keyword">in</span><span> </span><span class="annot"><span class="annottext">(a, ByteString) -&gt; Maybe (a, ByteString)
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679124801"><span class="hs-identifier hs-var">i</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679124792"><span class="hs-identifier hs-var">rest</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-205"></span><span>
+</span><span id="line-206"></span><span>    </span><span class="hs-comment">-- The quotient of 'maxBound' divided by 10 is needed for</span><span>
+</span><span id="line-207"></span><span>    </span><span class="hs-comment">-- overflow checks, once the accumulator exceeds this value</span><span>
+</span><span id="line-208"></span><span>    </span><span class="hs-comment">-- no further digits can be added.  If equal, the last digit</span><span>
+</span><span id="line-209"></span><span>    </span><span class="hs-comment">-- must not exceed the `r` value (max/min bound `mod` 10).</span><span>
+</span><span id="line-210"></span><span>    </span><span class="hs-comment">--</span><span>
+</span><span id="line-211"></span><span>    </span><span id="local-6989586621679124788"><span class="annot"><span class="annottext">q :: Word64
+</span><a href="#local-6989586621679124788"><span class="hs-identifier hs-var hs-var">q</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="hs-glyph">@</span><span class="annot"><a href="#local-6989586621679124585"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">@</span><span class="annot"><span class="hs-identifier hs-type">Word64</span></span><span> </span><span class="annot"><span class="annottext">a
+forall a. Bounded a =&gt; a
+</span><span class="hs-identifier hs-var">maxBound</span></span><span> </span><span class="annot"><span class="annottext">Word64 -&gt; Word64 -&gt; Word64
+forall a. Integral a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">`div`</span></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><span class="hs-number">10</span></span><span>
+</span><span id="line-212"></span><span>
+</span><span id="line-213"></span><span class="hs-comment">----- Per chunk decoder</span><span>
+</span><span id="line-214"></span><span>
+</span><span id="line-215"></span><span class="hs-comment">-- | Process as many digits as we can, returning the additional</span><span>
+</span><span id="line-216"></span><span class="hs-comment">-- number of digits found and the updated accumulator.  If the</span><span>
+</span><span id="line-217"></span><span class="hs-comment">-- accumulator would overflow return 'Overflow'.</span><span>
+</span><span id="line-218"></span><span class="hs-comment">--</span><span>
+</span><span id="line-219"></span><span class="annot"><a href="Data.ByteString.Lazy.ReadInt.html#_digits"><span class="hs-identifier hs-type">_digits</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word64</span></span><span>           </span><span class="annot"><span class="hs-comment">-- ^ maximum non-overflow value `div` 10</span></span><span>
+</span><span id="line-220"></span><span>        </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word64</span></span><span>           </span><span class="annot"><span class="hs-comment">-- ^ maximum non-overflow vavlue `mod` 10</span></span><span>
+</span><span id="line-221"></span><span>        </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ForeignPtr</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word8</span></span><span> </span><span class="annot"><span class="hs-comment">-- ^ Input buffer</span></span><span>
+</span><span id="line-222"></span><span>        </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="../../ghc-prim-0.12.0-595c/src/GHC.Types.html#Int"><span class="hs-identifier hs-type">Int</span></a></span><span>              </span><span class="annot"><span class="hs-comment">-- ^ Input length</span></span><span>
+</span><span id="line-223"></span><span>        </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word64</span></span><span>           </span><span class="annot"><span class="hs-comment">-- ^ Accumulated value of leading digits</span></span><span>
+</span><span id="line-224"></span><span>        </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Data.ByteString.Lazy.ReadInt.html#Result"><span class="hs-identifier hs-type">Result</span></a></span><span>           </span><span class="hs-comment">-- ^ Bytes read and final accumulator,</span><span>
+</span><span id="line-225"></span><span>                            </span><span class="hs-comment">-- or else overflow indication</span><span>
+</span><span id="line-226"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Data.ByteString.Lazy.ReadInt.html#_digits"><span class="hs-pragma hs-type">_digits</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-227"></span><span id="_digits"><span class="annot"><span class="annottext">_digits :: Word64 -&gt; Word64 -&gt; ForeignPtr Word8 -&gt; Int -&gt; Word64 -&gt; Result
+</span><a href="Data.ByteString.Lazy.ReadInt.html#_digits"><span class="hs-identifier hs-var hs-var">_digits</span></a></span></span><span> </span><span class="hs-glyph">!</span><span id="local-6989586621679124814"><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679124814"><span class="hs-identifier hs-var">q</span></a></span></span><span> </span><span class="hs-glyph">!</span><span id="local-6989586621679124815"><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679124815"><span class="hs-identifier hs-var">r</span></a></span></span><span> </span><span id="local-6989586621679124816"><span class="annot"><span class="annottext">ForeignPtr Word8
+</span><a href="#local-6989586621679124816"><span class="hs-identifier hs-var">fp</span></a></span></span><span> </span><span id="local-6989586621679124817"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679124817"><span class="hs-identifier hs-var">len</span></a></span></span><span> </span><span id="local-6989586621679124818"><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679124818"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">IO Result -&gt; Result
+forall a. IO a -&gt; a
+</span><a href="Data.ByteString.Internal.Type.html#accursedUnutterablePerformIO"><span class="hs-identifier hs-var">BI.accursedUnutterablePerformIO</span></a></span><span> </span><span class="annot"><span class="annottext">(IO Result -&gt; Result) -&gt; IO Result -&gt; Result
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-228"></span><span>    </span><span class="annot"><span class="annottext">ForeignPtr Word8 -&gt; (Ptr Word8 -&gt; IO Result) -&gt; IO Result
+forall a b. ForeignPtr a -&gt; (Ptr a -&gt; IO b) -&gt; IO b
+</span><span class="hs-identifier hs-var">BI.unsafeWithForeignPtr</span></span><span> </span><span class="annot"><span class="annottext">ForeignPtr Word8
+</span><a href="#local-6989586621679124816"><span class="hs-identifier hs-var">fp</span></a></span><span> </span><span class="annot"><span class="annottext">((Ptr Word8 -&gt; IO Result) -&gt; IO Result)
+-&gt; (Ptr Word8 -&gt; IO Result) -&gt; IO Result
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span> </span><span id="local-6989586621679124821"><span class="annot"><span class="annottext">Ptr Word8
+</span><a href="#local-6989586621679124821"><span class="hs-identifier hs-var">ptr</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-229"></span><span>        </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679124822"><span class="annot"><span class="annottext">end :: Ptr b
+</span><a href="#local-6989586621679124822"><span class="hs-identifier hs-var hs-var">end</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Ptr Word8
+</span><a href="#local-6989586621679124821"><span class="hs-identifier hs-var">ptr</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr Word8 -&gt; Int -&gt; Ptr b
+forall a b. Ptr a -&gt; Int -&gt; Ptr b
+</span><span class="hs-operator hs-var">`plusPtr`</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679124817"><span class="hs-identifier hs-var">len</span></a></span><span>
+</span><span id="line-230"></span><span>        </span><span class="annot"><span class="annottext">Ptr Word8 -&gt; Ptr Word8 -&gt; Ptr Word8 -&gt; Word64 -&gt; IO Result
+forall {b}. Ptr b -&gt; Ptr Word8 -&gt; Ptr Word8 -&gt; Word64 -&gt; IO Result
+</span><a href="#local-6989586621679124823"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr Word8
+</span><a href="#local-6989586621679124821"><span class="hs-identifier hs-var">ptr</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr Word8
+forall {b}. Ptr b
+</span><a href="#local-6989586621679124822"><span class="hs-identifier hs-var">end</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr Word8
+</span><a href="#local-6989586621679124821"><span class="hs-identifier hs-var">ptr</span></a></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679124818"><span class="hs-identifier hs-var">a</span></a></span><span>
+</span><span id="line-231"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-232"></span><span>    </span><span id="local-6989586621679124823"><span class="annot"><span class="annottext">go :: Ptr b -&gt; Ptr Word8 -&gt; Ptr Word8 -&gt; Word64 -&gt; IO Result
+</span><a href="#local-6989586621679124823"><span class="hs-identifier hs-var hs-var">go</span></a></span></span><span> </span><span class="hs-glyph">!</span><span id="local-6989586621679124824"><span class="annot"><span class="annottext">Ptr b
+</span><a href="#local-6989586621679124824"><span class="hs-identifier hs-var">start</span></a></span></span><span> </span><span class="hs-glyph">!</span><span id="local-6989586621679124825"><span class="annot"><span class="annottext">Ptr Word8
+</span><a href="#local-6989586621679124825"><span class="hs-identifier hs-var">end</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Ptr Word8 -&gt; Word64 -&gt; IO Result
+</span><a href="#local-6989586621679124826"><span class="hs-identifier hs-var">loop</span></a></span><span>
+</span><span id="line-233"></span><span>      </span><span class="hs-keyword">where</span><span>
+</span><span id="line-234"></span><span>        </span><span id="local-6989586621679124826"><span class="annot"><span class="annottext">loop :: Ptr Word8 -&gt; Word64 -&gt; IO Result
+</span><a href="#local-6989586621679124826"><span class="hs-identifier hs-var hs-var">loop</span></a></span></span><span> </span><span class="hs-glyph">!</span><span id="local-6989586621679124848"><span class="annot"><span class="annottext">Ptr Word8
+</span><a href="#local-6989586621679124848"><span class="hs-identifier hs-var">ptr</span></a></span></span><span> </span><span class="hs-glyph">!</span><span id="local-6989586621679124849"><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679124849"><span class="hs-identifier hs-var">acc</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">IO Word64
+</span><a href="#local-6989586621679124850"><span class="hs-identifier hs-var">getDigit</span></a></span><span> </span><span class="annot"><span class="annottext">IO Word64 -&gt; (Word64 -&gt; IO Result) -&gt; IO Result
+forall a b. IO a -&gt; (a -&gt; IO b) -&gt; IO b
+forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; (a -&gt; m b) -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;=</span></span><span> </span><span class="hs-glyph">\</span><span> </span><span class="hs-glyph">!</span><span id="local-6989586621679124851"><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679124851"><span class="hs-identifier hs-var">d</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-235"></span><span>            </span><span class="hs-keyword">if</span><span> </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679124851"><span class="hs-identifier hs-var">d</span></a></span><span> </span><span class="annot"><span class="annottext">Word64 -&gt; Word64 -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><a href="../../ghc-prim-0.12.0-595c/src/GHC.Classes.html#%3E"><span class="hs-operator hs-var">&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><span class="hs-number">9</span></span><span>
+</span><span id="line-236"></span><span>                 </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Result -&gt; IO Result
+forall a. a -&gt; IO a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">(Result -&gt; IO Result) -&gt; Result -&gt; IO Result
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Word64 -&gt; Result
+</span><a href="Data.ByteString.Lazy.ReadInt.html#Result"><span class="hs-identifier hs-var">Result</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Ptr Word8
+</span><a href="#local-6989586621679124848"><span class="hs-identifier hs-var">ptr</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr Word8 -&gt; Ptr b -&gt; Int
+forall a b. Ptr a -&gt; Ptr b -&gt; Int
+</span><span class="hs-operator hs-var">`minusPtr`</span></span><span> </span><span class="annot"><span class="annottext">Ptr b
+</span><a href="#local-6989586621679124824"><span class="hs-identifier hs-var">start</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679124849"><span class="hs-identifier hs-var">acc</span></a></span><span>
+</span><span id="line-237"></span><span>               </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679124849"><span class="hs-identifier hs-var">acc</span></a></span><span> </span><span class="annot"><span class="annottext">Word64 -&gt; Word64 -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><a href="../../ghc-prim-0.12.0-595c/src/GHC.Classes.html#%3C"><span class="hs-operator hs-var">&lt;</span></a></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679124814"><span class="hs-identifier hs-var">q</span></a></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><a href="../../ghc-prim-0.12.0-595c/src/GHC.Classes.html#%7C%7C"><span class="hs-operator hs-var">||</span></a></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679124849"><span class="hs-identifier hs-var">acc</span></a></span><span> </span><span class="annot"><span class="annottext">Word64 -&gt; Word64 -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><a href="../../ghc-prim-0.12.0-595c/src/GHC.Classes.html#%3D%3D"><span class="hs-operator hs-var">==</span></a></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679124814"><span class="hs-identifier hs-var">q</span></a></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><a href="../../ghc-prim-0.12.0-595c/src/GHC.Classes.html#%26%26"><span class="hs-operator hs-var">&amp;&amp;</span></a></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679124851"><span class="hs-identifier hs-var">d</span></a></span><span> </span><span class="annot"><span class="annottext">Word64 -&gt; Word64 -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><a href="../../ghc-prim-0.12.0-595c/src/GHC.Classes.html#%3C%3D"><span class="hs-operator hs-var">&lt;=</span></a></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679124815"><span class="hs-identifier hs-var">r</span></a></span><span>
+</span><span id="line-238"></span><span>                 </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Ptr Word8 -&gt; Word64 -&gt; IO Result
+</span><a href="#local-6989586621679124826"><span class="hs-identifier hs-var">loop</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Ptr Word8
+</span><a href="#local-6989586621679124848"><span class="hs-identifier hs-var">ptr</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr Word8 -&gt; Int -&gt; Ptr Word8
+forall a b. Ptr a -&gt; Int -&gt; Ptr b
+</span><span class="hs-operator hs-var">`plusPtr`</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679124849"><span class="hs-identifier hs-var">acc</span></a></span><span> </span><span class="annot"><span class="annottext">Word64 -&gt; Word64 -&gt; Word64
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">*</span></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><span class="hs-number">10</span></span><span> </span><span class="annot"><span class="annottext">Word64 -&gt; Word64 -&gt; Word64
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621679124851"><span class="hs-identifier hs-var">d</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-239"></span><span>               </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span>
+</span><span id="line-240"></span><span>                 </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Result -&gt; IO Result
+forall a. a -&gt; IO a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">Result
+</span><a href="Data.ByteString.Lazy.ReadInt.html#Overflow"><span class="hs-identifier hs-var">Overflow</span></a></span><span>
+</span><span id="line-241"></span><span>          </span><span class="hs-keyword">where</span><span>
+</span><span id="line-242"></span><span>            </span><span class="annot"><a href="#local-6989586621679124850"><span class="hs-identifier hs-type">getDigit</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="../../ghc-prim-0.12.0-595c/src/GHC.Types.html#IO"><span class="hs-identifier hs-type">IO</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word64</span></span><span>
+</span><span id="line-243"></span><span>            </span><span id="local-6989586621679124850"><span class="annot"><span class="annottext">getDigit :: IO Word64
+</span><a href="#local-6989586621679124850"><span class="hs-identifier hs-var hs-var">getDigit</span></a></span></span><span>
+</span><span id="line-244"></span><span>                </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Ptr Word8
+</span><a href="#local-6989586621679124848"><span class="hs-identifier hs-var">ptr</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr Word8 -&gt; Ptr Word8 -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><a href="../../ghc-prim-0.12.0-595c/src/GHC.Classes.html#%2F%3D"><span class="hs-operator hs-var">/=</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr Word8
+</span><a href="#local-6989586621679124825"><span class="hs-identifier hs-var">end</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word8 -&gt; Word64
+</span><a href="Data.ByteString.Lazy.ReadInt.html#fromDigit"><span class="hs-identifier hs-var">fromDigit</span></a></span><span> </span><span class="annot"><span class="annottext">(Word8 -&gt; Word64) -&gt; IO Word8 -&gt; IO Word64
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">Ptr Word8 -&gt; IO Word8
+forall a. Storable a =&gt; Ptr a -&gt; IO a
+</span><span class="hs-identifier hs-var">peek</span></span><span> </span><span class="annot"><span class="annottext">Ptr Word8
+</span><a href="#local-6989586621679124848"><span class="hs-identifier hs-var">ptr</span></a></span><span>
+</span><span id="line-245"></span><span>                </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word64 -&gt; IO Word64
+forall a. a -&gt; IO a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><span class="hs-number">10</span></span><span>  </span><span class="hs-comment">-- End of input</span><span>
+</span><span id="line-246"></span><span>            </span><span class="hs-pragma">{-# NOINLINE</span><span> </span><span class="annot"><a href="#local-6989586621679124850"><span class="hs-pragma hs-type">getDigit</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-247"></span><span>            </span><span class="hs-comment">-- 'getDigit' makes it possible to implement a single success</span><span>
+</span><span id="line-248"></span><span>            </span><span class="hs-comment">-- exit point from the loop.  If instead we return 'Result'</span><span>
+</span><span id="line-249"></span><span>            </span><span class="hs-comment">-- from multiple places, when '_digits' is inlined we get (at</span><span>
+</span><span id="line-250"></span><span>            </span><span class="hs-comment">-- least GHC 8.10 through 9.2) for each exit path a separate</span><span>
+</span><span id="line-251"></span><span>            </span><span class="hs-comment">-- join point implementing the continuation code.  GHC ticket</span><span>
+</span><span id="line-252"></span><span>            </span><span class="hs-comment">-- &lt;https://gitlab.haskell.org/ghc/ghc/-/issues/20739&gt;.</span><span>
+</span><span id="line-253"></span><span>            </span><span class="hs-comment">--</span><span>
+</span><span id="line-254"></span><span>            </span><span class="hs-comment">-- The NOINLINE pragma is required to avoid inlining branches</span><span>
+</span><span id="line-255"></span><span>            </span><span class="hs-comment">-- that would restore multiple exit points.</span><span>
+</span><span id="line-256"></span><span>
+</span><span id="line-257"></span><span class="annot"><a href="Data.ByteString.Lazy.ReadInt.html#fromDigit"><span class="hs-identifier hs-type">fromDigit</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word8</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word64</span></span><span>
+</span><span id="line-258"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Data.ByteString.Lazy.ReadInt.html#fromDigit"><span class="hs-pragma hs-type">fromDigit</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-259"></span><span id="fromDigit"><span class="annot"><span class="annottext">fromDigit :: Word8 -&gt; Word64
+</span><a href="Data.ByteString.Lazy.ReadInt.html#fromDigit"><span class="hs-identifier hs-var hs-var">fromDigit</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span> </span><span class="hs-glyph">!</span><span id="local-6989586621679124860"><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679124860"><span class="hs-identifier hs-var">w</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Word8 -&gt; Word64
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="annot"><span class="annottext">Word8
+</span><a href="#local-6989586621679124860"><span class="hs-identifier hs-var">w</span></a></span><span> </span><span class="annot"><span class="annottext">Word64 -&gt; Word64 -&gt; Word64
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><span class="hs-number">0x30</span></span><span> </span><span class="hs-comment">-- i.e. w - '0'</span><span>
+</span><span id="line-260"></span></pre></body></html>

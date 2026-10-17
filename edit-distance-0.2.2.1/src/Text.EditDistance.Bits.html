@@ -1,0 +1,971 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE PatternGuards, ScopedTypeVariables, BangPatterns, Rank2Types #-}</span><span>
+</span><span id="line-2"></span><span>
+</span><span id="line-3"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Text.EditDistance.Bits.html"><span class="hs-identifier">Text.EditDistance.Bits</span></a></span><span> </span><span class="hs-special">(</span><span>
+</span><span id="line-4"></span><span>        </span><span class="annot"><a href="Text.EditDistance.Bits.html#levenshteinDistance"><span class="hs-identifier">levenshteinDistance</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Text.EditDistance.Bits.html#levenshteinDistanceWithLengths"><span class="hs-identifier">levenshteinDistanceWithLengths</span></a></span><span class="hs-special">,</span><span> </span><span class="hs-comment">{-levenshteinDistanceCutoff,-}</span><span> </span><span class="annot"><a href="Text.EditDistance.Bits.html#restrictedDamerauLevenshteinDistance"><span class="hs-identifier">restrictedDamerauLevenshteinDistance</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Text.EditDistance.Bits.html#restrictedDamerauLevenshteinDistanceWithLengths"><span class="hs-identifier">restrictedDamerauLevenshteinDistanceWithLengths</span></a></span><span>
+</span><span id="line-5"></span><span>    </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-6"></span><span>
+</span><span id="line-7"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Bits</span></span><span>
+</span><span id="line-8"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Char</span></span><span>
+</span><span id="line-9"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Word</span></span><span>
+</span><span id="line-10"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.List</span></span><span>
+</span><span id="line-11"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.IntMap</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">IM</span></span><span>
+</span><span id="line-12"></span><span>
+</span><span id="line-13"></span><span class="hs-comment">--import Debug.Trace</span><span>
+</span><span id="line-14"></span><span>
+</span><span id="line-15"></span><span class="hs-comment">--type BitVector = Integer</span><span>
+</span><span id="line-16"></span><span>
+</span><span id="line-17"></span><span class="hs-comment">-- Continuation-passing foldl's to work around the lack of recursive CPR optimisation in GHC</span><span>
+</span><span id="line-18"></span><span>
+</span><span id="line-19"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Text.EditDistance.Bits.html#foldl%273k"><span class="hs-pragma hs-type">foldl'3k</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-20"></span><span id="local-6989586621679057296"><span id="local-6989586621679057297"><span id="local-6989586621679057298"><span id="local-6989586621679057299"><span class="annot"><a href="Text.EditDistance.Bits.html#foldl%273k"><span class="hs-identifier hs-type">foldl'3k</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="hs-keyword">forall</span><span> </span><span id="local-6989586621679057300"><span class="annot"><a href="#local-6989586621679057300"><span class="hs-identifier hs-type">res</span></a></span></span><span class="hs-operator">.</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679057296"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679057297"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679057298"><span class="hs-identifier hs-type">c</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679057299"><span class="hs-identifier hs-type">x</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679057296"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679057297"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679057298"><span class="hs-identifier hs-type">c</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679057300"><span class="hs-identifier hs-type">res</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679057300"><span class="hs-identifier hs-type">res</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-21"></span><span>         </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679057296"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679057297"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679057298"><span class="hs-identifier hs-type">c</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="#local-6989586621679057299"><span class="hs-identifier hs-type">x</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679057296"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679057297"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679057298"><span class="hs-identifier hs-type">c</span></a></span><span class="hs-special">)</span></span></span></span></span><span>
+</span><span id="line-22"></span><span id="foldl%273k"><span class="annot"><span class="annottext">foldl'3k :: forall a b c x.
+(forall res. (a, b, c) -&gt; x -&gt; ((a, b, c) -&gt; res) -&gt; res)
+-&gt; (a, b, c) -&gt; [x] -&gt; (a, b, c)
+</span><a href="Text.EditDistance.Bits.html#foldl%273k"><span class="hs-identifier hs-var hs-var">foldl'3k</span></a></span></span><span> </span><span id="local-6989586621679057444"><span class="annot"><span class="annottext">forall res. (a, b, c) -&gt; x -&gt; ((a, b, c) -&gt; res) -&gt; res
+</span><a href="#local-6989586621679057444"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(a, b, c) -&gt; [x] -&gt; (a, b, c)
+</span><a href="#local-6989586621679057445"><span class="hs-identifier hs-var">go</span></a></span><span>
+</span><span id="line-23"></span><span>  </span><span class="hs-keyword">where</span><span> </span><span id="local-6989586621679057445"><span class="annot"><span class="annottext">go :: (a, b, c) -&gt; [x] -&gt; (a, b, c)
+</span><a href="#local-6989586621679057445"><span class="hs-identifier hs-var hs-var">go</span></a></span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">!</span><span class="annot"><span class="annottext">a
+</span><span class="hs-identifier">_</span></span><span class="hs-special">,</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="annottext">b
+</span><span class="hs-identifier">_</span></span><span class="hs-special">,</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="annottext">c
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">[x]
+</span><span class="hs-identifier">_</span></span><span>      </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(a, b, c)
+forall a. HasCallStack =&gt; a
+</span><span class="hs-identifier hs-var">undefined</span></span><span>
+</span><span id="line-24"></span><span>        </span><span class="annot"><a href="#local-6989586621679057445"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="hs-special">(</span><span> </span><span id="local-6989586621679057449"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679057449"><span class="hs-identifier hs-var">a</span></a></span></span><span class="hs-special">,</span><span>  </span><span id="local-6989586621679057450"><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679057450"><span class="hs-identifier hs-var">b</span></a></span></span><span class="hs-special">,</span><span>  </span><span id="local-6989586621679057451"><span class="annot"><span class="annottext">c
+</span><a href="#local-6989586621679057451"><span class="hs-identifier hs-var">c</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span>     </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679057449"><span class="hs-identifier hs-var">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679057450"><span class="hs-identifier hs-var">b</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">c
+</span><a href="#local-6989586621679057451"><span class="hs-identifier hs-var">c</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-25"></span><span>        </span><span class="annot"><a href="#local-6989586621679057445"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="hs-special">(</span><span> </span><span id="local-6989586621679057452"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679057452"><span class="hs-identifier hs-var">a</span></a></span></span><span class="hs-special">,</span><span>  </span><span id="local-6989586621679057453"><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679057453"><span class="hs-identifier hs-var">b</span></a></span></span><span class="hs-special">,</span><span>  </span><span id="local-6989586621679057454"><span class="annot"><span class="annottext">c
+</span><a href="#local-6989586621679057454"><span class="hs-identifier hs-var">c</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679057455"><span class="annot"><span class="annottext">x
+</span><a href="#local-6989586621679057455"><span class="hs-identifier hs-var">x</span></a></span></span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span id="local-6989586621679057456"><span class="annot"><span class="annottext">[x]
+</span><a href="#local-6989586621679057456"><span class="hs-identifier hs-var">xs</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(a, b, c) -&gt; x -&gt; ((a, b, c) -&gt; (a, b, c)) -&gt; (a, b, c)
+forall res. (a, b, c) -&gt; x -&gt; ((a, b, c) -&gt; res) -&gt; res
+</span><a href="#local-6989586621679057444"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679057452"><span class="hs-identifier hs-var">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679057453"><span class="hs-identifier hs-var">b</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">c
+</span><a href="#local-6989586621679057454"><span class="hs-identifier hs-var">c</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">x
+</span><a href="#local-6989586621679057455"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">(((a, b, c) -&gt; (a, b, c)) -&gt; (a, b, c))
+-&gt; ((a, b, c) -&gt; (a, b, c)) -&gt; (a, b, c)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679057457"><span class="annot"><span class="annottext">(a, b, c)
+</span><a href="#local-6989586621679057457"><span class="hs-identifier hs-var">abc</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">(a, b, c) -&gt; [x] -&gt; (a, b, c)
+</span><a href="#local-6989586621679057445"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">(a, b, c)
+</span><a href="#local-6989586621679057457"><span class="hs-identifier hs-var">abc</span></a></span><span> </span><span class="annot"><span class="annottext">[x]
+</span><a href="#local-6989586621679057456"><span class="hs-identifier hs-var">xs</span></a></span><span>
+</span><span id="line-26"></span><span>
+</span><span id="line-27"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Text.EditDistance.Bits.html#foldl%275k"><span class="hs-pragma hs-type">foldl'5k</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-28"></span><span id="local-6989586621679057311"><span id="local-6989586621679057312"><span id="local-6989586621679057313"><span id="local-6989586621679057314"><span id="local-6989586621679057315"><span id="local-6989586621679057316"><span class="annot"><a href="Text.EditDistance.Bits.html#foldl%275k"><span class="hs-identifier hs-type">foldl'5k</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="hs-keyword">forall</span><span> </span><span id="local-6989586621679057317"><span class="annot"><a href="#local-6989586621679057317"><span class="hs-identifier hs-type">res</span></a></span></span><span class="hs-operator">.</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679057311"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679057312"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679057313"><span class="hs-identifier hs-type">c</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679057314"><span class="hs-identifier hs-type">d</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679057315"><span class="hs-identifier hs-type">e</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679057316"><span class="hs-identifier hs-type">x</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679057311"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679057312"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679057313"><span class="hs-identifier hs-type">c</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679057314"><span class="hs-identifier hs-type">d</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679057315"><span class="hs-identifier hs-type">e</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679057317"><span class="hs-identifier hs-type">res</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679057317"><span class="hs-identifier hs-type">res</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-29"></span><span>         </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679057311"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679057312"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679057313"><span class="hs-identifier hs-type">c</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679057314"><span class="hs-identifier hs-type">d</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679057315"><span class="hs-identifier hs-type">e</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="#local-6989586621679057316"><span class="hs-identifier hs-type">x</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679057311"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679057312"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679057313"><span class="hs-identifier hs-type">c</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679057314"><span class="hs-identifier hs-type">d</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679057315"><span class="hs-identifier hs-type">e</span></a></span><span class="hs-special">)</span></span></span></span></span></span></span><span>
+</span><span id="line-30"></span><span id="foldl%275k"><span class="annot"><span class="annottext">foldl'5k :: forall a b c d e x.
+(forall res.
+ (a, b, c, d, e) -&gt; x -&gt; ((a, b, c, d, e) -&gt; res) -&gt; res)
+-&gt; (a, b, c, d, e) -&gt; [x] -&gt; (a, b, c, d, e)
+</span><a href="Text.EditDistance.Bits.html#foldl%275k"><span class="hs-identifier hs-var hs-var">foldl'5k</span></a></span></span><span> </span><span id="local-6989586621679057459"><span class="annot"><span class="annottext">forall res. (a, b, c, d, e) -&gt; x -&gt; ((a, b, c, d, e) -&gt; res) -&gt; res
+</span><a href="#local-6989586621679057459"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(a, b, c, d, e) -&gt; [x] -&gt; (a, b, c, d, e)
+</span><a href="#local-6989586621679057460"><span class="hs-identifier hs-var">go</span></a></span><span>
+</span><span id="line-31"></span><span>  </span><span class="hs-keyword">where</span><span> </span><span id="local-6989586621679057460"><span class="annot"><span class="annottext">go :: (a, b, c, d, e) -&gt; [x] -&gt; (a, b, c, d, e)
+</span><a href="#local-6989586621679057460"><span class="hs-identifier hs-var hs-var">go</span></a></span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">!</span><span class="annot"><span class="annottext">a
+</span><span class="hs-identifier">_</span></span><span class="hs-special">,</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="annottext">b
+</span><span class="hs-identifier">_</span></span><span class="hs-special">,</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="annottext">c
+</span><span class="hs-identifier">_</span></span><span class="hs-special">,</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="annottext">d
+</span><span class="hs-identifier">_</span></span><span class="hs-special">,</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="annottext">e
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">[x]
+</span><span class="hs-identifier">_</span></span><span>      </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(a, b, c, d, e)
+forall a. HasCallStack =&gt; a
+</span><span class="hs-identifier hs-var">undefined</span></span><span>
+</span><span id="line-32"></span><span>        </span><span class="annot"><a href="#local-6989586621679057460"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="hs-special">(</span><span> </span><span id="local-6989586621679057463"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679057463"><span class="hs-identifier hs-var">a</span></a></span></span><span class="hs-special">,</span><span>  </span><span id="local-6989586621679057464"><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679057464"><span class="hs-identifier hs-var">b</span></a></span></span><span class="hs-special">,</span><span>  </span><span id="local-6989586621679057465"><span class="annot"><span class="annottext">c
+</span><a href="#local-6989586621679057465"><span class="hs-identifier hs-var">c</span></a></span></span><span class="hs-special">,</span><span>  </span><span id="local-6989586621679057466"><span class="annot"><span class="annottext">d
+</span><a href="#local-6989586621679057466"><span class="hs-identifier hs-var">d</span></a></span></span><span class="hs-special">,</span><span>  </span><span id="local-6989586621679057467"><span class="annot"><span class="annottext">e
+</span><a href="#local-6989586621679057467"><span class="hs-identifier hs-var">e</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span>     </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679057463"><span class="hs-identifier hs-var">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679057464"><span class="hs-identifier hs-var">b</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">c
+</span><a href="#local-6989586621679057465"><span class="hs-identifier hs-var">c</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">d
+</span><a href="#local-6989586621679057466"><span class="hs-identifier hs-var">d</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">e
+</span><a href="#local-6989586621679057467"><span class="hs-identifier hs-var">e</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-33"></span><span>        </span><span class="annot"><a href="#local-6989586621679057460"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="hs-special">(</span><span> </span><span id="local-6989586621679057468"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679057468"><span class="hs-identifier hs-var">a</span></a></span></span><span class="hs-special">,</span><span>  </span><span id="local-6989586621679057469"><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679057469"><span class="hs-identifier hs-var">b</span></a></span></span><span class="hs-special">,</span><span>  </span><span id="local-6989586621679057470"><span class="annot"><span class="annottext">c
+</span><a href="#local-6989586621679057470"><span class="hs-identifier hs-var">c</span></a></span></span><span class="hs-special">,</span><span>  </span><span id="local-6989586621679057471"><span class="annot"><span class="annottext">d
+</span><a href="#local-6989586621679057471"><span class="hs-identifier hs-var">d</span></a></span></span><span class="hs-special">,</span><span>  </span><span id="local-6989586621679057472"><span class="annot"><span class="annottext">e
+</span><a href="#local-6989586621679057472"><span class="hs-identifier hs-var">e</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679057473"><span class="annot"><span class="annottext">x
+</span><a href="#local-6989586621679057473"><span class="hs-identifier hs-var">x</span></a></span></span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span id="local-6989586621679057474"><span class="annot"><span class="annottext">[x]
+</span><a href="#local-6989586621679057474"><span class="hs-identifier hs-var">xs</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(a, b, c, d, e)
+-&gt; x -&gt; ((a, b, c, d, e) -&gt; (a, b, c, d, e)) -&gt; (a, b, c, d, e)
+forall res. (a, b, c, d, e) -&gt; x -&gt; ((a, b, c, d, e) -&gt; res) -&gt; res
+</span><a href="#local-6989586621679057459"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679057468"><span class="hs-identifier hs-var">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679057469"><span class="hs-identifier hs-var">b</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">c
+</span><a href="#local-6989586621679057470"><span class="hs-identifier hs-var">c</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">d
+</span><a href="#local-6989586621679057471"><span class="hs-identifier hs-var">d</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">e
+</span><a href="#local-6989586621679057472"><span class="hs-identifier hs-var">e</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">x
+</span><a href="#local-6989586621679057473"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">(((a, b, c, d, e) -&gt; (a, b, c, d, e)) -&gt; (a, b, c, d, e))
+-&gt; ((a, b, c, d, e) -&gt; (a, b, c, d, e)) -&gt; (a, b, c, d, e)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679057475"><span class="annot"><span class="annottext">(a, b, c, d, e)
+</span><a href="#local-6989586621679057475"><span class="hs-identifier hs-var">abcde</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">(a, b, c, d, e) -&gt; [x] -&gt; (a, b, c, d, e)
+</span><a href="#local-6989586621679057460"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">(a, b, c, d, e)
+</span><a href="#local-6989586621679057475"><span class="hs-identifier hs-var">abcde</span></a></span><span> </span><span class="annot"><span class="annottext">[x]
+</span><a href="#local-6989586621679057474"><span class="hs-identifier hs-var">xs</span></a></span><span>
+</span><span id="line-34"></span><span>
+</span><span id="line-35"></span><span class="hs-comment">-- Based on the algorithm presented in &quot;A Bit-Vector Algorithm for Computing Levenshtein and Damerau Edit Distances&quot; in PSC'02 (Heikki Hyyro).</span><span>
+</span><span id="line-36"></span><span class="hs-comment">-- See http://www.cs.uta.fi/~helmu/pubs/psc02.pdf and http://www.cs.uta.fi/~helmu/pubs/PSCerr.html for an explanation</span><span>
+</span><span id="line-37"></span><span class="annot"><a href="Text.EditDistance.Bits.html#levenshteinDistance"><span class="hs-identifier hs-type">levenshteinDistance</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>
+</span><span id="line-38"></span><span id="levenshteinDistance"><span class="annot"><span class="annottext">levenshteinDistance :: String -&gt; String -&gt; Int
+</span><a href="Text.EditDistance.Bits.html#levenshteinDistance"><span class="hs-identifier hs-var hs-var">levenshteinDistance</span></a></span></span><span> </span><span id="local-6989586621679057476"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679057476"><span class="hs-identifier hs-var">str1</span></a></span></span><span> </span><span id="local-6989586621679057477"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679057477"><span class="hs-identifier hs-var">str2</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; String -&gt; String -&gt; Int
+</span><a href="Text.EditDistance.Bits.html#levenshteinDistanceWithLengths"><span class="hs-identifier hs-var">levenshteinDistanceWithLengths</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679057478"><span class="hs-identifier hs-var">m</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679057479"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679057476"><span class="hs-identifier hs-var">str1</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679057477"><span class="hs-identifier hs-var">str2</span></a></span><span>
+</span><span id="line-39"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-40"></span><span>    </span><span id="local-6989586621679057478"><span class="annot"><span class="annottext">m :: Int
+</span><a href="#local-6989586621679057478"><span class="hs-identifier hs-var hs-var">m</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; Int
+forall a. [a] -&gt; Int
+forall (t :: * -&gt; *) a. Foldable t =&gt; t a -&gt; Int
+</span><span class="hs-identifier hs-var">length</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679057476"><span class="hs-identifier hs-var">str1</span></a></span><span>
+</span><span id="line-41"></span><span>    </span><span id="local-6989586621679057479"><span class="annot"><span class="annottext">n :: Int
+</span><a href="#local-6989586621679057479"><span class="hs-identifier hs-var hs-var">n</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; Int
+forall a. [a] -&gt; Int
+forall (t :: * -&gt; *) a. Foldable t =&gt; t a -&gt; Int
+</span><span class="hs-identifier hs-var">length</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679057477"><span class="hs-identifier hs-var">str2</span></a></span><span>
+</span><span id="line-42"></span><span>
+</span><span id="line-43"></span><span class="annot"><a href="Text.EditDistance.Bits.html#levenshteinDistanceWithLengths"><span class="hs-identifier hs-type">levenshteinDistanceWithLengths</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>
+</span><span id="line-44"></span><span id="levenshteinDistanceWithLengths"><span class="annot"><span class="annottext">levenshteinDistanceWithLengths :: Int -&gt; Int -&gt; String -&gt; String -&gt; Int
+</span><a href="Text.EditDistance.Bits.html#levenshteinDistanceWithLengths"><span class="hs-identifier hs-var hs-var">levenshteinDistanceWithLengths</span></a></span></span><span> </span><span class="hs-glyph">!</span><span id="local-6989586621679057484"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679057484"><span class="hs-identifier hs-var">m</span></a></span></span><span> </span><span class="hs-glyph">!</span><span id="local-6989586621679057485"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679057485"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span id="local-6989586621679057486"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679057486"><span class="hs-identifier hs-var">str1</span></a></span></span><span> </span><span id="local-6989586621679057487"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679057487"><span class="hs-identifier hs-var">str2</span></a></span></span><span>
+</span><span id="line-45"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679057484"><span class="hs-identifier hs-var">m</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&lt;=</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679057485"><span class="hs-identifier hs-var">n</span></a></span><span>    </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679057485"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&lt;=</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">64</span></span><span> </span><span class="hs-comment">-- n must be larger so this check is sufficient</span><span>
+</span><span id="line-46"></span><span>                </span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="annottext">Word64 -&gt; Int -&gt; Int -&gt; String -&gt; String -&gt; Int
+forall bv.
+(Num bv, Bits bv) =&gt;
+bv -&gt; Int -&gt; Int -&gt; String -&gt; String -&gt; Int
+</span><a href="Text.EditDistance.Bits.html#levenshteinDistance%27"><span class="hs-identifier hs-var">levenshteinDistance'</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Word64
+forall a. HasCallStack =&gt; a
+</span><span class="hs-identifier hs-var">undefined</span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word64</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679057484"><span class="hs-identifier hs-var">m</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679057485"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679057486"><span class="hs-identifier hs-var">str1</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679057487"><span class="hs-identifier hs-var">str2</span></a></span><span>
+</span><span id="line-47"></span><span>                </span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="annottext">Integer -&gt; Int -&gt; Int -&gt; String -&gt; String -&gt; Int
+forall bv.
+(Num bv, Bits bv) =&gt;
+bv -&gt; Int -&gt; Int -&gt; String -&gt; String -&gt; Int
+</span><a href="Text.EditDistance.Bits.html#levenshteinDistance%27"><span class="hs-identifier hs-var">levenshteinDistance'</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Integer
+forall a. HasCallStack =&gt; a
+</span><span class="hs-identifier hs-var">undefined</span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Integer</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679057484"><span class="hs-identifier hs-var">m</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679057485"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679057486"><span class="hs-identifier hs-var">str1</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679057487"><span class="hs-identifier hs-var">str2</span></a></span><span>
+</span><span id="line-48"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679057484"><span class="hs-identifier hs-var">m</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&lt;=</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">64</span></span><span> </span><span class="hs-comment">-- m must be larger so this check is sufficient</span><span>
+</span><span id="line-49"></span><span>                </span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="annottext">Word64 -&gt; Int -&gt; Int -&gt; String -&gt; String -&gt; Int
+forall bv.
+(Num bv, Bits bv) =&gt;
+bv -&gt; Int -&gt; Int -&gt; String -&gt; String -&gt; Int
+</span><a href="Text.EditDistance.Bits.html#levenshteinDistance%27"><span class="hs-identifier hs-var">levenshteinDistance'</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Word64
+forall a. HasCallStack =&gt; a
+</span><span class="hs-identifier hs-var">undefined</span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word64</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679057485"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679057484"><span class="hs-identifier hs-var">m</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679057487"><span class="hs-identifier hs-var">str2</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679057486"><span class="hs-identifier hs-var">str1</span></a></span><span>
+</span><span id="line-50"></span><span>                </span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="annottext">Integer -&gt; Int -&gt; Int -&gt; String -&gt; String -&gt; Int
+forall bv.
+(Num bv, Bits bv) =&gt;
+bv -&gt; Int -&gt; Int -&gt; String -&gt; String -&gt; Int
+</span><a href="Text.EditDistance.Bits.html#levenshteinDistance%27"><span class="hs-identifier hs-var">levenshteinDistance'</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Integer
+forall a. HasCallStack =&gt; a
+</span><span class="hs-identifier hs-var">undefined</span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Integer</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679057485"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679057484"><span class="hs-identifier hs-var">m</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679057487"><span class="hs-identifier hs-var">str2</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679057486"><span class="hs-identifier hs-var">str1</span></a></span><span>
+</span><span id="line-51"></span><span>
+</span><span id="line-52"></span><span class="hs-pragma">{-# SPECIALIZE</span><span> </span><span class="annot"><a href="Text.EditDistance.Bits.html#levenshteinDistance%27"><span class="hs-pragma hs-type">levenshteinDistance'</span></a></span><span> </span><span class="hs-pragma">::</span><span> </span><span class="annot"><span class="hs-pragma hs-type">Word64</span></span><span> </span><span class="hs-pragma">-&gt;</span><span> </span><span class="annot"><span class="hs-pragma hs-type">Int</span></span><span> </span><span class="hs-pragma">-&gt;</span><span> </span><span class="annot"><span class="hs-pragma hs-type">Int</span></span><span> </span><span class="hs-pragma">-&gt;</span><span> </span><span class="annot"><span class="hs-pragma hs-type">String</span></span><span> </span><span class="hs-pragma">-&gt;</span><span> </span><span class="annot"><span class="hs-pragma hs-type">String</span></span><span> </span><span class="hs-pragma">-&gt;</span><span> </span><span class="annot"><span class="hs-pragma hs-type">Int</span></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-53"></span><span class="hs-pragma">{-# SPECIALIZE</span><span> </span><span class="annot"><a href="Text.EditDistance.Bits.html#levenshteinDistance%27"><span class="hs-pragma hs-type">levenshteinDistance'</span></a></span><span> </span><span class="hs-pragma">::</span><span> </span><span class="annot"><span class="hs-pragma hs-type">Integer</span></span><span> </span><span class="hs-pragma">-&gt;</span><span> </span><span class="annot"><span class="hs-pragma hs-type">Int</span></span><span> </span><span class="hs-pragma">-&gt;</span><span> </span><span class="annot"><span class="hs-pragma hs-type">Int</span></span><span> </span><span class="hs-pragma">-&gt;</span><span> </span><span class="annot"><span class="hs-pragma hs-type">String</span></span><span> </span><span class="hs-pragma">-&gt;</span><span> </span><span class="annot"><span class="hs-pragma hs-type">String</span></span><span> </span><span class="hs-pragma">-&gt;</span><span> </span><span class="annot"><span class="hs-pragma hs-type">Int</span></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-54"></span><span id="local-6989586621679057328"><span class="annot"><a href="Text.EditDistance.Bits.html#levenshteinDistance%27"><span class="hs-identifier hs-type">levenshteinDistance'</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Num</span></span><span> </span><span class="annot"><a href="#local-6989586621679057328"><span class="hs-identifier hs-type">bv</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bits</span></span><span> </span><span class="annot"><a href="#local-6989586621679057328"><span class="hs-identifier hs-type">bv</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679057328"><span class="hs-identifier hs-type">bv</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span></span><span>
+</span><span id="line-55"></span><span id="levenshteinDistance%27"><span class="annot"><span class="annottext">levenshteinDistance' :: forall bv.
+(Num bv, Bits bv) =&gt;
+bv -&gt; Int -&gt; Int -&gt; String -&gt; String -&gt; Int
+</span><a href="Text.EditDistance.Bits.html#levenshteinDistance%27"><span class="hs-identifier hs-var hs-var">levenshteinDistance'</span></a></span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679057495"><span id="local-6989586621679057496"><span class="annot"><span class="annottext">bv
+</span><a href="#local-6989586621679057496"><span class="hs-identifier hs-var">_bv_dummy</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="#local-6989586621679057495"><span class="hs-identifier hs-type">bv</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">!</span><span id="local-6989586621679057497"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679057497"><span class="hs-identifier hs-var">m</span></a></span></span><span> </span><span class="hs-glyph">!</span><span id="local-6989586621679057498"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679057498"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span id="local-6989586621679057499"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679057499"><span class="hs-identifier hs-var">str1</span></a></span></span><span> </span><span id="local-6989586621679057500"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679057500"><span class="hs-identifier hs-var">str2</span></a></span></span><span>
+</span><span id="line-56"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679057499"><span class="hs-identifier hs-var">str1</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679057498"><span class="hs-identifier hs-var">n</span></a></span><span>
+</span><span id="line-57"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(bv, bv, Int) -&gt; Int
+forall {a} {b} {c}. (a, b, c) -&gt; c
+</span><a href="#local-6989586621679057501"><span class="hs-identifier hs-var">extractAnswer</span></a></span><span> </span><span class="annot"><span class="annottext">((bv, bv, Int) -&gt; Int) -&gt; (bv, bv, Int) -&gt; Int
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">(forall res.
+ (bv, bv, Int) -&gt; Char -&gt; ((bv, bv, Int) -&gt; res) -&gt; res)
+-&gt; (bv, bv, Int) -&gt; String -&gt; (bv, bv, Int)
+forall a b c x.
+(forall res. (a, b, c) -&gt; x -&gt; ((a, b, c) -&gt; res) -&gt; res)
+-&gt; (a, b, c) -&gt; [x] -&gt; (a, b, c)
+</span><a href="Text.EditDistance.Bits.html#foldl%273k"><span class="hs-identifier hs-var">foldl'3k</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">IntMap bv
+-&gt; bv
+-&gt; bv
+-&gt; (bv, bv, Int)
+-&gt; Char
+-&gt; ((bv, bv, Int) -&gt; res)
+-&gt; res
+forall bv res.
+(Num bv, Bits bv) =&gt;
+IntMap bv
+-&gt; bv
+-&gt; bv
+-&gt; (bv, bv, Int)
+-&gt; Char
+-&gt; ((bv, bv, Int) -&gt; res)
+-&gt; res
+</span><a href="Text.EditDistance.Bits.html#levenshteinDistanceWorker"><span class="hs-identifier hs-var">levenshteinDistanceWorker</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String -&gt; IntMap bv
+forall bv. (Num bv, Bits bv) =&gt; String -&gt; IntMap bv
+</span><a href="Text.EditDistance.Bits.html#matchVectors"><span class="hs-identifier hs-var">matchVectors</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679057499"><span class="hs-identifier hs-var">str1</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">bv
+</span><a href="#local-6989586621679057508"><span class="hs-identifier hs-var">top_bit_mask</span></a></span><span> </span><span class="annot"><span class="annottext">bv
+</span><a href="#local-6989586621679057509"><span class="hs-identifier hs-var">vector_mask</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">bv
+</span><a href="#local-6989586621679057510"><span class="hs-identifier hs-var">m_ones</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">bv
+</span><span class="hs-number">0</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679057497"><span class="hs-identifier hs-var">m</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679057500"><span class="hs-identifier hs-var">str2</span></a></span><span>
+</span><span id="line-58"></span><span>  </span><span class="hs-keyword">where</span><span> </span><span id="local-6989586621679057510"><span class="annot"><span class="annottext">m_ones :: bv
+</span><a href="#local-6989586621679057510"><span class="hs-identifier hs-var">m_ones</span></a></span></span><span class="hs-glyph">@</span><span id="local-6989586621679057509"><span class="annot"><span class="annottext">bv
+</span><a href="#local-6989586621679057509"><span class="hs-identifier hs-var">vector_mask</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">bv
+</span><span class="hs-number">2</span></span><span> </span><span class="annot"><span class="annottext">bv -&gt; Int -&gt; bv
+forall a b. (Num a, Integral b) =&gt; a -&gt; b -&gt; a
+</span><span class="hs-operator hs-var">^</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679057497"><span class="hs-identifier hs-var">m</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">bv -&gt; bv -&gt; bv
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">bv
+</span><span class="hs-number">1</span></span><span>
+</span><span id="line-59"></span><span>        </span><span id="local-6989586621679057508"><span class="annot"><span class="annottext">top_bit_mask :: bv
+</span><a href="#local-6989586621679057508"><span class="hs-identifier hs-var hs-var">top_bit_mask</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">bv
+</span><span class="hs-number">1</span></span><span> </span><span class="annot"><span class="annottext">bv -&gt; Int -&gt; bv
+forall a. Bits a =&gt; a -&gt; Int -&gt; a
+</span><span class="hs-operator hs-var">`shiftL`</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679057497"><span class="hs-identifier hs-var">m</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="#local-6989586621679057495"><span class="hs-identifier hs-type">bv</span></a></span><span>
+</span><span id="line-60"></span><span>        </span><span id="local-6989586621679057501"><span class="annot"><span class="annottext">extractAnswer :: (a, b, c) -&gt; c
+</span><a href="#local-6989586621679057501"><span class="hs-identifier hs-var hs-var">extractAnswer</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a
+</span><span class="hs-identifier">_</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">b
+</span><span class="hs-identifier">_</span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679057524"><span class="annot"><span class="annottext">c
+</span><a href="#local-6989586621679057524"><span class="hs-identifier hs-var">distance</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">c
+</span><a href="#local-6989586621679057524"><span class="hs-identifier hs-var">distance</span></a></span><span>
+</span><span id="line-61"></span><span>
+</span><span id="line-62"></span><span class="hs-pragma">{-# SPECIALIZE INLINE</span><span> </span><span class="annot"><a href="Text.EditDistance.Bits.html#levenshteinDistanceWorker"><span class="hs-pragma hs-type">levenshteinDistanceWorker</span></a></span><span> </span><span class="hs-pragma">::</span><span> </span><span id="local-6989586621679057525"><span class="annot"><span class="hs-pragma hs-type">IM.IntMap</span></span><span> </span><span class="annot"><span class="hs-pragma hs-type">Word64</span></span><span>  </span><span class="hs-pragma">-&gt;</span><span> </span><span class="annot"><span class="hs-pragma hs-type">Word64</span></span><span>  </span><span class="hs-pragma">-&gt;</span><span> </span><span class="annot"><span class="hs-pragma hs-type">Word64</span></span><span>  </span><span class="hs-pragma">-&gt;</span><span> </span><span class="hs-pragma">(</span><span class="annot"><span class="hs-pragma hs-type">Word64</span></span><span class="hs-pragma">,</span><span> </span><span class="annot"><span class="hs-pragma hs-type">Word64</span></span><span class="hs-pragma">,</span><span> </span><span class="annot"><span class="hs-pragma hs-type">Int</span></span><span class="hs-pragma">)</span><span>   </span><span class="hs-pragma">-&gt;</span><span> </span><span class="annot"><span class="hs-pragma hs-type">Char</span></span><span> </span><span class="hs-pragma">-&gt;</span><span> </span><span class="hs-pragma">(</span><span class="hs-pragma">(</span><span class="annot"><span class="hs-pragma hs-type">Word64</span></span><span class="hs-pragma">,</span><span>  </span><span class="annot"><span class="hs-pragma hs-type">Word64</span></span><span class="hs-pragma">,</span><span>  </span><span class="annot"><span class="hs-pragma hs-type">Int</span></span><span class="hs-pragma">)</span><span> </span><span class="hs-pragma">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679057525"><span class="hs-pragma hs-type">res</span></a></span><span class="hs-pragma">)</span><span> </span><span class="hs-pragma">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679057525"><span class="hs-pragma hs-type">res</span></a></span></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-63"></span><span class="hs-pragma">{-# SPECIALIZE INLINE</span><span> </span><span class="annot"><a href="Text.EditDistance.Bits.html#levenshteinDistanceWorker"><span class="hs-pragma hs-type">levenshteinDistanceWorker</span></a></span><span> </span><span class="hs-pragma">::</span><span> </span><span id="local-6989586621679057526"><span class="annot"><span class="hs-pragma hs-type">IM.IntMap</span></span><span> </span><span class="annot"><span class="hs-pragma hs-type">Integer</span></span><span> </span><span class="hs-pragma">-&gt;</span><span> </span><span class="annot"><span class="hs-pragma hs-type">Integer</span></span><span> </span><span class="hs-pragma">-&gt;</span><span> </span><span class="annot"><span class="hs-pragma hs-type">Integer</span></span><span> </span><span class="hs-pragma">-&gt;</span><span> </span><span class="hs-pragma">(</span><span class="annot"><span class="hs-pragma hs-type">Integer</span></span><span class="hs-pragma">,</span><span> </span><span class="annot"><span class="hs-pragma hs-type">Integer</span></span><span class="hs-pragma">,</span><span> </span><span class="annot"><span class="hs-pragma hs-type">Int</span></span><span class="hs-pragma">)</span><span> </span><span class="hs-pragma">-&gt;</span><span> </span><span class="annot"><span class="hs-pragma hs-type">Char</span></span><span> </span><span class="hs-pragma">-&gt;</span><span> </span><span class="hs-pragma">(</span><span class="hs-pragma">(</span><span class="annot"><span class="hs-pragma hs-type">Integer</span></span><span class="hs-pragma">,</span><span> </span><span class="annot"><span class="hs-pragma hs-type">Integer</span></span><span class="hs-pragma">,</span><span> </span><span class="annot"><span class="hs-pragma hs-type">Int</span></span><span class="hs-pragma">)</span><span> </span><span class="hs-pragma">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679057526"><span class="hs-pragma hs-type">res</span></a></span><span class="hs-pragma">)</span><span> </span><span class="hs-pragma">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679057526"><span class="hs-pragma hs-type">res</span></a></span></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-64"></span><span id="local-6989586621679057336"><span id="local-6989586621679057337"><span class="annot"><a href="Text.EditDistance.Bits.html#levenshteinDistanceWorker"><span class="hs-identifier hs-type">levenshteinDistanceWorker</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Num</span></span><span> </span><span class="annot"><a href="#local-6989586621679057336"><span class="hs-identifier hs-type">bv</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bits</span></span><span> </span><span class="annot"><a href="#local-6989586621679057336"><span class="hs-identifier hs-type">bv</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-65"></span><span>                          </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IM.IntMap</span></span><span> </span><span class="annot"><a href="#local-6989586621679057336"><span class="hs-identifier hs-type">bv</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679057336"><span class="hs-identifier hs-type">bv</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679057336"><span class="hs-identifier hs-type">bv</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679057336"><span class="hs-identifier hs-type">bv</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679057336"><span class="hs-identifier hs-type">bv</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Char</span></span><span>
+</span><span id="line-66"></span><span>                          </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679057336"><span class="hs-identifier hs-type">bv</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679057336"><span class="hs-identifier hs-type">bv</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679057337"><span class="hs-identifier hs-type">res</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679057337"><span class="hs-identifier hs-type">res</span></a></span></span></span><span>
+</span><span id="line-67"></span><span id="levenshteinDistanceWorker"><span class="annot"><span class="annottext">levenshteinDistanceWorker :: forall bv res.
+(Num bv, Bits bv) =&gt;
+IntMap bv
+-&gt; bv
+-&gt; bv
+-&gt; (bv, bv, Int)
+-&gt; Char
+-&gt; ((bv, bv, Int) -&gt; res)
+-&gt; res
+</span><a href="Text.EditDistance.Bits.html#levenshteinDistanceWorker"><span class="hs-identifier hs-var hs-var">levenshteinDistanceWorker</span></a></span></span><span> </span><span class="hs-glyph">!</span><span id="local-6989586621679057530"><span class="annot"><span class="annottext">IntMap bv
+</span><a href="#local-6989586621679057530"><span class="hs-identifier hs-var">str1_mvs</span></a></span></span><span> </span><span class="hs-glyph">!</span><span id="local-6989586621679057531"><span class="annot"><span class="annottext">bv
+</span><a href="#local-6989586621679057531"><span class="hs-identifier hs-var">top_bit_mask</span></a></span></span><span> </span><span class="hs-glyph">!</span><span id="local-6989586621679057532"><span class="annot"><span class="annottext">bv
+</span><a href="#local-6989586621679057532"><span class="hs-identifier hs-var">vector_mask</span></a></span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">!</span><span id="local-6989586621679057533"><span class="annot"><span class="annottext">bv
+</span><a href="#local-6989586621679057533"><span class="hs-identifier hs-var">vp</span></a></span></span><span class="hs-special">,</span><span> </span><span class="hs-glyph">!</span><span id="local-6989586621679057534"><span class="annot"><span class="annottext">bv
+</span><a href="#local-6989586621679057534"><span class="hs-identifier hs-var">vn</span></a></span></span><span class="hs-special">,</span><span> </span><span class="hs-glyph">!</span><span id="local-6989586621679057535"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679057535"><span class="hs-identifier hs-var">distance</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">!</span><span id="local-6989586621679057536"><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621679057536"><span class="hs-identifier hs-var">char2</span></a></span></span><span> </span><span id="local-6989586621679057537"><span class="annot"><span class="annottext">(bv, bv, Int) -&gt; res
+</span><a href="#local-6989586621679057537"><span class="hs-identifier hs-var">k</span></a></span></span><span>
+</span><span id="line-68"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="hs-comment">{- trace (unlines [&quot;pm = &quot; ++ show pm'
+                   ,&quot;d0 = &quot; ++ show d0'
+                   ,&quot;hp = &quot; ++ show hp'
+                   ,&quot;hn = &quot; ++ show hn'
+                   ,&quot;vp = &quot; ++ show vp'
+                   ,&quot;vn = &quot; ++ show vn'
+                   ,&quot;distance' = &quot; ++ show distance'
+                   ,&quot;distance'' = &quot; ++ show distance'']) -}</span><span> </span><span class="annot"><span class="annottext">bv
+</span><a href="#local-6989586621679057538"><span class="hs-identifier hs-var">vp'</span></a></span><span> </span><span class="annot"><span class="annottext">bv -&gt; res -&gt; res
+forall a b. a -&gt; b -&gt; b
+</span><span class="hs-operator hs-var">`seq`</span></span><span> </span><span class="annot"><span class="annottext">bv
+</span><a href="#local-6989586621679057539"><span class="hs-identifier hs-var">vn'</span></a></span><span> </span><span class="annot"><span class="annottext">bv -&gt; res -&gt; res
+forall a b. a -&gt; b -&gt; b
+</span><span class="hs-operator hs-var">`seq`</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679057540"><span class="hs-identifier hs-var">distance''</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; res -&gt; res
+forall a b. a -&gt; b -&gt; b
+</span><span class="hs-operator hs-var">`seq`</span></span><span> </span><span class="annot"><span class="annottext">(bv, bv, Int) -&gt; res
+</span><a href="#local-6989586621679057537"><span class="hs-identifier hs-var">k</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">bv
+</span><a href="#local-6989586621679057538"><span class="hs-identifier hs-var">vp'</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">bv
+</span><a href="#local-6989586621679057539"><span class="hs-identifier hs-var">vn'</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679057540"><span class="hs-identifier hs-var">distance''</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-76"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-77"></span><span>    </span><span id="local-6989586621679057542"><span class="annot"><span class="annottext">pm' :: bv
+</span><a href="#local-6989586621679057542"><span class="hs-identifier hs-var hs-var">pm'</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">bv -&gt; Int -&gt; IntMap bv -&gt; bv
+forall a. a -&gt; Int -&gt; IntMap a -&gt; a
+</span><span class="hs-identifier hs-var">IM.findWithDefault</span></span><span> </span><span class="annot"><span class="annottext">bv
+</span><span class="hs-number">0</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Char -&gt; Int
+</span><span class="hs-identifier hs-var">ord</span></span><span> </span><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621679057536"><span class="hs-identifier hs-var">char2</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">IntMap bv
+</span><a href="#local-6989586621679057530"><span class="hs-identifier hs-var">str1_mvs</span></a></span><span>
+</span><span id="line-78"></span><span>
+</span><span id="line-79"></span><span>    </span><span id="local-6989586621679057552"><span class="annot"><span class="annottext">d0' :: bv
+</span><a href="#local-6989586621679057552"><span class="hs-identifier hs-var hs-var">d0'</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="annottext">bv
+</span><a href="#local-6989586621679057542"><span class="hs-identifier hs-var">pm'</span></a></span><span> </span><span class="annot"><span class="annottext">bv -&gt; bv -&gt; bv
+forall a. Bits a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">.&amp;.</span></span><span> </span><span class="annot"><span class="annottext">bv
+</span><a href="#local-6989586621679057533"><span class="hs-identifier hs-var">vp</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">bv -&gt; bv -&gt; bv
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">bv
+</span><a href="#local-6989586621679057533"><span class="hs-identifier hs-var">vp</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">bv -&gt; bv -&gt; bv
+forall a. Bits a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">.&amp;.</span></span><span> </span><span class="annot"><span class="annottext">bv
+</span><a href="#local-6989586621679057532"><span class="hs-identifier hs-var">vector_mask</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">bv -&gt; bv -&gt; bv
+forall a. Bits a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">`xor`</span></span><span> </span><span class="annot"><span class="annottext">bv
+</span><a href="#local-6989586621679057533"><span class="hs-identifier hs-var">vp</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">bv -&gt; bv -&gt; bv
+forall a. Bits a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">.|.</span></span><span> </span><span class="annot"><span class="annottext">bv
+</span><a href="#local-6989586621679057542"><span class="hs-identifier hs-var">pm'</span></a></span><span> </span><span class="annot"><span class="annottext">bv -&gt; bv -&gt; bv
+forall a. Bits a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">.|.</span></span><span> </span><span class="annot"><span class="annottext">bv
+</span><a href="#local-6989586621679057534"><span class="hs-identifier hs-var">vn</span></a></span><span>
+</span><span id="line-80"></span><span>    </span><span id="local-6989586621679057562"><span class="annot"><span class="annottext">hp' :: bv
+</span><a href="#local-6989586621679057562"><span class="hs-identifier hs-var hs-var">hp'</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">bv
+</span><a href="#local-6989586621679057534"><span class="hs-identifier hs-var">vn</span></a></span><span> </span><span class="annot"><span class="annottext">bv -&gt; bv -&gt; bv
+forall a. Bits a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">.|.</span></span><span> </span><span class="annot"><span class="annottext">bv -&gt; bv -&gt; bv
+forall bv. (Num bv, Bits bv) =&gt; bv -&gt; bv -&gt; bv
+</span><a href="Text.EditDistance.Bits.html#sizedComplement"><span class="hs-identifier hs-var">sizedComplement</span></a></span><span> </span><span class="annot"><span class="annottext">bv
+</span><a href="#local-6989586621679057532"><span class="hs-identifier hs-var">vector_mask</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">bv
+</span><a href="#local-6989586621679057552"><span class="hs-identifier hs-var">d0'</span></a></span><span> </span><span class="annot"><span class="annottext">bv -&gt; bv -&gt; bv
+forall a. Bits a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">.|.</span></span><span> </span><span class="annot"><span class="annottext">bv
+</span><a href="#local-6989586621679057533"><span class="hs-identifier hs-var">vp</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-81"></span><span>    </span><span id="local-6989586621679057566"><span class="annot"><span class="annottext">hn' :: bv
+</span><a href="#local-6989586621679057566"><span class="hs-identifier hs-var hs-var">hn'</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">bv
+</span><a href="#local-6989586621679057552"><span class="hs-identifier hs-var">d0'</span></a></span><span> </span><span class="annot"><span class="annottext">bv -&gt; bv -&gt; bv
+forall a. Bits a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">.&amp;.</span></span><span> </span><span class="annot"><span class="annottext">bv
+</span><a href="#local-6989586621679057533"><span class="hs-identifier hs-var">vp</span></a></span><span>
+</span><span id="line-82"></span><span>
+</span><span id="line-83"></span><span>    </span><span id="local-6989586621679057572"><span class="annot"><span class="annottext">hp'_shift :: bv
+</span><a href="#local-6989586621679057572"><span class="hs-identifier hs-var hs-var">hp'_shift</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="annottext">bv
+</span><a href="#local-6989586621679057562"><span class="hs-identifier hs-var">hp'</span></a></span><span> </span><span class="annot"><span class="annottext">bv -&gt; Int -&gt; bv
+forall a. Bits a =&gt; a -&gt; Int -&gt; a
+</span><span class="hs-operator hs-var">`shiftL`</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">bv -&gt; bv -&gt; bv
+forall a. Bits a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">.|.</span></span><span> </span><span class="annot"><span class="annottext">bv
+</span><span class="hs-number">1</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">bv -&gt; bv -&gt; bv
+forall a. Bits a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">.&amp;.</span></span><span> </span><span class="annot"><span class="annottext">bv
+</span><a href="#local-6989586621679057532"><span class="hs-identifier hs-var">vector_mask</span></a></span><span>
+</span><span id="line-84"></span><span>    </span><span id="local-6989586621679057576"><span class="annot"><span class="annottext">hn'_shift :: bv
+</span><a href="#local-6989586621679057576"><span class="hs-identifier hs-var hs-var">hn'_shift</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">bv
+</span><a href="#local-6989586621679057566"><span class="hs-identifier hs-var">hn'</span></a></span><span> </span><span class="annot"><span class="annottext">bv -&gt; Int -&gt; bv
+forall a. Bits a =&gt; a -&gt; Int -&gt; a
+</span><span class="hs-operator hs-var">`shiftL`</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">bv -&gt; bv -&gt; bv
+forall a. Bits a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">.&amp;.</span></span><span> </span><span class="annot"><span class="annottext">bv
+</span><a href="#local-6989586621679057532"><span class="hs-identifier hs-var">vector_mask</span></a></span><span>
+</span><span id="line-85"></span><span>    </span><span id="local-6989586621679057538"><span class="annot"><span class="annottext">vp' :: bv
+</span><a href="#local-6989586621679057538"><span class="hs-identifier hs-var hs-var">vp'</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">bv
+</span><a href="#local-6989586621679057576"><span class="hs-identifier hs-var">hn'_shift</span></a></span><span> </span><span class="annot"><span class="annottext">bv -&gt; bv -&gt; bv
+forall a. Bits a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">.|.</span></span><span> </span><span class="annot"><span class="annottext">bv -&gt; bv -&gt; bv
+forall bv. (Num bv, Bits bv) =&gt; bv -&gt; bv -&gt; bv
+</span><a href="Text.EditDistance.Bits.html#sizedComplement"><span class="hs-identifier hs-var">sizedComplement</span></a></span><span> </span><span class="annot"><span class="annottext">bv
+</span><a href="#local-6989586621679057532"><span class="hs-identifier hs-var">vector_mask</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">bv
+</span><a href="#local-6989586621679057552"><span class="hs-identifier hs-var">d0'</span></a></span><span> </span><span class="annot"><span class="annottext">bv -&gt; bv -&gt; bv
+forall a. Bits a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">.|.</span></span><span> </span><span class="annot"><span class="annottext">bv
+</span><a href="#local-6989586621679057572"><span class="hs-identifier hs-var">hp'_shift</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-86"></span><span>    </span><span id="local-6989586621679057539"><span class="annot"><span class="annottext">vn' :: bv
+</span><a href="#local-6989586621679057539"><span class="hs-identifier hs-var hs-var">vn'</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">bv
+</span><a href="#local-6989586621679057552"><span class="hs-identifier hs-var">d0'</span></a></span><span> </span><span class="annot"><span class="annottext">bv -&gt; bv -&gt; bv
+forall a. Bits a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">.&amp;.</span></span><span> </span><span class="annot"><span class="annottext">bv
+</span><a href="#local-6989586621679057572"><span class="hs-identifier hs-var">hp'_shift</span></a></span><span>
+</span><span id="line-87"></span><span>
+</span><span id="line-88"></span><span>    </span><span id="local-6989586621679057590"><span class="annot"><span class="annottext">distance' :: Int
+</span><a href="#local-6989586621679057590"><span class="hs-identifier hs-var hs-var">distance'</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">bv
+</span><a href="#local-6989586621679057562"><span class="hs-identifier hs-var">hp'</span></a></span><span> </span><span class="annot"><span class="annottext">bv -&gt; bv -&gt; bv
+forall a. Bits a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">.&amp;.</span></span><span> </span><span class="annot"><span class="annottext">bv
+</span><a href="#local-6989586621679057531"><span class="hs-identifier hs-var">top_bit_mask</span></a></span><span> </span><span class="annot"><span class="annottext">bv -&gt; bv -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">/=</span></span><span> </span><span class="annot"><span class="annottext">bv
+</span><span class="hs-number">0</span></span><span> </span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679057535"><span class="hs-identifier hs-var">distance</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span> </span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679057535"><span class="hs-identifier hs-var">distance</span></a></span><span>
+</span><span id="line-89"></span><span>    </span><span id="local-6989586621679057540"><span class="annot"><span class="annottext">distance'' :: Int
+</span><a href="#local-6989586621679057540"><span class="hs-identifier hs-var hs-var">distance''</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">bv
+</span><a href="#local-6989586621679057566"><span class="hs-identifier hs-var">hn'</span></a></span><span> </span><span class="annot"><span class="annottext">bv -&gt; bv -&gt; bv
+forall a. Bits a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">.&amp;.</span></span><span> </span><span class="annot"><span class="annottext">bv
+</span><a href="#local-6989586621679057531"><span class="hs-identifier hs-var">top_bit_mask</span></a></span><span> </span><span class="annot"><span class="annottext">bv -&gt; bv -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">/=</span></span><span> </span><span class="annot"><span class="annottext">bv
+</span><span class="hs-number">0</span></span><span> </span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679057590"><span class="hs-identifier hs-var">distance'</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span> </span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679057590"><span class="hs-identifier hs-var">distance'</span></a></span><span>
+</span><span id="line-90"></span><span>
+</span><span id="line-91"></span><span>
+</span><span id="line-92"></span><span class="hs-comment">{-
+
+-- Just can't get this working!
+
+-- Based on the algorithm presented in &quot;A Bit-Vector Algorithm for Computing Levenshtein and Damerau Edit Distances&quot; in PSC'02 (Heikki Hyyro).
+-- See http://www.cs.uta.fi/~helmu/pubs/psc02.pdf and http://www.cs.uta.fi/~helmu/pubs/PSCerr.html for an explanation
+levenshteinDistanceCutoff :: Int -&gt; String -&gt; String -&gt; Int
+levenshteinDistanceCutoff cutoff str1 str2
+  | length str1 &lt;= length str2 = levenshteinDistanceCutoff' cutoff str1 str2
+  | otherwise = levenshteinDistanceCutoff' cutoff str2 str1
+
+levenshteinDistanceCutoff' :: Int -&gt; String -&gt; String -&gt; Int
+levenshteinDistanceCutoff' cutoff str1 str2
+  | [] &lt;- str1 = n
+  | otherwise  = extractAnswer $ foldl' (levenshteinDistanceCutoffFlatWorker (matchVectors str1))
+                                    (foldl' (levenshteinDistanceCutoffDiagWorker (matchVectors str1)) (top_bit_mask, vector_mask, all_ones, 0, initial_pm_offset, initial_dist) str2_diag)
+                                    str2_flat
+  where m = length str1
+        n = length str2
+        vector_length = if testBit bottom_factor 0
+                        then cutoff      -- Odd
+                        else cutoff + 1  -- Even
+        all_ones@vector_mask = (2 ^ vector_length) - 1
+        top_bit_mask = trace (show bottom_factor ++ &quot;, &quot; ++ show vector_length) $ 1 `shiftL` (vector_length - 1)
+        extractAnswer (_, _, _, _, _, distance) = distance
+
+        len_difference = n - m
+        top_factor = cutoff + len_difference
+        bottom_factor = cutoff - len_difference
+        bottom_factor_shift = (bottom_factor `shiftR` 1)
+
+        initial_dist = bottom_factor_shift               -- The distance the virtual first vector ended on
+        initial_pm_offset = (top_factor `shiftR` 1)      -- The amount of left shift to apply to the &gt;next&lt; pattern match vector
+        diag_threshold = negate bottom_factor_shift + m  -- The index in str2 where we stop going diagonally down and start going across
+        (str2_diag, str2_flat) = splitAt diag_threshold str2
+
+levenshteinDistanceCutoffDiagWorker :: IM.IntMap BitVector -&gt; (BitVector, BitVector, BitVector, BitVector, Int, Int) -&gt; Char -&gt; (BitVector, BitVector, BitVector, BitVector, Int, Int)
+levenshteinDistanceCutoffDiagWorker !str1_mvs (!top_bit_mask, !vector_mask, !vp, !vn, !pm_offset, !distance) !char2
+  = trace (unlines [&quot;vp = &quot; ++ show vp
+                   ,&quot;vn = &quot; ++ show vn
+                   ,&quot;vector_mask = &quot; ++ show vector_mask
+                   ,&quot;pm_offset = &quot; ++ show pm_offset
+                   ,&quot;unshifted_pm = &quot; ++ show unshifted_pm
+                   ,&quot;pm' = &quot; ++ show pm'
+                   ,&quot;d0' = &quot; ++ show d0'
+                   ,&quot;hp' = &quot; ++ show hp'
+                   ,&quot;hn' = &quot; ++ show hn'
+                   ,&quot;vp' = &quot; ++ show vp'
+                   ,&quot;vn' = &quot; ++ show vn'
+                   ,&quot;distance' = &quot; ++ show distance']) (top_bit_mask, vector_mask, vp', vn', pm_offset - 1, distance')
+  where
+    unshifted_pm = IM.findWithDefault 0 (ord char2) str1_mvs
+    pm' = (unshifted_pm `shift` pm_offset) .&amp;. vector_mask
+
+    d0' = ((((pm' .&amp;. vp) + vp) .&amp;. vector_mask) `xor` vp) .|. pm' .|. vn
+    hp' = vn .|. sizedComplement vector_mask (d0' .|. vp)
+    hn' = d0' .&amp;. vp
+
+    d0'_shift = d0' `shiftR` 1
+    vp' = hn' .|. sizedComplement vector_mask (d0'_shift .|. hp')
+    vn' = d0'_shift .&amp;. hp'
+
+    distance' = if d0' .&amp;. top_bit_mask /= 0 then distance else distance + 1
+
+levenshteinDistanceCutoffFlatWorker :: IM.IntMap BitVector -&gt; (BitVector, BitVector, BitVector, BitVector, Int, Int) -&gt; Char -&gt; (BitVector, BitVector, BitVector, BitVector, Int, Int)
+levenshteinDistanceCutoffFlatWorker !str1_mvs (!top_bit_mask, !vector_mask, !vp, !vn, !pm_offset, !distance) !char2
+  = trace (unlines [&quot;pm_offset = &quot; ++ show pm_offset
+                   ,&quot;top_bit_mask' = &quot; ++ show top_bit_mask'
+                   ,&quot;vector_mask' = &quot; ++ show vector_mask'
+                   ,&quot;pm = &quot; ++ show pm'
+                   ,&quot;d0 = &quot; ++ show d0'
+                   ,&quot;hp = &quot; ++ show hp'
+                   ,&quot;hn = &quot; ++ show hn'
+                   ,&quot;vp = &quot; ++ show vp'
+                   ,&quot;vn = &quot; ++ show vn'
+                   ,&quot;distance' = &quot; ++ show distance'
+                   ,&quot;distance'' = &quot; ++ show distance'']) (top_bit_mask', vector_mask', vp', vn', pm_offset - 1, distance'')
+  where
+    top_bit_mask' = top_bit_mask `shiftR` 1
+    vector_mask' = vector_mask `shiftR` 1
+    pm' = (IM.findWithDefault 0 (ord char2) str1_mvs `rotate` pm_offset) .&amp;. vector_mask'
+
+    d0' = ((((pm' .&amp;. vp) + vp) `xor` vp) .|. pm' .|. vn) .&amp;. vector_mask'
+    hp' = vn .|. sizedComplement vector_mask' (d0' .|. vp)
+    hn' = d0' .&amp;. vp
+
+    d0'_shift = d0' `shiftR` 1
+    vp' = hn' .|. sizedComplement vector_mask' (d0'_shift .|. hp')
+    vn' = d0'_shift .&amp;. hp'
+
+    distance' = if hp' .&amp;. top_bit_mask' /= 0 then distance + 1 else distance
+    distance'' = if hn' .&amp;. top_bit_mask' /= 0 then distance' - 1 else distance'
+
+-}</span><span>
+</span><span id="line-186"></span><span>
+</span><span id="line-187"></span><span class="hs-comment">-- Based on the algorithm presented in &quot;A Bit-Vector Algorithm for Computing Levenshtein and Damerau Edit Distances&quot; in PSC'02 (Heikki Hyyro).</span><span>
+</span><span id="line-188"></span><span class="hs-comment">-- See http://www.cs.uta.fi/~helmu/pubs/psc02.pdf and http://www.cs.uta.fi/~helmu/pubs/PSCerr.html for an explanation</span><span>
+</span><span id="line-189"></span><span class="annot"><a href="Text.EditDistance.Bits.html#restrictedDamerauLevenshteinDistance"><span class="hs-identifier hs-type">restrictedDamerauLevenshteinDistance</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>
+</span><span id="line-190"></span><span id="restrictedDamerauLevenshteinDistance"><span class="annot"><span class="annottext">restrictedDamerauLevenshteinDistance :: String -&gt; String -&gt; Int
+</span><a href="Text.EditDistance.Bits.html#restrictedDamerauLevenshteinDistance"><span class="hs-identifier hs-var hs-var">restrictedDamerauLevenshteinDistance</span></a></span></span><span> </span><span id="local-6989586621679057598"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679057598"><span class="hs-identifier hs-var">str1</span></a></span></span><span> </span><span id="local-6989586621679057599"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679057599"><span class="hs-identifier hs-var">str2</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; String -&gt; String -&gt; Int
+</span><a href="Text.EditDistance.Bits.html#restrictedDamerauLevenshteinDistanceWithLengths"><span class="hs-identifier hs-var">restrictedDamerauLevenshteinDistanceWithLengths</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679057600"><span class="hs-identifier hs-var">m</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679057601"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679057598"><span class="hs-identifier hs-var">str1</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679057599"><span class="hs-identifier hs-var">str2</span></a></span><span>
+</span><span id="line-191"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-192"></span><span>    </span><span id="local-6989586621679057600"><span class="annot"><span class="annottext">m :: Int
+</span><a href="#local-6989586621679057600"><span class="hs-identifier hs-var hs-var">m</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; Int
+forall a. [a] -&gt; Int
+forall (t :: * -&gt; *) a. Foldable t =&gt; t a -&gt; Int
+</span><span class="hs-identifier hs-var">length</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679057598"><span class="hs-identifier hs-var">str1</span></a></span><span>
+</span><span id="line-193"></span><span>    </span><span id="local-6989586621679057601"><span class="annot"><span class="annottext">n :: Int
+</span><a href="#local-6989586621679057601"><span class="hs-identifier hs-var hs-var">n</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; Int
+forall a. [a] -&gt; Int
+forall (t :: * -&gt; *) a. Foldable t =&gt; t a -&gt; Int
+</span><span class="hs-identifier hs-var">length</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679057599"><span class="hs-identifier hs-var">str2</span></a></span><span>
+</span><span id="line-194"></span><span>
+</span><span id="line-195"></span><span class="annot"><a href="Text.EditDistance.Bits.html#restrictedDamerauLevenshteinDistanceWithLengths"><span class="hs-identifier hs-type">restrictedDamerauLevenshteinDistanceWithLengths</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>
+</span><span id="line-196"></span><span id="restrictedDamerauLevenshteinDistanceWithLengths"><span class="annot"><span class="annottext">restrictedDamerauLevenshteinDistanceWithLengths :: Int -&gt; Int -&gt; String -&gt; String -&gt; Int
+</span><a href="Text.EditDistance.Bits.html#restrictedDamerauLevenshteinDistanceWithLengths"><span class="hs-identifier hs-var hs-var">restrictedDamerauLevenshteinDistanceWithLengths</span></a></span></span><span> </span><span class="hs-glyph">!</span><span id="local-6989586621679057604"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679057604"><span class="hs-identifier hs-var">m</span></a></span></span><span> </span><span class="hs-glyph">!</span><span id="local-6989586621679057605"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679057605"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span id="local-6989586621679057606"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679057606"><span class="hs-identifier hs-var">str1</span></a></span></span><span> </span><span id="local-6989586621679057607"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679057607"><span class="hs-identifier hs-var">str2</span></a></span></span><span>
+</span><span id="line-197"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679057604"><span class="hs-identifier hs-var">m</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&lt;=</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679057605"><span class="hs-identifier hs-var">n</span></a></span><span>    </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679057605"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&lt;=</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">64</span></span><span> </span><span class="hs-comment">-- n must be larger so this check is sufficient</span><span>
+</span><span id="line-198"></span><span>                </span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="annottext">Word64 -&gt; Int -&gt; Int -&gt; String -&gt; String -&gt; Int
+forall bv.
+(Num bv, Bits bv) =&gt;
+bv -&gt; Int -&gt; Int -&gt; String -&gt; String -&gt; Int
+</span><a href="Text.EditDistance.Bits.html#restrictedDamerauLevenshteinDistance%27"><span class="hs-identifier hs-var">restrictedDamerauLevenshteinDistance'</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Word64
+forall a. HasCallStack =&gt; a
+</span><span class="hs-identifier hs-var">undefined</span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word64</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679057604"><span class="hs-identifier hs-var">m</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679057605"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679057606"><span class="hs-identifier hs-var">str1</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679057607"><span class="hs-identifier hs-var">str2</span></a></span><span>
+</span><span id="line-199"></span><span>                </span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="annottext">Integer -&gt; Int -&gt; Int -&gt; String -&gt; String -&gt; Int
+forall bv.
+(Num bv, Bits bv) =&gt;
+bv -&gt; Int -&gt; Int -&gt; String -&gt; String -&gt; Int
+</span><a href="Text.EditDistance.Bits.html#restrictedDamerauLevenshteinDistance%27"><span class="hs-identifier hs-var">restrictedDamerauLevenshteinDistance'</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Integer
+forall a. HasCallStack =&gt; a
+</span><span class="hs-identifier hs-var">undefined</span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Integer</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679057604"><span class="hs-identifier hs-var">m</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679057605"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679057606"><span class="hs-identifier hs-var">str1</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679057607"><span class="hs-identifier hs-var">str2</span></a></span><span>
+</span><span id="line-200"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679057604"><span class="hs-identifier hs-var">m</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&lt;=</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">64</span></span><span> </span><span class="hs-comment">-- m must be larger so this check is sufficient</span><span>
+</span><span id="line-201"></span><span>                </span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="annottext">Word64 -&gt; Int -&gt; Int -&gt; String -&gt; String -&gt; Int
+forall bv.
+(Num bv, Bits bv) =&gt;
+bv -&gt; Int -&gt; Int -&gt; String -&gt; String -&gt; Int
+</span><a href="Text.EditDistance.Bits.html#restrictedDamerauLevenshteinDistance%27"><span class="hs-identifier hs-var">restrictedDamerauLevenshteinDistance'</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Word64
+forall a. HasCallStack =&gt; a
+</span><span class="hs-identifier hs-var">undefined</span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word64</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679057605"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679057604"><span class="hs-identifier hs-var">m</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679057607"><span class="hs-identifier hs-var">str2</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679057606"><span class="hs-identifier hs-var">str1</span></a></span><span>
+</span><span id="line-202"></span><span>                </span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="annottext">Integer -&gt; Int -&gt; Int -&gt; String -&gt; String -&gt; Int
+forall bv.
+(Num bv, Bits bv) =&gt;
+bv -&gt; Int -&gt; Int -&gt; String -&gt; String -&gt; Int
+</span><a href="Text.EditDistance.Bits.html#restrictedDamerauLevenshteinDistance%27"><span class="hs-identifier hs-var">restrictedDamerauLevenshteinDistance'</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Integer
+forall a. HasCallStack =&gt; a
+</span><span class="hs-identifier hs-var">undefined</span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Integer</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679057605"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679057604"><span class="hs-identifier hs-var">m</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679057607"><span class="hs-identifier hs-var">str2</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679057606"><span class="hs-identifier hs-var">str1</span></a></span><span>
+</span><span id="line-203"></span><span>
+</span><span id="line-204"></span><span class="hs-pragma">{-# SPECIALIZE</span><span> </span><span class="annot"><a href="Text.EditDistance.Bits.html#restrictedDamerauLevenshteinDistance%27"><span class="hs-pragma hs-type">restrictedDamerauLevenshteinDistance'</span></a></span><span> </span><span class="hs-pragma">::</span><span> </span><span class="annot"><span class="hs-pragma hs-type">Word64</span></span><span> </span><span class="hs-pragma">-&gt;</span><span> </span><span class="annot"><span class="hs-pragma hs-type">Int</span></span><span> </span><span class="hs-pragma">-&gt;</span><span> </span><span class="annot"><span class="hs-pragma hs-type">Int</span></span><span> </span><span class="hs-pragma">-&gt;</span><span> </span><span class="annot"><span class="hs-pragma hs-type">String</span></span><span> </span><span class="hs-pragma">-&gt;</span><span> </span><span class="annot"><span class="hs-pragma hs-type">String</span></span><span> </span><span class="hs-pragma">-&gt;</span><span> </span><span class="annot"><span class="hs-pragma hs-type">Int</span></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-205"></span><span class="hs-pragma">{-# SPECIALIZE</span><span> </span><span class="annot"><a href="Text.EditDistance.Bits.html#restrictedDamerauLevenshteinDistance%27"><span class="hs-pragma hs-type">restrictedDamerauLevenshteinDistance'</span></a></span><span> </span><span class="hs-pragma">::</span><span> </span><span class="annot"><span class="hs-pragma hs-type">Integer</span></span><span> </span><span class="hs-pragma">-&gt;</span><span> </span><span class="annot"><span class="hs-pragma hs-type">Int</span></span><span> </span><span class="hs-pragma">-&gt;</span><span> </span><span class="annot"><span class="hs-pragma hs-type">Int</span></span><span> </span><span class="hs-pragma">-&gt;</span><span> </span><span class="annot"><span class="hs-pragma hs-type">String</span></span><span> </span><span class="hs-pragma">-&gt;</span><span> </span><span class="annot"><span class="hs-pragma hs-type">String</span></span><span> </span><span class="hs-pragma">-&gt;</span><span> </span><span class="annot"><span class="hs-pragma hs-type">Int</span></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-206"></span><span id="local-6989586621679057609"><span class="annot"><a href="Text.EditDistance.Bits.html#restrictedDamerauLevenshteinDistance%27"><span class="hs-identifier hs-type">restrictedDamerauLevenshteinDistance'</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Num</span></span><span> </span><span class="annot"><a href="#local-6989586621679057609"><span class="hs-identifier hs-type">bv</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bits</span></span><span> </span><span class="annot"><a href="#local-6989586621679057609"><span class="hs-identifier hs-type">bv</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679057609"><span class="hs-identifier hs-type">bv</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span></span><span>
+</span><span id="line-207"></span><span id="restrictedDamerauLevenshteinDistance%27"><span class="annot"><span class="annottext">restrictedDamerauLevenshteinDistance' :: forall bv.
+(Num bv, Bits bv) =&gt;
+bv -&gt; Int -&gt; Int -&gt; String -&gt; String -&gt; Int
+</span><a href="Text.EditDistance.Bits.html#restrictedDamerauLevenshteinDistance%27"><span class="hs-identifier hs-var hs-var">restrictedDamerauLevenshteinDistance'</span></a></span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679057616"><span id="local-6989586621679057617"><span class="annot"><span class="annottext">bv
+</span><a href="#local-6989586621679057617"><span class="hs-identifier hs-var">_bv_dummy</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="#local-6989586621679057616"><span class="hs-identifier hs-type">bv</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">!</span><span id="local-6989586621679057618"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679057618"><span class="hs-identifier hs-var">m</span></a></span></span><span> </span><span class="hs-glyph">!</span><span id="local-6989586621679057619"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679057619"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span id="local-6989586621679057620"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679057620"><span class="hs-identifier hs-var">str1</span></a></span></span><span> </span><span id="local-6989586621679057621"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679057621"><span class="hs-identifier hs-var">str2</span></a></span></span><span>
+</span><span id="line-208"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679057620"><span class="hs-identifier hs-var">str1</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679057619"><span class="hs-identifier hs-var">n</span></a></span><span>
+</span><span id="line-209"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(bv, bv, bv, bv, Int) -&gt; Int
+forall {a} {b} {c} {d} {e}. (a, b, c, d, e) -&gt; e
+</span><a href="#local-6989586621679057622"><span class="hs-identifier hs-var">extractAnswer</span></a></span><span> </span><span class="annot"><span class="annottext">((bv, bv, bv, bv, Int) -&gt; Int) -&gt; (bv, bv, bv, bv, Int) -&gt; Int
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">(forall res.
+ (bv, bv, bv, bv, Int)
+ -&gt; Char -&gt; ((bv, bv, bv, bv, Int) -&gt; res) -&gt; res)
+-&gt; (bv, bv, bv, bv, Int) -&gt; String -&gt; (bv, bv, bv, bv, Int)
+forall a b c d e x.
+(forall res.
+ (a, b, c, d, e) -&gt; x -&gt; ((a, b, c, d, e) -&gt; res) -&gt; res)
+-&gt; (a, b, c, d, e) -&gt; [x] -&gt; (a, b, c, d, e)
+</span><a href="Text.EditDistance.Bits.html#foldl%275k"><span class="hs-identifier hs-var">foldl'5k</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">IntMap bv
+-&gt; bv
+-&gt; bv
+-&gt; (bv, bv, bv, bv, Int)
+-&gt; Char
+-&gt; ((bv, bv, bv, bv, Int) -&gt; res)
+-&gt; res
+forall bv res.
+(Num bv, Bits bv) =&gt;
+IntMap bv
+-&gt; bv
+-&gt; bv
+-&gt; (bv, bv, bv, bv, Int)
+-&gt; Char
+-&gt; ((bv, bv, bv, bv, Int) -&gt; res)
+-&gt; res
+</span><a href="Text.EditDistance.Bits.html#restrictedDamerauLevenshteinDistanceWorker"><span class="hs-identifier hs-var">restrictedDamerauLevenshteinDistanceWorker</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String -&gt; IntMap bv
+forall bv. (Num bv, Bits bv) =&gt; String -&gt; IntMap bv
+</span><a href="Text.EditDistance.Bits.html#matchVectors"><span class="hs-identifier hs-var">matchVectors</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679057620"><span class="hs-identifier hs-var">str1</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">bv
+</span><a href="#local-6989586621679057628"><span class="hs-identifier hs-var">top_bit_mask</span></a></span><span> </span><span class="annot"><span class="annottext">bv
+</span><a href="#local-6989586621679057629"><span class="hs-identifier hs-var">vector_mask</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">bv
+</span><span class="hs-number">0</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">bv
+</span><span class="hs-number">0</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">bv
+</span><a href="#local-6989586621679057630"><span class="hs-identifier hs-var">m_ones</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">bv
+</span><span class="hs-number">0</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679057618"><span class="hs-identifier hs-var">m</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679057621"><span class="hs-identifier hs-var">str2</span></a></span><span>
+</span><span id="line-210"></span><span>  </span><span class="hs-keyword">where</span><span> </span><span id="local-6989586621679057630"><span class="annot"><span class="annottext">m_ones :: bv
+</span><a href="#local-6989586621679057630"><span class="hs-identifier hs-var">m_ones</span></a></span></span><span class="hs-glyph">@</span><span id="local-6989586621679057629"><span class="annot"><span class="annottext">bv
+</span><a href="#local-6989586621679057629"><span class="hs-identifier hs-var">vector_mask</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">bv
+</span><span class="hs-number">2</span></span><span> </span><span class="annot"><span class="annottext">bv -&gt; Int -&gt; bv
+forall a b. (Num a, Integral b) =&gt; a -&gt; b -&gt; a
+</span><span class="hs-operator hs-var">^</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679057618"><span class="hs-identifier hs-var">m</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">bv -&gt; bv -&gt; bv
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">bv
+</span><span class="hs-number">1</span></span><span>
+</span><span id="line-211"></span><span>        </span><span id="local-6989586621679057628"><span class="annot"><span class="annottext">top_bit_mask :: bv
+</span><a href="#local-6989586621679057628"><span class="hs-identifier hs-var hs-var">top_bit_mask</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">bv
+</span><span class="hs-number">1</span></span><span> </span><span class="annot"><span class="annottext">bv -&gt; Int -&gt; bv
+forall a. Bits a =&gt; a -&gt; Int -&gt; a
+</span><span class="hs-operator hs-var">`shiftL`</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679057618"><span class="hs-identifier hs-var">m</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="#local-6989586621679057616"><span class="hs-identifier hs-type">bv</span></a></span><span>
+</span><span id="line-212"></span><span>        </span><span id="local-6989586621679057622"><span class="annot"><span class="annottext">extractAnswer :: (a, b, c, d, e) -&gt; e
+</span><a href="#local-6989586621679057622"><span class="hs-identifier hs-var hs-var">extractAnswer</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a
+</span><span class="hs-identifier">_</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">b
+</span><span class="hs-identifier">_</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">c
+</span><span class="hs-identifier">_</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">d
+</span><span class="hs-identifier">_</span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679057641"><span class="annot"><span class="annottext">e
+</span><a href="#local-6989586621679057641"><span class="hs-identifier hs-var">distance</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">e
+</span><a href="#local-6989586621679057641"><span class="hs-identifier hs-var">distance</span></a></span><span>
+</span><span id="line-213"></span><span>
+</span><span id="line-214"></span><span class="hs-pragma">{-# SPECIALIZE INLINE</span><span> </span><span class="annot"><a href="Text.EditDistance.Bits.html#restrictedDamerauLevenshteinDistanceWorker"><span class="hs-pragma hs-type">restrictedDamerauLevenshteinDistanceWorker</span></a></span><span> </span><span class="hs-pragma">::</span><span> </span><span id="local-6989586621679057642"><span class="annot"><span class="hs-pragma hs-type">IM.IntMap</span></span><span> </span><span class="annot"><span class="hs-pragma hs-type">Word64</span></span><span> </span><span class="hs-pragma">-&gt;</span><span> </span><span class="annot"><span class="hs-pragma hs-type">Word64</span></span><span> </span><span class="hs-pragma">-&gt;</span><span> </span><span class="annot"><span class="hs-pragma hs-type">Word64</span></span><span> </span><span class="hs-pragma">-&gt;</span><span> </span><span class="hs-pragma">(</span><span class="annot"><span class="hs-pragma hs-type">Word64</span></span><span class="hs-pragma">,</span><span> </span><span class="annot"><span class="hs-pragma hs-type">Word64</span></span><span class="hs-pragma">,</span><span> </span><span class="annot"><span class="hs-pragma hs-type">Word64</span></span><span class="hs-pragma">,</span><span> </span><span class="annot"><span class="hs-pragma hs-type">Word64</span></span><span class="hs-pragma">,</span><span> </span><span class="annot"><span class="hs-pragma hs-type">Int</span></span><span class="hs-pragma">)</span><span> </span><span class="hs-pragma">-&gt;</span><span> </span><span class="annot"><span class="hs-pragma hs-type">Char</span></span><span> </span><span class="hs-pragma">-&gt;</span><span> </span><span class="hs-pragma">(</span><span class="hs-pragma">(</span><span class="annot"><span class="hs-pragma hs-type">Word64</span></span><span class="hs-pragma">,</span><span> </span><span class="annot"><span class="hs-pragma hs-type">Word64</span></span><span class="hs-pragma">,</span><span> </span><span class="annot"><span class="hs-pragma hs-type">Word64</span></span><span class="hs-pragma">,</span><span> </span><span class="annot"><span class="hs-pragma hs-type">Word64</span></span><span class="hs-pragma">,</span><span> </span><span class="annot"><span class="hs-pragma hs-type">Int</span></span><span class="hs-pragma">)</span><span> </span><span class="hs-pragma">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679057642"><span class="hs-pragma hs-type">res</span></a></span><span class="hs-pragma">)</span><span> </span><span class="hs-pragma">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679057642"><span class="hs-pragma hs-type">res</span></a></span></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-215"></span><span class="hs-pragma">{-# SPECIALIZE INLINE</span><span> </span><span class="annot"><a href="Text.EditDistance.Bits.html#restrictedDamerauLevenshteinDistanceWorker"><span class="hs-pragma hs-type">restrictedDamerauLevenshteinDistanceWorker</span></a></span><span> </span><span class="hs-pragma">::</span><span> </span><span id="local-6989586621679057643"><span class="annot"><span class="hs-pragma hs-type">IM.IntMap</span></span><span> </span><span class="annot"><span class="hs-pragma hs-type">Integer</span></span><span> </span><span class="hs-pragma">-&gt;</span><span> </span><span class="annot"><span class="hs-pragma hs-type">Integer</span></span><span> </span><span class="hs-pragma">-&gt;</span><span> </span><span class="annot"><span class="hs-pragma hs-type">Integer</span></span><span> </span><span class="hs-pragma">-&gt;</span><span> </span><span class="hs-pragma">(</span><span class="annot"><span class="hs-pragma hs-type">Integer</span></span><span class="hs-pragma">,</span><span> </span><span class="annot"><span class="hs-pragma hs-type">Integer</span></span><span class="hs-pragma">,</span><span> </span><span class="annot"><span class="hs-pragma hs-type">Integer</span></span><span class="hs-pragma">,</span><span> </span><span class="annot"><span class="hs-pragma hs-type">Integer</span></span><span class="hs-pragma">,</span><span> </span><span class="annot"><span class="hs-pragma hs-type">Int</span></span><span class="hs-pragma">)</span><span> </span><span class="hs-pragma">-&gt;</span><span> </span><span class="annot"><span class="hs-pragma hs-type">Char</span></span><span> </span><span class="hs-pragma">-&gt;</span><span> </span><span class="hs-pragma">(</span><span class="hs-pragma">(</span><span class="annot"><span class="hs-pragma hs-type">Integer</span></span><span class="hs-pragma">,</span><span> </span><span class="annot"><span class="hs-pragma hs-type">Integer</span></span><span class="hs-pragma">,</span><span> </span><span class="annot"><span class="hs-pragma hs-type">Integer</span></span><span class="hs-pragma">,</span><span> </span><span class="annot"><span class="hs-pragma hs-type">Integer</span></span><span class="hs-pragma">,</span><span> </span><span class="annot"><span class="hs-pragma hs-type">Int</span></span><span class="hs-pragma">)</span><span> </span><span class="hs-pragma">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679057643"><span class="hs-pragma hs-type">res</span></a></span><span class="hs-pragma">)</span><span> </span><span class="hs-pragma">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679057643"><span class="hs-pragma hs-type">res</span></a></span></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-216"></span><span id="local-6989586621679057356"><span id="local-6989586621679057357"><span class="annot"><a href="Text.EditDistance.Bits.html#restrictedDamerauLevenshteinDistanceWorker"><span class="hs-identifier hs-type">restrictedDamerauLevenshteinDistanceWorker</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Num</span></span><span> </span><span class="annot"><a href="#local-6989586621679057356"><span class="hs-identifier hs-type">bv</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bits</span></span><span> </span><span class="annot"><a href="#local-6989586621679057356"><span class="hs-identifier hs-type">bv</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IM.IntMap</span></span><span> </span><span class="annot"><a href="#local-6989586621679057356"><span class="hs-identifier hs-type">bv</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679057356"><span class="hs-identifier hs-type">bv</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679057356"><span class="hs-identifier hs-type">bv</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679057356"><span class="hs-identifier hs-type">bv</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679057356"><span class="hs-identifier hs-type">bv</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679057356"><span class="hs-identifier hs-type">bv</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679057356"><span class="hs-identifier hs-type">bv</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Char</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679057356"><span class="hs-identifier hs-type">bv</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679057356"><span class="hs-identifier hs-type">bv</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679057356"><span class="hs-identifier hs-type">bv</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679057356"><span class="hs-identifier hs-type">bv</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679057357"><span class="hs-identifier hs-type">res</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679057357"><span class="hs-identifier hs-type">res</span></a></span></span></span><span>
+</span><span id="line-217"></span><span id="restrictedDamerauLevenshteinDistanceWorker"><span class="annot"><span class="annottext">restrictedDamerauLevenshteinDistanceWorker :: forall bv res.
+(Num bv, Bits bv) =&gt;
+IntMap bv
+-&gt; bv
+-&gt; bv
+-&gt; (bv, bv, bv, bv, Int)
+-&gt; Char
+-&gt; ((bv, bv, bv, bv, Int) -&gt; res)
+-&gt; res
+</span><a href="Text.EditDistance.Bits.html#restrictedDamerauLevenshteinDistanceWorker"><span class="hs-identifier hs-var hs-var">restrictedDamerauLevenshteinDistanceWorker</span></a></span></span><span> </span><span class="hs-glyph">!</span><span id="local-6989586621679057647"><span class="annot"><span class="annottext">IntMap bv
+</span><a href="#local-6989586621679057647"><span class="hs-identifier hs-var">str1_mvs</span></a></span></span><span> </span><span class="hs-glyph">!</span><span id="local-6989586621679057648"><span class="annot"><span class="annottext">bv
+</span><a href="#local-6989586621679057648"><span class="hs-identifier hs-var">top_bit_mask</span></a></span></span><span> </span><span class="hs-glyph">!</span><span id="local-6989586621679057649"><span class="annot"><span class="annottext">bv
+</span><a href="#local-6989586621679057649"><span class="hs-identifier hs-var">vector_mask</span></a></span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">!</span><span id="local-6989586621679057650"><span class="annot"><span class="annottext">bv
+</span><a href="#local-6989586621679057650"><span class="hs-identifier hs-var">pm</span></a></span></span><span class="hs-special">,</span><span> </span><span class="hs-glyph">!</span><span id="local-6989586621679057651"><span class="annot"><span class="annottext">bv
+</span><a href="#local-6989586621679057651"><span class="hs-identifier hs-var">d0</span></a></span></span><span class="hs-special">,</span><span> </span><span class="hs-glyph">!</span><span id="local-6989586621679057652"><span class="annot"><span class="annottext">bv
+</span><a href="#local-6989586621679057652"><span class="hs-identifier hs-var">vp</span></a></span></span><span class="hs-special">,</span><span> </span><span class="hs-glyph">!</span><span id="local-6989586621679057653"><span class="annot"><span class="annottext">bv
+</span><a href="#local-6989586621679057653"><span class="hs-identifier hs-var">vn</span></a></span></span><span class="hs-special">,</span><span> </span><span class="hs-glyph">!</span><span id="local-6989586621679057654"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679057654"><span class="hs-identifier hs-var">distance</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">!</span><span id="local-6989586621679057655"><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621679057655"><span class="hs-identifier hs-var">char2</span></a></span></span><span> </span><span id="local-6989586621679057656"><span class="annot"><span class="annottext">(bv, bv, bv, bv, Int) -&gt; res
+</span><a href="#local-6989586621679057656"><span class="hs-identifier hs-var">k</span></a></span></span><span>
+</span><span id="line-218"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">bv
+</span><a href="#local-6989586621679057657"><span class="hs-identifier hs-var">pm'</span></a></span><span> </span><span class="annot"><span class="annottext">bv -&gt; res -&gt; res
+forall a b. a -&gt; b -&gt; b
+</span><span class="hs-operator hs-var">`seq`</span></span><span> </span><span class="annot"><span class="annottext">bv
+</span><a href="#local-6989586621679057658"><span class="hs-identifier hs-var">d0'</span></a></span><span> </span><span class="annot"><span class="annottext">bv -&gt; res -&gt; res
+forall a b. a -&gt; b -&gt; b
+</span><span class="hs-operator hs-var">`seq`</span></span><span> </span><span class="annot"><span class="annottext">bv
+</span><a href="#local-6989586621679057659"><span class="hs-identifier hs-var">vp'</span></a></span><span> </span><span class="annot"><span class="annottext">bv -&gt; res -&gt; res
+forall a b. a -&gt; b -&gt; b
+</span><span class="hs-operator hs-var">`seq`</span></span><span> </span><span class="annot"><span class="annottext">bv
+</span><a href="#local-6989586621679057660"><span class="hs-identifier hs-var">vn'</span></a></span><span> </span><span class="annot"><span class="annottext">bv -&gt; res -&gt; res
+forall a b. a -&gt; b -&gt; b
+</span><span class="hs-operator hs-var">`seq`</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679057661"><span class="hs-identifier hs-var">distance''</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; res -&gt; res
+forall a b. a -&gt; b -&gt; b
+</span><span class="hs-operator hs-var">`seq`</span></span><span> </span><span class="annot"><span class="annottext">(bv, bv, bv, bv, Int) -&gt; res
+</span><a href="#local-6989586621679057656"><span class="hs-identifier hs-var">k</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">bv
+</span><a href="#local-6989586621679057657"><span class="hs-identifier hs-var">pm'</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">bv
+</span><a href="#local-6989586621679057658"><span class="hs-identifier hs-var">d0'</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">bv
+</span><a href="#local-6989586621679057659"><span class="hs-identifier hs-var">vp'</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">bv
+</span><a href="#local-6989586621679057660"><span class="hs-identifier hs-var">vn'</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679057661"><span class="hs-identifier hs-var">distance''</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-219"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-220"></span><span>    </span><span id="local-6989586621679057657"><span class="annot"><span class="annottext">pm' :: bv
+</span><a href="#local-6989586621679057657"><span class="hs-identifier hs-var hs-var">pm'</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">bv -&gt; Int -&gt; IntMap bv -&gt; bv
+forall a. a -&gt; Int -&gt; IntMap a -&gt; a
+</span><span class="hs-identifier hs-var">IM.findWithDefault</span></span><span> </span><span class="annot"><span class="annottext">bv
+</span><span class="hs-number">0</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Char -&gt; Int
+</span><span class="hs-identifier hs-var">ord</span></span><span> </span><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621679057655"><span class="hs-identifier hs-var">char2</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">IntMap bv
+</span><a href="#local-6989586621679057647"><span class="hs-identifier hs-var">str1_mvs</span></a></span><span>
+</span><span id="line-221"></span><span>
+</span><span id="line-222"></span><span>    </span><span id="local-6989586621679057658"><span class="annot"><span class="annottext">d0' :: bv
+</span><a href="#local-6989586621679057658"><span class="hs-identifier hs-var hs-var">d0'</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="annottext">bv -&gt; bv -&gt; bv
+forall bv. (Num bv, Bits bv) =&gt; bv -&gt; bv -&gt; bv
+</span><a href="Text.EditDistance.Bits.html#sizedComplement"><span class="hs-identifier hs-var">sizedComplement</span></a></span><span> </span><span class="annot"><span class="annottext">bv
+</span><a href="#local-6989586621679057649"><span class="hs-identifier hs-var">vector_mask</span></a></span><span> </span><span class="annot"><span class="annottext">bv
+</span><a href="#local-6989586621679057651"><span class="hs-identifier hs-var">d0</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">bv -&gt; bv -&gt; bv
+forall a. Bits a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">.&amp;.</span></span><span> </span><span class="annot"><span class="annottext">bv
+</span><a href="#local-6989586621679057657"><span class="hs-identifier hs-var">pm'</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">bv -&gt; Int -&gt; bv
+forall a. Bits a =&gt; a -&gt; Int -&gt; a
+</span><span class="hs-operator hs-var">`shiftL`</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">bv -&gt; bv -&gt; bv
+forall a. Bits a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">.&amp;.</span></span><span> </span><span class="annot"><span class="annottext">bv
+</span><a href="#local-6989586621679057650"><span class="hs-identifier hs-var">pm</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-comment">-- No need to mask the shiftL because of the restricted range of pm</span><span>
+</span><span id="line-223"></span><span>      </span><span class="annot"><span class="annottext">bv -&gt; bv -&gt; bv
+forall a. Bits a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">.|.</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="annottext">bv
+</span><a href="#local-6989586621679057657"><span class="hs-identifier hs-var">pm'</span></a></span><span> </span><span class="annot"><span class="annottext">bv -&gt; bv -&gt; bv
+forall a. Bits a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">.&amp;.</span></span><span> </span><span class="annot"><span class="annottext">bv
+</span><a href="#local-6989586621679057652"><span class="hs-identifier hs-var">vp</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">bv -&gt; bv -&gt; bv
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">bv
+</span><a href="#local-6989586621679057652"><span class="hs-identifier hs-var">vp</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">bv -&gt; bv -&gt; bv
+forall a. Bits a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">.&amp;.</span></span><span> </span><span class="annot"><span class="annottext">bv
+</span><a href="#local-6989586621679057649"><span class="hs-identifier hs-var">vector_mask</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">bv -&gt; bv -&gt; bv
+forall a. Bits a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">`xor`</span></span><span> </span><span class="annot"><span class="annottext">bv
+</span><a href="#local-6989586621679057652"><span class="hs-identifier hs-var">vp</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">bv -&gt; bv -&gt; bv
+forall a. Bits a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">.|.</span></span><span> </span><span class="annot"><span class="annottext">bv
+</span><a href="#local-6989586621679057657"><span class="hs-identifier hs-var">pm'</span></a></span><span> </span><span class="annot"><span class="annottext">bv -&gt; bv -&gt; bv
+forall a. Bits a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">.|.</span></span><span> </span><span class="annot"><span class="annottext">bv
+</span><a href="#local-6989586621679057653"><span class="hs-identifier hs-var">vn</span></a></span><span>
+</span><span id="line-224"></span><span>    </span><span id="local-6989586621679057681"><span class="annot"><span class="annottext">hp' :: bv
+</span><a href="#local-6989586621679057681"><span class="hs-identifier hs-var hs-var">hp'</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">bv
+</span><a href="#local-6989586621679057653"><span class="hs-identifier hs-var">vn</span></a></span><span> </span><span class="annot"><span class="annottext">bv -&gt; bv -&gt; bv
+forall a. Bits a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">.|.</span></span><span> </span><span class="annot"><span class="annottext">bv -&gt; bv -&gt; bv
+forall bv. (Num bv, Bits bv) =&gt; bv -&gt; bv -&gt; bv
+</span><a href="Text.EditDistance.Bits.html#sizedComplement"><span class="hs-identifier hs-var">sizedComplement</span></a></span><span> </span><span class="annot"><span class="annottext">bv
+</span><a href="#local-6989586621679057649"><span class="hs-identifier hs-var">vector_mask</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">bv
+</span><a href="#local-6989586621679057658"><span class="hs-identifier hs-var">d0'</span></a></span><span> </span><span class="annot"><span class="annottext">bv -&gt; bv -&gt; bv
+forall a. Bits a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">.|.</span></span><span> </span><span class="annot"><span class="annottext">bv
+</span><a href="#local-6989586621679057652"><span class="hs-identifier hs-var">vp</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-225"></span><span>    </span><span id="local-6989586621679057684"><span class="annot"><span class="annottext">hn' :: bv
+</span><a href="#local-6989586621679057684"><span class="hs-identifier hs-var hs-var">hn'</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">bv
+</span><a href="#local-6989586621679057658"><span class="hs-identifier hs-var">d0'</span></a></span><span> </span><span class="annot"><span class="annottext">bv -&gt; bv -&gt; bv
+forall a. Bits a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">.&amp;.</span></span><span> </span><span class="annot"><span class="annottext">bv
+</span><a href="#local-6989586621679057652"><span class="hs-identifier hs-var">vp</span></a></span><span>
+</span><span id="line-226"></span><span>
+</span><span id="line-227"></span><span>    </span><span id="local-6989586621679057690"><span class="annot"><span class="annottext">hp'_shift :: bv
+</span><a href="#local-6989586621679057690"><span class="hs-identifier hs-var hs-var">hp'_shift</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="annottext">bv
+</span><a href="#local-6989586621679057681"><span class="hs-identifier hs-var">hp'</span></a></span><span> </span><span class="annot"><span class="annottext">bv -&gt; Int -&gt; bv
+forall a. Bits a =&gt; a -&gt; Int -&gt; a
+</span><span class="hs-operator hs-var">`shiftL`</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">bv -&gt; bv -&gt; bv
+forall a. Bits a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">.|.</span></span><span> </span><span class="annot"><span class="annottext">bv
+</span><span class="hs-number">1</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">bv -&gt; bv -&gt; bv
+forall a. Bits a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">.&amp;.</span></span><span> </span><span class="annot"><span class="annottext">bv
+</span><a href="#local-6989586621679057649"><span class="hs-identifier hs-var">vector_mask</span></a></span><span>
+</span><span id="line-228"></span><span>    </span><span id="local-6989586621679057694"><span class="annot"><span class="annottext">hn'_shift :: bv
+</span><a href="#local-6989586621679057694"><span class="hs-identifier hs-var hs-var">hn'_shift</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">bv
+</span><a href="#local-6989586621679057684"><span class="hs-identifier hs-var">hn'</span></a></span><span> </span><span class="annot"><span class="annottext">bv -&gt; Int -&gt; bv
+forall a. Bits a =&gt; a -&gt; Int -&gt; a
+</span><span class="hs-operator hs-var">`shiftL`</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">bv -&gt; bv -&gt; bv
+forall a. Bits a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">.&amp;.</span></span><span> </span><span class="annot"><span class="annottext">bv
+</span><a href="#local-6989586621679057649"><span class="hs-identifier hs-var">vector_mask</span></a></span><span>
+</span><span id="line-229"></span><span>    </span><span id="local-6989586621679057659"><span class="annot"><span class="annottext">vp' :: bv
+</span><a href="#local-6989586621679057659"><span class="hs-identifier hs-var hs-var">vp'</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">bv
+</span><a href="#local-6989586621679057694"><span class="hs-identifier hs-var">hn'_shift</span></a></span><span> </span><span class="annot"><span class="annottext">bv -&gt; bv -&gt; bv
+forall a. Bits a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">.|.</span></span><span> </span><span class="annot"><span class="annottext">bv -&gt; bv -&gt; bv
+forall bv. (Num bv, Bits bv) =&gt; bv -&gt; bv -&gt; bv
+</span><a href="Text.EditDistance.Bits.html#sizedComplement"><span class="hs-identifier hs-var">sizedComplement</span></a></span><span> </span><span class="annot"><span class="annottext">bv
+</span><a href="#local-6989586621679057649"><span class="hs-identifier hs-var">vector_mask</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">bv
+</span><a href="#local-6989586621679057658"><span class="hs-identifier hs-var">d0'</span></a></span><span> </span><span class="annot"><span class="annottext">bv -&gt; bv -&gt; bv
+forall a. Bits a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">.|.</span></span><span> </span><span class="annot"><span class="annottext">bv
+</span><a href="#local-6989586621679057690"><span class="hs-identifier hs-var">hp'_shift</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-230"></span><span>    </span><span id="local-6989586621679057660"><span class="annot"><span class="annottext">vn' :: bv
+</span><a href="#local-6989586621679057660"><span class="hs-identifier hs-var hs-var">vn'</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">bv
+</span><a href="#local-6989586621679057658"><span class="hs-identifier hs-var">d0'</span></a></span><span> </span><span class="annot"><span class="annottext">bv -&gt; bv -&gt; bv
+forall a. Bits a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">.&amp;.</span></span><span> </span><span class="annot"><span class="annottext">bv
+</span><a href="#local-6989586621679057690"><span class="hs-identifier hs-var">hp'_shift</span></a></span><span>
+</span><span id="line-231"></span><span>
+</span><span id="line-232"></span><span>    </span><span id="local-6989586621679057708"><span class="annot"><span class="annottext">distance' :: Int
+</span><a href="#local-6989586621679057708"><span class="hs-identifier hs-var hs-var">distance'</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">bv
+</span><a href="#local-6989586621679057681"><span class="hs-identifier hs-var">hp'</span></a></span><span> </span><span class="annot"><span class="annottext">bv -&gt; bv -&gt; bv
+forall a. Bits a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">.&amp;.</span></span><span> </span><span class="annot"><span class="annottext">bv
+</span><a href="#local-6989586621679057648"><span class="hs-identifier hs-var">top_bit_mask</span></a></span><span> </span><span class="annot"><span class="annottext">bv -&gt; bv -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">/=</span></span><span> </span><span class="annot"><span class="annottext">bv
+</span><span class="hs-number">0</span></span><span> </span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679057654"><span class="hs-identifier hs-var">distance</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span> </span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679057654"><span class="hs-identifier hs-var">distance</span></a></span><span>
+</span><span id="line-233"></span><span>    </span><span id="local-6989586621679057661"><span class="annot"><span class="annottext">distance'' :: Int
+</span><a href="#local-6989586621679057661"><span class="hs-identifier hs-var hs-var">distance''</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">bv
+</span><a href="#local-6989586621679057684"><span class="hs-identifier hs-var">hn'</span></a></span><span> </span><span class="annot"><span class="annottext">bv -&gt; bv -&gt; bv
+forall a. Bits a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">.&amp;.</span></span><span> </span><span class="annot"><span class="annottext">bv
+</span><a href="#local-6989586621679057648"><span class="hs-identifier hs-var">top_bit_mask</span></a></span><span> </span><span class="annot"><span class="annottext">bv -&gt; bv -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">/=</span></span><span> </span><span class="annot"><span class="annottext">bv
+</span><span class="hs-number">0</span></span><span> </span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679057708"><span class="hs-identifier hs-var">distance'</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span> </span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679057708"><span class="hs-identifier hs-var">distance'</span></a></span><span>
+</span><span id="line-234"></span><span>
+</span><span id="line-235"></span><span>
+</span><span id="line-236"></span><span class="hs-pragma">{-# SPECIALIZE INLINE</span><span> </span><span class="annot"><a href="Text.EditDistance.Bits.html#sizedComplement"><span class="hs-pragma hs-type">sizedComplement</span></a></span><span> </span><span class="hs-pragma">::</span><span> </span><span class="annot"><span class="hs-pragma hs-type">Word64</span></span><span> </span><span class="hs-pragma">-&gt;</span><span> </span><span class="annot"><span class="hs-pragma hs-type">Word64</span></span><span> </span><span class="hs-pragma">-&gt;</span><span> </span><span class="annot"><span class="hs-pragma hs-type">Word64</span></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-237"></span><span class="hs-pragma">{-# SPECIALIZE INLINE</span><span> </span><span class="annot"><a href="Text.EditDistance.Bits.html#sizedComplement"><span class="hs-pragma hs-type">sizedComplement</span></a></span><span> </span><span class="hs-pragma">::</span><span> </span><span class="annot"><span class="hs-pragma hs-type">Integer</span></span><span> </span><span class="hs-pragma">-&gt;</span><span> </span><span class="annot"><span class="hs-pragma hs-type">Integer</span></span><span> </span><span class="hs-pragma">-&gt;</span><span> </span><span class="annot"><span class="hs-pragma hs-type">Integer</span></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-238"></span><span id="local-6989586621679057347"><span class="annot"><a href="Text.EditDistance.Bits.html#sizedComplement"><span class="hs-identifier hs-type">sizedComplement</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Num</span></span><span> </span><span class="annot"><a href="#local-6989586621679057347"><span class="hs-identifier hs-type">bv</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bits</span></span><span> </span><span class="annot"><a href="#local-6989586621679057347"><span class="hs-identifier hs-type">bv</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679057347"><span class="hs-identifier hs-type">bv</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679057347"><span class="hs-identifier hs-type">bv</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679057347"><span class="hs-identifier hs-type">bv</span></a></span></span><span>
+</span><span id="line-239"></span><span id="sizedComplement"><span class="annot"><span class="annottext">sizedComplement :: forall bv. (Num bv, Bits bv) =&gt; bv -&gt; bv -&gt; bv
+</span><a href="Text.EditDistance.Bits.html#sizedComplement"><span class="hs-identifier hs-var hs-var">sizedComplement</span></a></span></span><span> </span><span id="local-6989586621679057718"><span class="annot"><span class="annottext">bv
+</span><a href="#local-6989586621679057718"><span class="hs-identifier hs-var">vector_mask</span></a></span></span><span> </span><span id="local-6989586621679057719"><span class="annot"><span class="annottext">bv
+</span><a href="#local-6989586621679057719"><span class="hs-identifier hs-var">vect</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">bv
+</span><a href="#local-6989586621679057718"><span class="hs-identifier hs-var">vector_mask</span></a></span><span> </span><span class="annot"><span class="annottext">bv -&gt; bv -&gt; bv
+forall a. Bits a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">`xor`</span></span><span> </span><span class="annot"><span class="annottext">bv
+</span><a href="#local-6989586621679057719"><span class="hs-identifier hs-var">vect</span></a></span><span>
+</span><span id="line-240"></span><span>
+</span><span id="line-241"></span><span class="hs-pragma">{-# SPECIALIZE</span><span> </span><span class="annot"><a href="Text.EditDistance.Bits.html#matchVectors"><span class="hs-pragma hs-type">matchVectors</span></a></span><span> </span><span class="hs-pragma">::</span><span> </span><span class="annot"><span class="hs-pragma hs-type">String</span></span><span> </span><span class="hs-pragma">-&gt;</span><span> </span><span class="annot"><span class="hs-pragma hs-type">IM.IntMap</span></span><span> </span><span class="annot"><span class="hs-pragma hs-type">Word64</span></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-242"></span><span class="hs-pragma">{-# SPECIALIZE</span><span> </span><span class="annot"><a href="Text.EditDistance.Bits.html#matchVectors"><span class="hs-pragma hs-type">matchVectors</span></a></span><span> </span><span class="hs-pragma">::</span><span> </span><span class="annot"><span class="hs-pragma hs-type">String</span></span><span> </span><span class="hs-pragma">-&gt;</span><span> </span><span class="annot"><span class="hs-pragma hs-type">IM.IntMap</span></span><span> </span><span class="annot"><span class="hs-pragma hs-type">Integer</span></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-243"></span><span id="local-6989586621679057338"><span class="annot"><a href="Text.EditDistance.Bits.html#matchVectors"><span class="hs-identifier hs-type">matchVectors</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Num</span></span><span> </span><span class="annot"><a href="#local-6989586621679057338"><span class="hs-identifier hs-type">bv</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bits</span></span><span> </span><span class="annot"><a href="#local-6989586621679057338"><span class="hs-identifier hs-type">bv</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IM.IntMap</span></span><span> </span><span class="annot"><a href="#local-6989586621679057338"><span class="hs-identifier hs-type">bv</span></a></span></span><span>
+</span><span id="line-244"></span><span id="matchVectors"><span class="annot"><span class="annottext">matchVectors :: forall bv. (Num bv, Bits bv) =&gt; String -&gt; IntMap bv
+</span><a href="Text.EditDistance.Bits.html#matchVectors"><span class="hs-identifier hs-var hs-var">matchVectors</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Int, IntMap bv) -&gt; IntMap bv
+forall a b. (a, b) -&gt; b
+</span><span class="hs-identifier hs-var">snd</span></span><span> </span><span class="annot"><span class="annottext">((Int, IntMap bv) -&gt; IntMap bv)
+-&gt; (String -&gt; (Int, IntMap bv)) -&gt; String -&gt; IntMap bv
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">((Int, IntMap bv) -&gt; Char -&gt; (Int, IntMap bv))
+-&gt; (Int, IntMap bv) -&gt; String -&gt; (Int, IntMap bv)
+forall b a. (b -&gt; a -&gt; b) -&gt; b -&gt; [a] -&gt; b
+forall (t :: * -&gt; *) b a.
+Foldable t =&gt;
+(b -&gt; a -&gt; b) -&gt; b -&gt; t a -&gt; b
+</span><span class="hs-identifier hs-var">foldl'</span></span><span> </span><span class="annot"><span class="annottext">(Int, IntMap bv) -&gt; Char -&gt; (Int, IntMap bv)
+forall {a} {a}.
+(Bits a, Integral a, Num a) =&gt;
+(a, IntMap a) -&gt; Char -&gt; (a, IntMap a)
+</span><a href="#local-6989586621679057729"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">IntMap bv
+forall a. IntMap a
+</span><span class="hs-identifier hs-var">IM.empty</span></span><span class="hs-special">)</span><span>
+</span><span id="line-245"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-246"></span><span>    </span><span id="local-6989586621679057729"><span class="annot"><span class="annottext">go :: (a, IntMap a) -&gt; Char -&gt; (a, IntMap a)
+</span><a href="#local-6989586621679057729"><span class="hs-identifier hs-var hs-var">go</span></a></span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">!</span><span id="local-6989586621679057745"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679057745"><span class="hs-identifier hs-var">ix</span></a></span></span><span class="hs-special">,</span><span> </span><span class="hs-glyph">!</span><span id="local-6989586621679057746"><span class="annot"><span class="annottext">IntMap a
+</span><a href="#local-6989586621679057746"><span class="hs-identifier hs-var">im</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621679057747"><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621679057747"><span class="hs-identifier hs-var">char</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679057750"><span class="annot"><span class="annottext">ix' :: a
+</span><a href="#local-6989586621679057750"><span class="hs-identifier hs-var hs-var">ix'</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679057745"><span class="hs-identifier hs-var">ix</span></a></span><span> </span><span class="annot"><span class="annottext">a -&gt; a -&gt; a
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><span class="hs-number">1</span></span><span>
+</span><span id="line-247"></span><span>                             </span><span id="local-6989586621679057761"><span class="annot"><span class="annottext">im' :: IntMap a
+</span><a href="#local-6989586621679057761"><span class="hs-identifier hs-var hs-var">im'</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(a -&gt; a -&gt; a) -&gt; Int -&gt; a -&gt; IntMap a -&gt; IntMap a
+forall a. (a -&gt; a -&gt; a) -&gt; Int -&gt; a -&gt; IntMap a -&gt; IntMap a
+</span><span class="hs-identifier hs-var">IM.insertWith</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; a -&gt; a
+forall a. Bits a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">(.|.)</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Char -&gt; Int
+</span><span class="hs-identifier hs-var">ord</span></span><span> </span><span class="annot"><span class="annottext">Char
+</span><a href="#local-6989586621679057747"><span class="hs-identifier hs-var">char</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a
+</span><span class="hs-number">2</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; a -&gt; a
+forall a b. (Num a, Integral b) =&gt; a -&gt; b -&gt; a
+</span><span class="hs-operator hs-var">^</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679057745"><span class="hs-identifier hs-var">ix</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">IntMap a
+</span><a href="#local-6989586621679057746"><span class="hs-identifier hs-var">im</span></a></span><span>
+</span><span id="line-248"></span><span>                         </span><span class="hs-keyword">in</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679057750"><span class="hs-identifier hs-var">ix'</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">IntMap a
+</span><a href="#local-6989586621679057761"><span class="hs-identifier hs-var">im'</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-249"></span></pre></body></html>
