@@ -25,7 +25,7 @@ jobs:
           - ubuntu-24.04
           - ubuntu-24.04-arm
           - macos-15-intel
-          - macos-latest
+          - macos-15
           - windows-2025
           # - windows-11-arm # 2025-06-17 apparently there's no stack or ghc builds for arm64 windows
     runs-on: ${{matrix.os}}
@@ -105,7 +105,7 @@ jobs:
           - ubuntu-24.04
           - ubuntu-24.04-arm
           - macos-15-intel
-          - macos-latest
+          - macos-15
           - windows-2025
           # - windows-11-arm
     steps:
