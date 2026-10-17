@@ -27,6 +27,8 @@ Caches build outputs for unison packages themselves.
 
 This currently will re-save on success or failure, but only on a cache miss (source changed).If we find we want to re-save even on a cache key miss (e.g. due to `stack` weirdness), we can change the condition.
 
+Both caches can only be restored by runs on the branch that saved them or on `trunk`. The merge queue runs on throwaway `gh-readonly-queue/*` branches, so [warm-caches.yaml](./warm-caches.yaml) builds the dependencies and packages on every platform after each push to `trunk` and saves these caches under `trunk`, where every pull request and merge-queue build can restore them. Without it every merge-queue build started cold (20 to 48 minutes of dependency builds).
+
 #### `ucm_local_bin`
 A built `ucm` is cached in `ucm_local_bin` after a successful build and Haskell tests pass.
 - The **cache key** includes the os, this workflow, `stack.yaml`, any `package.yaml`, and any `.hs` file.
