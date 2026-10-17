@@ -157,6 +157,9 @@ The branch also changes the interpreter, since native code reads its heap object
 - The dispatch types (`GSection`, `GInstr`, `Prim1`, `Prim2`, `Foreign`) are ordered by
   measured dispatch frequency, so that the hot constructors have pointer tags.
 - Structural records from trunk are native too (merged 2026-10-15).
+- A chunk that an append made has slack: the next append to it writes in place after a
+  compare-and-swap on the array's used length, instead of copying the chunk
+  ([2026-10-17 slack chunks](benchmarks/2026-10-17-slack-chunks.md)).
 - Two interpreter bugs surfaced because every native path is checked against the
   interpreter: the sized `Int` foreign conventions tagged their results `Nat`, and
   `Universal.compare` ordered every negative float above `0.0` (bit 64 cleared instead of

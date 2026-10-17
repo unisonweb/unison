@@ -113,7 +113,6 @@ import Foreign.Ptr (plusPtr)
 import GHC.ByteOrder (ByteOrder (..), targetByteOrder)
 import GHC.Exts (Int (I#), casIntArray#)
 import GHC.IO (IO (IO), unsafeDupablePerformIO)
-import System.Environment (lookupEnv)
 import Unison.Prelude hiding (ByteString, empty)
 import Unison.Util.Rope qualified as R
 import Prelude hiding (drop, take)
@@ -148,11 +147,12 @@ emptyChunk = Chunk 0 0 0 emptyByteArray
 -- | The slack an array is first allocated with, in payload bytes, and the
 -- most it grows to: 'slackCapacity' quadruples from the first until the join
 -- fits. A join of more than 'slackMax' bytes gets an exact array with no
--- slack. The JIT's C helpers get the two numbers at startup (rope_init in
+-- slack. The start was measured at 8, 16 and 32 with no difference in time
+-- (benchmarks/2026-10-17-slack-chunks.md in the JIT's docs), so it is the
+-- smallest. The JIT's C helpers get the two numbers at startup (rope_init in
 -- jit_rt.c), so there is one source of them.
 slackStart, slackMax :: Int
-slackStart = unsafeDupablePerformIO (maybe 16 read <$> lookupEnv "UNISON_SLACK_START") -- EXPERIMENT
-{-# NOINLINE slackStart #-}
+slackStart = 8
 slackMax = 512
 
 -- | The capacity of the array for a join of @need@ bytes onto a chunk of

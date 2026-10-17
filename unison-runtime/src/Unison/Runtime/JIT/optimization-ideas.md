@@ -177,48 +177,13 @@ interpreter benefits too.
 `Unison.Util.Rope`, a finger tree of chunks ([the rope benchmark](benchmarks/2026-10-02-rope-vs-old-rope.md)).
 Open: appending two large texts is slower than on the size-balanced tree it replaced (150 to
 290 ns against 20 to 30 when both sides have a middle), which is the Deque's append and
-improves with it; a last chunk with spare capacity that the next append writes into (the next entry); a chunk whose character count equals its byte length is all ASCII and needs no scan
+improves with it; a chunk whose character count equals its byte length is all ASCII and needs no scan
 to index, take or drop, which the chunk instances and the C helpers (`utf8_prefix`) could
 check; `take` and `drop` build the part before the cut and then `snoc` the cut piece,
 allocating the top level twice; equality and comparison in C find each next chunk by
 position, a walk down per chunk, where a cursor would make them one pass. Any change here
 has to be made in the C helpers too, which the startup checks and `UNISON_JIT_STRESS=texts=N`
 enforce.
-
-### Chunks with slack: append in place
-
-Appending one character to a chunk copies the chunk: a 64-character chunk built one
-character at a time costs 1 + 2 + … + 64 = 2,080 characters copied and 64 allocations, about
-32 copies per character, bounded by the threshold so linear overall but all of it wasted.
-Measured at 24 ns per append native on the suite's "append "hi"" row, most of it the two
-allocations. The fix is a string builder's: over-allocate the array behind a chunk and let
-the next append write into the slack.
-
-The layout can stay what it is. A text chunk is `(array, count, off, len)`, which is a
-`Data.Text` of `text` 2 (a UTF-8 slice `Text arr off len` over a `ByteArray#`) plus the
-character count, and a bytes chunk is the same without the count; the C side reads both
-through `RopeKind`'s `ix_*` fields. The owner's mark needs no new field: the array's first
-word holds its *used* length, and a chunk owns the array's tail exactly when `off + len ==
-used`. Append checks that, compare-and-swaps `used` to `used + k`, writes the piece's `k`
-bytes into the slack and returns `(array, count + 1, off, len + k)` sharing the array; a
-failed CAS (another append to the same old chunk won) or no room falls back to today's copy.
-No reader can see a torn chunk: a chunk's `len` covers only bytes written before the chunk
-existed, those bytes are never written again, and only the one appender that won the CAS
-writes past `used`. The Unicode work stays the library's: every text operation runs on the
-`Data.Text` view of the written prefix, and the bytes of a character are written with
-`text`'s own `unsafeWrite`, so nothing is reimplemented. The C append is the same
-compare-exchange and memcpy on the same words, and `chunk_words` and the `ix_*` offsets don't
-move.
-
-Costs and choices: the array is written past views that already point at it, which is what
-`text`'s and `bytestring`'s builders do and is sound under the `used` discipline; a capacity
-to pick (128 bytes, with `used` at index 0 so `off` starts at 8), wasted only on the last
-chunk of a rope built by appends, since earlier chunks fill to the threshold and `fromText`'s
-512-character cuts get no slack; `cons` has no slack to use and keeps copying (a second mark
-at the front is possible if a prepend-heavy pattern shows up); the coalescing rule stays as
-the copy path. Expected to turn the per-append cost into one byte write and one spine
-allocation, which the "append one at a time" rows and `Nat.toText`-style builders would see
-directly.
 
 ### Lists
 
