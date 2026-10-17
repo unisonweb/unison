@@ -86,8 +86,12 @@ typedef struct {
   // the most elements two chunks may have between them to be made one
   // (Rope.threshold, handed to the init function)
   StgInt threshold;
-  StgInt chunk_words;           // a chunk's payload words
-  int ix_count, ix_off, ix_len; // the chunk's element count, byte offset and byte length; field 0 is the array
+  // the slack a joined chunk's array is first allocated with and the most it
+  // grows to, in payload bytes (Unison.Util.Bytes's slackStart and slackMax,
+  // handed to the init function)
+  StgInt slack_start, slack_max;
+  StgInt chunk_words;                   // a chunk's payload words
+  int ix_count, ix_off, ix_len, ix_cap; // the chunk's element count, byte offset, byte length and capacity; field 0 is the array
   int utf8;                     // the elements are characters in UTF-8 (else they are the bytes)
 } RopeKind;
 UNISON_JIT_TABLE RopeKind unison_jit_TK, unison_jit_BK; // text, bytes
@@ -109,6 +113,9 @@ static inline int is_builtin_info(StgWord info) {
 static inline StgInt chunk_size(const RopeKind *K, StgClosure *c) { return LW(c, K->ix_count); }
 static inline StgInt chunk_len(const RopeKind *K, StgClosure *c) { return LW(c, K->ix_len); }
 static inline StgInt chunk_off(const RopeKind *K, StgClosure *c) { return LW(c, K->ix_off); }
+// the array's size in bytes when the chunk's array was allocated with slack (its used
+// length in word 0, contents from byte 8), else 0: see Unison.Util.Bytes's Chunk
+static inline StgInt chunk_cap(const RopeKind *K, StgClosure *c) { return LW(c, K->ix_cap); }
 
 static inline StgInt rope_size(const RopeKind *K, StgClosure *r) {
   switch (LTAG(r)) {

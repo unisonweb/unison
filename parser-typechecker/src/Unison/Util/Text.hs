@@ -1,4 +1,6 @@
 {-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE MagicHash #-}
+{-# LANGUAGE UnboxedTuples #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 -- The JIT's C helpers read and build these constructors (unison-runtime's
@@ -14,11 +16,14 @@ import Data.List (unfoldr)
 import Data.List qualified as L
 import Data.String (IsString (..))
 import Data.Text qualified as T
+import Data.Text.Array qualified as TA
 import Data.Text.Encoding qualified as T
 import Data.Text.Internal qualified as T
 import Data.Text.Lazy qualified as TL
 import Data.Text.Unsafe qualified as T (Iter (..), iter)
 import Data.Word (Word64)
+import GHC.Exts (Int (I#), MutableByteArray#, RealWorld, casIntArray#, copyByteArray#, newByteArray#, readIntArray#, unsafeCoerce#, unsafeFreezeByteArray#, writeIntArray#)
+import GHC.IO (IO (IO), unsafeDupablePerformIO)
 import Unison.Util.Bytes qualified as B
 import Unison.Util.Rope qualified as R
 import Prelude hiding (drop, replicate, take)
@@ -28,7 +33,22 @@ newtype Text = Text (R.Rope Chunk)
   deriving stock (Eq, Ord)
   deriving newtype (Semigroup, Monoid)
 
-data Chunk = Chunk {-# UNPACK #-} !Int {-# UNPACK #-} !T.Text
+-- A chunk: its character count, its capacity and its text. Text is a UTF-8
+-- slice of a byte array, so a chunk unpacks to the array, the count, the
+-- capacity, the byte offset and the byte length; the JIT's C helpers read and
+-- build that layout (cbits/jit_rt.c, the text RopeKind).
+--
+-- Slack. An array that 'joinChunks' allocates is larger than its contents, so
+-- that the next append can write into it instead of copying: word 0 of the
+-- array holds its used byte length, the contents start at byte 8, and the
+-- chunk's capacity is the array's size in bytes. A chunk owns the array's tail
+-- exactly when its end is the used length; an append to such a chunk advances
+-- the used length by compare-and-swap, so of two appends to the same chunk the
+-- first writes in place and the second copies. Bytes within a chunk's slice
+-- are never written again, so a chunk's text is as immutable as any other. A
+-- chunk cut from a text or taken from a Data.Text has capacity 0 and is
+-- always copied.
+data Chunk = Chunk {-# UNPACK #-} !Int {-# UNPACK #-} !Int {-# UNPACK #-} !T.Text
 
 empty :: Text
 empty = Text mempty
@@ -55,10 +75,14 @@ fromLazyText =
   Text . foldl' (\t -> R.snoc t . chunk) mempty . TL.toChunks
 
 chunkToText :: Chunk -> T.Text
-chunkToText (Chunk _ t) = t
+chunkToText (Chunk _ _ t) = t
 
 chunk :: T.Text -> Chunk
-chunk t = Chunk (T.length t) t
+chunk t = Chunk (T.length t) 0 t
+
+-- | A chunk's capacity: the size of its array when it was allocated with slack, else 0.
+chunkCapacity :: Chunk -> Int
+chunkCapacity (Chunk _ cap _) = cap
 
 take :: Int -> Text -> Text
 take n (Text t) = Text (R.take n t)
@@ -92,12 +116,12 @@ reverse (Text t) = Text (R.reverse t)
 toUppercase :: Text -> Text
 toUppercase (Text t) = Text (R.map up t)
   where
-    up (Chunk n t) = Chunk n (T.toUpper t)
+    up (Chunk n _ t) = Chunk n 0 (T.toUpper t)
 
 toLowercase :: Text -> Text
 toLowercase (Text t) = Text (R.map down t)
   where
-    down (Chunk n t) = Chunk n (T.toLower t)
+    down (Chunk n _ t) = Chunk n 0 (T.toLower t)
 
 fromUtf8 :: B.Bytes -> Either String Text
 fromUtf8 bs =
@@ -196,40 +220,86 @@ dropWhileMax p = go 0
 hash64AddText :: Text -> Hash64 -> Hash64
 hash64AddText (Text tx) h = foldl' addChunk h tx
   where
-    addChunk h (Chunk _ tx) = T.foldl' (flip hash64Add) h tx
+    addChunk h (Chunk _ _ tx) = T.foldl' (flip hash64Add) h tx
 
 foldMapChunks :: (Monoid r) => (T.Text -> r) -> Text -> r
 foldMapChunks f (Text tx) = foldMap (f . chunkToText) tx
 
-instance Eq Chunk where (Chunk n a) == (Chunk n2 a2) = n == n2 && a == a2
+instance Eq Chunk where (Chunk n _ a) == (Chunk n2 _ a2) = n == n2 && a == a2
 
-instance Ord Chunk where (Chunk _ a) `compare` (Chunk _ a2) = compare a a2
+instance Ord Chunk where (Chunk _ _ a) `compare` (Chunk _ _ a2) = compare a a2
 
 instance Semigroup Chunk where
-  l <> r = Chunk (R.size l + R.size r) (chunkToText l <> chunkToText r)
+  l@(Chunk n _ _) <> r@(Chunk m _ _)
+    | n == 0 = r
+    | m == 0 = l
+    | otherwise = joinChunks l r
+  {-# INLINE (<>) #-}
+
+-- | Both chunks' characters as one chunk: in place when the left chunk owns
+-- its array's tail and has room (see 'Chunk'), else in a fresh array.
+joinChunks :: Chunk -> Chunk -> Chunk
+joinChunks (Chunk n cap (T.Text (TA.ByteArray arr) off len)) (Chunk m _ (T.Text (TA.ByteArray arr2) off2 len2)) =
+  unsafeDupablePerformIO (IO go)
+  where
+    !end = off + len
+    !need = len + len2
+    !(I# off#) = off
+    !(I# off2#) = off2
+    !(I# len#) = len
+    !(I# len2#) = len2
+    !(I# end#) = end
+    !(I# newEnd#) = end + len2
+    go s0
+      | cap > 0,
+        end + len2 <= cap,
+        marr <- unsafeCoerce# arr :: MutableByteArray# RealWorld =
+          case readIntArray# marr 0# s0 of
+            (# s1, used# #)
+              | I# used# == end ->
+                  case casIntArray# marr 0# end# newEnd# s1 of
+                    (# s2, old# #)
+                      | I# old# == end ->
+                          case copyByteArray# arr2 off2# marr end# len2# s2 of
+                            s3 -> (# s3, Chunk (n + m) cap (T.Text (TA.ByteArray arr) off (len + len2)) #)
+                      | otherwise -> copy s2
+              | otherwise -> copy s1
+      | otherwise = copy s0
+    copy s0 = case B.slackCapacity cap need of
+      0 -> (# s0, Chunk (n + m) 0 (T.Text (TA.ByteArray arr) off len <> T.Text (TA.ByteArray arr2) off2 len2) #)
+      newCap@(I# newCap#) ->
+        let !(I# used#) = 8 + need
+            !(I# after#) = 8 + len
+         in case newByteArray# newCap# s0 of
+              (# s1, marr #) -> case writeIntArray# marr 0# used# s1 of
+                s2 -> case copyByteArray# arr off# marr 8# len# s2 of
+                  s3 -> case copyByteArray# arr2 off2# marr after# len2# s3 of
+                    s4 -> case unsafeFreezeByteArray# marr s4 of
+                      (# s5, farr #) -> (# s5, Chunk (n + m) newCap (T.Text (TA.ByteArray farr) 8 need) #)
+{-# NOINLINE joinChunks #-}
 
 instance Monoid Chunk where
-  mempty = Chunk 0 mempty
+  mempty = Chunk 0 0 mempty
 
-instance R.Sized Chunk where size (Chunk n _) = n
+instance R.Sized Chunk where size (Chunk n _ _) = n
 
 instance R.Drop Chunk where
-  drop k c@(Chunk n t)
+  drop k c@(Chunk n _ t)
     | k >= n = mempty
     | k <= 0 = c
-    | otherwise = Chunk (n - k) (T.drop k t)
+    | otherwise = Chunk (n - k) 0 (T.drop k t)
 
 instance R.Take Chunk where
-  take k c@(Chunk n t)
+  take k c@(Chunk n _ t)
     | k >= n = c
     | k <= 0 = mempty
-    | otherwise = Chunk k (T.take k t)
+    | otherwise = Chunk k 0 (T.take k t)
 
 instance R.Index Chunk Char where
-  unsafeIndex i (Chunk _ t) = T.index t i
+  unsafeIndex i (Chunk _ _ t) = T.index t i
 
 instance R.Reverse Chunk where
-  reverse (Chunk n t) = Chunk n (T.reverse t)
+  reverse (Chunk n _ t) = Chunk n 0 (T.reverse t)
 
 instance R.Sized Text where size (Text t) = R.size t
 

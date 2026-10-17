@@ -1516,15 +1516,22 @@ static inline StgInt s_sum_chunks(const RopeKind *K, StgClosure *l) {
 
 // --- building ---
 
-static inline StgClosure *new_chunk(UnisonJitCtx *ctx, const RopeKind *K, void *arr, StgInt count, StgInt off,
-                                    StgInt len) {
+static inline StgClosure *new_chunk_cap(UnisonJitCtx *ctx, const RopeKind *K, void *arr, StgInt count, StgInt off,
+                                        StgInt len, StgInt cap) {
   StgWord *p = list_alloc(ctx, 1 + K->chunk_words);
   p[0] = K->chunk_info;
   p[1] = (StgWord)arr;
   p[1 + K->ix_len] = len;
   p[1 + K->ix_count] = count; // the length's own field for bytes, with the same value
   p[1 + K->ix_off] = off;
+  p[1 + K->ix_cap] = cap;
   return (StgClosure *)((StgWord)p | 1);
+}
+
+// a chunk with no slack (a slice, or an exact array)
+static inline StgClosure *new_chunk(UnisonJitCtx *ctx, const RopeKind *K, void *arr, StgInt count, StgInt off,
+                                    StgInt len) {
+  return new_chunk_cap(ctx, K, arr, count, off, len, 0);
 }
 
 static inline StgClosure *rope_one(UnisonJitCtx *ctx, const RopeKind *K, StgClosure *chunk) {
@@ -1554,13 +1561,55 @@ static inline StgArrBytes *new_arr(UnisonJitCtx *ctx, StgWord n) {
   return arr;
 }
 
-// the two chunks' elements as one chunk, in a fresh byte array
+// Slack (Unison.Util.Bytes's Chunk, and the same in Unison.Util.Text): an array
+// chunk_join allocates is larger than its contents, word 0 holds its used byte
+// length, the contents start at byte 8 and the chunk's cap is the array's size.
+// A chunk owns the array's tail when its end is the used length; the append
+// advances the used length by compare-and-swap, so of two appends to the same
+// chunk (from C or from Haskell, which does the same) the first writes in place
+// and the second copies. The first allocation has ROPE_SLACK_START payload
+// bytes, each copy quadruples, up to ROPE_SLACK_MAX; a join of more than
+// ROPE_SLACK_MAX bytes gets an exact array with no slack. The two numbers are
+// Haskell's slackStart and slackMax, handed to rope_init.
+#define ROPE_SLACK_START (K->slack_start)
+#define ROPE_SLACK_MAX (K->slack_max)
+
+// the capacity for a join of `need` bytes onto a chunk of capacity `cap`, or 0
+static inline StgInt slack_capacity(const RopeKind *K, StgInt cap, StgInt need) {
+  if (need > ROPE_SLACK_MAX) return 0;
+  StgInt c = cap > 0 ? (cap - 8) * 4 : ROPE_SLACK_START;
+  for (;;) {
+    StgInt c1 = c < ROPE_SLACK_MAX ? c : ROPE_SLACK_MAX;
+    if (c1 >= need) return 8 + c1;
+    c *= 4;
+  }
+}
+
+// the two chunks' elements as one chunk: in place when `a` owns its array's
+// tail and has room, else in a fresh byte array (with slack if small)
 static StgClosure *chunk_join(UnisonJitCtx *ctx, const RopeKind *K, StgClosure *a, StgClosure *b) {
-  StgInt la = chunk_len(K, a), lb = chunk_len(K, b);
-  StgArrBytes *arr = new_arr(ctx, la + lb);
-  memcpy(arr->payload, chunk_bytes(K, a), la);
-  memcpy((char *)arr->payload + la, chunk_bytes(K, b), lb);
-  return new_chunk(ctx, K, arr, chunk_size(K, a) + chunk_size(K, b), 0, la + lb);
+  StgInt la = chunk_len(K, a), lb = chunk_len(K, b), cap = chunk_cap(K, a), off = chunk_off(K, a);
+  StgInt count = chunk_size(K, a) + chunk_size(K, b), end = off + la;
+  if (cap > 0 && end + lb <= cap) {
+    StgArrBytes *arr = (StgArrBytes *)LP(a, 0);
+    StgInt *used = (StgInt *)arr->payload, expected = end;
+    if (*used == end && __atomic_compare_exchange_n(used, &expected, end + lb, 0, __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST)) {
+      memcpy((char *)arr->payload + end, chunk_bytes(K, b), lb);
+      return new_chunk_cap(ctx, K, arr, count, off, la + lb, cap);
+    }
+  }
+  StgInt need = la + lb, ncap = slack_capacity(K, cap, need);
+  if (ncap == 0) {
+    StgArrBytes *arr = new_arr(ctx, need);
+    memcpy(arr->payload, chunk_bytes(K, a), la);
+    memcpy((char *)arr->payload + la, chunk_bytes(K, b), lb);
+    return new_chunk(ctx, K, arr, count, 0, need);
+  }
+  StgArrBytes *arr = new_arr(ctx, ncap);
+  ((StgInt *)arr->payload)[0] = 8 + need;
+  memcpy((char *)arr->payload + 8, chunk_bytes(K, a), la);
+  memcpy((char *)arr->payload + 8 + la, chunk_bytes(K, b), lb);
+  return new_chunk_cap(ctx, K, arr, count, 8, need, ncap);
 }
 
 // the number of bytes the first k characters of UTF-8 text take
@@ -2056,7 +2105,9 @@ static StgInt check_chunk(const RopeKind *K, StgClosure *c) {
   if (LTAG(c) != 1 || (StgWord)LUN(c)->header.info != K->chunk_info) return -1;
   StgArrBytes *arr = (StgArrBytes *)LP(c, 0);
   StgInt off = chunk_off(K, c), len = chunk_len(K, c), count = chunk_size(K, c);
+  StgInt cap = chunk_cap(K, c);
   if (arr->header.info != &stg_ARR_WORDS_info || off < 0 || len <= 0 || (StgWord)(off + len) > arr->bytes) return -1;
+  if (cap != 0 && (cap != (StgInt)arr->bytes || off < 8 || off + len > ((StgInt *)arr->payload)[0])) return -1;
   return elem_bytes(K, chunk_bytes(K, c), count) == len ? count : -1;
 }
 
@@ -2141,13 +2192,16 @@ int64_t unison_jit_bytes_check(void **elems) { return rope_check(&BK, elems); }
 // Rope.threshold, info[2] the offset of elems[0]'s chunk in its byte array
 // (the Bytes sample is cut from a longer one, so that its offset and its size
 // differ and the two fields can't be mixed up) and info[3] that closure's
-// pointer tag. The constructors of the digits and of the levels below are
-// the list's (unison_jit_list_init has run). Returns 1, or the number of the
-// check that failed.
+// pointer tag, info[4] and info[5] the slack a joined chunk starts with and
+// grows to (slackStart, slackMax). The constructors of the digits and of the
+// levels below are the list's (unison_jit_list_init has run). Returns 1, or
+// the number of the check that failed.
 static int64_t rope_init(RopeKind *K, void **raw, int64_t *info) {
   void *elems[3] = {unison_jit_settle(raw[0]), unison_jit_settle(raw[1]), unison_jit_settle(raw[2])};
   K->threshold = info[1];
-  if (K->threshold < 1) return 14;
+  K->slack_start = info[4];
+  K->slack_max = info[5];
+  if (K->threshold < 1 || K->slack_start < 1 || K->slack_max < K->slack_start) return 14;
   StgInt piece = K->threshold + 1;
   StgClosure *w = elems[0];
   K->wrap_info = info[0];
@@ -2185,13 +2239,13 @@ static int64_t rope_init(RopeKind *K, void **raw, int64_t *info) {
 
 int64_t unison_jit_text_init(void **raw, int64_t *info) {
   memset(&TK, 0, sizeof TK);
-  TK.chunk_words = 4, TK.ix_count = 1, TK.ix_off = 2, TK.ix_len = 3, TK.utf8 = 1;
+  TK.chunk_words = 5, TK.ix_count = 1, TK.ix_cap = 2, TK.ix_off = 3, TK.ix_len = 4, TK.utf8 = 1;
   return rope_init(&TK, raw, info);
 }
 
 int64_t unison_jit_bytes_init(void **raw, int64_t *info) {
   memset(&BK, 0, sizeof BK);
-  BK.chunk_words = 3, BK.ix_off = 1, BK.ix_count = 2, BK.ix_len = 2, BK.utf8 = 0;
+  BK.chunk_words = 4, BK.ix_off = 1, BK.ix_count = 2, BK.ix_len = 2, BK.ix_cap = 3, BK.utf8 = 0;
   return rope_init(&BK, raw, info);
 }
 

@@ -1,3 +1,5 @@
+{-# LANGUAGE MagicHash #-}
+{-# LANGUAGE UnboxedTuples #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 {-# OPTIONS_GHC -fno-warn-unused-top-binds #-}
 -- The JIT's C helpers read and build the Chunk constructor (unison-runtime's
@@ -8,6 +10,9 @@
 module Unison.Util.Bytes
   ( Bytes (..),
     Chunk (..),
+    slackStart,
+    slackMax,
+    slackCapacity,
     fromByteString,
     toByteString,
     fromWord8s,
@@ -75,7 +80,7 @@ import Codec.Compression.Zlib qualified as Zlib
 import Codec.Compression.Zstd qualified as Zstd
 import Control.DeepSeq (NFData (..))
 import Control.Exception (throw)
-import Control.Monad.Primitive (unsafeIOToPrim, unsafePrimToIO)
+import Control.Monad.Primitive (RealWorld, unsafeIOToPrim, unsafePrimToIO)
 import Control.Monad.ST (ST, runST)
 import Data.ByteArray qualified as BA
 import Data.ByteArray.Encoding qualified as BE
@@ -86,7 +91,7 @@ import Data.Char
 import Data.Digest.Murmur64 (Hash64, hash64AddInt)
 import Data.Primitive.ByteArray
   ( ByteArray (ByteArray),
-    MutableByteArray,
+    MutableByteArray (MutableByteArray),
     byteArrayFromListN,
     compareByteArrays,
     copyByteArray,
@@ -94,9 +99,11 @@ import Data.Primitive.ByteArray
     emptyByteArray,
     indexByteArray,
     newByteArray,
+    readByteArray,
     runByteArray,
     sizeofByteArray,
     unsafeFreezeByteArray,
+    unsafeThawByteArray,
     writeByteArray,
   )
 import Data.Primitive.Ptr (Ptr, copyPtrToMutableByteArray)
@@ -104,6 +111,9 @@ import Data.Semigroup (Semigroup (..))
 import Data.Text qualified as Text
 import Foreign.Ptr (plusPtr)
 import GHC.ByteOrder (ByteOrder (..), targetByteOrder)
+import GHC.Exts (Int (I#), casIntArray#)
+import GHC.IO (IO (IO), unsafeDupablePerformIO)
+import System.Environment (lookupEnv)
 import Unison.Prelude hiding (ByteString, empty)
 import Unison.Util.Rope qualified as R
 import Prelude hiding (drop, take)
@@ -113,22 +123,91 @@ withByteArrayST ::
 withByteArrayST a k =
   unsafeIOToPrim $ BA.withByteArray a (unsafePrimToIO . k)
 
+-- A chunk: a slice of a byte array, and the array's capacity when it was
+-- allocated with slack (else 0). Slack: an array that 'joinChunks' allocates is
+-- larger than its contents, so that the next append can write into it instead
+-- of copying: word 0 of the array holds its used byte length, the contents
+-- start at byte 8, and the chunk's capacity is the array's size in bytes. A
+-- chunk owns the array's tail exactly when its end is the used length; an
+-- append to such a chunk advances the used length by compare-and-swap, so of
+-- two appends to the same chunk the first writes in place and the second
+-- copies. Bytes within a chunk's slice are never written again. A chunk cut
+-- from another or made from a ByteString has capacity 0 and is always copied.
+-- The JIT's C helpers read and build this layout (cbits/jit_rt.c, the bytes
+-- RopeKind), and 'Unison.Util.Text' does the same with its chunks.
 data Chunk = Chunk
   { _off :: {-# UNPACK #-} !Int,
     chunkSize :: {-# UNPACK #-} !Int,
+    chunkCapacity :: {-# UNPACK #-} !Int,
     _arr :: {-# UNPACK #-} !ByteArray
   }
 
 emptyChunk :: Chunk
-emptyChunk = Chunk 0 0 emptyByteArray
+emptyChunk = Chunk 0 0 0 emptyByteArray
+
+-- | The slack an array is first allocated with, in payload bytes, and the
+-- most it grows to: 'slackCapacity' quadruples from the first until the join
+-- fits. A join of more than 'slackMax' bytes gets an exact array with no
+-- slack. The JIT's C helpers get the two numbers at startup (rope_init in
+-- jit_rt.c), so there is one source of them.
+slackStart, slackMax :: Int
+slackStart = unsafeDupablePerformIO (maybe 16 read <$> lookupEnv "UNISON_SLACK_START") -- EXPERIMENT
+{-# NOINLINE slackStart #-}
+slackMax = 512
+
+-- | The capacity of the array for a join of @need@ bytes onto a chunk of
+-- capacity @cap@ (8 for the used-length word plus the payload), or 0 for an
+-- exact array with no slack.
+slackCapacity :: Int -> Int -> Int
+slackCapacity cap need
+  | need > slackMax = 0
+  | otherwise = 8 + go (if cap > 0 then (cap - 8) * 4 else slackStart)
+  where
+    go c = let c' = min slackMax c in if c' >= need then c' else go (c * 4)
+
+-- | Compare-and-swap on a slack array's used length (word 0): the old value.
+casUsed :: MutableByteArray RealWorld -> Int -> Int -> IO Int
+casUsed (MutableByteArray m) (I# e) (I# n) = IO \s -> case casIntArray# m 0# e n s of
+  (# s', o #) -> (# s', I# o #)
+
+-- | Both chunks' bytes as one chunk: in place when the left chunk owns its
+-- array's tail and has room (see 'Chunk'), else in a fresh array.
+joinChunks :: Chunk -> Chunk -> Chunk
+joinChunks (Chunk ol ll capl al) (Chunk or lr _ ar) = unsafeDupablePerformIO do
+  let !end = ol + ll
+      !need = ll + lr
+  inPlace <-
+    if capl > 0 && end + lr <= capl
+      then do
+        m <- unsafeThawByteArray al
+        used <- readByteArray m 0 :: IO Int
+        if used /= end
+          then pure False
+          else do
+            old <- casUsed m end (end + lr)
+            if old /= end
+              then pure False
+              else True <$ copyByteArray m end ar or lr
+      else pure False
+  if inPlace
+    then pure (Chunk ol (ll + lr) capl al)
+    else case slackCapacity capl need of
+      0 -> pure $ createChunk need \m -> copyByteArray m 0 al ol ll *> copyByteArray m ll ar or lr
+      newCap -> do
+        m <- newByteArray newCap
+        writeByteArray m 0 (8 + need :: Int)
+        copyByteArray m 8 al ol ll
+        copyByteArray m (8 + ll) ar or lr
+        Chunk 8 need newCap <$> unsafeFreezeByteArray m
+{-# NOINLINE joinChunks #-}
 
 instance Eq Chunk where
-  Chunk ol ll al == Chunk or lr ar =
+  Chunk ol ll _ al == Chunk or lr _ ar =
     ll == lr && compareByteArrays al ol ar or ll == EQ
   {-# INLINE (==) #-}
 
 instance Ord Chunk where
-  Chunk ol ll al `compare` Chunk or lr ar =
+  Chunk ol ll _ al `compare` Chunk or lr _ ar =
     compareByteArrays al ol ar or (min ll lr) <> compare ll lr
   {-# INLINE compare #-}
 
@@ -136,15 +215,15 @@ concatChunks :: [Chunk] -> Chunk
 concatChunks cs =
   createChunk len \m ->
     let go !_ [] = pure ()
-        go !mo (Chunk o l a : cs) =
+        go !mo (Chunk o l _ a : cs) =
           copyByteArray m mo a o l *> go (mo + l) cs
      in go 0 cs
   where
-    len = foldl' (\acc (Chunk _ l _) -> acc + l) 0 cs
+    len = foldl' (\acc (Chunk _ l _ _) -> acc + l) 0 cs
 {-# INLINE concatChunks #-}
 
 foldl'Chunk :: (r -> Word8 -> r) -> r -> Chunk -> r
-foldl'Chunk f z (Chunk o l a) = go z o
+foldl'Chunk f z (Chunk o l _ a) = go z o
   where
     n = o + l
     go !acc i
@@ -152,16 +231,15 @@ foldl'Chunk f z (Chunk o l a) = go z o
       | otherwise = acc
 
 instance Semigroup Chunk where
-  cl@(Chunk ol ll al) <> cr@(Chunk or lr ar)
+  cl@(Chunk _ ll _ _) <> cr@(Chunk _ lr _ _)
     | ll == 0 = cr
     | lr == 0 = cl
-    | otherwise =
-        createChunk (ll + lr) \m ->
-          copyByteArray m 0 al ol ll *> copyByteArray m ll ar or lr
+    | otherwise = joinChunks cl cr
+  {-# INLINE (<>) #-}
 
   sconcat cs = concatChunks (toList cs)
 
-  stimes i c@(Chunk o l a)
+  stimes i c@(Chunk o l _ a)
     | j < 1 = emptyChunk
     | j == 1 = c
     | fromIntegral l * j > m = error "stimes @Chunk: size too large"
@@ -188,22 +266,22 @@ newtype Bytes = Bytes {underlying :: R.Rope Chunk}
 instance R.Sized Chunk where size = chunkSize
 
 instance R.Drop Chunk where
-  drop n c@(Chunk o l a)
+  drop n c@(Chunk o l _ a)
     | n == 0 = c
     | n >= l = emptyChunk
-    | otherwise = Chunk (o + n) (l - n) a
+    | otherwise = Chunk (o + n) (l - n) 0 a
 
 instance R.Take Chunk where
   take 0 _ = emptyChunk
-  take n c@(Chunk o l a)
-    | n < l = Chunk o n a
+  take n c@(Chunk o l _ a)
+    | n < l = Chunk o n 0 a
     | otherwise = c
 
 instance R.Index Chunk Word8 where
-  unsafeIndex n (Chunk o _ a) = indexByteArray a (n + o)
+  unsafeIndex n (Chunk o _ _ a) = indexByteArray a (n + o)
 
 instance R.Reverse Chunk where
-  reverse (Chunk o l a) = createChunk l \m ->
+  reverse (Chunk o l _ a) = createChunk l \m ->
     let e = o + l - 1
         go i
           | i < l = writeByteArray m i $ indexByteArray @Word8 a (e - i)
@@ -221,7 +299,7 @@ createByteArray sz f =
 
 createChunk ::
   Int -> (forall s. MutableByteArray s -> ST s ()) -> Chunk
-createChunk sz f = Chunk 0 sz $ createByteArray sz f
+createChunk sz f = Chunk 0 sz 0 $ createByteArray sz f
 {-# INLINE createChunk #-}
 
 gCreateChunk ::
@@ -229,7 +307,7 @@ gCreateChunk ::
 gCreateChunk sz f = runST do
   ma <- newByteArray sz
   r <- f ma
-  (,r) . Chunk 0 sz <$> unsafeFreezeByteArray ma
+  (,r) . Chunk 0 sz 0 <$> unsafeFreezeByteArray ma
 {-# INLINE gCreateChunk #-}
 
 whenLittleEndian :: (a -> a) -> a -> a
@@ -259,7 +337,7 @@ extractChunkArr :: Int -> Int -> Bytes -> ByteArray
 extractChunkArr ix ln (Bytes bs) = fixAlign ln $ R.extractChunk ix ln bs
 
 fixAlign :: Int -> Chunk -> ByteArray
-fixAlign ln (Chunk o _ ba)
+fixAlign ln (Chunk o _ _ ba)
   | o == 0 = ba
   | otherwise = createByteArray ln (\m -> copyByteArray m 0 ba o ln)
 
@@ -270,7 +348,7 @@ empty :: Bytes
 empty = mempty
 
 isAsciiChunk :: Chunk -> Bool
-isAsciiChunk (Chunk o l a) = test o
+isAsciiChunk (Chunk o l _ a) = test o
   where
     n = o + l
     test i
@@ -290,7 +368,7 @@ toByteString b = B.concat (map chunkToByteString (chunks b))
 toArray :: (BA.ByteArray b) => Bytes -> b
 toArray (Bytes r) =
   BA.allocAndFreeze (R.size r) \(p :: Ptr Word8) ->
-    let f po (Chunk o l a)
+    let f po (Chunk o l _ a)
           | (p :: Ptr Word8) <- p `plusPtr` po =
               copyByteArrayToPtr p a o l
      in R.traverseWithPos_ f r
@@ -300,18 +378,18 @@ fromArray :: (BA.ByteArrayAccess b) => b -> Bytes
 fromArray b = snoc empty (arrayToChunk b)
 
 fromByteArray :: Int -> Int -> ByteArray -> Bytes
-fromByteArray o l ba = snoc empty (Chunk o l ba)
+fromByteArray o l ba = snoc empty (Chunk o l 0 ba)
 
 toByteArray :: Bytes -> ByteArray
 toByteArray (Bytes r)
-  | R.One (Chunk 0 l a) <- r,
+  | R.One (Chunk 0 l _ a) <- r,
     l == sizeofByteArray a =
       a
   | otherwise =
       createByteArray (R.size r) \m ->
         R.traverseWithPos_ (f m) r
   where
-    f m p (Chunk o l a) = copyByteArray m p a o l
+    f m p (Chunk o l _ a) = copyByteArray m p a o l
 
 byteStringToChunk, chunkFromByteString :: B.ByteString -> Chunk
 byteStringToChunk bs
@@ -324,7 +402,7 @@ byteStringToChunk bs
 chunkFromByteString = byteStringToChunk
 
 chunkToByteString :: Chunk -> B.ByteString
-chunkToByteString (Chunk o l a)
+chunkToByteString (Chunk o l _ a)
   | l == 0 = B.empty
   | otherwise =
       BA.allocAndFreeze l \(p :: Ptr Word8) ->
@@ -380,7 +458,7 @@ snoc :: Bytes -> Chunk -> Bytes
 snoc (Bytes bs) b = Bytes (R.snoc bs b)
 
 flatten :: Bytes -> Bytes
-flatten bs = Bytes . R.one . Chunk 0 sz $ toByteArray bs
+flatten bs = Bytes . R.one . Chunk 0 sz 0 $ toByteArray bs
   where
     sz = size bs
 
@@ -461,13 +539,13 @@ dropBlock nBytes (Bytes chunks)
             Just (c, Bytes cs)
         | R.size c > nBytes ->
             Just (R.take nBytes c, Bytes $ R.cons (R.drop nBytes c) cs)
-        | Chunk o l a <- c ->
+        | Chunk o l _ a <- c ->
             Just $ gCreateChunk nBytes \m ->
               copyByteArray m 0 a o l *> crawl m l cs
   where
     crawl :: MutableByteArray s -> Int -> R.Rope Chunk -> ST s Bytes
     crawl m pos chunks = case R.uncons chunks of
-      Just (c@(Chunk o l a), cs)
+      Just (c@(Chunk o l _ a), cs)
         | l + pos == nBytes ->
             Bytes cs <$ copyByteArray m pos a o l
         | l + pos > nBytes,
@@ -566,14 +644,14 @@ toBase16 bs = foldl' step empty (chunks bs)
         )
 
 chunkToArray, arrayFromChunk :: (BA.ByteArray b) => Chunk -> b
-chunkToArray (Chunk o l a) =
+chunkToArray (Chunk o l _ a) =
   BA.allocAndFreeze l $ \(ptr :: Ptr Word8) ->
     copyByteArrayToPtr ptr a o l
 arrayFromChunk = chunkToArray
 
 arrayToChunk, chunkFromArray :: (BA.ByteArrayAccess b) => b -> Chunk
 arrayToChunk bs = case BA.convert bs :: Block Word8 of
-  Block bs -> Chunk 0 n (ByteArray bs)
+  Block bs -> Chunk 0 n 0 (ByteArray bs)
   where
     n = BA.length bs
 {-# INLINE arrayToChunk #-}
@@ -606,7 +684,7 @@ toBase e bs = snoc empty (arrayToChunk arr)
 toWord8s :: Bytes -> [Word8]
 toWord8s bs = chunks bs >>= toList
   where
-    toList (Chunk o l a) = unf o
+    toList (Chunk o l _ a) = unf o
       where
         n = o + l
         unf i
@@ -614,7 +692,7 @@ toWord8s bs = chunks bs >>= toList
           | otherwise = []
 
 fromWord8s :: [Word8] -> Bytes
-fromWord8s bs = snoc empty . Chunk 0 sz $ byteArrayFromListN sz bs
+fromWord8s bs = snoc empty . Chunk 0 sz 0 $ byteArrayFromListN sz bs
   where
     !sz = length bs
 

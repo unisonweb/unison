@@ -79,6 +79,7 @@ tests:
       - base
       - code-page
       - containers
+      - async
       - easytest
       - text
       - unison-core
@@ -88,6 +89,7 @@ tests:
       - unison-prelude
       - unison-pretty-printer
       - unison-syntax
+      - unison-util-bytes
       - unison-util-relation
       - unison-util-rope
       - megaparsec

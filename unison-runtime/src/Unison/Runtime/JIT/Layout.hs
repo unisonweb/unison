@@ -868,7 +868,7 @@ probeTexts ls steps = do
   put arr 10 (any' intTypeTag)
   put arr 11 (any' floatTypeTag)
   let Pair textInfo textTag = lText ls
-  ok <- textInit arr [textInfo, th, 0, textTag]
+  ok <- textInit arr [textInfo, th, 0, textTag, By.slackStart, By.slackMax]
   if ok /= 1
     then pure (Left ("the text constructors are not laid out as the JIT's helpers expect (check " ++ show ok ++ ")"))
     else do
@@ -1235,7 +1235,7 @@ probeBytes ls steps = do
   put arr 10 (any' intTypeTag)
   put arr 11 (any' floatTypeTag)
   let Pair bytesInfo bytesTag = lBytes ls
-  ok <- bytesInit arr [bytesInfo, th, 1, bytesTag]
+  ok <- bytesInit arr [bytesInfo, th, 1, bytesTag, By.slackStart, By.slackMax]
   if ok /= 1
     then pure (Left ("the bytes constructors are not laid out as the JIT's helpers expect (check " ++ show ok ++ ")"))
     else do
