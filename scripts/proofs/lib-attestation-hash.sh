@@ -42,10 +42,21 @@ cd "$(git rev-parse --show-toplevel)"
 # Commit can be passed as argument to compute_hash, or set via ATTESTATION_COMMIT env var
 _COMMIT=""
 
+# The files of commit $_COMMIT that match PATTERNS, with git's pathspec
+# semantics, through a temporary index. (git archive and git ls-tree can't do
+# this: archive refuses a pathspec that matches nothing, such as '**/*.h' in a
+# tree without C headers, and ls-tree matches prefixes, not globs.)
+_commit_files() {
+    local tmpdir
+    tmpdir=$(mktemp -d)
+    GIT_INDEX_FILE="$tmpdir/index" git read-tree "$_COMMIT"
+    GIT_INDEX_FILE="$tmpdir/index" git ls-files -- "${PATTERNS[@]}"
+    rm -rf "$tmpdir"
+}
+
 _list_files() {
     if [[ -n "${_COMMIT:-}" ]]; then
-        # Use git archive to list files matching glob patterns from a commit
-        git archive "$_COMMIT" -- "${PATTERNS[@]}" 2>/dev/null | tar -t 2>/dev/null | grep -v '/$'
+        _commit_files
     else
         # List tracked + untracked files matching glob patterns (respects .gitignore)
         git ls-files --cached --others --exclude-standard -- "${PATTERNS[@]}"
@@ -82,12 +93,14 @@ _hash_files() {
 compute_hash() {
     _COMMIT="${1:-}"
     if [[ -n "${_COMMIT:-}" ]]; then
-        # Extract commit files to temp dir, then hash
-        local tmpdir
+        # Extract the whole commit to a temp dir, then hash the files that match
+        local tmpdir list
         tmpdir=$(mktemp -d)
-        trap "rm -rf '$tmpdir'" RETURN
-        git archive "$_COMMIT" -- "${PATTERNS[@]}" 2>/dev/null | tar -xf - -C "$tmpdir"
-        (cd "$tmpdir" && find . -type f | sed 's|^\./||' | grep -v '\.stack-work' | LC_ALL=C sort -u | tr '\n' '\0' | _hash_files)
+        list="$tmpdir.list"
+        trap "rm -rf '$tmpdir' '$list'" RETURN
+        _list_files_0 > "$list"
+        git archive "$_COMMIT" | tar -xf - -C "$tmpdir"
+        (cd "$tmpdir" && _hash_files < "$list")
     else
         _list_files_0 | _hash_files
     fi
