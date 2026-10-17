@@ -168,7 +168,7 @@ _lookup_attestation() {
 # -----------------------------------------------------------------------------
 # attestation_check_skip
 # Check if we can skip based on existing attestations
-# Exits 0 if cached pass, exits 1 if cached fail, returns if should run
+# Exits 0 if cached pass or dry run, exits 1 if cached fail, returns if should run
 # -----------------------------------------------------------------------------
 attestation_check_skip() {
     # Lookup cached result (unless forcing)
@@ -270,7 +270,10 @@ attestation_check_skip() {
             fi
             [[ "$CACHED_RESULT" == "pass" ]] && exit 0 || exit 1
             ;;
-        dry_run|run)
+        dry_run)
+            exit 0
+            ;;
+        run)
             return 0
             ;;
     esac
