@@ -10,13 +10,16 @@
 #   1. Unit tests and integration tests (with proof caching)
 #   2. Transcript tests (with proof caching)
 #   3. Formatting check
+#   4. Migration of the latest release's codebase (with proof caching; needs network)
 #
 # All checks with proof caching will:
 #   - Skip if already passed for current codebase state
 #   - Update tracked proofs files for CI verification
 #   - Allow CI to skip re-running when proofs are present
 #
-# See scripts/proofs/{tests,transcripts,weeds}.sh for details.
+# See scripts/proofs/{tests,transcripts,migration,weeds}.sh for details. To rerun only
+# some transcripts and record a partial attestation: ./scripts/proofs/transcripts.sh --only PREFIX
+# To have CI run everything and push the proofs to a PR: comment "🤖 run full verification" on it.
 #
 # =============================================================================
 
@@ -55,6 +58,7 @@ run_check() {
 run_check "Tests:"        ./scripts/proofs/tests.sh "${ARGS[@]}"
 run_check "Transcripts:"  ./scripts/proofs/transcripts.sh "${ARGS[@]}"
 run_check "Formatting:"   ./scripts/proofs/formatting.sh "${ARGS[@]}"
+run_check "Migration:"    ./scripts/proofs/migration.sh "${ARGS[@]}"
 # run_check "Dead code:"    ./scripts/proofs/weeds.sh "${ARGS[@]}"
 
 echo ""

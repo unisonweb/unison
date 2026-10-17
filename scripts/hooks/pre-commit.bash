@@ -39,5 +39,5 @@ for proof_type in tests transcripts; do  # formatting, weeds, left off for now
     ./scripts/proofs/${proof_type}.sh || true
 done
 
-# Stage the proof files so they're included in this commit
-git add .github/workflows/proofs/*.txt 2>/dev/null || true
+# Stage the proofs directories (new files and the removed older ones) so they're included in this commit
+git add --all .github/workflows/proofs 2>/dev/null || true

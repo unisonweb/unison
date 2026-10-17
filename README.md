@@ -73,7 +73,7 @@ $ stack build --fast --test && stack exec unison
 
 To run the Unison Local UI while building from source, you can use the `/dev-ui-install.sh` script. It will download the latest release of [unison-local-ui](https://github.com/unisonweb/unison-local-ui) and put it in the expected location for the unison executable created by `stack build`. When you start unison, you'll see a url where Unison Local UI is running.
 
-See [`development.markdown`](development.markdown) for a list of build commands you'll likely use during development.
+See [`development.md`](development.md) for how to build, run, test and check the code.
 
 Language Server Protocol (LSP)
 ------------------------------

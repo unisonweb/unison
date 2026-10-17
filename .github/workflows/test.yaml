@@ -271,6 +271,38 @@ jobs:
           ${{env.ucm}} transcript unison-src/tests/fix5507.md
           ${{env.ucm}} run.compiled fix5507.uc
 
+  migration:
+    name: migration (${{ matrix.os }})
+    needs: build-ucm
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: ["ubuntu-24.04", "macos-15"]
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+        with:
+          ref: ${{ inputs.ref || github.ref }}
+
+      - name: tweak environment
+        run: |
+          ucm_local_bin="${RUNNER_TEMP//\\//}/${ucm_local_bin}"
+          echo "ucm_local_bin=$ucm_local_bin" >> $GITHUB_ENV
+          echo "ucm=$ucm_local_bin/unison" >> $GITHUB_ENV
+
+      - name: restore binaries
+        uses: actions/download-artifact@cc203385981b70ca67e1cc392babf9cc229d5806 # v4
+        with:
+          path: ${{env.ucm_local_bin}}
+          name: local-bin-${{ matrix.os }}
+
+      - name: set built binaries permissions
+        run: chmod +x ${{env.ucm_local_bin}}/*
+
+      - name: migrate the latest release's codebase
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: ./scripts/migration-test.sh --ucm "${{env.ucm}}"
+
   dll-ffi:
     name: dll-ffi (${{ matrix.os }})
     needs: build-ucm
