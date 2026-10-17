@@ -478,6 +478,8 @@ data ForeignFunc
   | IO_signal_Subscription_close
   | -- Append new entries: the Enum values are used in serialized code.
     FFI_Spec_variadic
+  | FFI_funcType
+  | FFI_freeCallback
   deriving (Show, Eq, Ord, Enum, Bounded)
 
 foreignFuncBuiltinName :: ForeignFunc -> Text
@@ -866,6 +868,8 @@ foreignFuncBuiltinName = \case
   FFI_baseIO -> "FFI.baseIO"
   FFI_arr -> "FFI.arr"
   FFI_Spec_variadic -> "FFI.Spec.variadic"
+  FFI_funcType -> "FFI.funcType"
+  FFI_freeCallback -> "FFI.freeCallback"
   FFI_getDLLSym -> "FFI.getDLLSym"
   FFI_getDLLSymPtr -> "FFI.getDLLSymPtr"
   Bytes_read -> "Bytes.read"

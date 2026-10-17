@@ -67,6 +67,37 @@ scratch/dll-ffi> run doArrTest
 scratch/dll-ffi> run doPTest
 ```
 
+A C function pointer, obtained from a symbol, can be passed as an argument to
+another C function.
+
+``` unison
+incSpec = baseIO uint32 uint32
+applySpec = arr (funcType incSpec) (baseIO uint32 uint32)
+
+doFunArgTest = do
+  dll = libtest()
+  incp = getDLLSymPtr dll "inc" incSpec
+  apply = getDLLSym dll "apply_fn" applySpec
+  apply incp 41
+
+-- A Unison function, turned into a C function pointer with mkCallback, can be
+-- passed where C expects a callback; C then calls back into Unison.
+doCallbackTest = do
+  dll = libtest()
+  apply = getDLLSym dll "apply_fn" applySpec
+  inc : Nat ->{IO} Nat
+  inc x = Nat.increment x
+  cb = mkCallback incSpec inc
+  r = apply cb 41
+  freeCallback cb
+  r
+```
+
+``` ucm
+scratch/dll-ffi> run doFunArgTest
+scratch/dll-ffi> run doCallbackTest
+```
+
 ``` unison
 allocPSpec = baseIO void ptr
 freePSpec = baseIO ptr void

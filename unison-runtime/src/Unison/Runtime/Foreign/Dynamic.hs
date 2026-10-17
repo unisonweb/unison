@@ -27,6 +27,10 @@ data FFType
   | Void
   | MBArr
   | Ptr
+  | -- A C function pointer argument. At the libffi level this is just a
+    -- pointer; the Unison-level call signature it stands for is tracked by
+    -- the phantom parameter of @FFI.Func@, not needed for marshalling.
+    Fun
   deriving (Eq, Ord, Show)
 
 -- Nothing denotes an ordinary fixed-arity function. Just n denotes a
@@ -51,7 +55,12 @@ data CDynFunc
   CDynFunc
   { cName :: String,
     cSpec :: {-# UNPACK #-} !CSpec,
-    cFun :: !(FunPtr a)
+    cFun :: !(FunPtr a),
+    -- Resources to release when the function value is no longer needed.
+    -- A symbol loaded from a DLL owns nothing (@pure ()@); a callback
+    -- (see "Unison.Runtime.Foreign.Callback") frees its libffi closure and
+    -- stable pointer here. Expected to be idempotent.
+    cFinalize :: IO ()
   }
 
 cffArgs :: CDynFunc -> [FFType]
@@ -66,10 +75,10 @@ instance Show CDynFunc where
 -- The call signature is part of a function value's identity: one variadic
 -- symbol can be loaded with different arities, argument types, or conventions.
 instance Eq CDynFunc where
-  CDynFunc _ ls l == CDynFunc _ rs r = l == castFunPtr r && ffSpec ls == ffSpec rs
+  CDynFunc _ ls l _ == CDynFunc _ rs r _ = l == castFunPtr r && ffSpec ls == ffSpec rs
 
 instance Ord CDynFunc where
-  compare (CDynFunc _ ls l) (CDynFunc _ rs r) =
+  compare (CDynFunc _ ls l _) (CDynFunc _ rs r _) =
     compare l (castFunPtr r) <> compare (ffSpec ls) (ffSpec rs)
 
 encodeType :: FFType -> Ptr CType
@@ -86,6 +95,7 @@ encodeType F32 = ffi_type_float
 encodeType Void = ffi_type_void
 encodeType MBArr = ffi_type_pointer
 encodeType Ptr = ffi_type_pointer
+encodeType Fun = ffi_type_pointer
 
 encodeTypes :: [FFType] -> Ptr (Ptr CType) -> IO ()
 encodeTypes [] !_ = pure ()
@@ -115,7 +125,9 @@ prepareSpec :: FFSpec -> IO CSpec
 prepareSpec spec = do
   ffSpec@(FFSpec args ret fixed) <- adjustSpec spec
 
-  when (ret == MBArr) $
+  -- MBArr results are never valid; Fun (function-pointer) results are not
+  -- yet supported, only function-pointer arguments.
+  when (ret == MBArr || ret == Fun) $
     throwIO BadResult
 
   let numArgs = length args
@@ -155,7 +167,7 @@ foreign import ccall unsafe "ffi_prep_cif_var"
 
 loadForeign :: DLL -> FFSpec -> String -> IO CDynFunc
 loadForeign dll fspec sym =
-  CDynFunc name <$> prepareSpec fspec <*> getDLLSym dll sym
+  CDynFunc name <$> prepareSpec fspec <*> getDLLSym dll sym <*> pure (pure ())
   where
     name = getDLLPath dll ++ "$" ++ sym
 
@@ -172,7 +184,7 @@ loadForeign dll fspec sym =
 --
 --     Store.poke (castPtr (plusPtr p i)) <smaller-value>
 callForeign :: CDynFunc -> Ptr (Ptr a) -> Ptr r -> IO ()
-callForeign (CDynFunc _ CSpec {cInterface, cArgumentTypes} fun) cArgs cRet =
+callForeign (CDynFunc _ CSpec {cInterface, cArgumentTypes} fun _) cArgs cRet =
   withForeignPtr cInterface \cif ->
     withForeignPtr cArgumentTypes \_ ->
       ffi_call cif fun (castPtr cRet) (castPtr cArgs)

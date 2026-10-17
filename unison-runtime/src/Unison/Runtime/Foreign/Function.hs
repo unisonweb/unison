@@ -188,6 +188,7 @@ import Unison.Runtime.Crypto.P256 qualified as P256
 import Unison.Runtime.Crypto.Rsa qualified as Rsa
 import Unison.Runtime.Exception (die, exn)
 import Unison.Runtime.FFI.DLL
+import Unison.Runtime.Foreign.Callback (freeCallback)
 import Unison.Runtime.Foreign.Dynamic as Dyn
 import Unison.Runtime.Foreign.Function.Type
   ( ForeignFunc (..),
@@ -1245,6 +1246,10 @@ foreignCallHelper = \case
   FFI_arr -> mkForeign $ \(t, FFSpec ts r fixed) ->
     evaluate $ FFSpec (t : ts) r (fmap (\n -> if n == maxBound then n else n + 1) fixed)
   FFI_Spec_variadic -> mkForeign $ \(n, spec) -> evaluate $ spec {ffFixedArgs = Just n}
+  -- The spec only fixes the phantom type of the resulting @FFI.Func a@;
+  -- marshalling a function-pointer argument needs just the pointer.
+  FFI_funcType -> mkForeign $ \(_ :: FFSpec) -> pure Fun
+  FFI_freeCallback -> mkForeign $ \(cf :: CDynFunc) -> freeCallback cf
   FFI_getDLLSym -> mkForeignExn $ \(dll, sym, spec) ->
     let name = getDLLPath dll ++ "$" ++ sym
         n = length $ ffArgs spec
@@ -1331,10 +1336,10 @@ foreignCallHelper = \case
   PinnedByteArray_contents ->
     mkForeign $ evaluate . PA.mutableByteArrayContents @PA.RealWorld
   FFI_ForeignPtr_new_foreign -> mkForeign \(fin0, ptr) ->
-    let fin | CDynFunc _ _ f <- fin0 = castFunPtr f
+    let fin | CDynFunc _ _ f _ <- fin0 = castFunPtr f
      in FgnPtr.newForeignPtr @() fin ptr
   FFI_ForeignPtr_addCFinalizer -> mkForeign \(fin0, fptr) ->
-    let fin | CDynFunc _ _ f <- fin0 = castFunPtr f
+    let fin | CDynFunc _ _ f _ <- fin0 = castFunPtr f
      in FgnPtr.addForeignPtrFinalizer @() fin fptr
   FFI_ForeignPtr_unsafeContents -> mkForeign \fptr ->
     evaluate $ FgnPtr.unsafeForeignPtrToPtr @() fptr
