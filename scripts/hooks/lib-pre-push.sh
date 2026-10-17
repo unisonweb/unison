@@ -111,28 +111,26 @@ check_proof_hash() {
     local local_ref="$2"
     local local_sha="$3"
 
-    local tracked_path=".github/workflows/proofs/${name}.txt"
-
     echo "Checking $name proof for $local_ref..."
 
     local hash
     hash=$("$REPO_ROOT/scripts/proofs/${name}.sh" --hash "$local_sha")
     echo "  Hash: $hash"
 
-    # Check if proof is already in the committed version
-    local committed committed_line
-    committed=$(git show "$local_sha:$tracked_path" 2>/dev/null || echo "")
-    committed_line=$(echo "$committed" | grep "^$hash " || true)
+    # Check if the proof for this hash is in the committed version
+    local tracked_path=".github/workflows/proofs/${name}/${hash}.txt"
+    local committed_line
+    committed_line=$(git show "$local_sha:$tracked_path" 2>/dev/null || echo "")
 
     if [[ -n "$committed_line" ]]; then
         local committed_result
-        committed_result=$(echo "$committed_line" | awk '{print $3}')
+        committed_result=$(echo "$committed_line" | awk '{print $2}')
 
         if [[ "$committed_result" == "pass" ]]; then
             echo "  ✅ Already verified (passed)."
             return 0
         elif [[ "$committed_result" == "partial" ]]; then
-            echo "  🟡 Partial attestation (see .github/workflows/proofs/${name}-partial.txt); the merge queue will run it in full."
+            echo "  🟡 Partial attestation (see .github/workflows/proofs/${name}/${hash}-partial.txt); the merge queue will run it in full."
             return 0
         elif [[ "$committed_result" == "fail" ]]; then
             cat >&2 <<EOF
@@ -153,15 +151,15 @@ EOF
 # run_proof <name> <local_ref> <local_sha>
 #
 # Run the attestation script for the given proof type.
-# Exits 1 on failure. Appends to AMEND_FILES if proofs file was updated.
+# Exits 1 on failure. Appends to AMEND_FILES if the proofs directory changed.
 # -----------------------------------------------------------------------------
 run_proof() {
     local name="$1"
     local local_ref="$2"
     local local_sha="$3"
 
-    local tracked_path=".github/workflows/proofs/${name}.txt"
-    local tracked_file="$REPO_ROOT/$tracked_path"
+    local tracked_path=".github/workflows/proofs/${name}"
+    local tracked_dir="$REPO_ROOT/$tracked_path"
 
     if ! "$REPO_ROOT/scripts/proofs/${name}.sh"; then
         cat >&2 <<EOF
@@ -172,8 +170,9 @@ EOF
         exit 1
     fi
 
-    if ! git diff --quiet -- "$tracked_path"; then
-      AMEND_FILES+=("$tracked_file")
+    # a run adds a new file and deletes the old ones, so look at untracked files too
+    if [[ -n "$(git status --porcelain -- "$tracked_path")" ]]; then
+      AMEND_FILES+=("$tracked_dir")
     fi
 }
 
@@ -191,7 +190,7 @@ amend_with_proofs() {
     echo "📝 Amending commit with updated proofs files..."
 
     for file in "${AMEND_FILES[@]}"; do
-        git add "$file"
+        git add --all "$file"
     done
 
     git commit --amend --no-edit --no-verify

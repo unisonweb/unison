@@ -13,8 +13,9 @@
 #
 # VARIABLES SET BY attestation_setup:
 #   ATTESTATION_NAME      - Display name (e.g., "transcripts")
-#   LOCAL_PROOFS_FILE     - Local cache file (e.g., ".transcripts-proofs-local")
-#   TRACKED_PROOFS_FILE   - Tracked proofs file (e.g., ".github/workflows/proofs/transcripts.txt")
+#   LOCAL_PROOFS_FILE     - Local cache file (e.g., ".local-proofs/transcripts.txt")
+#   TRACKED_PROOFS_DIR    - Tracked proofs directory (e.g., ".github/workflows/proofs/transcripts"),
+#                           one file per input hash: <hash>.txt holds "<infra hash> <result>"
 #   FORCE, VERBOSE, DRY_RUN, SUMMARY - Parsed from command line
 #   HASH                  - Computed source hash
 #   INFRA_HASH            - Computed infrastructure hash
@@ -50,7 +51,7 @@ attestation_setup() {
     # Derive all paths from name
     ATTESTATION_NAME="$name"
     LOCAL_PROOFS_FILE=".local-proofs/${name}.txt"
-    TRACKED_PROOFS_FILE=".github/workflows/proofs/${name}.txt"
+    TRACKED_PROOFS_DIR=".github/workflows/proofs/${name}"
 
     set -euo pipefail
     cd "$(git rev-parse --show-toplevel)"
@@ -73,6 +74,7 @@ attestation_setup() {
     # Compute source hash by calling the run script with --hash
     local caller_script="${BASH_SOURCE[1]}"
     HASH=$("$caller_script" --hash)
+    TRACKED_PROOFS_FILE="$TRACKED_PROOFS_DIR/$HASH.txt"
 
     # Compute infrastructure hash (just the run script, which now contains PATTERNS)
     INFRA_HASH=$(cat "$caller_script" | shasum -a 256 | cut -d' ' -f1)
@@ -122,7 +124,7 @@ attestation_require_commands() {
 
 # -----------------------------------------------------------------------------
 # _lookup_attestation
-# Look up hash in tracked file and local cache, set result variables
+# Look up hash in the tracked directory and local cache, set result variables
 # Sets: CACHED_RESULT (pass|fail|none), CACHED_SOURCE (tracked|local|none),
 #       CACHED_INFRA, INFRA_CHANGED
 # -----------------------------------------------------------------------------
@@ -132,14 +134,14 @@ _lookup_attestation() {
     CACHED_INFRA=""
     INFRA_CHANGED=false
 
-    # Check tracked file first
+    # Check the tracked file for this hash first
     if [[ -f "$TRACKED_PROOFS_FILE" ]]; then
-        local line=$(grep "^$HASH " "$TRACKED_PROOFS_FILE" 2>/dev/null || true)
-        local result=$(echo "$line" | awk '{print $3}')
+        local line=$(cat "$TRACKED_PROOFS_FILE")
+        local result=$(echo "$line" | awk '{print $2}')
         if [[ "$result" == "pass" || "$result" == "fail" || "$result" == "partial" ]]; then
             CACHED_RESULT="$result"
             CACHED_SOURCE=tracked
-            CACHED_INFRA=$(echo "$line" | awk '{print $2}')
+            CACHED_INFRA=$(echo "$line" | awk '{print $1}')
             if [[ -n "$CACHED_INFRA" && "$CACHED_INFRA" != "$INFRA_HASH" ]]; then
                 INFRA_CHANGED=true
             fi
@@ -174,6 +176,7 @@ attestation_check_skip() {
         _lookup_attestation
     else
         CACHED_RESULT=none
+        CACHED_SOURCE=none
         INFRA_CHANGED=false
     fi
 
@@ -251,7 +254,7 @@ attestation_check_skip() {
         case "$CACHED_SOURCE" in
             tracked) echo "  Found in: $TRACKED_PROOFS_FILE (shared, tracked by git)" ;;
             local)   echo "  Found in: $LOCAL_PROOFS_FILE (local cache, gitignored)" ;;
-            *)       echo "  Not in: $TRACKED_PROOFS_FILE or $LOCAL_PROOFS_FILE" ;;
+            *)       echo "  Not in: $TRACKED_PROOFS_DIR/ or $LOCAL_PROOFS_FILE" ;;
         esac
         if [[ "$INFRA_CHANGED" == "true" ]]; then
             echo "  Recorded infra: $CACHED_INFRA"
@@ -263,8 +266,7 @@ attestation_check_skip() {
     case "$action" in
         exit_fail|exit_pass)
             if [[ "$CACHED_SOURCE" == "local" && "$DRY_RUN" != "true" ]]; then
-                mkdir -p "$(dirname "$TRACKED_PROOFS_FILE")"
-                echo "$HASH $INFRA_HASH $CACHED_RESULT" > "$TRACKED_PROOFS_FILE"
+                _write_tracked "$CACHED_RESULT"
             fi
             [[ "$CACHED_RESULT" == "pass" ]] && exit 0 || exit 1
             ;;
@@ -272,6 +274,21 @@ attestation_check_skip() {
             return 0
             ;;
     esac
+}
+
+# -----------------------------------------------------------------------------
+# _write_tracked <result>
+# Replace the tracked directory's contents with one file for the current hash.
+# Removing the other files keeps the directory to the current attestation;
+# since every file is named by its hash and never edited, two branches that
+# both record only add differently named files and delete the same ones,
+# which git merges cleanly.
+# -----------------------------------------------------------------------------
+_write_tracked() {
+    local result="$1"
+    mkdir -p "$TRACKED_PROOFS_DIR"
+    find "$TRACKED_PROOFS_DIR" -mindepth 1 -delete
+    echo "$INFRA_HASH $result" > "$TRACKED_PROOFS_FILE"
 }
 
 # -----------------------------------------------------------------------------
@@ -292,12 +309,12 @@ attestation_record_and_exit() {
 
 # -----------------------------------------------------------------------------
 # attestation_record [pass|fail|partial]
-# Record hash to local cache and tracked file after run
+# Record hash to local cache and tracked directory after run
 # Format: "timestamp source_hash infra_hash pass|fail|partial" (local)
-#         "source_hash infra_hash pass|fail|partial" (tracked)
+#         "infra_hash pass|fail|partial" in <tracked dir>/<source_hash>.txt
 # Default result is "pass" if not specified. A "partial" result means only
 # part of the check was run (the proof script says which part in
-# .github/workflows/proofs/<name>-partial.txt); it never lets a later run be
+# .github/workflows/proofs/<name>/<hash>-partial.txt); it never lets a later run be
 # skipped, and CI treats it as attested for pull requests only.
 # -----------------------------------------------------------------------------
 attestation_record() {
@@ -316,12 +333,11 @@ attestation_record() {
 
     [[ "$VERBOSE" == "true" ]] && echo "Recorded to $LOCAL_PROOFS_FILE"
 
-    # Update tracked proofs file
-    mkdir -p "$(dirname "$TRACKED_PROOFS_FILE")"
-    echo "$HASH $INFRA_HASH $result" > "$TRACKED_PROOFS_FILE"
+    # Update the tracked proofs directory
+    _write_tracked "$result"
     if [[ "$VERBOSE" == "true" ]]; then
         echo "Tracked file: $TRACKED_PROOFS_FILE"
-        echo "  Updated with current hashes and result=$result"
+        echo "  Written with the infra hash and result=$result; older files removed"
     fi
 
     # In summary mode, skip the result message (test output speaks for itself)
@@ -344,8 +360,8 @@ attestation_record() {
     fi
 
     echo ""
-    echo "Commit the proofs file with your changes, then push:"
-    echo "  git add $TRACKED_PROOFS_FILE && git commit"
+    echo "Commit the proofs directory with your changes, then push:"
+    echo "  git add $TRACKED_PROOFS_DIR && git commit"
     if [[ ! -x "$installed_hook" ]]; then
         echo ""
         echo "(Or install the pre-push hook to automate this: ./scripts/hooks/install.bash)"

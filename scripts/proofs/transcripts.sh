@@ -16,8 +16,8 @@
 #                   PREFIX (may be repeated; the special names round-trip,
 #                   docs.to-html and fix5507 select the manual ones). The
 #                   attestation is then recorded as "partial", with the
-#                   transcripts run and their hashes listed in
-#                   .github/workflows/proofs/transcripts-partial.txt. A partial
+#                   transcripts run and their hashes listed next to it in
+#                   .github/workflows/proofs/transcripts/<hash>-partial.txt. A partial
 #                   attestation satisfies the pull request check but not the
 #                   merge queue, which runs everything, and never makes a
 #                   later full run skip.
@@ -47,7 +47,7 @@ PATTERNS=(
     # This script (for hash integrity)
     '**/transcripts.sh'
 )
-# Note: transcripts-partial.txt is deliberately not hashed: it describes the run, not the inputs.
+# Note: the partial list is deliberately not hashed: it describes the run, not the inputs.
 
 # Hash sources without their comments and whitespace (see lib-attestation-hash.sh)
 HASH_NORMALIZE=true
@@ -72,7 +72,7 @@ attestation_setup "transcripts" "$@"
 attestation_check_skip
 attestation_require_commands stack
 
-PARTIAL_FILE=.github/workflows/proofs/transcripts-partial.txt
+PARTIAL_FILE="$TRACKED_PROOFS_DIR/$HASH-partial.txt"
 
 # The transcript files a prefix selects, across every directory the runner
 # scans, for the partial record.
@@ -162,12 +162,12 @@ set +e
 status=$?
 
 if [[ ${#ONLY[@]} -eq 0 ]]; then
-    # a full run supersedes any partial record
-    rm -f "$PARTIAL_FILE"
+    # a full run supersedes any partial record (recording clears the directory)
     attestation_record_and_exit $status
 elif [[ $status -eq 0 ]]; then
-    # record which transcripts were run, with their hashes, then a partial attestation
-    mkdir -p "$(dirname "$PARTIAL_FILE")"
+    # record a partial attestation, then which transcripts were run, with their
+    # hashes, next to it (recording first, since it clears the directory)
+    attestation_record partial
     {
         echo "# transcripts run for the partial attestation $HASH"
         for prefix in "${ONLY[@]}"; do
@@ -178,8 +178,7 @@ elif [[ $status -eq 0 ]]; then
     } > "$PARTIAL_FILE"
     echo ""
     echo "Partial run: $(grep -c -v '^#' "$PARTIAL_FILE") transcript(s) recorded in $PARTIAL_FILE"
-    attestation_record partial
-    echo "Commit $PARTIAL_FILE with the proofs file."
+    echo "Commit $PARTIAL_FILE with the proofs directory."
 else
     attestation_record_and_exit $status
 fi

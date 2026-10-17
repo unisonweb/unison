@@ -93,23 +93,32 @@ compute_hash() {
     fi
 }
 
-# Check if attestation exists in the tracked proofs file.
+# Check if an attestation exists in the tracked proofs directory.
 # Prints: <status> <hash>
-# Statuses: pass, fail, partial (only some transcripts were run, see <name>-partial.txt),
-# nofile (proofs file absent), noentry (file exists but hash not found)
+# Statuses: pass, fail, partial (only some transcripts were run, see
+# <name>/<hash>-partial.txt), nofile (proofs directory absent), noentry
+# (directory exists but holds no file for this hash)
+#
+# Each check keeps its attestations in .github/workflows/proofs/<name>/, one
+# file per input hash, named <hash>.txt and holding "<infra hash> <result>".
+# Recording a result adds the file for the new hash and removes the others,
+# so two branches that both re-attest only ever add files with different
+# names and delete the same ones, which git merges without conflict. (A
+# single file holding the current line conflicted whenever two pull requests
+# were queued together, and the merge queue dropped the second.)
 _check_attestation() {
     local name="$1"
-    local proofs_file=".github/workflows/proofs/${name}.txt"
+    local proofs_dir=".github/workflows/proofs/${name}"
     local hash
     hash=$(compute_hash)
 
-    if [[ ! -f "$proofs_file" ]]; then
+    if [[ ! -d "$proofs_dir" ]]; then
         echo "nofile $hash"
         return 0
     fi
 
     local result
-    result=$(grep "^$hash " "$proofs_file" 2>/dev/null | awk '{print $3}' || true)
+    result=$(awk '{print $2}' "$proofs_dir/$hash.txt" 2>/dev/null || true)
     if [[ "$result" == "pass" || "$result" == "fail" || "$result" == "partial" ]]; then
         echo "$result $hash"
     else

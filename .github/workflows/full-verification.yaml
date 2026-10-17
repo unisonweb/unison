@@ -110,7 +110,7 @@ jobs:
         if: always() && steps.check.conclusion != 'skipped'
         id: push
         run: |
-          git add .github/workflows/proofs
+          git add --all .github/workflows/proofs
           if git diff --cached --quiet; then
             echo "pushed=false" >> "$GITHUB_OUTPUT"
             echo "The attestations did not change."
