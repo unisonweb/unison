@@ -1,3 +1,4 @@
+{-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE OverloadedStrings #-}
 
 module Unison.Test.Util.Text where
@@ -273,13 +274,34 @@ slackTests =
           expect' (Text.toText b == base <> "yy")
           expect' (Text.toText a2 == base <> "x1")
           expect' (Text.toText b2 == base <> "yy22")
-          expect' (Text.toText t == base),
+          expect' (Text.toText t == base)
+        ok,
       scope "text: appends from many threads" $ do
         let base = foldl (\acc c -> acc <> Text.singleton c) mempty (replicate 20 'a')
             suffixes = [T.pack (show i) | i <- [1 .. 64 :: Int]]
         results <- io $ mapConcurrently (\sfx -> pure $! base <> Text.fromText sfx) suffixes
         forM_ (zip suffixes results) $ \(sfx, r) -> expect' (Text.toText r == T.replicate 20 "a" <> sfx)
-        expect' (Text.toText base == T.replicate 20 "a"),
+        expect' (Text.toText base == T.replicate 20 "a")
+        ok,
+      scope "text: many threads hammering one value" $ do
+        -- 8 threads each append to the same shared value thousands of times at once, so
+        -- their compare-and-swaps collide; every result must be the base plus the piece,
+        -- and the base must still read as it did
+        let base = foldl (\acc c -> acc <> Text.singleton c) mempty ("sh\x00e9red v\x4e2dlue" :: String)
+            baseT = Text.toText base
+            pieces = [T.pack (show i ++ "\x1F600") | i <- [1 .. 8 :: Int]]
+            hammer piece = do
+              let go :: Int -> Int -> IO Int
+                  go 0 !bad = pure bad
+                  go k !bad = do
+                    let !r = base <> Text.fromText piece
+                        !r2 = r <> Text.fromText piece
+                    go (k - 1) (bad + fromEnum (Text.toText r /= baseT <> piece || Text.toText r2 /= baseT <> piece <> piece))
+              go 5000 0
+        bad <- io $ mapConcurrently hammer pieces
+        expect' (sum bad == 0)
+        expect' (Text.toText base == baseT)
+        ok,
       scope "bytes: every version intact" $ do
         forM_ [(1 :: Int) .. 50] $ \_ -> do
           steps <- int' 1 200
@@ -299,6 +321,22 @@ slackTests =
                 forM_ old $ \(ob, om) -> expect' (map fromIntegral (B.toWord8s ob) == om)
                 go (i - 1) ((b', m') : old) b' m'
           go steps [] mempty mempty,
+      scope "bytes: many threads hammering one value" $ do
+        let one i = B.fromWord8s [fromIntegral i]
+            base = foldl (\acc i -> acc <> one i) mempty [1 .. 30 :: Int]
+            baseL = map fromIntegral (B.toWord8s base) :: [Int]
+            hammer i = do
+              let go :: Int -> Int -> IO Int
+                  go 0 !bad = pure bad
+                  go k !bad = do
+                    let !r = base <> one i
+                        !r2 = r <> one (i + 1)
+                    go (k - 1) (bad + fromEnum (map fromIntegral (B.toWord8s r) /= baseL ++ [i] || map fromIntegral (B.toWord8s r2) /= baseL ++ [i, i + 1]))
+              go 5000 0
+        bad <- io $ mapConcurrently hammer [100, 110 .. 170 :: Int]
+        expect' (sum bad == 0)
+        expect' (map fromIntegral (B.toWord8s base) == baseL)
+        ok,
       scope "bytes: appends from many threads" $ do
         let one i = B.fromWord8s [fromIntegral i]
             base = foldl (\acc i -> acc <> one i) mempty [1 .. 20 :: Int]
@@ -306,4 +344,5 @@ slackTests =
         results <- io $ mapConcurrently (\i -> pure $! base <> one i) [100 .. 163 :: Int]
         forM_ (zip [100 .. 163 :: Int] results) $ \(i, r) -> expect' (map fromIntegral (B.toWord8s r) == [1 .. 20] ++ [i])
         expect' (map fromIntegral (B.toWord8s base) == [1 .. 20 :: Int])
+        ok
     ]
