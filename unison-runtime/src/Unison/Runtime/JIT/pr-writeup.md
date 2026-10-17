@@ -131,11 +131,15 @@ The rows below 1×:
   but loses on bulk construction and above a few thousand keys. `UNISON_REPLACEMENTS=on`
   brings the Haskell maps back ([the `Map` caveat](usage.md#what-to-expect);
   [measurements](benchmarks/2026-10-11-replacements.md)).
-- JSON parsing (0.59× to 0.72×) and `List.range` per element (0.67×): the Haskell parser and
-  `range` build lists through the branch's new list representation (a strict finger tree
-  that native code can read), and are slower doing so than they were on `Data.Sequence`.
-  The interpreter alone shows the same loss, so it isn't the generated code; it's open in
-  [optimization-ideas.md](optimization-ideas.md).
+- JSON parsing (0.59× to 0.72×) and `List.range` per element (0.67×) are not losses; they
+  are work trunk's benchmark never does. On trunk the parser and `List.range` build a
+  `Data.Sequence`, which is lazy in its elements, so a JSON value's children and a range's
+  numbers stay thunks when the result is ignored, as these rows ignore it. The branch's
+  list is strict (native code reads it directly), so the values are built. Measured on the
+  2026-10-17 follow-up: the Haskell parser alone takes 6.9 µs per document on both; with the
+  children forced, 9.8 µs on trunk and 10.6 on the branch; parse then `Json.toText` from
+  Unison, 13.97 µs on trunk and 13.91 on the branch's interpreter. `Nat.range 0 100000` then
+  a fold: 16.3 ms on trunk, 17.6 interpreted on the branch, 4.1 with the JIT on.
 - `Multimap.fromList` (0.72×) and `Remote.Ref` (0.90×), the same map and call-out stories.
 
 This run is [2026-10-16 against trunk](benchmarks/2026-10-16-against-trunk.md). Earlier runs along the way, including the interpreter of this branch against its own native

@@ -246,11 +246,10 @@ per request. `Discard` (abort cases, caught exceptions) is a non-local exit and 
   ([what was tried](benchmarks/2026-10-02-text-and-bytes-helpers.md)); the interpreter's
   `catt` path is the place to look, since the same `"[" ++ x ++ "]"` is three times faster
   through the C helper.
-- JSON parsing is slower than it was on `Data.Sequence` and the list is not why: 7.2 µs per
-  document there, 10.1 on the Deque, whose pushes are faster than both. Something else
-  changed with the first swap: the conversion at the `ANF.Value`/`Term.List` boundary,
-  `fromList`, or a fusion the parser's use of `Sq.empty` and `|>` lost. `List.range` per
-  element (42 → 102 ns) is in the same position. A profile of that one benchmark.
+- (Resolved 2026-10-17.) JSON parsing and `List.range` per element looked slower than on
+  `Data.Sequence`, which was lazy in its elements: those rows ignore their result, so trunk
+  never built the JSON values' children or the range's numbers, and the strict Deque does.
+  With the result consumed the two cost the same; `benchmarks/2026-10-16-against-trunk.md`.
 
 ### Fallback: tail-call the body function at the end of an inline binding
 
