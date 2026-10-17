@@ -12,11 +12,11 @@ on:
       dll-ffi-os:
         description: JSON array of OSes for dll-ffi tests
         type: string
-        default: '["ubuntu-24.04","ubuntu-24.04-arm","macos-15-intel","macos-latest","windows-2025"]'
+        default: '["ubuntu-24.04","ubuntu-24.04-arm","macos-15-intel","macos-15","windows-2025"]'
       interpreter-tests-os:
         description: JSON array of OSes for interpreter tests
         type: string
-        default: '["ubuntu-24.04","ubuntu-24.04-arm","macos-15-intel","macos-latest"]'
+        default: '["ubuntu-24.04","ubuntu-24.04-arm","macos-15-intel","macos-15"]'
       skip-attested-transcripts:
         description: Skip transcripts if proof attestation is valid
         type: boolean
@@ -33,11 +33,11 @@ on:
       dll-ffi-os:
         description: JSON array of OSes for dll-ffi tests
         type: string
-        default: '["ubuntu-24.04","ubuntu-24.04-arm","macos-15-intel","macos-latest","windows-2025"]'
+        default: '["ubuntu-24.04","ubuntu-24.04-arm","macos-15-intel","macos-15","windows-2025"]'
       interpreter-tests-os:
         description: JSON array of OSes for interpreter tests (excludes windows by default)
         type: string
-        default: '["ubuntu-24.04","ubuntu-24.04-arm","macos-15-intel","macos-latest"]'
+        default: '["ubuntu-24.04","ubuntu-24.04-arm","macos-15-intel","macos-15"]'
       skip-attested-transcripts:
         description: Skip transcripts if proof attestation is valid
         type: boolean
