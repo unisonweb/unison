@@ -1469,7 +1469,7 @@ int64_t unison_jit_list_test(void **elems, int64_t op, int64_t arg, int64_t arg2
 //
 // A Unison Text is a Unison.Util.Rope of chunks, held as TextC rope (one
 // closure), and a Bytes is the same rope over chunks of bytes, held as
-// Foreign (WrapBytes rope) (two). The rope is the list's finger tree with chunks for
+// BytesC rope. The rope is the list's finger tree with chunks for
 // elements and sizes counted in characters (bytes, for a Bytes): its middle
 // is the Deque's own Mid, so the functions above that take top = 0 work on it
 // as they are, and only the top level, whose items are chunks, is written
@@ -1915,22 +1915,14 @@ StgClosure *unison_jit_rope_chunk_at(const RopeKind *K, StgClosure *r, StgInt i,
 }
 
 
-// TextC rope, or Foreign (WrapBytes rope); `same` is returned if it
-// already holds that rope
+// TextC rope or BytesC rope; `same` is returned if it already holds that
+// rope
 static void *wrap_rope(UnisonJitCtx *ctx, const RopeKind *K, StgClosure *rope, void *same) {
   if (same != NULL && rope_of(K, same) == rope) return same;
-  if (K->direct) {
-    StgWord *p = list_alloc(ctx, 2);
-    p[0] = K->wrap_info;
-    p[1] = (StgWord)rope;
-    return (void *)((StgWord)p | K->wrap_tag);
-  }
-  StgWord *p = list_alloc(ctx, 4);
+  StgWord *p = list_alloc(ctx, 2);
   p[0] = K->wrap_info;
   p[1] = (StgWord)rope;
-  p[2] = K->foreign_info;
-  p[3] = (StgWord)p | K->wrap_tag;
-  return (void *)((StgWord)(p + 2) | 7);
+  return (void *)((StgWord)p | K->wrap_tag);
 }
 
 // --- the operations behind the helpers generated code calls ---
@@ -2145,7 +2137,7 @@ int64_t unison_jit_bytes_check(void **elems) { return rope_check(&BK, elems); }
 // elements "abc" in one chunk, elems[1] two pieces of one element more than
 // the threshold appended, which is a Deep with one chunk in each digit,
 // elems[2] the empty rope. info[0] is the info pointer of the closure
-// holding the rope (TextC's for a direct kind, else Foreign's), info[1]
+// holding the rope (TextC's or BytesC's), info[1]
 // Rope.threshold, info[2] the offset of elems[0]'s chunk in its byte array
 // (the Bytes sample is cut from a longer one, so that its offset and its size
 // differ and the two fields can't be mixed up) and info[3] that closure's
@@ -2157,20 +2149,10 @@ static int64_t rope_init(RopeKind *K, void **raw, int64_t *info) {
   K->threshold = info[1];
   if (K->threshold < 1) return 14;
   StgInt piece = K->threshold + 1;
-  StgClosure *f = elems[0];
-  StgClosure *w;
-  if (K->direct) {
-    K->wrap_info = info[0];
-    K->wrap_tag = info[3];
-    if (LTAG(f) != (int)K->wrap_tag || (StgWord)LUN(f)->header.info != K->wrap_info) return 2;
-    w = f;
-  } else {
-    K->foreign_info = info[0];
-    if (LTAG(f) != 7 || info[3] != 7 || (StgWord)LUN(f)->header.info != K->foreign_info) return 2;
-    w = LP(f, 0);
-    K->wrap_info = (StgWord)LUN(w)->header.info;
-    K->wrap_tag = LTAG(w);
-  }
+  StgClosure *w = elems[0];
+  K->wrap_info = info[0];
+  K->wrap_tag = info[3];
+  if (LTAG(w) != (int)K->wrap_tag || (StgWord)LUN(w)->header.info != K->wrap_info) return 2;
   const StgInfoTable *wit = get_itbl(LUN(w));
   if (!(wit->type >= CONSTR && wit->type <= CONSTR_NOCAF) || wit->layout.payload.ptrs != 1 ||
       wit->layout.payload.nptrs != 0)
@@ -2203,7 +2185,6 @@ static int64_t rope_init(RopeKind *K, void **raw, int64_t *info) {
 
 int64_t unison_jit_text_init(void **raw, int64_t *info) {
   memset(&TK, 0, sizeof TK);
-  TK.direct = 1;
   TK.chunk_words = 4, TK.ix_count = 1, TK.ix_off = 2, TK.ix_len = 3, TK.utf8 = 1;
   return rope_init(&TK, raw, info);
 }

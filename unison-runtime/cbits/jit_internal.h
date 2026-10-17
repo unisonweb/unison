@@ -75,12 +75,12 @@ void *unison_jit_settle(void *p);
 
 // --- texts and bytes (Unison.Util.Rope) ---
 
-// A text is `TextC rope`, one closure whose field is the rope (direct);
-// bytes are `Foreign (WrapBytes rope)`, two. wrap_info and wrap_tag are the
-// closure holding the rope: TextC's, or WrapBytes' under foreign_info.
+// A text is `TextC rope` and a bytes value `BytesC rope`: one closure each
+// whose field is the rope. wrap_info and wrap_tag are that closure's info
+// pointer and pointer tag (from the init function; TextC has tag 2, BytesC
+// is past the sixth constructor and has tag 7).
 typedef struct {
-  int direct;
-  StgWord foreign_info, wrap_info, wrap_tag;
+  StgWord wrap_info, wrap_tag;
   StgWord one_info, deep_info, chunk_info;
   StgClosure *empty; // Rope's Empty (tagged)
   // the most elements two chunks may have between them to be made one
@@ -95,20 +95,15 @@ UNISON_JIT_TABLE RopeKind unison_jit_TK, unison_jit_BK; // text, bytes
 #define BK unison_jit_BK
 
 static inline StgClosure *rope_of(const RopeKind *K, void *x) {
-  if (K->direct) {
-    if (LTAG(x) != (int)K->wrap_tag || (StgWord)LUN(x)->header.info != K->wrap_info) return NULL;
-    return LP(x, 0);
-  }
-  if (LTAG(x) != 7 || (StgWord)LUN(x)->header.info != K->foreign_info) return NULL;
-  StgClosure *w = LP(x, 0);
-  if (LTAG(w) != (int)K->wrap_tag || (StgWord)LUN(w)->header.info != K->wrap_info) return NULL;
-  return LP(w, 0);
+  if (LTAG(x) != (int)K->wrap_tag || (StgWord)LUN(x)->header.info != K->wrap_info) return NULL;
+  return LP(x, 0);
 }
 
 // Whether the info pointer is a closure holding a Haskell value: a text, a
-// list, or Foreign (the kinds Universal.compare orders together).
+// list, a bytes value, or Foreign (the kinds Universal.compare orders
+// together).
 static inline int is_builtin_info(StgWord info) {
-  return info == LF.foreign_info || info == LF.list_info || (TK.direct && info == TK.wrap_info);
+  return info == LF.foreign_info || info == LF.list_info || info == TK.wrap_info || info == BK.wrap_info;
 }
 
 static inline StgInt chunk_size(const RopeKind *K, StgClosure *c) { return LW(c, K->ix_count); }

@@ -3605,3 +3605,100 @@ cmpAll x y = (x Universal.== y, x Universal.< y, x Universal.<= y, x Universal.>
            ⧩
            true
 ```
+
+## Bytes as a closure constructor
+
+A bytes value is a closure constructor of its own (one object, since 2026-10-16), after
+the six tagged ones, like texts and lists the day before. It still reflects, decompiles,
+hashes and compares as it did: inside `Any` it orders after data and after an unboxed
+value, as the foreign value it was, and two bytes values compare by contents.
+
+``` unison
+use Nat + ==
+
+bytesRound : Nat -> (Nat, Optional Nat, Bytes, Bytes, [Nat])
+bytesRound n =
+  go acc i = if i == n then acc else go (acc ++ Bytes.fromList [Nat.mod (i * 7) 256]) (i + 1)
+  bs = go 0xs 0
+  (Bytes.size bs, Bytes.at 3 bs, Bytes.take 4 bs, Bytes.drop (n - 2) bs, Bytes.toList (Bytes.take 3 (Bytes.drop 5 bs)))
+
+cmpB : a -> a -> (Boolean, Boolean, Boolean, Boolean, Boolean, Int)
+cmpB x y = (x Universal.== y, x Universal.< y, x Universal.<= y, x Universal.> y, x Universal.>= y, Universal.compare x y)
+
+> bytesRound 12
+> (0xs0102, [0xsff, 0xs], Some 0xsdeadbeef)
+> cmpB (Any 0xs01) (Any 0xs0102)
+> cmpB (Any 0xs02) (Any 0xs0102)
+> cmpB (Any 0xs01) (Any (Some 1))
+> cmpB (Any 1) (Any 0xs01)
+> cmpB (Some 0xs01) (Some 0xs01)
+> cmpB [0xs01, 0xs02] [0xs01, 0xs03]
+> Universal.murmurHashUntyped 0xs68656c6c6f
+> Universal.murmurHashUntyped (1, "two", 0xs03)
+> Value.serialize (Value.value (0xs0102, [1, 2])) Universal.== Value.serialize (Value.value (0xs0102, [1, 2]))
+> Text.toUtf8 "héllo"
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  + bytesRound : Nat -> (Nat, Optional Nat, Bytes, Bytes, [Nat])
+  + cmpB       : a
+                 -> a
+                 -> ( Boolean,
+                   Boolean,
+                   Boolean,
+                   Boolean,
+                   Boolean,
+                   Int)
+
+  Run `update` to apply these changes to your codebase.
+
+    12 | > bytesRound 12
+           ⧩
+           (12, Some 21, 0xs00070e15, 0xs464d, [35, 42, 49])
+
+    13 | > (0xs0102, [0xsff, 0xs], Some 0xsdeadbeef)
+           ⧩
+           (0xs0102, [0xsff, 0xs], Some 0xsdeadbeef)
+
+    14 | > cmpB (Any 0xs01) (Any 0xs0102)
+           ⧩
+           (false, true, true, false, false, -1)
+
+    15 | > cmpB (Any 0xs02) (Any 0xs0102)
+           ⧩
+           (false, false, false, true, true, +1)
+
+    16 | > cmpB (Any 0xs01) (Any (Some 1))
+           ⧩
+           (false, false, false, true, true, +1)
+
+    17 | > cmpB (Any 1) (Any 0xs01)
+           ⧩
+           (false, true, true, false, false, -1)
+
+    18 | > cmpB (Some 0xs01) (Some 0xs01)
+           ⧩
+           (true, false, true, false, true, +0)
+
+    19 | > cmpB [0xs01, 0xs02] [0xs01, 0xs03]
+           ⧩
+           (false, true, true, false, false, -1)
+
+    20 | > Universal.murmurHashUntyped 0xs68656c6c6f
+           ⧩
+           10357903394089648079
+
+    21 | > Universal.murmurHashUntyped (1, "two", 0xs03)
+           ⧩
+           13437705009603678780
+
+    22 | > Value.serialize (Value.value (0xs0102, [1, 2])) Universal.== Value.serialize (Value.value (0xs0102, [1, 2]))
+           ⧩
+           true
+
+    23 | > Text.toUtf8 "héllo"
+           ⧩
+           0xs68c3a96c6c6f
+```

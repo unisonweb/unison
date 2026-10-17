@@ -31,6 +31,7 @@ module Unison.Runtime.Stack
         Captured,
         TextC,
         ListC,
+        BytesC,
         Foreign,
         Affine,
         BlackHole,
@@ -459,9 +460,10 @@ type RecordVals = Vector Val
 -- benchmarks/2026-10-15-text-list.md); a wider constructor pushes more
 -- fields and absorbs the info-table read better, and a partial
 -- application is only scrutinized by a call, whose other work dwarfs it
--- (benchmarks/2026-10-15-constructor-order.md). A text and a list are one
--- object each, the rope or the deque their one field (Text is a newtype
--- over the rope). A data constructor's fields come
+-- (benchmarks/2026-10-15-constructor-order.md). A text, a list and a bytes
+-- value are one object each, the rope or the deque their one field (Text
+-- is a newtype over the rope); bytes sit at tag 7, after the six, being
+-- rarer than texts. A data constructor's fields come
 -- first and its reference last, so that with @-funbox-strict-fields@ the
 -- closure is the fields' boxed halves, the reference, the packed tag and
 -- the fields' unboxed halves: field j's boxed half is pointer j. The
@@ -480,6 +482,7 @@ data GClosure comb
   | GData6 !PackedTag !Val !Val !Val !Val !Val !Val !Reference
   | -- | seven or more fields
     GDataG !PackedTag !USeg !BSeg !Reference
+  | GBytes !Bytes
   | GPAp
       !CombIx
       {-# UNPACK #-} !(GCombInfo comb)
@@ -598,6 +601,10 @@ pattern TextC t = Closure (GText t)
 pattern ListC :: Deque Val -> Closure
 pattern ListC d = Closure (GList d)
 
+-- | A bytes value: the runtime's one representation of a @Bytes@ value.
+pattern BytesC :: Bytes -> Closure
+pattern BytesC b = Closure (GBytes b)
+
 pattern Foreign x = Closure (GForeign x)
 
 pattern Affine ps aenv r = Closure (GAffine ps aenv r)
@@ -614,13 +621,13 @@ pattern UnboxedTypeTag t <- Closure (GUnboxedTypeTag t)
       IntTag -> intTypeTag
       NatTag -> natTypeTag
 
-{-# COMPLETE PAp, Enum, Data1, Data2, Data3, Data4, Data5, Data6, DataG, RecordC, Captured, TextC, ListC, Foreign, UnboxedTypeTag, BlackHole, Affine #-}
+{-# COMPLETE PAp, Enum, Data1, Data2, Data3, Data4, Data5, Data6, DataG, RecordC, Captured, TextC, ListC, BytesC, Foreign, UnboxedTypeTag, BlackHole, Affine #-}
 
-{-# COMPLETE DataC, RecordC, PAp, Captured, TextC, ListC, Foreign, BlackHole, UnboxedTypeTag, Affine #-}
+{-# COMPLETE DataC, RecordC, PAp, Captured, TextC, ListC, BytesC, Foreign, BlackHole, UnboxedTypeTag, Affine #-}
 
-{-# COMPLETE DataC, RecordC, PApV, Captured, TextC, ListC, Foreign, BlackHole, UnboxedTypeTag, Affine #-}
+{-# COMPLETE DataC, RecordC, PApV, Captured, TextC, ListC, BytesC, Foreign, BlackHole, UnboxedTypeTag, Affine #-}
 
-{-# COMPLETE DataC, RecordC, PApV, CapV, TextC, ListC, Foreign, BlackHole, UnboxedTypeTag, Affine #-}
+{-# COMPLETE DataC, RecordC, PApV, CapV, TextC, ListC, BytesC, Foreign, BlackHole, UnboxedTypeTag, Affine #-}
 
 -- We can avoid allocating a closure for common type tags on each poke by having shared top-level closures for them.
 natTypeTag :: Closure
@@ -1802,6 +1809,7 @@ closureNum Captured {} = 2
 closureNum Foreign {} = 3
 closureNum TextC {} = 3
 closureNum ListC {} = 3
+closureNum BytesC {} = 3
 closureNum UnboxedTypeTag {} = 4
 closureNum BlackHole {} = 5
 closureNum Affine {} = 6
@@ -1830,6 +1838,7 @@ instance Eq Closure where
     k1 == k2 && a1 == a2 && eqValList vs1 vs2
   TextC l == TextC r = l == r
   ListC l == ListC r = l == r
+  BytesC l == BytesC r = l == r
   Foreign fl == Foreign fr = fl == fr
   c == d
     | closureNum c == 3, closureNum d == 3 =
@@ -1842,12 +1851,13 @@ instance Eq Closure where
             <> "`"
     | otherwise = closureNum c == closureNum d
 
--- | The name of a text, a list or a foreign value's kind, for the errors
--- on comparing two of different kinds.
+-- | The name of a text, a list, a bytes or a foreign value's kind, for
+-- the errors on comparing two of different kinds.
 builtinKindName :: Closure -> String
 builtinKindName = \case
   TextC {} -> "Text"
   ListC {} -> "Seq"
+  BytesC {} -> "Bytes"
   Foreign f -> foreignName f
   _ -> "closure"
 
@@ -1931,6 +1941,7 @@ compareClosure tyEq = \cases
       <> compareValList True vs1 vs2
   (TextC l) (TextC r) -> compare l r
   (ListC l) (ListC r) -> liftCompare (compareVal tyEq) l r
+  (BytesC l) (BytesC r) -> compare l r
   (Foreign fl) (Foreign fr) -> compareForeign tyEq fl fr
   (UnboxedTypeTag t1) (UnboxedTypeTag t2) -> compare t1 t2
   (BlackHole) (BlackHole) -> EQ
@@ -2074,11 +2085,11 @@ deflateMap _ = Nothing
 -- often (measured 2026-10-15; "Layouts" in JIT/design.md): GHC
 -- gives a type's first six constructors their own pointer tags, and a case
 -- on any later one reads the info table. Nothing serializes or orders by
--- this order; the Tag instances are explicit. Texts and lists are closure
--- constructors of their own ('TextC', 'ListC'), not foreign values.
+-- this order; the Tag instances are explicit. Texts, lists and bytes are
+-- closure constructors of their own ('TextC', 'ListC', 'BytesC'), not
+-- foreign values.
 data Foreign
-  = WrapBytes !Bytes
-  | WrapMap !(Map Val Val)
+  = WrapMap !(Map Val Val)
   | WrapArray !(Array Val)
   | WrapNatural !Natural
   | WrapByteArray !ByteArray
@@ -2132,7 +2143,6 @@ foreignRef WrapArray {} = Ty.iarrayRef
 foreignRef WrapSignal {} = Ty.signalRef
 foreignRef WrapSignalSubscription {} = Ty.signalSubscriptionRef
 foreignRef WrapByteArray {} = Ty.ibytearrayRef
-foreignRef WrapBytes {} = Ty.bytesRef
 foreignRef WrapCDynFunc {} = Ty.ffiFuncRef
 foreignRef WrapCPattern {} = Ty.patternRef
 foreignRef WrapCharPattern {} = Ty.charClassRef
@@ -2175,7 +2185,6 @@ foreignName WrapArray {} = "Array"
 foreignName WrapSignal {} = "IO.signal.Signal"
 foreignName WrapSignalSubscription {} = "IO.signal.Subscription"
 foreignName WrapByteArray {} = "ByteArray"
-foreignName WrapBytes {} = "Bytes"
 foreignName WrapCDynFunc {} = "DLL.Func"
 foreignName WrapCPattern {} = "CPattern"
 foreignName WrapCharPattern {} = "CharPattern"
@@ -2232,7 +2241,6 @@ instance Eq Foreign where
   WrapArray l == WrapArray r = l == r
   WrapReferent l == WrapReferent r = l == r
   WrapReference l == WrapReference r = l == r
-  WrapBytes l == WrapBytes r = l == r
   WrapMVar l == WrapMVar r = l == r
   WrapTVar l == WrapTVar r = l == r
   WrapSocket l == WrapSocket r = l == r
@@ -2283,7 +2291,6 @@ compareForeign _tyEq (WrapSignal l) (WrapSignal r) = compare l r
 compareForeign _tyEq (WrapSignalSubscription l) (WrapSignalSubscription r) = compare l r
 compareForeign _tyEq (WrapReference l) (WrapReference r) = compare l r
 compareForeign _tyEq (WrapReferent l) (WrapReferent r) = compare l r
-compareForeign _tyEq (WrapBytes l) (WrapBytes r) = compare l r
 compareForeign _tyEq (WrapThreadId l) (WrapThreadId r) = compare l r
 compareForeign _tyEq (WrapByteArray l) (WrapByteArray r) = compare l r
 compareForeign _tyEq (WrapCPattern l) (WrapCPattern r) = compare l r
@@ -2331,9 +2338,9 @@ instance BuiltinForeign U.Text where
 
 instance BuiltinForeign Bytes where
   builtinName = Tagged "Bytes"
-  wrapBuiltin = Foreign . WrapBytes
+  wrapBuiltin = BytesC
   maybeUnwrapBuiltin = \case
-    Foreign (WrapBytes v) -> Just v
+    BytesC v -> Just v
     _ -> Nothing
   {-# INLINE maybeUnwrapBuiltin #-}
 

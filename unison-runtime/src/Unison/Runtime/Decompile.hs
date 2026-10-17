@@ -32,6 +32,7 @@ import Unison.Runtime.Stack
   ( Closure (..),
     Foreign (..),
     HashAlgorithm (..),
+    pattern BytesC,
     pattern ListC,
     pattern TextC,
     UnboxedTypeTag (..),
@@ -139,6 +140,7 @@ decompile backref topTerms = \case
     (Captured {}) -> err Cont $ bug "<Continuation>"
     (Affine {}) -> err Aff $ bug "<Affine>"
     (TextC t) -> pure $ text () (Text.toText t)
+    (BytesC b) -> pure $ decompileBytes b
     (ListC s) ->
       list' () . Seq.fromList <$> traverse (decompile backref topTerms) (toList s)
     (Foreign f) ->
@@ -164,7 +166,6 @@ decompileForeign ::
   Foreign ->
   DecompResult v
 decompileForeign backref topTerms = \case
-  WrapBytes b -> pure $ decompileBytes b
   WrapHashAlgorithm h -> pure $ decompileHashAlgorithm h
   WrapReferent l ->
     pure . termLink () $ case l of

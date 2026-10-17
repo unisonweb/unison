@@ -123,9 +123,20 @@ result. They are `TextC rope` and `ListC deque` now, constructors of `GClosure` 
 pointer tags 1 and 2, one object each. The `BuiltinForeign` class is typed through
 `Closure`, the other Haskell values stay under `Foreign`, and the C side learns the two
 layouts from the probes like the data constructors (`rope_of` and `deque_of` are a tag
-compare and a load; bytes keep the two-level form). Nothing on the wire changed, texts and
+compare and a load). Nothing on the wire changed, texts and
 lists are their own cases of the ANF `Value`, and `Universal.compare` orders the new kinds
 as the foreign values they were. The six tagged constructors are `ListC`, `TextC`, `Enum`,
 `Data1`, `Data2` and `Data5` (base's `Map` node, native under the JIT: 2 to 5% on the Nat
 map rows against the node at tag 7); `Data3` and `Data4` read the info table now, which
 the tree rows show. Text and list rows 6 to 8% faster native. `benchmarks/2026-10-15-text-list.md`.
+
+## Bytes as a closure constructor (2026-10-16)
+
+A bytes value followed: `Foreign (WrapBytes rope)` became `BytesC rope`, a constructor of
+`GClosure` after the six tagged ones (pointer tag 7, told apart by its info pointer; bytes
+are rarer than texts). The two rope kinds in C are now the same shape, one closure whose
+field is the rope, so `RopeKind` lost its two-level form. Same guarantees as above: nothing
+on the wire, bytes are their own case of the ANF `Value`, `Universal.compare` and the hash
+unchanged. A jit-tests.md stanza covers it. Bytes rows 8 to 14% faster native where a
+result is allocated (`drop` 2.10 → 1.82 ms, `append` 0.260 → 0.237 ms); the text rows, the
+control, within noise. `benchmarks/2026-10-16-bytes-constructor.md`.

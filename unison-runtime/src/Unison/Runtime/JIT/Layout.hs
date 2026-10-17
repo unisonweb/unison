@@ -81,10 +81,10 @@ data Layouts = Layouts
     -- for 0 to 2 fields and 6 for 5 fields (base's Map node); 3, 4 and 6
     -- fields share tag 7 with the rest.
     lData :: !(V.Vector Layout),
-    -- | @TextC rope@ and @ListC deque@ as (info pointer, pointer tag): one
-    -- pointer each, the rope (Text is a newtype over it) or the deque; tags
-    -- 1 and 2
-    lText, lList :: !(Pair Int Int),
+    -- | @TextC rope@, @ListC deque@ and @BytesC rope@ as (info pointer,
+    -- pointer tag): one pointer each, the rope (Text is a newtype over it)
+    -- or the deque; tags 1 and 2 for texts and lists, 7 for bytes
+    lText, lList, lBytes :: !(Pair Int Int),
     -- | @DataG tag useg bseg ref@ (seven or more fields): pointers the
     -- ByteArray#, the Array# and the reference; one non-pointer, the tag;
     -- pointer tag 7
@@ -214,21 +214,22 @@ probeLayouts = do
   -- a text and a list: one pointer each
   tx <- probeWrap True (any' $! TextC (UText.pack "abc"))
   li <- probeWrap True (any' $! ListC (Sq.fromList [Val 9 nat]))
+  by <- probeWrap True (any' $! BytesC (By.fromWord8s [1, 2, 3]))
   -- a record: its words are checked by unison_jit_record_init (probeRecords);
   -- here only the counts and the pointer tag
   rc <- probeKind 7 4 5 (any' $! RecordG (recordShapeOf 7 [("a", 3), ("bc", 5)]) (recordVals (segFromList [NatVal 9, NatVal 10])))
   -- (the order of GClosure: ListC 1, TextC 2, Enum 3, Data1 4, Data2 5, Data5 6)
   let dataOk k l = lPtrTag l == (if k <= 2 then k + 3 else if k == 5 then 6 else 7) && lPtrs l == k + 1 && lNptrs l == k + 1
-  pure $ case (sequence ds, dg, pap, fi, wi, ai, v, aw, mbw, bw, tw, pw, rc, tx, li) of
-    (Right lds, Right ldg, Right lp, Right fii, Right wii, Right aii, Right lv, Right awi, Right mbwi, Right bwi, Right ltw, Right pwi, Right lr, Right txi, Right lii)
+  pure $ case (sequence ds, dg, pap, fi, wi, ai, v, aw, mbw, bw, tw, pw, rc, tx, li, by) of
+    (Right lds, Right ldg, Right lp, Right fii, Right wii, Right aii, Right lv, Right awi, Right mbwi, Right bwi, Right ltw, Right pwi, Right lr, Right txi, Right lii, Right byi)
       | and (zipWith dataOk [0 ..] lds),
         lPtrTag ldg == 7 && lPtrs ldg == 3 && lNptrs ldg == 1,
         lPtrTag lp == 7 && lPtrs lp == 4 && lNptrs lp == 5,
         lPtrTag lv == 1 && lPtrs lv == 1 && lNptrs lv == 1,
         lPtrs ltw == 1 && lNptrs ltw == 0 ->
-          Right (Layouts (V.fromList lds) txi lii ldg lp fii wii aii awi mbwi bwi (Pair (lInfo ltw) (lPtrTag ltw)) pwi lv lr 8)
+          Right (Layouts (V.fromList lds) txi lii byi ldg lp fii wii aii awi mbwi bwi (Pair (lInfo ltw) (lPtrTag ltw)) pwi lv lr 8)
       | otherwise -> Left ("closure layouts are not what the code generator expects: " ++ unwords (map summary (lds ++ [ldg, lp, lv, ltw])))
-    _ -> Left ("closure layouts could not be probed: " ++ show ([either id (const "ok") x | x <- ds ++ [dg, pap, v, tw, rc]] ++ [either id (const "ok") x | x <- [fi, wi, ai]] ++ [either id (const "ok") x | x <- [aw, mbw, bw, pw, tx, li]]))
+    _ -> Left ("closure layouts could not be probed: " ++ show ([either id (const "ok") x | x <- ds ++ [dg, pap, v, tw, rc]] ++ [either id (const "ok") x | x <- [fi, wi, ai]] ++ [either id (const "ok") x | x <- [aw, mbw, bw, pw, tx, li, by]]))
 
 -- | The layout of a constructor with the given pointer tag and field counts.
 probeKind :: Int -> Int -> Int -> Any -> IO (Either String Layout)
@@ -395,7 +396,7 @@ probeMurmur ls = do
           !dg = DataG Ty.failureRef (PackedTag 5) (useg, bseg)
           dgV = dat Ty.failureRef 5 [pos 1, pos 2, pos 3]
           textC t = TextC (UText.pack t)
-          bytesC bs = Foreign (WrapBytes (By.fromWord8s bs))
+          bytesC bs = BytesC (By.fromWord8s bs)
           listC vs = ListC (Sq.fromList vs)
           boxed :: [(String, Closure, ANF.Value Reference)]
           boxed =
@@ -466,7 +467,7 @@ probeCompare ls = do
           dg us = let !u = byteArrayFromList (reverse us); !b = arrayFromList (replicate (length us) nat) in BoxedVal (DataG Ty.failureRef (PackedTag 5) (u, b))
           anyOf v = BoxedVal (Data1 Ty.anyRef TT.anyTag v)
           text t = BoxedVal (TextC (UText.pack t))
-          bytes bs = BoxedVal (Foreign (WrapBytes (By.fromWord8s bs)))
+          bytes bs = BoxedVal (BytesC (By.fromWord8s bs))
           list vs = BoxedVal (ListC (Sq.fromList vs))
           -- an array's elements are lazy: evaluate them first, as the runtime's arrays hold values
           array :: [Val] -> IO Val
@@ -963,7 +964,7 @@ probeTexts ls steps = do
             h8 <- textTest arr 21 0 0 0
             c8 <- slot3
             utf <- case c8 of
-              Foreign (WrapBytes bs) | h8 == 1, bs == UText.toUtf8 t -> do
+              BytesC bs | h8 == 1, bs == UText.toUtf8 t -> do
                 put arr 0 (any' c8)
                 okB <- bytesCheck arr
                 put arr 0 (any' c8)
@@ -1095,7 +1096,7 @@ probeTexts ls steps = do
                         h <- textTest arr 21 0 0 0
                         c <- slot3
                         case c of
-                          Foreign (WrapBytes _) | h == 1 -> do
+                          BytesC _ | h == 1 -> do
                             put arr 0 (any' c)
                             h2 <- textTest arr 22 (fromIntegral rightTag) 0 0
                             c2 <- slot3
@@ -1178,7 +1179,7 @@ probeTexts ls steps = do
 probeBytes :: Layouts -> Int -> IO (Either String ())
 probeBytes ls steps = do
   let wrap :: By.Bytes -> Any
-      wrap b = any' $! Foreign (WrapBytes b)
+      wrap b = any' $! BytesC b
       put :: MutableArray RealWorld Any -> Int -> Any -> IO ()
       put a i v = evaluate v >>= writeArray a i
       bytes :: [Int] -> By.Bytes
@@ -1191,7 +1192,7 @@ probeBytes ls steps = do
       unitVal = BoxedVal (Enum Ty.unitRef TT.unitTag)
       tup2 x y = Data2 Ty.pairRef TT.pairTag x (BoxedVal (Data2 Ty.pairRef TT.pairTag y unitVal))
       some = Data1 Ty.optionalRef TT.someTag
-      bytesC = Foreign . WrapBytes
+      bytesC = BytesC
       -- the number functions: width, big-endian, and the Haskell operations
       numKinds =
         [ (2, True, By.decodeNat16be, By.encodeNat16be, \i bs -> fromIntegral <$> By.index16be i bs),
@@ -1233,7 +1234,8 @@ probeBytes ls steps = do
   put arr 9 (any' natTypeTag)
   put arr 10 (any' intTypeTag)
   put arr 11 (any' floatTypeTag)
-  ok <- bytesInit arr [lForeignInfo ls, th, 1, 7]
+  let Pair bytesInfo bytesTag = lBytes ls
+  ok <- bytesInit arr [bytesInfo, th, 1, bytesTag]
   if ok /= 1
     then pure (Left ("the bytes constructors are not laid out as the JIT's helpers expect (check " ++ show ok ++ ")"))
     else do
@@ -1246,11 +1248,11 @@ probeBytes ls steps = do
               put arr 0 (any' c)
               bytesCheck arr
             pure $ case c of
-              Foreign (WrapBytes b) | good -> Just b
+              BytesC b | good -> Just b
               _ -> Nothing
           bytesIn :: Closure -> By.Bytes -> IO Bool
           bytesIn c expected = case c of
-            Foreign (WrapBytes b) | b == expected -> put arr 0 (any' c) >> bytesCheck arr
+            BytesC b | b == expected -> put arr 0 (any' c) >> bytesCheck arr
             _ -> pure False
           -- Bytes.at through the helper, against the interpreter's answer
           at :: By.Bytes -> Int -> IO Bool
@@ -1450,7 +1452,7 @@ probeBytes ls steps = do
                         h <- bytesTest arr 14 base 0 0
                         c <- slot3
                         case c of
-                          Foreign (WrapBytes _) | h == 1 -> do
+                          BytesC _ | h == 1 -> do
                             put arr 0 (any' c)
                             h2 <- bytesTest arr 15 base (fromIntegral rightTag) 0
                             c2 <- slot3

@@ -23,18 +23,13 @@ one traced pointer per value. It stays because `compareClosure`'s different-type
 the replaced map through the `Ord Val` instance, which can't take a lookup function. A map
 parameterized by a comparison would free it (`data-layout-plan.local.md`).
 
-### `Bytes` as a closure constructor
+### The kinds that stay foreign
 
-A `Bytes` value is still `Foreign (WrapBytes rope)`, two objects and two checks before the
-rope, where a text became `TextC rope` on 2026-10-15 (`RopeKind.direct` in
-`jit_internal.h` already takes either form, so a `GBytes` constructor at tag 7 is the
-`Layout.hs` probe, `unison_jit_bytes_init`'s arguments, the `BuiltinForeign Bytes`
-instance and the `WrapBytes` sites). The same shape of change as texts and lists, with a
-smaller win: a bytes primitive would still read the info table, and bytes are rarer than
-texts in most code. `Map` (`Foreign (WrapMap …)`, matched by `dataBranch`) is a separate
-decision. The info-pointer compare in the native checks for the kinds that stay foreign
-(arrays, refs, pointers) could also go if those kinds took tags below 7, which nothing
-asks for yet.
+Texts and lists became closure constructors of their own on 2026-10-15 and bytes on
+2026-10-16 (`GBytes`, at tag 7: a bytes primitive still reads the info table). `Map`
+(`Foreign (WrapMap …)`, matched by `dataBranch`) is a separate decision. The info-pointer
+compare in the native checks for the kinds that stay foreign (arrays, refs, pointers)
+could also go if those kinds took tags below 7, which nothing asks for yet.
 
 ### One allocation for several `Pack`s
 

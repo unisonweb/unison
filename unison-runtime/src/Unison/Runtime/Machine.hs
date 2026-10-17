@@ -1649,6 +1649,7 @@ dataBranchClosureError mrf clo =
       UnboxedTypeTag NatTag -> "a natural number"
       TextC {} -> "a builtin value of type `" <> prettyRef Rf.textRef <> "`"
       ListC {} -> "a builtin value of type `" <> prettyRef Rf.listRef <> "`"
+      BytesC {} -> "a builtin value of type `" <> prettyRef Rf.bytesRef <> "`"
       Foreign (foreignRef -> rf) ->
         "a builtin value of type `" <> prettyRef rf <> "`"
       RecordC {} -> "a record"
@@ -2205,6 +2206,7 @@ reflectValue0 rty rtm = goV0
             ANF.Cont <$> goVs segs <*> goK k
           TextC t -> pure (ANF.BLit (ANF.Text t))
           ListC s -> ANF.BLit . ANF.List . Seq.fromList <$> traverse goV (toList s)
+          BytesC b -> pure (ANF.BLit (ANF.Bytes b))
           Foreign f -> ANF.BLit <$> goF f
           BlackHole -> reflExn "black hole"
           UnboxedTypeTag {} ->
@@ -2228,7 +2230,6 @@ reflectValue0 rty rtm = goV0
         <*> goK k
 
     goF = \case
-      WrapBytes b -> pure (ANF.Bytes b)
       WrapReferent l -> ANF.TmLink <$> canonicalizeReferent l
       WrapReference l -> ANF.TyLink <$> canonicalizeReference True l
       WrapValue v -> ANF.Quote <$> canonicalizeReferenced v
