@@ -1,142 +1,190 @@
-# The `jit` branch against `trunk`: what the diff is made of
+# Unison's JIT compiler
 
-Measured on 2026-10-06 with `git diff --numstat` from the merge base with `trunk` (`a1652e3ad`, the
-head of `trunk` at the time), after the M0 spike programs were deleted. Lines are added plus removed.
+The `jit` branch adds an LLVM-based JIT to the Unison runtime. Functions that get hot are
+compiled to native code and run there; anything the JIT doesn't handle runs on the
+interpreter as before, with the same results. Nothing in the language, the serialized form of
+code and values, or `Universal.compare` changes. The design is in
+[design.md](design.md): an overview in Part 1, then each mechanism in Part 2 with links into
+the code.
 
-21,265 lines added, 349 removed, 21,614 in all. This writeup counts itself among the docs.
+## Using it
 
-## By kind of file
+```bash
+unison --jit on
+```
 
-| Kind | Files | Added | Removed | Lines | Share |
-| --- | --- | --- | --- | --- | --- |
-| New Haskell: JIT modules (`Runtime/JIT.hs`, `Runtime/JIT/*.hs`) | 12 | 7,601 | 0 | 7,601 | 35% |
-| C (`cbits/jit_rt.c` 3,934, `jit_llvm.c` 168, `jit_rt.h` 79) | 3 | 4,181 | 0 | 4,181 | 19% |
-| Markdown docs (`Runtime/JIT/*.md` and `Runtime/JIT/benchmarks/`) | 22 | 3,048 | 0 | 3,048 | 14% |
-| Transcripts: tests 2,182, benchmarks 273 | 3 | 2,455 | 0 | 2,455 | 11% |
-| New Haskell: `Deque`, `Skews`, rope tests and benchmarks | 7 | 2,446 | 0 | 2,446 | 11% |
-| Existing Haskell, modified | 16 | 1,294 | 343 | 1,637 | 8% |
-| Build config and CI | 8 | 244 | 6 | 250 | 1% |
+or `UNISON_JIT=on`. It needs LLVM 20 or newer installed as a shared library (Homebrew's
+`llvm` on macOS); ucm loads it at startup and prints `JIT compilation activated ⚡🚀`, or the
+reason it couldn't and runs everything interpreted. `--jit eager` compiles every definition as
+it loads, for testing. The settings, what to expect and the troubleshooting are in
+[usage.md](usage.md). Tested on macOS arm64; Linux isn't yet.
 
-The modified existing code is concentrated in three files:
+## Highlights
 
-| File | Added | Removed | What changed |
+- **Loops, arithmetic and calls run 10 to 200× faster** than trunk: counting to a million
+  66.5 ms → 319 µs, Collatz steps 116×, `fib 20` 38×, float arithmetic 30×.
+- **Data, text, bytes, lists and arrays, 4 to 130×**: the native code builds and takes apart
+  constructors, ropes, finger trees and arrays itself, without calling into Haskell. Binary
+  tree inserts 16×, a 16-field record loop 19×, mutable byte arrays 127×, `murmurHash` 24×.
+- **Ability requests on affine handlers, 4 to 5×**: a request is a call of the handler found
+  in the environment, and the handler's case returns to the requester, with no continuation
+  captured ([Ability requests](design.md#ability-requests)).
+- **What doesn't speed up** is time spent in Haskell: serialization, the JSON parser, the
+  cloud library's `Remote.Ref`. Those rows are at 1×. A few rows are below 1×, explained
+  under the tables.
+
+## Performance against trunk
+
+Measured 2026-10-16 on one Mac (macOS arm64), both binaries optimized `stack build`s: trunk
+at `66a0f5002` (plus the schema-27 migration commit of unisonweb/unison#6307, so that it can
+open the benchmark codebase; it doesn't touch the runtime) against `jit` at `b5cbbe098` with
+`--jit on`. Improvement is what to multiply trunk's throughput by. The JIT's own suite
+(`unison-src/transcripts-manual/jit-benchmarks.md`) was run twice and the second round is
+shown; the rounds agree within 3%. The broad suite (`jit-suite.md`, the
+`@pchiusano/misc-benchmarks` suite) was run once per binary.
+
+### The JIT's suite
+
+| Improvement | trunk | `--jit on` | Benchmark |
 | --- | --- | --- | --- |
-| `lib/unison-util-rope/src/Unison/Util/Rope.hs` | 595 | 196 | rebuilt on the `Deque` finger tree, with a layout C can read |
-| `unison-runtime/src/Unison/Runtime/Machine.hs` | 290 | 84 | the trampoline: `runNative`, exit handling, counting |
-| `unison-runtime/src/Unison/Runtime/MCode.hs` | 254 | 8 | the `NativeCell` type and its operations |
-| `Stack.hs`, `Interface.hs`, `Machine/Types.hs`, `Foreign/Function.hs`, `ArgParse.hs` | 132 | 38 | frame records, startup, config, foreign-call hooks, flags |
-| eight other files | 23 | 17 | one to six lines each |
+| **209×** | 66.5 ms | 319 µs | Sum 0 to 1 million |
+| **38×** | 1.34 ms | 35.3 µs | fib 20 |
+| **6.1×** | 81.3 µs | 13.4 µs | Cons list: map with a lambda (1000 elements) |
+| **17×** | 83.1 µs | 4.85 µs | Cons list: foldLeft with a lambda (1000 elements) |
+| **16×** | 1.67 ms | 104 µs | Binary tree: 1000 inserts |
+| **20×** | 762 µs | 38.3 µs | Binary tree: 1000 lookups |
+| **20×** | 1.14 ms | 58 µs | Apply a function argument 10000 times |
+| **20×** | 831 µs | 41.8 µs | Mutate a Ref 10000 times |
+| **116×** | 7.68 ms | 66.3 µs | Calls across definitions: Collatz steps for 1 to 1000 |
+| **131×** | 15.5 ms | 119 µs | Calls across definitions: callee first reached once the caller is hot, 100000 iterations |
+| **6.2×** | 1.49 ms | 239 µs | Text: append "hi" 10000 times |
+| **6.8×** | 12.9 ms | 1.88 ms | Text: drop 1, 100000 times |
+| **6×** | 1.41 ms | 237 µs | Bytes: append 2 bytes 10000 times |
+| **7.4×** | 13.5 ms | 1.82 ms | Bytes: drop 1, 100000 times |
+| **6.3×** | 13.6 ms | 2.15 ms | Bytes: at, 100000 times |
+| **4.8×** | 16 ms | 3.36 ms | Text: uncons walk over 100000 characters |
+| **5.5×** | 1.61 ms | 296 µs | List: cons 10000 elements, then a pattern walk |
+| **13×** | 1.87 ms | 143 µs | List: at, 10000 times |
+| **11×** | 8.08 ms | 719 µs | Nat.toText and Nat.fromText, 10000 times |
+| **30×** | 30.4 ms | 1 ms | Float: sqrt, sin, cos, arithmetic and conversions, 100000 times |
+| **127×** | 63.5 ms | 500 µs | MutableByteArray: 4 writes and 6 reads, both byte orders, 100000 times |
+| **54×** | 28.9 ms | 539 µs | FFI.Ptr: 4 writes and 6 reads, 100000 times |
+| **86×** | 3.93 ms | 45.7 µs | MutableArray: fill, freeze and sum 10000 elements |
+| **7.8×** | 1.03 ms | 132 µs | Ref.cas loop, 10000 times |
+| **24×** | 6.9 ms | 283 µs | murmurHashUntyped of Some (i, "x"), 10000 times |
+| **15×** | 109 ms | 7.45 ms | Records: a literal, an update, a pattern and two getters, 100000 times |
+| **19×** | 99.5 ms | 5.25 ms | Records: a 16-field literal and four getters, 100000 times |
+| **4.9×** | 16.1 ms | 3.3 ms | Counter: 100000 requests |
+| **3.9×** | 26.2 ms | 6.67 ms | Store: get and put, 100000 iterations |
+| **1.4×** | 6.13 ms | 4.26 ms | handle installed per iteration, 10000 iterations |
+| **3.6×** | 38.1 ms | 10.5 ms | Store whose put requests an outer Counter, 100000 iterations |
+| **5.1×** | 2.4 ms | 472 µs | Bytes: decodeNat64be walk over 80000 bytes |
 
-## By role in the design
+### The broad suite
 
-| Area | What it is | Where | Lines | Share |
-| --- | --- | --- | --- | --- |
-| Code generation | MCode to LLVM IR | `Codegen.hs` 4,140, `Strict.hs` 50 | 4,190 | 19% |
-| Documentation | design, usage, development, ideas, builtins, this file, and the benchmark runs (internals.md was folded into design.md on 2026-10-16) | 22 Markdown files | 3,048 | 14% |
-| Native builtins | C implementations of the list, Text, Bytes, array, Ref and hashing primitives, and the Haskell side that registers them | `jit_rt.c` sections Lists 1,067, Ropes 846, the rest of Text and Bytes 857, Arrays and Refs 290, murmurHash 251; `Native.hs` 363 | 3,674 | 17% |
-| Runtime data structures | `Deque` and `Skews`, the `Rope` rework, their tests and benchmarks, small `Text` and `Bytes` changes | `lib/unison-util-rope`, `Util/Text.hs`, `Util/Bytes.hs` | 3,257 | 15% |
-| Tests and benchmarks | the transcripts | `jit-tests.md`, `jit-benchmarks.md`, `jit-suite.md` | 2,455 | 11% |
-| Trampoline and interpreter integration | native cells, exits, frames, the constant pool, entering and leaving native code, partial applications | `Exits.hs`, `Frames.hs`, `Pool.hs`, `MCode.hs`, `Machine.hs`, `Machine/Types.hs`, `Stack.hs`, `Interface.hs`, `Foreign/Function.hs`, `jit_rt.h`, `jit_rt.c` sections Entering native code 136 and Partial applications 217 | 1,702 | 8% |
-| Compile driver | what to compile and when, budgets, configuration, the LLVM shim | `JIT.hs` 410, `Compile.hs` 478, `Config.hs` 188, `Estimate.hs` 237, `LLVM.hs` 126, `jit_llvm.c` 168 | 1,607 | 7% |
-| Closure layout and allocation | probing GHC's heap layouts at startup, allocation and the write barrier | `Layout.hs` 1,210, `jit_rt.c` sections Allocation 129, Numbers 31, layout probe 33 | 1,403 | 6% |
-| Build config, CI and CLI | packaging, command-line flags, the startup message | `package.yaml`, `.cabal`, `stack.yaml`, `hie.yaml`, `test.yaml`, `ArgParse.hs`, `Main.hs` | 282 | 1% |
+| Improvement | trunk | `--jit on` | Benchmark |
+| --- | --- | --- | --- |
+| **12×** | 109 µs | 9.46 µs | Mutate a Ref 1000 times |
+| **0.90×** | 20 ms | 22.4 ms | Mutate a local Remote.Ref 10k times |
+| **57×** | 88.5 µs | 1.54 µs | Do 10k arithmetic operations |
+| **6.6×** | 137 µs | 20.8 µs | List.map increment (range 0 1000) |
+| **1.1×** | 398 µs | 361 µs | List.map murmurHash (range 0 1000) |
+| **0.72×** | 64.1 µs | 89.6 µs | Multimap.fromList (range 0 1000) |
+| **4.3×** | 5.65 ms | 1.3 ms | Stream functions |
+| **0.97×** | 10.8 ms | 11.2 ms | Value.serializeUncompressed (10k element map) |
+| **0.97×** | 20 ms | 20.7 ms | Value.serializeCompressed (10k element map) |
+| **0.99×** | 21.8 ms | 22.1 ms | Value.deserializeCompressed (10k element map) |
+| **0.97×** | 6.99 µs | 7.2 µs | Json.toText (per document) |
+| **0.72×** | 7.13 µs | 9.91 µs | Json parsing (per document) |
+| **0.59×** | 10.6 µs | 17.9 µs | Json complex parsing (per document) |
+| **1.7×** | 60.6 µs | 34.9 µs | Json complex decoding (per document) |
+| **5.8×** | 167 ns | 29 ns | Decode Nat |
+| **2.1×** | 81.6 µs | 38.9 µs | Generate 100 random numbers |
+| **7.1×** | 1.16 ms | 164 µs | List.foldLeft |
+| **133×** | 42.4 ms | 319 µs | Count to 1 million |
+| **20×** | 79 ns | 4 ns | Count to N (per element) |
+| **17×** | 81.8 µs | 4.86 µs | Count to 1000 |
+| **8.6×** | 124 µs | 14.4 µs | CAS an IO.ref 1000 times |
+| **0.67×** | 43 ns | 64 ns | List.range (per element) |
+| **1.2×** | 62.3 µs | 53.1 µs | List.range 0 1000 |
+| **0.28×** | 31.1 µs | 112 µs | Set.fromList (range 0 1000) |
+| **0.39×** | 28.8 µs | 73.7 µs | Map.fromList (range 0 1000) |
+| **26×** | 2.7 ms | 103 µs | NatMap.fromList (range 0 1000) |
+| **6.4×** | 197 ns | 31 ns | Map.lookup (1k element map) |
+| **1.8×** | 299 ns | 163 ns | Map.insert (1k element map) |
+| **2.9×** | 1.31 ms | 453 µs | Shuffle a 1000 element array |
+| **28×** | 3.62 ms | 130 µs | Mutably mergesort a 1000 element array |
+| **7.2×** | 143 ns | 20 ns | List.at (1k element list) |
+| **1×** | 2.92 µs | 2.87 µs | Text.split / |
+| **16×** | 5.66 ms | 349 µs | Two match |
+| **17×** | 5.77 ms | 348 µs | Four match |
+| **33×** | 5.29 ms | 159 µs | Thirty match |
+| **26×** | 138 µs | 5.2 µs | fib1 |
+| **6.5×** | 307 µs | 47.3 µs | fib2 |
+| **6.6×** | 308 µs | 46.9 µs | fib3 |
 
-The compiler proper (code generation, the driver, layout, the trampoline) is 8,900 lines, 41% of
-the diff, and `Codegen.hs` alone is nearly half of that. The native builtins plus the data-structure
-rework are almost as large, 6,900 lines or 32%: the cost of the M5 to M7 decision to give native
-code direct access to lists, Text and Bytes. Docs and tests together are a quarter of the branch.
+The rows below 1×:
 
-The JIT modules by size:
+- `Set.fromList` and `Map.fromList` (0.28× and 0.39×): on trunk these are Haskell `Data.Map`
+  call-outs. Under the JIT the `Map` family runs as compiled Unison code, which wins on
+  `lookup` and `insert` (6× and 1.8× above) and on maps of the sizes programs commonly use,
+  but loses on bulk construction and above a few thousand keys. `UNISON_REPLACEMENTS=on`
+  brings the Haskell maps back ([the `Map` caveat](usage.md#what-to-expect);
+  [measurements](benchmarks/2026-10-11-replacements.md)).
+- JSON parsing (0.59× to 0.72×) and `List.range` per element (0.67×): the Haskell parser and
+  `range` build lists through the branch's new list representation (a strict finger tree
+  that native code can read), and are slower doing so than they were on `Data.Sequence`.
+  The interpreter alone shows the same loss, so it isn't the generated code; it's open in
+  [optimization-ideas.md](optimization-ideas.md).
+- `Multimap.fromList` (0.72×) and `Remote.Ref` (0.90×), the same map and call-out stories.
 
-| Module | Lines |
-| --- | --- |
-| `Codegen.hs` | 4,140 |
-| `Layout.hs` | 1,210 |
-| `Compile.hs` | 478 |
-| `JIT.hs` | 410 |
-| `Native.hs` | 363 |
-| `Estimate.hs` | 237 |
-| `Config.hs` | 188 |
-| `Pool.hs` | 168 |
-| `Exits.hs` | 162 |
-| `LLVM.hs` | 126 |
-| `Frames.hs` | 69 |
-| `Strict.hs` | 50 |
+This run is [2026-10-16 against trunk](benchmarks/2026-10-16-against-trunk.md). Earlier runs along the way, including the interpreter of this branch against its own native
+code, are in [benchmarks/](benchmarks/).
 
-## Interpreter bugs found by the native code and fixed on both sides
+## What changed in the interpreter
 
-Every native path is checked against the interpreter, so a disagreement is a bug in one of them;
-twice it was the interpreter's.
+The branch also changes the interpreter, since native code reads its heap objects directly:
 
-- **The sized Int foreign conventions tagged their results Nat** (2026-10-11): the
-  `ForeignConvention` instances for `Int8`, `Int16`, `Int32` and `Int64` wrote their results back
-  with `pokeN`, so an `FFI.Ptr.Int8.get` returned a value whose type tag said Nat. Found by the
-  pointer tests; now `pokeI`.
-- **Universal ordering of floats around zero** (2026-10-11): `compareAsFloat` in `Stack.hs` clears
-  the sign bit before comparing two non-positive floats backwards, but cleared bit 64, which on a
-  64-bit `Int` is a no-op, so `Universal.compare 0.0 -1.0` was `-1`, every negative float ordered
-  above `0.0`, and `-0.0` ordered above every negative float and below `0.0`. The native comparison
-  reproduced it at first (outputs must match), then both were fixed to clear bit 63;
-  `runtime-tests.md` had recorded the wrong answers for `compare +0.0 (-0.0)` and its mirror.
+- Data constructors with up to six fields are flat closures, the first six constructors of
+  `GClosure` carry GHC's pointer tags, and texts, lists and bytes are closure constructors of
+  their own rather than `Foreign` wrappers ([Layouts](design.md#layouts)).
+- Lists are a strict finger tree (`Deque`) and `Text` and `Bytes` ropes over it, in
+  `lib/unison-util-rope`, with their own tests and benchmarks.
+- The dispatch types (`GSection`, `GInstr`, `Prim1`, `Prim2`, `Foreign`) are ordered by
+  measured dispatch frequency, so that the hot constructors have pointer tags.
+- Structural records from trunk are native too (merged 2026-10-15).
+- Two interpreter bugs surfaced because every native path is checked against the
+  interpreter: the sized `Int` foreign conventions tagged their results `Nat`, and
+  `Universal.compare` ordered every negative float above `0.0` (bit 64 cleared instead of
+  bit 63). Both are fixed on both sides.
 
-## Records (merged from trunk on 2026-10-15)
+## What the diff is made of
 
-Trunk's structural records (`GRecord`, `RecPack`, `RecUnpack`, `RecSet`) were merged and made
-native the same day: the three instructions are generated, and the comparison walkers and the
-hash handle records. Two things in the interpreter changed with it: the elements of a record's
-value vector are built evaluated (`recordVals`), since native code reads them as closures, and
-a shape keeps the slot of each field in two unboxed sorted arrays searched by `shapeSlot`
-rather than in an `EnumMap`, which both the interpreter and native code look up faster
-(`benchmarks/2026-10-15-positions.md`). "Records" in design.md has the details.
+`git diff --numstat` from the merge base with `trunk` (`66a0f5002`), 2026-10-16: 104 files,
+33,126 lines added, 835 removed, 33,961 in all. Lines below are added plus removed.
 
-## Flat data constructors (2026-10-15)
+| Kind | Files | Lines | Share |
+| --- | --- | --- | --- |
+| C: `cbits/jit_rt.c` 3,990, `jit_helpers.c` 756, `jit_llvm.c` 494, headers 394, and the generated `jit_helpers.ll` 3,939 (the IR of `jit_helpers.c`, embedded) | 8 | 9,641 | 28% |
+| New Haskell: `Runtime/JIT.hs` and `Runtime/JIT/*.hs` | 13 | 9,174 | 27% |
+| Markdown docs: design, usage, development, builtins, ideas, this file, and the benchmark runs | 43 | 5,041 | 15% |
+| Transcripts: tests 3,704, benchmarks 413, the broad suite and the replacements suite | 5 | 4,313 | 13% |
+| `lib/unison-util-rope`: `Deque`, `Skews`, the `Rope` rework, tests and benchmarks | 10 | 3,422 | 10% |
+| Existing Haskell, modified: `Machine.hs` +498 -246, `Stack.hs` +411 -185, `MCode.hs` +373 -81, `Foreign/Function.hs` +106 -65, fourteen others under 40 lines each | 18 | 2,203 | 6% |
+| Build config, CI and `scripts/jit-test-matrix.sh` | 7 | 167 | 0% |
 
-A constructor with three or more fields was a `GDataG` holding a `Seg` tuple, which can't be
-unpacked: five objects and three loads per field. `GData3` to `GData6` are flat now, one
-object with the fields inline in both halves and the reference last; `GDataG` (seven or
-more), `GPAp` and `GCaptured` hold their two segment arrays as two fields with no boxes. The
-pattern synonyms keep every construction and matching site as it was; `buildData`,
-`dumpDataNoTag` and `dataBranch` handle the new shapes, and `dataBranch` is one generic
-matcher now rather than three copies. The pointer-tag order changed: `Data5`, `Data6`,
-`DataG` and `Captured` are told apart by info pointer. Measured in
-`benchmarks/2026-10-15-data-layout.md`; "Layouts" in design.md has the layout.
+By role, counting the new code:
 
-## Constructor order (2026-10-15)
+| Area | Where | Lines |
+| --- | --- | --- |
+| Code generation, MCode to LLVM IR | `Codegen.hs` 5,091, `Strict.hs`, `Helpers.hs` | 5,156 |
+| Native builtins: lists, ropes, the rest of Text and Bytes, arrays and refs, the hash and comparison walkers | `jit_rt.c` 3,200 of its sections, `jit_helpers.c`, `jit_internal.h`, `Native.hs` | 4,600 |
+| Startup checks: the closure layouts probed and every helper checked against the interpreter | `Layout.hs` | 1,521 |
+| Compile driver: what to compile and when, budgets, configuration, the LLVM shim | `JIT.hs`, `Compile.hs`, `Config.hs`, `Estimate.hs`, `LLVM.hs`, `jit_llvm.c` | 2,213 |
+| Trampoline and interpreter integration: native cells, exits, frames, the constant pool, partial applications, the handler environment | `Exits.hs`, `Frames.hs`, `Pool.hs`, `jit_rt.h`, `jit_rt.c` 800, and the modified interpreter modules | 3,500 |
+| Runtime data structures | `lib/unison-util-rope` | 3,422 |
+| Tests and benchmarks | the transcripts and the matrix script | 4,434 |
+| Documentation | the Markdown files | 5,041 |
 
-GHC tags pointers to a type's first six constructors and reads the info table for the rest,
-and the interpreter's dispatch types were in declaration order: `Let` and `DMatch`, `Lit`
-and `Pack`, and the `Nat` comparisons all paid the info-table read on every dispatch while
-`Jump`, `RefCAS` and `DECI` held cheap tags. The dispatches were counted on both suites and
-`GSection`, `GInstr`, `Prim1`, `Prim2` and `Foreign` reordered by the counts. `GClosure`
-was already right at its match sites; `GPAp` then gave up its tag (only a call scrutinizes
-it, and a call's other work dwarfs an info-table read: measured at under 0.1 ns per call),
-so the data constructors with 0 to 5 fields hold tags 1 to 6 and a slot is free for a text
-or list constructor later. The tags C writes into closures now come from the probes rather
-than literals. No wire format or ordering depends on declaration order.
-Counts and timings in `benchmarks/2026-10-15-constructor-order.md`.
-
-## Texts and lists as closure constructors (2026-10-15)
-
-A text was `Foreign (WrapText rope)` and a list `Foreign (WrapSeq deque)`: two objects of
-two words each, two loads and two checks on every primitive, both allocated for every
-result. They are `TextC rope` and `ListC deque` now, constructors of `GClosure` holding
-pointer tags 1 and 2, one object each. The `BuiltinForeign` class is typed through
-`Closure`, the other Haskell values stay under `Foreign`, and the C side learns the two
-layouts from the probes like the data constructors (`rope_of` and `deque_of` are a tag
-compare and a load). Nothing on the wire changed, texts and
-lists are their own cases of the ANF `Value`, and `Universal.compare` orders the new kinds
-as the foreign values they were. The six tagged constructors are `ListC`, `TextC`, `Enum`,
-`Data1`, `Data2` and `Data5` (base's `Map` node, native under the JIT: 2 to 5% on the Nat
-map rows against the node at tag 7); `Data3` and `Data4` read the info table now, which
-the tree rows show. Text and list rows 6 to 8% faster native. `benchmarks/2026-10-15-text-list.md`.
-
-## Bytes as a closure constructor (2026-10-16)
-
-A bytes value followed: `Foreign (WrapBytes rope)` became `BytesC rope`, a constructor of
-`GClosure` after the six tagged ones (pointer tag 7, told apart by its info pointer; bytes
-are rarer than texts). The two rope kinds in C are now the same shape, one closure whose
-field is the rope, so `RopeKind` lost its two-level form. Same guarantees as above: nothing
-on the wire, bytes are their own case of the ANF `Value`, `Universal.compare` and the hash
-unchanged. A jit-tests.md stanza covers it. Bytes rows 8 to 14% faster native where a
-result is allocated (`drop` 2.10 → 1.82 ms, `append` 0.260 → 0.237 ms); the text rows, the
-control, within noise. `benchmarks/2026-10-16-bytes-constructor.md`.
+The compiler proper (generation, layouts, driver, trampoline) is about 12,400 lines; the native
+builtins and the data-structure rework 8,000; tests and docs 9,500.

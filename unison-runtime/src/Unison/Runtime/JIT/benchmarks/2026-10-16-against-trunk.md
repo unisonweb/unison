@@ -1,0 +1,105 @@
+# Trunk against the JIT (2026-10-16)
+
+Both binaries optimized `stack build`s on one Mac (macOS arm64): trunk at `66a0f5002` plus
+the schema-27 migration commit of unisonweb/unison#6307 (so that it opens `jit_codebase`;
+no runtime change) against `jit` at `b5cbbe098` with `--jit on`. Improvement is what to
+multiply trunk's throughput by. The JIT's suite was run twice on trunk and the second round
+is shown (the rounds agree within 3%); the broad suite once per binary. This is the table in
+[pr-writeup.md](../pr-writeup.md); the interpreter of the `jit` branch against its own native
+code is in the earlier files.
+
+### The JIT's suite
+
+| Improvement | trunk | `--jit on` | Benchmark |
+| --- | --- | --- | --- |
+| **209×** | 66.5 ms | 319 µs | Sum 0 to 1 million |
+| **38×** | 1.34 ms | 35.3 µs | fib 20 |
+| **6.1×** | 81.3 µs | 13.4 µs | Cons list: map with a lambda (1000 elements) |
+| **17×** | 83.1 µs | 4.85 µs | Cons list: foldLeft with a lambda (1000 elements) |
+| **16×** | 1.67 ms | 104 µs | Binary tree: 1000 inserts |
+| **20×** | 762 µs | 38.3 µs | Binary tree: 1000 lookups |
+| **20×** | 1.14 ms | 58 µs | Apply a function argument 10000 times |
+| **20×** | 831 µs | 41.8 µs | Mutate a Ref 10000 times |
+| **116×** | 7.68 ms | 66.3 µs | Calls across definitions: Collatz steps for 1 to 1000 |
+| **131×** | 15.5 ms | 119 µs | Calls across definitions: callee first reached once the caller is hot, 100000 iterations |
+| **6.2×** | 1.49 ms | 239 µs | Text: append "hi" 10000 times |
+| **6.8×** | 12.9 ms | 1.88 ms | Text: drop 1, 100000 times |
+| **6×** | 1.41 ms | 237 µs | Bytes: append 2 bytes 10000 times |
+| **7.4×** | 13.5 ms | 1.82 ms | Bytes: drop 1, 100000 times |
+| **6.3×** | 13.6 ms | 2.15 ms | Bytes: at, 100000 times |
+| **4.8×** | 16 ms | 3.36 ms | Text: uncons walk over 100000 characters |
+| **5.5×** | 1.61 ms | 296 µs | List: cons 10000 elements, then a pattern walk |
+| **13×** | 1.87 ms | 143 µs | List: at, 10000 times |
+| **11×** | 8.08 ms | 719 µs | Nat.toText and Nat.fromText, 10000 times |
+| **30×** | 30.4 ms | 1 ms | Float: sqrt, sin, cos, arithmetic and conversions, 100000 times |
+| **127×** | 63.5 ms | 500 µs | MutableByteArray: 4 writes and 6 reads, both byte orders, 100000 times |
+| **54×** | 28.9 ms | 539 µs | FFI.Ptr: 4 writes and 6 reads, 100000 times |
+| **86×** | 3.93 ms | 45.7 µs | MutableArray: fill, freeze and sum 10000 elements |
+| **7.8×** | 1.03 ms | 132 µs | Ref.cas loop, 10000 times |
+| **24×** | 6.9 ms | 283 µs | murmurHashUntyped of Some (i, "x"), 10000 times |
+| **15×** | 109 ms | 7.45 ms | Records: a literal, an update, a pattern and two getters, 100000 times |
+| **19×** | 99.5 ms | 5.25 ms | Records: a 16-field literal and four getters, 100000 times |
+| **4.9×** | 16.1 ms | 3.3 ms | Counter: 100000 requests |
+| **3.9×** | 26.2 ms | 6.67 ms | Store: get and put, 100000 iterations |
+| **1.4×** | 6.13 ms | 4.26 ms | handle installed per iteration, 10000 iterations |
+| **3.6×** | 38.1 ms | 10.5 ms | Store whose put requests an outer Counter, 100000 iterations |
+| **5.1×** | 2.4 ms | 472 µs | Bytes: decodeNat64be walk over 80000 bytes |
+
+### The broad suite
+
+| Improvement | trunk | `--jit on` | Benchmark |
+| --- | --- | --- | --- |
+| **12×** | 109 µs | 9.46 µs | Mutate a Ref 1000 times |
+| **0.90×** | 20 ms | 22.4 ms | Mutate a local Remote.Ref 10k times |
+| **57×** | 88.5 µs | 1.54 µs | Do 10k arithmetic operations |
+| **6.6×** | 137 µs | 20.8 µs | List.map increment (range 0 1000) |
+| **1.1×** | 398 µs | 361 µs | List.map murmurHash (range 0 1000) |
+| **0.72×** | 64.1 µs | 89.6 µs | Multimap.fromList (range 0 1000) |
+| **4.3×** | 5.65 ms | 1.3 ms | Stream functions |
+| **0.97×** | 10.8 ms | 11.2 ms | Value.serializeUncompressed (10k element map) |
+| **0.97×** | 20 ms | 20.7 ms | Value.serializeCompressed (10k element map) |
+| **0.99×** | 21.8 ms | 22.1 ms | Value.deserializeCompressed (10k element map) |
+| **0.97×** | 6.99 µs | 7.2 µs | Json.toText (per document) |
+| **0.72×** | 7.13 µs | 9.91 µs | Json parsing (per document) |
+| **0.59×** | 10.6 µs | 17.9 µs | Json complex parsing (per document) |
+| **1.7×** | 60.6 µs | 34.9 µs | Json complex decoding (per document) |
+| **5.8×** | 167 ns | 29 ns | Decode Nat |
+| **2.1×** | 81.6 µs | 38.9 µs | Generate 100 random numbers |
+| **7.1×** | 1.16 ms | 164 µs | List.foldLeft |
+| **133×** | 42.4 ms | 319 µs | Count to 1 million |
+| **20×** | 79 ns | 4 ns | Count to N (per element) |
+| **17×** | 81.8 µs | 4.86 µs | Count to 1000 |
+| **8.6×** | 124 µs | 14.4 µs | CAS an IO.ref 1000 times |
+| **0.67×** | 43 ns | 64 ns | List.range (per element) |
+| **1.2×** | 62.3 µs | 53.1 µs | List.range 0 1000 |
+| **0.28×** | 31.1 µs | 112 µs | Set.fromList (range 0 1000) |
+| **0.39×** | 28.8 µs | 73.7 µs | Map.fromList (range 0 1000) |
+| **26×** | 2.7 ms | 103 µs | NatMap.fromList (range 0 1000) |
+| **6.4×** | 197 ns | 31 ns | Map.lookup (1k element map) |
+| **1.8×** | 299 ns | 163 ns | Map.insert (1k element map) |
+| **2.9×** | 1.31 ms | 453 µs | Shuffle a 1000 element array |
+| **28×** | 3.62 ms | 130 µs | Mutably mergesort a 1000 element array |
+| **7.2×** | 143 ns | 20 ns | List.at (1k element list) |
+| **1×** | 2.92 µs | 2.87 µs | Text.split / |
+| **16×** | 5.66 ms | 349 µs | Two match |
+| **17×** | 5.77 ms | 348 µs | Four match |
+| **33×** | 5.29 ms | 159 µs | Thirty match |
+| **26×** | 138 µs | 5.2 µs | fib1 |
+| **6.5×** | 307 µs | 47.3 µs | fib2 |
+| **6.6×** | 308 µs | 46.9 µs | fib3 |
+
+The rows below 1×:
+
+- `Set.fromList` and `Map.fromList` (0.28× and 0.39×): on trunk these are Haskell `Data.Map`
+  call-outs. Under the JIT the `Map` family runs as compiled Unison code, which wins on
+  `lookup` and `insert` (6× and 1.8× above) and on maps of the sizes programs commonly use,
+  but loses on bulk construction and above a few thousand keys. `UNISON_REPLACEMENTS=on`
+  brings the Haskell maps back ([the `Map` caveat](usage.md#what-to-expect);
+  [measurements](benchmarks/2026-10-11-replacements.md)).
+- JSON parsing (0.59× to 0.72×) and `List.range` per element (0.67×): the Haskell parser and
+  `range` build lists through the branch's new list representation (a strict finger tree
+  that native code can read), and are slower doing so than they were on `Data.Sequence`.
+  The interpreter alone shows the same loss, so it isn't the generated code; it's open in
+  [optimization-ideas.md](optimization-ideas.md).
+- `Multimap.fromList` (0.72×) and `Remote.Ref` (0.90×), the same map and call-out stories.
+
