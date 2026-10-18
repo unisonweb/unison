@@ -7,10 +7,12 @@
 // and running ucm need no LLVM at all unless the JIT is asked for. For the
 // same reason there are no LLVM headers here: the declarations below are our
 // own copies of the C API's, which has kept these types and values stable
-// since LLVM 12. The one version-sensitive function is
-// LLVMOrcCreateNewThreadSafeContextFromLLVMContext (LLVM 20), which is why 20
-// is the oldest version accepted; LLVMRunPasses (17) and LLVMGetVersion (16)
-// are the other recent ones.
+// since LLVM 12. The recent ones are LLVMRunPasses (17) and LLVMGetVersion
+// (16); LLVMOrcCreateNewThreadSafeContextFromLLVMContext (21) is used when
+// the library has it and the older pair (LLVMOrcCreateNewThreadSafeContext
+// and LLVMOrcThreadSafeContextGetContext, deprecated in 21) when not. 20 is
+// the oldest version accepted because it is the oldest tested (Homebrew's
+// llvm@20, apt.llvm.org's and Ubuntu 24.04's llvm-20).
 
 #include <dirent.h>
 #include <dlfcn.h>
@@ -115,7 +117,6 @@ enum { LLVMCodeModelJITDefault = 1 };
   X(LLVMOrcLLJITMangleAndIntern, LLVMOrcSymbolStringPoolEntryRef, (LLVMOrcLLJITRef, const char *)) \
   X(LLVMOrcJITDylibDefine, LLVMErrorRef, (LLVMOrcJITDylibRef, LLVMOrcMaterializationUnitRef))  \
   X(LLVMOrcAbsoluteSymbols, LLVMOrcMaterializationUnitRef, (LLVMOrcCSymbolMapPair *, size_t))  \
-  X(LLVMOrcCreateNewThreadSafeContextFromLLVMContext, LLVMOrcThreadSafeContextRef, (LLVMContextRef)) \
   X(LLVMOrcDisposeThreadSafeContext, void, (LLVMOrcThreadSafeContextRef))                      \
   X(LLVMOrcCreateNewThreadSafeModule, LLVMOrcThreadSafeModuleRef,                              \
     (LLVMModuleRef, LLVMOrcThreadSafeContextRef))                                              \
@@ -131,6 +132,16 @@ enum { LLVMCodeModelJITDefault = 1 };
 #define DECLARE(name, ret, args) static ret (*name) args;
 #define DECLARE_(name, ret, args) DECLARE(name, ret, args)
 LLVM_FUNCTIONS(DECLARE_)
+
+// Looked up on their own, since no one version has all three: with
+// LLVMOrcCreateNewThreadSafeContextFromLLVMContext (21 and later) a
+// thread-safe context is made from a context of our own; before it, the
+// pair LLVMOrcCreateNewThreadSafeContext and LLVMOrcThreadSafeContextGetContext
+// (deprecated in 21, gone by 23) makes the context for us. A library needs
+// one or the other.
+static LLVMOrcThreadSafeContextRef (*CreateNewThreadSafeContextFromLLVMContext)(LLVMContextRef) = NULL;
+static LLVMOrcThreadSafeContextRef (*CreateNewThreadSafeContext)(void) = NULL;
+static LLVMContextRef (*ThreadSafeContextGetContext)(LLVMOrcThreadSafeContextRef) = NULL;
 
 #define ENTRY(name, ret, args) {#name, (void **)&name},
 #define ENTRY_(name, ret, args) ENTRY(name, ret, args)
@@ -200,6 +211,18 @@ static int try_lib(const char *path) {
       return 0;
     }
     *symbols[i].slot = p;
+  }
+  CreateNewThreadSafeContextFromLLVMContext =
+      (LLVMOrcThreadSafeContextRef (*)(LLVMContextRef))dlsym(lib, "LLVMOrcCreateNewThreadSafeContextFromLLVMContext");
+  CreateNewThreadSafeContext = (LLVMOrcThreadSafeContextRef (*)(void))dlsym(lib, "LLVMOrcCreateNewThreadSafeContext");
+  ThreadSafeContextGetContext =
+      (LLVMContextRef (*)(LLVMOrcThreadSafeContextRef))dlsym(lib, "LLVMOrcThreadSafeContextGetContext");
+  if (!CreateNewThreadSafeContextFromLLVMContext && !(CreateNewThreadSafeContext && ThreadSafeContextGetContext)) {
+    char why[256];
+    snprintf(why, sizeof why, "LLVM %s, but it has neither LLVMOrcCreateNewThreadSafeContextFromLLVMContext nor the older pair", v);
+    note(path, why);
+    dlclose(lib);
+    return 0;
   }
   llvm_lib = lib;  // never dlclosed: generated code lives in it
   snprintf(llvm_path, sizeof llvm_path, "%s", path);
@@ -429,9 +452,15 @@ int unison_jit_add_module(const char *ir, size_t len, const char *passes, char *
 }
 
 static int add_module(const char *ir, size_t len, const char *passes, char **out_opt) {
-  LLVMContextRef ctx = LLVMContextCreate();
-  LLVMOrcThreadSafeContextRef tsctx =
-      LLVMOrcCreateNewThreadSafeContextFromLLVMContext(ctx);
+  LLVMContextRef ctx;
+  LLVMOrcThreadSafeContextRef tsctx;
+  if (CreateNewThreadSafeContextFromLLVMContext) {
+    ctx = LLVMContextCreate();
+    tsctx = CreateNewThreadSafeContextFromLLVMContext(ctx);  // takes ownership of ctx
+  } else {
+    tsctx = CreateNewThreadSafeContext();
+    ctx = ThreadSafeContextGetContext(tsctx);
+  }
 
   LLVMMemoryBufferRef buf =
       LLVMCreateMemoryBufferWithMemoryRangeCopy(ir, len, "unison-jit");
