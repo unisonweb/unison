@@ -11,6 +11,11 @@
 #   scripts/jit-test-matrix.sh --list          # print the rows and stop
 #   scripts/jit-test-matrix.sh on stress-all   # only the named rows
 #
+# UCM=path runs that binary instead of `stack exec unison` (CI, where the
+# binary is a downloaded artifact); JIT_CODEBASE=dir names the codebase to
+# fork for each run (the default is jit_codebase when it exists, else a fresh
+# one in the temporary directory: the transcript needs only builtins).
+#
 # Each run gets its own copy of the transcript in a temporary directory, so the
 # checked-in file is never touched and no .output.md is left behind. Runs are
 # sequential: two transcript.fork runs started at the same moment can race on the
@@ -34,7 +39,7 @@ for a in "$@"; do
 done
 
 transcript=unison-src/transcripts/idempotent/jit-tests.md
-codebase=jit_codebase
+codebase=${JIT_CODEBASE:-jit_codebase}
 combo="callee=2,cstack=4096,poll=5,ustack=4,alloc=64,pool=8"
 costs="UNISON_JIT_EXIT_COST=0 UNISON_JIT_ENTRY_COST=0"
 
@@ -68,7 +73,17 @@ if [ "$list" = 1 ]; then
   exit 0
 fi
 
-tmp=$(mktemp -d -t jit-matrix)
+tmp=$(mktemp -d "${TMPDIR:-/tmp}/jit-matrix.XXXXXX")
+if [ -z "${JIT_CODEBASE:-}" ] && [ ! -d "$codebase" ]; then
+  codebase="$tmp/codebase"
+fi
+if [ -n "${UCM:-}" ]; then
+  if [ -n "$workdir" ]; then echo "UCM and --opt/--debug don't combine" >&2; exit 2; fi
+  ucm_cmd=("$UCM")
+else
+  # shellcheck disable=SC2206
+  ucm_cmd=(stack exec $workdir unison --)
+fi
 failed=0
 total=0
 printf '%-14s %-6s %s\n' CONFIG RESULT NOTE
@@ -86,7 +101,7 @@ for row in "${matrix[@]}"; do
   log="$dir/log"
   start=$(date +%s)
   # shellcheck disable=SC2086
-  env $env UNISON_JIT_LOG=1 stack exec $workdir unison -- -C "$codebase" transcript.fork "$dir/t.md" $rts >"$log" 2>&1
+  env $env UNISON_JIT_LOG=1 "${ucm_cmd[@]}" -C "$codebase" transcript.fork "$dir/t.md" $rts >"$log" 2>&1
   code=$?
   secs=$(( $(date +%s) - start ))
   note=""

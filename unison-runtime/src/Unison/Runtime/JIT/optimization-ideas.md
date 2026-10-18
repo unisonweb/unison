@@ -297,8 +297,8 @@ Set aside so that the work so far could be about performance; a project of its o
 Compiled programs (`run.compiled`, the standalone path in `Interface.hs`) build their
 combinators without native code cells, so the JIT does nothing there. Static linking of LLVM
 (dynamic first, static before release). Linux x86-64, then the other Unix platforms: every
-spike and test has run on macOS arm64 only, and `unison_jit_exit_frame`'s `preserve_most`
-attribute needs clang. User documentation is [usage.md](usage.md) (2026-10-16); what it still
+spike and test has run on macOS arm64 only. (`unison_jit_exit_frame`'s `preserve_most`
+convention no longer ties the build to clang: the routine is IR since 2026-10-17.) User documentation is [usage.md](usage.md) (2026-10-16); what it still
 lacks is a Linux section with real instructions. Whether the JIT is on by default, and whether the `jit` package flag stays. More
 native builtins as call-out statistics from real programs show them to matter;
 [builtins.md](builtins.md) is the checklist of what each missing one waits on.

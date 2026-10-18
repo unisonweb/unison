@@ -18,7 +18,8 @@ import Control.Monad (foldM, forM, forM_, unless, void, when)
 import Data.IORef
 import Data.Set qualified as Set
 import Data.Functor ((<&>))
-import Foreign.Ptr (Ptr, castFunPtrToPtr, nullPtr)
+import Data.Either (isLeft)
+import Foreign.Ptr (FunPtr, Ptr, castFunPtrToPtr, nullPtr)
 import System.Timeout (timeout)
 import GHC.Clock (getMonotonicTimeNSec)
 import Data.Map.Strict qualified as Map
@@ -31,7 +32,7 @@ import Unison.Runtime.JIT.Compile
 import Unison.Runtime.JIT.Config
 import Unison.Runtime.JIT.Estimate (Estimate (..), judge)
 import Unison.Runtime.JIT.Exits
-import Unison.Runtime.JIT.Helpers (helpersIR)
+import Unison.Runtime.JIT.Helpers (exitIR, helpersIR)
 import Unison.Runtime.JIT.LLVM
 import Unison.Runtime.JIT.Layout (probeArrays, probeBytes, probeCompare, probeEnv, probeLayouts, probeLists, probeMurmur, probeNames, probeRecords, probeTexts)
 import Unison.Runtime.JIT.Native (configureNative, ctxLayout, murmurCAddress, rtsFacts, tableAddresses, ucmpCAddress)
@@ -185,8 +186,17 @@ initJIT' = do
               -- the helpers written as IR (cbits/jit_helpers.ll) go in as a
               -- module of their own, ahead of any module that calls them;
               -- their definitions shadow the C copies for generated code
+              -- the exit routine (cbits/jit_exit.ll) first: every exit
+              -- calls it, so it goes in whatever the switches say
+              exits <-
+                timed "exit routine" (addModule False (passes config) exitIR) >>= \case
+                  Left e -> pure (Left ("could not be added: " ++ e))
+                  Right _ ->
+                    lookupSymbol "unison_jit_exit_frame" <&> \case
+                      Left e -> Left ("not found after adding: " ++ e)
+                      Right (_ :: FunPtr ()) -> Right ()
               helpers <-
-                if "irhelpers" `elem` disabled config
+                if "irhelpers" `elem` disabled config || isLeft exits
                   then pure (Right ())
                   else timed "IR helpers" addHelpers >>= \case
                     Left e -> pure (Left ("could not be added: " ++ e))
@@ -199,9 +209,10 @@ initJIT' = do
                         (Right p, Right q)
                           | castFunPtrToPtr p == castFunPtrToPtr murmurCAddress || castFunPtrToPtr q == castFunPtrToPtr ucmpCAddress -> Left "did not shadow the C copies"
                           | otherwise -> Right ()
-              case helpers of
-                Left e -> pure (Left ["the IR helpers (cbits/jit_helpers.ll) " ++ e ++ "; the JIT is off"])
-                Right () -> do
+              case (exits, helpers) of
+                (Left e, _) -> pure (Left ["the exit routine (cbits/jit_exit.ll) " ++ e ++ "; the JIT is off"])
+                (_, Left e) -> pure (Left ["the IR helpers (cbits/jit_helpers.ll) " ++ e ++ "; the JIT is off"])
+                (Right (), Right ()) -> do
                   writeIORef jitState (Just (JITState ls (CtxOffsets a b c d e f g h i j k l m n o p q r s t u v w) rts))
                   triple <- targetTriple
                   pure (Right ("mode " ++ show (mode config) ++ ", LLVM " ++ version ++ " from " ++ path ++ ", target " ++ triple))

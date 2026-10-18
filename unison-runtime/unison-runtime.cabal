@@ -14,6 +14,7 @@ license-file:   LICENSE
 build-type:     Simple
 extra-source-files:
     cbits/jit_helpers.ll
+    cbits/jit_exit.ll
 
 source-repository head
   type: git

@@ -30,7 +30,7 @@ or, if it can't, the reason, for example `no LLVM 20 or newer found; the JIT is 
 
 **An LLVM shared library, version 20 or newer.** Nothing is linked at build time; `unison` loads `libLLVM` with `dlopen` when the JIT is turned on ([`jit_llvm.c`](../../../../cbits/jit_llvm.c)). The whole of LLVM isn't needed, only the one library (`libLLVM.dylib` on macOS, `libLLVM.so` on Linux), which the packages below provide. Development uses LLVM 23; 20 is the oldest accepted because one function the JIT uses first appeared there.
 
-**A platform the runtime supports.** The CPU must be arm64 or x86-64. Today the JIT is built and tested on macOS on Apple silicon only; the Linux rows of the table are where the lookup looks, not a promise that it runs there yet. Nothing in the code generator is specific to it, but two small pieces of the runtime are: the C stack bounds are read with macOS's thread calls, and the runtime's exit routine needs clang's `preserve_most` calling convention, so the runtime must be compiled with clang. Linux (x86-64 and arm64) is next; Intel Macs should work but haven't been tried.
+**A platform the runtime supports.** The CPU must be arm64 or x86-64. Today the JIT is built and tested on macOS on Apple silicon only; the Linux rows of the table are where the lookup looks, not a promise that it runs there yet. Nothing in the code generator is specific to it, and the runtime's C compiles with any C compiler; what is macOS-specific is small: the C stack bounds are read with macOS's thread calls, and LLVM is found with `dlopen`. Linux (x86-64 and arm64) is next; Intel Macs should work but haven't been tried.
 
 ### Installing LLVM
 

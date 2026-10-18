@@ -255,7 +255,7 @@ modulePrelude =
       "declare ptr @unison_jit_local_env(ptr, ptr)",
       "declare ptr @unison_jit_wrap_ptr(ptr, i64)",
       "declare ptr @unison_jit_alloc_words(ptr, i64)",
-      "declare preserve_mostcc void @unison_jit_exit_frame(ptr, ptr, i64, i64, ...)",
+      "declare preserve_mostcc void @unison_jit_exit_frame(ptr, ptr, i64, i64, ptr)",
       "declare void @unison_jit_write_mutvar(ptr, ptr, ptr)",
       "declare i64 @unison_jit_list_size(ptr)",
       "declare ptr @unison_jit_list_view(ptr, ptr, ptr, i64, i64)",
@@ -366,6 +366,9 @@ data GS = GS
     gsAuxMemo :: !AuxMemo,
     -- | highest pool index the function being generated uses
     gsMaxPool :: !Int,
+    -- | the most words any exit site of the function being generated
+    -- passes to the write-back routine (its argument block, 'joinCall')
+    gsMaxExitArgs :: !Int,
     -- | re-entry functions left for later, in order
     gsDeferred :: !(Deque Deferred),
     -- | set when the function was being generated as a worker and turned
@@ -433,6 +436,7 @@ initialState maxK cells known worker =
       gsCaptured = Nothing,
       gsAuxMemo = known,
       gsMaxPool = -1,
+      gsMaxExitArgs = 0,
       gsDeferred = D.empty,
       gsNotWorker = False,
       gsWorker = worker,
@@ -1022,15 +1026,17 @@ joinShared fe d live isExit ownFrame status
 liveSlots :: Int -> Maybe IS.IntSet -> [Int]
 liveSlots d live = maybe [1 .. d] (filter (<= d) . IS.toAscList) live
 
--- | Ends the current block with the write-back as one call to the C
--- routine @unison_jit_exit_frame@ (jit_rt.c), the live slots as its
--- variadic arguments and the rest (what to do with them: the offsets, the
--- depth, the frame records) as a constant descriptor of the module, then
--- returns the status. The site is then one instruction
--- where the blocks of 'joinBlock' are six per slot; LLVM spills each
--- argument to the outgoing area, the same stores the blocks made, and
--- nothing else of the write-back goes through the optimizer or the
--- backend. The routine has the @preserve_most@ convention: a callee's
+-- | Ends the current block with the write-back as one call to the IR
+-- routine @unison_jit_exit_frame@ (cbits/jit_exit.c), the live slots
+-- stored into an argument block (@%xargs@, one alloca per function in the
+-- entry block, sized by 'gsMaxExitArgs') and the rest (what to do with
+-- them: the offsets, the depth, the frame records) as a constant
+-- descriptor of the module, then returns the status. The site is then
+-- two stores per slot and one call, where the blocks of 'joinBlock' are
+-- six instructions per slot, and nothing else of the write-back goes
+-- through the optimizer or the backend. (The block rather than variadic
+-- arguments: the routine is IR generated once for every target, and a
+-- variadic function's IR carries the target's va_list ABI.) The routine has the @preserve_most@ convention: a callee's
 -- exit inlined into its caller is followed by the caller's unwind, two
 -- calls in a row with the caller's live values across the first, and
 -- under the C convention those would need callee-saved registers, which
@@ -1059,8 +1065,6 @@ joinCall fe d live isExit ownFrame status = do
       flags = (if isExit then 1 else 0) + (if null es && isNothing (feLocal fe) then 2 else 0) :: Int
       header = [flags, currentBase fe, base, d, length slots, length recs]
       contents = intercalateT ", " (D.fromList (map (("i64 " <>) . tshow) (header ++ slots ++ concat recs)))
-      -- the environment a Local record switches back to, one more argument
-      localArg = maybe "" (\lo -> ", ptr " <> loHenv0 lo) (feLocal fe)
   when isExit (useK d)
   vals <- forM slots $ \k -> useK k >> (Pair <$> loadU k <*> loadB k)
   descs <- gets gsDescs
@@ -1075,10 +1079,18 @@ joinCall fe d live isExit ownFrame status = do
             gsDescText = gsDescText s |> (n <> " = private unnamed_addr constant [" <> n' <> " x i64] [" <> contents <> "]")
           }
       pure n
+  -- the live values into the argument block: a word and a pointer per
+  -- slot, then the Local environment when there is one
+  let words = concatMap (\(Pair u b) -> [("i64", u), ("ptr", b)]) vals ++ maybe [] (\lo -> [("ptr", loHenv0 lo)]) (feLocal fe)
+  modify' (\s -> s {gsMaxExitArgs = max (gsMaxExitArgs s) (length words)})
+  forM_ (zip [0 :: Int ..] words) $ \(i, (ty, v)) -> do
+    a <- fresh "xa"
+    emit (a <> " = getelementptr inbounds i64, ptr %xargs, i64 " <> tshow i)
+    emit ("store " <> ty <> " " <> v <> ", ptr " <> a)
   -- the routine doesn't hand the status back: returning what was passed
   -- keeps it a constant here, so that LLVM still knows the function's
   -- range of statuses (a caller folds its checks of them with it)
-  emit ("call preserve_mostcc void (ptr, ptr, i64, i64, ...) @unison_jit_exit_frame(ptr %ctx, ptr " <> name <> ", i64 %fp, i64 %ap" <> argList (D.fromList vals) <> localArg <> ")")
+  emit ("call preserve_mostcc void @unison_jit_exit_frame(ptr %ctx, ptr " <> name <> ", i64 %fp, i64 %ap, ptr %xargs)")
   retStatus fe status
 
 -- | 'joinShared' with generated write-back blocks (@UNISON_JIT_EXITS=blocks@).
@@ -1340,7 +1352,7 @@ genFunctionText fe body = do
         | l == "unreachable" = D.empty
         | otherwise = (l <> ":") <| fmap ("  " <>) is
       maxK = max (gsMaxK gs) (arity + feFrameSize fe)
-      entry = entryBlock env (feWorker fe) (feFast fe == Nothing) arity (feBase fe) maxK (gsMaxPool gs)
+      entry = entryBlock env (feWorker fe) (feFast fe == Nothing) arity (feBase fe) maxK (gsMaxPool gs) (gsMaxExitArgs gs)
       -- the grow exit, the first this function added, asks for what the
       -- entry check demanded
       fixGrow e
@@ -1363,7 +1375,7 @@ genFunctionText fe body = do
 genFastEntry :: FnEnv -> MSection -> Gen Text
 genFastEntry fe body = do
   s <- get
-  let gs0 = s {gsFresh = 0, gsBlocks = D.empty, gsCur = Pair "head" D.empty, gsMaxK = feArity fe, gsKinds = IM.empty, gsCaptured = Nothing, gsMaxPool = -1, gsShared = Map.empty, gsDescs = Map.empty, gsDescText = D.empty}
+  let gs0 = s {gsFresh = 0, gsBlocks = D.empty, gsCur = Pair "head" D.empty, gsMaxK = feArity fe, gsKinds = IM.empty, gsCaptured = Nothing, gsMaxPool = -1, gsMaxExitArgs = 0, gsShared = Map.empty, gsDescs = Map.empty, gsDescText = D.empty}
       !(text, gs) = runState (genFunctionText fe body) gs0
   put
     s
@@ -1565,7 +1577,7 @@ genAuxFunction later fe loaded base body = do
           known = Pair name cell
           -- (an environment switch in force at the exit this re-enters after has become a Local frame in K)
           fe' = fe {feName = name, feArity = loaded, feCell = cell, feHead = Nothing, feBase = base, feEnclosing = D.empty, feWorker = False, feFast = Nothing, feSym = name, feInternal = False, feLocal = Nothing}
-          gs0 = s {gsFresh = 0, gsBlocks = D.empty, gsCur = Pair "head" D.empty, gsMaxK = loaded, gsKinds = IM.empty, gsFailed = Nothing, gsCells = cells, gsNAux = gsNAux s + 1, gsCaptured = Nothing, gsMaxPool = -1, gsWorker = False, gsShared = Map.empty, gsDescs = Map.empty, gsDescText = D.empty}
+          gs0 = s {gsFresh = 0, gsBlocks = D.empty, gsCur = Pair "head" D.empty, gsMaxK = loaded, gsKinds = IM.empty, gsFailed = Nothing, gsCells = cells, gsNAux = gsNAux s + 1, gsCaptured = Nothing, gsMaxPool = -1, gsMaxExitArgs = 0, gsWorker = False, gsShared = Map.empty, gsDescs = Map.empty, gsDescText = D.empty}
           !(text, gs) = runState (genFunctionText fe' body) gs0
       case gsFailed gs of
         Just why -> put s {gsNotes = gsNotes gs |> (name <> ": " <> why)} >> pure Nothing
@@ -1618,8 +1630,8 @@ callOutWorthwhile i rest = case (pushCount i, rest) of
 -- stack check, then a branch to the loop head. @maxK@ is the highest
 -- frame offset the function touches, which is at least the frame size and
 -- covers the arguments of every call it makes.
-entryBlock :: Env -> Bool -> Bool -> Int -> Int -> Int -> Int -> Deque Text
-entryBlock env worker checks arity base maxK maxPool =
+entryBlock :: Env -> Bool -> Bool -> Int -> Int -> Int -> Int -> Int -> Deque Text
+entryBlock env worker checks arity base maxK maxPool maxExitArgs =
   fmap ("  " <>) $
     -- %fp is the combinator's frame pointer, %fpb the interpreter's (the
     -- one passed in); they differ by the frame base
@@ -1634,6 +1646,9 @@ entryBlock env worker checks arity base maxK maxPool =
       <> (if worker then lines ["%sp = add i64 %fp.in, " <> tshow arity, "%ap = add i64 %fp.in, 0"] else D.empty)
       <> each [1 .. maxK] (\k -> lines ["%u" <> tshow k <> " = alloca i64"])
       <> each [1 .. maxK] (\k -> lines ["%b" <> tshow k <> " = alloca ptr"])
+      -- the argument block of the write-back calls ('joinCall'), sized for
+      -- the site that passes the most
+      <> (if maxExitArgs > 0 then lines ["%xargs = alloca [" <> tshow maxExitArgs <> " x i64]"] else D.empty)
       <> each [0 .. maxK] (\k -> lines ["%fpk" <> tshow k <> " = add i64 %fp, " <> tshow k])
       <> lines
         [ (if worker then ctxAddr else ctxLoad "ptr") "%ustk" oUstk,

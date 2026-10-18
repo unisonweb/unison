@@ -8,8 +8,8 @@
 // them by name and the JIT is told their addresses before it is added
 // (unison_jit_table_addresses, defined as absolute symbols in JIT.hs).
 //
-// The IR is generated from jit_helpers.c by cbits/gen-helpers.sh and must be
-// platform-independent (see "The IR helpers" in design.md), so nothing in
+// The IR is generated from jit_helpers.c (and jit_exit.c, which includes
+// only jit_rt.h) by cbits/gen-helpers.sh and must be platform-independent (see "The IR helpers" in design.md), so nothing in
 // this header may depend on the target beyond 64-bit words and little-endian
 // byte order: fixed-width types only, `unsigned char` for bytes, no varargs,
 // no stdio.

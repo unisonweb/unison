@@ -5,12 +5,20 @@
 // sources by content, not their includes): after changing a header, change this file too,
 // or the stale object stays in the binary (see development.md).
 
+// glibc: pthread_getattr_np (thread_stack_bounds) is a GNU extension
+#ifndef _GNU_SOURCE
+#define _GNU_SOURCE
+#endif
 #include "Rts.h"
 #include "jit_rt.h"
 #define UNISON_JIT_TABLES_HERE
 #include "jit_internal.h"
 
+#if defined(_WIN32)
+#include <windows.h>
+#else
 #include <pthread.h>
+#endif
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -18,7 +26,6 @@
 #include <limits.h>
 #include <math.h>
 #include <stdint.h>
-#include <stdarg.h>
 
 // Field offsets, so the Haskell side can check that its picture of Ctx matches this one.
 // The order matches the fields of UnisonJitCtx.
@@ -114,12 +121,10 @@ static int64_t bump_alloc = 1;
 // (GHC links with -dead_strip), so each is referred to here, from a function
 // that is certainly kept.
 void *unison_jit_alloc_words(UnisonJitCtx *ctx, int64_t n);
-#if defined(__clang__)
-#define EXIT_FRAME_CC __attribute__((preserve_most))
-#else
-#error "unison_jit_exit_frame needs the preserve_most attribute; see Codegen.joinCall"
-#endif
-EXIT_FRAME_CC void unison_jit_exit_frame(UnisonJitCtx *ctx, const int64_t *desc, int64_t fp, int64_t ap, ...);
+// (unison_jit_exit_frame, the write-back routine, is not here: it is IR,
+// cbits/jit_exit.c, compiled by the JIT at startup, since it needs the
+// preserve_most convention that only clang would give a C copy.)
+void unison_jit_exit_fail(void);
 void unison_jit_write_mutvar(UnisonJitCtx *ctx, StgMutVar *mv, StgClosure *v);
 int64_t unison_jit_list_size(void *list);
 void *unison_jit_list_view(UnisonJitCtx *ctx, void *list, void *empty, int64_t elem_tag, int64_t left);
@@ -221,7 +226,7 @@ void *unison_jit_helpers[] = {
     (void *)&unison_jit_barray_from_bytes, (void *)&unison_jit_barray_new,     (void *)&unison_jit_barray_contents, (void *)&unison_jit_wrap_ptr,
     (void *)&unison_jit_parray_new,      (void *)&unison_jit_parray_copy,      (void *)&unison_jit_parray_freeze,
     (void *)&unison_jit_ref_new,         (void *)&unison_jit_ref_read_for_cas, (void *)&unison_jit_ref_cas,
-    (void *)&unison_jit_murmur,         (void *)&unison_jit_exit_frame,
+    (void *)&unison_jit_murmur,         (void *)&unison_jit_exit_fail,
     (void *)&unison_jit_ueq,            (void *)&unison_jit_ucmp,
     (void *)&unison_jit_rec_pos,        (void *)&unison_jit_rec_set,
     // what the IR helpers (jit_helpers.c) call from their module
@@ -3243,6 +3248,40 @@ int64_t unison_jit_name_test(void **elems, int64_t n) {
   return 1;
 }
 
+// The calling thread's C stack: its highest address and its size, so that the
+// stack floor is top - size. Returns 0 when the platform can't say.
+static int thread_stack_bounds(int64_t *top, int64_t *size) {
+#if defined(__APPLE__)
+  pthread_t self = pthread_self();
+  *top = (int64_t)pthread_get_stackaddr_np(self);
+  *size = (int64_t)pthread_get_stacksize_np(self);
+  return 1;
+#elif defined(_WIN32)
+  ULONG_PTR lo, hi;
+  GetCurrentThreadStackLimits(&lo, &hi);
+  *top = (int64_t)hi;
+  *size = (int64_t)(hi - lo);
+  return 1;
+#elif defined(__linux__)
+  // glibc: the attributes of the running thread, the main thread included
+  // (for it, the size is the stack rlimit)
+  pthread_attr_t attr;
+  if (pthread_getattr_np(pthread_self(), &attr) != 0) return 0;
+  void *addr;
+  size_t sz;
+  int ok = pthread_attr_getstack(&attr, &addr, &sz) == 0;
+  pthread_attr_destroy(&attr);
+  if (!ok) return 0;
+  *top = (int64_t)addr + (int64_t)sz;
+  *size = (int64_t)sz;
+  return 1;
+#else
+  (void)top;
+  (void)size;
+  return 0;
+#endif
+}
+
 // One context per OS thread. A Haskell thread stays on one OS thread for the
 // whole of an unsafe foreign call, and everything that touches the context
 // happens inside unison_jit_enter, so this is safe. Contexts are never freed;
@@ -3258,10 +3297,14 @@ static UnisonJitCtx *get_ctx(void) {
     ctx->stress_callee_left = stress_callee;
     ctx->max_frames = cstack_budget / MIN_NATIVE_FRAME + 16;
     ctx->frames = calloc(ctx->max_frames, 3 * sizeof(int64_t));
-    pthread_t self = pthread_self();
-    int64_t top = (int64_t)pthread_get_stackaddr_np(self);
-    int64_t size = (int64_t)pthread_get_stacksize_np(self);
-    ctx->stack_floor = top - size + CSTACK_RESERVE;
+    int64_t top, size;
+    if (thread_stack_bounds(&top, &size)) {
+      ctx->stack_floor = top - size + CSTACK_RESERVE;
+    } else {
+      // no floor: the budget alone bounds native recursion
+      ctx->stack_floor = 0;
+      if (trace) fprintf(stderr, "[jit] new context: the thread's stack bounds are unknown on this platform\n");
+    }
     if (trace)
       fprintf(stderr, "[jit] new context: thread stack %lld bytes, budget %lld, %lld frame records\n",
               (long long)size, (long long)cstack_budget, (long long)ctx->max_frames);
@@ -3868,71 +3911,14 @@ int64_t unison_jit_hplim_value(void) { return (int64_t)*unison_jit_hplim_address
 
 // ---- Exits
 //
-// Where native code hands a frame back to the interpreter (an exit, or an
-// unwind after a callee exited), it calls this with the frame's live slots
-// as variadic arguments instead of writing them itself: one call
-// instruction per site, where the generated stores were most of a
-// function's code (see "Write-back" in design.md). What to do with them
-// is a constant descriptor in the module, built by Codegen.joinCall:
-//
-//   [flags, base, fbase, depth, nslots, nrecs, slot offsets..., records...]
-//
-// flags bit 0: an exit, so record ap, fp and sp in the context (fp + base
-// is the interpreter's frame base, fp + depth its stack pointer); bit 1:
-// the code is not inside an inline binding, so ap is the ap argument,
-// otherwise it is the frame base. Each slot is a word and a pointer, in
-// the argument order of the offsets. Each record is three words (frame
-// table index, frame size, pending arguments), written after the frame
-// records already there; a negative pending count means fp + fbase - ap,
-// the count of the outermost frame. A record whose index is negative is a
-// Local frame (an affine handler case's environment switch, in force at
-// the exit): the environment to switch back to is one more pointer
-// argument, after the slots, which goes in the boxed stack's out-area
-// (a collector root) and the record's index becomes -1 - its position
-// there. The site returns the status itself (a constant there, which LLVM
-// would lose if this handed it back).
-//
-// preserve_most: generated code calls this with that convention (every
-// register but x0-x8 and x16-x18 preserved by the callee), so that a site
-// keeps the caller's live values in scratch registers across it; see
-// Codegen.joinCall. GCC has no such attribute (Linux is skipped for now).
-EXIT_FRAME_CC void unison_jit_exit_frame(UnisonJitCtx *ctx, const int64_t *d, int64_t fp, int64_t ap, ...) {
-  int64_t flags = d[0], base = d[1], fbase = d[2], depth = d[3], nslots = d[4], nrecs = d[5];
-  const int64_t *slots = d + 6, *recs = slots + nslots;
-  int64_t *ustk = ctx->ustk;
-  void **bstk = ctx->bstk;
-  va_list va;
-  va_start(va, ap);
-  for (int64_t i = 0; i < nslots; i++) {
-    int64_t k = fp + slots[i];
-    ustk[k] = va_arg(va, int64_t);
-    bstk[k] = va_arg(va, void *);
-  }
-  if (flags & 1) {
-    ctx->ap = (flags & 2) ? ap : fp + base;
-    ctx->fp = fp + base;
-    ctx->sp = fp + depth;
-    if (fp + depth > ctx->max_sp) ctx->max_sp = fp + depth;
-  }
-  int64_t *fr = ctx->frames + 3 * ctx->n_frames;
-  for (int64_t i = 0; i < nrecs; i++, recs += 3, fr += 3) {
-    if (recs[0] < 0) {
-      int64_t idx = ctx->n_local_ptrs++;
-      if (__builtin_expect(idx >= UNISON_JIT_LOCALS, 0)) {
-        fprintf(stderr, "[jit] more Local frame records than the out-area holds\n");
-        abort();
-      }
-      bstk[ctx->stack_size + 1 + idx] = va_arg(va, void *);
-      fr[0] = -1 - idx;
-      fr[1] = 0;
-    } else {
-      fr[0] = recs[0];
-      fr[1] = recs[1];
-    }
-    fr[2] = recs[2] < 0 ? fp + fbase - ap : recs[2];
-  }
-  va_end(va);
-  ctx->n_frames += nrecs;
+// The write-back routine generated code calls at every exit and unwind,
+// unison_jit_exit_frame, is IR (cbits/jit_exit.c, embedded as jit_exit.ll
+// and compiled by the JIT at startup): it needs the preserve_most
+// convention, which only clang would give a C copy. This is what it calls
+// when an exit needs more Local frame records than the out-area holds.
+void unison_jit_exit_fail(void) {
+  fprintf(stderr, "[jit] more Local frame records than the out-area holds\n");
+  abort();
 }
 
 // ---------------------------------------------------------------------------
