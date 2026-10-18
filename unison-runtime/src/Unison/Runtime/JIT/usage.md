@@ -30,7 +30,7 @@ or, if it can't, the reason, for example `no LLVM 20 or newer found; the JIT is 
 
 **An LLVM shared library, version 20 or newer.** Nothing is linked at build time; `unison` loads `libLLVM` with `dlopen` when the JIT is turned on ([`jit_llvm.c`](../../../../cbits/jit_llvm.c)). The whole of LLVM isn't needed, only the one library (`libLLVM.dylib` on macOS, `libLLVM.so` on Linux), which the packages below provide. Development uses LLVM 23; 20 is the oldest accepted because it is the oldest tested (the CI smoke test installs it).
 
-**A platform the runtime supports.** The CPU must be arm64 or x86-64. The JIT is built and tested on macOS on Apple silicon and on Linux, x86-64 and arm64 (Ubuntu 24.04 with gcc and the `llvm-20-dev` package; CI runs the smoke test on all three, 2026-10-18). Intel Macs are expected to work and are being tested; Windows is not supported yet (the runtime still loads LLVM with `dlopen`).
+**A platform the runtime supports.** The CPU must be arm64 or x86-64. The JIT is built and tested on macOS (Apple silicon and Intel) and on Linux (x86-64 and arm64, Ubuntu 24.04 with gcc and the `llvm-20-dev` package); CI runs the smoke test on all four (2026-10-18). Windows is not supported yet: the runtime still loads LLVM with `dlopen` and looks for it in Unix places.
 
 ### Installing LLVM
 
