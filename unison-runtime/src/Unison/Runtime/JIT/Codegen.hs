@@ -49,6 +49,7 @@ import Data.Int (Int64)
 import Data.Primitive.PrimArray (primArrayToList)
 import Data.Word (Word64)
 import Foreign.Ptr (Ptr, WordPtr (..), ptrToWordPtr)
+import System.Info (os)
 import GHC.Float (castDoubleToWord64)
 import Unison.Runtime.JIT.Config (config, disabled, exitCall)
 import Unison.Runtime.JIT.Exits (Exit (..))
@@ -1160,8 +1161,20 @@ tailToFull :: FnEnv -> Text -> Gen ()
 tailToFull fe full = do
   vals <- loadSources (D.fromList [1 .. feArity fe])
   r <- fresh "r"
-  emit (r <> " = musttail call tailcc " <> workerRet <> " @" <> full <> "(ptr %ctx, i64 %fp.in" <> argList vals <> ")")
+  emit (r <> " = " <> workerTail <> " " <> workerCC <> " " <> workerRet <> " @" <> full <> "(ptr %ctx, i64 %fp.in" <> argList vals <> ")")
   emit ("ret " <> workerRet <> " " <> r)
+
+-- | The calling convention of workers, and how one tail calls another.
+-- @tailcc@ with @musttail@ guarantees a tail call between workers of any
+-- signatures; LLVM's x86-64 backend refuses guaranteed tail calls under the
+-- Win64 convention ("Can't handle guaranteed tail call under win64 yet"),
+-- so on Windows workers use @fastcc@ and a plain @tail call@: a sibling
+-- call where the callee's stack arguments fit the caller's, an ordinary
+-- call otherwise, which the C stack guard bounds (2026-10-18).
+workerCC, workerTail :: Text
+(workerCC, workerTail)
+  | os == "mingw32" = ("fastcc", "tail call")
+  | otherwise = ("tailcc", "musttail call")
 
 -- | Arguments as a worker takes them, each after a comma.
 argList :: Deque (Pair Text Text) -> Text
@@ -1363,7 +1376,7 @@ genFunctionText fe body = do
     _ -> s
   let header
         | feWorker fe =
-            "define internal tailcc " <> workerRet <> " @" <> feSym fe <> "(ptr %ctx, i64 %fp.in"
+            "define internal " <> workerCC <> " " <> workerRet <> " @" <> feSym fe <> "(ptr %ctx, i64 %fp.in"
               <> foldMap (\k -> ", i64 %a.u" <> tshow k <> ", ptr %a.b" <> tshow k) [1 .. arity]
               <> ") {"
         | otherwise = "define " <> (if feInternal fe then "internal " else "") <> "i64 @" <> feSym fe <> "(ptr %ctx, i64 %ap, i64 %fp.in, i64 %sp) {"
@@ -1486,7 +1499,7 @@ genWrapper fe body = do
               )
               [1 .. arity]
             <> lines
-              [ "%r = call tailcc " <> workerRet <> " @" <> workerName name <> "(ptr %ctx, i64 %fp.in"
+              [ "%r = call " <> workerCC <> " " <> workerRet <> " @" <> workerName name <> "(ptr %ctx, i64 %fp.in"
                   <> foldMap (\k -> ", i64 %u" <> tshow k <> ", ptr %b" <> tshow k) [1 .. arity]
                   <> ")",
                 "%st = extractvalue " <> workerRet <> " %r, 0",
@@ -2072,7 +2085,7 @@ genWorkerCall fe d base wname srcs sect ownFrame continue = do
   useK (base + max n 1)
   bp <- fpPlus base
   r <- fresh "r"
-  emit (r <> " = call tailcc " <> workerRet <> " @" <> wname <> "(ptr %ctx, i64 " <> bp <> argList (D.reverse vals) <> ")")
+  emit (r <> " = call " <> workerCC <> " " <> workerRet <> " @" <> wname <> "(ptr %ctx, i64 " <> bp <> argList (D.reverse vals) <> ")")
   st <- fresh "st"
   emit (st <> " = extractvalue " <> workerRet <> " " <> r <> ", 0")
   ru <- fresh "r.u"
@@ -2489,7 +2502,7 @@ genCall fe d cix comb args sect
                 startBlock goL
               vals <- loadSources srcs
               r <- fresh "r"
-              emit (r <> " = musttail call tailcc " <> workerRet <> " @" <> wname <> "(ptr %ctx, i64 %fpb" <> argList (D.reverse vals) <> ")")
+              emit (r <> " = " <> workerTail <> " " <> workerCC <> " " <> workerRet <> " @" <> wname <> "(ptr %ctx, i64 %fpb" <> argList (D.reverse vals) <> ")")
               emit ("ret " <> workerRet <> " " <> r)
             _ -> do
               Pair fnp isNull <- loadCallee env cell
