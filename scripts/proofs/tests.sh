@@ -39,6 +39,9 @@ PATTERNS=(
     '**/unison-util-diff3/**/testcases/**'
 )
 
+# Hash sources without their comments and whitespace (see lib-attestation-hash.sh)
+HASH_NORMALIZE=true
+
 # Handle --hash and --check early, before sourcing other libraries
 source "$(dirname "$0")/lib-attestation-hash.sh"
 handle_flags "$@"

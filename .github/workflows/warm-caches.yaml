@@ -1,0 +1,75 @@
+name: warm caches
+
+# Builds the dependencies and the packages on every platform after each push
+# to trunk, and saves the stack caches (~/.stack and **/.stack-work) under
+# trunk's cache scope.
+#
+# A workflow run can only restore caches made on its own branch or on the
+# default branch. The merge queue runs on throwaway gh-readonly-queue/*
+# branches, so the caches it saves die with them, and no other workflow builds
+# on trunk, so until this one existed every merge-queue build started cold and
+# spent 20 to 48 minutes rebuilding dependencies. With trunk's caches warm, a
+# merge-queue build restores them and compiles only what the pull request
+# changed.
+
+on:
+  push:
+    branches:
+      - trunk
+  workflow_dispatch:
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  warm:
+    name: warm caches (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    # a newer trunk push supersedes a run still going for the same platform
+    concurrency:
+      group: warm-caches-${{ matrix.os }}
+      cancel-in-progress: true
+    strategy:
+      fail-fast: false
+      matrix:
+        os: ["ubuntu-24.04", "ubuntu-24.04-arm", "macos-15-intel", "macos-15", "windows-2025"]
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+
+      - name: restore stack caches
+        id: restore-stack-caches
+        uses: unisonweb/actions/stack/cache/restore@main
+        with:
+          cache-prefix: ci
+
+      - name: install stack
+        if: steps.restore-stack-caches.outputs.work-cache-hit != 'true'
+        uses: unisonweb/actions/stack/install@main
+        with:
+          stack-version: 3.9.3
+
+      - name: build dependencies
+        if: steps.restore-stack-caches.outputs.work-cache-hit != 'true'
+        run: |
+          stack --version
+          tries=1
+          if [[ ${{matrix.os}} = "windows-"* ]]; then
+            tries=5
+          fi
+
+          for (( i = 0; i < $tries; i++ )); do
+              stack build --fast --only-dependencies --test --bench && break;
+          done
+
+      - name: build
+        if: steps.restore-stack-caches.outputs.work-cache-hit != 'true'
+        run: stack build --fast --test --no-run-tests
+
+      - name: save stack caches
+        if: |
+          !cancelled()
+            && steps.restore-stack-caches.outputs.work-cache-hit != 'true'
+        uses: unisonweb/actions/stack/cache/save@main
+        with:
+          cache-prefix: ci

@@ -30,7 +30,7 @@ while read -r local_ref local_sha remote_ref remote_sha; do
 
     # Pass 1: check hashes (cheap, no clean worktree needed)
     declare -a needs_run=()
-    for proof_type in transcripts tests; do
+    for proof_type in transcripts tests migration; do
         if ! check_proof_hash "$proof_type" "$local_ref" "$local_sha"; then
             needs_run+=("$proof_type")
         fi
