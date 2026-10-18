@@ -293,15 +293,14 @@ slots) would follow chunk links. A sizeable interpreter change.
 
 ### Release work
 
-Set aside so that the work so far could be about performance; a project of its own.
-Compiled programs go through the JIT since 2026-10-18 (the standalone path in `Interface.hs`
-attaches native code cells and the file carries the data types' constructor arities). Static
-linking of LLVM (dynamic first, static before release). Linux x86-64, then the other Unix platforms: every
-spike and test has run on macOS arm64 only. (`unison_jit_exit_frame`'s `preserve_most`
-convention no longer ties the build to clang: the routine is IR since 2026-10-17.) User documentation is [usage.md](usage.md) (2026-10-16); what it still
-lacks is a Linux section with real instructions. Whether the JIT is on by default, and whether the `jit` package flag stays. More
-native builtins as call-out statistics from real programs show them to matter;
-[builtins.md](builtins.md) is the checklist of what each missing one waits on.
+Set aside so that the work so far could be about performance; a project of its own. Done by
+2026-10-18: the five platforms (macOS, Linux and Windows on arm64 and x86-64, each with a CI
+smoke test), the exit routine as IR so that any C compiler builds the runtime, compiled
+programs through the JIT, and the user documentation ([usage.md](usage.md)). Still open:
+bundling LLVM with a release or linking it statically (today the user installs it and
+`unison` loads it at run time); the default mode, which Paul decided on 2026-10-18 stays
+`off` for now; more native builtins as call-out statistics from real programs show them to
+matter, with [builtins.md](builtins.md) the checklist of what each missing one waits on.
 
 ### The text append row is bimodal
 

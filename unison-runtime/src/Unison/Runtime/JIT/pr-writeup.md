@@ -13,11 +13,14 @@ the code.
 unison --jit on
 ```
 
-or `UNISON_JIT=on`. It needs LLVM 20 or newer installed as a shared library (Homebrew's
-`llvm` on macOS); ucm loads it at startup and prints `JIT compilation activated ⚡🚀`, or the
-reason it couldn't and runs everything interpreted. `--jit eager` compiles every definition as
-it loads, for testing. The settings, what to expect and the troubleshooting are in
-[usage.md](usage.md). Tested on macOS arm64; Linux isn't yet.
+or `UNISON_JIT=on`; the default is off. It needs LLVM 20 or newer installed as a shared
+library (Homebrew's `llvm` on macOS, `llvm-20-dev` on Ubuntu, the LLVM release on Windows;
+the full table is in [usage.md](usage.md#installing-llvm)); ucm loads it at startup and prints
+`JIT compilation activated ⚡🚀`, or the reason it couldn't and runs everything interpreted.
+`--jit eager` compiles every definition as it loads, for testing. The settings, what to
+expect and the troubleshooting are in [usage.md](usage.md). It applies to compiled programs
+(`run.compiled`) as well as to a codebase. Built and tested on macOS (Apple silicon and
+Intel), Linux (x86-64 and arm64) and Windows, each with a CI smoke test.
 
 ## Highlights
 

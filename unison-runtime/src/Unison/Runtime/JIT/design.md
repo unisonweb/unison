@@ -33,7 +33,7 @@ Note that code for a definition never changes, so compiled code never needs inva
 - Making compiled code callable as an ordinary Haskell function, or making it follow GHC's calling conventions.
 - Compatibility with the Racket / `run.native` backend. This backend is defunct.
 - Caching compiled code on disk across runs. If compilation is fast enough, this may never be worth it.
-- Platforms other than macOS arm64, for now: the context setup uses macOS's thread-stack calls and the exit routine needs clang's `preserve_most` convention. Linux is next.
+- CPUs other than arm64 and x86-64. The JIT runs on macOS, Linux and Windows on those two (CI tests all five combinations, see [usage.md](usage.md#what-it-needs)); nothing the generator emits is per platform, and the little that is per platform is C (finding LLVM, the thread's stack bounds) or a calling-convention choice (Windows).
 
 ### Tricky concerns
 
