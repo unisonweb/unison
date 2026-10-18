@@ -40,6 +40,7 @@ or, if it can't, the reason, for example `no LLVM 20 or newer found; the JIT is 
 | macOS, MacPorts | `sudo port install llvm-20` | `/opt/local/libexec/llvm-N/lib`, newest first |
 | Debian, Ubuntu | `apt install llvm-20-dev` (or the [apt.llvm.org](https://apt.llvm.org) packages for a newer one; the `-dev` package is what provides the unversioned `libLLVM.so` link the lookup wants) | `/usr/lib/llvm-N/lib/libLLVM.so`, newest first, then the system library directories |
 | Other Linux | the distribution's `llvm` or `llvm-libs` package | `/usr/lib64`, `/usr/lib`, `/usr/local/lib` and the multiarch directories, the first `libLLVM*.so` found |
+| Windows | the [LLVM release installer](https://github.com/llvm/llvm-project/releases) or `choco install llvm` (untested beyond CI's smoke test) | `LLVM-C.dll` on the loader's search path, then `C:\Program Files\LLVM\bin\LLVM-C.dll` (the C API is in `LLVM-C.dll` there, not in a `libLLVM`) |
 | Anything else | | `UNISON_LLVM_LIB=/path/to/libLLVM.so` |
 
 The lookup order, in full: `UNISON_LLVM_LIB` if set (and only that; a path there that isn't a usable LLVM is an error, not a fallback), then the dynamic loader's own search path (`DYLD_LIBRARY_PATH`, `LD_LIBRARY_PATH`, the system defaults), then the directories in the table. When several versions are installed the newest is taken; set `UNISON_LLVM_LIB` to choose. `UNISON_JIT_LOG=1` prints the version and path that was loaded.

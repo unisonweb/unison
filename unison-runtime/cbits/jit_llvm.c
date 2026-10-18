@@ -14,15 +14,38 @@
 // the oldest version accepted because it is the oldest tested (Homebrew's
 // llvm@20, apt.llvm.org's and Ubuntu 24.04's llvm-20).
 
-#include <dirent.h>
-#include <dlfcn.h>
+#include <ctype.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
 #include <time.h>
+#if defined(_WIN32)
+#include <windows.h>
+#else
+#include <dirent.h>
+#include <dlfcn.h>
 #include <unistd.h>
+#endif
+
+// The dynamic loader, in the two spellings. The library is never closed
+// once it is the one in use (generated code lives in it).
+#if defined(_WIN32)
+static void *lib_open(const char *path) { return (void *)LoadLibraryA(path); }
+static void *lib_sym(void *lib, const char *name) { return (void *)GetProcAddress((HMODULE)lib, name); }
+static void lib_close(void *lib) { FreeLibrary((HMODULE)lib); }
+static const char *lib_error(void) {
+  static char buf[256];
+  snprintf(buf, sizeof buf, "LoadLibrary failed, error %lu", (unsigned long)GetLastError());
+  return buf;
+}
+#else
+static void *lib_open(const char *path) { return dlopen(path, RTLD_NOW | RTLD_LOCAL); }
+static void *lib_sym(void *lib, const char *name) { return dlsym(lib, name); }
+static void lib_close(void *lib) { dlclose(lib); }
+static const char *lib_error(void) { return dlerror(); }
+#endif
 
 // ---- Declarations copied from llvm-c (Types.h, Error.h, Orc.h, TargetMachine.h)
 
@@ -178,17 +201,17 @@ static int try_lib(const char *path) {
     note(path, "unsupported CPU architecture (the JIT runs on arm64 and x86_64)");
     return 0;
   }
-  void *lib = dlopen(path, RTLD_NOW | RTLD_LOCAL);
+  void *lib = lib_open(path);
   if (!lib) {
-    // dlerror's text for a missing file is long; say less for that case
+    // the loader's text for a missing file is long; say less for that case
     struct stat st;
-    int absolute = path[0] == '/';
+    int absolute = path[0] == '/' || (isalpha((unsigned char)path[0]) && path[1] == ':');
     if (absolute && stat(path, &st) != 0) note(path, "not found");
     else if (!absolute) note(path, "not found on the dynamic loader's search path");
-    else note(path, dlerror());
+    else note(path, lib_error());
     return 0;
   }
-  void (*get_version)(unsigned *, unsigned *, unsigned *) = (void (*)(unsigned *, unsigned *, unsigned *))dlsym(lib, "LLVMGetVersion");
+  void (*get_version)(unsigned *, unsigned *, unsigned *) = (void (*)(unsigned *, unsigned *, unsigned *))lib_sym(lib, "LLVMGetVersion");
   unsigned major = 0, minor = 0, patch = 0;
   if (get_version) get_version(&major, &minor, &patch);
   char v[64];
@@ -198,30 +221,30 @@ static int try_lib(const char *path) {
     if (get_version) snprintf(why, sizeof why, "LLVM %s, too old", v);
     else snprintf(why, sizeof why, "not an LLVM library (or one older than 16)");
     note(path, why);
-    dlclose(lib);
+    lib_close(lib);
     return 0;
   }
   for (size_t i = 0; i < sizeof symbols / sizeof symbols[0]; i++) {
-    void *p = dlsym(lib, symbols[i].name);
+    void *p = lib_sym(lib, symbols[i].name);
     if (!p) {
       char why[256];
       snprintf(why, sizeof why, "LLVM %s, but it has no %s", v, symbols[i].name);
       note(path, why);
-      dlclose(lib);
+      lib_close(lib);
       return 0;
     }
     *symbols[i].slot = p;
   }
   CreateNewThreadSafeContextFromLLVMContext =
-      (LLVMOrcThreadSafeContextRef (*)(LLVMContextRef))dlsym(lib, "LLVMOrcCreateNewThreadSafeContextFromLLVMContext");
-  CreateNewThreadSafeContext = (LLVMOrcThreadSafeContextRef (*)(void))dlsym(lib, "LLVMOrcCreateNewThreadSafeContext");
+      (LLVMOrcThreadSafeContextRef (*)(LLVMContextRef))lib_sym(lib, "LLVMOrcCreateNewThreadSafeContextFromLLVMContext");
+  CreateNewThreadSafeContext = (LLVMOrcThreadSafeContextRef (*)(void))lib_sym(lib, "LLVMOrcCreateNewThreadSafeContext");
   ThreadSafeContextGetContext =
-      (LLVMContextRef (*)(LLVMOrcThreadSafeContextRef))dlsym(lib, "LLVMOrcThreadSafeContextGetContext");
+      (LLVMContextRef (*)(LLVMOrcThreadSafeContextRef))lib_sym(lib, "LLVMOrcThreadSafeContextGetContext");
   if (!CreateNewThreadSafeContextFromLLVMContext && !(CreateNewThreadSafeContext && ThreadSafeContextGetContext)) {
     char why[256];
     snprintf(why, sizeof why, "LLVM %s, but it has neither LLVMOrcCreateNewThreadSafeContextFromLLVMContext nor the older pair", v);
     note(path, why);
-    dlclose(lib);
+    lib_close(lib);
     return 0;
   }
   llvm_lib = lib;  // never dlclosed: generated code lives in it
@@ -231,12 +254,17 @@ static int try_lib(const char *path) {
   return 1;
 }
 
-#ifdef __APPLE__
+#if defined(__APPLE__)
 #define LIB "libLLVM.dylib"
+#elif defined(_WIN32)
+// the official Windows release ships the C API as LLVM-C.dll, not as a
+// monolithic libLLVM
+#define LIB "LLVM-C.dll"
 #else
 #define LIB "libLLVM.so"
 #endif
 
+#if !defined(_WIN32)
 // Tries <dir>/<entry>/lib/libLLVM.* for every entry of dir whose name starts
 // with prefix, newest version first (names sort as text: llvm@9 would come
 // after llvm@23, but there is no such version to worry about).
@@ -268,6 +296,7 @@ static int try_versioned_dir(const char *dir, const char *prefix) {
   }
   return 0;
 }
+#endif
 
 // Finds and loads LLVM. Returns 0 on success. On failure, last_error says
 // why and unison_jit_load_attempts lists every location tried.
@@ -281,7 +310,11 @@ int unison_jit_load(void) {
     return -1;
   }
   if (try_lib(LIB)) return 0;
-#ifdef __APPLE__
+#if defined(_WIN32)
+  // the LLVM installer's default location (choco's llvm package uses it too)
+  if (try_lib("C:\\Program Files\\LLVM\\bin\\" LIB)) return 0;
+  if (try_lib("C:\\Program Files (x86)\\LLVM\\bin\\" LIB)) return 0;
+#elif defined(__APPLE__)
   // Homebrew: /opt/homebrew (Apple silicon) or /usr/local (Intel); `llvm` is
   // the current version, `llvm@N` the others. Then MacPorts.
   const char *brews[] = {"/opt/homebrew/opt", "/usr/local/opt", NULL};
