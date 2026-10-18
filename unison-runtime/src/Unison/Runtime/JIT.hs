@@ -24,6 +24,7 @@ import System.Timeout (timeout)
 import GHC.Clock (getMonotonicTimeNSec)
 import Data.Map.Strict qualified as Map
 import Data.List (sortOn)
+import qualified Data.Text as T
 import Data.Word (Word64)
 import System.IO.Unsafe (unsafePerformIO)
 import Unison.Reference (Reference)
@@ -35,7 +36,7 @@ import Unison.Runtime.JIT.Exits
 import Unison.Runtime.JIT.Helpers (exitIR, helpersIR)
 import Unison.Runtime.JIT.LLVM
 import Unison.Runtime.JIT.Layout (probeArrays, probeBytes, probeCompare, probeEnv, probeLayouts, probeLists, probeMurmur, probeNames, probeRecords, probeTexts)
-import Unison.Runtime.JIT.Native (configureNative, ctxLayout, murmurCAddress, rtsFacts, tableAddresses, ucmpCAddress)
+import Unison.Runtime.JIT.Native (configureNative, ctxLayout, helperAddresses, murmurCAddress, rtsFacts, tableAddresses, ucmpCAddress)
 import Unison.Runtime.MCode (CombIx (..), GComb (..), GCombInfo (..), NativeCell, claimNativeCell, combDeps, nativeCellRequested, noNativeCell, prettyIns, prettySection, readNativeCode, readNativeCount, releaseNativeCell, takeNativeCell, writeNativeCount)
 import Unison.Runtime.Machine.Types (CCache (combRefs, combs, sandboxed), MCombs)
 import Unison.Util.EnumContainers qualified as EC
@@ -183,18 +184,28 @@ initJIT' = do
             -- unison_jit_alloc_words by name, and the JIT resolves it from the process
             [arrWordsInfo, arrPtrsInfo, bytesHdr, bytesCount, ptrsHdr, ptrsCount, ptrsSize, cardBits, _allocator, mutVarVar, _barrier, arrPtrsDirtyInfo] -> do
               let rts = RtsFacts arrWordsInfo arrPtrsInfo bytesHdr bytesCount ptrsHdr ptrsCount ptrsSize cardBits mutVarVar arrPtrsDirtyInfo
-              -- the helpers written as IR (cbits/jit_helpers.ll) go in as a
-              -- module of their own, ahead of any module that calls them;
-              -- their definitions shadow the C copies for generated code
-              -- the exit routine (cbits/jit_exit.ll) first: every exit
-              -- calls it, so it goes in whatever the switches say
-              exits <-
-                timed "exit routine" (addModule False (passes config) exitIR) >>= \case
-                  Left e -> pure (Left ("could not be added: " ++ e))
-                  Right _ ->
-                    lookupSymbol "unison_jit_exit_frame" <&> \case
-                      Left e -> Left ("not found after adding: " ++ e)
-                      Right (_ :: FunPtr ()) -> Right ()
+              -- The C helpers' addresses go in first, as absolute symbols,
+              -- so that nothing is looked up in the process's own symbol
+              -- table (Linux doesn't expose an executable's symbols to
+              -- dlsym without -rdynamic, Windows not at all). The names the
+              -- IR modules define themselves are left to them: the exit
+              -- routine (cbits/jit_exit.ll), which goes in whatever the
+              -- switches say since every exit calls it, and the helpers
+              -- written as IR (cbits/jit_helpers.ll), whose definitions
+              -- shadow the C copies for generated code; with irhelpers
+              -- disabled the C copies are defined instead.
+              let irDefines ir = [T.unpack (T.takeWhile (/= '(') (T.drop 1 (T.dropWhile (/= '@') rest))) | l <- T.lines ir, Just rest <- [T.stripPrefix "define " l]]
+                  irDefined = irDefines exitIR ++ (if "irhelpers" `elem` disabled config then [] else irDefines helpersIR)
+              cHelpers <- helperAddresses >>= \hs -> sequence_ <$> traverse (uncurry defineSymbol) [h | h@(n, _) <- hs, n `notElem` irDefined]
+              exits <- case cHelpers of
+                Left e -> pure (Left ("the C helpers could not be defined: " ++ e))
+                Right () ->
+                  timed "exit routine" (addModule False (passes config) exitIR) >>= \case
+                    Left e -> pure (Left ("could not be added: " ++ e))
+                    Right _ ->
+                      lookupSymbol "unison_jit_exit_frame" <&> \case
+                        Left e -> Left ("not found after adding: " ++ e)
+                        Right (_ :: FunPtr ()) -> Right ()
               helpers <-
                 if "irhelpers" `elem` disabled config || isLeft exits
                   then pure (Right ())

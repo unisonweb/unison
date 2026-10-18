@@ -263,7 +263,7 @@ static int try_versioned_dir(const char *dir, const char *prefix) {
     }
   for (int i = 0; i < n; i++) {
     char path[1024];
-    snprintf(path, sizeof path, "%s/%s/lib/" LIB, dir, names[i]);
+    snprintf(path, sizeof path, "%.512s/%.64s/lib/" LIB, dir, names[i]);  // bounded, for gcc's truncation check
     if (try_lib(path)) return 1;
   }
   return 0;

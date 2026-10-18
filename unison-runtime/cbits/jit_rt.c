@@ -116,10 +116,9 @@ static int64_t bump_alloc = 1;
 // touched cost nothing.
 #define MIN_NATIVE_FRAME 4
 
-// Generated code calls the helpers below by name, and the JIT finds them in
-// the process's symbol table. The linker drops a function nothing refers to
-// (GHC links with -dead_strip), so each is referred to here, from a function
-// that is certainly kept.
+// Generated code calls the helpers below by name; the JIT is told their
+// addresses from the table unison_jit_helpers (further down), which also
+// keeps them from being dropped by the linker.
 void *unison_jit_alloc_words(UnisonJitCtx *ctx, int64_t n);
 // (unison_jit_exit_frame, the write-back routine, is not here: it is IR,
 // cbits/jit_exit.c, compiled by the JIT at startup, since it needs the
@@ -204,42 +203,110 @@ int64_t unison_jit_set_aff(UnisonJitCtx *ctx, void *aff, void *v);
 void *unison_jit_local_env(UnisonJitCtx *ctx, void *aff);
 void *unison_jit_rec_set(UnisonJitCtx *ctx, void *rec, int64_t field, int64_t u, void *b);
 
-void *unison_jit_helpers[] = {
-    (void *)&unison_jit_set_aff,     (void *)&unison_jit_resolve_dyn,  (void *)&unison_jit_local_env,
-    (void *)&unison_jit_alloc_words, (void *)&unison_jit_write_mutvar, (void *)&unison_jit_list_size,
-    (void *)&unison_jit_list_view,   (void *)&unison_jit_list_push,    (void *)&unison_jit_list_index,
-    (void *)&unison_jit_text_size,   (void *)&unison_jit_text_append,  (void *)&unison_jit_text_cut,
-    (void *)&unison_jit_text_eq,     (void *)&unison_jit_name,         (void *)&unison_jit_list_lit,
-    (void *)&unison_jit_list_wrap,   (void *)&unison_jit_list_cut,     (void *)&unison_jit_list_split,
-    (void *)&unison_jit_list_append,  (void *)&unison_jit_bytes_size,   (void *)&unison_jit_bytes_append,
-    (void *)&unison_jit_bytes_cut,    (void *)&unison_jit_foreign_eq,   (void *)&unison_jit_bytes_index,
-    (void *)&unison_jit_bytes_flatten, (void *)&unison_jit_text_uncons,     (void *)&unison_jit_int_to_text,
-    (void *)&unison_jit_float_to_text, (void *)&unison_jit_text_to_num,     (void *)&unison_jit_text_pack,
-    (void *)&unison_jit_bytes_pack,    (void *)&unison_jit_text_unpack,     (void *)&unison_jit_bytes_unpack,
-    (void *)&unison_jit_text_index_of, (void *)&unison_jit_bytes_index_of,  (void *)&unison_jit_text_cmp,
-    (void *)&unison_jit_foreign_cmp,   (void *)&unison_jit_char_to_text,    (void *)&unison_jit_text_repeat,
-    (void *)&unison_jit_text_reverse,  (void *)&unison_jit_text_case,       (void *)&unison_jit_text_to_utf8,
-    (void *)&unison_jit_text_from_utf8, (void *)&unison_jit_bytes_decode_nat, (void *)&unison_jit_bytes_encode_nat,
-    (void *)&unison_jit_bytes_read_ok, (void *)&unison_jit_bytes_read_at,   (void *)&unison_jit_bytes_to_base,
-    (void *)&unison_jit_bytes_from_base, (void *)&unison_jit_pow,              (void *)&unison_jit_atan2,
-    (void *)&unison_jit_barray_copy,     (void *)&unison_jit_barray_freeze,    (void *)&unison_jit_barray_to_bytes,
-    (void *)&unison_jit_barray_from_bytes, (void *)&unison_jit_barray_new,     (void *)&unison_jit_barray_contents, (void *)&unison_jit_wrap_ptr,
-    (void *)&unison_jit_parray_new,      (void *)&unison_jit_parray_copy,      (void *)&unison_jit_parray_freeze,
-    (void *)&unison_jit_ref_new,         (void *)&unison_jit_ref_read_for_cas, (void *)&unison_jit_ref_cas,
-    (void *)&unison_jit_murmur,         (void *)&unison_jit_exit_fail,
-    (void *)&unison_jit_ueq,            (void *)&unison_jit_ucmp,
-    (void *)&unison_jit_rec_pos,        (void *)&unison_jit_rec_set,
-    // what the IR helpers (jit_helpers.c) call from their module
-    (void *)&unison_jit_settle,         (void *)&unison_jit_rope_chunk_at, (void *)&unison_jit_lv_each,
-    (void *)&unison_jit_murmur_fail,    (void *)&unison_jit_table_addresses,
-    (void *)&unison_jit_list_at,        (void *)&unison_jit_cmp_fail,
-    (void *)&unison_jit_rec_fail,
+// Every C function generated code or the IR modules call by name, with its
+// address. The JIT is told these before any module is added
+// (unison_jit_helper_addresses, defined as absolute symbols in JIT.hs), so
+// that no lookup in the process's own symbol table is needed: on Linux an
+// executable's symbols aren't visible to dlsym without -rdynamic, and on
+// Windows not at all. The table also keeps the functions alive: the linker
+// drops a function nothing refers to (GHC links with -dead_strip).
+typedef struct {
+  const char *name;
+  void *addr;
+} JitHelper;
+#define HELPER(f) {#f, (void *)&f}
+static const JitHelper unison_jit_helpers[] = {
+    HELPER(unison_jit_set_aff),
+    HELPER(unison_jit_resolve_dyn),
+    HELPER(unison_jit_local_env),
+    HELPER(unison_jit_alloc_words),
+    HELPER(unison_jit_write_mutvar),
+    HELPER(unison_jit_list_size),
+    HELPER(unison_jit_list_view),
+    HELPER(unison_jit_list_push),
+    HELPER(unison_jit_list_index),
+    HELPER(unison_jit_text_size),
+    HELPER(unison_jit_text_append),
+    HELPER(unison_jit_text_cut),
+    HELPER(unison_jit_text_eq),
+    HELPER(unison_jit_name),
+    HELPER(unison_jit_list_lit),
+    HELPER(unison_jit_list_wrap),
+    HELPER(unison_jit_list_cut),
+    HELPER(unison_jit_list_split),
+    HELPER(unison_jit_list_append),
+    HELPER(unison_jit_bytes_size),
+    HELPER(unison_jit_bytes_append),
+    HELPER(unison_jit_bytes_cut),
+    HELPER(unison_jit_foreign_eq),
+    HELPER(unison_jit_bytes_index),
+    HELPER(unison_jit_bytes_flatten),
+    HELPER(unison_jit_text_uncons),
+    HELPER(unison_jit_int_to_text),
+    HELPER(unison_jit_float_to_text),
+    HELPER(unison_jit_text_to_num),
+    HELPER(unison_jit_text_pack),
+    HELPER(unison_jit_bytes_pack),
+    HELPER(unison_jit_text_unpack),
+    HELPER(unison_jit_bytes_unpack),
+    HELPER(unison_jit_text_index_of),
+    HELPER(unison_jit_bytes_index_of),
+    HELPER(unison_jit_text_cmp),
+    HELPER(unison_jit_foreign_cmp),
+    HELPER(unison_jit_char_to_text),
+    HELPER(unison_jit_text_repeat),
+    HELPER(unison_jit_text_reverse),
+    HELPER(unison_jit_text_case),
+    HELPER(unison_jit_text_to_utf8),
+    HELPER(unison_jit_text_from_utf8),
+    HELPER(unison_jit_bytes_decode_nat),
+    HELPER(unison_jit_bytes_encode_nat),
+    HELPER(unison_jit_bytes_read_ok),
+    HELPER(unison_jit_bytes_read_at),
+    HELPER(unison_jit_bytes_to_base),
+    HELPER(unison_jit_bytes_from_base),
+    HELPER(unison_jit_pow),
+    HELPER(unison_jit_atan2),
+    HELPER(unison_jit_barray_copy),
+    HELPER(unison_jit_barray_freeze),
+    HELPER(unison_jit_barray_to_bytes),
+    HELPER(unison_jit_barray_from_bytes),
+    HELPER(unison_jit_barray_new),
+    HELPER(unison_jit_barray_contents),
+    HELPER(unison_jit_wrap_ptr),
+    HELPER(unison_jit_parray_new),
+    HELPER(unison_jit_parray_copy),
+    HELPER(unison_jit_parray_freeze),
+    HELPER(unison_jit_ref_new),
+    HELPER(unison_jit_ref_read_for_cas),
+    HELPER(unison_jit_ref_cas),
+    HELPER(unison_jit_murmur),
+    HELPER(unison_jit_exit_fail),
+    HELPER(unison_jit_ueq),
+    HELPER(unison_jit_ucmp),
+    HELPER(unison_jit_rec_pos),
+    HELPER(unison_jit_rec_set),
+    HELPER(unison_jit_settle),
+    HELPER(unison_jit_rope_chunk_at),
+    HELPER(unison_jit_lv_each),
+    HELPER(unison_jit_murmur_fail),
+    HELPER(unison_jit_table_addresses),
+    HELPER(unison_jit_list_at),
+    HELPER(unison_jit_cmp_fail),
+    HELPER(unison_jit_rec_fail),
 };
+#undef HELPER
+
+int64_t unison_jit_helper_addresses(const char **names, void **addrs, int64_t n) {
+  int64_t count = sizeof unison_jit_helpers / sizeof unison_jit_helpers[0];
+  for (int64_t i = 0; i < n && i < count; i++) names[i] = unison_jit_helpers[i].name, addrs[i] = unison_jit_helpers[i].addr;
+  return count;
+}
 
 void unison_jit_configure(int64_t poll_every, int64_t callee_every, int64_t cstack, int64_t alloc,
                           int64_t trace_on) {
   for (size_t i = 0; i < sizeof unison_jit_helpers / sizeof unison_jit_helpers[0]; i++)
-    if (unison_jit_helpers[i] == NULL) abort();
+    if (unison_jit_helpers[i].addr == NULL) abort();
   stress_poll = poll_every;
   stress_callee = callee_every;
   if (cstack > 0) cstack_budget = cstack;
@@ -3699,7 +3766,7 @@ void unison_jit_murmur_fail(const char *what, StgClosure *c) {
   if (trace_test < 0) trace_test = getenv("UNISON_JIT_TRACE_TEST") != NULL;
   if (trace_test) {
     const StgInfoTable *it = c != NULL ? get_itbl(LUN(c)) : NULL;
-    fprintf(stderr, "[test] murmur: not handled: %s, closure %p tag %d type %d\n", what, (void *)c, c ? LTAG(c) : -1,
+    fprintf(stderr, "[test] murmur: not handled: %s, closure %p tag %d type %d\n", what, (void *)c, c ? (int)LTAG(c) : -1,
             it ? (int)it->type : -1);
   }
 }
@@ -3727,7 +3794,7 @@ int64_t unison_jit_murmur_test_ffi(void **elems, int64_t u, int64_t unboxed, int
   if (trace_test < 0) trace_test = getenv("UNISON_JIT_TRACE_TEST") != NULL;
   if (trace_test) {
     const StgInfoTable *it = LTAG(b) ? get_itbl(LUN(b)) : NULL;
-    fprintf(stderr, "[test] murmur: closure %p tag %d type %d ptrs %d nptrs %d info %p unboxed %lld u %lld\n", (void *)b, LTAG(b),
+    fprintf(stderr, "[test] murmur: closure %p tag %d type %d ptrs %d nptrs %d info %p unboxed %lld u %lld\n", (void *)b, (int)LTAG(b),
             it ? (int)it->type : -1, it ? (int)it->layout.payload.ptrs : -1, it ? (int)it->layout.payload.nptrs : -1,
             LTAG(b) ? (void *)LUN(b)->header.info : NULL, (long long)unboxed, (long long)u);
     fflush(stderr);
@@ -3746,7 +3813,7 @@ void unison_jit_cmp_fail(const char *what, StgClosure *c) {
   if (trace_test < 0) trace_test = getenv("UNISON_JIT_TRACE_TEST") != NULL;
   if (trace_test) {
     const StgInfoTable *it = c != NULL && LTAG(c) ? get_itbl(LUN(c)) : NULL;
-    fprintf(stderr, "[test] compare: not handled: %s, closure %p tag %d type %d\n", what, (void *)c, c ? LTAG(c) : -1,
+    fprintf(stderr, "[test] compare: not handled: %s, closure %p tag %d type %d\n", what, (void *)c, c ? (int)LTAG(c) : -1,
             it ? (int)it->type : -1);
   }
 }
@@ -3931,7 +3998,7 @@ void unison_jit_rec_fail(const char *what, StgClosure *c) {
   if (trace_test < 0) trace_test = getenv("UNISON_JIT_TRACE_TEST") != NULL;
   if (trace_test) {
     const StgInfoTable *it = c != NULL && LTAG(c) ? get_itbl(LUN(c)) : NULL;
-    fprintf(stderr, "[test] record: not handled: %s, closure %p tag %d type %d\n", what, (void *)c, c ? LTAG(c) : -1,
+    fprintf(stderr, "[test] record: not handled: %s, closure %p tag %d type %d\n", what, (void *)c, c ? (int)LTAG(c) : -1,
             it ? (int)it->type : -1);
   }
 }

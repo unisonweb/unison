@@ -1923,12 +1923,17 @@ fsum n =
   go acc i = if i == n then acc else go (acc Float.+ Float.sqrt (Nat.toFloat i)) (i + 1)
   go 0.0 0
 
+-- the transcendental functions come from the platform's libm, whose last
+-- digit differs between macOS and glibc, so they are compared to nine places
+r9 : Float -> Int
+r9 x = Float.truncate (x Float.* 1.0e9)
+
 > (1.5 Float.+ 2.25, 1.5 Float.- 2.25, 1.5 Float.* 2.25, 1.5 Float./ 2.25, 1.0 Float./ 0.0, -1.0 Float./ 0.0, 0.0 Float./ 0.0, -0.0 Float.* 1.0)
 > (Float.lt 1.0 2.0, Float.gt 1.0 2.0, Float.lteq 2.0 2.0, Float.gteq 1.0 2.0, Float.eq 2.0 2.0, Float.eq (0.0 Float./ 0.0) (0.0 Float./ 0.0), Float.lteq (0.0 Float./ 0.0) 1.0, Float.gt (0.0 Float./ 0.0) 1.0)
 > (Float.min 1.0 2.0, Float.max 1.0 2.0, Float.min (0.0 Float./ 0.0) 1.0, Float.min 1.0 (0.0 Float./ 0.0), Float.max (0.0 Float./ 0.0) 1.0, Float.max 1.0 (0.0 Float./ 0.0), Float.min -0.0 0.0, Float.max 0.0 -0.0)
 > (Float.ceiling 2.3, Float.ceiling -2.3, Float.floor 2.3, Float.floor -2.3, Float.truncate 2.7, Float.truncate -2.7, Float.round 2.5, Float.round 3.5, Float.round -2.5, Float.round 0.5, Float.round -0.4, Float.round 2.4999)
 > (Float.abs -3.5, Float.abs 3.5, Float.abs -0.0, Float.sqrt 2.0, Float.sqrt -1.0, Float.exp 1.0, Float.log 10.0, Float.log 0.0, Float.logBase 2.0 1024.0, Float.logBase 10.0 0.001, Float.pow 2.0 0.5, Float.pow -8.0 (1.0 Float./ 3.0))
-> (Float.cos 1.0, Float.sin 1.0, Float.tan 1.0, Float.acos 0.5, Float.asin 0.5, Float.atan 0.5, Float.cosh 0.5, Float.sinh 0.5, Float.tanh 0.5, Float.asinh 1.0, Float.acosh 2.0, Float.atanh 0.5)
+> (r9 (Float.cos 1.0), r9 (Float.sin 1.0), r9 (Float.tan 1.0), r9 (Float.acos 0.5), r9 (Float.asin 0.5), r9 (Float.atan 0.5), r9 (Float.cosh 0.5), r9 (Float.sinh 0.5), r9 (Float.tanh 0.5), r9 (Float.asinh 1.0), r9 (Float.acosh 2.0), r9 (Float.atanh 0.5))
 > (Float.atan2 1.0 1.0, Float.atan2 1.0 -1.0, Float.atan2 -1.0 -1.0, Float.atan2 -1.0 1.0, Float.atan2 1.0 0.0, Float.atan2 -1.0 0.0, Float.atan2 0.0 -1.0, Float.atan2 -0.0 -1.0, Float.atan2 0.0 0.0, Float.atan2 -0.0 0.0, Float.atan2 0.0 -0.0, Float.atan2 -0.0 -0.0, Float.atan2 (0.0 Float./ 0.0) 1.0)
 > (Nat.toFloat 3, Nat.toFloat 18446744073709551615, Int.toFloat -3, Int.toFloat +9007199254740993, fsum 1000)
 > (Int.pow +3 4, Int.pow -2 3, Int.pow -2 63, Int.pow +7 0, Int.pow +0 0, Nat.pow 3 4, Nat.pow 2 63, Nat.pow 2 64, Nat.pow 3 41, Nat.pow 0 0)
@@ -1939,34 +1944,35 @@ fsum n =
   Loading changes detected in scratch.u.
 
   + fsum : Nat -> Float
+  + r9   : Float -> Int
 
   Run `update` to apply these changes to your codebase.
 
-    8 | > (1.5 Float.+ 2.25, 1.5 Float.- 2.25, 1.5 Float.* 2.25, 1.5 Float./ 2.25, 1.0 Float./ 0.0, -1.0 Float./ 0.0, 0.0 Float./ 0.0, -0.0 Float.* 1.0)
-          ⧩
-          ( 3.75
-          , -0.75
-          , 3.375
-          , 0.6666666666666666
-          , Infinity
-          , -Infinity
-          , NaN
-          , -0.0
-          )
+    13 | > (1.5 Float.+ 2.25, 1.5 Float.- 2.25, 1.5 Float.* 2.25, 1.5 Float./ 2.25, 1.0 Float./ 0.0, -1.0 Float./ 0.0, 0.0 Float./ 0.0, -0.0 Float.* 1.0)
+           ⧩
+           ( 3.75
+           , -0.75
+           , 3.375
+           , 0.6666666666666666
+           , Infinity
+           , -Infinity
+           , NaN
+           , -0.0
+           )
 
-    9 | > (Float.lt 1.0 2.0, Float.gt 1.0 2.0, Float.lteq 2.0 2.0, Float.gteq 1.0 2.0, Float.eq 2.0 2.0, Float.eq (0.0 Float./ 0.0) (0.0 Float./ 0.0), Float.lteq (0.0 Float./ 0.0) 1.0, Float.gt (0.0 Float./ 0.0) 1.0)
-          ⧩
-          (true, false, true, false, true, false, false, false)
+    14 | > (Float.lt 1.0 2.0, Float.gt 1.0 2.0, Float.lteq 2.0 2.0, Float.gteq 1.0 2.0, Float.eq 2.0 2.0, Float.eq (0.0 Float./ 0.0) (0.0 Float./ 0.0), Float.lteq (0.0 Float./ 0.0) 1.0, Float.gt (0.0 Float./ 0.0) 1.0)
+           ⧩
+           (true, false, true, false, true, false, false, false)
 
-    10 | > (Float.min 1.0 2.0, Float.max 1.0 2.0, Float.min (0.0 Float./ 0.0) 1.0, Float.min 1.0 (0.0 Float./ 0.0), Float.max (0.0 Float./ 0.0) 1.0, Float.max 1.0 (0.0 Float./ 0.0), Float.min -0.0 0.0, Float.max 0.0 -0.0)
+    15 | > (Float.min 1.0 2.0, Float.max 1.0 2.0, Float.min (0.0 Float./ 0.0) 1.0, Float.min 1.0 (0.0 Float./ 0.0), Float.max (0.0 Float./ 0.0) 1.0, Float.max 1.0 (0.0 Float./ 0.0), Float.min -0.0 0.0, Float.max 0.0 -0.0)
            ⧩
            (1.0, 2.0, 1.0, NaN, NaN, 1.0, -0.0, -0.0)
 
-    11 | > (Float.ceiling 2.3, Float.ceiling -2.3, Float.floor 2.3, Float.floor -2.3, Float.truncate 2.7, Float.truncate -2.7, Float.round 2.5, Float.round 3.5, Float.round -2.5, Float.round 0.5, Float.round -0.4, Float.round 2.4999)
+    16 | > (Float.ceiling 2.3, Float.ceiling -2.3, Float.floor 2.3, Float.floor -2.3, Float.truncate 2.7, Float.truncate -2.7, Float.round 2.5, Float.round 3.5, Float.round -2.5, Float.round 0.5, Float.round -0.4, Float.round 2.4999)
            ⧩
            (+3, -2, +2, -3, +2, -2, +2, +4, -2, +0, +0, +2)
 
-    12 | > (Float.abs -3.5, Float.abs 3.5, Float.abs -0.0, Float.sqrt 2.0, Float.sqrt -1.0, Float.exp 1.0, Float.log 10.0, Float.log 0.0, Float.logBase 2.0 1024.0, Float.logBase 10.0 0.001, Float.pow 2.0 0.5, Float.pow -8.0 (1.0 Float./ 3.0))
+    17 | > (Float.abs -3.5, Float.abs 3.5, Float.abs -0.0, Float.sqrt 2.0, Float.sqrt -1.0, Float.exp 1.0, Float.log 10.0, Float.log 0.0, Float.logBase 2.0 1024.0, Float.logBase 10.0 0.001, Float.pow 2.0 0.5, Float.pow -8.0 (1.0 Float./ 3.0))
            ⧩
            ( 3.5
            , 3.5
@@ -1982,23 +1988,23 @@ fsum n =
            , NaN
            )
 
-    13 | > (Float.cos 1.0, Float.sin 1.0, Float.tan 1.0, Float.acos 0.5, Float.asin 0.5, Float.atan 0.5, Float.cosh 0.5, Float.sinh 0.5, Float.tanh 0.5, Float.asinh 1.0, Float.acosh 2.0, Float.atanh 0.5)
+    18 | > (r9 (Float.cos 1.0), r9 (Float.sin 1.0), r9 (Float.tan 1.0), r9 (Float.acos 0.5), r9 (Float.asin 0.5), r9 (Float.atan 0.5), r9 (Float.cosh 0.5), r9 (Float.sinh 0.5), r9 (Float.tanh 0.5), r9 (Float.asinh 1.0), r9 (Float.acosh 2.0), r9 (Float.atanh 0.5))
            ⧩
-           ( 0.5403023058681398
-           , 0.8414709848078965
-           , 1.557407724654902
-           , 1.0471975511965976
-           , 0.5235987755982988
-           , 0.46364760900080615
-           , 1.1276259652063807
-           , 0.5210953054937474
-           , 0.46211715726000974
-           , 0.881373587019543
-           , 1.3169578969248166
-           , 0.5493061443340549
+           ( +540302305
+           , +841470984
+           , +1557407724
+           , +1047197551
+           , +523598775
+           , +463647609
+           , +1127625965
+           , +521095305
+           , +462117157
+           , +881373587
+           , +1316957896
+           , +549306144
            )
 
-    14 | > (Float.atan2 1.0 1.0, Float.atan2 1.0 -1.0, Float.atan2 -1.0 -1.0, Float.atan2 -1.0 1.0, Float.atan2 1.0 0.0, Float.atan2 -1.0 0.0, Float.atan2 0.0 -1.0, Float.atan2 -0.0 -1.0, Float.atan2 0.0 0.0, Float.atan2 -0.0 0.0, Float.atan2 0.0 -0.0, Float.atan2 -0.0 -0.0, Float.atan2 (0.0 Float./ 0.0) 1.0)
+    19 | > (Float.atan2 1.0 1.0, Float.atan2 1.0 -1.0, Float.atan2 -1.0 -1.0, Float.atan2 -1.0 1.0, Float.atan2 1.0 0.0, Float.atan2 -1.0 0.0, Float.atan2 0.0 -1.0, Float.atan2 -0.0 -1.0, Float.atan2 0.0 0.0, Float.atan2 -0.0 0.0, Float.atan2 0.0 -0.0, Float.atan2 -0.0 -0.0, Float.atan2 (0.0 Float./ 0.0) 1.0)
            ⧩
            ( 0.7853981633974483
            , 2.356194490192345
@@ -2015,7 +2021,7 @@ fsum n =
            , NaN
            )
 
-    15 | > (Nat.toFloat 3, Nat.toFloat 18446744073709551615, Int.toFloat -3, Int.toFloat +9007199254740993, fsum 1000)
+    20 | > (Nat.toFloat 3, Nat.toFloat 18446744073709551615, Int.toFloat -3, Int.toFloat +9007199254740993, fsum 1000)
            ⧩
            ( 3.0
            , 1.8446744073709552e19
@@ -2024,7 +2030,7 @@ fsum n =
            , 21065.833110879048
            )
 
-    16 | > (Int.pow +3 4, Int.pow -2 3, Int.pow -2 63, Int.pow +7 0, Int.pow +0 0, Nat.pow 3 4, Nat.pow 2 63, Nat.pow 2 64, Nat.pow 3 41, Nat.pow 0 0)
+    21 | > (Int.pow +3 4, Int.pow -2 3, Int.pow -2 63, Int.pow +7 0, Int.pow +0 0, Nat.pow 3 4, Nat.pow 2 63, Nat.pow 2 64, Nat.pow 3 41, Nat.pow 0 0)
            ⧩
            ( +81
            , -8
@@ -2038,7 +2044,7 @@ fsum n =
            , 1
            )
 
-    17 | > (Nat.toInt 5, Nat.toInt 18446744073709551615, Int.toRepresentation -1, Int.fromRepresentation 18446744073709551615, Char.toNat ?a, Char.fromNat 955, Float.toRepresentation 1.0, Float.toRepresentation -0.0, Float.fromRepresentation 4611686018427387904)
+    22 | > (Nat.toInt 5, Nat.toInt 18446744073709551615, Int.toRepresentation -1, Int.fromRepresentation 18446744073709551615, Char.toNat ?a, Char.fromNat 955, Float.toRepresentation 1.0, Float.toRepresentation -0.0, Float.fromRepresentation 4611686018427387904)
            ⧩
            ( +5
            , -1

@@ -37,6 +37,7 @@ module Unison.Runtime.JIT.Native
     murmurCAddress,
     ucmpCAddress,
     tableAddresses,
+    helperAddresses,
     bytesCheck,
     bytesTest,
     closureInit,
@@ -127,6 +128,20 @@ foreign import ccall unsafe "unison_jit_table_addresses" c_tableAddresses :: Ptr
 tableAddresses :: IO [(String, Word64)]
 tableAddresses = allocaBytes (8 * 16) $ \names -> allocaBytes (8 * 16) $ \addrs -> do
   n <- c_tableAddresses names addrs 16
+  forM [0 .. fromIntegral n - 1] $ \i -> do
+    name <- peekElemOff names i >>= peekCString
+    addr <- peekElemOff addrs i
+    pure (name, fromIntegral (ptrToWordPtr addr))
+
+foreign import ccall unsafe "unison_jit_helper_addresses" c_helperAddresses :: Ptr CString -> Ptr (Ptr ()) -> Int64 -> IO Int64
+
+-- | Every C function generated code and the IR modules call by name, with
+-- its address, for the JIT to define before any module is added (so that
+-- nothing is looked up in the process, which Linux and Windows don't allow
+-- without more linker flags).
+helperAddresses :: IO [(String, Word64)]
+helperAddresses = allocaBytes (8 * 256) $ \names -> allocaBytes (8 * 256) $ \addrs -> do
+  n <- c_helperAddresses names addrs 256
   forM [0 .. fromIntegral n - 1] $ \i -> do
     name <- peekElemOff names i >>= peekCString
     addr <- peekElemOff addrs i
