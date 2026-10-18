@@ -180,12 +180,12 @@ The branch also changes the interpreter, since native code reads its heap object
 ## What the diff is made of
 
 `git diff --numstat` from the merge base with `trunk` (`cea754e16`), 2026-10-18: 114 files,
-34,563 lines added, 905 removed, 35,468 in all. Lines below are added plus removed.
+34,655 lines added, 905 removed, 35,560 in all. Lines below are added plus removed.
 
 | Kind | Files | Lines | Share |
 | --- | --- | --- | --- |
-| C: `cbits/jit_rt.c` 4,113, `jit_helpers.c` 756, `jit_llvm.c` 562, `jit_exit.c` 83, headers 401, the generated `jit_helpers.ll` 3,939 and `jit_exit.ll` 155 (the IR of the two C files, embedded), and the scripts that generate them | 10 | 10,090 | 28% |
-| New Haskell: `Runtime/JIT.hs` and `Runtime/JIT/*.hs` | 13 | 9,266 | 26% |
+| C: `cbits/jit_rt.c` 4,113, `jit_helpers.c` 756, `jit_llvm.c` 562, `jit_exit.c` 83, headers 401, the generated `jit_helpers.ll` 3,939 and `jit_exit.ll` 155 (the IR of the two C files, embedded), and the shell script that generates them | 9 | 10,038 | 28% |
+| New Haskell: `Runtime/JIT.hs`, `Runtime/JIT/*.hs` and `cbits/gen-helpers.hs`, the IR stripper | 14 | 9,410 | 26% |
 | Markdown docs: design, usage, development, builtins, ideas, this file, and the benchmark runs | 48 | 5,382 | 15% |
 | Transcripts: tests 3,710, benchmarks 413, the broad suite, the replacements suite, the compiled-program test | 6 | 4,359 | 12% |
 | `lib/unison-util-rope`: `Deque`, `Skews`, the `Rope` rework, tests and benchmarks | 10 | 3,422 | 10% |
