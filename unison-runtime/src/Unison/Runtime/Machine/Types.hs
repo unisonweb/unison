@@ -16,8 +16,8 @@ import Data.Kind (Type)
 import Data.Map.Strict qualified as M
 import Data.Set qualified as S
 import Data.Word
-#if !defined(mingw32_HOST_OS)
 import Foreign.Ptr (nullPtr)
+#if !defined(mingw32_HOST_OS)
 import GHC.Event (getSystemTimerManager, registerTimeout)
 #else
 import System.CPUTime
