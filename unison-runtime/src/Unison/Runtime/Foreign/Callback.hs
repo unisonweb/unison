@@ -28,7 +28,7 @@ module Unison.Runtime.Foreign.Callback
   )
 where
 
-import Control.Exception (Exception, throwIO)
+import Control.Exception (Exception, finally, throwIO)
 import Control.Monad (unless, when)
 import Data.IORef
 import Data.Int
@@ -64,8 +64,9 @@ import Unison.Runtime.Stack
 type RunCallback = Stack -> (Stack -> IO ()) -> IO ()
 
 -- | What a prepared closure needs at call time: the signature (for
--- marshalling) and the action that runs the Unison function.
-data CallbackCtx = CallbackCtx !FFSpec !RunCallback
+-- marshalling), the action that runs the Unison function, and a reusable stack
+-- guarded by an in-use flag (see 'callbackEntry').
+data CallbackCtx = CallbackCtx !FFSpec !RunCallback !(IORef Bool) !Stack
 
 data CallbackException
   = -- | A callback argument/result type that is not supported.
@@ -102,14 +103,25 @@ closureSize :: CSize
 closureSize = 1024
 
 -- The single, shared entry point. It recovers the per-closure context from the
--- user-data pointer, decodes the C arguments onto a fresh Unison stack, runs
--- the function, and writes the result (left on the stack) back.
+-- user-data pointer, obtains a Unison stack, decodes the C arguments onto it,
+-- runs the function, and writes the result (left on the stack) back.
+--
+-- Copy-on-concurrent-write: the callback keeps one reusable stack behind an
+-- atomic in-use flag. A caller claims it with a test-and-set; whoever wins
+-- reuses it (and allocates nothing), and anyone who finds it already in use —
+-- a concurrent call on another thread, or a reentrant call on this one (e.g.
+-- the Unison function calls back out to C which invokes this callback again) —
+-- falls back to a fresh stack, so two live calls never share one. The flag is
+-- released in a @finally@ so an exception can't leave it stuck.
 callbackEntry :: CallbackEntry
 callbackEntry _cif ret argv userData = do
-  CallbackCtx spec run <- deRefStablePtr (castPtrToStablePtr userData)
-  stk <- alloc
-  stk <- pushArgs (ffArgs spec) argv stk
-  run stk \result -> writeResult (ffResult spec) ret result
+  CallbackCtx spec run inUse reusable <- deRefStablePtr (castPtrToStablePtr userData)
+  won <- not <$> atomicModifyIORef' inUse (\used -> (True, used))
+  stk <- if won then pure reusable else alloc
+  let invoke = do
+        stk <- pushArgs (ffArgs spec) argv stk
+        run stk \result -> writeResult (ffResult spec) ret result
+  invoke `finally` when won (writeIORef inUse False)
 
 sharedEntry :: FunPtr CallbackEntry
 sharedEntry = unsafePerformIO (wrapCallbackEntry callbackEntry)
@@ -131,10 +143,12 @@ mkCallback spec0 run = do
   let spec = ffSpec cspec
   mapM_ checkArgType (ffArgs spec)
   checkResultType (ffResult spec)
+  inUse <- newIORef False
+  reusable <- alloc
   alloca \codeRef -> do
     writable <- ffi_closure_alloc closureSize codeRef
     code <- peek codeRef
-    sp <- newStablePtr (CallbackCtx spec run)
+    sp <- newStablePtr (CallbackCtx spec run inUse reusable)
     status <-
       withForeignPtr (cInterface cspec) \cif ->
         ffi_prep_closure_loc writable cif sharedEntry (castStablePtrToPtr sp) code

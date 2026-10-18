@@ -91,11 +91,35 @@ doCallbackTest = do
   r = apply cb 41
   freeCallback cb
   r
+
+-- A callback invoked reentrantly: C apply_fn calls `count`, whose body calls
+-- apply_fn again on the same thread, re-entering the *same* callback before
+-- the outer invocation returns. The callback reuses one stack behind an
+-- in-use flag; a reentrant call must get its own stack, otherwise it would
+-- clobber the outer frame. A correct result (5) shows each invocation got a
+-- distinct stack.
+doReentrantCallbackTest = do
+  dll = libtest()
+  apply = getDLLSym dll "apply_fn" applySpec
+  slot : Ref {IO} (Optional (FFI.Func (Nat ->{IO} Nat)))
+  slot = IO.ref None
+  count : Nat ->{IO} Nat
+  count n =
+    if n == 0 then 0
+    else match Ref.read slot with
+      Some cb -> 1 + apply cb (drop n 1)
+      None -> 0
+  cb = mkCallback incSpec count
+  Ref.write slot (Some cb)
+  r = apply cb 5
+  freeCallback cb
+  r
 ```
 
 ``` ucm
 scratch/dll-ffi> run doFunArgTest
 scratch/dll-ffi> run doCallbackTest
+scratch/dll-ffi> run doReentrantCallbackTest
 ```
 
 ``` unison
