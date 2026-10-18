@@ -15,6 +15,8 @@
 #include "jit_internal.h"
 
 #if defined(_WIN32)
+#define WIN32_LEAN_AND_MEAN
+#define NOMINMAX
 #include <windows.h>
 #else
 #include <pthread.h>
@@ -1141,14 +1143,14 @@ void *unison_jit_list_view(UnisonJitCtx *ctx, void *list, void *empty, int64_t e
   StgClosure *dq = deque_of(list);
   if (dq == NULL) return NULL;
   if (LTAG(dq) != 2) return empty;
-  StgClosure *near = LP(dq, left ? 0 : 2);
-  if (IS_CONS(near) && IS_CONS(TAIL(near))) {
+  StgClosure *nearend = LP(dq, left ? 0 : 2);
+  if (IS_CONS(nearend) && IS_CONS(TAIL(nearend))) {
     // the end's digit keeps an item: one allocation for everything
     StgWord *p = list_alloc(ctx, DEEP_WORDS + 4 + 7);
     StgInt t = LW(dq, 3) - (left ? 0x101 : 0x110);
-    StgClosure *rest = TAIL(near);
+    StgClosure *rest = TAIL(nearend);
     StgClosure *nd = left ? deep_at(p, t, rest, LP(dq, 1), LP(dq, 2)) : deep_at(p, t, LP(dq, 0), LP(dq, 1), rest);
-    return view_at(p + DEEP_WORDS + 4, empty, elem_tag, left, HEAD(near), wrap_at(p + DEEP_WORDS, nd));
+    return view_at(p + DEEP_WORDS + 4, empty, elem_tag, left, HEAD(nearend), wrap_at(p + DEEP_WORDS, nd));
   }
   StgClosure *x;
   StgClosure *nd = left ? lv_uncons(ctx, 1, dq, &x) : lv_unsnoc(ctx, 1, dq, &x);

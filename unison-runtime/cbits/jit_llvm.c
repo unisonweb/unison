@@ -22,6 +22,8 @@
 #include <sys/stat.h>
 #include <time.h>
 #if defined(_WIN32)
+#define WIN32_LEAN_AND_MEAN
+#define NOMINMAX
 #include <windows.h>
 #else
 #include <dirent.h>
@@ -377,7 +379,11 @@ static int compiling = 0;  // compiles in flight
 static int exiting = 0;
 
 static void park_forever(void) {
+#if defined(_WIN32)
+  for (;;) Sleep(INFINITE);
+#else
   for (;;) pause();
+#endif
 }
 
 static void at_exit(void) {
