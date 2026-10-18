@@ -303,6 +303,16 @@ lacks is a Linux section with real instructions. Whether the JIT is on by defaul
 native builtins as call-out statistics from real programs show them to matter;
 [builtins.md](builtins.md) is the checklist of what each missing one waits on.
 
+### The text append row is bimodal
+
+`Text: append "hi" 10000 times` in `jit-benchmarks.md` gives either about 50 µs or 200 to
+250 µs from one run to the next, on the optimized build with `--jit on`, from the codebase
+and compiled alike ([2026-10-18](benchmarks/2026-10-18-compiled-programs.md)); the records
+before that day only ever saw the slow mode. The fast mode would be the slack-chunk append
+in place every time and the slow mode a copy per append, so something decides per run
+whether the chunk keeps its slack (the CAS on the used length losing to a stale length,
+or the first chunk's allocation), and finding it could make the row 4× faster every time.
+
 ## Rejected
 
 ### Unboxed values without the tag write
