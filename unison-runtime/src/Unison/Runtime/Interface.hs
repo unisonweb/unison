@@ -43,6 +43,7 @@ import Data.ByteString qualified as B
 import Data.ByteString.Builder (Builder)
 import Data.ByteString.Builder qualified as BU
 import Data.Foldable
+import Foreign.Ptr (nullPtr)
 import Data.IORef
 import Data.List qualified as L
 import Data.Map.Strict qualified as Map
@@ -82,14 +83,19 @@ import Unison.Runtime.Exception (RuntimeExn (BU, PE), die)
 import Unison.Runtime.Foreign.Function (functionUnreplacements)
 import Unison.Runtime.InternalError (CompileExn (CE))
 import Unison.Runtime.JIT (jitCompileGroup, printJITStats, registerDataTypes, registerTypeNumbers, startJIT)
+import Unison.Runtime.JIT.Config qualified as JIT
 import Unison.Runtime.MCode
-  ( newNativeCellPool,
-    Args (..),
+  ( Args (..),
     CombIx (..),
     FieldRef (..),
+    GCombs,
     GInstr (..),
     GSection (..),
     RCombs,
+    attachNativeCells,
+    newNativeCellPool,
+    prettyComb,
+    takeNativeCells,
     RecordFieldMappings (..),
     RefNums (..),
     absurdCombs,
@@ -627,7 +633,7 @@ interpCompile version ctxVar _copts cl ppe rf path = tryM $ do
       lk m = flip Map.lookup m =<< baseToIntermed ctx rf
   Just w <- lk <$> readTVarIO (refTm cc)
   let combIx = CIx rf w 0
-  sto <- standalone cc w
+  sto <- standalone cc (dspec ctx) w
   BU.writeFile path $
     putTextBig version
       <> putTextBig (RF.showShort 8 rf)
@@ -927,8 +933,25 @@ tryM =
     . fmap (const Nothing)
 
 runStandalone :: Bool -> StoredCache -> CombIx -> IO (Either Error ())
-runStandalone sandboxed sc init =
-  restoreCache sandboxed sc >>= executeMainComb init
+runStandalone sandboxed sc@(SCache _ _ _ _ _ _ _ _ _ _ _ _ _ _ dspec) init = do
+  -- What startRuntime and the loader (cacheAdd) do for the JIT on the
+  -- codebase path, for a compiled program. The file carries the data specs
+  -- that a codebase run registers as it loads types.
+  startJIT
+  registerDataTypes (fmap (either id id) (builtinDataSpec <> dspec))
+  registerDataTypes (Map.singleton Type.anyRef [1])
+  cc <- restoreCache sandboxed sc
+  readTVarIO (tagRefs cc) >>= registerTypeNumbers
+  combRefs' <- readTVarIO (combRefs cc)
+  combs' <- readTVarIO (combs cc)
+  when (JIT.dumpMCode JIT.config) $
+    for_ (EC.mapToList combs') \(w, cmbs) ->
+      for_ (EC.mapToList cmbs) \(i, c) -> JIT.jitDump (prettyComb w i c "")
+  for_ (EC.mapToList combs') \(w, cmbs) ->
+    for_ (EC.lookup w combRefs') \r -> jitCompileGroup sandboxed r w cmbs
+  r <- executeMainComb init cc
+  printJITStats
+  pure r
 
 -- | A version of the Code Cache designed to be serialized to disk as
 -- standalone bytecode.
@@ -948,10 +971,14 @@ data StoredCache
       (BM.BiMap ANF.RecordSchema ANF.RecordRef)
       (Map Reference (Set Reference))
       RecordFieldMappings
+      -- constructor arities of the data types the code uses, which the JIT
+      -- needs to compile a match (registered at startup from a codebase,
+      -- carried in the file for a compiled program)
+      DataSpec
   deriving (Show, Eq)
 
 putStoredCache :: StoredCache -> Builder
-putStoredCache (SCache cs crs cacheableCombs oinfo trs ftm fty frs int rtm rty rsLookup sbs rfm) =
+putStoredCache (SCache cs crs cacheableCombs oinfo trs ftm fty frs int rtm rty rsLookup sbs rfm dspec) =
   putEnumMap putNat (putEnumMap putNat (putComb absurd)) cs
     <> putEnumMap putNat putReference crs
     <> putEnumSet putNat cacheableCombs
@@ -966,6 +993,10 @@ putStoredCache (SCache cs crs cacheableCombs oinfo trs ftm fty frs int rtm rty r
     <> putMap putRecordSchema putRecordRef (BM.forward rsLookup)
     <> putMap putReference (putFoldable putReference) sbs
     <> putRecordFieldMappings rfm
+    <> putMap putReference putCons dspec
+  where
+    -- the Either marks an effect's constructors as Right, as 'DataSpec' does
+    putCons cons = putBool (isRight cons) <> putFoldable (putInt . fromIntegral) (either id id cons)
 
 putRecordFieldMappings :: RecordFieldMappings -> Builder
 putRecordFieldMappings (RecordFieldMappings next rfm) =
@@ -997,6 +1028,12 @@ getStoredCache =
     <*> (BM.fromMap <$> getMap getRecordSchema getRecordRef)
     <*> getMap getReference (fromList <$> getList getReference)
     <*> getRecordFieldMappings
+    <*> getMap getReference getCons
+  where
+    getCons = do
+      effect <- getBool
+      cons <- getList (fromIntegral <$> getInt)
+      pure $ if effect then Right cons else Left cons
 
 debugTextFormat :: Bool -> Pretty ColorText -> String
 debugTextFormat fancy =
@@ -1005,7 +1042,23 @@ debugTextFormat fancy =
     render = if fancy then toANSI else toPlain
 
 restoreCache :: Bool -> StoredCache -> IO (CCache ())
-restoreCache sandboxed (SCache cs crs cacheableCombs opt trs ftm fty frs int rtm rty recSchemas sbs rfm) = do
+restoreCache sandboxed (SCache cs crs cacheableCombs opt trs ftm fty frs int rtm rty recSchemas sbs rfm _) = do
+  -- Every combinator gets a native code cell, as it would loading from a
+  -- codebase (see JIT/design.md, "Where cells live"); without one the JIT
+  -- never compiles it. The cells come from the cache's pool, which keeps
+  -- enough spare for code the program loads later (Code.load).
+  let uncelled =
+        srcCombs
+          & sanitizeCombsOfForeignFuncs sandboxed sandboxedForeignFuncs
+      (cellCount, _) = attachNativeCells nullPtr uncelled
+  pool0 <- newNativeCellPool (cellCount + initialNativeCells)
+  (cells, pool) <- case takeNativeCells cellCount pool0 of
+    Just taken -> pure taken
+    Nothing -> die [] "restoreCache: the native cell pool is too small"
+  let unresolvedCombs :: EnumMap Word64 (GCombs Val CombIx)
+      unresolvedCombs = absurdCombs (snd (attachNativeCells cells uncelled))
+      combs :: EnumMap Word64 (RCombs Val)
+      combs = resolveCombs Nothing unresolvedCombs
   cc <-
     CCache sandboxed debugText ()
       <$> newTVarIO srcCombs
@@ -1023,11 +1076,9 @@ restoreCache sandboxed (SCache cs crs cacheableCombs opt trs ftm fty frs int rtm
       <*> newTVarIO recSchemas
       <*> newTVarIO (sbs <> baseSandboxInfo)
       <*> newTVarIO newRFM
-      <*> (newTVarIO =<< newNativeCellPool initialNativeCells)
+      <*> newTVarIO pool
   let (unresolvedCacheableCombs, unresolvedNonCacheableCombs) =
-        srcCombs
-          & sanitizeCombsOfForeignFuncs sandboxed sandboxedForeignFuncs
-          & absurdCombs
+        unresolvedCombs
           & EC.mapToList
           & foldMap
             ( \(k, v) ->
@@ -1067,12 +1118,6 @@ restoreCache sandboxed (SCache cs crs cacheableCombs opt trs ftm fty frs int rtm
         )
     srcCombs :: EnumMap Word64 Combs
     srcCombs = builtinCombs <> cs
-    combs :: EnumMap Word64 (RCombs Val)
-    combs =
-      srcCombs
-        & sanitizeCombsOfForeignFuncs sandboxed sandboxedForeignFuncs
-        & absurdCombs
-        & resolveCombs Nothing
 
 traceNeeded ::
   Reference ->
@@ -1103,8 +1148,9 @@ buildSCache ::
   BM.BiMap ANF.RecordSchema ANF.RecordRef ->
   Map Reference (Set Reference) ->
   RecordFieldMappings ->
+  DataSpec ->
   StoredCache
-buildSCache crsrc cssrc cacheableCombs optsrc trsrc ftm fty frs int rtmsrc rtysrc rsLookup sndbx rfm =
+buildSCache crsrc cssrc cacheableCombs optsrc trsrc ftm fty frs int rtmsrc rtysrc rsLookup sndbx rfm dspec =
   SCache
     cs
     crs
@@ -1120,6 +1166,7 @@ buildSCache crsrc cssrc cacheableCombs optsrc trsrc ftm fty frs int rtmsrc rtysr
     rsLookup
     (restrictTmR sndbx)
     rfm
+    (restrictTyR dspec)
   where
     termRefs = Map.keysSet int
 
@@ -1148,10 +1195,11 @@ buildSCache crsrc cssrc cacheableCombs optsrc trsrc ftm fty frs int rtmsrc rtysr
     restrictTmR m = Map.restrictKeys m termRefs
 
     restrictTyW m = restrictKeys m typeKeys
+    restrictTyR :: Map Reference a -> Map Reference a
     restrictTyR m = Map.restrictKeys m typeRefs
 
-standalone :: CCache () -> Word64 -> IO StoredCache
-standalone cc init =
+standalone :: CCache () -> DataSpec -> Word64 -> IO StoredCache
+standalone cc dspec init =
   readTVarIO (combRefs cc) >>= \crs ->
     case EC.lookup init crs of
       Just rinit ->
@@ -1169,6 +1217,7 @@ standalone cc init =
           <*> readTVarIO (recordRefs cc)
           <*> readTVarIO (sandbox cc)
           <*> readTVarIO (recordFieldMappings cc)
+          <*> pure dspec
       Nothing ->
         die [] $ "standalone: unknown combinator: " ++ show init
 

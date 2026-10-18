@@ -115,6 +115,8 @@ All run from the repo root with `stack exec unison -- -C jit_codebase transcript
 
 The base library transcripts (`unison-src/transcripts-using-base/`) run through the transcript runner, `stack exec transcripts -- <prefix>`, which runs every transcript whose file name starts with the prefix with the `_base.md` prelude and checks its `.output.md`, under `UNISON_JIT=off`, `on` and `eager`; the ones that use `Map`, `Value` and hashing are `replacements`, `serial-test`, `all-base-hashes`, `hashing`, `codeops`, `binary-encoding`. Known failure: `serial-test-03` under `eager` fails with "reflectValue: cannot prepare value for serialization: black hole", serializing a value that holds a continuation captured by a non-affine handler (`shift`); `on` and `off` pass it.
 
+`run.compiled`: `unison-src/tests/jit-compiled.md` compiles a program (`jit-compiled.uc`, written to the current directory) whose loop matches on a type of its own; run the file with `unison run.compiled jit-compiled.uc` under `UNISON_JIT=eager UNISON_JIT_LOG=1` and expect the compile lines and `666668416667500000`. The CI `jit` job does this on every platform. The `.uc` format carries the data types' constructor arities since 2026-10-18 and a file is tied to the exact ucm version anyway, so compile and run with the same binary.
+
 A test run can go on a copy of the transcript in another directory, which lets several run at once; when several start at the same moment one can fail at once with an error about `unison.sqlite3-wal` or `credentials.json.lock` (the codebase copy racing another run's), so run that one again.
 
 #### The codebase

@@ -10,7 +10,7 @@ The JIT is experimental. It is off unless asked for, and when it is on and somet
 unison --jit on
 ```
 
-or, equivalently, `UNISON_JIT=on unison`. The flag overrides the variable. The setting applies to everything that `unison` process evaluates through the codebase: `run`, transcripts, and evaluation from the editor. Compiled programs (`run.compiled`) are loaded by a separate path that doesn't give their definitions native code cells, so the JIT does nothing for them yet.
+or, equivalently, `UNISON_JIT=on unison`. The flag overrides the variable. The setting applies to everything that `unison` process evaluates: `run`, transcripts, evaluation from the editor, and compiled programs (`run.compiled`, since 2026-10-18; the program is compiled by the process that runs it, not by `compile`, so the setting is the running process's).
 
 | Mode | What it does |
 | --- | --- |
