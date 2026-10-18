@@ -30,7 +30,7 @@ or, if it can't, the reason, for example `no LLVM 20 or newer found; the JIT is 
 
 **An LLVM shared library, version 20 or newer.** Nothing is linked at build time; `unison` loads `libLLVM` with `dlopen` when the JIT is turned on ([`jit_llvm.c`](../../../../cbits/jit_llvm.c)). The whole of LLVM isn't needed, only the one library (`libLLVM.dylib` on macOS, `libLLVM.so` on Linux), which the packages below provide. Development uses LLVM 23; 20 is the oldest accepted because it is the oldest tested (the CI smoke test installs it).
 
-**A platform the runtime supports.** The CPU must be arm64 or x86-64. The JIT is built and tested on macOS (Apple silicon and Intel) and on Linux (x86-64 and arm64, Ubuntu 24.04 with gcc and the `llvm-20-dev` package); CI runs the smoke test on all four (2026-10-18). Windows is not supported yet: the runtime still loads LLVM with `dlopen` and looks for it in Unix places.
+**A platform the runtime supports.** The CPU must be arm64 or x86-64. The JIT is built and tested on macOS (Apple silicon and Intel), Linux (x86-64 and arm64, Ubuntu 24.04 with gcc and the `llvm-20-dev` package) and Windows (x86-64, with the LLVM release's `LLVM-C.dll`); CI runs the smoke test on all five (2026-10-18). On Windows `UNISON_JIT_DISABLE=irhelpers` is ignored (the C copies of those helpers return their result differently from generated code there), and a tail call between compiled functions can use C stack where the arguments don't fit a sibling call, which the C stack guard bounds, so very deep mutual tail recursion runs partly interpreted there.
 
 ### Installing LLVM
 
@@ -40,7 +40,7 @@ or, if it can't, the reason, for example `no LLVM 20 or newer found; the JIT is 
 | macOS, MacPorts | `sudo port install llvm-20` | `/opt/local/libexec/llvm-N/lib`, newest first |
 | Debian, Ubuntu | `apt install llvm-20-dev` (or the [apt.llvm.org](https://apt.llvm.org) packages for a newer one; the `-dev` package is what provides the unversioned `libLLVM.so` link the lookup wants) | `/usr/lib/llvm-N/lib/libLLVM.so`, newest first, then the system library directories |
 | Other Linux | the distribution's `llvm` or `llvm-libs` package | `/usr/lib64`, `/usr/lib`, `/usr/local/lib` and the multiarch directories, the first `libLLVM*.so` found |
-| Windows | the [LLVM release installer](https://github.com/llvm/llvm-project/releases) or `choco install llvm` (untested beyond CI's smoke test) | `LLVM-C.dll` on the loader's search path, then `C:\Program Files\LLVM\bin\LLVM-C.dll` (the C API is in `LLVM-C.dll` there, not in a `libLLVM`) |
+| Windows | the [LLVM release installer](https://github.com/llvm/llvm-project/releases) or `choco install llvm` | `LLVM-C.dll` on the loader's search path, then `C:\Program Files\LLVM\bin\LLVM-C.dll` (the C API is in `LLVM-C.dll` there, not in a `libLLVM`) |
 | Anything else | | `UNISON_LLVM_LIB=/path/to/libLLVM.so` |
 
 The lookup order, in full: `UNISON_LLVM_LIB` if set (and only that; a path there that isn't a usable LLVM is an error, not a fallback), then the dynamic loader's own search path (`DYLD_LIBRARY_PATH`, `LD_LIBRARY_PATH`, the system defaults), then the directories in the table. When several versions are installed the newest is taken; set `UNISON_LLVM_LIB` to choose. `UNISON_JIT_LOG=1` prints the version and path that was loaded.

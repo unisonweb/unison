@@ -22,9 +22,9 @@ on:
         type: boolean
         default: false
       jit-os:
-        description: JSON array of OSes for the JIT smoke test (needs an LLVM package; grows as platforms are ported)
+        description: JSON array of OSes for the JIT smoke test (needs an LLVM package)
         type: string
-        default: '["ubuntu-24.04","ubuntu-24.04-arm","macos-15-intel","macos-15"]'
+        default: '["ubuntu-24.04","ubuntu-24.04-arm","macos-15-intel","macos-15","windows-2025"]'
   workflow_call:
     inputs:
       ref:
@@ -47,9 +47,9 @@ on:
         type: boolean
         default: false
       jit-os:
-        description: JSON array of OSes for the JIT smoke test (needs an LLVM package; grows as platforms are ported)
+        description: JSON array of OSes for the JIT smoke test (needs an LLVM package)
         type: string
-        default: '["ubuntu-24.04","ubuntu-24.04-arm","macos-15-intel","macos-15"]'
+        default: '["ubuntu-24.04","ubuntu-24.04-arm","macos-15-intel","macos-15","windows-2025"]'
 
 defaults:
   run:
