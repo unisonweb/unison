@@ -1256,6 +1256,19 @@ makesCalls = \case
   NMatch _ _ br -> anyArm makesCalls br
   _ -> False
 
+-- | Whether the code makes a call in tail position (which on Windows may
+-- use C stack, see 'workerTail').
+makesTailCalls :: MSection -> Bool
+makesTailCalls = \case
+  Call {} -> True
+  App {} -> True
+  Let b _ _ body _ -> makesTailCalls b || makesTailCalls body
+  Ins _ rest -> makesTailCalls rest
+  Match _ br -> anyArm makesTailCalls br
+  DMatch _ _ br -> anyArm makesTailCalls br
+  NMatch _ _ br -> anyArm makesTailCalls br
+  _ -> False
+
 anyInstr :: (GInstr (RComb Val) -> Bool) -> MSection -> Bool
 anyInstr p = go
   where
@@ -1782,9 +1795,11 @@ genHead fe body = do
   -- A worker that makes calls checks the C stack here, once, instead of
   -- before each call. If the budget for native calls is used up, it goes
   -- back to the trampoline (its callers unwinding as for any exit) and is
-  -- entered again at the bottom of the C stack.
+  -- entered again at the bottom of the C stack. On Windows a tail call can
+  -- be an ordinary call ('workerTail'), so a worker that makes tail calls
+  -- checks too.
   stop <-
-    if feWorker fe && makesCalls body
+    if feWorker fe && (makesCalls body || (os == "mingw32" && makesTailCalls body))
       then do
         csp <- fresh "csp"
         emit (csp <> " = call ptr @llvm.stacksave.p0()")
