@@ -37,6 +37,11 @@ for line in sys.stdin:
     line = line.replace("[2 x i64]", "{ i64, i64 }")
     # visibility words that only matter to a static linker
     line = re.sub(r"\b(dso_local|local_unnamed_addr|unnamed_addr) ", "", line)
+    # a private constant's alignment: x86-64 clang aligns arrays of 16 bytes
+    # or more to 16, arm64 clang to 8; either is fine for a constant only
+    # read by value, so the arm64 spelling is the canonical one
+    if line.startswith("@") and " private constant " in line:
+        line = re.sub(r", align 16$", ", align 8", line)
     out.append(line)
 
 # collapse runs of blank lines left by the removals
