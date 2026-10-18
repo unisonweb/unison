@@ -124,6 +124,12 @@ for row in "${matrix[@]}"; do
   else
     printf '%-14s %-6s %ss  %s  (log: %s)\n' "$name" FAIL "$secs" "$note" "$log"
     failed=$((failed + 1))
+    # in CI the log is all there is to go on: print its end
+    if [ -n "${CI:-}" ]; then
+      echo "---- last lines of $log"
+      grep -v 'Processing stanza' "$log" | tail -n 40
+      echo "----"
+    fi
   fi
 done
 echo

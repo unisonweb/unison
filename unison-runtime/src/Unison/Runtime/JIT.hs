@@ -24,6 +24,7 @@ import System.Timeout (timeout)
 import GHC.Clock (getMonotonicTimeNSec)
 import Data.Map.Strict qualified as Map
 import Data.List (sortOn)
+import System.Info (os)
 import qualified Data.Text as T
 import Data.Word (Word64)
 import System.IO.Unsafe (unsafePerformIO)
@@ -194,8 +195,15 @@ initJIT' = do
               -- written as IR (cbits/jit_helpers.ll), whose definitions
               -- shadow the C copies for generated code; with irhelpers
               -- disabled the C copies are defined instead.
+              -- (On Windows the C copies can't stand in for the IR helpers:
+              -- they return their (ok, value) pair through a hidden pointer
+              -- under the Win64 convention, where generated code expects
+              -- the pair in registers, so the irhelpers switch is ignored.)
               let irDefines ir = [T.unpack (T.takeWhile (/= '(') (T.drop 1 (T.dropWhile (/= '@') rest))) | l <- T.lines ir, Just rest <- [T.stripPrefix "define " l]]
-                  irDefined = irDefines exitIR ++ (if "irhelpers" `elem` disabled config then [] else irDefines helpersIR)
+                  noIRHelpers = "irhelpers" `elem` disabled config && os /= "mingw32"
+                  irDefined = irDefines exitIR ++ (if noIRHelpers then [] else irDefines helpersIR)
+              when ("irhelpers" `elem` disabled config && not noIRHelpers) $
+                jitLog "UNISON_JIT_DISABLE=irhelpers is ignored on Windows: the C copies return the (ok, value) pair differently from generated code there"
               cHelpers <- helperAddresses >>= \hs -> sequence_ <$> traverse (uncurry defineSymbol) [h | h@(n, _) <- hs, n `notElem` irDefined]
               exits <- case cHelpers of
                 Left e -> pure (Left ("the C helpers could not be defined: " ++ e))
@@ -207,7 +215,7 @@ initJIT' = do
                         Left e -> Left ("not found after adding: " ++ e)
                         Right (_ :: FunPtr ()) -> Right ()
               helpers <-
-                if "irhelpers" `elem` disabled config || isLeft exits
+                if noIRHelpers || isLeft exits
                   then pure (Right ())
                   else timed "IR helpers" addHelpers >>= \case
                     Left e -> pure (Left ("could not be added: " ++ e))
