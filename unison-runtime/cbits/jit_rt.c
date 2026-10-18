@@ -17,6 +17,7 @@
 #if defined(_WIN32)
 #define WIN32_LEAN_AND_MEAN
 #define NOMINMAX
+#define _WIN32_WINNT 0x0602  // GetCurrentThreadStackLimits is Windows 8
 #include <windows.h>
 #else
 #include <pthread.h>
@@ -316,6 +317,19 @@ void unison_jit_configure(int64_t poll_every, int64_t callee_every, int64_t csta
   trace = trace_on;
   const char *bump = getenv("UNISON_JIT_BUMP");
   bump_alloc = !(bump != NULL && strcmp(bump, "0") == 0);
+}
+
+// memmem, which Windows' C library lacks: the first occurrence of needle
+// in hay, or NULL. An empty needle is found at the start.
+static const unsigned char *mem_find(const unsigned char *hay, StgInt hlen, const unsigned char *needle, StgInt nlen) {
+  if (nlen == 0) return hay;
+  if (nlen > hlen) return NULL;
+  for (const unsigned char *p = hay, *end = hay + hlen - nlen + 1; p < end; p++) {
+    p = memchr(p, needle[0], (size_t)(end - p));
+    if (p == NULL) return NULL;
+    if (memcmp(p, needle, (size_t)nlen) == 0) return p;
+  }
+  return NULL;
 }
 
 // ---------------------------------------------------------------------------
@@ -2895,7 +2909,7 @@ static void *rope_index_of(UnisonJitCtx *ctx, const RopeKind *K, void *needle, v
   StgInt la, lb;
   unsigned char *ha, *hb;
   const unsigned char *pa = rope_flat(K, a, &la, &ha), *pb = rope_flat(K, b, &lb, &hb);
-  const unsigned char *at = la <= lb ? memmem(pb, lb, pa, la) : NULL;
+  const unsigned char *at = la <= lb ? mem_find(pb, lb, pa, la) : NULL;
   void *res = none;
   if (at != NULL) {
     StgInt ix = 0;
