@@ -145,8 +145,14 @@ The rows below 1×:
   a fold: 16.3 ms on trunk, 17.6 interpreted on the branch, 4.1 with the JIT on.
 - `Multimap.fromList` (0.72×) and `Remote.Ref` (0.90×), the same map and call-out stories.
 
-This run is [2026-10-16 against trunk](benchmarks/2026-10-16-against-trunk.md). Earlier runs along the way, including the interpreter of this branch against its own native
-code, are in [benchmarks/](benchmarks/).
+This run is [2026-10-16 against trunk](benchmarks/2026-10-16-against-trunk.md). Since then
+the two append rows improved by 15% (text append 239 → 203 µs, bytes append 237 → 200 µs)
+from the slack-chunk change, and the rest of the suite is unchanged
+([2026-10-17](benchmarks/2026-10-17-exit-routine-as-ir.md)); a compiled program runs the
+suite at the same speed as the codebase does
+([2026-10-18](benchmarks/2026-10-18-compiled-programs.md)). Earlier runs along the way,
+including the interpreter of this branch against its own native code, are in
+[benchmarks/](benchmarks/).
 
 ## What changed in the interpreter
 
@@ -163,6 +169,9 @@ The branch also changes the interpreter, since native code reads its heap object
 - A chunk that an append made has slack: the next append to it writes in place after a
   compare-and-swap on the array's used length, instead of copying the chunk
   ([2026-10-17 slack chunks](benchmarks/2026-10-17-slack-chunks.md)).
+- Compiled programs (`run.compiled`) load through the same cell-attaching path as a codebase,
+  and the `.uc` file carries the constructor arities of the data types the program uses, which
+  the JIT needs to compile a match; a compiled file is tied to the exact ucm version as before.
 - Two interpreter bugs surfaced because every native path is checked against the
   interpreter: the sized `Int` foreign conventions tagged their results `Nat`, and
   `Universal.compare` ordered every negative float above `0.0` (bit 64 cleared instead of
@@ -170,31 +179,31 @@ The branch also changes the interpreter, since native code reads its heap object
 
 ## What the diff is made of
 
-`git diff --numstat` from the merge base with `trunk` (`66a0f5002`), 2026-10-16: 104 files,
-33,126 lines added, 835 removed, 33,961 in all. Lines below are added plus removed.
+`git diff --numstat` from the merge base with `trunk` (`cea754e16`), 2026-10-18: 114 files,
+34,563 lines added, 905 removed, 35,468 in all. Lines below are added plus removed.
 
 | Kind | Files | Lines | Share |
 | --- | --- | --- | --- |
-| C: `cbits/jit_rt.c` 3,990, `jit_helpers.c` 756, `jit_llvm.c` 494, headers 394, and the generated `jit_helpers.ll` 3,939 (the IR of `jit_helpers.c`, embedded) | 8 | 9,641 | 28% |
-| New Haskell: `Runtime/JIT.hs` and `Runtime/JIT/*.hs` | 13 | 9,174 | 27% |
-| Markdown docs: design, usage, development, builtins, ideas, this file, and the benchmark runs | 43 | 5,041 | 15% |
-| Transcripts: tests 3,704, benchmarks 413, the broad suite and the replacements suite | 5 | 4,313 | 13% |
+| C: `cbits/jit_rt.c` 4,113, `jit_helpers.c` 756, `jit_llvm.c` 562, `jit_exit.c` 83, headers 401, the generated `jit_helpers.ll` 3,939 and `jit_exit.ll` 155 (the IR of the two C files, embedded), and the scripts that generate them | 10 | 10,090 | 28% |
+| New Haskell: `Runtime/JIT.hs` and `Runtime/JIT/*.hs` | 13 | 9,266 | 26% |
+| Markdown docs: design, usage, development, builtins, ideas, this file, and the benchmark runs | 48 | 5,382 | 15% |
+| Transcripts: tests 3,710, benchmarks 413, the broad suite, the replacements suite, the compiled-program test | 6 | 4,359 | 12% |
 | `lib/unison-util-rope`: `Deque`, `Skews`, the `Rope` rework, tests and benchmarks | 10 | 3,422 | 10% |
-| Existing Haskell, modified: `Machine.hs` +498 -246, `Stack.hs` +411 -185, `MCode.hs` +373 -81, `Foreign/Function.hs` +106 -65, fourteen others under 40 lines each | 18 | 2,203 | 6% |
-| Build config, CI and `scripts/jit-test-matrix.sh` | 7 | 167 | 0% |
+| Existing Haskell, modified: `Machine.hs` +498 -246, `Stack.hs` +411 -185, `MCode.hs` +373 -81, `Bytes.hs` +117 -35, `Foreign/Function.hs` +106 -65, `Interface.hs` +94 -25, `Util/Text.hs` +91 -20 and its tests +121, nine others under 40 lines each | 18 | 2,656 | 7% |
+| Build config, CI (the `jit` job on five platforms) and `scripts/jit-test-matrix.sh` | 9 | 293 | 1% |
 
 By role, counting the new code:
 
 | Area | Where | Lines |
 | --- | --- | --- |
-| Code generation, MCode to LLVM IR | `Codegen.hs` 5,091, `Strict.hs`, `Helpers.hs` | 5,156 |
-| Native builtins: lists, ropes, the rest of Text and Bytes, arrays and refs, the hash and comparison walkers | `jit_rt.c` 3,200 of its sections, `jit_helpers.c`, `jit_internal.h`, `Native.hs` | 4,600 |
+| Code generation, MCode to LLVM IR | `Codegen.hs` 5,134, `Strict.hs`, `Helpers.hs` | 5,203 |
+| Native builtins: lists, ropes, the rest of Text and Bytes, arrays and refs, the hash and comparison walkers | `jit_rt.c` 3,200 of its sections, `jit_helpers.c`, `jit_internal.h`, `Native.hs` | 4,640 |
 | Startup checks: the closure layouts probed and every helper checked against the interpreter | `Layout.hs` | 1,521 |
-| Compile driver: what to compile and when, budgets, configuration, the LLVM shim | `JIT.hs`, `Compile.hs`, `Config.hs`, `Estimate.hs`, `LLVM.hs`, `jit_llvm.c` | 2,213 |
-| Trampoline and interpreter integration: native cells, exits, frames, the constant pool, partial applications, the handler environment | `Exits.hs`, `Frames.hs`, `Pool.hs`, `jit_rt.h`, `jit_rt.c` 800, and the modified interpreter modules | 3,500 |
+| Compile driver: what to compile and when, budgets, configuration, the LLVM shim | `JIT.hs`, `Compile.hs`, `Config.hs`, `Estimate.hs`, `LLVM.hs`, `jit_llvm.c` | 2,311 |
+| Trampoline and interpreter integration: native cells, exits, frames, the constant pool, partial applications, the handler environment, the exit routine, the stack bounds per platform | `Exits.hs`, `Frames.hs`, `Pool.hs`, `jit_rt.h`, `jit_exit.c`, `jit_rt.c` 900, and the modified interpreter modules | 4,150 |
 | Runtime data structures | `lib/unison-util-rope` | 3,422 |
-| Tests and benchmarks | the transcripts and the matrix script | 4,434 |
-| Documentation | the Markdown files | 5,041 |
+| Tests and benchmarks | the transcripts and the matrix script | 4,501 |
+| Documentation | the Markdown files | 5,382 |
 
-The compiler proper (generation, layouts, driver, trampoline) is about 12,400 lines; the native
-builtins and the data-structure rework 8,000; tests and docs 9,500.
+The compiler proper (generation, layouts, driver, trampoline) is about 13,200 lines; the native
+builtins and the data-structure rework 8,100; tests and docs 9,900.
