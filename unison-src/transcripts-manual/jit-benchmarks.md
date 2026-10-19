@@ -1,11 +1,11 @@
 # JIT benchmarks
 
-Run this against the `jit_codebase` codebase, which has the `jit-tests` project with the base
+Run this against the `jit` testing codebase (`scripts/testing-codebase.sh jit` downloads it once from unisonweb/testing-codebases and prints its directory), which has the `jit-tests` project with the base
 library and the timing helpers (`printTime`, `repeat`) from `@pchiusano/misc-benchmarks` in it.
 Use an optimized build:
 
 ```
-stack build && stack exec unison -- -C jit_codebase transcript.fork unison-src/transcripts-manual/jit-benchmarks.md
+stack build && stack exec unison -- -C "$(scripts/testing-codebase.sh jit)" transcript.fork unison-src/transcripts-manual/jit-benchmarks.md
 ```
 
 The timings are printed to the console as the transcript runs.

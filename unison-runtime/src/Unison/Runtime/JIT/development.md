@@ -15,7 +15,7 @@ stack exec --work-dir .stack-work-opt unison -- ... # run the optimized binary
 **Test**, from the repo root; the output must equal the file:
 
 ```bash
-stack exec unison -- -C jit_codebase transcript.fork unison-src/transcripts/idempotent/jit-tests.md
+stack exec unison -- transcript.fork unison-src/transcripts/idempotent/jit-tests.md
 ```
 
 Run it with `UNISON_JIT=off`, `on` and `eager` at least, and the [matrix](#the-test-matrix) before a commit that touches the generator or a helper:
@@ -27,8 +27,8 @@ scripts/jit-test-matrix.sh            # every row, fast build; --opt, --debug, -
 **Benchmark**, on the optimized build, on an idle machine, the two suites:
 
 ```bash
-stack exec --work-dir .stack-work-opt unison -- -C jit_codebase transcript.fork unison-src/transcripts-manual/jit-benchmarks.md
-stack exec --work-dir .stack-work-opt unison -- -C jit_codebase transcript.fork unison-src/transcripts-manual/jit-suite.md
+stack exec --work-dir .stack-work-opt unison -- -C "$(scripts/testing-codebase.sh jit)" transcript.fork unison-src/transcripts-manual/jit-benchmarks.md
+stack exec --work-dir .stack-work-opt unison -- -C "$(scripts/testing-codebase.sh jit)" transcript.fork unison-src/transcripts-manual/jit-suite.md
 ```
 
 Record a run as `benchmarks/<yyyy-mm-dd>-<what>.md`.
@@ -99,20 +99,20 @@ A change to `cbits/jit_rt.h` or `cbits/jit_internal.h` alone doesn't recompile `
 ### Running
 
 - [The transcripts](#the-transcripts): the four files and what each needs.
-- [The codebase](#the-codebase): `jit_codebase` and the differences between it and an empty one.
+- [The codebase](#the-codebase): the `jit` testing codebase, where it comes from, and the differences between it and an empty one.
 
 The modes (`--jit off|on|eager`), the settings and the replacements switch are described in [usage.md](usage.md#settings); every setting is an environment variable parsed in [`Config.hs`](Config.hs#:~:text=data%20Config). For tests, `eager` is deterministic and compiles code that never gets hot in a short run; `on` with `UNISON_JIT_THRESHOLD=1` is the most repeatable `on` configuration, since what plain `on` compiles depends on the compile thread racing the program.
 
 #### The transcripts
 
-All run from the repo root with `stack exec unison -- -C jit_codebase transcript.fork <file>`. `transcript.fork` runs on a throwaway copy of the codebase, so `jit_codebase` itself is never modified. Running one writes `<name>.output.md` next to it; for the idempotent one, copy the output over the `.md` when a change is intended, and don't commit stray `.output.md` files.
+All run from the repo root with `stack exec unison -- -C "$(scripts/testing-codebase.sh jit)" transcript.fork <file>` (the test transcript needs no codebase: plain `transcript.fork <file>`). `transcript.fork` runs on a throwaway copy of the codebase, so the downloaded one is never modified. Running one writes `<name>.output.md` next to it; for the idempotent one, copy the output over the `.md` when a change is intended, and don't commit stray `.output.md` files.
 
 | File | What it is | Codebase it needs |
 | --- | --- | --- |
 | `unison-src/transcripts/idempotent/jit-tests.md` | correctness tests with known answers, builtins only, prompt `scratch/main>`; the file contains its own expected output | any, including empty |
-| `unison-src/transcripts-manual/jit-benchmarks.md` | `jitSuite`, the benchmarks written for the JIT; prompt `jit-tests/main>`; timings print to the console | `jit_codebase` |
-| `unison-src/transcripts-manual/jit-suite.md` | the older, broader `suite` (lists, maps, text, JSON, abilities); the test of whether the JIT is usable on library code | `jit_codebase` |
-| `unison-src/transcripts-manual/jit-replacements.md` | `replacementSuite`, every replaced base operation at three sizes, meant to be run with `UNISON_JIT=off`, `UNISON_JIT=on UNISON_REPLACEMENTS=on` and `UNISON_JIT=on UNISON_REPLACEMENTS=off` (the `time` helper runs each row for several seconds whatever its work) | `jit_codebase` |
+| `unison-src/transcripts-manual/jit-benchmarks.md` | `jitSuite`, the benchmarks written for the JIT; prompt `jit-tests/main>`; timings print to the console | the `jit` testing codebase |
+| `unison-src/transcripts-manual/jit-suite.md` | the older, broader `suite` (lists, maps, text, JSON, abilities); the test of whether the JIT is usable on library code | the `jit` testing codebase |
+| `unison-src/transcripts-manual/jit-replacements.md` | `replacementSuite`, every replaced base operation at three sizes, meant to be run with `UNISON_JIT=off`, `UNISON_JIT=on UNISON_REPLACEMENTS=on` and `UNISON_JIT=on UNISON_REPLACEMENTS=off` (the `time` helper runs each row for several seconds whatever its work) | the `jit` testing codebase |
 
 The base library transcripts (`unison-src/transcripts-using-base/`) run through the transcript runner, `stack exec transcripts -- <prefix>`, which runs every transcript whose file name starts with the prefix with the `_base.md` prelude and checks its `.output.md`, under `UNISON_JIT=off`, `on` and `eager`; the ones that use `Map`, `Value` and hashing are `replacements`, `serial-test`, `all-base-hashes`, `hashing`, `codeops`, `binary-encoding`. Known failure: `serial-test-03` under `eager` fails with "reflectValue: cannot prepare value for serialization: black hole", serializing a value that holds a continuation captured by a non-affine handler (`shift`); `on` and `off` pass it.
 
@@ -122,9 +122,9 @@ A test run can go on a copy of the transcript in another directory, which lets s
 
 #### The codebase
 
-`jit_codebase/` (repo root) has a project `jit-tests`, branch `main`, with the `@pchiusano/misc-benchmarks` suite (`suite`, `fibsuite`, `fib1`, `time`, `printTime`, `repeat`, ...) and the libraries `unison_base_7_19_2`, `unison_json_1_3_4`, `unison_cloud_20_15_1` and `mitchellwrosen_benchmark_2_0_0`. It is on codebase schema 27; a codebase that needs migrating is migrated by opening it interactively (`UNISON_MIGRATION=auto` skips the prompt), not by `transcript.fork`.
+The `jit` testing codebase is a release of [unisonweb/testing-codebases](https://github.com/unisonweb/testing-codebases) (`jit-2026-10-19`, 17 MB gzipped). [`scripts/testing-codebase.sh jit`](../../../../../scripts/testing-codebase.sh) prints its directory, under `$TMPDIR/unison-testing-codebases/<sha256 of the archive>`, downloading and unpacking it only when that directory does not exist yet; `TESTING_CODEBASES_DIR` moves the cache. To publish a new version, pack `.unison/v2/unison.sqlite3` as a `.tar.gz`, make a release in that repository with it as the asset, and put the release name and the archive's SHA-256 in the script. It has a project `jit-tests`, branch `main`, with the `@pchiusano/misc-benchmarks` suite (`suite`, `fibsuite`, `fib1`, `time`, `printTime`, `repeat`, ...) and the libraries `unison_base_7_19_2`, `unison_json_1_3_4`, `unison_cloud_20_15_1` and `mitchellwrosen_benchmark_2_0_0`. It is on codebase schema 27; a codebase that needs migrating is migrated by opening it interactively (`UNISON_MIGRATION=auto` skips the prompt), not by `transcript.fork`.
 
-The test transcript runs in an empty codebase after `builtins.mergeio`, where the builtins keep their own names (`Nat.fromText`, not `Text.toNat`); `jit_codebase` has base, whose wrappers of the same names raise exceptions, so a stanza checked there alone can behave differently from the same stanza in the transcript. Unison gotchas met while writing the tests: with builtins only there is no `Nat.-`, `Nat.==` and so on, so the test transcript defines them in a prelude stanza followed by `update`; bare `==` and `<` resolve to the polymorphic `Universal` versions unless the file starts with `use Nat + - * / == < > <= >=`, and with `use Nat ==` in scope, `==` on anything but Nats won't resolve (write `Universal.==`); definitions in one `unison` stanza are not visible in the next unless a `ucm` stanza runs `update`; a `##`-qualified name at the end of a nested binding doesn't parse (base's `Raw` namespaces name the same builtins).
+The test transcript runs in an empty codebase after `builtins.mergeio`, where the builtins keep their own names (`Nat.fromText`, not `Text.toNat`); the testing codebase has base, whose wrappers of the same names raise exceptions, so a stanza checked there alone can behave differently from the same stanza in the transcript. Unison gotchas met while writing the tests: with builtins only there is no `Nat.-`, `Nat.==` and so on, so the test transcript defines them in a prelude stanza followed by `update`; bare `==` and `<` resolve to the polymorphic `Universal` versions unless the file starts with `use Nat + - * / == < > <= >=`, and with `use Nat ==` in scope, `==` on anything but Nats won't resolve (write `Universal.==`); definitions in one `unison` stanza are not visible in the next unless a `ucm` stanza runs `update`; a `##`-qualified name at the end of a nested binding doesn't parse (base's `Raw` namespaces name the same builtins).
 
 ### Testing
 
@@ -184,7 +184,7 @@ The interpreter is the specification: every test runs the same program with and 
 
 #### Dumps
 
-- `--jit-dump-ir DIR` (or `UNISON_JIT_DUMP_IR=DIR`) writes one `.ll` file per module into `DIR`, with the MCode of each function as a comment above its IR and a line for each combinator that wasn't compiled and why; `-` prints to stderr. Two versions of each module are written: `unison_<n>.ll` is the text handed to LLVM and `unison_<n>.opt.ll` the module after the optimization passes, which is what runs. For the arm64 assembly: `/opt/homebrew/opt/llvm/bin/llc -O2 unison_<n>.opt.ll -o out.s`. For example: `stack exec unison -- --jit eager --jit-dump-ir - -C jit_codebase transcript.fork t.md 2> t.ll`. Two dumps from different binaries differ in the info-pointer addresses baked into the IR; mask runs of ten or more digits before comparing them.
+- `--jit-dump-ir DIR` (or `UNISON_JIT_DUMP_IR=DIR`) writes one `.ll` file per module into `DIR`, with the MCode of each function as a comment above its IR and a line for each combinator that wasn't compiled and why; `-` prints to stderr. Two versions of each module are written: `unison_<n>.ll` is the text handed to LLVM and `unison_<n>.opt.ll` the module after the optimization passes, which is what runs. For the arm64 assembly: `/opt/homebrew/opt/llvm/bin/llc -O2 unison_<n>.opt.ll -o out.s`. For example: `stack exec unison -- --jit eager --jit-dump-ir - transcript.fork t.md 2> t.ll`. Two dumps from different binaries differ in the info-pointer addresses baked into the IR; mask runs of ten or more digits before comparing them.
 - `UNISON_JIT_DUMP_MCODE=1` dumps the MCode as it is loaded. To look at a site named in the statistics (`CIx ... <group> <n>`): run with `UNISON_JIT=off` and this, kill it once loading is done, and search the dump for `<group>:<n>:`.
 
 #### LLVM knobs

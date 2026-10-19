@@ -3,14 +3,14 @@
 The runtime swaps some base library definitions for Haskell at load time (the
 `functionReplacementList` in `Unison.Runtime.Foreign.Function`). Under the JIT each is a
 call-out. This transcript times every replaced operation on base's own definitions, so it can
-be run three ways against the `jit_codebase` codebase (the `jit-tests` project with base,
+be run three ways against the `jit` testing codebase (`scripts/testing-codebase.sh jit` downloads it once and prints its directory: the `jit-tests` project with base,
 `unison_json`, `printTime` and `repeat` in it), on an optimized build:
 
 ```
 UNISON_JIT=off                            # the interpreter with the replacement, today's default
 UNISON_JIT=on UNISON_REPLACEMENTS=on      # the replacement as a call-out from native code
 UNISON_JIT=on UNISON_REPLACEMENTS=off     # base's own Unison code, compiled
-stack exec --work-dir .stack-work-opt unison -- -C jit_codebase transcript.fork unison-src/transcripts-manual/jit-replacements.md
+stack exec --work-dir .stack-work-opt unison -- -C "$(scripts/testing-codebase.sh jit)" transcript.fork unison-src/transcripts-manual/jit-replacements.md
 ```
 
 Each row does 100000 operations (or builds, sorts or walks 100000 elements in all), so a time

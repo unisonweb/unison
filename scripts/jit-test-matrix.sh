@@ -13,8 +13,8 @@
 #
 # UCM=path runs that binary instead of `stack exec unison` (CI, where the
 # binary is a downloaded artifact); JIT_CODEBASE=dir names the codebase to
-# fork for each run (the default is jit_codebase when it exists, else a fresh
-# one in the temporary directory: the transcript needs only builtins).
+# fork for each run (the default is a fresh one in the temporary directory: the
+# transcript needs only builtins).
 #
 # Each run gets its own copy of the transcript in a temporary directory, so the
 # checked-in file is never touched and no .output.md is left behind. Runs are
@@ -39,7 +39,7 @@ for a in "$@"; do
 done
 
 transcript=unison-src/transcripts/idempotent/jit-tests.md
-codebase=${JIT_CODEBASE:-jit_codebase}
+codebase=${JIT_CODEBASE:-}
 combo="callee=2,cstack=4096,poll=5,ustack=4,alloc=64,pool=8"
 costs="UNISON_JIT_EXIT_COST=0 UNISON_JIT_ENTRY_COST=0"
 
