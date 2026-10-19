@@ -5,6 +5,7 @@ module U.Core.ABT where
 import Control.Lens (Lens', use, (.=))
 import Control.Monad.State
 import Data.Foldable qualified as Foldable
+import Data.Map qualified as Map
 import Data.Set qualified as Set
 import Debug.RecoverRTTI qualified as RTTI
 import U.Core.ABT.Var (Var (freshIn))
@@ -232,13 +233,57 @@ unabs t = ([], t)
 freshInBoth :: (Var v) => Term f v a -> Term f v a -> v -> v
 freshInBoth t1 t2 = freshIn $ Set.union (freeVars t1) (freeVars t2)
 
+-- | Apply ordered substitutions, inheriting the annotation at each occurrence.
+-- Later substitutions are first composed into earlier replacements where
+-- needed, then the original body is traversed once with a capture-avoiding
+-- simultaneous substitution.
 substsInheritAnnotation ::
   (Foldable f, Functor f, Var v) =>
   [(v, Term f v b)] ->
   Term f v a ->
   Term f v a
 substsInheritAnnotation replacements body =
-  foldr (uncurry substInheritAnnotation) body (reverse replacements)
+  substitute substitutions substitutionKeys replacementFvs body
+  where
+    -- A replacement can mention a variable substituted later. Normalize each
+    -- replacement by applying that suffix first, preserving the old sequential
+    -- semantics while leaving independent (and especially closed) replacements
+    -- untouched. The original term is then traversed only once.
+    substitutions = Map.fromList (reverse (normalize [] Set.empty [] (reverse replacements)))
+    substitutionKeys = Map.keysSet substitutions
+    replacementFvs = Set.unions (freeVars <$> Map.elems substitutions)
+
+    normalize _ _ normalized [] = normalized
+    normalize later laterKeys normalized ((v, replacement) : earlier) =
+      let replacement' =
+            if Set.null (Set.intersection laterKeys (freeVars replacement))
+              then replacement
+              else applySequential later replacement
+       in normalize
+            ((v, replacement) : later)
+            (Set.insert v laterKeys)
+            ((v, replacement') : normalized)
+            earlier
+
+    applySequential later term =
+      foldr (uncurry substInheritAnnotation) term (reverse later)
+
+    substitute env keys replacementFreeVariables term@(Term fvs ann node)
+      | Set.null keys || Set.null (Set.intersection keys fvs) = term
+      | otherwise = case node of
+          Var v -> case Map.lookup v env of
+            Just replacement -> const ann <$> replacement
+            Nothing -> term
+          Cycle recursive -> cycle ann (substitute env keys replacementFreeVariables recursive)
+          Abs v scoped ->
+            let env' = Map.delete v env
+                keys' = Set.delete v keys
+                captures = Set.member v replacementFreeVariables
+                  && not (Set.null (Set.intersection keys' (freeVars scoped)))
+                v' = if captures then freshIn (freeVars scoped `Set.union` replacementFreeVariables) v else v
+                scoped' = if captures then rename v v' scoped else scoped
+             in abs ann v' (substitute env' keys' replacementFreeVariables scoped')
+          Tm children -> tm ann (fmap (substitute env keys replacementFreeVariables) children)
 
 -- Like `subst`, but the annotation of the replacement is inherited from
 -- the previous annotation at each replacement point.
