@@ -15,8 +15,8 @@ import Control.Concurrent (forkOn, getNumCapabilities, myThreadId, threadCapabil
 import Control.Concurrent.STM (TBQueue, atomically, isFullTBQueue, newTBQueueIO, readTBQueue, readTVarIO, writeTBQueue)
 import Control.Exception (SomeException, evaluate, try)
 import Control.Monad (foldM, forM, forM_, unless, void, when)
-import Data.Either (isLeft)
-import Data.Functor ((<&>))
+import Control.Monad.IO.Class (liftIO)
+import Control.Monad.Trans.Except (ExceptT (..), runExceptT, throwE, withExceptT)
 import Data.IORef
 import Data.List (sortOn)
 import Data.Map.Strict qualified as Map
@@ -133,112 +133,84 @@ initJIT =
       pure r
 
 initJIT' :: IO (Either [String] String)
-initJIT' = do
-  let timed what io = do
-        t0 <- getMonotonicTimeNSec
-        x <- io
-        t1 <- getMonotonicTimeNSec
-        x <$ jitLog (what ++ ": " ++ show (fromIntegral (t1 - t0) / 1e6 :: Double) ++ " ms")
-  r <- initLLVM
-  case r of
-    Left (NotFound tried) ->
-      pure (Left (("JIT compilation needs LLVM version >= " ++ show minLLVM ++ ", searched these locations:") : map ("  " ++) tried))
-    Left (InitError e) -> pure (Left [e ++ "; the JIT is off"])
-    Right (version, path) -> do
-      layouts <-
-        probeLayouts >>= \case
-          Left e -> pure (Left e)
-          -- the list helpers are part of the generated code's contract too
-          Right ls ->
-            timed "list helper checks" (probeLists ls (stressLists config)) >>= \case
-              Left e -> pure (Left e)
-              Right () ->
-                -- bytes before texts: the text checks build bytes too (toUtf8)
-                timed "bytes helper checks" (probeBytes ls (stressBytes config)) >>= \case
-                  Left e -> pure (Left e)
-                  Right () ->
-                    timed "text helper checks" (probeTexts ls (stressTexts config)) >>= \case
-                      Left e -> pure (Left e)
-                      Right () ->
-                        probeArrays ls >>= \case
-                          Left e -> pure (Left e)
-                          Right () ->
-                            probeMurmur ls >>= \case
-                              Left e -> pure (Left e)
-                              Right () ->
-                                probeCompare ls >>= \case
-                                  Left e -> pure (Left e)
-                                  Right () ->
-                                    probeEnv >>= \case
-                                      Left e -> pure (Left e)
-                                      Right () ->
-                                        probeRecords ls >>= \case
-                                          Left e -> pure (Left e)
-                                          Right () -> fmap (const ls) <$> probeNames ls
-      (offs, _) <- ctxLayout
-      case (layouts, offs) of
-        (Left e, _) -> pure (Left [e ++ "; the JIT is off"])
-        (Right ls, [a, b, c, d, e, f, g, h, i, j, k, l, m, n, o, p, q, r, s, t, u, v, w]) -> do
-          configureNative (stressPoll config) (stressCallee config) (stressCStack config) (stressAlloc config) (trace config)
-          facts <- rtsFacts
-          case facts of
-            -- the allocator's address isn't needed: generated code calls
-            -- unison_jit_alloc_words by name, and the JIT resolves it from the process
-            [arrWordsInfo, arrPtrsInfo, bytesHdr, bytesCount, ptrsHdr, ptrsCount, ptrsSize, cardBits, _allocator, mutVarVar, _barrier, arrPtrsDirtyInfo] -> do
-              let rts = RtsFacts arrWordsInfo arrPtrsInfo bytesHdr bytesCount ptrsHdr ptrsCount ptrsSize cardBits mutVarVar arrPtrsDirtyInfo
-              -- The C helpers' addresses go in first, as absolute symbols,
-              -- so that nothing is looked up in the process's own symbol
-              -- table (Linux doesn't expose an executable's symbols to
-              -- dlsym without -rdynamic, Windows not at all). The names the
-              -- IR modules define themselves are left to them: the exit
-              -- routine (cbits/jit_exit.ll), which goes in whatever the
-              -- switches say since every exit calls it, and the helpers
-              -- written as IR (cbits/jit_helpers.ll), whose definitions
-              -- shadow the C copies for generated code; with irhelpers
-              -- disabled the C copies are defined instead.
-              -- (On Windows the C copies can't stand in for the IR helpers:
-              -- they return their (ok, value) pair through a hidden pointer
-              -- under the Win64 convention, where generated code expects
-              -- the pair in registers, so the irhelpers switch is ignored.)
-              let irDefines ir = [T.unpack (T.takeWhile (/= '(') (T.drop 1 (T.dropWhile (/= '@') rest))) | l <- T.lines ir, Just rest <- [T.stripPrefix "define " l]]
-                  noIRHelpers = "irhelpers" `elem` disabled config && os /= "mingw32"
-                  irDefined = irDefines exitIR ++ (if noIRHelpers then [] else irDefines helpersIR)
-              when ("irhelpers" `elem` disabled config && not noIRHelpers) $
-                jitLog "UNISON_JIT_DISABLE=irhelpers is ignored on Windows: the C copies return the (ok, value) pair differently from generated code there"
-              cHelpers <- helperAddresses >>= \hs -> sequence_ <$> traverse (uncurry defineSymbol) [h | h@(n, _) <- hs, n `notElem` irDefined]
-              exits <- case cHelpers of
-                Left e -> pure (Left ("the C helpers could not be defined: " ++ e))
-                Right () ->
-                  timed "exit routine" (addModule False (passes config) exitIR) >>= \case
-                    Left e -> pure (Left ("could not be added: " ++ e))
-                    Right _ ->
-                      lookupSymbol "unison_jit_exit_frame" <&> \case
-                        Left e -> Left ("not found after adding: " ++ e)
-                        Right (_ :: FunPtr ()) -> Right ()
-              helpers <-
-                if noIRHelpers || isLeft exits
-                  then pure (Right ())
-                  else
-                    timed "IR helpers" addHelpers >>= \case
-                      Left e -> pure (Left ("could not be added: " ++ e))
-                      Right _ ->
-                        -- the module's definition must be the one generated code
-                        -- gets, not the C copy the process also has
-                        timed "IR helpers compiled" ((,) <$> lookupSymbol "unison_jit_murmur" <*> lookupSymbol "unison_jit_ucmp") <&> \case
-                          (Left e, _) -> Left ("not found after adding: " ++ e)
-                          (_, Left e) -> Left ("not found after adding: " ++ e)
-                          (Right p, Right q)
-                            | castFunPtrToPtr p == castFunPtrToPtr murmurCAddress || castFunPtrToPtr q == castFunPtrToPtr ucmpCAddress -> Left "did not shadow the C copies"
-                            | otherwise -> Right ()
-              case (exits, helpers) of
-                (Left e, _) -> pure (Left ["the exit routine (cbits/jit_exit.ll) " ++ e ++ "; the JIT is off"])
-                (_, Left e) -> pure (Left ["the IR helpers (cbits/jit_helpers.ll) " ++ e ++ "; the JIT is off"])
-                (Right (), Right ()) -> do
-                  writeIORef jitState (Just (JITState ls (CtxOffsets a b c d e f g h i j k l m n o p q r s t u v w) rts))
-                  triple <- targetTriple
-                  pure (Right ("mode " ++ show (mode config) ++ ", LLVM " ++ version ++ " from " ++ path ++ ", target " ++ triple))
-            _ -> pure (Left ["unexpected runtime facts; the JIT is off"])
-        _ -> pure (Left ["unexpected Ctx layout; the JIT is off"])
+initJIT' = runExceptT $ do
+  (version, path) <-
+    withExceptT
+      ( \case
+          NotFound tried -> ("JIT compilation needs LLVM version >= " ++ show minLLVM ++ ", searched these locations:") : map ("  " ++) tried
+          InitError e -> [e ++ "; the JIT is off"]
+      )
+      (ExceptT initLLVM)
+  -- The closure layouts, and every helper checked against the interpreter:
+  -- the list helpers are part of the generated code's contract too, and
+  -- bytes go before texts because the text checks build bytes (toUtf8).
+  ls <- off $ do
+    ls <- ExceptT probeLayouts
+    timed "list helper checks" (ExceptT (probeLists ls (stressLists config)))
+    timed "bytes helper checks" (ExceptT (probeBytes ls (stressBytes config)))
+    timed "text helper checks" (ExceptT (probeTexts ls (stressTexts config)))
+    ExceptT (probeArrays ls)
+    ExceptT (probeMurmur ls)
+    ExceptT (probeCompare ls)
+    ExceptT probeEnv
+    ExceptT (probeRecords ls)
+    ExceptT (probeNames ls)
+    pure ls
+  ctx <-
+    liftIO ctxLayout >>= \case
+      ([a, b, c, d, e, f, g, h, i, j, k, l, m, n, o, p, q, r, s, t, u, v, w], _) -> pure (CtxOffsets a b c d e f g h i j k l m n o p q r s t u v w)
+      _ -> throwE ["unexpected Ctx layout; the JIT is off"]
+  liftIO (configureNative (stressPoll config) (stressCallee config) (stressCStack config) (stressAlloc config) (trace config))
+  rts <-
+    liftIO rtsFacts >>= \case
+      -- the allocator's address isn't needed: generated code calls
+      -- unison_jit_alloc_words by name, and the JIT resolves it from the process
+      [arrWordsInfo, arrPtrsInfo, bytesHdr, bytesCount, ptrsHdr, ptrsCount, ptrsSize, cardBits, _allocator, mutVarVar, _barrier, arrPtrsDirtyInfo] ->
+        pure (RtsFacts arrWordsInfo arrPtrsInfo bytesHdr bytesCount ptrsHdr ptrsCount ptrsSize cardBits mutVarVar arrPtrsDirtyInfo)
+      _ -> throwE ["unexpected runtime facts; the JIT is off"]
+  -- The C helpers' addresses go in first, as absolute symbols, so that
+  -- nothing is looked up in the process's own symbol table (Linux doesn't
+  -- expose an executable's symbols to dlsym without -rdynamic, Windows not
+  -- at all). The names the IR modules define themselves are left to them:
+  -- the exit routine (cbits/jit_exit.ll), which goes in whatever the
+  -- switches say since every exit calls it, and the helpers written as IR
+  -- (cbits/jit_helpers.ll), whose definitions shadow the C copies for
+  -- generated code; with irhelpers disabled the C copies are defined
+  -- instead.
+  -- (On Windows the C copies can't stand in for the IR helpers: they
+  -- return their (ok, value) pair through a hidden pointer under the Win64
+  -- convention, where generated code expects the pair in registers, so the
+  -- irhelpers switch is ignored.)
+  let irDefines ir = [T.unpack (T.takeWhile (/= '(') (T.drop 1 (T.dropWhile (/= '@') rest))) | l <- T.lines ir, Just rest <- [T.stripPrefix "define " l]]
+      noIRHelpers = "irhelpers" `elem` disabled config && os /= "mingw32"
+      irDefined = irDefines exitIR ++ (if noIRHelpers then [] else irDefines helpersIR)
+  when ("irhelpers" `elem` disabled config && not noIRHelpers) $
+    liftIO (jitLog "UNISON_JIT_DISABLE=irhelpers is ignored on Windows: the C copies return the (ok, value) pair differently from generated code there")
+  cHelpers <- liftIO helperAddresses
+  withExceptT (\e -> ["the C helpers could not be defined: " ++ e ++ "; the JIT is off"]) $
+    forM_ [h | h@(n, _) <- cHelpers, n `notElem` irDefined] (ExceptT . uncurry defineSymbol)
+  withExceptT (\e -> ["the exit routine (cbits/jit_exit.ll) " ++ e ++ "; the JIT is off"]) $ do
+    withExceptT ("could not be added: " ++) (void (timed "exit routine" (ExceptT (addModule False (passes config) exitIR))))
+    withExceptT ("not found after adding: " ++) (void (ExceptT (lookupSymbol "unison_jit_exit_frame") :: ExceptT String IO (FunPtr ())))
+  unless noIRHelpers $
+    withExceptT (\e -> ["the IR helpers (cbits/jit_helpers.ll) " ++ e ++ "; the JIT is off"]) $ do
+      withExceptT ("could not be added: " ++) (timed "IR helpers" (ExceptT addHelpers))
+      -- the module's definition must be the one generated code gets, not
+      -- the C copy the process also has
+      (p, q) <- withExceptT ("not found after adding: " ++) (timed "IR helpers compiled" ((,) <$> ExceptT (lookupSymbol "unison_jit_murmur") <*> ExceptT (lookupSymbol "unison_jit_ucmp")))
+      when (castFunPtrToPtr p == castFunPtrToPtr murmurCAddress || castFunPtrToPtr q == castFunPtrToPtr ucmpCAddress) $
+        throwE "did not shadow the C copies"
+  liftIO (writeIORef jitState (Just (JITState ls ctx rts)))
+  triple <- liftIO targetTriple
+  pure ("mode " ++ show (mode config) ++ ", LLVM " ++ version ++ " from " ++ path ++ ", target " ++ triple)
+  where
+    off = withExceptT (\e -> [e ++ "; the JIT is off"])
+    timed :: String -> ExceptT e IO a -> ExceptT e IO a
+    timed what act = do
+      t0 <- liftIO getMonotonicTimeNSec
+      x <- act
+      t1 <- liftIO getMonotonicTimeNSec
+      x <$ liftIO (jitLog (what ++ ": " ++ show (fromIntegral (t1 - t0) / 1e6 :: Double) ++ " ms"))
 
 -- | Adds the IR helpers' module, after defining the names of the runtime's
 -- tables it refers to ("The IR helpers" in design.md).
