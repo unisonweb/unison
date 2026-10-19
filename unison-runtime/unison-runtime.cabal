@@ -79,6 +79,7 @@ library
       Unison.Runtime.JIT.Layout
       Unison.Runtime.JIT.LLVM
       Unison.Runtime.JIT.Native
+      Unison.Runtime.JIT.Native.Probes
       Unison.Runtime.JIT.Pool
       Unison.Runtime.JIT.Strict
       Unison.Runtime.Machine

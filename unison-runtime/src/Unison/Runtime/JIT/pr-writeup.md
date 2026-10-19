@@ -199,7 +199,7 @@ By role, counting the new code:
 | --- | --- | --- |
 | Code generation, MCode to LLVM IR | `Codegen.hs` 5,134, `Strict.hs`, `Helpers.hs` | 5,203 |
 | Native builtins: lists, ropes, the rest of Text and Bytes, arrays and refs, the hash and comparison walkers | `jit_rt.c` 3,200 of its sections, `jit_helpers.c`, `jit_internal.h`, `Native.hs` | 4,640 |
-| Startup checks: the closure layouts probed and every helper checked against the interpreter | `Layout.hs` | 1,521 |
+| Startup checks: the closure layouts probed and every helper checked against the interpreter | `Layout.hs`, `Native/Probes.hs` | 1,521 |
 | Compile driver: what to compile and when, budgets, configuration, the LLVM shim | `JIT.hs`, `Compile.hs`, `Config.hs`, `Estimate.hs`, `LLVM.hs`, `jit_llvm.c` | 2,311 |
 | Trampoline and interpreter integration: native cells, exits, frames, the constant pool, partial applications, the handler environment, the exit routine, the stack bounds per platform | `Exits.hs`, `Frames.hs`, `Pool.hs`, `jit_rt.h`, `jit_exit.c`, `jit_rt.c` 900, and the modified interpreter modules | 4,150 |
 | Runtime data structures | `lib/unison-util-rope` | 3,422 |

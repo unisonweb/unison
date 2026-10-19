@@ -15,7 +15,7 @@ stack exec --work-dir .stack-work-opt unison -- ... # run the optimized binary
 **Test**, from the repo root; the output must equal the file:
 
 ```bash
-stack exec unison -- transcript.fork unison-src/transcripts/idempotent/jit-tests.md
+stack exec unison -- -C "$(scripts/testing-codebase.sh jit)" transcript.fork unison-src/transcripts/idempotent/jit-tests.md
 ```
 
 Run it with `UNISON_JIT=off`, `on` and `eager` at least, and the [matrix](#the-test-matrix) before a commit that touches the generator or a helper:
@@ -105,7 +105,7 @@ The modes (`--jit off|on|eager`), the settings and the replacements switch are d
 
 #### The transcripts
 
-All run from the repo root with `stack exec unison -- -C "$(scripts/testing-codebase.sh jit)" transcript.fork <file>` (the test transcript needs no codebase: plain `transcript.fork <file>`). `transcript.fork` runs on a throwaway copy of the codebase, so the downloaded one is never modified. Running one writes `<name>.output.md` next to it; for the idempotent one, copy the output over the `.md` when a change is intended, and don't commit stray `.output.md` files.
+All run from the repo root with `stack exec unison -- -C "$(scripts/testing-codebase.sh jit)" transcript.fork <file>` (the test transcript needs only builtins, so any up-to-date codebase does for it; without `-C` the home codebase is forked, which fails if that one is waiting to be migrated). `transcript.fork` runs on a throwaway copy of the codebase, so the downloaded one is never modified. Running one writes `<name>.output.md` next to it; for the idempotent one, copy the output over the `.md` when a change is intended, and don't commit stray `.output.md` files.
 
 | File | What it is | Codebase it needs |
 | --- | --- | --- |

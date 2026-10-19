@@ -47,7 +47,7 @@ import Unison.Reference (Reference)
 import Unison.Runtime.ANF (PackedTag (..))
 import Unison.Runtime.ANF qualified as ANF
 import Unison.Runtime.ANF.MurmurHash.Untyped (hash64ValueUntyped)
-import Unison.Runtime.JIT.Native (arrayInit, bytesCheck, bytesInit, bytesTest, closureInit, cmpInit, cmpTest, envInit, listCheck, listInit, listTest, murmurInit, murmurTest, nameTest, probeClosure, recordInit, textCheck, textInit, textTest)
+import Unison.Runtime.JIT.Native.Probes (arrayInit, bytesCheck, bytesInit, bytesTest, closureInit, cmpInit, cmpTest, envInit, listCheck, listInit, listTest, murmurInit, murmurTest, nameTest, probeClosure, recordInit, textCheck, textInit, textTest)
 import Unison.Runtime.JIT.Strict (Pair (..))
 import Unison.Runtime.MCode (CombIx (..), FieldRef (..), GCombInfo (..), GSection (..), RecordShape (..), mkRecordShape, noNativeCell)
 import Unison.Runtime.Referenced (Referenced (Plain))
