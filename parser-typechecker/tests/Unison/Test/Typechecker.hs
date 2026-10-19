@@ -3,7 +3,9 @@
 module Unison.Test.Typechecker where
 
 import EasyTest
+import Unison.Result (pattern Result)
 import Unison.Symbol (Symbol (..))
+import Unison.Test.Common qualified as Common
 import Unison.Type qualified as Type
 import Unison.Typechecker qualified as Typechecker
 import Unison.Var qualified as Var
@@ -12,7 +14,12 @@ test :: Test ()
 test =
   scope "typechecker" $
     tests
-      [ scope "isSubtype" isSubtypeTest
+      [ scope "isSubtype" isSubtypeTest,
+        scope "type-directed resolution batches repeated overloaded operators" $
+          case Common.parseAndSynthesizeAsFile [] "> tdnr-batch"
+            (unlines ["f : Int -> Int", "f x = x + 1 + 2 + 3"]) of
+            Result _ (Just _) -> ok
+            Result notes _ -> crash ("TDNR failed to resolve a repeated overloaded operator: " ++ show notes)
       ]
 
 isSubtypeTest :: Test ()
