@@ -101,3 +101,5 @@ The format for this list: name, GitHub handle
 * Taylor Fausak (@tfausak)
 * Gabriel Anderson (@andgate)
 * Alistair Roche (@aroche-p)
+
+* Derek Ferguson (@JavaDerek)
