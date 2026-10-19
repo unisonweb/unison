@@ -9,27 +9,21 @@ change would be and roughly what it would buy; when one is done it leaves this f
 
 ### Static enums
 
-With the data layout of 2026-10-15 an `Enum` is three words that never change; like GHC's
+Right now, an `Enum` / nullary constructor is three words that never change; like GHC's
 own nullary constructors, one per (type, constructor) could be shared instead of allocated
-at every `Pack`. The pool already holds one per `Pack … ZArgs` site for native code; the
-interpreter's `buildData` would read a per-cache table of them. Worth measuring on a
-program that builds many `None`s and `Nil`s.
+at every `Pack`. The constant pool already holds one per `Pack … ZArgs` site for native code; the
+interpreter's `buildData` would read a per-cache table of them.
 
-### Dropping the reference pointer from data closures
+### Faster pattern matching
 
-The packed tag carries the type number, so the reference field is redundant: one word and
-one traced pointer per value. It stays because `compareClosure`'s different-types path
-(inside `Any`) orders by reference, and that path is reached from `Data.Map`'s own calls on
-the replaced map through the `Ord Val` instance, which can't take a lookup function. A map
-parameterized by a comparison would free it (`data-layout-plan.local.md`).
+Right now, pattern matching has to do two levels of matching, first, to determine
+which arity constructor it is, and then to branch on that constructor's tag. We could
+either: 
 
-### The kinds that stay foreign
+* Switch back to the generic DataN representation for everything, which lets you skip the first level of matching to determine if it's a `Data1`, `Data2`, etc, then still needing to match on the constructor number. This has the downside that it uses more memory per closure since you have to store two arrays, boxed and unboxed, for the constructor's arguments. And copying an array is a bit slower than manually copying a couple words. Though I don't know that we have benchmarks showing this exact combination.
+* Have more `Closure` constructors, one for each (constructor number, arity) combination (perhaps z-ordered or using hilbert curve?), so that both the interpreter and native code can gain information about both with a single match. 
 
-Texts and lists became closure constructors of their own on 2026-10-15 and bytes on
-2026-10-16 (`GBytes`, at tag 7: a bytes primitive still reads the info table). `Map`
-(`Foreign (WrapMap …)`, matched by `dataBranch`) is a separate decision. The info-pointer
-compare in the native checks for the kinds that stay foreign (arrays, refs, pointers)
-could also go if those kinds took tags below 7, which nothing asks for yet.
+If it helps, I don't think we need more than 16 bits for the constructor arity or for the constructor number. 
 
 ### One allocation for several `Pack`s
 
@@ -38,6 +32,53 @@ allocation. The batch boundary is the next instruction that can exit (a `DIVN`, 
 call), since an exit between two `Pack`s would leave the later objects unwritten in the
 nursery. Worth less since allocation became an inline bump: batching now saves only a compare
 and a branch per object.
+
+### The Unison stack as a linked list of chunks
+
+`ustk` and `bstk` are single arrays, so growing the stack is a reallocation and a copy of
+everything below `sp`, and native code pays for each growth with an unwind of every native
+frame. GHC's own threads haven't had a copying stack since 7.2: a linked list of fixed-size
+chunks, an overflow links a new one in with the top kilobyte copied across for slack, growth
+is O(1). The same shape for the Unison stack would make growth cheap for the interpreter and
+remove the unwind for native code, since a function whose frame doesn't fit could keep
+running in a new chunk. What it costs: slot addressing assumes a contiguous frame, so a frame
+would have to live in one chunk (the maximum frame size is known, so an entry check can
+guarantee it), and everything that walks the stack across frames (`Capture`, `saveFrame`'s
+copies, continuations, the GC marking in `unison_jit_enter`, the C helpers reading argument
+slots) would follow chunk links. A sizeable interpreter change.
+
+### Wide stack slots
+
+Idea is to store arity <= K data constructors unboxed on the stack. K=1 or 2. 
+So if you write a function that returns an `Optional Nat`, there's no allocation
+that happens, even without inlining.
+
+If K=1, then each stack slot becomes 2 words wide. First word is the constructor tag,
+second word is the constructor argument, similar to now. This second word will
+go unused very often, but that might be fine.
+
+If K=2, then each stack slot becomes 3 words wide, etc.
+
+### Escape analysis + scalar replacement
+
+This needs some research. Just doing escape analysis alone seems like less of a win
+than you'd think. Like if you just convert heap allocation to stack allocation, that
+doesn't matter and can even be slower, since allocation is bumping a pointer and 
+GC doesn't traverse garbage in the youngest generation.
+
+But if combined with other optimizations, you can start doing interesting stuff. 
+
+The thing I don't like about it is it's sensitive to inlining, which makes it
+somewhat fragile (compared to the wide stack slots idea, which is robust and
+easy to think about).
+
+### Dropping the reference pointer from data closures
+
+The packed tag carries the type number, so the reference field is redundant: one word and
+one traced pointer per value. It stays because `compareClosure`'s different-types path
+(inside `Any`) orders by reference, and that path is reached from `Data.Map`'s own calls on
+the replaced map through the `Ord Val` instance, which can't take a lookup function. A map
+parameterized by a comparison would free it (`data-layout-plan.local.md`).
 
 ### Caching compiled code across runs
 
@@ -92,7 +133,9 @@ what the compile thread allocates, and that allocation is shared with the runnin
 cut it. Not for the parse: that is about 1% of a module's compile time
 ([2026-10-09 O0](benchmarks/2026-10-09-o0.md)).
 
-### Leftovers in the calling conventions
+TODO: is this still relevant?
+
+### Ideas for calling convention improvements
 
 - Re-entry functions pass everything through the Unison stack. One that is hot (a loop that
   exits every iteration re-enters every iteration) could get a worker-like body.
@@ -109,21 +152,6 @@ cut it. Not for the parse: that is about 1% of a module's compile time
 - A leaner entry for leaf functions, for the ones the "too small to enter" verdict keeps
   interpreted today.
 
-### Which combinator's count means hot
-
-Any combinator of a group reaching the threshold compiles the group, including a local loop
-inside a function called once; a batch member is judged by its entry combinator only. Neither
-rule has been argued for against the other.
-
-### Deterministic compile decisions
-
-`on` mode has two timing regimes on the suite: the same build, run twice, gives either
-`Decode Nat` 157 ns, `Map.lookup` 194 ns, `List.foldLeft` 1.28 ms or 180 ns, 212 ns, 1.20 ms,
-with the same exit and entry counts. What gets compiled depends on timing (batches, and
-verdicts reached through a cycle), so the likely cause is a function compiled in one run and
-not the other, or a neighbour already native or not when its batch forms. Both regimes are
-within the criterion; a deterministic choice would be better than either.
-
 ### Partial applications of function values
 
 A partial application is built natively when the function is known at code generation. A
@@ -133,15 +161,16 @@ the closure-call code needs a second continuation that joins the body with the n
 instead of a call's result. The helper already handles closures with captured arguments.
 Also: more than four arguments at once.
 
-### No thunks on the boxed stack
+### Ensure no thunks on the boxed stack
 
-The preferred fix for the untagged-pointer hazard (see the internals, "Untagged
-pointers"): make the interpreter guarantee that a boxed stack slot only ever holds an
+Make the interpreter guarantee that a boxed stack slot only ever holds an
 evaluated, tagged pointer, instead of native code checking the tag on every store into a
-strict field. The hazard funnels through `bpoke`, `bpokeOff` and `poke` in `Stack.hs`, and
-the one source found is a top-level constant poked as itself (`writeBack stk Nothing = bpoke
-stk noneClo`): the address of a static closure is untagged forever, so it appears on every
-store of such a constant. The fix is `evaluate` in `bpoke` and friends, storing the result
+strict field. See `bpoke`, `bpokeOff` and `poke` in `Stack.hs`. A thunk causes
+an exit from native code, since native code won't evaluate Haskell thunks.
+
+There were a couple places where the interpreter was missing an evaluation (fixed now), 
+but also Haskell CAFs remain as untagged pointers, and Haskell let-floating optimizations can produce
+CAFs when you don't expect them. A fix is `evaluate` in `bpoke` and friends, storing the result
 rather than the pointer handed in (for a CAF, the indirectee), or making such constants
 genuinely static literals; either way, grep the `bpoke` call sites for other `Closure`
 constants stored directly.
@@ -171,6 +200,17 @@ rules accumulate there without each being threaded through `Codegen.hs`. Later
 candidates for the same pass: constant folding of arithmetic on literals, `Text` appends of
 literals, `List` literals of constants as pool values. With a real `MLit` case the
 interpreter benefits too.
+
+### Worker-wrapper optimizations
+
+Standard optimizations to avoid having to repeatedly construct and deconstruct,
+especially during loops.
+
+If you have a function that pattern matches and is called recursively, have
+a separate worker for each constructor. The worker takes an unboxed sum, and
+the caller doesn't bother allocating a full data type and pattern matching, 
+it just calls the correct worker with an unboxed sum. Works for any number
+of constructors, and the workers can be inlined or not.
 
 ### The rope
 
@@ -210,7 +250,7 @@ Any change has to be made in the C helpers too (`UNISON_JIT_STRESS=lists=N`).
 
 ### `handle` itself
 
-Low priority (decided 2026-10-11): `Reset` runs once per evaluation of a `handle`, affine or
+Lower priority: `Reset` runs once per evaluation of a `handle`, affine or
 not, and only shows when the `handle` itself is in a hot loop; the ceiling is a few hundred
 nanoseconds per iteration. `Reset` with an affine handler needs a `MutVar#`, an `Affine` closure and an extended partial
 application (allocations of known layouts), an insert into `aenv` (building `IntMap` nodes
@@ -221,18 +261,10 @@ per request. `Discard` (abort cases, caught exceptions) is a non-local exit and 
 
 ### Open measurements
 
-- Text-keyed `Map.lookup` at 10 keys measured 108 ns on 2026-10-11 (one run) and 128 ns
-  on every binary of 2026-10-15, reproducibly: seven samples on three of the day's binaries
-  agree within 5%, and the row's parts are 47 ns of `Nat.toText` and about 94 ns of the
-  lookup itself, unchanged across the day
-  ([2026-10-15-text-list.md](benchmarks/2026-10-15-text-list.md)). The text comparison is
-  not the slow part. Whether the 10-11 figure was real or a lucky run is undecided and not
-  worth a build of that commit.
 - `Map.intersect` and `Map.==` are 10 times faster as call-outs to the Haskell `Map` than
   native (15 against 190 ns, 28 against 300), and `fromList` of sorted input twice as fast;
   the family is tagged as one. Tagging per function would need the two representations to
   convert at the boundary, which is what the family tag avoids.
-
 - Private copies on a program where a hot loop calls small library functions from other
   definitions, which is where they should show; the suite's steady-state rows didn't move
   ([2026-10-04](benchmarks/2026-10-04-private-copies-and-reentry-batches.md)).
@@ -277,32 +309,7 @@ frames of a small function; deeper recursion bounces through the interpreter eve
 frames. Switching to a large malloc'd stack in `unison_jit_enter` would make that many times
 rarer. Cheap to try; needs care with signal handlers and anything that inspects the stack.
 
-### The Unison stack as a linked list of chunks
-
-`ustk` and `bstk` are single arrays, so growing the stack is a reallocation and a copy of
-everything below `sp`, and native code pays for each growth with an unwind of every native
-frame. GHC's own threads haven't had a copying stack since 7.2: a linked list of fixed-size
-chunks, an overflow links a new one in with the top kilobyte copied across for slack, growth
-is O(1). The same shape for the Unison stack would make growth cheap for the interpreter and
-remove the unwind for native code, since a function whose frame doesn't fit could keep
-running in a new chunk. What it costs: slot addressing assumes a contiguous frame, so a frame
-would have to live in one chunk (the maximum frame size is known, so an entry check can
-guarantee it), and everything that walks the stack across frames (`Capture`, `saveFrame`'s
-copies, continuations, the GC marking in `unison_jit_enter`, the C helpers reading argument
-slots) would follow chunk links. A sizeable interpreter change.
-
-### Release work
-
-Set aside so that the work so far could be about performance; a project of its own. Done by
-2026-10-18: the five platforms (macOS, Linux and Windows on arm64 and x86-64, each with a CI
-smoke test), the exit routine as IR so that any C compiler builds the runtime, compiled
-programs through the JIT, and the user documentation ([usage.md](usage.md)). Still open:
-bundling LLVM with a release or linking it statically (today the user installs it and
-`unison` loads it at run time); the default mode, which Paul decided on 2026-10-18 stays
-`off` for now; more native builtins as call-out statistics from real programs show them to
-matter, with [builtins.md](builtins.md) the checklist of what each missing one waits on.
-
-### The text append row is bimodal
+### Oddity: text append performance is bimodal
 
 `Text: append "hi" 10000 times` in `jit-benchmarks.md` gives either about 50 µs or 200 to
 250 µs from one run to the next, on the optimized build with `--jit on`, from the codebase

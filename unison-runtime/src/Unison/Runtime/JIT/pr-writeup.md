@@ -1,28 +1,12 @@
 # Unison's JIT compiler
 
-The `jit` branch adds an LLVM-based JIT to the Unison runtime. Functions that get hot are
-compiled to native code and run there; anything the JIT doesn't handle runs on the
-interpreter as before, with the same results. Nothing in the language, the serialized form of
-code and values, or `Universal.compare` changes. The design is in
-[design.md](design.md): an overview in Part 1, then each mechanism in Part 2 with links into
-the code.
+This PR adds an LLVM-based JIT to the Unison runtime, enabled with `ucm --jit on` (or the environment variable `UNISON_JIT=on`). It is up to ~ 200x faster than the interpreter for toy programs (a simple arithmetic loop where all the data fits in registers) and more typical code is often 5-10x faster. More numbers below. Nothing in the language semantics is changed by this PR, and the serialized form of code stays the same.
 
-## Using it
+The big idea behind the design is to allow for partial compilation--a native-compiled function can exit back to the interpreter at any point in its execution. This allows the JIT to be useful immediately rather than requiring it to cover the entirety of the Unison language on day 1. Read more in [design.md](design.md).
 
-```bash
-unison --jit on
-```
+The PR is quite big, however the interesting parts of the code are under 10k lines. Beyond that, there are lots of docs, benchmarks and C implementations of various Unison builtins. See the detailed breakdown below. I used Claude + Fable 5.1 for the implementation, notes on my methodology at the end.
 
-or `UNISON_JIT=on`; the default is off. It needs LLVM 20 or newer installed as a shared
-library (Homebrew's `llvm` on macOS, `llvm-20-dev` on Ubuntu, the LLVM release on Windows;
-the full table is in [usage.md](usage.md#installing-llvm)); ucm loads it at startup and prints
-`JIT compilation activated ⚡🚀`, or the reason it couldn't and runs everything interpreted.
-`--jit eager` compiles every definition as it loads, for testing. The settings, what to
-expect and the troubleshooting are in [usage.md](usage.md). It applies to compiled programs
-(`run.compiled`) as well as to a codebase. Built and tested on macOS (Apple silicon and
-Intel), Linux (x86-64 and arm64) and Windows, each with a CI smoke test.
-
-## Highlights
+## Performance highlights
 
 - **Loops, arithmetic and calls run 10 to 200× faster** than trunk: counting to a million
   66.5 ms → 319 µs, Collatz steps 116×, `fib 20` 38×, float arithmetic 30×.
@@ -36,17 +20,28 @@ Intel), Linux (x86-64 and arm64) and Windows, each with a CI smoke test.
   cloud library's `Remote.Ref`. Those rows are at 1×. A few rows are below 1×, explained
   under the tables.
 
+## Using it
+
+```bash
+unison --jit on
+```
+
+or set the environment variable `UNISON_JIT=on`; the default is off. It needs LLVM 20 or newer installed as a shared
+library (Homebrew's `llvm` on macOS, `llvm-20-dev` on Ubuntu, the LLVM release on Windows;
+the full table is in [usage.md](usage.md#installing-llvm)); ucm loads it at startup and prints
+`JIT compilation activated ⚡🚀`, or the reason it couldn't and runs everything interpreted.
+`--jit eager` compiles every definition as it loads, for testing. The settings, what to
+expect and the troubleshooting are in [usage.md](usage.md). It applies to compiled programs
+(`run.compiled`) as well as to a codebase. Built and tested on macOS (Apple silicon and
+Intel), Linux (x86-64 and arm64) and Windows, each with a CI smoke test.
+
 ## Performance against trunk
 
-Measured 2026-10-16 on one Mac (macOS arm64), both binaries optimized `stack build`s: trunk
-at `66a0f5002` (plus the schema-27 migration commit of unisonweb/unison#6307, so that it can
-open the benchmark codebase; it doesn't touch the runtime) against `jit` at `b5cbbe098` with
-`--jit on`. Improvement is what to multiply trunk's throughput by. The JIT's own suite
-(`unison-src/transcripts-manual/jit-benchmarks.md`) was run twice and the second round is
-shown; the rounds agree within 3%. The broad suite (`jit-suite.md`, the
-`@pchiusano/misc-benchmarks` suite) was run once per binary.
+Improvement column is what to multiply trunk to get the JIT's times.
 
 ### The JIT's suite
+
+See `unison-src/transcripts-manual/jit-benchmarks.md` for source. This was a custom benchmark suite built to test out different parts of the JIT:
 
 | Improvement | trunk | `--jit on` | Benchmark |
 | --- | --- | --- | --- |
@@ -84,6 +79,8 @@ shown; the rounds agree within 3%. The broad suite (`jit-suite.md`, the
 | **5.1×** | 2.4 ms | 472 µs | Bytes: decodeNat64be walk over 80000 bytes |
 
 ### The broad suite
+
+See `jit-suite.md`, the `@pchiusano/misc-benchmarks` suite.
 
 | Improvement | trunk | `--jit on` | Benchmark |
 | --- | --- | --- | --- |
@@ -156,7 +153,9 @@ including the interpreter of this branch against its own native code, are in
 
 ## What changed in the interpreter
 
-The branch also changes the interpreter, since native code reads its heap objects directly:
+The branch doesn't make any major changes to the interpreter, but there were a few things, some for performance, and some to ensure that native code wouldn't ever be given Haskell thunks. Native code now has to pattern match directly on Haskell data types, and any thunks cause it to exit back to the interpreter.
+
+Here's what changed in the interpreter:
 
 - Data constructors with up to six fields are flat closures, the first six constructors of
   `GClosure` carry GHC's pointer tags, and texts, lists and bytes are closure constructors of
@@ -165,7 +164,7 @@ The branch also changes the interpreter, since native code reads its heap object
   `lib/unison-util-rope`, with their own tests and benchmarks.
 - The dispatch types (`GSection`, `GInstr`, `Prim1`, `Prim2`, `Foreign`) are ordered by
   measured dispatch frequency, so that the hot constructors have pointer tags.
-- Structural records from trunk are native too (merged 2026-10-15).
+- Some tweaks to record type handling, spend up record access and setters.
 - A chunk that an append made has slack: the next append to it writes in place after a
   compare-and-swap on the array's used length, instead of copying the chunk
   ([2026-10-17 slack chunks](benchmarks/2026-10-17-slack-chunks.md)).
@@ -177,7 +176,9 @@ The branch also changes the interpreter, since native code reads its heap object
   `Universal.compare` ordered every negative float above `0.0` (bit 64 cleared instead of
   bit 63). Both are fixed on both sides.
 
-## What the diff is made of
+## An overview of the diff
+
+This is a big PR.
 
 `git diff --numstat` from the merge base with `trunk` (`cea754e16`), 2026-10-18: 114 files,
 34,655 lines added, 905 removed, 35,560 in all. Lines below are added plus removed.
@@ -207,3 +208,27 @@ By role, counting the new code:
 
 The compiler proper (generation, layouts, driver, trampoline) is about 13,200 lines; the native
 builtins and the data-structure rework 8,100; tests and docs 9,900.
+
+## Notes on methodology 
+
+I did design work up front, starting from the basic idea of partial compilation (credit to @dolio, @ChrisPenner and @aryairani for this idea, I'm not sure which of us first proposed it) and refining that until I thought it seemed reasonable. After that, I had my coding assistant produce an implementation plan, which led to some iteration and steering on that and further refinements on the design. Then I let the coding assistant rip. There were a few phases to the initial implementation which you can see in the commit history.
+
+After something was working, there was considerable back and forth and steering on the implementation and to do further optimizations and tweaks. My goal was to meet or exceed the interpreter across the board.
+
+Random observations:
+
+* The LLM was amazing at writing finnicky code whose requirements were clear. For instance, with a bit of design coaching, it produced a new strict finger tree type in Haskell (used by Unison `Text` and `Bytes`), then ported the implementation to C for use by native-compiled Unison code. 
+* The LLM was also great at having an encyclopedic knowledge and being relentless during debugging.
+* Less good: 
+  * Even with me approving the implementation plans in advance, there were a few weird architecture decisions that cropped up that I only discovered during review.  
+  * For ideation, the coding assistant was kind of a mixed bag. Sometimes I would use it as a thought partner and get some mileage out of that; other times I'd realize this wasn't helping that much (or it was hurting, proposing bad ideas) and I got more mileage out of going for a walk with a notebook and only circling back when I had ideas that seemed implementable. 
+  * Haskell compile times were a bottleneck during more interactive work. It doesn't accurately track dependencies, so stack recompiles everything even if you add a comment in a module that lots of things transitively depend on.
+  * It's really easy to get into "LGTM" territory, where you are tempted to just trust the output. For certain kinds of code, I think this is okay, like if code is well-specificied and tested, it is fine to "lazily evaluate" understanding it in detail. But for design or architecture decisions, if you don't understand and approve of these in detail, tech debt can start piling up. Or worse, you lack enough of an understanding of the system to steer further development effectively.
+  
+Overall, I really enjoyed the process and felt like I learned a lot about how to get more mileage out of the tools. It still feels creative and interesting to me.
+
+## What's next?
+
+There are a bunch of further optimization ideas in `optimization-ideas.md`, but I think this branch is in a decent spot for people to be able to try it out. It should be low risk since it's behind a flag and it doesn't require LLVM to be present. 
+
+Later, we can look at making the JIT the default.
