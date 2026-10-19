@@ -277,8 +277,8 @@ typeDirectedNameResolution ppe oldNotes oldType env = do
   case catMaybes resolutions of
     [] -> pure oldType
     resolutions -> do
-      substituted <- traverse substSuggestion resolutions
-      case or substituted of
+      substituted <- substSuggestions resolutions
+      case substituted of
         True -> synthesizeAndResolve ppe tdnrEnv
         False -> do
           -- The type hasn't changed
@@ -334,17 +334,52 @@ typeDirectedNameResolution ppe oldNotes oldType env = do
             [x] -> Just x
             _ -> Nothing
 
-    substSuggestion :: Resolution v loc -> TDNR f v loc Bool
-    substSuggestion (Resolution name _ loc v (extractSubstitution -> Just replacement)) = do
-      modify (substBlank name loc solved)
-      lift . btw $ Context.Decision (suggestedVar v name) loc solved
-      pure True
+    chosen :: [Resolution v loc] -> [(Text, loc, v, Term v loc)]
+    chosen resolutions =
+      [ (name, loc, v, solved)
+      | Resolution name _ loc v (extractSubstitution -> Just replacement) <- resolutions,
+        let solved = case replacement of
+              Context.ReplacementRef ref -> Term.fromReferent loc ref
+              Context.ReplacementVar var -> Term.var loc var
+      ]
+
+    -- Distinct annotations on blank leaves can be resolved in one top-down
+    -- visit: replacing one leaf cannot affect another resolution. Keep the
+    -- original sequence of visits for every other shape so overlapping or
+    -- nested annotations retain precisely their previous behavior.
+    substSuggestions :: [Resolution v loc] -> TDNR f v loc Bool
+    substSuggestions resolutions = do
+      let picks = chosen resolutions
+          byLoc = Map.fromList [(loc, (name, solved)) | (name, loc, _, solved) <- picks]
+          canBatch = Map.size byLoc == length picks
+      current <- get
+      if canBatch && not (null picks) && onlyBlankLeaves (Map.keysSet byLoc) current
+        then modify (substBlanks byLoc)
+        else for_ picks \(name, loc, _, solved) -> modify (substBlank name loc solved)
+      for_ picks \(name, loc, v, solved) ->
+        lift . btw $ Context.Decision (suggestedVar v name) loc solved
+      pure (not (null picks))
+
+    onlyBlankLeaves :: Set.Set loc -> Term v loc -> Bool
+    onlyBlankLeaves locs = go
       where
-        solved =
-          case replacement of
-            Context.ReplacementRef ref -> Term.fromReferent loc ref
-            Context.ReplacementVar var -> Term.var loc var
-    substSuggestion _ = pure False
+        go term
+          | Set.member (ABT.annotation term) locs = case term of
+              Term.Blank' (B.Recorded (B.Resolve _ _)) -> True
+              _ -> False
+          | otherwise = case ABT.out term of
+              ABT.Var _ -> True
+              ABT.Cycle body -> go body
+              ABT.Abs _ body -> go body
+              ABT.Tm children -> all go children
+
+    substBlanks :: Map.Map loc (Text, Term v loc) -> Term v loc -> Term v loc
+    substBlanks byLoc = ABT.visitPure \term -> do
+      (name, replacement) <- Map.lookup (ABT.annotation term) byLoc
+      case term of
+        Term.Blank' (B.Recorded (B.Resolve loc actualName))
+          | name == Text.pack actualName -> Just (loc <$ replacement)
+        _ -> Nothing
 
     -- Resolve a `Blank` to a term
     substBlank :: Text -> loc -> Term v loc -> Term v loc -> Term v loc
