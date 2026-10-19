@@ -1,10 +1,16 @@
 module Unison.Test.Unison (test) where
 
+import Data.Char (digitToInt)
+import Data.Functor (($>))
 import Data.Text qualified as Text
+import Data.Void (Void)
 import EasyTest
+import Text.Megaparsec qualified as P
+import Text.Megaparsec.Char qualified as PC
 import Unison.Prelude
 import Unison.Syntax.HashQualifiedPrime qualified as HQ' (unsafeParseText)
 import Unison.Syntax.Lexer.Unison
+import Unison.Syntax.Parser qualified as Parser
 import Unison.Util.Bytes qualified as Bytes
 
 test :: Test ()
@@ -269,8 +275,31 @@ test =
       -- Invalid bytes with underscores
       tError "0xs01_",
       tError "0xs01__ef",
-      tError "0xs_01"
+      tError "0xs_01",
+      chainl1AccumTest
     ]
+
+chainl1AccumTest :: Test ()
+chainl1AccumTest = scope "chainl1Accum" $ do
+  let parse source = P.parse (chainl1AccumParser <* P.eof) "chainl1Accum test" source
+      small = parse "9-3-2"
+      wideSource = Text.intercalate "-" (replicate 10001 "1")
+      wide = parse wideSource
+  case small of
+    Right (9, operators) -> do
+      ensure (map ($ 8) operators == [-5, -6])
+      case wide of
+        Right (1, wideOperators) -> ensure (length wideOperators == 10000)
+        Left err -> crash (P.errorBundlePretty err)
+    Right result -> crash ("unexpected chainl1Accum result: " ++ show (fst result))
+    Left err -> crash (P.errorBundlePretty err)
+  where
+    ensure True = ok
+    ensure False = crash "chainl1Accum changed operator order or lost operators"
+
+chainl1AccumParser :: P.Parsec Void Text.Text (Int, [Int -> Int])
+chainl1AccumParser =
+  Parser.chainl1Accum (digitToInt <$> PC.digitChar) (PC.char '-' $> (-))
 
 t :: String -> [Lexeme] -> Test ()
 t s expected = case toList . preParse $ lexer filename s of
