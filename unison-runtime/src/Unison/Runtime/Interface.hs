@@ -82,7 +82,7 @@ import Unison.Runtime.Decompile qualified as Decomp
 import Unison.Runtime.Exception (RuntimeExn (BU, PE), die)
 import Unison.Runtime.Foreign.Function (functionUnreplacements)
 import Unison.Runtime.InternalError (CompileExn (CE))
-import Unison.Runtime.JIT (jitCompileGroup, printJITStats, registerDataTypes, registerTypeNumbers, startJIT)
+import Unison.Runtime.JIT (JIT, initialNativeCount, jitCompileGroup, jitConfig, printJITStats, registerDataTypes, registerTypeNumbers, startJIT)
 import Unison.Runtime.JIT.Config qualified as JIT
 import Unison.Runtime.MCode
   ( Args (..),
@@ -194,8 +194,8 @@ cacheContext =
     $ Map.keys builtinTermNumbering
       <&> \r -> (r, Map.singleton 0 (Tm.ref () r))
 
-baseContext :: Bool -> IO EvalCtx
-baseContext sandboxed = cacheContext <$> baseCCache sandboxed
+baseContext :: JIT -> Bool -> IO EvalCtx
+baseContext jit sandboxed = cacheContext <$> baseCCache jit sandboxed
 
 resolveTermRef ::
   CodeLookup Symbol IO () ->
@@ -216,7 +216,7 @@ allocType ::
 allocType _ b@(RF.Builtin _) _ =
   die [] $ "Unknown builtin type reference: " ++ show b
 allocType ctx r cons = do
-  registerDataTypes (Map.singleton r (either id id cons))
+  registerDataTypes (jit (ccache ctx)) (Map.singleton r (either id id cons))
   pure $ ctx {dspec = Map.insert r cons $ dspec ctx}
 
 recursiveDeclDeps ::
@@ -596,7 +596,8 @@ interpEval actThr cleanThr ctxVar cl ppe spec tm = do
     MiniProf -> profileEval actThr cleanThr ctxVar cl ppe Nothing tm
     FullProf file -> profileEval actThr cleanThr ctxVar cl ppe (Just file) tm
   -- nothing calls the runtime's `terminate`, so JIT statistics are printed here
-  printJITStats
+  ctx <- readIORef ctxVar
+  printJITStats (jit (ccache ctx))
   pure r
 
 -- Slightly inefficient method of encoding text. Matches the old way of
@@ -887,19 +888,20 @@ data RuntimeHost
   = OneOff
   | Persistent
 
-startRuntime :: Bool -> RuntimeHost -> Text -> IO (Runtime Symbol)
-startRuntime sandboxed runtimeHost version = do
-  startJIT
-  registerDataTypes (fmap (either id id) builtinDataSpec)
+-- The JIT is ucm's, one for every runtime it starts (see JIT.hs).
+startRuntime :: JIT -> Bool -> RuntimeHost -> Text -> IO (Runtime Symbol)
+startRuntime jit sandboxed runtimeHost version = do
+  startJIT jit
+  registerDataTypes jit (fmap (either id id) builtinDataSpec)
   -- Any is a builtin type, not a declaration: one constructor, one field
-  registerDataTypes (Map.singleton Type.anyRef [1])
-  registerTypeNumbers (EC.mapFromList [(n, r) | (r, n) <- Map.toList builtinTypeNumbering])
-  ctx <- baseContext sandboxed
+  registerDataTypes jit (Map.singleton Type.anyRef [1])
+  registerTypeNumbers jit (EC.mapFromList [(n, r) | (r, n) <- Map.toList builtinTypeNumbering])
+  ctx <- baseContext jit sandboxed
   -- in the JIT's eager mode the builtin combinators are compiled now, like
   -- everything else is when it is loaded
   builtinCombs <- readTVarIO (combs (ccache ctx))
   for_ (EC.mapToList builtinCombs) \(w, cmbs) ->
-    for_ (EC.lookup w builtinTermBackref) \r -> jitCompileGroup sandboxed r w cmbs
+    for_ (EC.lookup w builtinTermBackref) \r -> jitCompileGroup jit sandboxed r w cmbs
   ctxVar <- newIORef ctx
   (activeThreads, cleanupThreads) <- case runtimeHost of
     -- Don't bother tracking open threads when running standalone, they'll all be cleaned up
@@ -922,9 +924,9 @@ startRuntime sandboxed runtimeHost version = do
         ioTestTypes = builtinIOTestTypes External
       }
 
-withRuntime :: (MonadUnliftIO m) => Bool -> RuntimeHost -> Text -> (Runtime Symbol -> m a) -> m a
-withRuntime sandboxed runtimeHost version action =
-  UnliftIO.bracket (liftIO $ startRuntime sandboxed runtimeHost version) (liftIO . terminate) action
+withRuntime :: (MonadUnliftIO m) => JIT -> Bool -> RuntimeHost -> Text -> (Runtime Symbol -> m a) -> m a
+withRuntime jit sandboxed runtimeHost version action =
+  UnliftIO.bracket (liftIO $ startRuntime jit sandboxed runtimeHost version) (liftIO . terminate) action
 
 tryM :: IO () -> IO (Maybe Error)
 tryM =
@@ -932,25 +934,25 @@ tryM =
     . flip UnliftIO.catch (pure . pure . CompileExn)
     . fmap (const Nothing)
 
-runStandalone :: Bool -> StoredCache -> CombIx -> IO (Either Error ())
-runStandalone sandboxed sc@(SCache _ _ _ _ _ _ _ _ _ _ _ _ _ _ dspec) init = do
+runStandalone :: JIT -> Bool -> StoredCache -> CombIx -> IO (Either Error ())
+runStandalone jit sandboxed sc@(SCache _ _ _ _ _ _ _ _ _ _ _ _ _ _ dspec) init = do
   -- What startRuntime and the loader (cacheAdd) do for the JIT on the
   -- codebase path, for a compiled program. The file carries the data specs
   -- that a codebase run registers as it loads types.
-  startJIT
-  registerDataTypes (fmap (either id id) (builtinDataSpec <> dspec))
-  registerDataTypes (Map.singleton Type.anyRef [1])
-  cc <- restoreCache sandboxed sc
-  readTVarIO (tagRefs cc) >>= registerTypeNumbers
+  startJIT jit
+  registerDataTypes jit (fmap (either id id) (builtinDataSpec <> dspec))
+  registerDataTypes jit (Map.singleton Type.anyRef [1])
+  cc <- restoreCache jit sandboxed sc
+  readTVarIO (tagRefs cc) >>= registerTypeNumbers jit
   combRefs' <- readTVarIO (combRefs cc)
   combs' <- readTVarIO (combs cc)
-  when (JIT.dumpMCode JIT.config) $
+  when (JIT.dumpMCode (jitConfig jit)) $
     for_ (EC.mapToList combs') \(w, cmbs) ->
       for_ (EC.mapToList cmbs) \(i, c) -> JIT.jitDump (prettyComb w i c "")
   for_ (EC.mapToList combs') \(w, cmbs) ->
-    for_ (EC.lookup w combRefs') \r -> jitCompileGroup sandboxed r w cmbs
+    for_ (EC.lookup w combRefs') \r -> jitCompileGroup jit sandboxed r w cmbs
   r <- executeMainComb init cc
-  printJITStats
+  printJITStats jit
   pure r
 
 -- | A version of the Code Cache designed to be serialized to disk as
@@ -1041,8 +1043,8 @@ debugTextFormat fancy =
   where
     render = if fancy then toANSI else toPlain
 
-restoreCache :: Bool -> StoredCache -> IO (CCache ())
-restoreCache sandboxed (SCache cs crs cacheableCombs opt trs ftm fty frs int rtm rty recSchemas sbs rfm _) = do
+restoreCache :: JIT -> Bool -> StoredCache -> IO (CCache ())
+restoreCache jit sandboxed (SCache cs crs cacheableCombs opt trs ftm fty frs int rtm rty recSchemas sbs rfm _) = do
   -- Every combinator gets a native code cell, as it would loading from a
   -- codebase (see JIT/design.md, "Where cells live"); without one the JIT
   -- never compiles it. The cells come from the cache's pool, which keeps
@@ -1051,7 +1053,7 @@ restoreCache sandboxed (SCache cs crs cacheableCombs opt trs ftm fty frs int rtm
         srcCombs
           & sanitizeCombsOfForeignFuncs sandboxed sandboxedForeignFuncs
       (cellCount, _) = attachNativeCells nullPtr uncelled
-  pool0 <- newNativeCellPool (cellCount + initialNativeCells)
+  pool0 <- newNativeCellPool (initialNativeCount jit) (cellCount + initialNativeCells)
   (cells, pool) <- case takeNativeCells cellCount pool0 of
     Just taken -> pure taken
     Nothing -> die [] "restoreCache: the native cell pool is too small"
@@ -1077,6 +1079,7 @@ restoreCache sandboxed (SCache cs crs cacheableCombs opt trs ftm fty frs int rtm
       <*> newTVarIO (sbs <> baseSandboxInfo)
       <*> newTVarIO newRFM
       <*> newTVarIO pool
+      <*> pure jit
   let (unresolvedCacheableCombs, unresolvedNonCacheableCombs) =
         unresolvedCombs
           & EC.mapToList

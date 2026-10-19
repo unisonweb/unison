@@ -37,7 +37,6 @@ module Unison.Runtime.MCode
     bumpNativeCount,
     readNativeCount,
     writeNativeCount,
-    initialNativeCount,
     claimNativeCell,
     releaseNativeCell,
     takeNativeCell,
@@ -153,7 +152,6 @@ import Unison.Runtime.ANF
 import Unison.Runtime.ANF qualified as ANF
 import Unison.Runtime.Foreign.Function.Type (ForeignFunc (..), foreignFuncBuiltinName)
 import Unison.Runtime.InternalError (internalBug)
-import Unison.Runtime.JIT.Config qualified as JIT
 import Unison.Util.BiMap (BiMap)
 import Unison.Util.BiMap qualified as BiMap
 import Unison.Util.Bytes (Bytes)
@@ -1004,13 +1002,6 @@ readNativeVerdict cell = peekByteOff cell 24
 writeNativeVerdict :: Ptr NativeCell -> Int -> IO ()
 writeNativeVerdict cell v = pokeByteOff cell 24 v
 
--- | The count a combinator's cell starts with: minus the threshold in the
--- JIT's @on@ mode, zero (never hot) otherwise.
-initialNativeCount :: Int
-initialNativeCount = case JIT.mode JIT.config of
-  JIT.On -> negate (JIT.threshold JIT.config)
-  _ -> 0
-
 -- | Allocates zeroed cells for @n@ combinators, as one block that is
 -- never freed.
 newNativeCells :: Int -> IO (Ptr NativeCell)
@@ -1034,8 +1025,11 @@ noNativeCell = unsafePerformIO (newNativeCells 1)
 -- are never freed.
 data NativeCellPool = NativeCellPool !(Ptr NativeCell) !Int !Int -- block, used, capacity
 
-newNativeCellPool :: Int -> IO NativeCellPool
-newNativeCellPool capacity = do
+-- The first argument is the count every cell starts with: minus the
+-- threshold in the JIT's @on@ mode, zero (never hot) otherwise
+-- (JIT.initialNativeCount).
+newNativeCellPool :: Int -> Int -> IO NativeCellPool
+newNativeCellPool initialNativeCount capacity = do
   block <- newNativeCells capacity
   when (initialNativeCount /= 0) $
     forM_ [0 .. capacity - 1] $
@@ -1050,8 +1044,8 @@ takeNativeCells n (NativeCellPool block used capacity)
 
 -- | A fresh block with room for at least @n@ cells, and at least twice
 -- the old capacity so that growing stays rare.
-growNativeCellPool :: Int -> NativeCellPool -> IO NativeCellPool
-growNativeCellPool n (NativeCellPool _ _ capacity) = newNativeCellPool (max n (2 * capacity))
+growNativeCellPool :: Int -> Int -> NativeCellPool -> IO NativeCellPool
+growNativeCellPool initialNativeCount n (NativeCellPool _ _ capacity) = newNativeCellPool initialNativeCount (max n (2 * capacity))
 
 -- | Gives every combinator in a group of freshly loaded code its own
 -- cell from @base@, numbering them in order. Returns the count used.

@@ -414,3 +414,13 @@ leaves (pushes 7% slower, pops 20 to 45%, `sum` and `toList` 60 to 70%),
 [2026-10-02](benchmarks/2026-10-02-deque-vs-data-sequence.md). The structure the Deque
 replaced (worst-case O(1) pushes and pops, twice the code, slower on every operation) was
 deleted; it is in the branch's history (commits of 2026-10-02).
+
+## A module that fails to parse: `%xargs` undefined
+
+In an eager run of `jit-tests.md` one module (`unison_720`, a single function)
+is rejected by LLVM's parser: `use of undefined value '%xargs'`. The function
+is left interpreted, so nothing is wrong with the results, and the same message
+appears in the Windows CI logs from 2026-10-18, so it is older than the
+2026-10-19 refactoring. The exit block names the argument alloca, which
+`entryBlock` only emits when `maxExitArgs > 0`, so some site's exit arguments
+are not counted in `maxExitArgs`. Find which, and count them.

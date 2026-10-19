@@ -1,23 +1,21 @@
--- | Settings for the JIT, read once from the environment.
--- The mode also has a command-line option, @--jit@, which overrides the
--- variable. How to use these is in development.md next to this module.
+-- | Settings for the JIT, read from the environment by 'readConfig' when ucm
+-- starts, and carried in the JIT handle from then on (see JIT.hs). The mode
+-- also has a command-line option, @--jit@, which overrides the variable.
+-- How to use these is in development.md next to this module.
 module Unison.Runtime.JIT.Config
   ( Mode (..),
     Replacements (..),
     ReplacementUse (..),
     Config (..),
+    replacements,
     replacementActive,
-    config,
+    readConfig,
     jitLog,
     jitDump,
-    outputHook,
-    noteOutput,
   )
 where
 
-import Control.Monad (join, when)
 import Data.Char (toLower)
-import Data.IORef (IORef, newIORef, readIORef)
 import Data.List (stripPrefix)
 import Data.Maybe (fromMaybe, mapMaybe)
 import System.Environment (lookupEnv)
@@ -52,22 +50,34 @@ data Replacements
 data ReplacementUse = Always | InterpreterOnly
   deriving (Show, Eq)
 
+-- | Which replacements apply, read from the environment once. This is the
+-- one setting that is not carried in the JIT handle: it decides how a
+-- @Map@ value is represented, which the value decoder (Stack.hs) and the
+-- foreign function table (Foreign.Function) have to agree on, and neither
+-- has a handle in reach. It is a property of the process, so a single
+-- read is right; @UNISON_REPLACEMENTS@ overrides it, otherwise it follows
+-- @UNISON_JIT@.
+replacements :: Replacements
+replacements = unsafePerformIO $ do
+  mode <- lookupEnv "UNISON_JIT"
+  repl <- lookupEnv "UNISON_REPLACEMENTS"
+  pure $ case (map toLower <$> repl, map toLower (fromMaybe "off" mode)) of
+    (Just "on", _) -> AllReplacements
+    (Just "off", _) -> NoReplacements
+    (_, "on") -> TaggedReplacements
+    (_, "eager") -> TaggedReplacements
+    _ -> AllReplacements
+{-# NOINLINE replacements #-}
+
 -- | Whether an entry with this tag is applied under the current settings.
 replacementActive :: ReplacementUse -> Bool
-replacementActive use = case replacements config of
+replacementActive use = case replacements of
   AllReplacements -> True
   NoReplacements -> False
   TaggedReplacements -> use == Always
 
 data Config = Config
   { mode :: Mode,
-    -- | which Haskell replacements of base definitions are applied: all of
-    -- them when the JIT is off, the ones tagged 'Always' when it is on
-    -- (native code beats the others as call-outs at the sizes programs
-    -- commonly use; the measurements are in
-    -- benchmarks/2026-10-11-replacements.md), @UNISON_REPLACEMENTS=on@ for
-    -- all of them, @=off@ for none
-    replacements :: Replacements,
     -- | with 'On': interpreted calls before a definition is compiled
     -- (@UNISON_JIT_THRESHOLD@)
     threshold :: Int,
@@ -173,10 +183,11 @@ data Config = Config
   }
   deriving (Show)
 
-config :: Config
-config = unsafePerformIO $ do
+-- | Reads the settings from the environment. Called once, by ucm at
+-- startup, after the @--jit@ options have been put in the environment.
+readConfig :: IO Config
+readConfig = do
   mode <- lookupEnv "UNISON_JIT"
-  repl <- lookupEnv "UNISON_REPLACEMENTS"
   logging <- lookupEnv "UNISON_JIT_LOG"
   dump <- lookupEnv "UNISON_JIT_DUMP_IR"
   stats <- lookupEnv "UNISON_JIT_STATS"
@@ -202,12 +213,6 @@ config = unsafePerformIO $ do
           "eager" -> Eager
           "on" -> On
           _ -> Off,
-        replacements = case (map toLower <$> repl, map toLower (fromMaybe "off" mode)) of
-          (Just "on", _) -> AllReplacements
-          (Just "off", _) -> NoReplacements
-          (_, "on") -> TaggedReplacements
-          (_, "eager") -> TaggedReplacements
-          _ -> AllReplacements,
         threshold = max 1 (fromMaybe 100 (thresh >>= readMaybe)),
         batch = max 1 (fromMaybe 32 (batchSize >>= readMaybe)),
         batchGate = max 1 (fromMaybe (max 1 (fromMaybe 100 (thresh >>= readMaybe)) `div` 4) (gate >>= readMaybe)),
@@ -243,25 +248,15 @@ config = unsafePerformIO $ do
       (a, _ : rest) -> a : splitOn c rest
     listToMaybe' [] = Nothing
     listToMaybe' (x : _) = Just x
-{-# NOINLINE config #-}
 
-jitLog :: String -> IO ()
-jitLog msg
+jitLog :: Config -> String -> IO ()
+jitLog config msg
   | logging config = hPutStrLn stderr ("[jit] " ++ msg)
   | otherwise = pure ()
 
 -- | Writes diagnostic text to stderr, unconditionally.
 jitDump :: String -> IO ()
 jitDump msg = hPutStrLn stderr msg >> hFlush stderr
-
--- | What 'noteOutput' runs; set by the JIT when it starts.
-outputHook :: IORef (IO ())
-outputHook = unsafePerformIO (newIORef (pure ()))
-{-# NOINLINE outputHook #-}
-
--- | Called by the runtime after the program has written to a handle.
-noteOutput :: IO ()
-noteOutput = when (statsEach config) (join (readIORef outputHook))
 
 -- | The pass pipeline, in LLVM's syntax. @default<O2>@ with the parts our
 -- code can't use left out: it is the same shape (function simplification,

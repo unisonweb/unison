@@ -1,11 +1,13 @@
 {-# LANGUAGE MagicHash #-}
 {-# LANGUAGE UnboxedTuples #-}
 
--- | The global exits table. Native code returns an index into it to say
+-- | The exits table, one per JIT (which is one per process, see JIT.hs). Native code returns an index into it to say
 -- what the interpreter should do next. See unison-runtime/src/Unison/Runtime/JIT/design.md.
 module Unison.Runtime.JIT.Exits
   ( Exit (..),
     ExitIndex,
+    Exits,
+    newExits,
     registerExits,
     replaceExits,
     lookupExit,
@@ -26,10 +28,8 @@ import Data.Primitive.SmallArray (SmallMutableArray, copySmallMutableArray, getS
 import Foreign.Ptr (Ptr, WordPtr, ptrToWordPtr)
 import GHC.Exts (Int (..), RealWorld, fetchAddIntArray#)
 import GHC.IO (IO (..))
-import System.IO.Unsafe (unsafePerformIO)
-import Unison.Runtime.JIT.Config (config, stats)
 import Unison.Runtime.MCode (CombIx, NativeCell)
-import Unison.Runtime.Machine.Types (MInstr, MSection)
+import Unison.Runtime.Stack (MInstr, MSection)
 
 data Exit
   = -- | interpret from this section of this combinator
@@ -59,18 +59,33 @@ type ExitIndex = Int
 -- every index it can be handed there.
 data Table = Table !Int !(SmallMutableArray RealWorld Exit) -- next index, exits
 
-table :: IORef Table
-table = unsafePerformIO (newIORef . Table 1 =<< newSmallArray 1024 unknown)
-{-# NOINLINE table #-}
+-- | The table, the exit counters, and the entry counts (by code address)
+-- with the names of the functions entered.
+data Exits = Exits
+  { exTable :: !(IORef Table),
+    exCounters :: !(MutablePrimArray RealWorld Int),
+    exEntries :: !(IORef (M.Map WordPtr Int)),
+    exEntryNames :: !(IORef (M.Map WordPtr String))
+  }
+
+-- | An empty table. With statistics on, the counters have a slot per exit
+-- index (up to 'counterSlots'); otherwise one, since nothing counts.
+newExits :: Bool -> IO Exits
+newExits stats = do
+  t <- newIORef . Table 1 =<< newSmallArray 1024 unknown
+  let n = if stats then counterSlots else 1
+  arr <- newPrimArray n
+  setPrimArray arr 0 n 0
+  Exits t arr <$> newIORef M.empty <*> newIORef M.empty
 
 unknown :: Exit
 unknown = error "JIT: unknown exit index"
 
 -- | Adds a module's exits and returns the index of the first one. The
 -- rest follow consecutively, in the order given.
-registerExits :: [Exit] -> IO ExitIndex
-registerExits exits = do
-  Table next arr <- readIORef table
+registerExits :: Exits -> [Exit] -> IO ExitIndex
+registerExits ex exits = do
+  Table next arr <- readIORef (exTable ex)
   size <- getSizeofSmallMutableArray arr
   let n = length exits
   arr' <-
@@ -81,20 +96,20 @@ registerExits exits = do
         copySmallMutableArray bigger 0 arr 0 next
         pure bigger
   forM_ (zip [next ..] exits) $ \(i, e) -> writeSmallArray arr' i $! e
-  writeIORef table (Table (next + n) arr')
+  writeIORef (exTable ex) (Table (next + n) arr')
   pure next
 
 -- | Overwrites exits registered earlier, starting at the given index: the
 -- second code generation pass produces the final ones (with the cells of
 -- the auxiliary functions), the first only their number.
-replaceExits :: ExitIndex -> [Exit] -> IO ()
-replaceExits base exits = do
-  Table _ arr <- readIORef table
+replaceExits :: Exits -> ExitIndex -> [Exit] -> IO ()
+replaceExits ex base exits = do
+  Table _ arr <- readIORef (exTable ex)
   forM_ (zip [base ..] exits) $ \(i, e) -> writeSmallArray arr i $! e
 
-lookupExit :: ExitIndex -> IO Exit
-lookupExit i = do
-  Table _ arr <- readIORef table
+lookupExit :: Exits -> ExitIndex -> IO Exit
+lookupExit ex i = do
+  Table _ arr <- readIORef (exTable ex)
   readSmallArray arr i
 {-# INLINE lookupExit #-}
 
@@ -102,35 +117,27 @@ lookupExit i = do
 -- exit index, with the total in slot 0. Fixed in size so that counting is
 -- one atomic add; exits past the end are counted together in the last
 -- slot. Only allocated when statistics are on.
-counters :: MutablePrimArray RealWorld Int
-counters = unsafePerformIO $ do
-  let n = if stats config then counterSlots else 1
-  arr <- newPrimArray n
-  setPrimArray arr 0 n 0
-  pure arr
-{-# NOINLINE counters #-}
-
 counterSlots :: Int
 counterSlots = 1024 * 1024
 
 -- | Counts an exit; gives the total taken so far.
-countExit :: ExitIndex -> IO Int
-countExit i = do
-  _ <- fetchAddInt counters (min i (counterSlots - 1)) 1
-  (+ 1) <$> fetchAddInt counters 0 1
+countExit :: Exits -> ExitIndex -> IO Int
+countExit ex i = do
+  _ <- fetchAddInt (exCounters ex) (min i (counterSlots - 1)) 1
+  (+ 1) <$> fetchAddInt (exCounters ex) 0 1
 
 -- | Every exit that has been taken, with its count.
-exitCounts :: IO [(ExitIndex, Exit, Int)]
-exitCounts = do
-  Table next arr <- readIORef table
-  counts <- forM [1 .. min next counterSlots - 1] $ \i -> (,) i <$> readPrimArray counters i
+exitCounts :: Exits -> IO [(ExitIndex, Exit, Int)]
+exitCounts ex = do
+  Table next arr <- readIORef (exTable ex)
+  counts <- forM [1 .. min next counterSlots - 1] $ \i -> (,) i <$> readPrimArray (exCounters ex) i
   forM [(i, n) | (i, n) <- counts, n > 0] $ \(i, n) -> (\e -> (i, e, n)) <$> readSmallArray arr i
 
 -- | Starts counting again from zero.
-resetExitCounts :: IO ()
-resetExitCounts = do
-  Table next _ <- readIORef table
-  setPrimArray counters 0 (min next counterSlots) 0
+resetExitCounts :: Exits -> IO ()
+resetExitCounts ex = do
+  Table next _ <- readIORef (exTable ex)
+  setPrimArray (exCounters ex) 0 (min next counterSlots) 0
 
 fetchAddInt :: MutablePrimArray RealWorld Int -> Int -> Int -> IO Int
 fetchAddInt (MutablePrimArray arr) (I# i) (I# n) = IO $ \s -> case fetchAddIntArray# arr i n s of
@@ -139,24 +146,16 @@ fetchAddInt (MutablePrimArray arr) (I# i) (I# n) = IO $ \s -> case fetchAddIntAr
 -- | For @UNISON_JIT_STATS@: how often the trampoline entered each native
 -- function (by code address), and what each is called. Slow (a map in an
 -- IORef); statistics runs only.
-entries :: IORef (M.Map WordPtr Int)
-entries = unsafePerformIO (newIORef M.empty)
-{-# NOINLINE entries #-}
-
-entryNames :: IORef (M.Map WordPtr String)
-entryNames = unsafePerformIO (newIORef M.empty)
-{-# NOINLINE entryNames #-}
-
-countEntry :: Ptr a -> IO ()
-countEntry fn = atomicModifyIORef' entries (\m -> (M.insertWith (+) (ptrToWordPtr fn) 1 m, ()))
+countEntry :: Exits -> Ptr a -> IO ()
+countEntry ex fn = atomicModifyIORef' (exEntries ex) (\m -> (M.insertWith (+) (ptrToWordPtr fn) 1 m, ()))
 
 -- | Records the name of the function at a code address.
-nameEntry :: Ptr a -> String -> IO ()
-nameEntry fn name = atomicModifyIORef' entryNames (\m -> (M.insert (ptrToWordPtr fn) name m, ()))
+nameEntry :: Exits -> Ptr a -> String -> IO ()
+nameEntry ex fn name = atomicModifyIORef' (exEntryNames ex) (\m -> (M.insert (ptrToWordPtr fn) name m, ()))
 
 -- | The entries counted since the last call, by function name.
-entryCounts :: IO [(String, Int)]
-entryCounts = do
-  counts <- atomicModifyIORef' entries (\m -> (M.empty, m))
-  names <- readIORef entryNames
+entryCounts :: Exits -> IO [(String, Int)]
+entryCounts ex = do
+  counts <- atomicModifyIORef' (exEntries ex) (\m -> (M.empty, m))
+  names <- readIORef (exEntryNames ex)
   pure [(M.findWithDefault (show a) a names, n) | (a, n) <- M.toList counts]

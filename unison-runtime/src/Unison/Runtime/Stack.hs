@@ -146,6 +146,13 @@ module Unison.Runtime.Stack
     dumpAP,
     dumpFP,
     alloc,
+    defaultStackSlots,
+    MCombs,
+    MSection,
+    MBranch,
+    MInstr,
+    MComb,
+    MRef,
     nativeOutWords,
     nativeOutPtrs,
     bstkSlots,
@@ -450,6 +457,21 @@ unboxedTypeTagFromInt = \case
 -- | A record's field values, in ascending field-name order. Slot @i@ holds the
 -- value of field @i@ of the accompanying 'RecordShape'.
 type RecordVals = Vector Val
+
+-- | The code the interpreter runs: MCode over resolved combinators and
+-- these values. (Defined here, below the JIT modules, so that the JIT
+-- handle can be a field of the code cache without an import cycle.)
+type MCombs = RCombs Val
+
+type MSection = RSection Val
+
+type MBranch = RBranch Val
+
+type MInstr = RInstr Val
+
+type MComb = RComb Val
+
+type MRef = RRef Val
 
 -- The constructor order sets the pointer tags native code switches on:
 -- the first six constructors get tags 1 to 6 and the rest share tag 7,
@@ -1209,11 +1231,13 @@ bstkSlots :: MutableArray RealWorld Closure -> Int
 bstkSlots bstk = sizeofMutableArray bstk - nativeOutPtrs
 {-# INLINE bstkSlots #-}
 
-alloc :: IO Stack
-alloc = do
-  -- The JIT's `ustack` stress mode starts with a tiny stack, so that
-  -- growing it is exercised constantly.
-  let slots = fromMaybe 512 (JIT.stressStack JIT.config)
+-- | The slots a fresh stack has. The JIT's `ustack` stress mode starts with
+-- a tiny stack instead, so that growing it is exercised constantly.
+defaultStackSlots :: Int
+defaultStackSlots = 512
+
+alloc :: Int -> IO Stack
+alloc slots = do
   -- both stacks have a few words to spare past their last slot, where
   -- the JIT's trampoline gets its results back (see JIT.Native); growing
   -- and duplicating the stack keep them

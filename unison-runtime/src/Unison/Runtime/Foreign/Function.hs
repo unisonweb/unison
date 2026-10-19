@@ -291,8 +291,6 @@ foreignCallHelper = \case
     \(h, n) -> Bytes.fromArray <$> hGetSome h n
   IO_putBytes_impl_v3 -> mkForeignIOF $ \(h, bs) -> do
     hPut h (Bytes.toArray bs)
-    -- for the JIT's per-output statistics; nothing unless they are on
-    when (JIT.statsEach JIT.config) (UnliftIO.hFlush h >> JIT.noteOutput)
   -- TODO: Use `PA.withMutableByteArrayContents` here once we have Data.Primitive v9.
   IO_fillBuf_impl_v1 -> mkForeignIOF $ \(h, arr, n) -> do
     sizeof <- PA.getSizeofMutableByteArray arr

@@ -1,6 +1,18 @@
 {-# LANGUAGE CPP #-}
 
-module Unison.Runtime.Machine.Types where
+-- The code synonyms (MCombs, MSection, ...) are defined in Stack.hs and
+-- re-exported here, so that the JIT modules can use them without
+-- importing this module, which carries the JIT handle in the code cache.
+module Unison.Runtime.Machine.Types
+  ( module Unison.Runtime.Machine.Types,
+    MCombs,
+    MSection,
+    MBranch,
+    MInstr,
+    MComb,
+    MRef,
+  )
+where
 
 import Control.Concurrent (ThreadId)
 import Control.Concurrent.STM as STM
@@ -40,6 +52,7 @@ import Unison.Runtime.ANF.Optimize (OptInfos)
 import Unison.Runtime.Builtin
 import Unison.Runtime.Exception qualified as Exception
 import Unison.Runtime.InternalError (CompileExn (CE), internalBug)
+import Unison.Runtime.JIT (JIT, initialNativeCount)
 import Unison.Runtime.MCode
 import Unison.Runtime.Profiling
 import Unison.Runtime.Referenced
@@ -61,19 +74,7 @@ type ActiveThreads = Maybe (IORef (Set ThreadId))
 
 type Tag = Word64
 
-type MCombs = RCombs Val
-
 type Combs = GCombs Void CombIx
-
-type MSection = RSection Val
-
-type MBranch = RBranch Val
-
-type MInstr = RInstr Val
-
-type MComb = RComb Val
-
-type MRef = RRef Val
 
 data Tracer
   = NoTrace
@@ -192,7 +193,11 @@ data CCache prof = CCache
     sandbox :: TVar (M.Map Reference (Set Reference)),
     recordFieldMappings :: TVar RecordFieldMappings,
     -- native code cells for combinators loaded through this cache (see unison-runtime/src/Unison/Runtime/JIT/design.md)
-    nativeCells :: TVar NativeCellPool
+    nativeCells :: TVar NativeCellPool,
+    -- the JIT, one for the whole process and shared by every cache in it
+    -- (see JIT.hs); this is how the interpreter reaches it. Not unpacked,
+    -- so that handing it on doesn't rebuild it.
+    jit :: {-# NOUNPACK #-} !JIT
   }
 
 refNumsTm :: CCache prof -> IO (M.Map Reference Word64)
@@ -211,8 +216,8 @@ refNumTm cc r =
 initialNativeCells :: Int
 initialNativeCells = 16384
 
-baseCCache :: Bool -> IO (CCache ())
-baseCCache sandboxed = do
+baseCCache :: JIT -> Bool -> IO (CCache ())
+baseCCache jit sandboxed = do
   -- The builtin combinators get native code cells like any loaded code, so
   -- that the JIT can compile the ones that are worth it and native code
   -- can call them (docs/jit/m6.md, step 4).
@@ -220,7 +225,7 @@ baseCCache sandboxed = do
         srcCombs
           & sanitizeCombsOfForeignFuncs sandboxed sandboxedForeignFuncs
       (cellCount, _) = attachNativeCells nullPtr uncelled
-  NativeCellPool cells _ _ <- newNativeCellPool cellCount
+  NativeCellPool cells _ _ <- newNativeCellPool (initialNativeCount jit) cellCount
   let combs :: EnumMap Word64 MCombs
       combs =
         snd (attachNativeCells cells uncelled)
@@ -242,7 +247,8 @@ baseCCache sandboxed = do
     <*> newTVarIO builtinFieldNumbering
     <*> newTVarIO baseSandboxInfo
     <*> newTVarIO rfm
-    <*> (newTVarIO =<< newNativeCellPool initialNativeCells)
+    <*> (newTVarIO =<< newNativeCellPool (initialNativeCount jit) initialNativeCells)
+    <*> pure jit
   where
     builtinFieldNumbering = mempty
     cacheableCombs = mempty

@@ -1,6 +1,6 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.39.1.
+-- This file has been generated from package.yaml by hpack version 0.39.6.
 --
 -- see: https://github.com/sol/hpack
 
@@ -379,6 +379,7 @@ executable transcripts
     , unison-cli
     , unison-parser-typechecker
     , unison-prelude
+    , unison-runtime
     , unliftio
   default-language: Haskell2010
 
@@ -455,6 +456,7 @@ test-suite cli-tests
     , unison-parser-typechecker
     , unison-prelude
     , unison-pretty-printer
+    , unison-runtime
     , unison-syntax
     , unison-util-recursion
     , unliftio

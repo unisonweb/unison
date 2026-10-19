@@ -164,7 +164,8 @@ main version = do
       -- The runtime reads its JIT settings from the environment, once, at startup.
       for_ jitOption (setEnv "UNISON_JIT")
       for_ jitDumpIROption (setEnv "UNISON_JIT_DUMP_IR")
-      announceJIT
+      jit <- JIT.newJIT =<< JIT.readConfig
+      announceJIT jit
       currentDir <- getCurrentDirectory
       case command of
         PrintVersion ->
@@ -174,7 +175,7 @@ main version = do
           let credMan = AuthN.globalCredentialManager
           authenticatedHTTPClient <- initTranscriptAuthenticatedHTTPClient ucmVersion credMan
           getCodebaseOrExit mCodePathOption SC.DontLock (SC.MigrateAfterPrompt SC.Backup SC.Vacuum) \(_initRes, _, theCodebase) -> do
-            withRuntimes RTI.Persistent \(runtime, sbRuntime) -> do
+            withRuntimes jit RTI.Persistent \(runtime, sbRuntime) -> do
               MCP.runOnStdIO theCodebase runtime sbRuntime currentDir ucmVersion authenticatedHTTPClient
         Init -> do
           exitError
@@ -190,7 +191,7 @@ main version = do
             )
         Run (RunFromSymbol mainName) args -> do
           getCodebaseOrExit mCodePathOption SC.DontLock SC.DontMigrate \(_, _, theCodebase) -> do
-            RTI.withRuntime False RTI.OneOff (Version.gitDescribeWithDate version) \runtime -> do
+            RTI.withRuntime jit False RTI.OneOff (Version.gitDescribeWithDate version) \runtime -> do
               withArgs args (execute theCodebase runtime mainName) >>= \case
                 Left err -> exitError =<< RTI.prettyError fetchIssueFromGitHub err
                 Right () -> pure ()
@@ -202,7 +203,7 @@ main version = do
                 Left _ -> exitError "I couldn't find that file or it is for some reason unreadable."
                 Right contents -> do
                   getCodebaseOrExit mCodePathOption SC.DontLock SC.DontMigrate \(initRes, _, theCodebase) -> do
-                    withRuntimes RTI.OneOff \(rt, sbrt) -> do
+                    withRuntimes jit RTI.OneOff \(rt, sbrt) -> do
                       let fileEvent = Input.UnisonFileChanged (Text.pack file) contents
                       let noOpCheckForChanges _ = pure ()
                       let serverUrl = Nothing
@@ -230,7 +231,7 @@ main version = do
             Left _ -> exitError "I had trouble reading this input."
             Right contents -> do
               getCodebaseOrExit mCodePathOption SC.DontLock SC.DontMigrate \(initRes, _, theCodebase) -> do
-                withRuntimes RTI.OneOff \(rt, sbrt) -> do
+                withRuntimes jit RTI.OneOff \(rt, sbrt) -> do
                   let fileEvent = Input.UnisonFileChanged (Text.pack "<standard input>") contents
                   let noOpCheckForChanges _ = pure ()
                   let serverUrl = Nothing
@@ -275,7 +276,7 @@ main version = do
               Right (Right (v, rf, combIx, sto))
                 | not vmatch -> mismatchMsg
                 | otherwise ->
-                    withArgs args (RTI.runStandalone False sto combIx) >>= \case
+                    withArgs args (RTI.runStandalone jit False sto combIx) >>= \case
                       Left err -> exitError =<< RTI.prettyError fetchIssueFromGitHub err
                       Right () -> pure ()
                 where
@@ -314,14 +315,14 @@ main version = do
                           \that matches your version of Unison."
                       ]
         Transcript codebaseSetup mrtsStatsFp transcriptFiles -> do
-          let action = runTranscripts version Verbosity.Verbose renderUsageInfo codebaseSetup mCodePathOption transcriptFiles
+          let action = runTranscripts jit version Verbosity.Verbose renderUsageInfo codebaseSetup mCodePathOption transcriptFiles
           case mrtsStatsFp of
             Nothing -> action
             Just fp -> recordRtsStats fp action
         Launch isHeadless codebaseServerOpts mayStartingProject shouldWatchFiles -> do
           lockOption <- getCodebaseLockOption
           getCodebaseOrExit mCodePathOption lockOption (SC.MigrateAfterPrompt SC.Backup SC.Vacuum) \(initRes, _, theCodebase) -> do
-            withRuntimes RTI.Persistent \(runtime, sbRuntime) -> do
+            withRuntimes jit RTI.Persistent \(runtime, sbRuntime) -> do
               startingProjectPath <- do
                 -- If the user didn't provide a starting path on the command line, put them in the most recent
                 -- path they cd'd to
@@ -413,10 +414,10 @@ main version = do
                   Exit -> Exit.exitSuccess
   where
     -- (runtime, sandboxed runtime)
-    withRuntimes :: RTI.RuntimeHost -> (Runtimes -> IO a) -> IO a
-    withRuntimes mode action =
-      RTI.withRuntime False mode (Version.gitDescribeWithDate version) \runtime -> do
-        RTI.withRuntime True mode (Version.gitDescribeWithDate version) \sbRuntime ->
+    withRuntimes :: JIT.JIT -> RTI.RuntimeHost -> (Runtimes -> IO a) -> IO a
+    withRuntimes jit mode action =
+      RTI.withRuntime jit False mode (Version.gitDescribeWithDate version) \runtime -> do
+        RTI.withRuntime jit True mode (Version.gitDescribeWithDate version) \sbRuntime ->
           action (runtime, sbRuntime)
     initTranscriptAuthenticatedHTTPClient :: UCMVersion -> AuthN.CredentialManager -> IO AuthN.AuthenticatedHttpClient
     initTranscriptAuthenticatedHTTPClient ucmVersion credMan = do
@@ -530,12 +531,13 @@ withTranscriptDir verbosity progName codebaseSetup mCodePathOption action = do
       cleanupAction
 
 runTranscripts' ::
+  JIT.JIT ->
   Version ->
   String ->
   FilePath ->
   NonEmpty MarkdownFile ->
   IO Bool
-runTranscripts' version progName transcriptDir markdownFiles = do
+runTranscripts' jit version progName transcriptDir markdownFiles = do
   currentDir <- getCurrentDirectory
   -- We don't need to create a codebase through `getCodebaseOrExit` as we've already done so previously.
   and
@@ -545,6 +547,7 @@ runTranscripts' version progName transcriptDir markdownFiles = do
       (SC.MigrateAutomatically SC.Backup SC.Vacuum)
       \(_, codebasePath, theCodebase) -> do
         Transcript.withRunner
+          jit
           Transcript.defaultConfig
           Verbosity.Verbose
           (Version.gitDescribeWithDate version)
@@ -598,6 +601,7 @@ runTranscripts' version progName transcriptDir markdownFiles = do
               pure $ isRight result
 
 runTranscripts ::
+  JIT.JIT ->
   Version ->
   Verbosity.Verbosity ->
   UsageRenderer ->
@@ -605,7 +609,7 @@ runTranscripts ::
   Maybe CodebasePathOption ->
   NonEmpty String ->
   IO ()
-runTranscripts version verbosity renderUsageInfo codebaseSetup mCodePathOption args = do
+runTranscripts jit version verbosity renderUsageInfo codebaseSetup mCodePathOption args = do
   markdownFiles <- case traverse (first (pure @[]) . markdownFile) args of
     Failure invalidArgs -> do
       PT.putPrettyLn $
@@ -623,7 +627,7 @@ runTranscripts version verbosity renderUsageInfo codebaseSetup mCodePathOption a
   progName <- getProgName
   completed <-
     fromMaybe False <$> withTranscriptDir verbosity progName codebaseSetup mCodePathOption \transcriptDir -> do
-      runTranscripts' version progName transcriptDir markdownFiles
+      runTranscripts' jit version progName transcriptDir markdownFiles
   when (not completed) $ Exit.exitWith (Exit.ExitFailure 1)
 
 launch ::
@@ -763,12 +767,12 @@ codebasePathOptionToPath codebasePathOption =
 -- | With the JIT turned on (--jit or UNISON_JIT), loads LLVM now and says
 -- how it went. When it can't be loaded the program runs interpreted, as
 -- it would with the JIT off.
-announceJIT :: IO ()
-announceJIT = do
+announceJIT :: JIT.JIT -> IO ()
+announceJIT jit = do
   tty <- hIsTerminalDevice stdout
   let loading = "JIT compilation requested, loading LLVM library..."
   when tty $ putStr loading >> hFlush stdout
-  r <- JIT.loadJIT
+  r <- JIT.loadJIT jit
   -- back to the start of the line, and clear it
   when tty $ putStr ("\r" ++ replicate (length loading) ' ' ++ "\r")
   case r of

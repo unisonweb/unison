@@ -1,7 +1,7 @@
 -- | The constant pool: Haskell heap objects that native code needs, in an
 -- array whose address is passed on every entry. See unison-runtime/src/Unison/Runtime/JIT/design.md,
--- "Appendix: the constant pool", which also says why there is one global
--- pool rather than one per module.
+-- "Appendix: the constant pool", which also says why there is one pool per
+-- process rather than one per module.
 --
 -- Indices are assigned when a module is compiled ('poolIndices') and are
 -- constants in the generated code. The array grows by copying; the old
@@ -12,7 +12,9 @@
 -- that uses an index of 'poolStableSize' or more checks the array's size
 -- at entry, and exits to be entered again with the current array.
 module Unison.Runtime.JIT.Pool
-  ( PoolKey (..),
+  ( Pool,
+    newPool,
+    PoolKey (..),
     poolIndices,
     currentPool,
     poolStableSize,
@@ -32,13 +34,10 @@ import Data.Maybe (fromMaybe)
 import Data.Primitive.Array (MutableArray, copyMutableArray, newArray, sizeofMutableArray, writeArray)
 import Data.Vector qualified as V
 import GHC.Exts (RealWorld)
-import System.IO.Unsafe (unsafePerformIO)
 import Unison.Reference (Reference)
 import Unison.Runtime.ANF (PackedTag)
-import Unison.Runtime.JIT.Config (config, stressPool)
 import Unison.Runtime.MCode (CombIx, GCombInfo, MLit (..), RecordShape (..))
-import Unison.Runtime.Machine.Types (MComb)
-import Unison.Runtime.Stack (Closure, Val (..), charTypeTag, falseVal, floatTypeTag, intTypeTag, natTypeTag, nullSeg, trueVal, pattern Enum, pattern Foreign, pattern PAp, pattern RecordG)
+import Unison.Runtime.Stack (Closure, MComb, Val (..), charTypeTag, falseVal, floatTypeTag, intTypeTag, natTypeTag, nullSeg, trueVal, pattern Enum, pattern Foreign, pattern PAp, pattern RecordG)
 import Unison.Runtime.Stack qualified as Stack
 
 -- The order matches unboxedTypeTagToInt in Stack.hs.
@@ -58,8 +57,13 @@ fixedEntries = 6
 
 -- | The size of the first array: every array ever passed to native code
 -- has at least this many entries.
-poolStableSize :: Int
-poolStableSize = max fixedEntries (fromMaybe 4096 (stressPool config))
+-- | A pool, with the size its first array has: a function that uses only
+-- indices below it never has to check the array it was given (the stress
+-- mode @pool=N@ makes it tiny, so that growing is exercised).
+data Pool = Pool !(IORef PoolState) !Int
+
+poolStableSize :: Pool -> Int
+poolStableSize (Pool _ n) = n
 
 -- | What a pool entry is. Entries are interned by key.
 data PoolKey
@@ -108,7 +112,7 @@ instance Show PoolKey where
     KeyCached c _ -> "KeyCached " ++ show c
     KeyRecord s -> "KeyRecord " ++ show (shapeFields s)
 
-data Pool = Pool
+data PoolState = PoolState
   { poolArray :: !(MutableArray RealWorld Closure),
     poolNext :: !Int,
     poolKeys :: !(Map.Map PoolKey Int),
@@ -116,11 +120,14 @@ data Pool = Pool
     poolOld :: [MutableArray RealWorld Closure]
   }
 
-pool :: IORef Pool
-pool = unsafePerformIO $ do
+-- | A pool holding the fixed entries. The argument is the stress mode's
+-- size for the first array, if any.
+newPool :: Maybe Int -> IO Pool
+newPool stress = do
+  let stable = max fixedEntries (fromMaybe 4096 stress)
   -- Everything is forced before it goes in: native code reads these
   -- objects' fields directly, so they must be values, not thunks.
-  arr <- newArray poolStableSize $! natTypeTag
+  arr <- newArray stable $! natTypeTag
   let put i c = writeArray arr i $! c
   put poolIndexCharTag charTypeTag
   put poolIndexFloatTag floatTypeTag
@@ -128,19 +135,19 @@ pool = unsafePerformIO $ do
   put poolIndexNatTag natTypeTag
   put poolIndexTrue (getBoxedVal trueVal)
   put poolIndexFalse (getBoxedVal falseVal)
-  newIORef (Pool arr fixedEntries Map.empty [])
-{-# NOINLINE pool #-}
+  ref <- newIORef (PoolState arr fixedEntries Map.empty [])
+  pure (Pool ref stable)
 
 -- | The array to pass to native code now.
-currentPool :: IO (MutableArray RealWorld Closure)
-currentPool = poolArray <$> readIORef pool
+currentPool :: Pool -> IO (MutableArray RealWorld Closure)
+currentPool (Pool ref _) = poolArray <$> readIORef ref
 
 -- | The index of each key, adding the ones not seen before. Called when
 -- a module is compiled, before its code is generated.
-poolIndices :: [PoolKey] -> IO (Map.Map PoolKey Int)
-poolIndices keys = do
+poolIndices :: Pool -> [PoolKey] -> IO (Map.Map PoolKey Int)
+poolIndices (Pool ref _) keys = do
   ixs <- forM keys $ \k -> do
-    p <- readIORef pool
+    p <- readIORef ref
     case Map.lookup k (poolKeys p) of
       Just i -> pure (k, i)
       Nothing -> do
@@ -150,7 +157,7 @@ poolIndices keys = do
         writeArray (poolArray p) i c
         -- a native run that began before the array last grew holds an old one
         forM_ (poolOld p) $ \old -> when (i < sizeofMutableArray old) (writeArray old i c)
-        writeIORef pool p {poolNext = i + 1, poolKeys = Map.insert k i (poolKeys p)}
+        writeIORef ref p {poolNext = i + 1, poolKeys = Map.insert k i (poolKeys p)}
         pure (k, i)
   pure (Map.fromList ixs)
   where

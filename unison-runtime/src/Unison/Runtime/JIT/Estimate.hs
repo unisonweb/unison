@@ -28,12 +28,11 @@ import Data.Map.Strict qualified as Map
 import Data.Maybe (catMaybes)
 import Data.Set qualified as Set
 import Foreign.Ptr (Ptr)
-import Unison.Runtime.JIT.Codegen (callOutWorthwhile, instrNativeIn, pushCount, requestsOn, startsSupported)
-import Unison.Runtime.JIT.Config (config, entryCost, exitCost)
+import Unison.Runtime.JIT.Codegen (Switches (..), callOutWorthwhile, instrNativeIn, pushCount, startsSupported, switches)
+import Unison.Runtime.JIT.Config (Config, entryCost, exitCost)
 import Unison.Runtime.MCode hiding (Env)
 import Unison.Runtime.MCode qualified as MCode (GRef (Env))
-import Unison.Runtime.Machine.Types (MSection)
-import Unison.Runtime.Stack (Val)
+import Unison.Runtime.Stack (MSection, Val)
 import Unison.Util.EnumContainers qualified as EC
 
 -- | For an average path through a function: the interpreter overhead that
@@ -58,8 +57,8 @@ call = Estimate 3 0 False
 exit :: Estimate
 exit = Estimate 0 1 False
 
-worth :: Maybe Estimate -> Bool
-worth = \case
+worth :: Config -> Maybe Estimate -> Bool
+worth config = \case
   Nothing -> True -- never returns; it doesn't matter
   Just (Estimate saving exits _) -> not (exits * exitCost config > saving)
 
@@ -72,16 +71,18 @@ exiting = maybe 0 (min 1 . esExits)
 -- bits: 2 not worth compiling, 1 worth it, 3 worth it only for native
 -- callers, because a call saves less than entering native code from the
 -- interpreter costs. Above them, 'exiting' in hundredths.
-verdictOf :: Maybe Estimate -> Int
-verdictOf path = code + 4 * round (100 * exiting path)
+verdictOf :: Config -> Maybe Estimate -> Int
+verdictOf config path = code + 4 * round (100 * exiting path)
   where
     code
-      | not (worth path) = 2
+      | not (worth config path) = 2
       | Just (Estimate saving _ False) <- path, saving < entryCost config = 3
       | otherwise = 1
 
 data Cx = Cx
-  { cxSelf :: Ptr NativeCell,
+  { cxConfig :: Config,
+    cxSwitches :: Switches,
+    cxSelf :: Ptr NativeCell,
     -- | how likely a call of the function itself is to exit (from a first
     -- pass that assumed it doesn't)
     cxSelfExits :: Double,
@@ -99,13 +100,13 @@ data Cx = Cx
 -- The verdict is recorded in the cell. Callees that have not been judged
 -- are judged on the way, and their verdicts recorded too, so the answer
 -- doesn't depend on the order in which functions get hot.
-judge :: Ptr NativeCell -> MSection -> IO (Bool, Maybe Estimate)
-judge cell sect = do
+judge :: Config -> Ptr NativeCell -> MSection -> IO (Bool, Maybe Estimate)
+judge config cell sect = do
   memo <- newIORef Map.empty
   tainted <- newIORef False
-  path <- function (Cx cell 0 Set.empty tainted memo) sect
-  unless (cell == noNativeCell) (writeNativeVerdict cell (verdictOf path))
-  pure (worth path, path)
+  path <- function (Cx config (switches config) cell 0 Set.empty tainted memo) sect
+  unless (cell == noNativeCell) (writeNativeVerdict cell (verdictOf config path))
+  pure (worth config path, path)
 
 -- | The estimate for a whole function. A function that calls itself is
 -- walked twice: the first walk finds how likely a call of it is to exit,
@@ -135,10 +136,10 @@ native cx comb = case unRComb comb of
           (_, 0) -> do
             tainted <- newIORef False
             path <- function cx {cxSelf = cell, cxBusy = Set.insert (cxSelf cx) (cxBusy cx), cxTainted = tainted} entry
-            let v = (worth path, exiting path)
+            let v = (worth (cxConfig cx) path, exiting path)
             t <- readIORef tainted
             when t (writeIORef (cxTainted cx) True)
-            unless t (writeNativeVerdict cell (verdictOf path))
+            unless t (writeNativeVerdict cell (verdictOf (cxConfig cx) path))
             modifyIORef' (cxMemo cx) (Map.insert cell v)
             pure v
           _ -> pure (verdict `mod` 4 /= 2, fromIntegral (verdict `div` 4) / 100)
@@ -151,7 +152,7 @@ walk cx = \case
   Die _ -> pure Nothing
   Exit -> pure Nothing
   Ins i rest
-    | instrNativeIn i rest -> fmap (plus simple) <$> walk cx rest
+    | instrNativeIn (cxSwitches cx) i rest -> fmap (plus simple) <$> walk cx rest
     -- a call-out: the interpreter runs the instruction, native code goes on
     | Just _ <- pushCount i, callOutWorthwhile i rest -> fmap (plus exit) <$> walk cx rest
     -- the interpreter takes the rest of the function
@@ -167,10 +168,10 @@ walk cx = \case
     | otherwise -> tailCall comb
   App _ (Stk _) _ -> pure (Just call) -- a function value: nothing is known about it
   -- a request: a call of the handler, a function value found at run time
-  App _ (Dyn _) _ | requestsOn -> pure (Just call)
+  App _ (Dyn _) _ | swRequests (cxSwitches cx) -> pure (Just call)
   -- a request match: the pure arm and every ability's arms
   RMatch _ pu br
-    | requestsOn, Just arms <- traverse armsOf (map snd (EC.mapToList br)) -> weigh (pu : concat arms)
+    | swRequests (cxSwitches cx), Just arms <- traverse armsOf (map snd (EC.mapToList br)) -> weigh (pu : concat arms)
   Let b _ _ body _ ->
     binding b >>= \case
       Nothing -> pure Nothing
@@ -213,9 +214,9 @@ walk cx = \case
         | constant comb args -> pure (Just simple)
         | otherwise -> returningCall comb
       App _ (Stk _) _ -> pure (Just call)
-      App _ (Dyn _) _ | requestsOn -> pure (Just call)
+      App _ (Dyn _) _ | swRequests (cxSwitches cx) -> pure (Just call)
       b
-        | startsSupported b -> fmap (plus call) <$> walk cx b
+        | startsSupported (cxSwitches cx) b -> fmap (plus call) <$> walk cx b
         | otherwise -> pure (Just exit)
     -- The arms weigh the same, with two exceptions: those that can't
     -- return don't count, and in a function that calls itself the arms

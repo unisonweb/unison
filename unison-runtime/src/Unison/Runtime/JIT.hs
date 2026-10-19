@@ -1,18 +1,31 @@
--- | The JIT's entry points for the rest of the runtime. See unison-runtime/src/Unison/Runtime/JIT/design.md.
+-- | The JIT's entry points for the rest of the runtime, and the handle
+-- that holds its state. See unison-runtime/src/Unison/Runtime/JIT/design.md.
 module Unison.Runtime.JIT
-  ( startJIT,
+  ( JIT,
+    newJIT,
+    readConfig,
+    jitConfig,
+    jitExits,
+    jitFrames,
+    jitPool,
+    jitTracing,
+    jitStats,
+    initialNativeCount,
+    stackSlots,
     loadJIT,
+    startJIT,
     jitCompileGroup,
     jitRequestGroup,
     jitRequestCell,
     registerDataTypes,
     registerTypeNumbers,
     printJITStats,
+    noteOutput,
   )
 where
 
 import Control.Concurrent (forkOn, getNumCapabilities, myThreadId, threadCapability, yield)
-import Control.Concurrent.STM (TBQueue, atomically, isFullTBQueue, newTBQueueIO, readTBQueue, readTVarIO, writeTBQueue)
+import Control.Concurrent.STM (TBQueue, TVar, atomically, isFullTBQueue, newTBQueueIO, readTBQueue, readTVarIO, writeTBQueue)
 import Control.Exception (SomeException, evaluate, try)
 import Control.Monad (foldM, forM, forM_, unless, void, when)
 import Control.Monad.IO.Class (liftIO)
@@ -20,120 +33,172 @@ import Control.Monad.Trans.Except (ExceptT (..), runExceptT, throwE, withExceptT
 import Data.IORef
 import Data.List (sortOn)
 import Data.Map.Strict qualified as Map
+import Data.Maybe (fromMaybe)
 import Data.Set qualified as Set
 import Data.Text qualified as T
 import Data.Word (Word64)
 import Foreign.Ptr (FunPtr, Ptr, castFunPtrToPtr, nullPtr)
 import GHC.Clock (getMonotonicTimeNSec)
-import System.IO.Unsafe (unsafePerformIO)
+import System.IO (hFlush, stdout)
 import System.Info (os)
 import System.Timeout (timeout)
 import Unison.Reference (Reference)
+import Unison.Runtime.Foreign.Function.Type (ForeignFunc (..))
 import Unison.Runtime.JIT.Codegen (CtxOffsets (..), RtsFacts (..))
 import Unison.Runtime.JIT.Compile
 import Unison.Runtime.JIT.Config
 import Unison.Runtime.JIT.Estimate (Estimate (..), judge)
 import Unison.Runtime.JIT.Exits
+import Unison.Runtime.JIT.Frames (Frames)
 import Unison.Runtime.JIT.Helpers (exitIR, helpersIR)
 import Unison.Runtime.JIT.LLVM
 import Unison.Runtime.JIT.Layout (probeArrays, probeBytes, probeCompare, probeEnv, probeLayouts, probeLists, probeMurmur, probeNames, probeRecords, probeTexts)
 import Unison.Runtime.JIT.Native (configureNative, ctxLayout, helperAddresses, murmurCAddress, rtsFacts, tableAddresses, ucmpCAddress)
+import Unison.Runtime.JIT.Pool (Pool)
 import Unison.Runtime.MCode (CombIx (..), GComb (..), GCombInfo (..), NativeCell, claimNativeCell, combDeps, nativeCellRequested, noNativeCell, prettyIns, prettySection, readNativeCode, readNativeCount, releaseNativeCell, takeNativeCell, writeNativeCount)
-import Unison.Runtime.Machine.Types (CCache (combRefs, combs, sandboxed), MCombs)
+import Unison.Runtime.Stack (MCombs, defaultStackSlots)
 import Unison.Util.EnumContainers qualified as EC
 
--- | The constructor arities of every data type loaded so far, which the
--- code generator needs to take apart constructors with three or more
--- fields (their field count isn't in the closure's pointer tag).
-dataTypes :: IORef (Map.Map Reference [Int])
-dataTypes = unsafePerformIO (newIORef Map.empty)
-{-# NOINLINE dataTypes #-}
+-- | The JIT: its settings and everything it keeps while the process runs.
+-- There is one per process, made by ucm at startup ('newJIT') and given to
+-- every runtime it starts, since what the JIT compiles is shared: generated
+-- code refers to the exits and frames tables and the constant pool by
+-- index, and native code in one module calls into another directly. Each
+-- code cache carries the handle (CCache's @jit@), which is how the
+-- interpreter reaches it.
+data JIT = JIT
+  { jitCompiler :: !Compiler,
+    -- | the constructor arities of every data type loaded so far, which
+    -- the code generator needs to take apart constructors with three or
+    -- more fields (their field count isn't in the closure's pointer tag)
+    jitDataTypes :: !(IORef (Map.Map Reference [Int])),
+    -- | the numbers the code cache gives types (abilities among them),
+    -- with their references: a request match names its ability by number,
+    -- so the generator needs the arities by number too ('abilityArities')
+    jitTypeNumbers :: !(IORef (EC.EnumMap Word64 Reference)),
+    -- | set once by 'initJIT' when everything checks out; Nothing means off
+    jitState :: !(IORef (Maybe JITState)),
+    -- | set once a load has been tried, so that it is tried once only: a
+    -- failure would be the same the second time, and would print again
+    jitInitTried :: !(IORef (Maybe (Either [String] String))),
+    -- | what the interpreter asks the compile thread for; bounded, so a
+    -- burst of requests costs nothing but the requests: one that doesn't
+    -- fit is dropped, and made again if the code stays hot
+    jitRequests :: !(TBQueue Request),
+    jitCompileThreadStarted :: !(IORef Bool)
+  }
+
+-- | A JIT with these settings, not started: nothing is loaded or compiled
+-- until 'loadJIT' or 'startJIT'. In the off mode it is inert, and the
+-- runtime's calls into it return at once.
+newJIT :: Config -> IO JIT
+newJIT config =
+  JIT
+    <$> newCompiler config
+    <*> newIORef Map.empty
+    <*> newIORef (EC.mapFromList [])
+    <*> newIORef Nothing
+    <*> newIORef Nothing
+    <*> newTBQueueIO 256
+    <*> newIORef False
+
+jitConfig :: JIT -> Config
+jitConfig = cConfig . jitCompiler
+
+jitExits :: JIT -> Exits
+jitExits = cExits . jitCompiler
+
+jitFrames :: JIT -> Frames
+jitFrames = cFrames . jitCompiler
+
+jitPool :: JIT -> Pool
+jitPool = cPool . jitCompiler
+
+-- | Whether every transition between native code and the interpreter is
+-- logged (@UNISON_JIT_TRACE@).
+jitTracing :: JIT -> Bool
+jitTracing = trace . jitConfig
+
+-- | Whether entries and exits are counted (@UNISON_JIT_STATS@).
+jitStats :: JIT -> Bool
+jitStats = stats . jitConfig
+
+-- | The count a combinator's cell starts with: minus the threshold in the
+-- @on@ mode, zero (never hot) otherwise.
+initialNativeCount :: JIT -> Int
+initialNativeCount jit = case mode (jitConfig jit) of
+  On -> negate (threshold (jitConfig jit))
+  _ -> 0
+
+-- | The slots a fresh Unison stack has: the stress mode @ustack=N@ makes
+-- it tiny, so that growing the stack is exercised constantly.
+stackSlots :: JIT -> Int
+stackSlots = fromMaybe defaultStackSlots . stressStack . jitConfig
 
 -- | Records the constructor arities of some data types. Called by the
 -- interface whenever it learns about types, before their code is loaded.
-registerDataTypes :: Map.Map Reference [Int] -> IO ()
-registerDataTypes m = case mode config of
+registerDataTypes :: JIT -> Map.Map Reference [Int] -> IO ()
+registerDataTypes jit m = case mode (jitConfig jit) of
   Off -> pure ()
-  _ -> atomicModifyIORef' dataTypes (\old -> (Map.union m old, ()))
-
--- | The numbers the code cache gives types (abilities among them), with
--- their references. A request match names its ability by number, so the
--- generator needs the arities by number too ('abilityArities').
-typeNumbers :: IORef (EC.EnumMap Word64 Reference)
-typeNumbers = unsafePerformIO (newIORef (EC.mapFromList []))
-{-# NOINLINE typeNumbers #-}
+  _ -> atomicModifyIORef' (jitDataTypes jit) (\old -> (Map.union m old, ()))
 
 -- | Records the type numbering of the code cache. Called when types are
 -- numbered: for the builtins at startup, and whenever code is loaded.
-registerTypeNumbers :: EC.EnumMap Word64 Reference -> IO ()
-registerTypeNumbers m = case mode config of
+registerTypeNumbers :: JIT -> EC.EnumMap Word64 Reference -> IO ()
+registerTypeNumbers jit m = case mode (jitConfig jit) of
   Off -> pure ()
-  _ -> atomicModifyIORef' typeNumbers (\old -> (m <> old, ()))
+  _ -> atomicModifyIORef' (jitTypeNumbers jit) (\old -> (m <> old, ()))
 
 -- | The constructor arities of the types known so far, by type number.
-abilityArities :: Map.Map Reference [Int] -> IO (EC.EnumMap Word64 [Int])
-abilityArities types = do
-  nums <- readIORef typeNumbers
+abilityArities :: JIT -> Map.Map Reference [Int] -> IO (EC.EnumMap Word64 [Int])
+abilityArities jit types = do
+  nums <- readIORef (jitTypeNumbers jit)
   pure (EC.mapFromList [(n, as) | (n, r) <- EC.mapToList nums, Just as <- [Map.lookup r types]])
 
--- | Set once by 'startJIT' when everything checks out. Nothing means off.
-jitState :: IORef (Maybe JITState)
-jitState = unsafePerformIO (newIORef Nothing)
-{-# NOINLINE jitState #-}
-
--- | Gets the JIT going if it is enabled. Called once when the runtime
+-- | Gets the JIT going if it is enabled. Called by each runtime as it
 -- starts. LLVM is normally loaded already, by 'loadJIT' at ucm's startup;
 -- if not (another host of the runtime), eager mode loads it here and
 -- @on@ mode on the compile thread, when the first request arrives.
-startJIT :: IO ()
-startJIT = do
-  when (statsEach config) (writeIORef outputHook printExitsSinceOutput)
-  startCompiler
-
-startCompiler :: IO ()
-startCompiler = case mode config of
+startJIT :: JIT -> IO ()
+startJIT jit = case mode (jitConfig jit) of
   Off -> pure ()
-  Eager -> void initJIT
+  Eager -> void (initJIT jit)
   On -> do
-    first <- atomicModifyIORef' compileThreadStarted (\started -> (True, not started))
+    first <- atomicModifyIORef' (jitCompileThreadStarted jit) (\started -> (True, not started))
     -- On a capability other than this thread's, so that the compile
     -- thread and the interpreter don't slow each other down.
     when first $ do
       (cap, _) <- threadCapability =<< myThreadId
       n <- getNumCapabilities
-      void (forkOn ((cap + 1) `mod` n) compileThread)
+      void (forkOn ((cap + 1) `mod` n) (compileThread jit))
 
 -- | Loads LLVM at startup, when the JIT is turned on, and says how it
 -- went: Nothing when the JIT is off, otherwise whether it is activated,
 -- and if not, lines explaining why. Whatever the answer, the program runs:
 -- without the JIT everything is interpreted.
-loadJIT :: IO (Maybe (Either [String] String))
-loadJIT = case mode config of
+loadJIT :: JIT -> IO (Maybe (Either [String] String))
+loadJIT jit = case mode (jitConfig jit) of
   Off -> pure Nothing
-  _ -> Just <$> initJIT
-
--- | Set once a load has been tried, so that it is tried once only: a
--- failure would be the same the second time, and would print again.
-initTried :: IORef (Maybe (Either [String] String))
-initTried = unsafePerformIO (newIORef Nothing)
-{-# NOINLINE initTried #-}
+  _ -> Just <$> initJIT jit
 
 -- | Loads LLVM, starts the JIT and probes the runtime, the first time it
 -- is called; later calls return the first outcome. On success 'jitState'
 -- is set and the result names the LLVM loaded; if anything is wrong the
 -- JIT stays off and the result says why, in lines meant for the user.
-initJIT :: IO (Either [String] String)
-initJIT =
-  readIORef initTried >>= \case
+initJIT :: JIT -> IO (Either [String] String)
+initJIT jit =
+  readIORef (jitInitTried jit) >>= \case
     Just r -> pure r
     Nothing -> do
-      r <- initJIT'
-      writeIORef initTried (Just r)
-      either (mapM_ jitLog) jitLog r
+      r <- initJIT' jit
+      writeIORef (jitInitTried jit) (Just r)
+      either (mapM_ (jitLog config)) (jitLog config) r
       pure r
+  where
+    config = jitConfig jit
 
-initJIT' :: IO (Either [String] String)
-initJIT' = runExceptT $ do
+initJIT' :: JIT -> IO (Either [String] String)
+initJIT' jit = runExceptT $ do
   (version, path) <-
     withExceptT
       ( \case
@@ -185,7 +250,7 @@ initJIT' = runExceptT $ do
       noIRHelpers = "irhelpers" `elem` disabled config && os /= "mingw32"
       irDefined = irDefines exitIR ++ (if noIRHelpers then [] else irDefines helpersIR)
   when ("irhelpers" `elem` disabled config && not noIRHelpers) $
-    liftIO (jitLog "UNISON_JIT_DISABLE=irhelpers is ignored on Windows: the C copies return the (ok, value) pair differently from generated code there")
+    liftIO (jitLog config "UNISON_JIT_DISABLE=irhelpers is ignored on Windows: the C copies return the (ok, value) pair differently from generated code there")
   cHelpers <- liftIO helperAddresses
   withExceptT (\e -> ["the C helpers could not be defined: " ++ e ++ "; the JIT is off"]) $
     forM_ [h | h@(n, _) <- cHelpers, n `notElem` irDefined] (ExceptT . uncurry defineSymbol)
@@ -194,28 +259,29 @@ initJIT' = runExceptT $ do
     withExceptT ("not found after adding: " ++) (void (ExceptT (lookupSymbol "unison_jit_exit_frame") :: ExceptT String IO (FunPtr ())))
   unless noIRHelpers $
     withExceptT (\e -> ["the IR helpers (cbits/jit_helpers.ll) " ++ e ++ "; the JIT is off"]) $ do
-      withExceptT ("could not be added: " ++) (timed "IR helpers" (ExceptT addHelpers))
+      withExceptT ("could not be added: " ++) (timed "IR helpers" (ExceptT (addHelpers config)))
       -- the module's definition must be the one generated code gets, not
       -- the C copy the process also has
       (p, q) <- withExceptT ("not found after adding: " ++) (timed "IR helpers compiled" ((,) <$> ExceptT (lookupSymbol "unison_jit_murmur") <*> ExceptT (lookupSymbol "unison_jit_ucmp")))
       when (castFunPtrToPtr p == castFunPtrToPtr murmurCAddress || castFunPtrToPtr q == castFunPtrToPtr ucmpCAddress) $
         throwE "did not shadow the C copies"
-  liftIO (writeIORef jitState (Just (JITState ls ctx rts)))
+  liftIO (writeIORef (jitState jit) (Just (JITState ls ctx rts)))
   triple <- liftIO targetTriple
   pure ("mode " ++ show (mode config) ++ ", LLVM " ++ version ++ " from " ++ path ++ ", target " ++ triple)
   where
+    config = jitConfig jit
     off = withExceptT (\e -> [e ++ "; the JIT is off"])
     timed :: String -> ExceptT e IO a -> ExceptT e IO a
     timed what act = do
       t0 <- liftIO getMonotonicTimeNSec
       x <- act
       t1 <- liftIO getMonotonicTimeNSec
-      x <$ liftIO (jitLog (what ++ ": " ++ show (fromIntegral (t1 - t0) / 1e6 :: Double) ++ " ms"))
+      x <$ liftIO (jitLog config (what ++ ": " ++ show (fromIntegral (t1 - t0) / 1e6 :: Double) ++ " ms"))
 
 -- | Adds the IR helpers' module, after defining the names of the runtime's
 -- tables it refers to ("The IR helpers" in design.md).
-addHelpers :: IO (Either String ())
-addHelpers = do
+addHelpers :: Config -> IO (Either String ())
+addHelpers config = do
   tables <- tableAddresses
   defined <- sequence_ <$> traverse (uncurry defineSymbol) tables
   case defined of
@@ -227,16 +293,16 @@ minLLVM :: Int
 minLLVM = 20
 
 -- | Compiles a freshly loaded top-level definition, in eager mode.
-jitCompileGroup :: Bool -> Reference -> Word64 -> MCombs -> IO ()
-jitCompileGroup sandbox ref grp cmbs = case mode config of
+jitCompileGroup :: JIT -> Bool -> Reference -> Word64 -> MCombs -> IO ()
+jitCompileGroup jit sandbox ref grp cmbs = case mode (jitConfig jit) of
   Eager ->
-    readIORef jitState >>= \case
+    readIORef (jitState jit) >>= \case
       Nothing -> pure ()
       Just st -> do
-        types <- readIORef dataTypes
-        abilities <- abilityArities types
-        (now, _) <- groupUnits sandbox False ref grp cmbs
-        compileUnits st types abilities ("unison_" ++ show grp) False now
+        types <- readIORef (jitDataTypes jit)
+        abilities <- abilityArities jit types
+        (now, _) <- groupUnits (jitCompiler jit) sandbox False ref grp cmbs
+        compileUnits (jitCompiler jit) st types abilities ("unison_" ++ show grp) False now
   _ -> pure ()
 
 -- ---------------------------------------------------------------------------
@@ -251,21 +317,11 @@ data Request
   | -- | generate a re-entry function that was left for later
     ReqUnit Unit
 
--- | Bounded, so a burst of requests costs nothing but the requests: one
--- that doesn't fit is dropped, and made again if the code stays hot.
-requests :: TBQueue Request
-requests = unsafePerformIO (newTBQueueIO 256)
-{-# NOINLINE requests #-}
-
-compileThreadStarted :: IORef Bool
-compileThreadStarted = unsafePerformIO (newIORef False)
-{-# NOINLINE compileThreadStarted #-}
-
 -- | Queues a request if there is room; says whether there was.
-offer :: Request -> IO Bool
-offer r = atomically $ do
-  full <- isFullTBQueue requests
-  unless full (writeTBQueue requests r)
+offer :: JIT -> Request -> IO Bool
+offer jit r = atomically $ do
+  full <- isFullTBQueue (jitRequests jit)
+  unless full (writeTBQueue (jitRequests jit) r)
   pure (not full)
 
 -- | The cell of a definition's entry combinator. Its state stands for the
@@ -281,16 +337,18 @@ entryCell cmbs = case EC.lookup 0 cmbs of
 -- Called by the interpreter when the combinator's call count says it is
 -- hot (see 'bumpNativeCount'). If the queue is full the flag is cleared
 -- again and the count set to ask again after another 1024 calls.
-jitRequestGroup :: CCache p -> CombIx -> Ptr NativeCell -> IO ()
-jitRequestGroup cc (CIx _ grp _) cell
+-- The cache's combinators and their references are given as the TVars,
+-- read again on the compile thread when the request is served.
+jitRequestGroup :: JIT -> Bool -> TVar (EC.EnumMap Word64 MCombs) -> TVar (EC.EnumMap Word64 Reference) -> CombIx -> Ptr NativeCell -> IO ()
+jitRequestGroup jit sandboxed combs combRefs (CIx _ grp _) cell
   | cell == noNativeCell = pure () -- a builtin, or code not loaded through the cache
   | otherwise = do
-      cache <- readTVarIO (combs cc)
+      cache <- readTVarIO combs
       forM_ (EC.lookup grp cache >>= entryCell) $ \entry -> do
         mine <- claimNativeCell entry
         when mine $ do
           t0 <- getMonotonicTimeNSec
-          queued <- offer (ReqGroup grp (sandboxed cc) t0 ((,) <$> readTVarIO (combs cc) <*> readTVarIO (combRefs cc)))
+          queued <- offer jit (ReqGroup grp sandboxed t0 ((,) <$> readTVarIO combs <*> readTVarIO combRefs))
           if queued
             then
               -- Entering the scheduler is what hands a runnable thread to an
@@ -308,16 +366,16 @@ jitRequestGroup cc (CIx _ grp _) cell
 -- generated, if there is one waiting (see 'Compile.pending'). Called by
 -- the interpreter when it has found the cell empty often enough. The
 -- cell's request state keeps it from being queued twice.
-jitRequestCell :: Ptr NativeCell -> IO ()
-jitRequestCell cell =
-  lookupPending cell >>= \case
+jitRequestCell :: JIT -> Ptr NativeCell -> IO ()
+jitRequestCell jit cell =
+  lookupPending (jitCompiler jit) cell >>= \case
     Nothing -> pure ()
     Just u -> do
       mine <- claimNativeCell cell
       when mine $ do
-        queued <- offer (ReqUnit u)
+        queued <- offer jit (ReqUnit u)
         -- addPending starts the count again
-        unless queued (releaseNativeCell cell >> addPending u)
+        unless queued (releaseNativeCell cell >> addPending (jitCompiler jit) u)
 {-# NOINLINE jitRequestCell #-}
 
 -- | Which definitions call which: for each group, the groups whose code
@@ -343,8 +401,8 @@ data Role = Callee | Caller
 -- | The estimated calls from a group's code to group @d@: for each of its
 -- combinators, the combinator's own call count times the static call
 -- sites of @d@ in it.
-edgeCalls :: MCombs -> Word64 -> IO Double
-edgeCalls cmbs d = fmap sum . forM (EC.mapToList cmbs) $ \(_, c) -> case c of
+edgeCalls :: Config -> MCombs -> Word64 -> IO Double
+edgeCalls config cmbs d = fmap sum . forM (EC.mapToList cmbs) $ \(_, c) -> case c of
   Comb (LamI _ _ _ cell)
     | cell /= noNativeCell,
       sites <- length (filter (== d) (combDeps c)),
@@ -376,15 +434,15 @@ groupSize cmbs = sum [f * length (combDeps c) | (_, c@(Comb (LamI _ f _ _))) <- 
 -- resumed by the interpreter as it was before the counter said to generate
 -- it. A definition's request is served ahead of the held re-entry
 -- functions, so the wait never delays a hot loop.
-compileThread :: IO ()
-compileThread = do
+compileThread :: JIT -> IO ()
+compileThread jit = do
   initialized <- newIORef False
   callersRef <- newIORef (Callers Set.empty Map.empty)
   let loop held = do
         next <-
           if null held
-            then Just <$> atomically (readTBQueue requests)
-            else timeout (reentryWait config * 1000) (atomically (readTBQueue requests))
+            then Just <$> atomically (readTBQueue (jitRequests jit))
+            else timeout (reentryWait config * 1000) (atomically (readTBQueue (jitRequests jit)))
         case next of
           Nothing -> flush held >> loop []
           Just (ReqUnit u) | reentryWait config > 0 -> do
@@ -393,7 +451,7 @@ compileThread = do
           Just req -> do
             r <- try (serve initialized callersRef req)
             case r of
-              Left (e :: SomeException) -> jitLog ("compile thread: " ++ show e)
+              Left (e :: SomeException) -> jitLog config ("compile thread: " ++ show e)
               Right () -> pure ()
             loop held
       flush [] = pure ()
@@ -402,22 +460,24 @@ compileThread = do
           try
             ( withState initialized $ \st types abilities -> do
                 let name = "unison_" ++ unitName (last held) ++ "_x" ++ show (length held)
-                guarded name (compileUnits st types abilities name True (reverse held))
-                forM_ held dropPending
+                guarded name (compileUnits c st types abilities name True (reverse held))
+                forM_ held (dropPending c)
             )
         case r of
-          Left (e :: SomeException) -> jitLog ("compile thread: " ++ show e)
+          Left (e :: SomeException) -> jitLog config ("compile thread: " ++ show e)
           Right () -> pure ()
   loop []
   where
+    config = jitConfig jit
+    c = jitCompiler jit
     withState initialized k = do
       ready <- readIORef initialized
-      unless ready (void initJIT >> writeIORef initialized True)
-      readIORef jitState >>= \case
+      unless ready (void (initJIT jit) >> writeIORef initialized True)
+      readIORef (jitState jit) >>= \case
         Nothing -> pure ()
         Just st -> do
-          types <- readIORef dataTypes
-          abilities <- abilityArities types
+          types <- readIORef (jitDataTypes jit)
+          abilities <- abilityArities jit types
           k st types abilities
     serve initialized callersRef req =
       withState initialized $ \st types abilities -> do
@@ -425,7 +485,7 @@ compileThread = do
           ReqGroup grp sandbox t0 find -> do
             when (logging config) $ do
               t1 <- getMonotonicTimeNSec
-              jitLog ("request for " ++ show grp ++ " served after " ++ show ((t1 - t0) `div` 1000) ++ " us")
+              jitLog config ("request for " ++ show grp ++ " served after " ++ show ((t1 - t0) `div` 1000) ++ " us")
             (cache, refs) <- find
             -- a request whose definition went into an earlier batch is dropped
             mine <- maybe (pure False) takeNativeCell (EC.lookup grp cache >>= entryCell)
@@ -436,18 +496,18 @@ compileThread = do
               (now, later) <-
                 unzip
                   <$> sequence
-                    [ groupUnits sandbox True ref g cmbs
+                    [ groupUnits c sandbox True ref g cmbs
                     | g <- members,
                       Just cmbs <- [EC.lookup g cache],
                       Just ref <- [EC.lookup g refs]
                     ]
               -- pending before the groups' code can exit to them
-              forM_ (concat later) addPending
+              forM_ (concat later) (addPending c)
               copies <- copyCandidates sandbox cache refs members
-              guarded ("unison_" ++ show grp) (compileUnits st types abilities ("unison_" ++ show grp) True (concat now ++ copies))
+              guarded ("unison_" ++ show grp) (compileUnits c st types abilities ("unison_" ++ show grp) True (concat now ++ copies))
           ReqUnit u -> do
-            guarded (unitName u) (compileUnits st types abilities ("unison_" ++ unitName u) True [u])
-            dropPending u
+            guarded (unitName u) (compileUnits c st types abilities ("unison_" ++ unitName u) True [u])
+            dropPending c u
     -- The definitions to compile together with one that got hot, so that
     -- calls between them are direct and LLVM can inline across them. The
     -- batch grows from the hot definition one neighbour at a time (Prim's
@@ -461,8 +521,8 @@ compileThread = do
           around g = map ((,) Callee) (maybe [] (groupDeps g) (EC.lookup g cache)) ++ map ((,) Caller) (Set.toList (Map.findWithDefault Set.empty g callers))
           -- the estimated calls across the edge between g and v
           weight role g v = case role of
-            Callee -> maybe (pure 0) (`edgeCalls` v) (EC.lookup g cache)
-            Caller -> maybe (pure 0) (`edgeCalls` g) (EC.lookup v cache)
+            Callee -> maybe (pure 0) (\cmbs -> edgeCalls config cmbs v) (EC.lookup g cache)
+            Caller -> maybe (pure 0) (\cmbs -> edgeCalls config cmbs g) (EC.lookup v cache)
           -- adds g's neighbours to the candidates, or more weight to ones already there
           expand g (seen, cands) = foldM add cands (around g)
             where
@@ -502,13 +562,13 @@ compileThread = do
                         cands' = Map.delete v cands
                     if claimed
                       then do
-                        jitLog ("  " ++ show v ++ " joins the batch for " ++ show grp ++ ", weight " ++ show w)
+                        jitLog config ("  " ++ show v ++ " joins the batch for " ++ show grp ++ ", weight " ++ show w)
                         expand v (seen', cands') >>= go (v : taken) seen'
                       else go taken seen' cands'
       cands0 <- expand grp (Set.singleton grp, Map.empty)
       (members, left) <- go [grp] (Set.singleton grp) cands0
       when (logging config && not (Map.null left)) $
-        jitLog ("  left out of the batch for " ++ show grp ++ ": " ++ unwords [show v ++ " (weight " ++ show w ++ ")" | (v, (w, _)) <- Map.toList left])
+        jitLog config ("  left out of the batch for " ++ show grp ++ ": " ++ unwords [show v ++ " (weight " ++ show w ++ ")" | (v, (w, _)) <- Map.toList left])
       pure members
     -- The compiled callees of the batch that are worth a private copy in
     -- its module (see 'copyUnits'): those where a call is a real share of
@@ -528,24 +588,24 @@ compileThread = do
                   if code == nullPtr
                     then pure []
                     else do
-                      (_, est) <- judge cell entry
+                      (_, est) <- judge config cell entry
                       case est of
-                        Just (Estimate saving _ False) | saving <= copyBound config -> copyUnits sandbox ref d cmbs
+                        Just (Estimate saving _ False) | saving <= copyBound config -> copyUnits c sandbox ref d cmbs
                         _ -> pure []
             _ -> pure []
           let units = take (batch config) (concat picked)
-          unless (null units) (jitLog ("private copies: " ++ unwords (map unitName units)))
+          unless (null units) (jitLog config ("private copies: " ++ unwords (map unitName units)))
           pure units
     guarded what act =
       try (act >>= evaluate) >>= \case
-        Left (e :: SomeException) -> jitLog (what ++ ": " ++ show e)
+        Left (e :: SomeException) -> jitLog config (what ++ ": " ++ show e)
         Right () -> pure ()
 
 -- | Prints how often each exit was taken, when UNISON_JIT_STATS is set.
 -- Called after each evaluation.
-printJITStats :: IO ()
-printJITStats = when (stats config) $ do
-  t <- compileTotals
+printJITStats :: JIT -> IO ()
+printJITStats jit = when (stats config) $ do
+  t <- compileTotals (jitCompiler jit)
   jitDump
     ( "[jit] compiled "
         ++ show (ctModules t)
@@ -572,25 +632,32 @@ printJITStats = when (stats config) $ do
         ++ show (fromIntegral (ctCodegen t) / 1e6 :: Double)
         ++ ")"
     )
-  printExits maxBound
-  when (statsEach config) resetExitCounts
+  printExits jit maxBound
+  when (statsEach config) (resetExitCounts (jitExits jit))
+  where
+    config = jitConfig jit
 
--- | With @UNISON_JIT_STATS=each@: the exits taken since the program last
--- wrote output (the busiest sites only), after which counting starts again.
-printExitsSinceOutput :: IO ()
-printExitsSinceOutput = do
-  printExits 12
-  resetExitCounts
+-- | Called by the interpreter after each foreign call. With
+-- @UNISON_JIT_STATS=each@, a call that wrote output is followed by the
+-- exits taken since the program last wrote (the busiest sites only), after
+-- which counting starts again; so a program that prints a line per phase
+-- gets its exits listed per phase.
+noteOutput :: JIT -> ForeignFunc -> IO ()
+noteOutput jit f =
+  when (statsEach (jitConfig jit) && f == IO_putBytes_impl_v3) $ do
+    hFlush stdout
+    printExits jit 12
+    resetExitCounts (jitExits jit)
 
-printExits :: Int -> IO ()
-printExits most = do
-  entered <- entryCounts
+printExits :: JIT -> Int -> IO ()
+printExits jit most = do
+  entered <- entryCounts (jitExits jit)
   let enteredTotal = sum (map snd entered)
   when (enteredTotal > 0) $ do
     jitDump ("[jit] " ++ show enteredTotal ++ " entries into native code from the trampoline (" ++ show (length entered) ++ " functions):")
     forM_ (take most (sortOn (negate . snd) entered)) $ \(name, n) ->
       jitDump ("  " ++ show n ++ "\t" ++ name)
-  counts <- exitCounts
+  counts <- exitCounts (jitExits jit)
   let total = sum [n | (_, _, n) <- counts]
   when (total > 0) $ do
     jitDump ("[jit] " ++ show total ++ " exits taken (" ++ show (length counts) ++ " sites):")

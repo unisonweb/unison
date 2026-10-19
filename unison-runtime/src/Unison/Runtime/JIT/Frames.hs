@@ -1,10 +1,12 @@
--- | The global frame table. A native caller whose callee exits writes a
+-- | The frame table, one per JIT. A native caller whose callee exits writes a
 -- frame record naming an entry here; the trampoline turns the record into
 -- the @Push@ frame the interpreter would have pushed. See unison-runtime/src/Unison/Runtime/JIT/design.md,
 -- "Frames: native code records, Haskell builds".
 module Unison.Runtime.JIT.Frames
   ( Frame (..),
     FrameIndex,
+    Frames,
+    newFrames,
     registerFrames,
     replaceFrames,
     lookupFrame,
@@ -16,9 +18,8 @@ import Data.IORef
 import Data.Primitive.SmallArray (SmallMutableArray, copySmallMutableArray, getSizeofSmallMutableArray, newSmallArray, readSmallArray, writeSmallArray)
 import Foreign.Ptr (Ptr)
 import GHC.Exts (RealWorld)
-import System.IO.Unsafe (unsafePerformIO)
 import Unison.Runtime.MCode (CombIx, NativeCell)
-import Unison.Runtime.Machine.Types (MSection)
+import Unison.Runtime.Stack (MSection)
 
 -- | The fixed parts of a @Push@ frame for one @Let@: the body's @CombIx@,
 -- stack guard and section, and the cell holding the body's native code.
@@ -31,17 +32,18 @@ type FrameIndex = Int
 -- the thread that compiles.
 data Table = Table !Int !(SmallMutableArray RealWorld Frame)
 
-table :: IORef Table
-table = unsafePerformIO (newIORef . Table 1 =<< newSmallArray 1024 unknown)
-{-# NOINLINE table #-}
+newtype Frames = Frames (IORef Table)
+
+newFrames :: IO Frames
+newFrames = Frames <$> (newIORef . Table 1 =<< newSmallArray 1024 unknown)
 
 unknown :: Frame
 unknown = error "JIT: unknown frame index"
 
 -- | Adds a module's frames and returns the index of the first one. The
 -- rest follow consecutively, in the order given.
-registerFrames :: [Frame] -> IO FrameIndex
-registerFrames frames = do
+registerFrames :: Frames -> [Frame] -> IO FrameIndex
+registerFrames (Frames table) frames = do
   Table next arr <- readIORef table
   size <- getSizeofSmallMutableArray arr
   let n = length frames
@@ -58,12 +60,12 @@ registerFrames frames = do
 
 -- | Overwrites frames registered earlier, starting at the given index
 -- (see replaceExits).
-replaceFrames :: FrameIndex -> [Frame] -> IO ()
-replaceFrames base frames = do
+replaceFrames :: Frames -> FrameIndex -> [Frame] -> IO ()
+replaceFrames (Frames table) base frames = do
   Table _ arr <- readIORef table
   forM_ (zip [base ..] frames) $ \(i, f) -> writeSmallArray arr i $! f
 
-lookupFrame :: FrameIndex -> IO Frame
-lookupFrame i = do
+lookupFrame :: Frames -> FrameIndex -> IO Frame
+lookupFrame (Frames table) i = do
   Table _ arr <- readIORef table
   readSmallArray arr i

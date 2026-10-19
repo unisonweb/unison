@@ -77,7 +77,7 @@ import Unison.Runtime.ANF as ANF
   )
 import Unison.Runtime.ANF qualified as ANF
 import Unison.Runtime.ANF.Optimize qualified as ANF
-import Unison.Runtime.JIT (jitCompileGroup, jitRequestCell, jitRequestGroup, printJITStats, registerTypeNumbers)
+import Unison.Runtime.JIT (initialNativeCount, jitCompileGroup, jitConfig, jitExits, jitFrames, jitPool, jitRequestCell, jitRequestGroup, jitStats, jitTracing, noteOutput, printJITStats, registerTypeNumbers, stackSlots)
 import Unison.Runtime.JIT.Config qualified as JIT
 import Unison.Runtime.JIT.Exits
 import Unison.Runtime.JIT.Frames
@@ -139,7 +139,7 @@ infos ctx s = putStrLn $ ctx ++ ": " ++ s
 eval0 ::
   (RuntimeProfiler p) => CCache p -> ActiveThreads -> MSection -> IO ()
 eval0 env !activeThreads !co = do
-  stk <- alloc
+  stk <- alloc (stackSlots (jit env))
   cmbs <- readTVarIO $ combs env
   (henv, k) <- do
     rfTy <- readTVarIO (refTy env)
@@ -199,7 +199,7 @@ apply0 ::
   Word64 ->
   IO ()
 apply0 !callback env !threadTracker !i = do
-  stk <- alloc
+  stk <- alloc (stackSlots (jit env))
   cmbrs <- readTVarIO $ combRefs env
   cmbs <- readTVarIO $ combs env
   (henv, kf) <- do
@@ -253,7 +253,7 @@ apply1 ::
   Val ->
   IO ()
 apply1 callback env threadTracker clo = do
-  stk <- alloc
+  stk <- alloc (stackSlots (jit env))
   (tick, cancelTicks) <- startTicker $ profiler env
   apply tick env (HEnv emptyAEnv emptyDEnv) threadTracker stk k0 True ZArgs clo
     `finally` cancelTicks
@@ -506,8 +506,10 @@ exec _ henv !_activeThreads !stk !k _ (Seq as) = do
   stk <- bump stk
   pokeS stk $ Sq.fromList l
   pure (False, henv, stk, k)
-exec _env henv !_activeThreads !stk !k _ (ForeignCall _ func args) = do
+exec env henv !_activeThreads !stk !k _ (ForeignCall _ func args) = do
   (b, stk) <- exStackIOToIO $ foreignCall func args (unpackXStack stk)
+  -- for the JIT's per-output statistics; nothing unless they are on
+  noteOutput (jit env) func
   pure (b, henv, stk, k)
 exec env henv !activeThreads !stk !k _ (Fork i)
   | sandboxed env = die [] "attempted to use sandboxed operation: fork"
@@ -948,12 +950,12 @@ enter !yld env henv !activeThreads !stk !k !cref !sck !args = \case
         stk <- acceptArgs stk a
         eval yld env henv activeThreads stk k cref entry
       else do
-        when jitTracing $
+        when (jitTracing (jit env)) $
           JIT.jitDump ("enter native " ++ show cref ++ " arity " ++ show a ++ " args " ++ show args ++ " cell " ++ show cell ++ " code " ++ show native ++ " stack before " ++ show stk)
         stk <- if sck then pure stk else ensure stk f
         stk <- moveArgs stk args
         stk <- acceptArgs stk a
-        when jitTracing $ JIT.jitDump ("  stack after " ++ show stk)
+        when (jitTracing (jit env)) $ JIT.jitDump ("  stack after " ++ show stk)
         runNative yld env henv activeThreads stk k (castPtrToFunPtr native)
   (RComb (CachedVal _ val)) -> do
     stk <- discardFrame stk
@@ -968,23 +970,17 @@ enter !yld env henv !activeThreads !stk !k !cref !sck !args = \case
 countInterpreted :: CCache prof -> CombIx -> Ptr NativeCell -> IO ()
 countInterpreted env cix cell = do
   hot <- bumpNativeCount cell
-  when hot (jitRequestGroup env cix cell)
+  when hot (jitRequestGroup (jit env) (sandboxed env) (combs env) (combRefs env) cix cell)
 {-# INLINE countInterpreted #-}
 
 -- Likewise for a re-entry point: counts a time the interpreter continued
 -- at a place where native code would have, had it been generated, and asks
 -- for it to be once that has happened often enough.
-countReentry :: Ptr NativeCell -> IO ()
-countReentry cell = do
+countReentry :: CCache prof -> Ptr NativeCell -> IO ()
+countReentry env cell = do
   hot <- bumpNativeCount cell
-  when hot (jitRequestCell cell)
+  when hot (jitRequestCell (jit env) cell)
 {-# INLINE countReentry #-}
-
-jitTracing, jitStats :: Bool
-jitTracing = JIT.trace JIT.config
-jitStats = JIT.stats JIT.config
-{-# NOINLINE jitTracing #-}
-{-# NOINLINE jitStats #-}
 
 -- The trampoline: runs compiled code for a combinator whose frame has
 -- been set up as `enter` sets it up, then acts on the status it returns.
@@ -1001,19 +997,23 @@ runNative ::
   IO ()
 runNative !yld env henv0 !activeThreads !stk0 !k0 fn0 = go fn0 henv0 stk0 k0
   where
-    -- read once: these are consulted several times per round trip
-    !tracing = jitTracing
-    !counting = jitStats
+    -- read once: these are consulted several times per round trip, and
+    -- the tables on every one
+    !tracing = jitTracing (jit env)
+    !counting = jitStats (jit env)
+    !exits = jitExits (jit env)
+    !frames = jitFrames (jit env)
+    !pool = jitPool (jit env)
     go fn henv (Stack ap fp sp ustk bstk) k = do
-      pool <- currentPool
+      poolArr <- currentPool pool
       let !size = bstkSlots bstk
-      when counting $ countEntry (castFunPtrToPtr fn)
+      when counting $ countEntry exits (castFunPtrToPtr fn)
       -- the handler environment goes in the boxed stack's out-area, where
       -- the collector sees it; forced here, since native code can read a
       -- constructor but not a thunk
       let !henvC = unsafeCoerce henv :: Closure
       writeArray bstk size henvC
-      status <- enterNative fn ustk bstk pool size ap fp sp
+      status <- enterNative fn ustk bstk poolArr size ap fp sp
       ap' <- outAp ustk size
       fp' <- outFp ustk size
       sp' <- outSp ustk size
@@ -1033,16 +1033,16 @@ runNative !yld env henv0 !activeThreads !stk0 !k0 fn0 = go fn0 henv0 stk0 k0
               when tracing $
                 JIT.jitDump ("native returned " ++ show status ++ " with ap/fp/sp " ++ show (ap', fp', sp') ++ " (entered with " ++ show (ap, fp, sp) ++ ")" ++ concatMap (("\n  frame record " ++) . show) records)
               when counting $ do
-                total <- countExit status
-                let every = JIT.statsEvery JIT.config
-                when (every > 0 && total `mod` every == 0) printJITStats
+                total <- countExit exits status
+                let every = JIT.statsEvery (jitConfig (jit env))
+                when (every > 0 && total `mod` every == 0) (printJITStats (jit env))
               -- Records are written innermost caller first; K has the
               -- innermost frame on top, so build from the last record.
               k <- if n == 0 then pure k else foldM (pushRecord bstk size) k (reverse records)
               -- the environment native code was running with: switched,
               -- when it exited from inside a handler case
               henv' <- unsafeCoerce <$> readArray bstk size
-              act henv' stk k =<< lookupExit status
+              act henv' stk k =<< lookupExit exits status
     pushRecord bstk size k (FrameRecord i fsz asz)
       | i < 0 = do
           -- an affine handler case's environment switch, in force at the
@@ -1050,7 +1050,7 @@ runNative !yld env henv0 !activeThreads !stk0 !k0 fn0 = go fn0 henv0 stk0 k0
           henv0 <- unsafeCoerce <$> readArray bstk (size + 1 + (-1 - i))
           pure (Local henv0 asz k)
       | otherwise = do
-          Frame cix f sect cell <- lookupFrame i
+          Frame cix f sect cell <- lookupFrame frames i
           pure (Push fsz asz cix f sect cell k)
     act henv stk k = \case
       Named _ e -> act henv stk k e
@@ -1088,7 +1088,7 @@ runNative !yld env henv0 !activeThreads !stk0 !k0 fn0 = go fn0 henv0 stk0 k0
               fp stk' == fp stk ->
                 go (castPtrToFunPtr code) henv stk' k'
             | otherwise -> do
-                when (code == nullPtr) (countReentry cell)
+                when (code == nullPtr) (countReentry env cell)
                 when tracing $ JIT.jitDump ("  no re-entry: pushed " ++ show (sp stk' - sp stk) ++ ", expected " ++ show n ++ "; fp " ++ show (fp stk, fp stk') ++ ", code " ++ show code)
                 eval yld env henv activeThreads stk' k' cix rest
     -- The exit says which function to call again. It is the one that took
@@ -1169,12 +1169,12 @@ apply !yld env henv !activeThreads !stk !k !ck !args !val =
               stk <- dumpSeg stk seg A
               stk <- acceptArgs stk a
               native <- readNativeEntry cell
-              if native == nullPtr || "apply" `elem` JIT.disabled JIT.config
+              if native == nullPtr || "apply" `elem` JIT.disabled (jitConfig (jit env))
                 then do
                   countInterpreted env cix cell
                   eval yld env henv activeThreads stk k cix entry
                 else do
-                  when jitTracing $
+                  when (jitTracing (jit env)) $
                     JIT.jitDump ("apply native " ++ show cix ++ " arity " ++ show a ++ " stack " ++ show stk)
                   runNative yld env henv activeThreads stk k (castPtrToFunPtr native)
           | otherwise -> do
@@ -1502,7 +1502,7 @@ yield !yld env henv0 !activeThreads !stk = leap
       native <- readNativeEntry cell
       if native == nullPtr
         then do
-          countReentry cell
+          countReentry env cell
           eval yld env henv0 activeThreads stk k cix nx
         else runNative yld env henv0 activeThreads stk k (castPtrToFunPtr native)
     leap (Local henv asz k) = do
@@ -1853,16 +1853,16 @@ cacheAdd0 ntys0 (normalizeCodes -> termSuperGroups) sands cc = go
       case result of
         Left needed -> do
           pool <- readTVarIO (nativeCells cc)
-          pool' <- growNativeCellPool needed pool
+          pool' <- growNativeCellPool (initialNativeCount (jit cc)) needed pool
           atomically $ writeTVar (nativeCells cc) pool'
           go
         Right (unresolvedCacheableCombs, unresolvedNonCacheableCombs, newCombs, newCombRefs) -> do
-          readTVarIO (tagRefs cc) >>= registerTypeNumbers
-          when (JIT.dumpMCode JIT.config) $
+          readTVarIO (tagRefs cc) >>= registerTypeNumbers (jit cc)
+          when (JIT.dumpMCode (jitConfig (jit cc))) $
             for_ (EC.mapToList (unresolvedCacheableCombs <> unresolvedNonCacheableCombs)) \(w, cmbs) ->
               for_ (EC.mapToList cmbs) \(i, c) -> JIT.jitDump (prettyComb w i c "")
           for_ (EC.mapToList newCombs) \(w, cmbs) ->
-            for_ (EC.lookup w newCombRefs) \r -> jitCompileGroup (sandboxed cc) r w cmbs
+            for_ (EC.lookup w newCombRefs) \r -> jitCompileGroup (jit cc) (sandboxed cc) r w cmbs
           preEvalTopLevelConstants unresolvedCacheableCombs unresolvedNonCacheableCombs cc
 
     transaction = do

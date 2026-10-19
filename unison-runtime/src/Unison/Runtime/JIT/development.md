@@ -49,6 +49,7 @@ Record a run as `benchmarks/<yyyy-mm-dd>-<what>.md`.
 | `jit-tests.md`, JIT on | about 20 s |
 | `jit-tests.md`, JIT eager, or a stress row of the matrix | 60 to 85 s (everything is compiled before it runs) |
 | `jit-tests.md`, JIT off | about 160 s (the tests are loops) |
+| `jit-benchmarks.md`, JIT on | about 5 minutes (each row runs for several seconds); with stdout redirected to a file nothing appears until the end, since it is block-buffered |
 | the whole test matrix (`scripts/jit-test-matrix.sh`), fast build | about 20 min |
 | `jit-benchmarks.md` (`jitSuite`), optimized | about 1 min |
 | `jit-suite.md` (`suite`), optimized | 5.5 to 7 min per mode |

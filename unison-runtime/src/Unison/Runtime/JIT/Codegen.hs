@@ -33,7 +33,8 @@ module Unison.Runtime.JIT.Codegen
     callOutWorthwhile,
     instrNative,
     instrNativeIn,
-    requestsOn,
+    Switches (..),
+    switches,
     unitForeign,
     workerShape,
   )
@@ -59,7 +60,7 @@ import Unison.Builtin.Decls qualified as Ty (eitherRef, optionalRef, pairRef, se
 import Unison.Reference (Reference)
 import Unison.Runtime.ANF (PackedTag (..))
 import Unison.Runtime.Foreign.Function.Type (ForeignFunc (..))
-import Unison.Runtime.JIT.Config (config, disabled, exitCall)
+import Unison.Runtime.JIT.Config (Config, disabled, exitCall)
 import Unison.Runtime.JIT.Exits (Exit (..))
 import Unison.Runtime.JIT.Frames (Frame (..))
 import Unison.Runtime.JIT.Layout
@@ -67,8 +68,7 @@ import Unison.Runtime.JIT.Pool
 import Unison.Runtime.JIT.Strict
 import Unison.Runtime.MCode hiding (Env)
 import Unison.Runtime.MCode qualified as MCode (GRef (Env))
-import Unison.Runtime.Machine.Types (MCombs, MRef, MSection)
-import Unison.Runtime.Stack (Val (..))
+import Unison.Runtime.Stack (MCombs, MRef, MSection, Val (..))
 import Unison.Runtime.TypeTags qualified as TT
 import Unison.Util.Deque (Deque, (<|), (><), (|>), pattern Empty, pattern (:<|))
 import Unison.Util.Deque qualified as D
@@ -146,7 +146,12 @@ data Env = Env
     -- copy of a callee (see Compile's 'uCopy'), which LLVM drops once it
     -- is inlined at every call. Its worker is internal already; its
     -- auxiliary functions stay external, since they are installed in cells
-    envInternal :: !Bool
+    envInternal :: !Bool,
+    -- | what the settings turn on in the generator (see 'switches')
+    envSwitches :: !Switches,
+    -- | the size of the constant pool's first array (see Pool): a function
+    -- that uses only indices below it never checks the array it was given
+    envPoolStable :: !Int
   }
 
 -- | The cells left for auxiliary functions: a supply without end (the
@@ -1660,19 +1665,19 @@ genAuxFunction later fe loaded base body = do
 -- is better left to the interpreter along with its @Let@, which saves the
 -- binding's frame record. (Whether a whole function is worth compiling is
 -- decided before this, in JIT.Estimate.)
-startsSupported :: MSection -> Bool
-startsSupported = \case
-  Ins i rest -> instrNativeIn i rest || callOutWorthwhile i rest
+startsSupported :: Switches -> MSection -> Bool
+startsSupported sw = \case
+  Ins i rest -> instrNativeIn sw i rest || callOutWorthwhile i rest
   Match {} -> True
   DMatch {} -> True
   NMatch {} -> True
-  RMatch {} -> requestsOn
+  RMatch {} -> swRequests sw
   Call {} -> True
   App _ (MCode.Env _ _) _ -> True
   App _ (Stk _) _ -> True
-  App _ (Dyn _) _ -> requestsOn
+  App _ (Dyn _) _ -> swRequests sw
   Yield {} -> True
-  Let b _ _ _ _ -> startsSupported b
+  Let b _ _ _ _ -> startsSupported sw b
   _ -> False
 
 -- | Whether an instruction the generator can't compile can be a call-out
@@ -1755,7 +1760,7 @@ entryBlock env worker checks arity base maxK maxPool maxExitArgs =
       -- A constant past the pool's first array may not be in the array this
       -- run was entered with, if this function was installed after the run
       -- began (see Pool). Then exit, to be entered again with the current one.
-      <> ( if maxPool < poolStableSize || not checks
+      <> ( if maxPool < envPoolStable env || not checks
              then D.empty
              else
                lines
@@ -1884,7 +1889,7 @@ genSectionFull fe d sect = case sect of
   -- an affine handler's switch to its own environment, in the form the
   -- rest of the case can observe (the other form is a no-op, in 'genInstr')
   Ins (InLocal i) rest
-    | on "requests", localObservingOn, not (localUnobserved rest) -> genInLocal fe d i rest sect
+    | on "requests", swLocalObserving (envSwitches (feEnv fe)), not (localUnobserved rest) -> genInLocal fe d i rest sect
   Ins i rest -> genInstr fe d i sect (\d' -> genSection fe d' rest)
   Yield args -> genYield fe d args sect
   -- a tail call would leave an environment switch in force (see 'localEnds')
@@ -1982,7 +1987,7 @@ genLet fe d binding bcix@(CIx _ _ w) f body cell sect = case EC.lookup w (envCom
           ix <- addFrame env (Frame bcix f body bcell)
           genClosureCall fe d d (d - i) (argSources fe d args) m sect (Just (Pair ix d)) $
             genSection fe (d + m) body
-        _ | startsSupported binding -> do
+        _ | startsSupported (envSwitches env) binding -> do
           bcell <- bodyCell
           ix <- addFrame env (Frame bcix f body bcell)
           bodyL <- freshLabel "body"
@@ -3060,13 +3065,13 @@ fromBaseKind = \case
   Bytes_fromBase64UrlUnpadded -> Just 65
   _ -> Nothing
 
-instrNative :: GInstr comb -> Bool
-instrNative = \case
+instrNative :: Switches -> GInstr comb -> Bool
+instrNative sw = \case
   Lit _ -> True
   Pack {} -> True
-  RecPack {} -> recordsOn
-  RecUnpack {} -> recordsOn
-  RecSet {} -> recordsOn
+  RecPack {} -> swRecords sw
+  RecUnpack {} -> swRecords sw
+  RecSet {} -> swRecords sw
   -- VALU is native only as the first half of Universal.murmurHashUntyped
   -- (see genInstr); on its own it is a call-out, which the estimate accepts
   Prim1 op _ -> prim1Supported op || op `elem` [REFR, REFN, TIKR, RRFC, VALU, NOTB, SIZS, VWLS, VWRS, SIZT, SIZB, FLTB, UCNS, USNC, ITOT, NTOT, FTOT, TTOI, TTON, TTOF, PAKT, UPKT, PAKB, UPKB]
@@ -3078,33 +3083,37 @@ instrNative = \case
   Name r _ -> case r of Dyn _ -> False; _ -> True
   -- storing an affine handler's next state (see 'genInstr'); with the
   -- environment update it is the interpreter's
-  SetAff False _ _ -> requestsOn
+  SetAff False _ _ -> swRequests sw
   _ -> False
 
 -- | 'instrNative' for an instruction in its section: an affine handler's
 -- @InLocal@ is native (a no-op) when the rest of its case can't tell the
 -- environment wasn't switched, see 'localUnobserved'.
-instrNativeIn :: GInstr (RComb Val) -> MSection -> Bool
-instrNativeIn i rest =
-  instrNative i || case i of
-    InLocal _ -> requestsOn && (localUnobserved rest || localObservingOn)
+instrNativeIn :: Switches -> GInstr (RComb Val) -> MSection -> Bool
+instrNativeIn sw i rest =
+  instrNative sw i || case i of
+    InLocal _ -> swRequests sw && (localUnobserved rest || swLocalObserving sw)
     _ -> False
 
--- | The observing form of @InLocal@ is generated (see 'genInLocal'): its
--- Local frame record is written by the exit routine, which the generated
--- write-back blocks of @UNISON_JIT_EXITS=blocks@ don't have.
-localObservingOn :: Bool
-localObservingOn = requestsOn && exitCall config
+-- | What the settings turn on in the generator, for the predicates above,
+-- which the estimator asks without a function environment in reach.
+data Switches = Switches
+  { -- | ability requests and the affine handler instructions are generated
+    -- (off under @UNISON_JIT_DISABLE=requests@)
+    swRequests :: !Bool,
+    -- | the record instructions are generated (off under
+    -- @UNISON_JIT_DISABLE=records@)
+    swRecords :: !Bool,
+    -- | the observing form of @InLocal@ is generated (see 'genInLocal'):
+    -- its Local frame record is written by the exit routine, which the
+    -- generated write-back blocks of @UNISON_JIT_EXITS=blocks@ don't have
+    swLocalObserving :: !Bool
+  }
 
--- | Ability requests and the affine handler instructions are generated
--- (off under @UNISON_JIT_DISABLE=requests@).
-requestsOn :: Bool
-requestsOn = "requests" `notElem` disabled config
-
--- | The record instructions are generated (off under
--- @UNISON_JIT_DISABLE=records@).
-recordsOn :: Bool
-recordsOn = "records" `notElem` disabled config
+switches :: Config -> Switches
+switches cfg = Switches requests ("records" `notElem` disabled cfg) (requests && exitCall cfg)
+  where
+    requests = "requests" `notElem` disabled cfg
 
 -- | Whether a section, the rest of an affine handler's case after its
 -- @InLocal@, can run without the environment switch the instruction makes
