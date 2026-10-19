@@ -74,8 +74,10 @@ import Data.Bytes.Put (runPutS)
 import Data.Bytes.Serial (serialize)
 import Data.Bytes.VarInt (VarInt (..))
 import Data.Char qualified as Char
+import Data.Foldable (toList)
 import Data.Kind (Type)
 import Data.List.NonEmpty qualified as Nel
+import Data.Sequence qualified as Seq
 import Data.Set qualified as Set
 import Data.Text qualified as Text
 import Text.Megaparsec (runParserT)
@@ -579,14 +581,14 @@ chainl1Accum ::
   P.ParsecT s u m (a, [a -> a])
 chainl1Accum p op = do
   x <- p
-  fs <- rest []
-  pure (x, fs)
+  fs <- rest Seq.empty
+  pure (x, toList fs)
   where
     rest fs =
       ( do
           f <- op
           y <- p
-          rest (fs ++ [flip f y])
+          rest (fs Seq.|> flip f y)
       )
         <|> return fs
 
