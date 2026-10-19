@@ -1,11 +1,11 @@
 {-# LANGUAGE MagicHash #-}
 {-# LANGUAGE UnboxedTuples #-}
-{-# OPTIONS_GHC -fno-warn-orphans #-}
-{-# OPTIONS_GHC -fno-warn-unused-top-binds #-}
 -- The JIT's C helpers read and build the Chunk constructor (unison-runtime's
 -- cbits/jit_rt.c), so its layout must be the same in every build: fields are
 -- unpacked only when optimizing.
 {-# OPTIONS_GHC -O2 -funbox-strict-fields #-}
+{-# OPTIONS_GHC -fno-warn-orphans #-}
+{-# OPTIONS_GHC -fno-warn-unused-top-binds #-}
 
 module Unison.Util.Bytes
   ( Bytes (..),

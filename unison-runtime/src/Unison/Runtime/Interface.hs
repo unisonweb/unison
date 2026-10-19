@@ -43,7 +43,6 @@ import Data.ByteString qualified as B
 import Data.ByteString.Builder (Builder)
 import Data.ByteString.Builder qualified as BU
 import Data.Foldable
-import Foreign.Ptr (nullPtr)
 import Data.IORef
 import Data.List qualified as L
 import Data.Map.Strict qualified as Map
@@ -52,6 +51,7 @@ import Data.Set qualified as Set
 import Data.Text (isPrefixOf)
 import Data.Text as Text (unpack)
 import Data.Void (absurd)
+import Foreign.Ptr (nullPtr)
 import System.FilePath
 import Unison.ABT qualified as ABT
 import Unison.Builtin.Decls qualified as RF
@@ -92,23 +92,22 @@ import Unison.Runtime.MCode
     GInstr (..),
     GSection (..),
     RCombs,
-    attachNativeCells,
-    newNativeCellPool,
-    prettyComb,
-    takeNativeCells,
     RecordFieldMappings (..),
     RefNums (..),
     absurdCombs,
+    attachNativeCells,
     combTypes,
     emitComb,
     emptyRNs,
+    newNativeCellPool,
+    prettyComb,
     resolveCombs,
     sanitizeCombsOfForeignFuncs,
+    takeNativeCells,
   )
 import Unison.Runtime.MCode.Serialize
 import Unison.Runtime.Machine
-  ( initialNativeCells,
-    ActiveThreads,
+  ( ActiveThreads,
     CCache (..),
     Combs,
     Tracer (..),
@@ -118,6 +117,7 @@ import Unison.Runtime.Machine
     cacheAdd0,
     eval0,
     expandSandbox,
+    initialNativeCells,
     preEvalTopLevelConstants,
     refLookup,
     refNumTm,

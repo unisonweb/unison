@@ -13,9 +13,9 @@ where
 
 import Control.Monad (forM_)
 import Data.IORef
-import Data.Primitive.SmallArray (SmallMutableArray, copySmallMutableArray, newSmallArray, readSmallArray, getSizeofSmallMutableArray, writeSmallArray)
-import GHC.Exts (RealWorld)
+import Data.Primitive.SmallArray (SmallMutableArray, copySmallMutableArray, getSizeofSmallMutableArray, newSmallArray, readSmallArray, writeSmallArray)
 import Foreign.Ptr (Ptr)
+import GHC.Exts (RealWorld)
 import System.IO.Unsafe (unsafePerformIO)
 import Unison.Runtime.MCode (CombIx, NativeCell)
 import Unison.Runtime.Machine.Types (MSection)

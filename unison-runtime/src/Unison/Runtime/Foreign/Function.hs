@@ -52,7 +52,6 @@ import Data.IP (IP)
 import Data.Map.Strict qualified as Map
 import Data.Map.Strict.Internal qualified as Map
 import Data.PEM (PEM, pemContent, pemParseLBS)
-import Unison.Util.Deque qualified as Sq
 import Data.Tagged (Tagged (..))
 import Data.Text qualified as TS
 import Data.Text.IO qualified as Text.IO
@@ -189,11 +188,11 @@ import Unison.Runtime.Crypto.Rsa qualified as Rsa
 import Unison.Runtime.Exception (die, exn)
 import Unison.Runtime.FFI.DLL
 import Unison.Runtime.Foreign.Dynamic as Dyn
-import Unison.Runtime.JIT.Config qualified as JIT
 import Unison.Runtime.Foreign.Function.Type
   ( ForeignFunc (..),
     foreignFuncBuiltinName,
   )
+import Unison.Runtime.JIT.Config qualified as JIT
 import Unison.Runtime.MCode
 import Unison.Runtime.Referenced (Referenced, dereference)
 import Unison.Runtime.Signal qualified as Signal
@@ -203,6 +202,7 @@ import Unison.Runtime.TypeTags qualified as TT
 import Unison.Symbol
 import Unison.Type (anyRef)
 import Unison.Util.Bytes qualified as Bytes
+import Unison.Util.Deque qualified as Sq
 import Unison.Util.RefPromise
   ( Promise,
     newPromise,
@@ -2122,8 +2122,8 @@ functionReplacements, functionUnreplacements :: Map Reference Reference
     swap (x, y) = (y, x)
     processed =
       [ process (str, pos, ff)
-        | (str, pos, ff, use) <- functionReplacementList,
-          JIT.replacementActive use
+      | (str, pos, ff, use) <- functionReplacementList,
+        JIT.replacementActive use
       ]
 jsonNull = BoxedVal $ Enum Ty.jsonRef TT.jsonNullTag
 jsonTrue = BoxedVal . Data1 Ty.jsonRef TT.jsonBoolTag $ BoolVal True

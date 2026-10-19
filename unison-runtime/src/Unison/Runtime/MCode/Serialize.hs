@@ -14,9 +14,9 @@ where
 
 import Data.ByteString.Builder (Builder)
 import Data.ByteString.Builder qualified as BU
-import Data.Void (Void)
 import Data.List (sortOn)
 import Data.Primitive.PrimArray (primArrayToList)
+import Data.Void (Void)
 import Data.Word (Word64)
 import GHC.Exts (IsList (..))
 import Unison.Runtime.ANF (PackedTag (..))

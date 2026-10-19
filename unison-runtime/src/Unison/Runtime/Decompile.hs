@@ -12,6 +12,7 @@ module Unison.Runtime.Decompile
 where
 
 import Data.Map qualified as Map
+import Data.Sequence qualified as Seq
 import Data.Set (singleton)
 import Data.Text qualified as DT
 import Data.Vector qualified as V
@@ -19,7 +20,6 @@ import Numeric.Natural (Natural)
 import Unison.ABT (substs)
 import Unison.Builtin.Decls qualified as DD
 import Unison.ConstructorReference (GConstructorReference (..))
-import Data.Sequence qualified as Seq
 import Unison.Prelude
 import Unison.Reference (Reference, pattern Builtin)
 import Unison.Referent (pattern Ref)
@@ -32,14 +32,14 @@ import Unison.Runtime.Stack
   ( Closure (..),
     Foreign (..),
     HashAlgorithm (..),
-    pattern BytesC,
-    pattern ListC,
-    pattern TextC,
     UnboxedTypeTag (..),
     Val (..),
     foreignRef,
+    pattern BytesC,
     pattern DataC,
+    pattern ListC,
     pattern PApV,
+    pattern TextC,
   )
 import Unison.Term
   ( Term,

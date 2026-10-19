@@ -26,16 +26,16 @@ module Unison.Runtime.JIT.Pool
 where
 
 import Control.Monad (forM, forM_, when)
-import Data.Maybe (fromMaybe)
 import Data.IORef
 import Data.Map.Strict qualified as Map
+import Data.Maybe (fromMaybe)
 import Data.Primitive.Array (MutableArray, copyMutableArray, newArray, sizeofMutableArray, writeArray)
+import Data.Vector qualified as V
 import GHC.Exts (RealWorld)
 import System.IO.Unsafe (unsafePerformIO)
 import Unison.Reference (Reference)
 import Unison.Runtime.ANF (PackedTag)
 import Unison.Runtime.JIT.Config (config, stressPool)
-import Data.Vector qualified as V
 import Unison.Runtime.MCode (CombIx, GCombInfo, MLit (..), RecordShape (..))
 import Unison.Runtime.Machine.Types (MComb)
 import Unison.Runtime.Stack (Closure, Val (..), charTypeTag, falseVal, floatTypeTag, intTypeTag, natTypeTag, nullSeg, trueVal, pattern Enum, pattern Foreign, pattern PAp, pattern RecordG)

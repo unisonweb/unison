@@ -20,14 +20,14 @@ where
 
 import Control.Monad (forM, forM_)
 import Data.IORef
+import Data.Map.Strict qualified as M
 import Data.Primitive.PrimArray (MutablePrimArray (..), newPrimArray, readPrimArray, setPrimArray)
+import Data.Primitive.SmallArray (SmallMutableArray, copySmallMutableArray, getSizeofSmallMutableArray, newSmallArray, readSmallArray, writeSmallArray)
+import Foreign.Ptr (Ptr, WordPtr, ptrToWordPtr)
 import GHC.Exts (Int (..), RealWorld, fetchAddIntArray#)
 import GHC.IO (IO (..))
-import Unison.Runtime.JIT.Config (config, stats)
-import Data.Primitive.SmallArray (SmallMutableArray, copySmallMutableArray, newSmallArray, readSmallArray, getSizeofSmallMutableArray, writeSmallArray)
 import System.IO.Unsafe (unsafePerformIO)
-import Data.Map.Strict qualified as M
-import Foreign.Ptr (Ptr, WordPtr, ptrToWordPtr)
+import Unison.Runtime.JIT.Config (config, stats)
 import Unison.Runtime.MCode (CombIx, NativeCell)
 import Unison.Runtime.Machine.Types (MInstr, MSection)
 

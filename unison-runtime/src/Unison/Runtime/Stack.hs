@@ -255,8 +255,8 @@ import Unison.Runtime.Referenced (Referenced, dereference)
 import Unison.Runtime.Signal qualified as Signal
 import Unison.Runtime.TypeTags qualified as TT
 import Unison.Type qualified as Ty
-import Unison.Util.Deque (Deque)
 import Unison.Util.Bytes (Bytes)
+import Unison.Util.Deque (Deque)
 import Unison.Util.EnumContainers as EC
 import Unison.Util.Monoid qualified as Monoid
 import Unison.Util.RefPromise (Promise)
@@ -1841,7 +1841,8 @@ instance Eq Closure where
   BytesC l == BytesC r = l == r
   Foreign fl == Foreign fr = fl == fr
   c == d
-    | closureNum c == 3, closureNum d == 3 =
+    | closureNum c == 3,
+      closureNum d == 3 =
         error $
           "Attempting to check equality of values of different types: "
             <> "`"
@@ -1946,7 +1947,8 @@ compareClosure tyEq = \cases
   (UnboxedTypeTag t1) (UnboxedTypeTag t2) -> compare t1 t2
   (BlackHole) (BlackHole) -> EQ
   c d
-    | closureNum c == 3, closureNum d == 3 ->
+    | closureNum c == 3,
+      closureNum d == 3 ->
         error $
           "Attempting to compare two values of different types: `"
             <> builtinKindName c
@@ -2131,6 +2133,7 @@ data Foreign
   | WrapSignalSubscription !Signal.Subscription
 
 -- Convenience class for (un)wrapping Haskell values automatically
+
 -- | The closure holding a Haskell value: @Foreign (Wrap... x)@ for most,
 -- a 'TextC' or 'ListC' for a text or a list.
 class BuiltinForeign f where

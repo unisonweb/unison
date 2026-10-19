@@ -21,22 +21,27 @@ where
 import Control.Concurrent (threadDelay)
 import Control.Monad (forM, forM_, unless, when)
 import Data.Bifunctor (first)
+import Data.Bits ((.&.))
 import Data.Foldable (toList)
 import Data.IORef
-import Data.Primitive.PrimArray (sizeofPrimArray)
+import Data.Map qualified as Map
+import Data.Map.Strict qualified as MapS
 import Data.Maybe (isJust)
-import System.IO (hPutStrLn, stderr)
-import System.IO.Unsafe (unsafePerformIO)
+import Data.Primitive.PrimArray (sizeofPrimArray)
+import Data.Set qualified as Set
+import Data.Text.IO qualified as TIO
 import Data.Word (Word64)
 import Foreign.Ptr (Ptr, castFunPtrToPtr)
-import Data.Map qualified as Map
-import Data.Text.IO qualified as TIO
-import Data.Map.Strict qualified as MapS
 import GHC.Clock (getMonotonicTimeNSec)
 import System.FilePath ((</>))
-import Unison.Runtime.JIT.Codegen qualified as CG
+import System.IO (hPutStrLn, stderr)
+import System.IO.Unsafe (unsafePerformIO)
+import Unison.Builtin.Decls qualified as Ty (eitherRef, optionalRef, pairRef, seqViewRef, unitRef)
+import Unison.Reference (Reference)
+import Unison.Runtime.ANF (PackedTag (..))
+import Unison.Runtime.Foreign.Function.Type (ForeignFunc (..))
 import Unison.Runtime.JIT.Codegen (AuxMemo, CtxOffsets, Deferred (..), Function (..), RtsFacts, genDeferred, genFunction, modulePrelude)
-import Unison.Runtime.JIT.Strict (Pair (..), unlinesT)
+import Unison.Runtime.JIT.Codegen qualified as CG
 import Unison.Runtime.JIT.Config
 import Unison.Runtime.JIT.Estimate (Estimate (..), judge)
 import Unison.Runtime.JIT.Exits (nameEntry, registerExits, replaceExits)
@@ -44,20 +49,14 @@ import Unison.Runtime.JIT.Frames (registerFrames, replaceFrames)
 import Unison.Runtime.JIT.LLVM
 import Unison.Runtime.JIT.Layout (Layouts)
 import Unison.Runtime.JIT.Pool (PoolKey (..), poolIndices)
-import Unison.Runtime.ANF (PackedTag (..))
-import Unison.Reference (Reference)
-import Unison.Runtime.Foreign.Function.Type (ForeignFunc (..))
-import Unison.Runtime.TypeTags qualified as TT
-import Unison.Builtin.Decls qualified as Ty (eitherRef, optionalRef, pairRef, seqViewRef, unitRef)
+import Unison.Runtime.JIT.Strict (Pair (..), unlinesT)
 import Unison.Runtime.MCode
 import Unison.Runtime.Machine.Types (MCombs, MSection)
 import Unison.Runtime.Stack (Val (..))
+import Unison.Runtime.TypeTags qualified as TT
 import Unison.Util.Deque qualified as D
 import Unison.Util.EnumContainers qualified as EC
 import Unison.Util.Text qualified as UT
-import Data.Bits ((.&.))
-import Data.Set qualified as Set
-
 
 -- | Everything in a section tree, innermost sections included, in order.
 sectionsOf :: MSection -> [MSection]
@@ -91,11 +90,11 @@ poolKeysOf s =
     -- a function applied to fewer arguments than it takes: the partial
     -- application is built from the function's closure
     ++ [ KeyComb cix info
-         | App _ (Env cix comb) args <- sectionsOf s,
-           Comb info@(LamI arity _ _ _) <- [unRComb comb],
-           Just n <- [argCount args],
-           n > 0,
-           n < arity
+       | App _ (Env cix comb) args <- sectionsOf s,
+         Comb info@(LamI arity _ _ _) <- [unRComb comb],
+         Just n <- [argCount args],
+         n > 0,
+         n < arity
        ]
   where
     -- the constructors the text and bytes helpers build results from
@@ -293,7 +292,15 @@ groupUnits sandbox lazy ref grp combs = do
       let name = "u" ++ show grp ++ "_" ++ show i ++ suffix
           cix = CIx ref grp i
           describe =
-            "; " ++ name ++ " = " ++ show cix ++ "\n;   arity " ++ show a ++ ", frame size " ++ show f ++ "\n"
+            "; "
+              ++ name
+              ++ " = "
+              ++ show cix
+              ++ "\n;   arity "
+              ++ show a
+              ++ ", frame size "
+              ++ show f
+              ++ "\n"
               ++ unlines (map ("; " ++) (lines (prettySection 4 entry "")))
           worker = if isEntry i && CG.workerShape entry then Just a else Nothing
        in Unit name name cell combs entry describe onDemand worker False sandbox (\sym env -> first UT.unpack (genFunction env (UT.pack sym) cix a f entry cell))
@@ -331,7 +338,15 @@ deferredUnit parent d =
     (dCell d)
     (uCombs parent)
     (dBody d)
-    ( "; " ++ UT.unpack (dName d) ++ " = re-entry into " ++ show (dCix d) ++ " at depth " ++ show (dLoaded d) ++ ", frame base " ++ show (dBase d) ++ "\n"
+    ( "; "
+        ++ UT.unpack (dName d)
+        ++ " = re-entry into "
+        ++ show (dCix d)
+        ++ " at depth "
+        ++ show (dLoaded d)
+        ++ ", frame base "
+        ++ show (dBase d)
+        ++ "\n"
         ++ unlines (map ("; " ++) (lines (prettySection 4 (dBody d) "")))
     )
     True
@@ -353,7 +368,7 @@ compileUnits st types abilities modName lazy candidates = do
   let units = [u | (u, (True, _)) <- judged]
       notWorthIt =
         [ (u, "left interpreted: an average path takes " ++ showEstimate e)
-          | (u, (False, Just e)) <- judged
+        | (u, (False, Just e)) <- judged
         ]
       showEstimate (Estimate saving exits _) =
         show2 exits ++ " exits and saves " ++ show2 saving ++ " instructions' overhead"
@@ -386,7 +401,7 @@ compileUnits st types abilities modName lazy candidates = do
         [ case firstTry u of
             Left _ | Map.member (uCell u) candidates1 -> (u {uWorker = Nothing}, gen u (env Map.empty (Map.delete (uCell u) candidates1) u (0, 0, CG.Counting)))
             r -> (u, r)
-          | u <- units
+        | u <- units
         ]
       failed = [(u, "not compiled: " ++ why) | (u, Left why) <- firstPass]
       skipped = notWorthIt ++ failed
@@ -486,13 +501,31 @@ compileUnits st types abilities modName lazy candidates = do
             ()
           )
         jitLog
-          ( modName ++ ": compiled " ++ show (length compiled) ++ " of " ++ show (length candidates)
-              ++ " functions" ++ (if copies > 0 then " (" ++ show copies ++ " private copies)" else "")
-              ++ ", " ++ show (sum (map (length . fnAux) fns)) ++ " auxiliary, "
-              ++ show (sum (map (length . fnDeferred) fns)) ++ " left for later, "
-              ++ show (sum counts) ++ " exits, " ++ show (UT.size ir `div` 1024) ++ " KB of IR, in "
-              ++ show (fromIntegral (t1 - t0) / 1e6 :: Double) ++ " ms"
-              ++ " (generate " ++ ms (tGen - t0) ++ ", parse and optimize " ++ ms (tOpt - tGen) ++ ", code " ++ ms (tCode - tOpt) ++ ")"
+          ( modName
+              ++ ": compiled "
+              ++ show (length compiled)
+              ++ " of "
+              ++ show (length candidates)
+              ++ " functions"
+              ++ (if copies > 0 then " (" ++ show copies ++ " private copies)" else "")
+              ++ ", "
+              ++ show (sum (map (length . fnAux) fns))
+              ++ " auxiliary, "
+              ++ show (sum (map (length . fnDeferred) fns))
+              ++ " left for later, "
+              ++ show (sum counts)
+              ++ " exits, "
+              ++ show (UT.size ir `div` 1024)
+              ++ " KB of IR, in "
+              ++ show (fromIntegral (t1 - t0) / 1e6 :: Double)
+              ++ " ms"
+              ++ " (generate "
+              ++ ms (tGen - t0)
+              ++ ", parse and optimize "
+              ++ ms (tOpt - tGen)
+              ++ ", code "
+              ++ ms (tCode - tOpt)
+              ++ ")"
           )
   where
     ms ns = show (fromIntegral ns / 1e6 :: Double)

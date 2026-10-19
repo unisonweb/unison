@@ -8,8 +8,8 @@ import Data.ByteString.Builder (Builder, toLazyByteString)
 import Data.ByteString.Lazy (toStrict)
 import Data.Primitive (Prim, PrimArray, primArrayFromList, primArrayToList)
 import Data.Set qualified as Set
-import GHC.Exts qualified as Exts
 import EasyTest qualified as EasyTest
+import GHC.Exts qualified as Exts
 import Hedgehog hiding (Rec, Test, test)
 import Hedgehog.Gen qualified as Gen
 import Hedgehog.Range qualified as Range

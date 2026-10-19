@@ -42,35 +42,35 @@ where
 import Control.Monad (foldM, forM, forM_, unless, void, when)
 import Control.Monad.State.Strict hiding (put)
 import Control.Monad.State.Strict qualified as State
-import Data.Char (ord)
-import Data.Maybe (isJust, isNothing)
 import Data.Bits (shiftL, shiftR)
+import Data.Char (ord)
 import Data.Int (Int64)
+import Data.IntMap.Strict qualified as IM
+import Data.IntSet qualified as IS
+import Data.Map.Strict qualified as Map
+import Data.Maybe (isJust, isNothing)
 import Data.Primitive.PrimArray (primArrayToList)
+import Data.Vector qualified as V
 import Data.Word (Word64)
 import Foreign.Ptr (Ptr, WordPtr (..), ptrToWordPtr)
-import System.Info (os)
 import GHC.Float (castDoubleToWord64)
+import System.Info (os)
+import Unison.Builtin.Decls qualified as Ty (eitherRef, optionalRef, pairRef, seqViewRef, unitRef)
+import Unison.Reference (Reference)
+import Unison.Runtime.ANF (PackedTag (..))
+import Unison.Runtime.Foreign.Function.Type (ForeignFunc (..))
 import Unison.Runtime.JIT.Config (config, disabled, exitCall)
 import Unison.Runtime.JIT.Exits (Exit (..))
 import Unison.Runtime.JIT.Frames (Frame (..))
 import Unison.Runtime.JIT.Layout
 import Unison.Runtime.JIT.Pool
-import Unison.Reference (Reference)
-import Unison.Runtime.ANF (PackedTag (..))
-import Unison.Runtime.Foreign.Function.Type (ForeignFunc (..))
-import Unison.Runtime.TypeTags qualified as TT
-import Unison.Builtin.Decls qualified as Ty (eitherRef, optionalRef, pairRef, seqViewRef, unitRef)
-import Data.Map.Strict qualified as Map
-import Data.IntMap.Strict qualified as IM
-import Data.IntSet qualified as IS
-import Data.Vector qualified as V
+import Unison.Runtime.JIT.Strict
 import Unison.Runtime.MCode hiding (Env)
 import Unison.Runtime.MCode qualified as MCode (GRef (Env))
 import Unison.Runtime.Machine.Types (MCombs, MRef, MSection)
-import Unison.Runtime.JIT.Strict
 import Unison.Runtime.Stack (Val (..))
-import Unison.Util.Deque (Deque, pattern Empty, pattern (:<|), (<|), (><), (|>))
+import Unison.Runtime.TypeTags qualified as TT
+import Unison.Util.Deque (Deque, (<|), (><), (|>), pattern Empty, pattern (:<|))
 import Unison.Util.Deque qualified as D
 import Unison.Util.EnumContainers qualified as EC
 import Unison.Util.Text qualified as UT
@@ -1389,7 +1389,13 @@ genFunctionText fe body = do
     _ -> s
   let header
         | feWorker fe =
-            "define internal " <> workerCC <> " " <> workerRet <> " @" <> feSym fe <> "(ptr %ctx, i64 %fp.in"
+            "define internal "
+              <> workerCC
+              <> " "
+              <> workerRet
+              <> " @"
+              <> feSym fe
+              <> "(ptr %ctx, i64 %fp.in"
               <> foldMap (\k -> ", i64 %a.u" <> tshow k <> ", ptr %a.b" <> tshow k) [1 .. arity]
               <> ") {"
         | otherwise = "define " <> (if feInternal fe then "internal " else "") <> "i64 @" <> feSym fe <> "(ptr %ctx, i64 %ap, i64 %fp.in, i64 %sp) {"
@@ -1436,8 +1442,27 @@ exitFree = \case
   Prim1 op _ -> op `elem` [DECI, DECN, INCI, INCN, NEGI, COMN, COMI, TRNC, SGNI, LZRO, TZRO, POPC]
   Prim2 op _ _ ->
     op
-      `elem` [ ADDI, SUBI, MULI, EQLI, NEQI, LEQI, LESI, ANDI, IORI, XORI,
-               ADDN, SUBN, MULN, EQLN, NEQN, LEQN, LESN, ANDN, IORN, XORN, DRPN
+      `elem` [ ADDI,
+               SUBI,
+               MULI,
+               EQLI,
+               NEQI,
+               LEQI,
+               LESI,
+               ANDI,
+               IORI,
+               XORI,
+               ADDN,
+               SUBN,
+               MULN,
+               EQLN,
+               NEQN,
+               LEQN,
+               LESN,
+               ANDN,
+               IORN,
+               XORN,
+               DRPN
              ]
   _ -> False
 
@@ -1512,7 +1537,13 @@ genWrapper fe body = do
               )
               [1 .. arity]
             <> lines
-              [ "%r = call " <> workerCC <> " " <> workerRet <> " @" <> workerName name <> "(ptr %ctx, i64 %fp.in"
+              [ "%r = call "
+                  <> workerCC
+                  <> " "
+                  <> workerRet
+                  <> " @"
+                  <> workerName name
+                  <> "(ptr %ctx, i64 %fp.in"
                   <> foldMap (\k -> ", i64 %u" <> tshow k <> ", ptr %b" <> tshow k) [1 .. arity]
                   <> ")",
                 "%st = extractvalue " <> workerRet <> " %r, 0",
@@ -1945,16 +1976,16 @@ genLet fe d binding bcix@(CIx _ _ w) f body cell sect = case EC.lookup w (envCom
           genClosureCall fe d d (d - i) (argSources fe d args) m sect (Just (Pair ix d)) $
             genSection fe (d + m) body
         _ | startsSupported binding -> do
-              bcell <- bodyCell
-              ix <- addFrame env (Frame bcix f body bcell)
-              bodyL <- freshLabel "body"
-              let fe' = fe {feEnclosing = Enclosing ix d bodyL m (liveAt env (currentBase fe) (d + m) body) <| feEnclosing fe}
-              ok <- attempt (withKinds (genSection fe' d binding))
-              if ok
-                then do
-                  startBlock bodyL
-                  genSection fe (d + m) body
-                else exitResume fe d sect
+          bcell <- bodyCell
+          ix <- addFrame env (Frame bcix f body bcell)
+          bodyL <- freshLabel "body"
+          let fe' = fe {feEnclosing = Enclosing ix d bodyL m (liveAt env (currentBase fe) (d + m) body) <| feEnclosing fe}
+          ok <- attempt (withKinds (genSection fe' d binding))
+          if ok
+            then do
+              startBlock bodyL
+              genSection fe (d + m) body
+            else exitResume fe d sect
         _ -> exitResume fe d sect
   _ -> exitResume fe d sect
   where
@@ -2584,7 +2615,8 @@ genApp fe d r args sect = case r of
   -- argument and this frame as its continuation. A number the environment
   -- doesn't map to an affine handler is the interpreter's.
   Dyn key
-    | enabled fe "requests", e :<| _ <- feEnclosing fe ->
+    | enabled fe "requests",
+      e :<| _ <- feEnclosing fe ->
         genNonTailCallWith fe d (enBase e) (dynCallee fe key n) (copyCaptured fe (enBase e + n)) srcs (enResults e) sect Nothing $
           emit ("br label %" <> enBody e)
     | enabled fe "requests" -> genTailClosureCall fe d (dynCallee fe key n) srcs sect
@@ -2779,9 +2811,10 @@ copyCaptured :: FnEnv -> Int -> Gen Text
 copyCaptured fe from = do
   let env = feEnv fe
       rts = envRts env
-  Captured useg bseg count <- gets gsCaptured >>= \case
-    Just c -> pure c
-    Nothing -> error "copyCaptured: no closure examined"
+  Captured useg bseg count <-
+    gets gsCaptured >>= \case
+      Just c -> pure c
+      Nothing -> error "copyCaptured: no closure examined"
   modify' (\st -> st {gsCaptured = Nothing})
   cur <- curLabel
   headL <- freshLabel "cp.head"
@@ -2849,18 +2882,90 @@ litSupported = \case
 prim1Supported :: Prim1 -> Bool
 prim1Supported op =
   op
-    `elem` [ DECI, DECN, INCI, INCN, NEGI, COMN, COMI, TRNC, SGNI, LZRO, TZRO, POPC,
-             ITOF, NTOF, ABSF, CEIL, FLOR, TRNF, RNDF, EXPF, LOGF, SQRT,
-             COSF, SINF, TANF, COSH, SINH, TANH, ACOS, ASIN, ATAN, ASNH, ACSH, ATNH
+    `elem` [ DECI,
+             DECN,
+             INCI,
+             INCN,
+             NEGI,
+             COMN,
+             COMI,
+             TRNC,
+             SGNI,
+             LZRO,
+             TZRO,
+             POPC,
+             ITOF,
+             NTOF,
+             ABSF,
+             CEIL,
+             FLOR,
+             TRNF,
+             RNDF,
+             EXPF,
+             LOGF,
+             SQRT,
+             COSF,
+             SINF,
+             TANF,
+             COSH,
+             SINH,
+             TANH,
+             ACOS,
+             ASIN,
+             ATAN,
+             ASNH,
+             ACSH,
+             ATNH
            ]
 
 prim2Supported :: Prim2 -> Bool
 prim2Supported op =
   op
-    `elem` [ ADDI, SUBI, MULI, DIVI, MODI, EQLI, NEQI, LEQI, LESI, ANDI, IORI, XORI, SHLI, SHRI,
-             ADDN, SUBN, MULN, DIVN, MODN, EQLN, NEQN, LEQN, LESN, ANDN, IORN, XORN, SHLN, SHRN, DRPN,
-             POWI, POWN, CAST,
-             ADDF, SUBF, MULF, DIVF, EQLF, NEQF, LEQF, LESF, MINF, MAXF, POWF, LOGB, ATN2
+    `elem` [ ADDI,
+             SUBI,
+             MULI,
+             DIVI,
+             MODI,
+             EQLI,
+             NEQI,
+             LEQI,
+             LESI,
+             ANDI,
+             IORI,
+             XORI,
+             SHLI,
+             SHRI,
+             ADDN,
+             SUBN,
+             MULN,
+             DIVN,
+             MODN,
+             EQLN,
+             NEQN,
+             LEQN,
+             LESN,
+             ANDN,
+             IORN,
+             XORN,
+             SHLN,
+             SHRN,
+             DRPN,
+             POWI,
+             POWN,
+             CAST,
+             ADDF,
+             SUBF,
+             MULF,
+             DIVF,
+             EQLF,
+             NEQF,
+             LEQF,
+             LESF,
+             MINF,
+             MAXF,
+             POWF,
+             LOGB,
+             ATN2
            ]
 
 -- | Whether 'genInstr' has native code for an instruction (at least a fast
@@ -2872,11 +2977,33 @@ prim2Supported op =
 textForeign, bytesForeign :: [ForeignFunc]
 textForeign = [Text_repeat, Text_reverse, Text_toUppercase, Text_toLowercase, Text_toUtf8, Text_fromUtf8_impl_v3, Char_toText]
 bytesForeign =
-  [ Bytes_decodeNat16be, Bytes_decodeNat16le, Bytes_decodeNat32be, Bytes_decodeNat32le, Bytes_decodeNat64be, Bytes_decodeNat64le,
-    Bytes_encodeNat16be, Bytes_encodeNat16le, Bytes_encodeNat32be, Bytes_encodeNat32le, Bytes_encodeNat64be, Bytes_encodeNat64le,
-    Bytes_read, Bytes_read16be, Bytes_read16le, Bytes_read32be, Bytes_read32le, Bytes_read64be, Bytes_read64le,
-    Bytes_toBase16, Bytes_toBase32, Bytes_toBase64, Bytes_toBase64UrlUnpadded,
-    Bytes_fromBase16, Bytes_fromBase32, Bytes_fromBase64, Bytes_fromBase64UrlUnpadded
+  [ Bytes_decodeNat16be,
+    Bytes_decodeNat16le,
+    Bytes_decodeNat32be,
+    Bytes_decodeNat32le,
+    Bytes_decodeNat64be,
+    Bytes_decodeNat64le,
+    Bytes_encodeNat16be,
+    Bytes_encodeNat16le,
+    Bytes_encodeNat32be,
+    Bytes_encodeNat32le,
+    Bytes_encodeNat64be,
+    Bytes_encodeNat64le,
+    Bytes_read,
+    Bytes_read16be,
+    Bytes_read16le,
+    Bytes_read32be,
+    Bytes_read32le,
+    Bytes_read64be,
+    Bytes_read64le,
+    Bytes_toBase16,
+    Bytes_toBase32,
+    Bytes_toBase64,
+    Bytes_toBase64UrlUnpadded,
+    Bytes_fromBase16,
+    Bytes_fromBase32,
+    Bytes_fromBase64,
+    Bytes_fromBase64UrlUnpadded
   ]
 
 -- | The width in bytes and endianness (1 for big) of the Bytes number functions.
@@ -3194,21 +3321,25 @@ genInstr fe d instr sect k = case instr of
         e <- poolValue emptyIx
         listHelper d slow ("@unison_jit_list_view(ptr %ctx, ptr " <> l <> ", ptr " <> e <> ", i64 " <> tshow elemTag <> ", i64 " <> (if op == VWLS then "1" else "0") <> ")")
         k (d + 1)
-  Prim2 op i j | enabled fe "list", op == CONS || op == SNOC -> do
-    -- cons takes the element first, snoc the list
-    let !(Pair kl kx) = if op == CONS then Pair (d - j) (d - i) else Pair (d - i) (d - j)
-    slow <- callOutExit True fe d instr sect
-    l <- loadB kl
-    u <- loadU kx
-    b <- loadB kx
-    listHelper d slow ("@unison_jit_list_push(ptr %ctx, ptr " <> l <> ", i64 " <> u <> ", ptr " <> b <> ", i64 " <> (if op == CONS then "1" else "0") <> ")")
-    k (d + 1)
-  Prim2 op i j | enabled fe "list", op == TAKS || op == DRPS -> do
-    slow <- callOutExit True fe d instr sect
-    n <- loadU (d - i)
-    l <- loadB (d - j)
-    listHelper d slow ("@unison_jit_list_cut(ptr %ctx, ptr " <> l <> ", i64 " <> n <> ", i64 " <> (if op == TAKS then "1" else "0") <> ")")
-    k (d + 1)
+  Prim2 op i j
+    | enabled fe "list",
+      op == CONS || op == SNOC -> do
+        -- cons takes the element first, snoc the list
+        let !(Pair kl kx) = if op == CONS then Pair (d - j) (d - i) else Pair (d - i) (d - j)
+        slow <- callOutExit True fe d instr sect
+        l <- loadB kl
+        u <- loadU kx
+        b <- loadB kx
+        listHelper d slow ("@unison_jit_list_push(ptr %ctx, ptr " <> l <> ", i64 " <> u <> ", ptr " <> b <> ", i64 " <> (if op == CONS then "1" else "0") <> ")")
+        k (d + 1)
+  Prim2 op i j
+    | enabled fe "list",
+      op == TAKS || op == DRPS -> do
+        slow <- callOutExit True fe d instr sect
+        n <- loadU (d - i)
+        l <- loadB (d - j)
+        listHelper d slow ("@unison_jit_list_cut(ptr %ctx, ptr " <> l <> ", i64 " <> n <> ", i64 " <> (if op == TAKS then "1" else "0") <> ")")
+        k (d + 1)
   Prim2 op i j
     | enabled fe "list",
       op == SPLL || op == SPLR,
@@ -3260,12 +3391,14 @@ genInstr fe d instr sect k = case instr of
     y <- loadB (d - j)
     listHelper d slow ("@unison_jit_text_append(ptr %ctx, ptr " <> x <> ", ptr " <> y <> ")")
     k (d + 1)
-  Prim2 op i j | enabled fe "text", op == TAKT || op == DRPT -> do
-    slow <- callOutExit True fe d instr sect
-    n <- loadU (d - i)
-    t <- loadB (d - j)
-    listHelper d slow ("@unison_jit_text_cut(ptr %ctx, ptr " <> t <> ", i64 " <> n <> ", i64 " <> (if op == TAKT then "1" else "0") <> ")")
-    k (d + 1)
+  Prim2 op i j
+    | enabled fe "text",
+      op == TAKT || op == DRPT -> do
+        slow <- callOutExit True fe d instr sect
+        n <- loadU (d - i)
+        t <- loadB (d - j)
+        listHelper d slow ("@unison_jit_text_cut(ptr %ctx, ptr " <> t <> ", i64 " <> n <> ", i64 " <> (if op == TAKT then "1" else "0") <> ")")
+        k (d + 1)
   Prim2 EQLT i j | enabled fe "text" -> do
     slow <- callOutExit True fe d instr sect
     x <- loadB (d - i)
@@ -3302,12 +3435,14 @@ genInstr fe d instr sect k = case instr of
     y <- loadB (d - j)
     listHelper d slow ("@unison_jit_bytes_append(ptr %ctx, ptr " <> x <> ", ptr " <> y <> ")")
     k (d + 1)
-  Prim2 op i j | enabled fe "bytes", op == TAKB || op == DRPB -> do
-    slow <- callOutExit True fe d instr sect
-    n <- loadU (d - i)
-    b <- loadB (d - j)
-    listHelper d slow ("@unison_jit_bytes_cut(ptr %ctx, ptr " <> b <> ", i64 " <> n <> ", i64 " <> (if op == TAKB then "1" else "0") <> ")")
-    k (d + 1)
+  Prim2 op i j
+    | enabled fe "bytes",
+      op == TAKB || op == DRPB -> do
+        slow <- callOutExit True fe d instr sect
+        n <- loadU (d - i)
+        b <- loadB (d - j)
+        listHelper d slow ("@unison_jit_bytes_cut(ptr %ctx, ptr " <> b <> ", i64 " <> n <> ", i64 " <> (if op == TAKB then "1" else "0") <> ")")
+        k (d + 1)
   Prim2 IDXB i j
     | enabled fe "bytes",
       Just noneIx <- Map.lookup (KeyEnum Ty.optionalRef TT.noneTag) (envPool (feEnv fe)) -> do
@@ -3337,13 +3472,15 @@ genInstr fe d instr sect k = case instr of
         unit <- poolValue unitIx
         listHelper d slow ("@unison_jit_text_uncons(ptr %ctx, ptr " <> t <> ", ptr " <> none <> ", i64 " <> tshow someTag <> ", ptr " <> pair <> ", i64 " <> tshow pairTag <> ", ptr " <> unit <> ", ptr " <> feTagChar fe <> ", i64 " <> (if op == UCNS then "1" else "0") <> ")")
         k (d + 1)
-  Prim1 op i | enabled fe "text", op == ITOT || op == NTOT -> do
-    n <- loadU (d - i)
-    r <- fresh "text"
-    emit (r <> " = call ptr @unison_jit_int_to_text(ptr %ctx, i64 " <> n <> ", i64 " <> (if op == ITOT then "1" else "0") <> ")")
-    storeU (d + 1) "-1"
-    storeB (d + 1) r
-    k (d + 1)
+  Prim1 op i
+    | enabled fe "text",
+      op == ITOT || op == NTOT -> do
+        n <- loadU (d - i)
+        r <- fresh "text"
+        emit (r <> " = call ptr @unison_jit_int_to_text(ptr %ctx, i64 " <> n <> ", i64 " <> (if op == ITOT then "1" else "0") <> ")")
+        storeU (d + 1) "-1"
+        storeB (d + 1) r
+        k (d + 1)
   Prim1 FTOT i | enabled fe "text" -> do
     bits <- loadU (d - i)
     r <- fresh "text"
@@ -3385,19 +3522,21 @@ genInstr fe d instr sect k = case instr of
         none <- poolValue noneIx
         listHelper d slow ("@unison_jit_text_index_of(ptr %ctx, ptr " <> x <> ", ptr " <> y <> ", ptr " <> none <> ", i64 " <> tshow someTag <> ", ptr " <> feTagNat fe <> ")")
         k (d + 1)
-  Prim2 op i j | enabled fe "text", op == LEQT || op == LEST -> do
-    slow <- callOutExit True fe d instr sect
-    x <- loadB (d - i)
-    y <- loadB (d - j)
-    r <- fresh "cmp"
-    emit (r <> " = call i64 @unison_jit_text_cmp(ptr " <> x <> ", ptr " <> y <> ")")
-    miss <- fresh "miss"
-    emit (miss <> " = icmp eq i64 " <> r <> ", 2")
-    branchIf "text" miss slow
-    c <- fresh "bool"
-    emit (c <> " = icmp " <> (if op == LEQT then "sle" else "slt") <> " i64 " <> r <> ", 0")
-    resultBool fe d c
-    k (d + 1)
+  Prim2 op i j
+    | enabled fe "text",
+      op == LEQT || op == LEST -> do
+        slow <- callOutExit True fe d instr sect
+        x <- loadB (d - i)
+        y <- loadB (d - j)
+        r <- fresh "cmp"
+        emit (r <> " = call i64 @unison_jit_text_cmp(ptr " <> x <> ", ptr " <> y <> ")")
+        miss <- fresh "miss"
+        emit (miss <> " = icmp eq i64 " <> r <> ", 2")
+        branchIf "text" miss slow
+        c <- fresh "bool"
+        emit (c <> " = icmp " <> (if op == LEQT then "sle" else "slt") <> " i64 " <> r <> ", 0")
+        resultBool fe d c
+        k (d + 1)
   Prim1 PAKB i | enabled fe "bytes" -> do
     slow <- callOutExit True fe d instr sect
     l <- loadB (d - i)
@@ -3418,12 +3557,14 @@ genInstr fe d instr sect k = case instr of
         none <- poolValue noneIx
         listHelper d slow ("@unison_jit_bytes_index_of(ptr %ctx, ptr " <> x <> ", ptr " <> y <> ", ptr " <> none <> ", i64 " <> tshow someTag <> ", ptr " <> feTagNat fe <> ")")
         k (d + 1)
-  ForeignCall _ Text_repeat args | enabled fe "text", kn :<| kt :<| Empty <- argSources fe d args -> do
-    slow <- callOutExit True fe d instr sect
-    n <- loadU kn
-    t <- loadB kt
-    listHelper d slow ("@unison_jit_text_repeat(ptr %ctx, i64 " <> n <> ", ptr " <> t <> ")")
-    k (d + 1)
+  ForeignCall _ Text_repeat args
+    | enabled fe "text",
+      kn :<| kt :<| Empty <- argSources fe d args -> do
+        slow <- callOutExit True fe d instr sect
+        n <- loadU kn
+        t <- loadB kt
+        listHelper d slow ("@unison_jit_text_repeat(ptr %ctx, i64 " <> n <> ", ptr " <> t <> ")")
+        k (d + 1)
   ForeignCall _ f args
     | enabled fe "text",
       f `elem` [Text_reverse, Text_toUppercase, Text_toLowercase, Text_toUtf8],
@@ -3447,13 +3588,15 @@ genInstr fe d instr sect k = case instr of
         eith <- poolValue eitherIx
         listHelper d slow ("@unison_jit_text_from_utf8(ptr %ctx, ptr " <> b <> ", ptr " <> eith <> ", i64 " <> tshow rightTag <> ")")
         k (d + 1)
-  ForeignCall _ Char_toText args | enabled fe "text", kc :<| Empty <- argSources fe d args -> do
-    c <- loadU kc
-    r <- fresh "text"
-    emit (r <> " = call ptr @unison_jit_char_to_text(ptr %ctx, i64 " <> c <> ")")
-    storeU (d + 1) "-1"
-    storeB (d + 1) r
-    k (d + 1)
+  ForeignCall _ Char_toText args
+    | enabled fe "text",
+      kc :<| Empty <- argSources fe d args -> do
+        c <- loadU kc
+        r <- fresh "text"
+        emit (r <> " = call ptr @unison_jit_char_to_text(ptr %ctx, i64 " <> c <> ")")
+        storeU (d + 1) "-1"
+        storeB (d + 1) r
+        k (d + 1)
   ForeignCall _ f args
     | enabled fe "bytes",
       Just (Pair width be) <- decodeNatKind f,
@@ -3470,31 +3613,40 @@ genInstr fe d instr sect k = case instr of
         unit <- poolValue unitIx
         listHelper d slow ("@unison_jit_bytes_decode_nat(ptr %ctx, ptr " <> b <> ", i64 " <> tshow width <> ", i64 " <> tshow be <> ", ptr " <> none <> ", i64 " <> tshow someTag <> ", ptr " <> pair <> ", i64 " <> tshow pairTag <> ", ptr " <> unit <> ", ptr " <> feTagNat fe <> ")")
         k (d + 1)
-  ForeignCall _ f args | enabled fe "bytes", Just (Pair width be) <- encodeNatKind f, kn :<| Empty <- argSources fe d args -> do
-    n <- loadU kn
-    r <- fresh "bytes"
-    emit (r <> " = call ptr @unison_jit_bytes_encode_nat(ptr %ctx, i64 " <> n <> ", i64 " <> tshow width <> ", i64 " <> tshow be <> ")")
-    storeU (d + 1) "-1"
-    storeB (d + 1) r
-    k (d + 1)
-  ForeignCall _ f args | enabled fe "bytes", Just (Pair width be) <- readKind f, ki :<| kb :<| Empty <- argSources fe d args -> do
-    slow <- callOutExit True fe d instr sect
-    ix <- loadU ki
-    b <- loadB kb
-    ok <- fresh "ok"
-    emit (ok <> " = call i64 @unison_jit_bytes_read_ok(ptr " <> b <> ", i64 " <> ix <> ", i64 " <> tshow width <> ")")
-    miss <- fresh "miss"
-    emit (miss <> " = icmp ne i64 " <> ok <> ", 1")
-    branchIf "bytes" miss slow
-    v <- fresh "read"
-    emit (v <> " = call i64 @unison_jit_bytes_read_at(ptr " <> b <> ", i64 " <> ix <> ", i64 " <> tshow width <> ", i64 " <> tshow be <> ")")
-    result fe d (feTagNat fe) v
-    k (d + 1)
-  ForeignCall _ f args | enabled fe "bytes", Just base <- toBaseKind f, kb :<| Empty <- argSources fe d args -> do
-    slow <- callOutExit True fe d instr sect
-    b <- loadB kb
-    listHelper d slow ("@unison_jit_bytes_to_base(ptr %ctx, ptr " <> b <> ", i64 " <> tshow base <> ")")
-    k (d + 1)
+  ForeignCall _ f args
+    | enabled fe "bytes",
+      Just (Pair width be) <- encodeNatKind f,
+      kn :<| Empty <- argSources fe d args -> do
+        n <- loadU kn
+        r <- fresh "bytes"
+        emit (r <> " = call ptr @unison_jit_bytes_encode_nat(ptr %ctx, i64 " <> n <> ", i64 " <> tshow width <> ", i64 " <> tshow be <> ")")
+        storeU (d + 1) "-1"
+        storeB (d + 1) r
+        k (d + 1)
+  ForeignCall _ f args
+    | enabled fe "bytes",
+      Just (Pair width be) <- readKind f,
+      ki :<| kb :<| Empty <- argSources fe d args -> do
+        slow <- callOutExit True fe d instr sect
+        ix <- loadU ki
+        b <- loadB kb
+        ok <- fresh "ok"
+        emit (ok <> " = call i64 @unison_jit_bytes_read_ok(ptr " <> b <> ", i64 " <> ix <> ", i64 " <> tshow width <> ")")
+        miss <- fresh "miss"
+        emit (miss <> " = icmp ne i64 " <> ok <> ", 1")
+        branchIf "bytes" miss slow
+        v <- fresh "read"
+        emit (v <> " = call i64 @unison_jit_bytes_read_at(ptr " <> b <> ", i64 " <> ix <> ", i64 " <> tshow width <> ", i64 " <> tshow be <> ")")
+        result fe d (feTagNat fe) v
+        k (d + 1)
+  ForeignCall _ f args
+    | enabled fe "bytes",
+      Just base <- toBaseKind f,
+      kb :<| Empty <- argSources fe d args -> do
+        slow <- callOutExit True fe d instr sect
+        b <- loadB kb
+        listHelper d slow ("@unison_jit_bytes_to_base(ptr %ctx, ptr " <> b <> ", i64 " <> tshow base <> ")")
+        k (d + 1)
   ForeignCall _ f args
     | enabled fe "bytes",
       Just base <- fromBaseKind f,
@@ -3521,15 +3673,19 @@ genInstr fe d instr sect k = case instr of
       Just unitIx <- Map.lookup (KeyEnum Ty.unitRef TT.unitTag) (envPool (feEnv fe)) -> do
         genRefWrite fe d (d - i) (d - j) unitIx instr sect
         k (d + 1)
-  Prim2 op i j | enabled fe "cmp", op `elem` [EQLU, LEQU, LESU, CMPU] -> do
-    genUniversal fe d op (d - i) (d - j) instr sect
-    k (d + 1)
+  Prim2 op i j
+    | enabled fe "cmp",
+      op `elem` [EQLU, LEQU, LESU, CMPU] -> do
+        genUniversal fe d op (d - i) (d - j) instr sect
+        k (d + 1)
   ForeignCall _ MutableArray_size args
-    | enabled fe "array", ka :<| Empty <- argSources fe d args -> do
+    | enabled fe "array",
+      ka :<| Empty <- argSources fe d args -> do
         genArrayOp fe d (mutableArrayWrap fe) ka Nothing Nothing instr sect
         k (d + 1)
   ForeignCall _ MutableArray_read args
-    | enabled fe "array", ka :<| ki :<| Empty <- argSources fe d args -> do
+    | enabled fe "array",
+      ka :<| ki :<| Empty <- argSources fe d args -> do
         genArrayOp fe d (mutableArrayWrap fe) ka (Just ki) Nothing instr sect
         k (d + 1)
   ForeignCall _ MutableArray_write args
@@ -3539,20 +3695,24 @@ genInstr fe d instr sect k = case instr of
         genArrayOp fe d (mutableArrayWrap fe) ka (Just ki) (Just (Pair kv unitIx)) instr sect
         k (d + 1)
   ForeignCall _ ImmutableArray_size args
-    | enabled fe "array", ka :<| Empty <- argSources fe d args -> do
+    | enabled fe "array",
+      ka :<| Empty <- argSources fe d args -> do
         genArrayOp fe d (lArrayWrap (envLayouts (feEnv fe))) ka Nothing Nothing instr sect
         k (d + 1)
   ForeignCall _ ImmutableArray_read args
-    | enabled fe "array", ka :<| ki :<| Empty <- argSources fe d args -> do
+    | enabled fe "array",
+      ka :<| ki :<| Empty <- argSources fe d args -> do
         genArrayOp fe d (lArrayWrap (envLayouts (feEnv fe))) ka (Just ki) Nothing instr sect
         k (d + 1)
   -- the rest of the array builtins: C helpers (see "Arrays and Refs" in jit_rt.c)
   ForeignCall _ f args
-    | enabled fe "array", Just op <- arrayForeign f -> do
+    | enabled fe "array",
+      Just op <- arrayForeign f -> do
         genArrayForeign fe d op (argSources fe d args) instr sect
         k (d + 1)
   ForeignCall _ f args
-    | enabled fe "ptr", Just op <- ptrForeign f -> do
+    | enabled fe "ptr",
+      Just op <- ptrForeign f -> do
         genPtrOp fe d op (argSources fe d args) instr sect
         k (d + 1)
   -- Universal.murmurHashUntyped is Value.value (VALU) followed by the
@@ -3588,11 +3748,13 @@ genInstr fe d instr sect k = case instr of
     requireTagged slow (D.singleton b)
     listHelper d slow ("@unison_jit_ref_new(ptr %ctx, i64 " <> u <> ", ptr " <> b <> ")")
     k (d + 1)
-  Prim1 RRFC i | enabled fe "ref", not (envSandboxed (feEnv fe)) -> do
-    slow <- callOutExit True fe d instr sect
-    r <- loadB (d - i)
-    listHelper d slow ("@unison_jit_ref_read_for_cas(ptr %ctx, ptr " <> r <> ")")
-    k (d + 1)
+  Prim1 RRFC i
+    | enabled fe "ref",
+      not (envSandboxed (feEnv fe)) -> do
+        slow <- callOutExit True fe d instr sect
+        r <- loadB (d - i)
+        listHelper d slow ("@unison_jit_ref_read_for_cas(ptr %ctx, ptr " <> r <> ")")
+        k (d + 1)
   Prim1 TIKR i | enabled fe "ref" -> do
     let ls = envLayouts (feEnv fe)
     slow <- callOutExit True fe d instr sect
@@ -3607,22 +3769,24 @@ genInstr fe d instr sect k = case instr of
     storeU (d + 1) u
     storeB (d + 1) b
     k (d + 1)
-  RefCAS i j kv | enabled fe "ref", not (envSandboxed (feEnv fe)) -> do
-    slow <- callOutExit True fe d instr sect
-    r <- loadB (d - i)
-    t <- loadB (d - j)
-    u <- loadU (d - kv)
-    b <- loadB (d - kv)
-    requireTagged slow (D.singleton b)
-    res <- fresh "cas"
-    emit (res <> " = call i64 @unison_jit_ref_cas(ptr %ctx, ptr " <> r <> ", ptr " <> t <> ", i64 " <> u <> ", ptr " <> b <> ")")
-    miss <- fresh "miss"
-    emit (miss <> " = icmp slt i64 " <> res <> ", 0")
-    branchIf "cas" miss slow
-    c <- fresh "c"
-    emit (c <> " = icmp eq i64 " <> res <> ", 1")
-    resultBool fe d c
-    k (d + 1)
+  RefCAS i j kv
+    | enabled fe "ref",
+      not (envSandboxed (feEnv fe)) -> do
+        slow <- callOutExit True fe d instr sect
+        r <- loadB (d - i)
+        t <- loadB (d - j)
+        u <- loadU (d - kv)
+        b <- loadB (d - kv)
+        requireTagged slow (D.singleton b)
+        res <- fresh "cas"
+        emit (res <> " = call i64 @unison_jit_ref_cas(ptr %ctx, ptr " <> r <> ", ptr " <> t <> ", i64 " <> u <> ", ptr " <> b <> ")")
+        miss <- fresh "miss"
+        emit (miss <> " = icmp slt i64 " <> res <> ", 0")
+        branchIf "cas" miss slow
+        c <- fresh "c"
+        emit (c <> " = icmp eq i64 " <> res <> ", 1")
+        resultBool fe d c
+        k (d + 1)
   Prim2 op i j | prim2Supported op -> do
     x <- loadU (d - i)
     y <- loadU (d - j)
@@ -3674,7 +3838,8 @@ genCallOut fe d instr sect = do
 callOutExit :: Bool -> FnEnv -> Int -> GInstr (RComb Val) -> MSection -> Gen Text
 callOutExit slowPath fe d instr sect = case (pushCount instr, sect) of
   (Just n, Ins _ rest)
-    | enabled fe "callout", callOutWorthwhile instr rest ->
+    | enabled fe "callout",
+      callOutWorthwhile instr rest ->
         genAuxFunction slowPath fe (d + n) (currentBase fe) rest >>= \case
           Nothing -> resume
           Just (Pair _ cell) -> exitBlock fe d (CallOut (feCix fe) instr rest n cell)

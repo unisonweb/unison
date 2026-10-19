@@ -1,4 +1,5 @@
 {-# LANGUAGE RecordWildCards #-}
+
 -- Unison.Util.Rope, operation by operation, on chunks of text like those of
 -- Unison.Util.Text.
 --

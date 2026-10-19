@@ -23,40 +23,39 @@ where
 
 import Control.Exception (evaluate)
 import Control.Monad (foldM, forM)
-import Data.Maybe (catMaybes, isJust)
-import Data.Word (Word64, Word8)
-import GHC.Float (castDoubleToWord64)
-import Text.Read (readMaybe)
-import Data.Bits (shiftR, xor, (.&.), (.|.))
-import Data.Primitive.Array (MutableArray, arrayFromList, newArray, readArray, writeArray)
-import Data.IORef (newIORef)
-import GHC.IORef (IORef (..))
-import Unison.Util.EnumContainers qualified as EC
-import Data.Sequence qualified as Seq
-import Data.Map.Strict qualified as M
-import Data.Primitive.ByteArray (byteArrayFromList, newByteArray)
 import Data.Atomics qualified as Atomic
-import Foreign.Ptr (nullPtr)
-import Foreign.Ptr (IntPtr (..), ptrToIntPtr)
-import GHC.Exts (Any, RealWorld)
-import Unison.Runtime.ANF (PackedTag (..))
-import Unison.Builtin.Decls qualified as Ty (eitherRef, failureRef, optionalRef, pairRef, seqViewRef, unitRef)
+import Data.Bits (shiftR, xor, (.&.), (.|.))
 import Data.Digest.Murmur64 (asWord64)
+import Data.IORef (newIORef)
+import Data.Map.Strict qualified as M
+import Data.Maybe (catMaybes, isJust)
+import Data.Primitive.Array (MutableArray, arrayFromList, newArray, readArray, writeArray)
+import Data.Primitive.ByteArray (byteArrayFromList, newByteArray)
+import Data.Sequence qualified as Seq
+import Data.Set qualified as Set
+import Data.Text qualified as Text
+import Data.Vector qualified as V
+import Data.Word (Word64, Word8)
+import Foreign.Ptr (IntPtr (..), nullPtr, ptrToIntPtr)
+import GHC.Exts (Any, RealWorld)
+import GHC.Float (castDoubleToWord64)
+import GHC.IORef (IORef (..))
+import Text.Read (readMaybe)
+import Unison.Builtin.Decls qualified as Ty (eitherRef, failureRef, optionalRef, pairRef, seqViewRef, unitRef)
+import Unison.Reference (Reference)
+import Unison.Runtime.ANF (PackedTag (..))
 import Unison.Runtime.ANF qualified as ANF
 import Unison.Runtime.ANF.MurmurHash.Untyped (hash64ValueUntyped)
-import Unison.Runtime.Referenced (Referenced (Plain))
-import Unison.Reference (Reference)
+import Unison.Runtime.JIT.Native (arrayInit, bytesCheck, bytesInit, bytesTest, closureInit, cmpInit, cmpTest, envInit, listCheck, listInit, listTest, murmurInit, murmurTest, nameTest, probeClosure, recordInit, textCheck, textInit, textTest)
 import Unison.Runtime.JIT.Strict (Pair (..))
-import Unison.Runtime.JIT.Native (envInit, arrayInit, bytesCheck, bytesInit, bytesTest, closureInit, cmpInit, cmpTest, listCheck, listInit, listTest, murmurInit, murmurTest, nameTest, probeClosure, recordInit, textCheck, textInit, textTest)
 import Unison.Runtime.MCode (CombIx (..), FieldRef (..), GCombInfo (..), GSection (..), RecordShape (..), mkRecordShape, noNativeCell)
-import Data.Set qualified as Set
-import Data.Vector qualified as V
+import Unison.Runtime.Referenced (Referenced (Plain))
 import Unison.Runtime.Stack
 import Unison.Runtime.TypeTags qualified as TT
 import Unison.Type qualified as Ty
-import Data.Text qualified as Text
 import Unison.Util.Bytes qualified as By
 import Unison.Util.Deque qualified as Sq
+import Unison.Util.EnumContainers qualified as EC
 import Unison.Util.Rope qualified as Rope
 import Unison.Util.Text qualified as UText
 import Unsafe.Coerce (unsafeCoerce)
@@ -705,10 +704,12 @@ probeLists ls steps = do
                 (ea, eb) = Sq.splitAt (if left then k else n - k) d
             case r of
               Just c | n < k -> pure (if same c emptyView then Just (d, d) else Nothing)
-              Just (Data2 rf t (BoxedVal a) (BoxedVal b)) | rf == Ty.seqViewRef, t == TT.seqViewElemTag -> do
-                ra <- checked full ea (Just a)
-                rb <- checked full eb (Just b)
-                pure ((,) <$> ra <*> rb)
+              Just (Data2 rf t (BoxedVal a) (BoxedVal b))
+                | rf == Ty.seqViewRef,
+                  t == TT.seqViewElemTag -> do
+                    ra <- checked full ea (Just a)
+                    rb <- checked full eb (Just b)
+                    pure ((,) <$> ra <*> rb)
               _ -> pure Nothing
           cat full a b = run a 9 (wrap b) 0 0 >>= checked full (a Sq.>< b)
           lit k v = run Sq.empty 10 (any' natTypeTag) k v >>= checked True (Sq.fromList (map nat [v .. v + k - 1]))
@@ -964,16 +965,18 @@ probeTexts ls steps = do
             h8 <- textTest arr 21 0 0 0
             c8 <- slot3
             utf <- case c8 of
-              BytesC bs | h8 == 1, bs == UText.toUtf8 t -> do
-                put arr 0 (any' c8)
-                okB <- bytesCheck arr
-                put arr 0 (any' c8)
-                h9 <- textTest arr 22 (fromIntegral rightTag) 0 0
-                c9 <- slot3
-                okT <- case c9 of
-                  Data1 rf tg (BoxedVal inner) | rf == Ty.eitherRef, tg == TT.rightTag -> textIn inner t
-                  _ -> pure False
-                pure (okB && h9 == 1 && okT)
+              BytesC bs
+                | h8 == 1,
+                  bs == UText.toUtf8 t -> do
+                    put arr 0 (any' c8)
+                    okB <- bytesCheck arr
+                    put arr 0 (any' c8)
+                    h9 <- textTest arr 22 (fromIntegral rightTag) 0 0
+                    c9 <- slot3
+                    okT <- case c9 of
+                      Data1 rf tg (BoxedVal inner) | rf == Ty.eitherRef, tg == TT.rightTag -> textIn inner t
+                      _ -> pure False
+                    pure (okB && h9 == 1 && okT)
               _ -> pure False
             pure . catMaybes $
               [ if shape then Nothing else Just "a text isn't laid out as expected",
@@ -1112,7 +1115,8 @@ probeTexts ls steps = do
                         c <- slot3
                         case c of
                           Data1 _ _ (BoxedVal (Data2 _ _ a (BoxedVal (Data2 _ _ b _))))
-                            | h == 1, BoxedVal rest <- if front then b else a ->
+                            | h == 1,
+                              BoxedVal rest <- if front then b else a ->
                                 put arr 3 (any' rest) >> verdict full 1 (if front then UText.drop 1 t else UText.take (n - 1) t)
                           _ -> pure (if n == 0 && h == 1 then Just t else Nothing)
                 case res of
@@ -1164,11 +1168,11 @@ probeTexts ls steps = do
             handled = (sx `notElem` mustParseInt || (hi == 1 && hn == 1)) && (sx `notElem` mustParseFloat || hf == 1)
         pure (handled && (hi /= 1 || same ci expI) && (hn /= 1 || same cn expN) && (hf /= 1 || same cf expF))
       let e3 =
-            [ "Int.toText differs from the interpreter's" | not (and i2t) ]
-              ++ [ "Nat.toText differs from the interpreter's" | not (and n2t) ]
-              ++ [ "Float.toText differs from the interpreter's on " ++ show [v | (v, ok) <- zip floats f2t, not ok] | not (and f2t) ]
-              ++ [ "Char.toText differs from the interpreter's" | not (and c2t) ]
-              ++ [ "Text.toInt, toNat or toFloat differs from the interpreter's on " ++ show [sx | (sx, ok) <- zip parses t2n, not ok] | not (and t2n) ]
+            ["Int.toText differs from the interpreter's" | not (and i2t)]
+              ++ ["Nat.toText differs from the interpreter's" | not (and n2t)]
+              ++ ["Float.toText differs from the interpreter's on " ++ show [v | (v, ok) <- zip floats f2t, not ok] | not (and f2t)]
+              ++ ["Char.toText differs from the interpreter's" | not (and c2t)]
+              ++ ["Text.toInt, toNat or toFloat differs from the interpreter's on " ++ show [sx | (sx, ok) <- zip parses t2n, not ok] | not (and t2n)]
       case e1 ++ e2 ++ e3 of
         e : _ -> pure (Left e)
         [] -> if steps > 0 then stress 0 (replicate 8 UText.empty) else pure (Right ())

@@ -1,4 +1,6 @@
-{-# LANGUAGE BangPatterns, MagicHash, UnboxedTuples #-}
+{-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE MagicHash #-}
+{-# LANGUAGE UnboxedTuples #-}
 -- The JIT's C helpers read and build these constructors (unison-runtime's
 -- cbits/jit_rt.c), so their layout must be the same in every build: fields are
 -- unpacked only when optimizing.
@@ -56,8 +58,8 @@ where
 import Control.DeepSeq (NFData (..))
 import Control.Monad (unless, when)
 import Data.Bits (unsafeShiftL, (.&.))
-import Data.Primitive.SmallArray (indexSmallArray, sizeofSmallArray)
 import Data.Foldable qualified as F
+import Data.Primitive.SmallArray (indexSmallArray, sizeofSmallArray)
 import GHC.Exts (Int (I#), Int#)
 import Unison.Util.Deque.Internal
   ( Mid (..),
@@ -523,9 +525,12 @@ append (Deep t1 ps1 pr1 m1 sf1) (Deep t2 ps2 pr2 m2 sf2) = case sf1 of
     -- either: that copies fewer cells), or are packed into nodes and handed
     -- down between the two middles.
     inner isf ipr !ipc !d
-      | flat m1, pc1 + c <= maxD, not (flat m2 && c + sc2 <= maxD && sc2 + ipc < pc1 + sc1) =
+      | flat m1,
+        pc1 + c <= maxD,
+        not (flat m2 && c + sc2 <= maxD && sc2 + ipc < pc1 + sc1) =
           Deep (mk n (pc1 + c) sc2) (tsize t1 + ps2) (appendS' pr1 (revOnto isf ipr)) m2 sf2
-      | flat m2, c + sc2 <= maxD =
+      | flat m2,
+        c + sc2 <= maxD =
           Deep (mk n pc1 (c + sc2)) ps1 pr1 m1 (appendS' sf2 (revOnto ipr isf))
       | c >= 2 =
           let !sns = (tsize t1 - ps1 - sizeM m1) + ps2

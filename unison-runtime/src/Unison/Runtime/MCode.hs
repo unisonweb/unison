@@ -4,11 +4,10 @@
 {-# LANGUAGE EmptyDataDecls #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE MagicHash #-}
-{-# LANGUAGE UnboxedTuples #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PatternGuards #-}
 {-# LANGUAGE PatternSynonyms #-}
-
+{-# LANGUAGE UnboxedTuples #-}
 -- See the note in Stack.hs: the JIT relies on GCombInfo's optimized layout.
 {-# OPTIONS_GHC -O2 -funbox-strict-fields #-}
 
@@ -89,6 +88,7 @@ module Unison.Runtime.MCode
   )
 where
 
+import Control.Monad (forM_, when)
 import Control.Monad.RWS
 import Control.Monad.Reader
 import Control.Monad.State.Strict
@@ -112,7 +112,14 @@ import Data.Vector (Vector)
 import Data.Vector qualified as V
 import Data.Void (Void, absurd)
 import Data.Word (Word16, Word64)
+import Foreign.Marshal.Alloc (callocBytes)
+import Foreign.Ptr (nullPtr, plusPtr)
+import Foreign.Storable (peekByteOff, pokeByteOff)
+import GHC.Exts (Word#, atomicCasWordAddr#, eqWord#, isTrue#, plusAddr#)
+import GHC.IO (IO (..))
+import GHC.Ptr (Ptr (..))
 import GHC.Stack (HasCallStack)
+import System.IO.Unsafe (unsafePerformIO)
 import Unison.ABT.Normalized (pattern TAbss)
 import Unison.Reference (Reference, showShort)
 import Unison.Referent (Referent)
@@ -144,17 +151,9 @@ import Unison.Runtime.ANF
     pattern TVar,
   )
 import Unison.Runtime.ANF qualified as ANF
-import Control.Monad (forM_, when)
-import Unison.Runtime.JIT.Config qualified as JIT
-import Foreign.Marshal.Alloc (callocBytes)
-import Foreign.Ptr (plusPtr, nullPtr)
-import GHC.Exts (Word#, atomicCasWordAddr#, eqWord#, isTrue#, plusAddr#)
-import GHC.IO (IO (..))
-import GHC.Ptr (Ptr (..))
-import Foreign.Storable (peekByteOff, pokeByteOff)
-import System.IO.Unsafe (unsafePerformIO)
 import Unison.Runtime.Foreign.Function.Type (ForeignFunc (..), foreignFuncBuiltinName)
 import Unison.Runtime.InternalError (internalBug)
+import Unison.Runtime.JIT.Config qualified as JIT
 import Unison.Util.BiMap (BiMap)
 import Unison.Util.BiMap qualified as BiMap
 import Unison.Util.Bytes (Bytes)
@@ -408,9 +407,12 @@ shapeSlot shape (FieldRef k) = go 0 (PA.sizeofPrimArray keys)
       | otherwise =
           let mid = (lo + hi) `div` 2
               k' = PA.indexPrimArray keys mid
-           in if k' < k then go (mid + 1) hi
-              else if k' > k then go lo mid
-              else PA.indexPrimArray (shapeSlots shape) mid
+           in if k' < k
+                then go (mid + 1) hi
+                else
+                  if k' > k
+                    then go lo mid
+                    else PA.indexPrimArray (shapeSlots shape) mid
 {-# INLINE shapeSlot #-}
 
 -- | Records are equal and ordered by field name, never by 'shapeRef', so that
@@ -1036,7 +1038,8 @@ newNativeCellPool :: Int -> IO NativeCellPool
 newNativeCellPool capacity = do
   block <- newNativeCells capacity
   when (initialNativeCount /= 0) $
-    forM_ [0 .. capacity - 1] $ \i -> writeNativeCount (nativeCellAt block i) initialNativeCount
+    forM_ [0 .. capacity - 1] $
+      \i -> writeNativeCount (nativeCellAt block i) initialNativeCount
   pure (NativeCellPool block 0 capacity)
 
 -- | Takes @n@ cells from the pool, or fails if it has fewer left.

@@ -46,20 +46,17 @@ module Unison.Runtime.JIT.Native
   )
 where
 
+import Control.Monad (forM)
+import Data.Int (Int64)
 import Data.Primitive.Array (MutableArray (..), sizeofMutableArray)
 import Data.Primitive.ByteArray (MutableByteArray (..), readByteArray)
-import Foreign.Ptr (FunPtr)
-import GHC.Exts (Any, RealWorld)
-import Unison.Runtime.Stack (Closure)
-
-import Data.Int (Int64)
-import Control.Monad (forM)
 import Data.Word (Word64)
 import Foreign.C.String (CString, peekCString)
 import Foreign.Marshal.Alloc (allocaBytes, free)
-import Foreign.Ptr (Ptr, WordPtr (..), ptrToWordPtr, wordPtrToPtr)
+import Foreign.Ptr (FunPtr, Ptr, WordPtr (..), ptrToWordPtr, wordPtrToPtr)
 import Foreign.Storable (peek, peekElemOff, pokeElemOff)
-import GHC.Exts (MutableArray#, MutableByteArray#)
+import GHC.Exts (Any, MutableArray#, MutableByteArray#, RealWorld)
+import Unison.Runtime.Stack (Closure)
 
 -- | The uniform signature of compiled code: @(ctx, ap, fp, sp) -> status@.
 data NativeFn
@@ -150,7 +147,6 @@ helperAddresses = allocaBytes (8 * 256) $ \names -> allocaBytes (8 * 256) $ \add
 foreign import ccall unsafe "unison_jit_ctx_layout" c_ctxLayout :: Ptr Int64 -> Int64 -> IO Int64
 
 foreign import ccall unsafe "unison_jit_hplim_value" c_hplimValue :: IO Int64
-
 
 -- | For tracing: what the poll would see right now.
 hplimValue :: IO Int
@@ -381,4 +377,3 @@ closureInit infos = allocaBytes (8 * length infos) $ \p -> do
 -- | Runs the helper on slot 0 with n arguments (see unison_jit_name_test).
 nameTest :: MutableArray RealWorld Any -> Int -> IO Bool
 nameTest (MutableArray arr#) n = (== 1) <$> c_nameTest arr# (fromIntegral n)
-

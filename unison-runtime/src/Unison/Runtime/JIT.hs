@@ -15,19 +15,19 @@ import Control.Concurrent (forkOn, getNumCapabilities, myThreadId, threadCapabil
 import Control.Concurrent.STM (TBQueue, atomically, isFullTBQueue, newTBQueueIO, readTBQueue, readTVarIO, writeTBQueue)
 import Control.Exception (SomeException, evaluate, try)
 import Control.Monad (foldM, forM, forM_, unless, void, when)
-import Data.IORef
-import Data.Set qualified as Set
-import Data.Functor ((<&>))
 import Data.Either (isLeft)
-import Foreign.Ptr (FunPtr, Ptr, castFunPtrToPtr, nullPtr)
-import System.Timeout (timeout)
-import GHC.Clock (getMonotonicTimeNSec)
-import Data.Map.Strict qualified as Map
+import Data.Functor ((<&>))
+import Data.IORef
 import Data.List (sortOn)
-import System.Info (os)
-import qualified Data.Text as T
+import Data.Map.Strict qualified as Map
+import Data.Set qualified as Set
+import Data.Text qualified as T
 import Data.Word (Word64)
+import Foreign.Ptr (FunPtr, Ptr, castFunPtrToPtr, nullPtr)
+import GHC.Clock (getMonotonicTimeNSec)
 import System.IO.Unsafe (unsafePerformIO)
+import System.Info (os)
+import System.Timeout (timeout)
 import Unison.Reference (Reference)
 import Unison.Runtime.JIT.Codegen (CtxOffsets (..), RtsFacts (..))
 import Unison.Runtime.JIT.Compile
@@ -145,35 +145,36 @@ initJIT' = do
       pure (Left (("JIT compilation needs LLVM version >= " ++ show minLLVM ++ ", searched these locations:") : map ("  " ++) tried))
     Left (InitError e) -> pure (Left [e ++ "; the JIT is off"])
     Right (version, path) -> do
-      layouts <- probeLayouts >>= \case
-        Left e -> pure (Left e)
-        -- the list helpers are part of the generated code's contract too
-        Right ls ->
-          timed "list helper checks" (probeLists ls (stressLists config)) >>= \case
-            Left e -> pure (Left e)
-            Right () ->
-              -- bytes before texts: the text checks build bytes too (toUtf8)
-              timed "bytes helper checks" (probeBytes ls (stressBytes config)) >>= \case
-                Left e -> pure (Left e)
-                Right () ->
-                  timed "text helper checks" (probeTexts ls (stressTexts config)) >>= \case
-                    Left e -> pure (Left e)
-                    Right () ->
-                      probeArrays ls >>= \case
-                        Left e -> pure (Left e)
-                        Right () ->
-                          probeMurmur ls >>= \case
-                            Left e -> pure (Left e)
-                            Right () ->
-                              probeCompare ls >>= \case
-                                Left e -> pure (Left e)
-                                Right () ->
-                                  probeEnv >>= \case
-                                    Left e -> pure (Left e)
-                                    Right () ->
-                                      probeRecords ls >>= \case
-                                        Left e -> pure (Left e)
-                                        Right () -> fmap (const ls) <$> probeNames ls
+      layouts <-
+        probeLayouts >>= \case
+          Left e -> pure (Left e)
+          -- the list helpers are part of the generated code's contract too
+          Right ls ->
+            timed "list helper checks" (probeLists ls (stressLists config)) >>= \case
+              Left e -> pure (Left e)
+              Right () ->
+                -- bytes before texts: the text checks build bytes too (toUtf8)
+                timed "bytes helper checks" (probeBytes ls (stressBytes config)) >>= \case
+                  Left e -> pure (Left e)
+                  Right () ->
+                    timed "text helper checks" (probeTexts ls (stressTexts config)) >>= \case
+                      Left e -> pure (Left e)
+                      Right () ->
+                        probeArrays ls >>= \case
+                          Left e -> pure (Left e)
+                          Right () ->
+                            probeMurmur ls >>= \case
+                              Left e -> pure (Left e)
+                              Right () ->
+                                probeCompare ls >>= \case
+                                  Left e -> pure (Left e)
+                                  Right () ->
+                                    probeEnv >>= \case
+                                      Left e -> pure (Left e)
+                                      Right () ->
+                                        probeRecords ls >>= \case
+                                          Left e -> pure (Left e)
+                                          Right () -> fmap (const ls) <$> probeNames ls
       (offs, _) <- ctxLayout
       case (layouts, offs) of
         (Left e, _) -> pure (Left [e ++ "; the JIT is off"])
@@ -217,17 +218,18 @@ initJIT' = do
               helpers <-
                 if noIRHelpers || isLeft exits
                   then pure (Right ())
-                  else timed "IR helpers" addHelpers >>= \case
-                    Left e -> pure (Left ("could not be added: " ++ e))
-                    Right _ ->
-                      -- the module's definition must be the one generated code
-                      -- gets, not the C copy the process also has
-                      timed "IR helpers compiled" ((,) <$> lookupSymbol "unison_jit_murmur" <*> lookupSymbol "unison_jit_ucmp") <&> \case
-                        (Left e, _) -> Left ("not found after adding: " ++ e)
-                        (_, Left e) -> Left ("not found after adding: " ++ e)
-                        (Right p, Right q)
-                          | castFunPtrToPtr p == castFunPtrToPtr murmurCAddress || castFunPtrToPtr q == castFunPtrToPtr ucmpCAddress -> Left "did not shadow the C copies"
-                          | otherwise -> Right ()
+                  else
+                    timed "IR helpers" addHelpers >>= \case
+                      Left e -> pure (Left ("could not be added: " ++ e))
+                      Right _ ->
+                        -- the module's definition must be the one generated code
+                        -- gets, not the C copy the process also has
+                        timed "IR helpers compiled" ((,) <$> lookupSymbol "unison_jit_murmur" <*> lookupSymbol "unison_jit_ucmp") <&> \case
+                          (Left e, _) -> Left ("not found after adding: " ++ e)
+                          (_, Left e) -> Left ("not found after adding: " ++ e)
+                          (Right p, Right q)
+                            | castFunPtrToPtr p == castFunPtrToPtr murmurCAddress || castFunPtrToPtr q == castFunPtrToPtr ucmpCAddress -> Left "did not shadow the C copies"
+                            | otherwise -> Right ()
               case (exits, helpers) of
                 (Left e, _) -> pure (Left ["the exit routine (cbits/jit_exit.ll) " ++ e ++ "; the JIT is off"])
                 (_, Left e) -> pure (Left ["the IR helpers (cbits/jit_helpers.ll) " ++ e ++ "; the JIT is off"])
@@ -424,10 +426,13 @@ compileThread = do
             loop held
       flush [] = pure ()
       flush held = do
-        r <- try (withState initialized $ \st types abilities -> do
-          let name = "unison_" ++ unitName (last held) ++ "_x" ++ show (length held)
-          guarded name (compileUnits st types abilities name True (reverse held))
-          forM_ held dropPending)
+        r <-
+          try
+            ( withState initialized $ \st types abilities -> do
+                let name = "unison_" ++ unitName (last held) ++ "_x" ++ show (length held)
+                guarded name (compileUnits st types abilities name True (reverse held))
+                forM_ held dropPending
+            )
         case r of
           Left (e :: SomeException) -> jitLog ("compile thread: " ++ show e)
           Right () -> pure ()
@@ -444,33 +449,33 @@ compileThread = do
           k st types abilities
     serve initialized callersRef req =
       withState initialized $ \st types abilities -> do
-          case req of
-            ReqGroup grp sandbox t0 find -> do
-              when (logging config) $ do
-                t1 <- getMonotonicTimeNSec
-                jitLog ("request for " ++ show grp ++ " served after " ++ show ((t1 - t0) `div` 1000) ++ " us")
-              (cache, refs) <- find
-              -- a request whose definition went into an earlier batch is dropped
-              mine <- maybe (pure False) takeNativeCell (EC.lookup grp cache >>= entryCell)
-              when mine $ do
-                modifyIORef' callersRef (indexCallers cache)
-                Callers _ callers <- readIORef callersRef
-                members <- formBatch cache callers grp
-                (now, later) <-
-                  unzip
-                    <$> sequence
-                      [ groupUnits sandbox True ref g cmbs
-                        | g <- members,
-                          Just cmbs <- [EC.lookup g cache],
-                          Just ref <- [EC.lookup g refs]
-                      ]
-                -- pending before the groups' code can exit to them
-                forM_ (concat later) addPending
-                copies <- copyCandidates sandbox cache refs members
-                guarded ("unison_" ++ show grp) (compileUnits st types abilities ("unison_" ++ show grp) True (concat now ++ copies))
-            ReqUnit u -> do
-              guarded (unitName u) (compileUnits st types abilities ("unison_" ++ unitName u) True [u])
-              dropPending u
+        case req of
+          ReqGroup grp sandbox t0 find -> do
+            when (logging config) $ do
+              t1 <- getMonotonicTimeNSec
+              jitLog ("request for " ++ show grp ++ " served after " ++ show ((t1 - t0) `div` 1000) ++ " us")
+            (cache, refs) <- find
+            -- a request whose definition went into an earlier batch is dropped
+            mine <- maybe (pure False) takeNativeCell (EC.lookup grp cache >>= entryCell)
+            when mine $ do
+              modifyIORef' callersRef (indexCallers cache)
+              Callers _ callers <- readIORef callersRef
+              members <- formBatch cache callers grp
+              (now, later) <-
+                unzip
+                  <$> sequence
+                    [ groupUnits sandbox True ref g cmbs
+                    | g <- members,
+                      Just cmbs <- [EC.lookup g cache],
+                      Just ref <- [EC.lookup g refs]
+                    ]
+              -- pending before the groups' code can exit to them
+              forM_ (concat later) addPending
+              copies <- copyCandidates sandbox cache refs members
+              guarded ("unison_" ++ show grp) (compileUnits st types abilities ("unison_" ++ show grp) True (concat now ++ copies))
+          ReqUnit u -> do
+            guarded (unitName u) (compileUnits st types abilities ("unison_" ++ unitName u) True [u])
+            dropPending u
     -- The definitions to compile together with one that got hot, so that
     -- calls between them are direct and LLVM can inline across them. The
     -- batch grows from the hot definition one neighbour at a time (Prim's
@@ -506,9 +511,13 @@ compileThread = do
               pure (hot || w / scale >= fromIntegral (batchGate config))
             _ -> pure False
           -- the candidate with the most weight, then the earliest seen
-          best = Map.foldlWithKey' (\acc v (w, n) -> case acc of
-                                      Just (_, (w', n')) | (w', negate n') >= (w, negate n) -> acc
-                                      _ -> Just (v, (w, n))) Nothing
+          best =
+            Map.foldlWithKey'
+              ( \acc v (w, n) -> case acc of
+                  Just (_, (w', n')) | (w', negate n') >= (w, negate n) -> acc
+                  _ -> Just (v, (w, n))
+              )
+              Nothing
           go taken seen cands
             | full taken = pure (reverse taken, cands)
             | otherwise = do
@@ -566,12 +575,30 @@ printJITStats :: IO ()
 printJITStats = when (stats config) $ do
   t <- compileTotals
   jitDump
-    ( "[jit] compiled " ++ show (ctModules t) ++ " modules: " ++ show (ctFunctions t) ++ " functions, "
-        ++ show (ctAuxiliary t) ++ " auxiliary functions with them, " ++ show (ctOnDemand t)
-        ++ " re-entry functions on demand (" ++ show (ctPending t) ++ " never asked for); "
-        ++ show (ctNotWorthIt t) ++ " left interpreted by the exit rule; "
-        ++ show (ctIRBytes t `div` 1024) ++ " KB of IR, " ++ show (fromIntegral (ctNanoseconds t) / 1e6 :: Double) ++ " ms"
-        ++ " (generate " ++ show (fromIntegral (ctGenerate t) / 1e6 :: Double) ++ ", parse and optimize " ++ show (fromIntegral (ctOptimize t) / 1e6 :: Double) ++ ", code " ++ show (fromIntegral (ctCodegen t) / 1e6 :: Double) ++ ")"
+    ( "[jit] compiled "
+        ++ show (ctModules t)
+        ++ " modules: "
+        ++ show (ctFunctions t)
+        ++ " functions, "
+        ++ show (ctAuxiliary t)
+        ++ " auxiliary functions with them, "
+        ++ show (ctOnDemand t)
+        ++ " re-entry functions on demand ("
+        ++ show (ctPending t)
+        ++ " never asked for); "
+        ++ show (ctNotWorthIt t)
+        ++ " left interpreted by the exit rule; "
+        ++ show (ctIRBytes t `div` 1024)
+        ++ " KB of IR, "
+        ++ show (fromIntegral (ctNanoseconds t) / 1e6 :: Double)
+        ++ " ms"
+        ++ " (generate "
+        ++ show (fromIntegral (ctGenerate t) / 1e6 :: Double)
+        ++ ", parse and optimize "
+        ++ show (fromIntegral (ctOptimize t) / 1e6 :: Double)
+        ++ ", code "
+        ++ show (fromIntegral (ctCodegen t) / 1e6 :: Double)
+        ++ ")"
     )
   printExits maxBound
   when (statsEach config) resetExitCounts

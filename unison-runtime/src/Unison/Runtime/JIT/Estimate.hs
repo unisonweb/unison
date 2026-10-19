@@ -221,15 +221,15 @@ walk cx = \case
       Nothing -> pure (Just exit)
       Just sects -> weigh sects
     weigh sects = do
-        arms <- catMaybes <$> mapM (walk cx) sects
-        pure $ case arms of
-          [] -> Nothing
-          _ ->
-            let weight e = if esRec e then recursiveWeight else 1
-                total = sum (map weight arms)
-                s = sum [weight e * esSaving e | e <- arms] / total
-                x = sum [weight e * esExits e | e <- arms] / total
-             in Just (plus simple (Estimate s x (any esRec arms)))
+      arms <- catMaybes <$> mapM (walk cx) sects
+      pure $ case arms of
+        [] -> Nothing
+        _ ->
+          let weight e = if esRec e then recursiveWeight else 1
+              total = sum (map weight arms)
+              s = sum [weight e * esSaving e | e <- arms] / total
+              x = sum [weight e * esExits e | e <- arms] / total
+           in Just (plus simple (Estimate s x (any esRec arms)))
     armsOf = \case
       Test1 _ a d -> Just [a, d]
       Test2 _ a _ b d -> Just [a, b, d]

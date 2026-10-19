@@ -1,7 +1,7 @@
 module Main (main) where
 
-import Control.Exception (ErrorCall, evaluate, try)
 import Control.DeepSeq (rnf)
+import Control.Exception (ErrorCall, evaluate, try)
 import Control.Monad
 import Data.Foldable qualified as F
 import Data.Functor.Classes (liftCompare, liftEq)

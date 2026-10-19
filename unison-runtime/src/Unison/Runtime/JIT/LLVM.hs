@@ -26,12 +26,12 @@ where
 import Data.ByteString.Unsafe (unsafeUseAsCStringLen)
 import Data.Text qualified as T
 import Data.Text.Encoding (encodeUtf8)
+import Data.Word (Word64)
 import Foreign.C.String (CString, peekCString, withCString)
 import Foreign.C.Types (CInt (..), CSize (..))
 import Foreign.Marshal.Alloc (alloca)
 import Foreign.Ptr (FunPtr, Ptr, WordPtr (..), castPtrToFunPtr, nullPtr, wordPtrToPtr)
 import Foreign.Storable (peek, poke)
-import Data.Word (Word64)
 
 foreign import ccall safe "unison_jit_init" c_init :: IO CInt
 
@@ -115,4 +115,3 @@ defineSymbol name addr = do
 
 targetTriple :: IO String
 targetTriple = peekCString =<< c_triple
-

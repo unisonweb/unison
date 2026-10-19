@@ -39,7 +39,6 @@ import Data.IORef (IORef, newIORef, readIORef, writeIORef)
 import Data.Map.Strict qualified as M
 import Data.Map.Strict.Internal qualified as M
 import Data.Sequence qualified as Seq
-import Unison.Util.Deque qualified as Sq
 import Data.Set qualified as S
 import Data.Set qualified as Set
 import Data.Text qualified as DTx
@@ -50,17 +49,10 @@ import Foreign.LibFFI.Internal
 import Foreign.Marshal (alloca)
 import Foreign.Marshal.Array (allocaArray)
 import Foreign.Ptr
-import Unison.Runtime.JIT (jitCompileGroup, jitRequestCell, jitRequestGroup, printJITStats, registerTypeNumbers)
-import Unison.Runtime.JIT.Config qualified as JIT
-import Unison.Runtime.JIT.Exits
-import Unison.Runtime.JIT.Frames
-import Unison.Runtime.JIT.Native
-import Unison.Runtime.JIT.Pool (currentPool)
 import Foreign.Storable qualified as Store
 import GHC.Conc as STM (unsafeIOToSTM)
 import GHC.Float (double2Float, float2Double)
 import GHC.Stack
-import Unsafe.Coerce (unsafeCoerce)
 import Unison.Builtin.Decls (exceptionRef)
 import Unison.Builtin.Decls qualified as Rf
 import Unison.Prelude hiding (Text)
@@ -85,6 +77,14 @@ import Unison.Runtime.ANF as ANF
   )
 import Unison.Runtime.ANF qualified as ANF
 import Unison.Runtime.ANF.Optimize qualified as ANF
+import Unison.Runtime.JIT (jitCompileGroup, jitRequestCell, jitRequestGroup, printJITStats, registerTypeNumbers)
+import Unison.Runtime.JIT.Config qualified as JIT
+import Unison.Runtime.JIT.Exits
+import Unison.Runtime.JIT.Frames
+import Unison.Runtime.JIT.Native
+import Unison.Runtime.JIT.Pool (currentPool)
+import Unison.Util.Deque qualified as Sq
+import Unsafe.Coerce (unsafeCoerce)
 #ifdef CODE_SERIAL_CHECK
 import Unison.Runtime.ANF.Serialize (serializeCode, deserializeCode)
 #endif
@@ -1083,7 +1083,9 @@ runNative !yld env henv0 !activeThreads !stk0 !k0 fn0 = go fn0 henv0 stk0 k0
                 let cell' = if n == 1 then cell else noNativeCell
                     kk = Push fsz asz fakeCix 10 rest cell' k'
                 apply yld env henv activeThreads stk' kk False (VArg1 0) eh
-            | code /= nullPtr, sp stk' == sp stk + n, fp stk' == fp stk ->
+            | code /= nullPtr,
+              sp stk' == sp stk + n,
+              fp stk' == fp stk ->
                 go (castPtrToFunPtr code) henv stk' k'
             | otherwise -> do
                 when (code == nullPtr) (countReentry cell)
@@ -1911,8 +1913,8 @@ cacheAdd0 ntys0 (normalizeCodes -> termSuperGroups) sands cc = go
               & sequenceA
               & flip runState oldRfms
           uncelled =
-            sanitizeCombsOfForeignFuncs (sandboxed cc) sandboxedForeignFuncs
-              $ mapFromList emittedCombs
+            sanitizeCombsOfForeignFuncs (sandboxed cc) sandboxedForeignFuncs $
+              mapFromList emittedCombs
           (cellCount, _) = attachNativeCells nullPtr uncelled
       pool <- readTVar (nativeCells cc)
       case takeNativeCells cellCount pool of
@@ -1944,7 +1946,6 @@ cacheAdd0 ntys0 (normalizeCodes -> termSuperGroups) sands cc = go
           -- Now that the code cache is primed with everything we need,
           -- we can pre-evaluate the top-level constants.
           pure $ int' `seq` rtm' `seq` rrs `seq` newCombRefs `seq` updatedCombs `seq` nsn `seq` ncc `seq` nsc `seq` Right (unresolvedCacheableCombs, unresolvedNonCacheableCombs, newCombs, newCombRefs)
-
 
 preEvalTopLevelConstants ::
   (RuntimeProfiler p) =>
