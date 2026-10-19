@@ -189,7 +189,7 @@ This is a big PR.
 | New Haskell: `Runtime/JIT.hs`, `Runtime/JIT/*.hs` and `cbits/gen-helpers.hs`, the IR stripper | 14 | 9,410 | 26% |
 | Markdown docs: design, usage, development, builtins, ideas, this file, and the benchmark runs | 48 | 5,382 | 15% |
 | Transcripts: tests 3,710, benchmarks 413, the broad suite, the replacements suite, the compiled-program test | 6 | 4,359 | 12% |
-| `lib/unison-util-rope`: `Deque`, `Skews`, the `Rope` rework, tests and benchmarks | 10 | 3,422 | 10% |
+| `lib/unison-util-rope`: `Deque`, the `Rope` rework, tests and benchmarks | 10 | 3,422 | 10% |
 | Existing Haskell, modified: `Machine.hs` +498 -246, `Stack.hs` +411 -185, `MCode.hs` +373 -81, `Bytes.hs` +117 -35, `Foreign/Function.hs` +106 -65, `Interface.hs` +94 -25, `Util/Text.hs` +91 -20 and its tests +121, nine others under 40 lines each | 18 | 2,656 | 7% |
 | Build config, CI (the `jit` job on five platforms) and `scripts/jit-test-matrix.sh` | 9 | 293 | 1% |
 

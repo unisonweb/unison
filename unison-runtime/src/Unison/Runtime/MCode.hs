@@ -900,14 +900,22 @@ data GCombInfo comb
   deriving stock (Show, Eq, Ord, Functor, Foldable, Traversable)
 
 -- | A native code cell (see unison-runtime/src/Unison/Runtime/JIT/design.md): the mutable part of a
--- combinator, 32 bytes outside the Haskell heap. A pointer to the
--- combinator's compiled code, null until it is compiled; a count of calls
--- made while it was null; and a state: 0 until the JIT has been asked to
--- compile it, 1 while the request is queued, 2 once the compile thread has
--- taken it. It only moves forward, so a combinator is asked for only once.
--- Last, the JIT's verdict on whether the combinator is worth compiling
--- (see 'readNativeVerdict').
--- Cells never move, so generated code can refer to them by address.
+-- combinator, 32 bytes outside the Haskell heap, never moved and never
+-- freed, so generated code can refer to it by address. As a C struct:
+--
+-- > struct cell {
+-- >   void    *code;    // offset 0: the compiled entry point, NULL until compiled
+-- >   int64_t  count;   // offset 8: calls made while code was NULL
+-- >   int64_t  state;   // offset 16: 0 not yet requested, 1 queued, 2 taken by the compile thread
+-- >   int64_t  verdict; // offset 24: whether it is worth compiling (see readNativeVerdict)
+-- > };
+--
+-- The state only moves forward, so a combinator is asked for only once.
+-- The layout is a contract between two readers: this module (the
+-- @ and @ accessors below, at those offsets) and
+-- the generated code, which loads @ at offset 0 to call through a
+-- cell and writes @ at offset 8 (JIT/Codegen.hs); nothing in the C
+-- runtime reads a cell.
 --
 -- The count starts at minus the JIT's compilation threshold when the JIT
 -- compiles what gets hot, so that "hot" is the count reaching zero: the

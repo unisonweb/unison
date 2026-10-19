@@ -28,12 +28,12 @@ module Unison.Runtime.JIT.Pool
 where
 
 import Control.Monad (forM, forM_, when)
+import Control.Monad.Primitive (PrimState)
 import Data.IORef
 import Data.Map.Strict qualified as Map
 import Data.Maybe (fromMaybe)
 import Data.Primitive.Array (MutableArray, copyMutableArray, newArray, sizeofMutableArray, writeArray)
 import Data.Vector qualified as V
-import GHC.Exts (RealWorld)
 import Unison.Reference (Reference)
 import Unison.Runtime.ANF (PackedTag)
 import Unison.Runtime.MCode (CombIx, GCombInfo, MLit (..), RecordShape (..))
@@ -113,11 +113,11 @@ instance Show PoolKey where
     KeyRecord s -> "KeyRecord " ++ show (shapeFields s)
 
 data PoolState = PoolState
-  { poolArray :: !(MutableArray RealWorld Closure),
+  { poolArray :: !(MutableArray (PrimState IO) Closure),
     poolNext :: !Int,
     poolKeys :: !(Map.Map PoolKey Int),
     -- | superseded arrays, kept alive on purpose
-    poolOld :: [MutableArray RealWorld Closure]
+    poolOld :: [MutableArray (PrimState IO) Closure]
   }
 
 -- | A pool holding the fixed entries. The argument is the stress mode's
@@ -139,7 +139,7 @@ newPool stress = do
   pure (Pool ref stable)
 
 -- | The array to pass to native code now.
-currentPool :: Pool -> IO (MutableArray RealWorld Closure)
+currentPool :: Pool -> IO (MutableArray (PrimState IO) Closure)
 currentPool (Pool ref _) = poolArray <$> readIORef ref
 
 -- | The index of each key, adding the ones not seen before. Called when

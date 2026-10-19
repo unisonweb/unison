@@ -1238,9 +1238,13 @@ defaultStackSlots = 512
 
 alloc :: Int -> IO Stack
 alloc slots = do
-  -- both stacks have a few words to spare past their last slot, where
-  -- the JIT's trampoline gets its results back (see JIT.Native); growing
-  -- and duplicating the stack keep them
+  -- Each stack is allocated with an out-area past its last slot
+  -- (nativeOutWords, nativeOutPtrs). Native code returns only a status
+  -- word through the C calling convention, so it hands everything else
+  -- back by writing it there: the new ap, fp and sp and the frame records
+  -- on the unboxed stack, and on the boxed stack the handler environment
+  -- it ran with, which the collector has to see. The trampoline reads
+  -- them after the call (JIT.Native; design.md calls this the out-area). Growing or duplicating a stack keeps the space.
   ustk <- newByteArray (bytes (slots + nativeOutWords))
   bstk <- newArray (slots + nativeOutPtrs) BlackHole
   pure $ Stack {ap = -1, fp = -1, sp = -1, ustk, bstk}

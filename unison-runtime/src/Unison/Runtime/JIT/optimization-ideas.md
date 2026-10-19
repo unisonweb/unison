@@ -244,8 +244,9 @@ and in `lv_append`); it trails `Data.Sequence` on `append` of two large pieces (
 `drop` (1.1 to 1.3×) and `fromList` of a long list (3×, a fold of `snoc`; the bulk
 `fromListN` measured no faster for a reason not found), spending the time reading digit lists
 cell by cell, so digits that are one object (an array with an offset so pops don't copy) are
-the thing to try. `Unison.Util.Skews` (two skew binary lists back to back) is in the same
-package as a possible alternative: it compiles, nothing uses it, and it hasn't been measured.
+the thing to try. (A deque of two skew binary lists back to back, `Unison.Util.Skews`, was
+the first attempt and was never measured; it was deleted on 2026-10-19 and is in the history
+before that date if the idea comes up again.)
 Any change has to be made in the C helpers too (`UNISON_JIT_STRESS=lists=N`).
 
 ### `handle` itself

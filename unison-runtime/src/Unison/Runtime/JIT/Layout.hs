@@ -23,6 +23,7 @@ where
 
 import Control.Exception (evaluate)
 import Control.Monad (foldM, forM)
+import Control.Monad.Primitive (PrimState)
 import Data.Atomics qualified as Atomic
 import Data.Bits (shiftR, xor, (.&.), (.|.))
 import Data.Digest.Murmur64 (asWord64)
@@ -37,7 +38,7 @@ import Data.Text qualified as Text
 import Data.Vector qualified as V
 import Data.Word (Word64, Word8)
 import Foreign.Ptr (IntPtr (..), nullPtr, ptrToIntPtr)
-import GHC.Exts (Any, RealWorld)
+import GHC.Exts (Any)
 import GHC.Float (castDoubleToWord64)
 import GHC.IORef (IORef (..))
 import Text.Read (readMaybe)
@@ -123,7 +124,7 @@ probe sample0 fields planted = do
   -- Force everything here: the array must hold the evaluated objects, not
   -- thunks that produce them. (Without optimization the arguments are thunks.)
   let !sample = sample0
-  arr <- newArray (1 + length fields) sample :: IO (MutableArray RealWorld Any)
+  arr <- newArray (1 + length fields) sample :: IO (MutableArray (PrimState IO) Any)
   mapM_ (\(i, f0) -> let !f = f0 in writeArray arr i f) (zip [1 ..] fields)
   r <- probeClosure arr
   case r of
@@ -143,7 +144,7 @@ probe sample0 fields planted = do
 probeWrap :: Bool -> Any -> IO (Either String (Pair Int Int))
 probeWrap ptrField sample0 = do
   let !sample = sample0
-  arr <- newArray 1 sample :: IO (MutableArray RealWorld Any)
+  arr <- newArray 1 sample :: IO (MutableArray (PrimState IO) Any)
   r <- probeClosure arr
   pure $ case r of
     (info : t : _ty : p : n : _) | (p, n) == (if ptrField then (1, 0) else (0, 1)), t >= 1, t <= 7 -> Right (Pair info t)
@@ -154,7 +155,7 @@ probeWrap ptrField sample0 = do
 probeInfo :: Int -> Any -> IO (Either String Int)
 probeInfo tag sample0 = do
   let !sample = sample0
-  arr <- newArray 1 sample :: IO (MutableArray RealWorld Any)
+  arr <- newArray 1 sample :: IO (MutableArray (PrimState IO) Any)
   r <- probeClosure arr
   pure $ case r of
     (info : t : _ty : 1 : 0 : _) | t == tag -> Right info
@@ -195,7 +196,7 @@ probeLayouts = do
       !fo = Foreign w
   fi <- probeInfo 7 (any' fo)
   wi <- probeInfo 7 (any' w)
-  marr <- newArray 1 (Val 9 nat) :: IO (MutableArray RealWorld Val)
+  marr <- newArray 1 (Val 9 nat) :: IO (MutableArray (PrimState IO) Val)
   let !wa = WrapMutableArray marr
   ai <- probeInfo 7 (any' wa)
   -- the other array wrappers, a ticket and a pointer
@@ -234,7 +235,7 @@ probeLayouts = do
 probeKind :: Int -> Int -> Int -> Any -> IO (Either String Layout)
 probeKind tag ptrs nptrs sample0 = do
   let !sample = sample0
-  arr <- newArray 1 sample :: IO (MutableArray RealWorld Any)
+  arr <- newArray 1 sample :: IO (MutableArray (PrimState IO) Any)
   r <- probeClosure arr
   pure $ case r of
     (info : t : _ty : p : n : _) | t == tag, p == ptrs, n == nptrs -> Right (Layout info t p n (\i -> 8 + 8 * i))
@@ -272,7 +273,7 @@ probeRecords _ls = do
       -- they are literals, thunks in an unoptimized build
       forceNames sh = mapM_ evaluate (V.toList (shapeFields sh))
   mapM_ forceNames [shape2, shape0, shape3, shape3']
-  arr <- newArray 5 (any' r2) :: IO (MutableArray RealWorld Any)
+  arr <- newArray 5 (any' r2) :: IO (MutableArray (PrimState IO) Any)
   let put i v = evaluate v >>= writeArray arr i
   put 0 (any' r2)
   put 1 (any' v0)
@@ -301,7 +302,7 @@ probeRecords _ls = do
               ("nested", rNested, recV ["inner", "name"] [recV ["x", "y", "zz"] [pos 1, pos 2, pos 3], ANF.BLit (ANF.Text (UText.pack "héllo"))])
             ]
       forceNames shapeN
-      harr <- newArray 1 (any' r2) :: IO (MutableArray RealWorld Any)
+      harr <- newArray 1 (any' r2) :: IO (MutableArray (PrimState IO) Any)
       hs <- forM hashes $ \(name, c, v) -> do
         evaluate (any' c) >>= writeArray harr 0
         got <- murmurTest harr 0 False
@@ -323,7 +324,7 @@ probeRecords _ls = do
               -- different shapes order by their field names: the interpreter's
               ("Any records of different shapes", anyOf (rec shape2 [NatVal 1, NatVal 2]), anyOf (rec shape3 [NatVal 1, NatVal 2, NatVal 3]), (False, True))
             ]
-      carr <- newArray 2 (any' r2) :: IO (MutableArray RealWorld Any)
+      carr <- newArray 2 (any' r2) :: IO (MutableArray (PrimState IO) Any)
       let toInt o = fromEnum o - 1
       cs <- forM pairs $ \(name, l, r, (handledC, handledE)) -> do
         evaluate (any' (getBoxedVal l)) >>= writeArray carr 0
@@ -347,7 +348,7 @@ probeRecords _ls = do
 probeArrays :: Layouts -> IO (Either String ())
 probeArrays ls = do
   let !e = emptyVal
-  arr <- newArray 1 (any' e) :: IO (MutableArray RealWorld Any)
+  arr <- newArray 1 (any' e) :: IO (MutableArray (PrimState IO) Any)
   let pair (Pair i t) = [i, t]
   ok <- arrayInit arr (concatMap pair [Pair (lMutableArrayInfo ls) 7, lArrayWrap ls, lMutableByteArrayWrap ls, lByteArrayWrap ls, Pair (lIORefInfo ls) 7, lTicketWrap ls, lPtrWrap ls])
   pure (if ok == 1 then Right () else Left "the array helpers could not be initialized")
@@ -367,7 +368,7 @@ probeMurmur ls = do
       PackedTag someTag = TT.someTag
       PackedTag noneTag = TT.noneTag
       PackedTag pairTag = TT.pairTag
-  arr <- newArray 1 (any' nat) :: IO (MutableArray RealWorld Any)
+  arr <- newArray 1 (any' nat) :: IO (MutableArray (PrimState IO) Any)
   let put :: Any -> IO ()
       put v = evaluate v >>= writeArray arr 0
   put (any' nat)
@@ -540,7 +541,7 @@ probeCompare ls = do
               -- two different maps: identical samples would be one closure at -O2, and the same object is equal to itself
               ("maps", BoxedVal (Foreign (WrapMap (M.singleton (NatVal 1) (NatVal 1)))), BoxedVal (Foreign (WrapMap (M.singleton (NatVal 2) (NatVal 2)))), neither)
             ]
-      arr <- newArray 2 (any' natTypeTag) :: IO (MutableArray RealWorld Any)
+      arr <- newArray 2 (any' natTypeTag) :: IO (MutableArray (PrimState IO) Any)
       let put :: Int -> Any -> IO ()
           put i v = evaluate v >>= writeArray arr i
           toInt o = fromEnum o - 1
@@ -584,7 +585,7 @@ probeEnv = do
   h1 <- evaluate (HEnv aenv emptyDEnv)
   h2 <- evaluate (HEnv aenv denv2)
   aff <- evaluate (Affine set3 aenv (ARef r3))
-  arr <- newArray 9 (any' h1) :: IO (MutableArray RealWorld Any)
+  arr <- newArray 9 (any' h1) :: IO (MutableArray (PrimState IO) Any)
   let put i v = evaluate v >>= writeArray arr i
   put 0 (any' h1)
   put 1 (any' aenv)
@@ -600,7 +601,7 @@ probeEnv = do
     then pure (Right ())
     else do
       dbg <- forM [any' empty, any' aenv, any' box3, any' h1] $ \x -> do
-        a <- newArray 1 x :: IO (MutableArray RealWorld Any)
+        a <- newArray 1 x :: IO (MutableArray (PrimState IO) Any)
         evaluate x >>= writeArray a 0
         probeClosure a
       pure (Left ("the handler environment is not what the request helpers expect (check " ++ show ok ++ "; " ++ show dbg ++ ")"))
@@ -640,10 +641,10 @@ probeLists ls steps = do
   -- them. (`evaluate`, not `seq`: the optimizer makes top-level constants of
   -- some samples, and a `seq` on one can leave the reference to the
   -- unevaluated constant in the array.)
-  let put :: MutableArray RealWorld Any -> Int -> Any -> IO ()
+  let put :: MutableArray (PrimState IO) Any -> Int -> Any -> IO ()
       put a i v = evaluate v >>= writeArray a i
       !first = wrap sample
-  arr <- newArray 4 first :: IO (MutableArray RealWorld Any)
+  arr <- newArray 4 first :: IO (MutableArray (PrimState IO) Any)
   put arr 1 (any' x)
   put arr 2 (wrap Sq.empty)
   put arr 3 (wrap (range 1 1000))
@@ -822,7 +823,7 @@ probeTexts :: Layouts -> Int -> IO (Either String ())
 probeTexts ls steps = do
   let wrap :: UText.Text -> Any
       wrap t = any' $! TextC t
-      put :: MutableArray RealWorld Any -> Int -> Any -> IO ()
+      put :: MutableArray (PrimState IO) Any -> Int -> Any -> IO ()
       put a i v = evaluate v >>= writeArray a i
       !abc = UText.pack "abc"
       !first = wrap abc
@@ -856,7 +857,7 @@ probeTexts ls steps = do
       big = UText.replicate 2000 (UText.pack "a\233")
       chunky = foldl (\acc i -> acc <> UText.pack (take (th `div` 2 + 1) (drop (i `mod` 7) (cycle "0123456789\955abcdefghij")))) mempty [1 .. 260 :: Int]
       samples = base ++ grown ++ grownL ++ [big, UText.drop 7 big, UText.take 1500 big, UText.drop 100 (grown !! 2), UText.take 400 (grownL !! 1), chunky, UText.drop 1000 chunky]
-  arr <- newArray 12 first :: IO (MutableArray RealWorld Any)
+  arr <- newArray 12 first :: IO (MutableArray (PrimState IO) Any)
   put arr 1 (wrap (UText.pack (replicate (th + 1) 'a') <> UText.pack (replicate (th + 1) 'b')))
   put arr 2 (wrap UText.empty)
   -- the constructors the helpers build results from (see rope_test)
@@ -1184,7 +1185,7 @@ probeBytes :: Layouts -> Int -> IO (Either String ())
 probeBytes ls steps = do
   let wrap :: By.Bytes -> Any
       wrap b = any' $! BytesC b
-      put :: MutableArray RealWorld Any -> Int -> Any -> IO ()
+      put :: MutableArray (PrimState IO) Any -> Int -> Any -> IO ()
       put a i v = evaluate v >>= writeArray a i
       bytes :: [Int] -> By.Bytes
       bytes = By.fromWord8s . map fromIntegral
@@ -1226,7 +1227,7 @@ probeBytes ls steps = do
       chunky = foldl (\acc i -> acc <> bytes (take (th `div` 2 + 1) (drop (i `mod` 7) (cycle [0 .. 255])))) mempty [1 .. 260 :: Int]
       samples = base ++ grown ++ grownL ++ [big, By.drop 7 big, By.take 1500 big, By.drop 100 (grown !! 2), By.take 400 (grownL !! 1), chunky, By.drop 1000 chunky]
   -- (every sample goes through `put`: see probeLists on `evaluate`)
-  arr <- newArray 12 (wrap By.empty) :: IO (MutableArray RealWorld Any)
+  arr <- newArray 12 (wrap By.empty) :: IO (MutableArray (PrimState IO) Any)
   put arr 0 first
   put arr 1 (wrap (bytes (replicate (th + 1) 97) <> bytes (replicate (th + 1) 98)))
   put arr 2 (wrap By.empty)
@@ -1505,7 +1506,7 @@ probeBytes ls steps = do
 probeNames :: Layouts -> IO (Either String ())
 probeNames ls = do
   closureInit [lInfo (lPAp ls), lPtrTag (lPAp ls)]
-  let put :: MutableArray RealWorld Any -> Int -> Any -> IO ()
+  let put :: MutableArray (PrimState IO) Any -> Int -> Any -> IO ()
       put a i v = evaluate v >>= writeArray a i
       !ref = Ty.booleanRef
       !cix = CIx ref 21 22
@@ -1513,7 +1514,7 @@ probeNames ls = do
       !nat = natTypeTag
       pap us bs = let !u = byteArrayFromList (us :: [Int]); !b = arrayFromList bs in PAp cix comb (u, b)
       !first = any' $! pap [] []
-  arr <- newArray 4 first :: IO (MutableArray RealWorld Any)
+  arr <- newArray 4 first :: IO (MutableArray (PrimState IO) Any)
   put arr 1 (any' nat)
   oks <- forM [(old, n) | old <- [0, 1, 3], n <- [1 .. 4 :: Int]] $ \(old, n) -> do
     let olds = [50 .. 49 + old]

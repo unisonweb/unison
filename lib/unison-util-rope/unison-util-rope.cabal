@@ -20,7 +20,6 @@ library
       Unison.Util.Deque
       Unison.Util.Deque.Internal
       Unison.Util.Rope
-      Unison.Util.Skews
   hs-source-dirs:
       src
   default-extensions:

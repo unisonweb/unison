@@ -14,10 +14,10 @@ module Unison.Runtime.JIT.Frames
 where
 
 import Control.Monad (forM_)
+import Control.Monad.Primitive (PrimState)
 import Data.IORef
 import Data.Primitive.SmallArray (SmallMutableArray, copySmallMutableArray, getSizeofSmallMutableArray, newSmallArray, readSmallArray, writeSmallArray)
 import Foreign.Ptr (Ptr)
-import GHC.Exts (RealWorld)
 import Unison.Runtime.MCode (CombIx, NativeCell)
 import Unison.Runtime.Stack (MSection)
 
@@ -30,7 +30,7 @@ type FrameIndex = Int
 
 -- | Like the exits table: an array that grows by copying, written only by
 -- the thread that compiles.
-data Table = Table !Int !(SmallMutableArray RealWorld Frame)
+data Table = Table !Int !(SmallMutableArray (PrimState IO) Frame)
 
 newtype Frames = Frames (IORef Table)
 

@@ -47,6 +47,7 @@ module Unison.Runtime.JIT.Native
 where
 
 import Control.Monad (forM)
+import Control.Monad.Primitive (PrimState)
 import Data.Int (Int64)
 import Data.Primitive.Array (MutableArray (..), sizeofMutableArray)
 import Data.Primitive.ByteArray (MutableByteArray (..), readByteArray)
@@ -55,7 +56,7 @@ import Foreign.C.String (CString, peekCString)
 import Foreign.Marshal.Alloc (allocaBytes, free)
 import Foreign.Ptr (FunPtr, Ptr, WordPtr (..), ptrToWordPtr, wordPtrToPtr)
 import Foreign.Storable (peek, peekElemOff, pokeElemOff)
-import GHC.Exts (Any, MutableArray#, MutableByteArray#, RealWorld)
+import GHC.Exts (Any, MutableArray#, MutableByteArray#)
 import Unison.Runtime.Stack (Closure)
 
 -- | The uniform signature of compiled code: @(ctx, ap, fp, sp) -> status@.
@@ -80,7 +81,7 @@ statusError = -1
 -- the spare words past the last slot of the unboxed stack (see
 -- 'Unison.Runtime.Stack.nativeOutWords'): nothing is allocated for a round
 -- trip. These read them, given the stack and its size in slots.
-outAp, outFp, outSp, outFrameCount :: MutableByteArray RealWorld -> Int -> IO Int
+outAp, outFp, outSp, outFrameCount :: MutableByteArray (PrimState IO) -> Int -> IO Int
 outAp ustk size = readByteArray ustk size
 outFp ustk size = readByteArray ustk (size + 1)
 outSp ustk size = readByteArray ustk (size + 2)
@@ -92,15 +93,15 @@ outFrameCount ustk size = readByteArray ustk (size + 3)
 
 -- | The frame records, in the order they were written (innermost caller
 -- first). Call at most once per entry: a long list is freed as it is read.
-outFrames :: MutableByteArray RealWorld -> Int -> IO [FrameRecord]
+outFrames :: MutableByteArray (PrimState IO) -> Int -> IO [FrameRecord]
 outFrames = frameRecords
 
 foreign import ccall unsafe "unison_jit_enter"
   c_enter ::
     FunPtr NativeFn ->
-    MutableByteArray# RealWorld ->
-    MutableArray# RealWorld Closure ->
-    MutableArray# RealWorld Closure ->
+    MutableByteArray# (PrimState IO) ->
+    MutableArray# (PrimState IO) Closure ->
+    MutableArray# (PrimState IO) Closure ->
     Int64 ->
     Int64 ->
     Int64 ->
@@ -152,7 +153,7 @@ foreign import ccall unsafe "unison_jit_hplim_value" c_hplimValue :: IO Int64
 hplimValue :: IO Int
 hplimValue = fromIntegral <$> c_hplimValue
 
-foreign import ccall unsafe "unison_jit_probe" c_probe :: MutableArray# RealWorld Any -> Int64 -> Ptr Int64 -> IO Int64
+foreign import ccall unsafe "unison_jit_probe" c_probe :: MutableArray# (PrimState IO) Any -> Int64 -> Ptr Int64 -> IO Int64
 
 -- | Runs native code with the given stacks (and their size in slots) and
 -- pointers, and returns its status. Where it stopped and the frame records
@@ -162,9 +163,9 @@ foreign import ccall unsafe "unison_jit_probe" c_probe :: MutableArray# RealWorl
 -- the pointer right while Haskell code runs around the call.
 enterNative ::
   FunPtr NativeFn ->
-  MutableByteArray RealWorld ->
-  MutableArray RealWorld Closure ->
-  MutableArray RealWorld Closure ->
+  MutableByteArray (PrimState IO) ->
+  MutableArray (PrimState IO) Closure ->
+  MutableArray (PrimState IO) Closure ->
   Int ->
   Int ->
   Int ->
@@ -175,7 +176,7 @@ enterNative fn (MutableByteArray ustk) (MutableArray bstk) (MutableArray pool) s
   pure $! fromIntegral status
 {-# INLINE enterNative #-}
 
-frameRecords :: MutableByteArray RealWorld -> Int -> IO [FrameRecord]
+frameRecords :: MutableByteArray (PrimState IO) -> Int -> IO [FrameRecord]
 frameRecords out size = do
   n <- readByteArray out (size + 3) :: IO Int
   if n <= inlineFrames
@@ -215,79 +216,79 @@ ctxLayout = allocaBytes (8 * 32) $ \out -> do
 -- the objects in its pointer fields. Returns the raw probe output: info
 -- pointer, pointer tag, closure type, pointer count, non-pointer count,
 -- constructor tag, the payload words, then a match index per pointer field.
-probeClosure :: MutableArray RealWorld Any -> IO [Int]
+probeClosure :: MutableArray (PrimState IO) Any -> IO [Int]
 probeClosure arr@(MutableArray arr#) = allocaBytes (8 * 64) $ \out -> do
   total <- c_probe arr# (fromIntegral (sizeofMutableArray arr)) out
   vals <- mapM (peekElemOff out) [0 .. 5 + 2 * fromIntegral total]
   pure (map fromIntegral vals)
 
-foreign import ccall unsafe "unison_jit_list_init" c_listInit :: MutableArray# RealWorld Any -> Ptr Int64 -> IO Int64
+foreign import ccall unsafe "unison_jit_list_init" c_listInit :: MutableArray# (PrimState IO) Any -> Ptr Int64 -> IO Int64
 
-foreign import ccall unsafe "unison_jit_list_check" c_listCheck :: MutableArray# RealWorld Any -> IO Int64
+foreign import ccall unsafe "unison_jit_list_check" c_listCheck :: MutableArray# (PrimState IO) Any -> IO Int64
 
-foreign import ccall unsafe "unison_jit_list_test" c_listTest :: MutableArray# RealWorld Any -> Int64 -> Int64 -> Int64 -> IO Int64
+foreign import ccall unsafe "unison_jit_list_test" c_listTest :: MutableArray# (PrimState IO) Any -> Int64 -> Int64 -> Int64 -> IO Int64
 
 -- | Teaches the C list helpers the constructors of a list from samples
 -- (see unison_jit_list_init), given the info pointers of Foreign, Val,
 -- Data1 and Data2. 1 if all is well, else the number of the check that failed.
-listInit :: MutableArray RealWorld Any -> [Int] -> IO Int
+listInit :: MutableArray (PrimState IO) Any -> [Int] -> IO Int
 listInit (MutableArray arr#) infos = allocaBytes (8 * length infos) $ \p -> do
   mapM_ (\(i, v) -> pokeElemOff p i (fromIntegral v)) (zip [0 ..] infos)
   fromIntegral <$> c_listInit arr# p
 
 -- | Checks the structure of the list in slot 0: -1 if it isn't what the C
 -- helpers assume, else the set of constructors met.
-listCheck :: MutableArray RealWorld Any -> IO Int
+listCheck :: MutableArray (PrimState IO) Any -> IO Int
 listCheck (MutableArray arr#) = fromIntegral <$> c_listCheck arr#
 
 -- | Runs a C list helper on slot 0 (see unison_jit_list_test); the result
 -- lands in slot 3. False if the helper left the case to the interpreter.
-listTest :: MutableArray RealWorld Any -> Int -> Int -> Int -> IO Bool
+listTest :: MutableArray (PrimState IO) Any -> Int -> Int -> Int -> IO Bool
 listTest (MutableArray arr#) op a b = (== 1) <$> c_listTest arr# (fromIntegral op) (fromIntegral a) (fromIntegral b)
 
-foreign import ccall unsafe "unison_jit_text_init" c_textInit :: MutableArray# RealWorld Any -> Ptr Int64 -> IO Int64
+foreign import ccall unsafe "unison_jit_text_init" c_textInit :: MutableArray# (PrimState IO) Any -> Ptr Int64 -> IO Int64
 
-foreign import ccall unsafe "unison_jit_text_check" c_textCheck :: MutableArray# RealWorld Any -> IO Int64
+foreign import ccall unsafe "unison_jit_text_check" c_textCheck :: MutableArray# (PrimState IO) Any -> IO Int64
 
-foreign import ccall unsafe "unison_jit_text_test" c_textTest :: MutableArray# RealWorld Any -> Int64 -> Int64 -> Int64 -> Int64 -> IO Int64
+foreign import ccall unsafe "unison_jit_text_test" c_textTest :: MutableArray# (PrimState IO) Any -> Int64 -> Int64 -> Int64 -> Int64 -> IO Int64
 
 -- | The same three for the text helpers (see unison_jit_text_init and
 -- unison_jit_text_test). 'textTest' returns what the C function does.
-textInit :: MutableArray RealWorld Any -> [Int] -> IO Int
+textInit :: MutableArray (PrimState IO) Any -> [Int] -> IO Int
 textInit (MutableArray arr#) infos = allocaBytes (8 * length infos) $ \p -> do
   mapM_ (\(i, v) -> pokeElemOff p i (fromIntegral v)) (zip [0 ..] infos)
   fromIntegral <$> c_textInit arr# p
 
-textCheck :: MutableArray RealWorld Any -> IO Bool
+textCheck :: MutableArray (PrimState IO) Any -> IO Bool
 textCheck (MutableArray arr#) = (== 1) <$> c_textCheck arr#
 
-textTest :: MutableArray RealWorld Any -> Int -> Int -> Int -> Int -> IO Int
+textTest :: MutableArray (PrimState IO) Any -> Int -> Int -> Int -> Int -> IO Int
 textTest (MutableArray arr#) op a b c = fromIntegral <$> c_textTest arr# (fromIntegral op) (fromIntegral a) (fromIntegral b) (fromIntegral c)
 
-foreign import ccall unsafe "unison_jit_bytes_init" c_bytesInit :: MutableArray# RealWorld Any -> Ptr Int64 -> IO Int64
+foreign import ccall unsafe "unison_jit_bytes_init" c_bytesInit :: MutableArray# (PrimState IO) Any -> Ptr Int64 -> IO Int64
 
-foreign import ccall unsafe "unison_jit_array_init" c_arrayInit :: MutableArray# RealWorld Any -> Ptr Int64 -> IO Int64
+foreign import ccall unsafe "unison_jit_array_init" c_arrayInit :: MutableArray# (PrimState IO) Any -> Ptr Int64 -> IO Int64
 
-foreign import ccall unsafe "unison_jit_murmur_init" c_murmurInit :: MutableArray# RealWorld Any -> Ptr Int64 -> IO Int64
+foreign import ccall unsafe "unison_jit_murmur_init" c_murmurInit :: MutableArray# (PrimState IO) Any -> Ptr Int64 -> IO Int64
 
 -- the C side returns a pair (ok, hash) by value; the FFI can't, so this
 -- wrapper writes it through a pointer
-foreign import ccall unsafe "unison_jit_murmur_test_ffi" c_murmurTest :: MutableArray# RealWorld Any -> Int64 -> Int64 -> Ptr Int64 -> IO Int64
+foreign import ccall unsafe "unison_jit_murmur_test_ffi" c_murmurTest :: MutableArray# (PrimState IO) Any -> Int64 -> Int64 -> Ptr Int64 -> IO Int64
 
-foreign import ccall unsafe "unison_jit_env_init" c_envInit :: MutableArray# RealWorld Any -> IO Int64
+foreign import ccall unsafe "unison_jit_env_init" c_envInit :: MutableArray# (PrimState IO) Any -> IO Int64
 
 -- | Teaches the request helpers the handler environment's layout from
 -- samples and checks the lookup on them (see unison_jit_env_init). 1 if
 -- all is well, else the number of the check that failed.
-envInit :: MutableArray RealWorld Any -> IO Int
+envInit :: MutableArray (PrimState IO) Any -> IO Int
 envInit (MutableArray arr#) = fromIntegral <$> c_envInit arr#
 
-foreign import ccall unsafe "unison_jit_record_init" c_recordInit :: MutableArray# RealWorld Any -> Ptr Int64 -> IO Int64
+foreign import ccall unsafe "unison_jit_record_init" c_recordInit :: MutableArray# (PrimState IO) Any -> Ptr Int64 -> IO Int64
 
 -- | Teaches the record helpers the record layout from samples and checks
 -- the field lookup on them (see unison_jit_record_init). 1 if everything
 -- is as expected, else the number of the check that failed.
-recordInit :: MutableArray RealWorld Any -> [Int] -> IO Int
+recordInit :: MutableArray (PrimState IO) Any -> [Int] -> IO Int
 recordInit (MutableArray arr#) infos = allocaBytes (8 * length infos) $ \p -> do
   mapM_ (\(i, v) -> pokeElemOff p i (fromIntegral v)) (zip [0 ..] infos)
   fromIntegral <$> c_recordInit arr# p
@@ -298,7 +299,7 @@ foreign import ccall "&unison_jit_ucmp" c_ucmpAddr :: FunPtr (Int64 -> Ptr () ->
 
 foreign import ccall unsafe "unison_jit_cmp_init" c_cmpInit :: Ptr Int64 -> IO Int64
 
-foreign import ccall unsafe "unison_jit_cmp_test_ffi" c_cmpTest :: MutableArray# RealWorld Any -> Int64 -> Int64 -> Int64 -> Ptr Int64 -> IO Int64
+foreign import ccall unsafe "unison_jit_cmp_test_ffi" c_cmpTest :: MutableArray# (PrimState IO) Any -> Int64 -> Int64 -> Int64 -> Ptr Int64 -> IO Int64
 
 -- | Where the C copy of @unison_jit_ucmp@ is, for the same check.
 ucmpCAddress :: FunPtr (Int64 -> Ptr () -> Int64 -> Ptr () -> Int64 -> IO ())
@@ -315,7 +316,7 @@ cmpInit infos = allocaBytes (8 * length infos) $ \p -> do
 -- elements 0 and 1, whose unboxed halves are the two ints and whose boxed
 -- halves are the elements; Nothing when the helper leaves the pair to the
 -- interpreter.
-cmpTest :: MutableArray RealWorld Any -> Int -> Int -> Bool -> IO (Maybe Int)
+cmpTest :: MutableArray (PrimState IO) Any -> Int -> Int -> Bool -> IO (Maybe Int)
 cmpTest (MutableArray arr#) u1 u2 eq = allocaBytes 8 $ \p -> do
   ok <- c_cmpTest arr# (fromIntegral u1) (fromIntegral u2) (if eq then 4 else 0) p
   if ok == 1 then Just . fromIntegral <$> peek p else pure Nothing
@@ -327,45 +328,45 @@ murmurCAddress = c_murmurAddr
 
 -- | Hands the hash helper the type-tag closure in element 0 and the Enum
 -- and DataG info pointers.
-murmurInit :: MutableArray RealWorld Any -> [Int] -> IO Int
+murmurInit :: MutableArray (PrimState IO) Any -> [Int] -> IO Int
 murmurInit (MutableArray arr#) infos = allocaBytes (8 * length infos) $ \p -> do
   mapM_ (\(i, v) -> pokeElemOff p i (fromIntegral v)) (zip [0 ..] infos)
   fromIntegral <$> c_murmurInit arr# p
 
 -- | The native hash of element 0 (boxed), or of the unboxed value with the
 -- type tag in element 0; Nothing when the helper leaves it to the interpreter.
-murmurTest :: MutableArray RealWorld Any -> Int -> Bool -> IO (Maybe Word64)
+murmurTest :: MutableArray (PrimState IO) Any -> Int -> Bool -> IO (Maybe Word64)
 murmurTest (MutableArray arr#) u unboxed = allocaBytes 8 $ \p -> do
   ok <- c_murmurTest arr# (fromIntegral u) (if unboxed then 1 else 0) p
   if ok == 1 then Just . fromIntegral <$> peek p else pure Nothing
 
 -- | Hands the array and ref helpers the wrappers' info pointers and tags
 -- (pairs, flattened) and the empty value in element 0.
-arrayInit :: MutableArray RealWorld Any -> [Int] -> IO Int
+arrayInit :: MutableArray (PrimState IO) Any -> [Int] -> IO Int
 arrayInit (MutableArray arr#) infos = allocaBytes (8 * length infos) $ \p -> do
   mapM_ (\(i, v) -> pokeElemOff p i (fromIntegral v)) (zip [0 ..] infos)
   fromIntegral <$> c_arrayInit arr# p
 
-foreign import ccall unsafe "unison_jit_bytes_check" c_bytesCheck :: MutableArray# RealWorld Any -> IO Int64
+foreign import ccall unsafe "unison_jit_bytes_check" c_bytesCheck :: MutableArray# (PrimState IO) Any -> IO Int64
 
-foreign import ccall unsafe "unison_jit_bytes_test" c_bytesTest :: MutableArray# RealWorld Any -> Int64 -> Int64 -> Int64 -> Int64 -> IO Int64
+foreign import ccall unsafe "unison_jit_bytes_test" c_bytesTest :: MutableArray# (PrimState IO) Any -> Int64 -> Int64 -> Int64 -> Int64 -> IO Int64
 
 -- | And for the bytes helpers (see unison_jit_bytes_init and
 -- unison_jit_bytes_test).
-bytesInit :: MutableArray RealWorld Any -> [Int] -> IO Int
+bytesInit :: MutableArray (PrimState IO) Any -> [Int] -> IO Int
 bytesInit (MutableArray arr#) infos = allocaBytes (8 * length infos) $ \p -> do
   mapM_ (\(i, v) -> pokeElemOff p i (fromIntegral v)) (zip [0 ..] infos)
   fromIntegral <$> c_bytesInit arr# p
 
-bytesCheck :: MutableArray RealWorld Any -> IO Bool
+bytesCheck :: MutableArray (PrimState IO) Any -> IO Bool
 bytesCheck (MutableArray arr#) = (== 1) <$> c_bytesCheck arr#
 
-bytesTest :: MutableArray RealWorld Any -> Int -> Int -> Int -> Int -> IO Int
+bytesTest :: MutableArray (PrimState IO) Any -> Int -> Int -> Int -> Int -> IO Int
 bytesTest (MutableArray arr#) op a b c = fromIntegral <$> c_bytesTest arr# (fromIntegral op) (fromIntegral a) (fromIntegral b) (fromIntegral c)
 
 foreign import ccall unsafe "unison_jit_closure_init" c_closureInit :: Ptr Int64 -> IO ()
 
-foreign import ccall unsafe "unison_jit_name_test" c_nameTest :: MutableArray# RealWorld Any -> Int64 -> IO Int64
+foreign import ccall unsafe "unison_jit_name_test" c_nameTest :: MutableArray# (PrimState IO) Any -> Int64 -> IO Int64
 
 -- | Gives the partial-application helper the info pointers of PAp and of
 -- the boxes around a segment's two arrays.
@@ -375,5 +376,5 @@ closureInit infos = allocaBytes (8 * length infos) $ \p -> do
   c_closureInit p
 
 -- | Runs the helper on slot 0 with n arguments (see unison_jit_name_test).
-nameTest :: MutableArray RealWorld Any -> Int -> IO Bool
+nameTest :: MutableArray (PrimState IO) Any -> Int -> IO Bool
 nameTest (MutableArray arr#) n = (== 1) <$> c_nameTest arr# (fromIntegral n)

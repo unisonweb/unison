@@ -21,12 +21,13 @@ module Unison.Runtime.JIT.Exits
 where
 
 import Control.Monad (forM, forM_)
+import Control.Monad.Primitive (PrimState)
 import Data.IORef
 import Data.Map.Strict qualified as M
 import Data.Primitive.PrimArray (MutablePrimArray (..), newPrimArray, readPrimArray, setPrimArray)
 import Data.Primitive.SmallArray (SmallMutableArray, copySmallMutableArray, getSizeofSmallMutableArray, newSmallArray, readSmallArray, writeSmallArray)
 import Foreign.Ptr (Ptr, WordPtr, ptrToWordPtr)
-import GHC.Exts (Int (..), RealWorld, fetchAddIntArray#)
+import GHC.Exts (Int (..), fetchAddIntArray#)
 import GHC.IO (IO (..))
 import Unison.Runtime.MCode (CombIx, NativeCell)
 import Unison.Runtime.Stack (MInstr, MSection)
@@ -57,13 +58,13 @@ type ExitIndex = Int
 -- compiles writes; an entry is in place before the code that returns its
 -- index is installed, and a reader that still holds an older array finds
 -- every index it can be handed there.
-data Table = Table !Int !(SmallMutableArray RealWorld Exit) -- next index, exits
+data Table = Table !Int !(SmallMutableArray (PrimState IO) Exit) -- next index, exits
 
 -- | The table, the exit counters, and the entry counts (by code address)
 -- with the names of the functions entered.
 data Exits = Exits
   { exTable :: !(IORef Table),
-    exCounters :: !(MutablePrimArray RealWorld Int),
+    exCounters :: !(MutablePrimArray (PrimState IO) Int),
     exEntries :: !(IORef (M.Map WordPtr Int)),
     exEntryNames :: !(IORef (M.Map WordPtr String))
   }
@@ -139,7 +140,7 @@ resetExitCounts ex = do
   Table next _ <- readIORef (exTable ex)
   setPrimArray (exCounters ex) 0 (min next counterSlots) 0
 
-fetchAddInt :: MutablePrimArray RealWorld Int -> Int -> Int -> IO Int
+fetchAddInt :: MutablePrimArray (PrimState IO) Int -> Int -> Int -> IO Int
 fetchAddInt (MutablePrimArray arr) (I# i) (I# n) = IO $ \s -> case fetchAddIntArray# arr i n s of
   (# s', old #) -> (# s', I# old #)
 
