@@ -1901,7 +1901,14 @@ genSectionFull fe d sect = case sect of
     genBranch fe d x br sect
   Let binding bcix f body cell -> genLet fe d binding bcix f body cell sect
   RMatch i pu br | on "requests" -> genRMatch fe d i pu br sect
-  _ -> exitResume fe d sect
+  -- the interpreter takes these: a request match with requests disabled,
+  -- the slow call path with it disabled, a jump to a continuation, and the
+  -- two ways a function stops
+  RMatch {} -> exitResume fe d sect
+  App {} -> exitResume fe d sect
+  Jump {} -> exitResume fe d sect
+  Die {} -> exitResume fe d sect
+  Exit -> exitResume fe d sect
   where
     on = enabled fe
 
@@ -2221,7 +2228,9 @@ genBranchWith fe d x br sect armCode = case br of
     ldf <- arm "default" Nothing df
     arms <- foldM (\acc (w, s) -> (\l -> acc |> ("i64 " <> signed w <> ", label %" <> l)) <$> arm "case" (Just w) s) D.empty (EC.mapToList cs)
     emit ("switch i64 " <> x <> ", label %" <> ldf <> " [ " <> intercalateT " " arms <> " ]")
-  _ -> exitResume fe d sect
+  -- matches on text and on big numbers are the interpreter's
+  TestT {} -> exitResume fe d sect
+  TestY {} -> exitResume fe d sect
   where
     -- the default arm has no known constructor, so it runs at depth d
     -- with nothing pushed (the interpreter's dataBranch does the same)
@@ -2252,7 +2261,8 @@ genBoolBranch fe d c br sect = case br of
   Test1 u y n -> two (if u == 1 then Pair y n else Pair n y)
   Test2 u cu v cv e -> two (Pair (pick 1 u cu v cv e) (pick 0 u cu v cv e))
   TestW df cs -> two (Pair (maybe df id (EC.lookup 1 cs)) (maybe df id (EC.lookup 0 cs)))
-  _ -> exitResume fe d sect
+  TestT {} -> exitResume fe d sect
+  TestY {} -> exitResume fe d sect
   where
     pick t u cu v cv e
       | u == t = cu

@@ -175,8 +175,12 @@ walk cx = \case
     binding b >>= \case
       Nothing -> pure Nothing
       Just e -> fmap (plus e) <$> walk cx body
-  -- a handler call, a request match, a jump to a continuation
-  _ -> pure (Just exit)
+  -- the interpreter takes these: a jump to a continuation, a request with
+  -- requests disabled, a request match with requests disabled or with arms
+  -- the generator has no shape for
+  Jump {} -> pure (Just exit)
+  App _ (Dyn _) _ -> pure (Just exit)
+  RMatch {} -> pure (Just exit)
   where
     isSelf comb = case unRComb comb of
       Comb (LamI _ _ _ cell) -> cell == cxSelf cx && cell /= noNativeCell

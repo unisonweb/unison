@@ -69,7 +69,13 @@ sectionsOf s = s : rest
       DMatch _ _ bs -> goB bs
       NMatch _ _ bs -> goB bs
       RMatch _ p bs -> sectionsOf p ++ concatMap goB (map snd (EC.mapToList bs))
-      _ -> []
+      -- no sections inside these
+      Call {} -> []
+      App {} -> []
+      Yield {} -> []
+      Jump {} -> []
+      Die {} -> []
+      Exit -> []
     goB = \case
       Test1 _ a d -> sectionsOf a ++ sectionsOf d
       Test2 _ a _ b d -> sectionsOf a ++ sectionsOf b ++ sectionsOf d
