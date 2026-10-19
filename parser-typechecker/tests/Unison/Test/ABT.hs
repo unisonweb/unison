@@ -29,7 +29,36 @@ test =
           -- make sure the variable wasn't captured
           expectEqual fvs [symbol 0 "a"]
           -- make sure the resulting term is alpha equiv to \a1 -> [a1, a]
-          expectEqual t2 (ABT.abs (symbol 0 "b") (ABT.tm [var 0 "b", var 0 "a"]))
+          expectEqual t2 (ABT.abs (symbol 0 "b") (ABT.tm [var 0 "b", var 0 "a"])),
+        scope "substsInheritAnnotation" $
+          tests
+            [ scope "later substitutions also reach earlier replacements" $
+                expectEqual (var 0 "z") $
+                  ABT.substsInheritAnnotation
+                    [(symbol 0 "x", var 0 "y"), (symbol 0 "y", var 0 "z")]
+                    (var 0 "x"),
+              scope "replacement order remains observable" $
+                expectEqual (var 0 "y") $
+                  ABT.substsInheritAnnotation
+                    [(symbol 0 "y", var 0 "z"), (symbol 0 "x", var 0 "y")]
+                    (var 0 "x"),
+              scope "duplicate keys retain sequential semantics" $
+                expectEqual (var 0 "y") $
+                  ABT.substsInheritAnnotation
+                    [(symbol 0 "x", var 0 "y"), (symbol 0 "x", var 0 "z")]
+                    (var 0 "x"),
+              scope "independent substitutions avoid capture" $
+                let body = ABT.abs (symbol 0 "y") (ABT.tm [var 0 "x", var 0 "y"])
+                    expected = ABT.abs (symbol 0 "fresh") (ABT.tm [var 0 "y", var 0 "fresh"])
+                 in expectEqual expected $ ABT.substsInheritAnnotation [(symbol 0 "x", var 0 "y")] body,
+              scope "dependent substitutions avoid capture with sequential result" $
+                let body = ABT.abs (symbol 0 "x") (var 0 "y")
+                    expected = ABT.abs (symbol 0 "fresh") (var 0 "z")
+                 in expectEqual expected $
+                      ABT.substsInheritAnnotation
+                        [(symbol 0 "y", var 0 "x"), (symbol 0 "x", var 0 "z")]
+                        body
+            ]
       ]
   where
     symbol i n = Symbol i (Var.User n)
