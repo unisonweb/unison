@@ -194,11 +194,11 @@ build !n !pc !ps pr m !sc sf
   | pc == 0 = case m of
       MNil -> fromBwd n sc sf
       _ -> case unconsM m of
-        (# nd, m' #) -> build n (nodeArity nd) (nodeSize nd) (nodeDropFwd 0 nd) m' sc sf
+        (nd, m') -> build n (nodeArity nd) (nodeSize nd) (nodeDropFwd 0 nd) m' sc sf
   | sc == 0 = case m of
       MNil -> fromFwd n pc pr
       _ -> case unsnocM m of
-        (# m', nd #) -> let !k = nodeArity nd in Deep (mk n pc k) ps pr m' (nodeTakeRev k nd)
+        (m', nd) -> let !k = nodeArity nd in Deep (mk n pc k) ps pr m' (nodeTakeRev k nd)
   | otherwise = Deep (mk n pc sc) ps pr m sf
 {-# INLINEABLE build #-}
 
@@ -302,14 +302,20 @@ unsnoc = \case
 -- Finding the chunk that holds an element
 
 -- The first-level node holding element i of a middle, and i's offset in it.
+--
+-- This and 'chunkAt' return unboxed pairs on purpose: measured on the rope
+-- benchmark (2026-10-19, benchmarks/2026-10-19-unboxing.md in the JIT docs),
+-- the boxed pair costs 5 to 8% on taking a text apart a character at a time,
+-- where every character goes through 'chunkAt'; the Deque's lookups, written
+-- with ordinary pairs, cost nothing, since GHC unboxes those results itself.
 lookR :: Int -> Mid a -> (# Node a, Int# #)
 lookR !_ MNil = error "Rope.index: empty middle"
 lookR i (MDeep t ps pr m sf)
-  | i < ps = scanFwd i pr
+  | i < ps = case scanFwd i pr of (nd, I# off#) -> (# nd, off# #)
   | i' < sizeM m = case lookR i' m of
       (# nn, off# #) -> case scanKids (I# off#) nn of
-        (# q#, sb# #) -> case I# off# - I# sb# of I# o# -> (# nodeAt (I# q#) nn, o# #)
-  | otherwise = scanBwd (tsize t - 1 - i) sf
+        (!q, !sb) -> case I# off# - sb of I# o# -> (# nodeAt q nn, o# #)
+  | otherwise = case scanBwd (tsize t - 1 - i) sf of (nd, I# off#) -> (# nd, off# #)
   where
     !i' = i - ps
 
@@ -401,7 +407,7 @@ takeR !i r = case r of
     | i >= n -> r
     | i <= ps -> inPrefix 0 0 pr
     | i <= ps + sizeM m -> case takeM (i - ps) m of
-        (# m', nd, k# #) -> inNode m' nd (I# k#) 0 0
+        (m', nd, k) -> inNode m' nd k 0 0
     | otherwise -> inSuffix (n - i) sc sf
     where
       !n = tsize t
@@ -445,7 +451,7 @@ dropR !i r = case r of
     | i >= n -> Empty
     | i >= ps + ms -> inSuffix 0 0 sf
     | i >= ps -> case dropM (i - ps) m of
-        (# nd, k#, m' #) -> inNode nd (I# k#) m' 0 0
+        (nd, !k, m') -> inNode nd k m' 0 0
     | otherwise -> inPrefix i pc ps pr
     where
       !n = tsize t

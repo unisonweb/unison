@@ -1,8 +1,6 @@
 {-# LANGUAGE BangPatterns #-}
-{-# LANGUAGE MagicHash #-}
 {-# LANGUAGE PatternSynonyms #-}
 {-# LANGUAGE TypeFamilies #-}
-{-# LANGUAGE UnboxedTuples #-}
 {-# LANGUAGE ViewPatterns #-}
 {-# OPTIONS_GHC -O2 -funbox-strict-fields #-}
 
@@ -140,7 +138,6 @@ import Data.Primitive.SmallArray
     sizeofSmallArray,
     writeSmallArray,
   )
-import GHC.Exts (Int (I#), Int#)
 import GHC.Exts qualified as Exts
 import Prelude hiding (drop, length, lookup, null, reverse, splitAt, take)
 
@@ -347,13 +344,13 @@ sumS = go 0
     go !n (SCons x r) = go (n + nodeSize x) r
 
 -- the index of the node holding leaf number i, and the leaves before it
-scanA :: Int -> Arr (Node a) -> (# Int#, Int# #)
+scanA :: Int -> Arr (Node a) -> (Int, Int)
 scanA i a = go 0 0
   where
     go !q !sb =
       let !s = nodeSize (ixA a q)
        in if i < sb + s
-            then (case q of I# q# -> case sb of I# sb# -> (# q#, sb# #))
+            then ((q, sb))
             else go (q + 1) (sb + s)
 {-# INLINE scanA #-}
 
@@ -518,7 +515,7 @@ unconsLast !t m sf
   | otherwise = case m of
       MNil -> Deep (t - 0x101) SNil MNil sf
       _ -> case unconsM m of
-        (# nd, m' #) -> case nd of
+        (nd, m') -> case nd of
           N8 a b c d e f g h ->
             Deep (t - 0x101 + 8) (SCons a (SCons b (SCons c (SCons d (SCons e (SCons f (SCons g (SCons h SNil)))))))) m' sf
           _ -> Deep (t - 0x101 + nodeArity nd) (nodeDropFwd 0 nd) m' sf
@@ -530,7 +527,7 @@ unsnocLast !t pr m
   | otherwise = case m of
       MNil -> Deep (t - 0x110) pr MNil SNil
       _ -> case unsnocM m of
-        (# m', nd #) -> case nd of
+        (m', nd) -> case nd of
           N8 a b c d e f g h ->
             Deep (t - 0x110 + 0x80) pr m' (SCons h (SCons g (SCons f (SCons e (SCons d (SCons c (SCons b (SCons a SNil))))))))
           _ -> let !k = nodeArity nd in Deep (t - 0x110 + (k `unsafeShiftL` 4)) pr m' (nodeTakeRev k nd)
@@ -569,46 +566,46 @@ unsnocSlow !t pr
 {-# NOINLINE unsnocSlow #-}
 
 -- the first node and the rest; the argument is not empty
-unconsM :: Mid a -> (# Node a, Mid a #)
+unconsM :: Mid a -> (Node a, Mid a)
 unconsM MNil = error "Deque.unconsM: empty"
 unconsM (MDeep t ps pr m sf) = case pr of
   SCons n SNil | MDeep {} <- m -> case unconsM m of
-    (# nn, m' #) ->
-      (# n, MDeep (t - (nodeSize n `unsafeShiftL` 8) - 1 + nodeArity nn) (nodeSize nn) (nodeDropFwd 0 nn) m' sf #)
+    (nn, m') ->
+      (n, MDeep (t - (nodeSize n `unsafeShiftL` 8) - 1 + nodeArity nn) (nodeSize nn) (nodeDropFwd 0 nn) m' sf)
   SCons n pr' ->
     let !s = nodeSize n
         !t' = t - (s `unsafeShiftL` 8) - 1
-     in if t' < 0x100 then (# n, MNil #) else (# n, MDeep t' (ps - s) pr' m sf #)
+     in if t' < 0x100 then (n, MNil) else (n, MDeep t' (ps - s) pr' m sf)
   SNil ->
     let !sc = tsc t
         !q = (sc - 1) `div` 2
         !p = sc - 1 - q
      in case revS (dropS q sf) of
           SCons n pr'
-            | sc == 1 -> (# n, MNil #)
-            | otherwise -> (# n, MDeep (mk (tsize t - nodeSize n) p q) (sumS pr') pr' MNil (takeS q sf) #)
+            | sc == 1 -> (n, MNil)
+            | otherwise -> (n, MDeep (mk (tsize t - nodeSize n) p q) (sumS pr') pr' MNil (takeS q sf))
           SNil -> error "Deque.unconsM: empty"
 
-unsnocM :: Mid a -> (# Mid a, Node a #)
+unsnocM :: Mid a -> (Mid a, Node a)
 unsnocM MNil = error "Deque.unsnocM: empty"
 unsnocM (MDeep t ps pr m sf) = case sf of
   SCons n SNil | MDeep {} <- m -> case unsnocM m of
-    (# m', nn #) ->
+    (m', nn) ->
       let !k = nodeArity nn
-       in (# MDeep (t - (nodeSize n `unsafeShiftL` 8) - 0x10 + (k `unsafeShiftL` 4)) ps pr m' (nodeTakeRev k nn), n #)
+       in (MDeep (t - (nodeSize n `unsafeShiftL` 8) - 0x10 + (k `unsafeShiftL` 4)) ps pr m' (nodeTakeRev k nn), n)
   SCons n sf' ->
     let !t' = t - (nodeSize n `unsafeShiftL` 8) - 0x10
-     in if t' < 0x100 then (# MNil, n #) else (# MDeep t' ps pr m sf', n #)
+     in if t' < 0x100 then (MNil, n) else (MDeep t' ps pr m sf', n)
   SNil ->
     let !pc = tpc t
         !p = (pc - 1) `div` 2
         !q = pc - 1 - p
      in case revS (dropS p pr) of
           SCons n sf'
-            | pc == 1 -> (# MNil, n #)
+            | pc == 1 -> (MNil, n)
             | otherwise ->
                 let !pr' = takeS p pr
-                 in (# MDeep (mk (tsize t - nodeSize n) p q) (sumS pr') pr' MNil sf', n #)
+                 in (MDeep (mk (tsize t - nodeSize n) p q) (sumS pr') pr' MNil sf', n)
           SNil -> error "Deque.unsnocM: empty"
 
 -- A tree whose suffix would be empty: the suffix gets the last node of the
@@ -616,22 +613,22 @@ unsnocM (MDeep t ps pr m sf) = case sf of
 deepR :: Int -> Int -> SList a -> Mid a -> Deque a
 deepR n pc pr MNil = Deep (mk n pc 0) pr MNil SNil
 deepR n pc pr m = case unsnocM m of
-  (# m', nd #) -> let !k = nodeArity nd in Deep (mk n pc k) pr m' (nodeTakeRev k nd)
+  (m', nd) -> let !k = nodeArity nd in Deep (mk n pc k) pr m' (nodeTakeRev k nd)
 
 deepL :: Int -> Int -> Mid a -> SList a -> Deque a
 deepL n sc MNil sf = Deep (mk n 0 sc) SNil MNil sf
 deepL n sc m sf = case unconsM m of
-  (# nd, m' #) -> Deep (mk n (nodeArity nd) sc) (nodeDropFwd 0 nd) m' sf
+  (nd, m') -> Deep (mk n (nodeArity nd) sc) (nodeDropFwd 0 nd) m' sf
 
 mdeepR :: Int -> Int -> Int -> SList (Node a) -> Mid (Node a) -> Mid a
 mdeepR n pc ps pr MNil = MDeep (mk n pc 0) ps pr MNil SNil
 mdeepR n pc ps pr m = case unsnocM m of
-  (# m', nn #) -> let !k = nodeArity nn in MDeep (mk n pc k) ps pr m' (nodeTakeRev k nn)
+  (m', nn) -> let !k = nodeArity nn in MDeep (mk n pc k) ps pr m' (nodeTakeRev k nn)
 
 mdeepL :: Int -> Int -> Mid (Node a) -> SList (Node a) -> Mid a
 mdeepL n sc MNil sf = MDeep (mk n 0 sc) 0 SNil MNil sf
 mdeepL n sc m sf = case unconsM m of
-  (# nn, m' #) -> MDeep (mk n (nodeArity nn) sc) (nodeSize nn) (nodeDropFwd 0 nn) m' sf
+  (nn, m') -> MDeep (mk n (nodeArity nn) sc) (nodeSize nn) (nodeDropFwd 0 nn) m' sf
 
 ------------------------------------------------------------------------
 -- Lookup.  Results flow upward in unboxed tuples: a level hands back the
@@ -645,51 +642,51 @@ lookup i (Deep t pr m sf)
   | i < pc = let !r = nthS i pr in Just r
   | j < tsc t = let !r = nthS j sf in Just r
   | otherwise = case lookM 0 (i - pc) m of
-      (# nd, off# #) -> let !r = nodeAt (I# off#) nd in Just r
+      (nd, !off) -> let !r = nodeAt off nd in Just r
   where
     !n = tsize t
     !pc = tpc t
     !j = n - 1 - i
 
 -- sh: a full child of this level's nodes has 2^sh leaves
-lookM :: Int -> Int -> Mid a -> (# Node a, Int# #)
+lookM :: Int -> Int -> Mid a -> (Node a, Int)
 lookM !_ !_ MNil = error "Deque.lookup: empty middle"
 lookM sh i (MDeep t ps pr m sf)
   | i < ps = scanFwd i pr
   | i' < ms = case lookM (sh + 3) i' m of
-      (# nn, off# #) -> case nn of
+      (nn, !off) -> case nn of
         NA s kids
           | s == 8 `unsafeShiftL` (sh + 3),
             lenA kids == 8 ->
-              case I# off# .&. ((1 `unsafeShiftL` (sh + 3)) - 1) of
-                I# o# -> (# ixA kids (I# off# `unsafeShiftR` (sh + 3)), o# #)
-          | otherwise -> case scanA (I# off#) kids of
-              (# q#, sb# #) -> case I# off# - I# sb# of I# o# -> (# ixA kids (I# q#), o# #)
+              case off .&. ((1 `unsafeShiftL` (sh + 3)) - 1) of
+                o -> (ixA kids (off `unsafeShiftR` (sh + 3)), o)
+          | otherwise -> case scanA off kids of
+              (!q, !sb) -> let !o = off - sb in (ixA kids q, o)
         N8 {} -> error "Deque.lookup: a node of leaves below the first level"
   | otherwise = scanBwd (tsize t - 1 - i) sf
   where
     !i' = i - ps
     !ms = sizeM m
 
-scanFwd :: Int -> SList (Node a) -> (# Node a, Int# #)
+scanFwd :: Int -> SList (Node a) -> (Node a, Int)
 scanFwd !i (SCons n r)
-  | i < s = case i of I# i# -> (# n, i# #)
+  | i < s = (n, i)
   | otherwise = scanFwd (i - s) r
   where
     !s = nodeSize n
 scanFwd _ SNil = error "Deque.lookup: past the end of a prefix"
 
 -- r: the number of leaves after the one looked for
-scanBwd :: Int -> SList (Node a) -> (# Node a, Int# #)
+scanBwd :: Int -> SList (Node a) -> (Node a, Int)
 scanBwd !r (SCons n rest)
-  | r < s = case s - 1 - r of I# i# -> (# n, i# #)
+  | r < s = let !i = s - 1 - r in (n, i)
   | otherwise = scanBwd (r - s) rest
   where
     !s = nodeSize n
 scanBwd _ SNil = error "Deque.lookup: past the end of a suffix"
 
 -- the index of the child holding leaf number i, and the leaves before it
-scanKids :: Int -> Node (Node a) -> (# Int#, Int# #)
+scanKids :: Int -> Node (Node a) -> (Int, Int)
 scanKids i (NA _ kids) = scanA i kids
 scanKids _ (N8 {}) = error "Deque: a node of leaves below the first level"
 {-# INLINE scanKids #-}
@@ -708,7 +705,7 @@ take i d@(Deep t pr m sf)
   | i <= pc = Deep (mk i i 0) (takeS i pr) MNil SNil
   | i >= n - sc = let !k = i - (n - sc) in if k == 0 then deepR i pc pr m else Deep (mk i pc k) pr m (dropS (sc - k) sf)
   | otherwise = case takeM (i - pc) m of
-      (# m', nd, k# #) -> let !k = I# k# in Deep (mk i pc k) pr m' (nodeTakeRev k nd)
+      (m', nd, k) -> Deep (mk i pc k) pr m' (nodeTakeRev k nd)
   where
     !n = tsize t
     !pc = tpc t
@@ -722,9 +719,8 @@ drop i d@(Deep t pr m sf)
   | i >= n - sc = let !r = n - i in Deep (mk r 0 r) SNil MNil (takeS r sf)
   | i <= pc = if i == pc then deepL (n - i) sc m sf else Deep (mk (n - i) (pc - i) sc) (dropS i pr) m sf
   | otherwise = case dropM (i - pc) m of
-      (# nd, k#, m' #) ->
-        let !k = I# k#
-         in Deep (mk (n - i) (nodeArity nd - k) sc) (nodeDropFwd k nd) m' sf
+      (nd, !k, m') ->
+        Deep (mk (n - i) (nodeArity nd - k) sc) (nodeDropFwd k nd) m' sf
   where
     !n = tsize t
     !pc = tpc t
@@ -736,23 +732,21 @@ splitAt i d = (take i d, drop i d)
 
 -- The first j leaves, 0 < j <= size: the node holding the last of them, the
 -- number of its leaves that are among them, and everything before that node.
-takeM :: Int -> Mid a -> (# Mid a, Node a, Int# #)
+takeM :: Int -> Mid a -> (Mid a, Node a, Int)
 takeM !_ MNil = error "Deque.take: empty middle"
 takeM j (MDeep t ps pr m sf)
   | j <= ps = goP 0 0 pr
   | j <= ps + ms = case takeM (j - ps) m of
-      (# m', nn, k# #) -> case scanKids (I# k# - 1) nn of
+      (m', nn, !k) -> case scanKids (k - 1) nn of
         -- the children of the node the level below cut in: those before the
         -- one holding the cut make the new suffix
-        (# q#, sb# #) ->
-          let !q = I# q#
-              !sb = I# sb#
-              !total = ps + sizeM m' + sb
-           in case I# k# - sb of
-                I# k'#
-                  | total == 0 -> (# MNil, nodeAt q nn, k'# #)
-                  | q == 0 -> (# mdeepR total pc ps pr m', nodeAt q nn, k'# #)
-                  | otherwise -> (# MDeep (mk total pc q) ps pr m' (nodeTakeRev q nn), nodeAt q nn, k'# #)
+        (!q, !sb) ->
+          let !total = ps + sizeM m' + sb
+           in case k - sb of
+                !k'
+                  | total == 0 -> (MNil, nodeAt q nn, k')
+                  | q == 0 -> (mdeepR total pc ps pr m', nodeAt q nn, k')
+                  | otherwise -> (MDeep (mk total pc q) ps pr m' (nodeTakeRev q nn), nodeAt q nn, k')
   | otherwise = goS (n - j) sc sf
   where
     !n = tsize t
@@ -763,9 +757,9 @@ takeM j (MDeep t ps pr m sf)
     goP !q !sb (SCons nd r)
       | j <= sb + nodeSize nd =
           case j - sb of
-            I# k#
-              | q == 0 -> (# MNil, nd, k# #)
-              | otherwise -> (# MDeep (mk sb q 0) sb (takeS q pr) MNil SNil, nd, k# #)
+            k
+              | q == 0 -> (MNil, nd, k)
+              | otherwise -> (MDeep (mk sb q 0) sb (takeS q pr) MNil SNil, nd, k)
       | otherwise = goP (q + 1) (sb + nodeSize nd) r
     goP _ _ SNil = error "Deque.take: past the end of a prefix"
     -- r leaves are to go from the back; cnt nodes of the suffix are left
@@ -775,36 +769,34 @@ takeM j (MDeep t ps pr m sf)
           let !keep = s - r
               !total = j - keep
            in case keep of
-                I# k#
-                  | total == 0 -> (# MNil, nd, k# #)
-                  | cnt == 1 -> (# mdeepR total pc ps pr m, nd, k# #)
-                  | otherwise -> (# MDeep (mk total pc (cnt - 1)) ps pr m rest, nd, k# #)
+                k
+                  | total == 0 -> (MNil, nd, k)
+                  | cnt == 1 -> (mdeepR total pc ps pr m, nd, k)
+                  | otherwise -> (MDeep (mk total pc (cnt - 1)) ps pr m rest, nd, k)
       where
         !s = nodeSize nd
     goS _ _ SNil = error "Deque.take: past the end of a suffix"
 
 -- All but the first j leaves, 0 <= j < size: the node holding leaf j, the
 -- number of its leaves to drop, and everything after that node.
-dropM :: Int -> Mid a -> (# Node a, Int#, Mid a #)
+dropM :: Int -> Mid a -> (Node a, Int, Mid a)
 dropM !_ MNil = error "Deque.drop: empty middle"
 dropM j (MDeep t ps pr m sf)
   | j < ps = goP j pc ps n pr
   | j < ps + ms = case dropM (j - ps) m of
-      (# nn, k#, m' #) -> case scanKids (I# k#) nn of
+      (nn, !k, m') -> case scanKids k nn of
         -- the children of the node the level below cut in: those after the
         -- one holding the cut make the new prefix
-        (# q#, sb# #) ->
-          let !q = I# q#
-              !sb = I# sb#
-              !nd = nodeAt q nn
+        (!q, !sb) ->
+          let !nd = nodeAt q nn
               !c = nodeArity nn - q - 1
               !sa = nodeSize nn - sb - nodeSize nd
               !total = sa + sizeM m' + (n - ps - ms)
-           in case I# k# - sb of
-                I# k'#
-                  | total == 0 -> (# nd, k'#, MNil #)
-                  | c == 0 -> (# nd, k'#, mdeepL total sc m' sf #)
-                  | otherwise -> (# nd, k'#, MDeep (mk total c sc) sa (nodeDropFwd (q + 1) nn) m' sf #)
+           in case k - sb of
+                !k'
+                  | total == 0 -> (nd, k', MNil)
+                  | c == 0 -> (nd, k', mdeepL total sc m' sf)
+                  | otherwise -> (nd, k', MDeep (mk total c sc) sa (nodeDropFwd (q + 1) nn) m' sf)
   | otherwise = goS (n - 1 - j) 0 0 sf
   where
     !n = tsize t
@@ -817,10 +809,10 @@ dropM j (MDeep t ps pr m sf)
       | k >= s = goP (k - s) (cnt - 1) (psz - s) (tot - s) r
       | otherwise =
           case k of
-            I# k#
-              | tot == s -> (# nd, k#, MNil #)
-              | cnt == 1 -> (# nd, k#, mdeepL (tot - s) sc m sf #)
-              | otherwise -> (# nd, k#, MDeep (mk (tot - s) (cnt - 1) sc) (psz - s) r m sf #)
+            k
+              | tot == s -> (nd, k, MNil)
+              | cnt == 1 -> (nd, k, mdeepL (tot - s) sc m sf)
+              | otherwise -> (nd, k, MDeep (mk (tot - s) (cnt - 1) sc) (psz - s) r m sf)
       where
         !s = nodeSize nd
     goP _ _ _ _ SNil = error "Deque.drop: past the end of a prefix"
@@ -830,9 +822,9 @@ dropM j (MDeep t ps pr m sf)
       | r >= s = goS (r - s) (c + 1) (sa + s) rest
       | otherwise =
           case s - 1 - r of
-            I# k#
-              | c == 0 -> (# nd, k#, MNil #)
-              | otherwise -> (# nd, k#, MDeep (mk sa 0 c) 0 SNil MNil (takeS c sf) #)
+            !k
+              | c == 0 -> (nd, k, MNil)
+              | otherwise -> (nd, k, MDeep (mk sa 0 c) 0 SNil MNil (takeS c sf))
       where
         !s = nodeSize nd
     goS _ _ _ SNil = error "Deque.drop: past the end of a suffix"
@@ -967,19 +959,19 @@ fromListN n xs
   | n <= maxD =
       let !p = (n + 1) `div` 2
        in case takeL p xs of
-            (# pl, rest #) -> Deep (mk n p (n - p)) pl MNil (revL rest)
+            (pl, rest) -> Deep (mk n p (n - p)) pl MNil (revL rest)
   | otherwise =
       let !k = (n - 7) `div` 8
           !p = n - 5 - 8 * k
        in case takeL p xs of
-            (# pl, rest #) -> case leafNodes k rest of
-              (# nodes, rest' #) -> Deep (mk n p 5) pl (buildMid 8 k nodes) (revL rest')
+            (pl, rest) -> case leafNodes k rest of
+              (nodes, rest') -> Deep (mk n p 5) pl (buildMid 8 k nodes) (revL rest')
 
 -- the first k elements, in order, and the rest (k is small)
-takeL :: Int -> [a] -> (# SList a, [a] #)
-takeL 0 ys = (# SNil, ys #)
-takeL k (y : ys) = case takeL (k - 1) ys of (# l, r #) -> (# SCons y l, r #)
-takeL _ [] = (# SNil, [] #)
+takeL :: Int -> [a] -> (SList a, [a])
+takeL 0 ys = (SNil, ys)
+takeL k (y : ys) = case takeL (k - 1) ys of (l, r) -> (SCons y l, r)
+takeL _ [] = (SNil, [])
 
 revL :: [a] -> SList a
 revL = go SNil
@@ -988,10 +980,10 @@ revL = go SNil
     go acc (y : ys) = go (SCons y acc) ys
 
 -- k nodes of eight elements each from the front of a list, in order
-leafNodes :: Int -> [a] -> (# SList (Node a), [a] #)
+leafNodes :: Int -> [a] -> (SList (Node a), [a])
 leafNodes = go SNil
   where
-    go acc 0 ys = (# revS acc, ys #)
+    go acc 0 ys = (revS acc, ys)
     go acc k (a : b : c : d : e : f : g : h : ys) = go (SCons (N8 a b c d e f g h) acc) (k - 1) ys
     go _ _ _ = error "Deque.fromList: the list is shorter than its length"
 
@@ -1006,10 +998,10 @@ buildMid !s !c ns
       let !k = (c - 7) `div` 8
           !p = c - 5 - 8 * k
        in case innerNodes (8 * s) SNil k (dropS p ns) of
-            (# nodes, rest #) -> MDeep (mk (c * s) p 5) (p * s) (takeS p ns) (buildMid (8 * s) k nodes) (revS rest)
+            (nodes, rest) -> MDeep (mk (c * s) p 5) (p * s) (takeS p ns) (buildMid (8 * s) k nodes) (revS rest)
 
-innerNodes :: Int -> SList (Node (Node a)) -> Int -> SList (Node a) -> (# SList (Node (Node a)), SList (Node a) #)
-innerNodes !_ acc 0 ys = (# revS acc, ys #)
+innerNodes :: Int -> SList (Node (Node a)) -> Int -> SList (Node a) -> (SList (Node (Node a)), SList (Node a))
+innerNodes !_ acc 0 ys = (revS acc, ys)
 innerNodes s acc k (SCons a (SCons b (SCons c (SCons d (SCons e (SCons f (SCons g (SCons h ys)))))))) =
   innerNodes s (SCons (NA s (arr8 a b c d e f g h)) acc) (k - 1) ys
 innerNodes _ _ _ _ = error "Deque.fromList: short list of nodes"

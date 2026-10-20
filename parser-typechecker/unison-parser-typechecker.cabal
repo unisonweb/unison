@@ -221,6 +221,7 @@ library
     , mutable-containers
     , nonempty-containers
     , pretty-simple
+    , primitive
     , regex-tdfa
     , semialign
     , stm

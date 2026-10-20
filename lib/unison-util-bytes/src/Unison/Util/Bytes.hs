@@ -13,6 +13,7 @@ module Unison.Util.Bytes
     slackStart,
     slackMax,
     slackCapacity,
+    casUsed,
     fromByteString,
     toByteString,
     fromWord8s,

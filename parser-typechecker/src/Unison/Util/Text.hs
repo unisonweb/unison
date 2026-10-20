@@ -1,7 +1,5 @@
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE MagicHash #-}
-{-# LANGUAGE UnboxedTuples #-}
 -- The JIT's C helpers read and build these constructors (unison-runtime's
 -- cbits/jit_rt.c), so their layout must be the same in every build: fields are
 -- unpacked only when optimizing.
@@ -14,6 +12,7 @@ import Data.Digest.Murmur64 (Hash64, Hashable64 (..))
 import Data.Foldable (toList)
 import Data.List (unfoldr)
 import Data.List qualified as L
+import Data.Primitive.ByteArray (ByteArray (..), copyByteArray, newByteArray, readByteArray, unsafeFreezeByteArray, unsafeThawByteArray, writeByteArray)
 import Data.String (IsString (..))
 import Data.Text qualified as T
 import Data.Text.Array qualified as TA
@@ -22,8 +21,7 @@ import Data.Text.Internal qualified as T
 import Data.Text.Lazy qualified as TL
 import Data.Text.Unsafe qualified as T (Iter (..), iter)
 import Data.Word (Word64)
-import GHC.Exts (Int (I#), MutableByteArray#, RealWorld, casIntArray#, copyByteArray#, newByteArray#, readIntArray#, unsafeCoerce#, unsafeFreezeByteArray#, writeIntArray#)
-import GHC.IO (IO (IO), unsafeDupablePerformIO)
+import GHC.IO (unsafeDupablePerformIO)
 import Unison.Util.Bytes qualified as B
 import Unison.Util.Rope qualified as R
 import Prelude hiding (drop, replicate, take)
@@ -240,42 +238,39 @@ instance Semigroup Chunk where
 -- its array's tail and has room (see 'Chunk'), else in a fresh array.
 joinChunks :: Chunk -> Chunk -> Chunk
 joinChunks (Chunk n cap (T.Text (TA.ByteArray arr) off len)) (Chunk m _ (T.Text (TA.ByteArray arr2) off2 len2)) =
-  unsafeDupablePerformIO (IO go)
+  unsafeDupablePerformIO do
+    -- the left chunk owns the tail of its array and has room: claim the
+    -- room with a compare-and-swap on the used length (word 0) and copy
+    -- the right chunk in place
+    inPlace <-
+      if cap > 0 && end + len2 <= cap
+        then do
+          marr <- unsafeThawByteArray (ByteArray arr)
+          used <- readByteArray marr 0
+          if used == end
+            then do
+              old <- B.casUsed marr end (end + len2)
+              if old == end
+                then do
+                  copyByteArray marr end (ByteArray arr2) off2 len2
+                  pure True
+                else pure False
+            else pure False
+        else pure False
+    if inPlace
+      then pure (Chunk (n + m) cap (T.Text (TA.ByteArray arr) off (len + len2)))
+      else case B.slackCapacity cap need of
+        0 -> pure (Chunk (n + m) 0 (T.Text (TA.ByteArray arr) off len <> T.Text (TA.ByteArray arr2) off2 len2))
+        newCap -> do
+          marr <- newByteArray newCap
+          writeByteArray marr 0 (8 + need :: Int)
+          copyByteArray marr 8 (ByteArray arr) off len
+          copyByteArray marr (8 + len) (ByteArray arr2) off2 len2
+          ByteArray farr <- unsafeFreezeByteArray marr
+          pure (Chunk (n + m) newCap (T.Text (TA.ByteArray farr) 8 need))
   where
     !end = off + len
     !need = len + len2
-    !(I# off#) = off
-    !(I# off2#) = off2
-    !(I# len#) = len
-    !(I# len2#) = len2
-    !(I# end#) = end
-    !(I# newEnd#) = end + len2
-    go s0
-      | cap > 0,
-        end + len2 <= cap,
-        marr <- unsafeCoerce# arr :: MutableByteArray# RealWorld =
-          case readIntArray# marr 0# s0 of
-            (# s1, used# #)
-              | I# used# == end ->
-                  case casIntArray# marr 0# end# newEnd# s1 of
-                    (# s2, old# #)
-                      | I# old# == end ->
-                          case copyByteArray# arr2 off2# marr end# len2# s2 of
-                            s3 -> (# s3, Chunk (n + m) cap (T.Text (TA.ByteArray arr) off (len + len2)) #)
-                      | otherwise -> copy s2
-              | otherwise -> copy s1
-      | otherwise = copy s0
-    copy s0 = case B.slackCapacity cap need of
-      0 -> (# s0, Chunk (n + m) 0 (T.Text (TA.ByteArray arr) off len <> T.Text (TA.ByteArray arr2) off2 len2) #)
-      newCap@(I# newCap#) ->
-        let !(I# used#) = 8 + need
-            !(I# after#) = 8 + len
-         in case newByteArray# newCap# s0 of
-              (# s1, marr #) -> case writeIntArray# marr 0# used# s1 of
-                s2 -> case copyByteArray# arr off# marr 8# len# s2 of
-                  s3 -> case copyByteArray# arr2 off2# marr after# len2# s3 of
-                    s4 -> case unsafeFreezeByteArray# marr s4 of
-                      (# s5, farr #) -> (# s5, Chunk (n + m) newCap (T.Text (TA.ByteArray farr) 8 need) #)
 {-# NOINLINE joinChunks #-}
 
 instance Monoid Chunk where
