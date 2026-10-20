@@ -159,7 +159,17 @@ function value applied to too few arguments (`g = f x` where `f` is itself a clo
 resumes in the interpreter: whether the call is under-saturated is only known at run time, so
 the closure-call code needs a second continuation that joins the body with the new closure
 instead of a call's result. The helper already handles closures with captured arguments.
-Also: more than four arguments at once.
+
+Also: more than four arguments at once. `Name` with five or more captured values is a
+call-out (`D.size srcs <= 4` in Codegen.hs), and the cloud library's local `Remote`
+runtime builds a closure over eight values three times per `Ref.modify`: the broad
+suite's "Mutate a local Remote.Ref 10k times" takes 30,002 exits at those three sites
+and runs slower with everything compiled (33 ms) than interpreted (22.6 ms); measured
+2026-10-20 with `run suite.localCloud` under `UNISON_JIT=eager UNISON_JIT_STATS=1`. (In
+`on` mode the row's 10,000 iterations finish before the compile thread installs the code,
+so the 0.90× against trunk in the 2026-10-16 record is the branch's interpreter against
+trunk's, not native code.) The helper takes its arguments as a list already, so the limit
+is the generator's, not the helper's.
 
 ### Ensure no thunks on the boxed stack
 
