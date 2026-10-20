@@ -1088,7 +1088,11 @@ joinCall fe d live isExit ownFrame status = do
   -- the live values into the argument block: a word and a pointer per
   -- slot, then the Local environment when there is one
   let words = concatMap (\(Pair u b) -> [("i64", u), ("ptr", b)]) vals ++ maybe [] (\lo -> [("ptr", loHenv0 lo)]) (feLocal fe)
-  modify' (\s -> s {gsMaxExitArgs = max (gsMaxExitArgs s) (length words)})
+  -- at least one word: the call passes the block whether or not the
+  -- site stores anything in it (a site with no live slots, such as an
+  -- exit from a frame of size 0, stores nothing), and 'entryBlock'
+  -- allocates the block only when the count is positive
+  modify' (\s -> s {gsMaxExitArgs = max (gsMaxExitArgs s) (max 1 (length words))})
   forM_ (zip [0 :: Int ..] words) $ \(i, (ty, v)) -> do
     a <- fresh "xa"
     emit (a <> " = getelementptr inbounds i64, ptr %xargs, i64 " <> tshow i)
@@ -1709,7 +1713,8 @@ entryBlock env worker checks arity base maxK maxPool maxExitArgs =
       <> each [1 .. maxK] (\k -> lines ["%u" <> tshow k <> " = alloca i64"])
       <> each [1 .. maxK] (\k -> lines ["%b" <> tshow k <> " = alloca ptr"])
       -- the argument block of the write-back calls ('joinCall'), sized for
-      -- the site that passes the most
+      -- the site that passes the most; absent only when there is no such
+      -- call (every call claims at least one word)
       <> (if maxExitArgs > 0 then lines ["%xargs = alloca [" <> tshow maxExitArgs <> " x i64]"] else D.empty)
       <> each [0 .. maxK] (\k -> lines ["%fpk" <> tshow k <> " = add i64 %fp, " <> tshow k])
       <> lines
