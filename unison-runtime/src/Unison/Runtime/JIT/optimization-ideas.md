@@ -320,30 +320,38 @@ in place every time and the slow mode a copy per append, so something decides pe
 whether the chunk keeps its slack (the CAS on the used length losing to a stale length,
 or the first chunk's allocation), and finding it could make the row 4× faster every time.
 
-### Linear re-entry code
+### Linear re-entry code (low priority)
 
 Noticed 2026-10-20 when asking whether a long-running function accumulates a re-entry
-point for every place it can be interrupted. (The other half of that question, a
-preemption counting as a miss at every Let on the stack, was answered the same day with
-the cap on ad hoc re-entry functions, `UNISON_JIT_REENTRY_ADHOC`; see "Re-entry
-functions on demand" in design.md.)
+point for every place it can be interrupted. A re-entry function is the whole suffix of
+its function from its point on, generated inline, so a function with n re-entry points in
+sequence that all get generated holds about n²/2 of its instructions. The memo per
+(section, depth, base) stops the nesting of bindings being exponential; it does not
+remove the overlap of suffixes. Certain call-outs are already linear: the parent stops
+at the call-out and each segment appears once.
 
-**The code for a function's re-entry points is quadratic in its Lets.** A Let body's
-combinator is generated as the whole suffix of the function from that Let on, inline,
-so a function with n Lets in sequence has n suffixes, about n²/2 of its instructions.
-The same holds for the deferred copies after slow-path call-outs (the continuation is
-inlined in the parent on the fast path and again in each deferred function). The memo
-per (section, depth, base) stops the nesting of bindings being exponential; it does not
-remove the overlap of suffixes. In `eager` mode every Let body a Let refers to is
-compiled with its group whether or not anything ever exits there (`groupUnits` with lazy
-false), so the whole quadratic amount is paid up front; in `on` mode the cap bounds what
-ad hoc exits add, and the structural exits are bounded by the code. Certain call-outs are
-already linear: the parent stops at the call-out and each segment appears once. The fix,
-for Let bodies and deferred functions alike: generate a re-entry function as its own
-binding followed by a call through the *next* Let's (or deferred site's) cell, a direct
-call when that cell is compiled and otherwise the same exit the interpreter would take on
-an empty cell, instead of inlining the rest. Only the root function needs the straight
-inline path; the re-entry path is cold.
+What can still reach the quadratic amount, after the cap on ad hoc re-entry functions
+(`UNISON_JIT_REENTRY_ADHOC`, same day; "Re-entry functions on demand" in design.md):
+
+- **`eager` mode**, which compiles every Let body with its group whether or not anything
+  exits there (`groupUnits` with lazy false). That is the mode's purpose, for tests.
+- **Let bodies whose callees exit for structural reasons**, in `on` mode. Bounded by the
+  code, and in practice by the estimate: a function whose calls all exit is left
+  interpreted (`Estimate.judge`), so only a few of a compiled function's Lets can be of
+  this kind.
+- **The deferred copies after slow-path call-outs**: the continuation is inlined in the
+  parent on the fast path and again in each deferred function, and each of those inlines
+  the suffix past the next site too. Needs the slow path to be taken often enough at
+  each of many sites of one function, which is to say a function whose list, text or
+  arithmetic operations keep meeting closures the helpers refuse. Not expected to happen,
+  if ever.
+
+If one of these turns out to matter, the fix is the same for Let bodies and deferred
+functions: generate a re-entry function as its own binding followed by a call through
+the *next* Let's (or deferred site's) cell, a direct call when that cell is compiled and
+otherwise the same exit the interpreter would take on an empty cell, instead of inlining
+the rest. Only the root function needs the straight inline path; the re-entry path is
+cold.
 
 ## Rejected
 
