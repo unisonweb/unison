@@ -50,6 +50,7 @@ matrix=(
   "on|UNISON_JIT=on|what gets hot, in the background"
   "on-t1|UNISON_JIT=on UNISON_JIT_THRESHOLD=1|every re-entry point on first use"
   "stress-poll|UNISON_JIT=eager UNISON_JIT_STRESS=poll=3 $costs|the preemption poll"
+  "stress-poll-on|UNISON_JIT=on UNISON_JIT_THRESHOLD=1 UNISON_JIT_STRESS=poll=3 $costs|the poll interrupting Lets whose bodies aren't compiled (the ad hoc cap)"
   "stress-ustack|UNISON_JIT=eager UNISON_JIT_STRESS=ustack=4 $costs|Unison stack growth"
   "stress-cstack|UNISON_JIT=eager UNISON_JIT_STRESS=cstack=2048 $costs|the C stack guard"
   "stress-callee|UNISON_JIT=eager UNISON_JIT_STRESS=callee=3 $costs|callees treated as not compiled"
@@ -135,7 +136,7 @@ done
 echo
 if [ $failed = 0 ]; then
   echo "all $total passed"
-  rmdir "$tmp" 2>/dev/null
+  rm -rf "$tmp"
 else
   echo "$failed of $total failed; logs under $tmp"
   exit 1

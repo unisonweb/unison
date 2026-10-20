@@ -5,6 +5,7 @@
 -- what the interpreter should do next. See unison-runtime/src/Unison/Runtime/JIT/design.md.
 module Unison.Runtime.JIT.Exits
   ( Exit (..),
+    isAdHoc,
     ExitIndex,
     Exits,
     newExits,
@@ -49,6 +50,16 @@ data Exit
     CallOut !CombIx !MInstr !MSection !Int !(Ptr NativeCell)
   | -- | a description, for statistics
     Named String Exit
+
+-- | An exit the code didn't cause: the poll (the context-switch flag or
+-- the allocation budget) and stack growth land wherever the program
+-- happens to be. The others, a call-out or a resume, are taken at a point
+-- the code itself reaches on every such path.
+isAdHoc :: Exit -> Bool
+isAdHoc (GrowStack _ _) = True
+isAdHoc (Reenter _) = True
+isAdHoc (Named _ e) = isAdHoc e
+isAdHoc _ = False
 
 -- | 1-based; 0 is OK and negative values are errors.
 type ExitIndex = Int

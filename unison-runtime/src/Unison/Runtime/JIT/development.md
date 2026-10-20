@@ -142,6 +142,7 @@ The interpreter is the specification: every test runs the same program with and 
 | --- | --- |
 | `UNISON_JIT=off`; `eager`; `on`; `on` with `UNISON_JIT_THRESHOLD=1` | the three modes; with threshold 1 every re-entry point is generated on first use |
 | `eager` with `UNISON_JIT_STRESS=` each of `poll=3`, `ustack=4`, `cstack=2048`, `callee=3`, `alloc=64` | each exit path on its own |
+| `on` with `THRESHOLD=1` and `poll=3` | the poll interrupting Lets whose bodies aren't compiled yet: the cap on ad hoc re-entry functions (`UNISON_JIT_REENTRY_ADHOC`); the stats line "ad hoc exits" shows it working |
 | `eager` with `UNISON_JIT_STRESS=callee=2,cstack=4096,poll=5,ustack=4,alloc=64,pool=8` | all of them together ("the combination") |
 | `on`, `THRESHOLD=1`, `install=5`, alone and with the combination | code installed while the program runs |
 | the stress runs with `UNISON_JIT_EXIT_COST=0 UNISON_JIT_ENTRY_COST=0` | the estimate doesn't hide code from the tests |
@@ -180,7 +181,7 @@ The interpreter is the specification: every test runs the same program with and 
 #### Logs and statistics
 
 - `UNISON_JIT_LOG=1`: the compile log (per module: functions, compile time, IR size, and the time split into generating the IR, LLVM's parse and optimization, and LLVM's code generation), why a combinator or part of one was left to the interpreter ("partly interpreted"), the startup checks and how long they took, the thread's C stack size, and "the JIT is off" with the reason when a check failed.
-- `UNISON_JIT_STATS=1` prints exit counts per site after each evaluation, with the compile totals first (modules, functions, auxiliary functions, re-entry functions generated on demand and never asked for, IR size, time) and how often the trampoline entered each native function; `UNISON_JIT_STATS=each` prints the exits taken since the program last wrote output, after each write, which gives per-benchmark exits for a suite that prints a line per benchmark; `UNISON_JIT_STATS_EVERY=N` also prints every N exits, for evaluations that never finish. A run with statistics is at most 7% slower on the entries that exit most; quote timings from runs without them. The counts for "depth 1000000" are the quickest way to see whether frames are unwinding more than they should.
+- `UNISON_JIT_STATS=1` prints exit counts per site after each evaluation, with the compile totals first (modules, functions, auxiliary functions, re-entry functions generated on demand and never asked for, IR size, time), then the ad hoc exits (re-entry functions asked for because of the poll or stack growth, and exits that found their definition at the cap `UNISON_JIT_REENTRY_ADHOC`) and how often the trampoline entered each native function; `UNISON_JIT_STATS=each` prints the exits taken since the program last wrote output, after each write, which gives per-benchmark exits for a suite that prints a line per benchmark; `UNISON_JIT_STATS_EVERY=N` also prints every N exits, for evaluations that never finish. A run with statistics is at most 7% slower on the entries that exit most; quote timings from runs without them. The counts for "depth 1000000" are the quickest way to see whether frames are unwinding more than they should.
 
 #### Dumps
 

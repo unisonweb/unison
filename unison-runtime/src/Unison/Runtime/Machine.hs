@@ -77,7 +77,7 @@ import Unison.Runtime.ANF as ANF
   )
 import Unison.Runtime.ANF qualified as ANF
 import Unison.Runtime.ANF.Optimize qualified as ANF
-import Unison.Runtime.JIT (initialNativeCount, jitCompileGroup, jitConfig, jitExits, jitFrames, jitPool, jitRequestCell, jitRequestGroup, jitStats, jitTracing, noteOutput, printJITStats, registerTypeNumbers, stackSlots)
+import Unison.Runtime.JIT (initialNativeCount, jitCompileGroup, jitConfig, jitExits, jitFrames, jitPool, jitRequestCell, jitRequestGroup, jitStats, jitTracing, noteAdHocExit, noteOutput, printJITStats, registerTypeNumbers, stackSlots)
 import Unison.Runtime.JIT.Config qualified as JIT
 import Unison.Runtime.JIT.Exits
 import Unison.Runtime.JIT.Frames
@@ -1036,22 +1036,33 @@ runNative !yld env henv0 !activeThreads !stk0 !k0 fn0 = go fn0 henv0 stk0 k0
                 total <- countExit exits status
                 let every = JIT.statsEvery (jitConfig (jit env))
                 when (every > 0 && total `mod` every == 0) (printJITStats (jit env))
+              exit <- lookupExit exits status
               -- Records are written innermost caller first; K has the
               -- innermost frame on top, so build from the last record.
-              k <- if n == 0 then pure k else foldM (pushRecord bstk size) k (reverse records)
+              k <- if n == 0 then pure k else foldM (pushRecord bstk size (isAdHoc exit)) k (reverse records)
               -- the environment native code was running with: switched,
               -- when it exited from inside a handler case
               henv' <- unsafeCoerce <$> readArray bstk size
-              act henv' stk k =<< lookupExit exits status
-    pushRecord bstk size k (FrameRecord i fsz asz)
+              act henv' stk k exit
+    pushRecord bstk size adHoc k (FrameRecord i fsz asz)
       | i < 0 = do
           -- an affine handler case's environment switch, in force at the
           -- exit: the frame that switches back (see exec's InLocal)
           henv0 <- unsafeCoerce <$> readArray bstk (size + 1 + (-1 - i))
           pure (Local henv0 asz k)
       | otherwise = do
-          Frame cix f sect cell <- lookupFrame frames i
-          pure (Push fsz asz cix f sect cell k)
+          Frame cix@(CIx _ grp _) f sect cell <- lookupFrame frames i
+          -- an exit the code didn't cause, through a Let whose body has
+          -- no code: the frame carries no cell, so that popping it doesn't
+          -- count the miss (leap), and the JIT's budget for such re-entry
+          -- functions decides whether to count it (JIT.noteAdHocExit)
+          cell' <-
+            if adHoc && cell /= noNativeCell
+              then do
+                code <- readNativeCode cell
+                if code == nullPtr then noNativeCell <$ noteAdHocExit (jit env) grp cell else pure cell
+              else pure cell
+          pure (Push fsz asz cix f sect cell' k)
     act henv stk k = \case
       Named _ e -> act henv stk k e
       Resume cix sect -> do

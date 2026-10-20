@@ -320,11 +320,13 @@ in place every time and the slow mode a copy per append, so something decides pe
 whether the chunk keeps its slack (the CAS on the used length losing to a stale length,
 or the first chunk's allocation), and finding it could make the row 4× faster every time.
 
-### Linear re-entry code, and not counting preemption as a miss
+### Linear re-entry code
 
-Two things about re-entry functions, noticed 2026-10-20 when asking whether a
-long-running function accumulates a re-entry point for every place it can be
-interrupted.
+Noticed 2026-10-20 when asking whether a long-running function accumulates a re-entry
+point for every place it can be interrupted. (The other half of that question, a
+preemption counting as a miss at every Let on the stack, was answered the same day with
+the cap on ad hoc re-entry functions, `UNISON_JIT_REENTRY_ADHOC`; see "Re-entry
+functions on demand" in design.md.)
 
 **The code for a function's re-entry points is quadratic in its Lets.** A Let body's
 combinator is generated as the whole suffix of the function from that Let on, inline,
@@ -334,26 +336,14 @@ inlined in the parent on the fast path and again in each deferred function). The
 per (section, depth, base) stops the nesting of bindings being exponential; it does not
 remove the overlap of suffixes. In `eager` mode every Let body a Let refers to is
 compiled with its group whether or not anything ever exits there (`groupUnits` with lazy
-false), so the whole quadratic amount is paid up front. Certain call-outs are already
-linear: the parent stops at the call-out and each segment appears once. The fix, for Let
-bodies and deferred functions alike: generate a re-entry function as its own binding
-followed by a call through the *next* Let's (or deferred site's) cell, a direct call when
-that cell is compiled and otherwise the same exit the interpreter would take on an empty
-cell, instead of inlining the rest. Only the root function needs the straight inline
-path; the re-entry path is cold.
-
-**A preemption counts as a miss at every Let on the stack.** A `Reenter` or `GrowStack`
-exit in a callee unwinds through every native caller, each writing a frame record for the
-Let it was in, and when `yield` later pops that `Push` frame with an empty cell `leap`
-bumps the cell's count (`countReentry`). Timer ticks land wherever the stack happens to be,
-so in `on` mode every Let of a hot function reaches the threshold eventually and gets its
-body compiled, with no structural reason. The fix: `runNative` knows the status when it
-builds the frames from the records (`pushRecord`), so build them with a "don't count" mark
-for `Reenter` and `GrowStack`; `leap` still enters existing code through the cell, but
-doesn't bump an empty one when the frame is marked. Then a body is compiled only for a Let
-whose callee exits for a reason the code causes (not compiled, a handler, a certain
-call-out, a slow path), which is bounded by the code. The cost is the interrupted caller's
-suffix interpreted once per preemption, at most about 50 a second on a 20 ms timer.
+false), so the whole quadratic amount is paid up front; in `on` mode the cap bounds what
+ad hoc exits add, and the structural exits are bounded by the code. Certain call-outs are
+already linear: the parent stops at the call-out and each segment appears once. The fix,
+for Let bodies and deferred functions alike: generate a re-entry function as its own
+binding followed by a call through the *next* Let's (or deferred site's) cell, a direct
+call when that cell is compiled and otherwise the same exit the interpreter would take on
+an empty cell, instead of inlining the rest. Only the root function needs the straight
+inline path; the re-entry path is cold.
 
 ## Rejected
 

@@ -116,6 +116,10 @@ data Config = Config
     -- function requests before compiling the ones it holds as one module
     -- (@UNISON_JIT_REENTRY_WAIT@; 0 compiles each at once)
     reentryWait :: Int,
+    -- | with 'On': how many re-entry functions a group may get because of
+    -- exits the code didn't cause, the poll and stack growth
+    -- (@UNISON_JIT_REENTRY_ADHOC@; see JIT.noteAdHocExit)
+    reentryAdHoc :: Int,
     -- | what leaving native code and coming back costs, in units of the
     -- interpreter's overhead for one simple instruction: a function is
     -- left interpreted when its certain exits times this exceed what
@@ -200,6 +204,7 @@ readConfig = do
   exits <- lookupEnv "UNISON_JIT_EXITS"
   copyB <- lookupEnv "UNISON_JIT_COPY"
   reWait <- lookupEnv "UNISON_JIT_REENTRY_WAIT"
+  reAdHoc <- lookupEnv "UNISON_JIT_REENTRY_ADHOC"
   cost <- lookupEnv "UNISON_JIT_EXIT_COST"
   entry <- lookupEnv "UNISON_JIT_ENTRY_COST"
   mcode <- lookupEnv "UNISON_JIT_DUMP_MCODE"
@@ -221,6 +226,7 @@ readConfig = do
         exitCall = fmap (map toLower) exits /= Just "blocks",
         copyBound = max 0 (fromMaybe 40 (copyB >>= readMaybe)),
         reentryWait = max 0 (fromMaybe 20 (reWait >>= readMaybe)),
+        reentryAdHoc = max 0 (fromMaybe 3 (reAdHoc >>= readMaybe)),
         exitCost = max 0 (fromMaybe 7 (cost >>= readMaybe)),
         entryCost = max 0 (fromMaybe 3 (entry >>= readMaybe)),
         logging = maybe False (not . null) logging,

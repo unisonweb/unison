@@ -17,6 +17,7 @@ module Unison.Runtime.JIT
     jitCompileGroup,
     jitRequestGroup,
     jitRequestCell,
+    noteAdHocExit,
     registerDataTypes,
     registerTypeNumbers,
     printJITStats,
@@ -55,7 +56,7 @@ import Unison.Runtime.JIT.LLVM
 import Unison.Runtime.JIT.Layout (probeArrays, probeBytes, probeCompare, probeEnv, probeLayouts, probeLists, probeMurmur, probeNames, probeRecords, probeTexts)
 import Unison.Runtime.JIT.Native (configureNative, ctxLayout, helperAddresses, murmurCAddress, rtsFacts, tableAddresses, ucmpCAddress)
 import Unison.Runtime.JIT.Pool (Pool)
-import Unison.Runtime.MCode (CombIx (..), GComb (..), GCombInfo (..), NativeCell, claimNativeCell, combDeps, nativeCellRequested, noNativeCell, prettyIns, prettySection, readNativeCode, readNativeCount, releaseNativeCell, takeNativeCell, writeNativeCount)
+import Unison.Runtime.MCode (CombIx (..), GComb (..), GCombInfo (..), NativeCell, bumpNativeCount, claimNativeCell, combDeps, nativeCellRequested, noNativeCell, prettyIns, prettySection, readNativeCode, readNativeCount, releaseNativeCell, takeNativeCell, writeNativeCount)
 import Unison.Runtime.Stack (MCombs, defaultStackSlots)
 import Unison.Util.EnumContainers qualified as EC
 
@@ -85,7 +86,19 @@ data JIT = JIT
     -- burst of requests costs nothing but the requests: one that doesn't
     -- fit is dropped, and made again if the code stays hot
     jitRequests :: !(TBQueue Request),
-    jitCompileThreadStarted :: !(IORef Bool)
+    jitCompileThreadStarted :: !(IORef Bool),
+    -- | the re-entry functions each group may still get because of ad
+    -- hoc exits, and what those exits asked for (see 'noteAdHocExit')
+    jitAdHoc :: !(IORef AdHoc)
+  }
+
+data AdHoc = AdHoc
+  { -- | by group number; absent means the full allowance
+    ahBudgets :: !(EC.EnumMap Word64 Int),
+    -- | re-entry functions asked for because of ad hoc exits
+    ahRequested :: !Int,
+    -- | ad hoc exits through an uncompiled Let of a group at its cap
+    ahRefused :: !Int
   }
 
 -- | A JIT with these settings, not started: nothing is loaded or compiled
@@ -101,6 +114,7 @@ newJIT config =
     <*> newIORef Nothing
     <*> newTBQueueIO 256
     <*> newIORef False
+    <*> newIORef (AdHoc (EC.mapFromList []) 0 0)
 
 jitConfig :: JIT -> Config
 jitConfig = cConfig . jitCompiler
@@ -378,6 +392,33 @@ jitRequestCell jit cell =
         unless queued (releaseNativeCell cell >> addPending (jitCompiler jit) u)
 {-# NOINLINE jitRequestCell #-}
 
+-- | The trampoline's report of an ad hoc exit (the poll, the allocation
+-- budget, stack growth: 'isAdHoc') that unwound through a Let whose body
+-- has no code yet. The exits the code itself causes count toward the
+-- body's re-entry function when its frame is popped (Machine.countReentry)
+-- and are bounded by the code; these land wherever the program is, so
+-- a long-running function would in time be interrupted at every Let it
+-- has and get a copy of its suffix after each. So they count here, and
+-- only while the group's budget lasts ('reentryAdHoc', 3): the Lets most
+-- often on the stack at a tick, where the time goes, are the ones that
+-- get in. The frame the trampoline builds for such an exit carries no
+-- cell, so the pop interprets the body without counting it again.
+noteAdHocExit :: JIT -> Word64 -> Ptr NativeCell -> IO ()
+noteAdHocExit jit grp cell =
+  lookupPending (jitCompiler jit) cell >>= \case
+    Nothing -> pure ()
+    Just _ -> do
+      let allowance = reentryAdHoc (jitConfig jit)
+          left a = EC.lookupWithDefault allowance grp (ahBudgets a)
+      allowed <- atomicModifyIORef' (jitAdHoc jit) $ \a ->
+        if left a > 0 then (a, True) else (a {ahRefused = ahRefused a + 1}, False)
+      when allowed $ do
+        hot <- bumpNativeCount cell
+        when hot $ do
+          atomicModifyIORef' (jitAdHoc jit) $ \a ->
+            (a {ahBudgets = EC.mapInsert grp (left a - 1) (ahBudgets a), ahRequested = ahRequested a + 1}, ())
+          jitRequestCell jit cell
+
 -- | Which definitions call which: for each group, the groups whose code
 -- refers to it. The code cache only records the other direction, so the
 -- compile thread keeps this, adding the groups loaded since it last looked.
@@ -631,6 +672,14 @@ printJITStats jit = when (stats config) $ do
         ++ ", code "
         ++ show (fromIntegral (ctCodegen t) / 1e6 :: Double)
         ++ ")"
+    )
+  a <- readIORef (jitAdHoc jit)
+  jitDump
+    ( "[jit] ad hoc exits (the poll, stack growth): "
+        ++ show (ahRequested a)
+        ++ " re-entry functions asked for, "
+        ++ show (ahRefused a)
+        ++ " exits through an uncompiled Let past the cap"
     )
   printExits jit maxBound
   when (statsEach config) (resetExitCounts (jitExits jit))
