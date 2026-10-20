@@ -185,7 +185,7 @@ This is a big PR.
 
 | Kind | Files | Lines | Share |
 | --- | --- | --- | --- |
-| C: `cbits/jit_rt.c` 4,113, `jit_helpers.c` 756, `jit_llvm.c` 562, `jit_exit.c` 83, headers 401, the generated `jit_helpers.ll` 3,939 and `jit_exit.ll` 155 (the IR of the two C files, embedded), and the shell script that generates them | 9 | 10,038 | 28% |
+| C: `cbits/jit_rt.c` 748 (the machinery) and the eight `jit_builtins_*.c` files 3,113 (one per family: lists 979, ropes 838, text 646, arrays 239, bytes 177, records 110, compare 89, math 35) with `jit_builtins.h` 400, `jit_helpers.c` 756, `jit_llvm.c` 562, `jit_exit.c` 83, the other headers 401, the generated `jit_helpers.ll` 3,939 and `jit_exit.ll` 155 (the IR of the two C files, embedded), and the shell script that generates them | 9 | 10,038 | 28% |
 | New Haskell: `Runtime/JIT.hs`, `Runtime/JIT/*.hs` and `cbits/gen-helpers.hs`, the IR stripper | 14 | 9,410 | 26% |
 | Markdown docs: design, usage, development, builtins, ideas, this file, and the benchmark runs | 48 | 5,382 | 15% |
 | Transcripts: tests 3,710, benchmarks 413, the broad suite, the replacements suite, the compiled-program test | 6 | 4,359 | 12% |

@@ -1,6 +1,6 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.39.1.
+-- This file has been generated from package.yaml by hpack version 0.39.6.
 --
 -- see: https://github.com/sol/hpack
 
@@ -13,6 +13,17 @@ license:        MIT
 license-file:   LICENSE
 build-type:     Simple
 extra-source-files:
+    cbits/jit_builtins_arrays.c
+    cbits/jit_builtins_bytes.c
+    cbits/jit_builtins_compare.c
+    cbits/jit_builtins_lists.c
+    cbits/jit_builtins_math.c
+    cbits/jit_builtins_records.c
+    cbits/jit_builtins_ropes.c
+    cbits/jit_builtins_text.c
+    cbits/jit_builtins.h
+    cbits/jit_internal.h
+    cbits/jit_rt.h
     cbits/jit_helpers.ll
     cbits/jit_exit.ll
 

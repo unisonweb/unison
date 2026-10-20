@@ -47,6 +47,8 @@ when:
 # routine (cbits/gen-helpers.sh), embedded by src/Unison/Runtime/JIT/Helpers.hs;
 # listed so that a change to either rebuilds that module.
 extra-source-files:
+  - cbits/jit_builtins*.c
+  - cbits/jit_*.h
   - cbits/jit_helpers.ll
   - cbits/jit_exit.ll
 
@@ -66,8 +68,12 @@ library:
     # (cbits/jit_exit.c is not built here: it is only ever compiled to IR,
     # by gen-helpers.sh, and compiled again by the JIT at startup.)
     - cbits/jit_llvm.c
-    # jit_rt.c includes cbits/jit_helpers.c, which is also compiled to IR for
-    # the JIT (cbits/gen-helpers.sh, jit_helpers.ll)
+    # The JIT's C runtime, one translation unit: jit_rt.c is the machinery
+    # (entering native code, allocation, the trampoline, the startup probes)
+    # and includes the native builtins, one file per family
+    # (cbits/jit_builtins_*.c, sharing cbits/jit_builtins.h), and
+    # cbits/jit_helpers.c, which is also compiled to IR for the JIT
+    # (cbits/gen-helpers.sh, jit_helpers.ll).
     - cbits/jit_rt.c
 
   dependencies:
