@@ -324,7 +324,7 @@ void *unison_jit_alloc_words(UnisonJitCtx *ctx, int64_t n) {
 
 // Writes a MutVar# (an IORef) the way compiled Haskell does: the store,
 // then the runtime's barrier, which moves a clean variable onto the
-// mutable list. Cold code in C (decision D9).
+// mutable list. Cold code in C.
 void unison_jit_write_mutvar(UnisonJitCtx *ctx, StgMutVar *mv, StgClosure *v) {
   StgClosure *old = mv->var;
   __atomic_thread_fence(__ATOMIC_RELEASE);
@@ -726,7 +726,7 @@ void *unison_jit_local_env(UnisonJitCtx *ctx, void *aff) {
 }
 
 // ---------------------------------------------------------------------------
-// Closure layout probe (decision D7)
+// Closure layout probe
 
 // elems[0] is a sample closure; elems[1..n-1] are the values in its pointer
 // fields. Fills out[] with: info pointer, pointer tag, closure type, pointer

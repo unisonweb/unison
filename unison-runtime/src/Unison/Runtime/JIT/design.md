@@ -451,58 +451,66 @@ Every Unison function returns one value, but the unit of compilation is an MCode
 
 #### A worked example
 
-`sumTo n = if Nat.eq n 0 then 0 else n + sumTo (Nat.drop n 1)` is one combinator: a test, a `Let` whose binding is the recursive call, and the addition. Below is LLVM's output after its O2 pipeline, shortened: the blocks that write the frame back to the Unison stack and return an exit status (the stack-growth check, the poll, and the unwind when the recursive call comes back with a status other than `OK`) are elided, since they are the same stores as the wrapper's `ok:` block. The generated IR before optimization is about four times longer.
+`sumTo n = if Nat.eq n 0 then 0 else n + sumTo (Nat.drop n 1)` is one combinator: a test, a `Let` whose binding is the recursive call, and the addition. Below is LLVM's output after its O2 pipeline (a dump of 2026-10-20), shortened: the three blocks that write the frame back to the Unison stack and return an exit status (the stack-growth check, the poll, and the unwind when the recursive call comes back with a status other than `OK`) are reduced to a comment each, since they are alike: two stores of the live slot into the argument block `%xargs` and a call of the write-back routine with the site's descriptor, a constant of the module ([Write-back](#write-back)). The generated IR before optimization is about four times longer.
 
-The worker. Its arguments are the argument's unboxed word `%a.u1` and boxed pointer `%a.b1` (for a `Nat`, the word is the number and the pointer is the type-tag closure for `Nat`, which the result carries too), and it returns `{status, u, b}`. The recursive call is a direct call from worker to worker:
+The worker. Its arguments are the argument's unboxed word `%a.u1` and boxed pointer `%a.b1` (for a `Nat`, the word is the number and the pointer is the type-tag closure for `Nat`, which the result carries too), and it returns `{status, u, b}`. What callers call is the [fast entry](#workers-wrappers-and-the-fast-entry), `@u652_0_w`: the test and the base case, which needs no check of any kind, and for the other arm a tail call of the full worker `@u652_0_wf`, which LLVM has inlined here (the `.i` suffixes), checks included. The recursive call is a direct call from worker to worker:
 
 ```llvm
-define internal tailcc { i64, i64, ptr } @u645_0_w(ptr %ctx, i64 %fp.in, i64 %a.u1, ptr %a.b1) {
+@u652_0_wf.x0 = private unnamed_addr constant [7 x i64] [i64 3, i64 0, i64 0, i64 1, i64 1, i64 0, i64 1]   ; the descriptor of the entry exits: slot 1 live, no frame record
+@u652_0_wf.x3 = private unnamed_addr constant [10 x i64] [...]                                              ; the unwind's: slot 1 live, one record for the Let
+
+define internal tailcc { i64, i64, ptr } @u652_0_w(ptr %ctx, i64 %fp.in, i64 %a.u1, ptr %a.b1) {
 head:
+  %xargs.i = alloca [4 x i64]                 ; the argument block of the write-back calls
+  %c.2 = icmp eq i64 %a.u1, 0
+  br i1 %c.2, label %yield.11, label %false.16
+
+yield.11:                                     ; the base case: n == 0
   %pool = load ptr, ptr (ctx + 16)            ; the constant pool
   %tag.nat = load ptr, ptr (pool + 24)        ; the Nat type-tag closure
-  %c.2 = icmp eq i64 %a.u1, 0
-  br i1 %c.2, label %yield.52, label %false.57
+  %ret.15 = insertvalue { i64, i64, ptr } { i64 0, i64 0, ptr undef }, ptr %tag.nat, 2
+  ret { i64, i64, ptr } %ret.15               ; status OK, value 0
 
-yield.52:                                     ; the base case: n == 0
-  %ret.56 = insertvalue { i64, i64, ptr } { i64 0, i64 0, ptr undef }, ptr %tag.nat, 2
-  ret { i64, i64, ptr } %ret.56               ; status OK, value 0
-
-false.57:                                     ; the recursive case: room on the Unison stack?
+false.16:                                     ; the full worker, inlined: room on the Unison stack?
+  %pool.i = load ptr, ptr (ctx + 16)
+  %stack.size.i = load i64, ptr (ctx + 24)
+  %tag.nat.i = load ptr, ptr (pool.i + 24)
   %need.i = add i64 %fp.in, 11
   %room.i = icmp slt i64 %need.i, %stack.size.i
   br i1 %room.i, label %head.i, label %grow.i, !prof !0
 
 head.i:                                       ; the poll (another thread sets HpLim to null)
-  %hplim.36.i = load volatile ptr, ptr %hplim.p.i
-  %stop.37.i = icmp eq ptr %hplim.36.i, null
-  ...                                         ; and the C stack depth check
-  br i1 %stop.43.i, label %exit.44.i, label %body.63.i, !prof !1
+  %hplim.p.i = load ptr, ptr (ctx + 32)
+  %hplim.10.i = load volatile ptr, ptr %hplim.p.i
+  %stop.11.i = icmp eq ptr %hplim.10.i, null
+  ...                                         ; and the C stack depth check, or-ed in
+  br i1 %stop.17.i, label %exit.18.i, label %body.24.i, !prof !2
 
-body.63.i:
-  %r.126.i = add i64 %a.u1, -1                ; Nat.drop n 1
-  %fpk.184.i = add i64 %fp.in, 5              ; the callee's frame pointer
-  %r.185.i = tail call tailcc { i64, i64, ptr } @u645_0_w(ptr %ctx, i64 %fpk.184.i, i64 %r.126.i, ptr %tag.nat)
-  %st.186.i = extractvalue { i64, i64, ptr } %r.185.i, 0
-  %cond.i = icmp eq i64 %st.186.i, 0
-  br i1 %cond.i, label %yield.341.i, label %unwind.194.i, !prof !3
+body.24.i:
+  %r.45.i = add i64 %a.u1, -1                 ; Nat.drop n 1
+  %fpk.59.i = add i64 %fp.in, 5               ; the callee's frame pointer
+  %r.60.i = call tailcc { i64, i64, ptr } @u652_0_w(ptr %ctx, i64 %fpk.59.i, i64 %r.45.i, ptr %tag.nat.i)
+  %st.61.i = extractvalue { i64, i64, ptr } %r.60.i, 0
+  %cond = icmp eq i64 %st.61.i, 0
+  br i1 %cond, label %cont.65.i, label %unwind.69.i, !prof !3
 
-yield.341.i:                                  ; n + the result
-  %r.u.187.i = extractvalue { i64, i64, ptr } %r.185.i, 1
-  %r.268.i = add i64 %r.u.187.i, %a.u1
-  %ret.344.i = insertvalue { i64, i64, ptr } { i64 0, i64 undef, ptr undef }, i64 %r.268.i, 1
-  %ret.345.i = insertvalue { i64, i64, ptr } %ret.344.i, ptr %tag.nat, 2
-  ret { i64, i64, ptr } %ret.345.i
+cont.65.i:                                    ; n + the result
+  %r.u.62.i = extractvalue { i64, i64, ptr } %r.60.i, 1
+  %r.93.i = add i64 %a.u1, %r.u.62.i
+  %ret.104.i = insertvalue { i64, i64, ptr } { i64 0, i64 undef, ptr undef }, i64 %r.93.i, 1
+  %ret.105.i = insertvalue { i64, i64, ptr } %ret.104.i, ptr %tag.nat.i, 2
+  ret { i64, i64, ptr } %ret.105.i
 
-grow.i:        ; store the frame, the stack pointers into Ctx, return status 2975 (grow the stack)
-exit.44.i:     ; likewise, status 2977 (re-enter this function when the thread next runs)
-unwind.194.i:  ; store the frame and a frame record for the Let, pass the callee's status on
+grow.i:        ; store n into %xargs, call @unison_jit_exit_frame(ctx, @u652_0_wf.x0, fp, ap, xargs), return status 3256 (grow the stack)
+exit.18.i:     ; likewise, status 3258 (re-enter this function when the thread next runs)
+unwind.69.i:   ; likewise with @u652_0_wf.x3, which adds the frame record for the Let; pass the callee's status on
 }
 ```
 
 The wrapper has the uniform signature. It loads the argument from the Unison stack, calls the worker, and on `OK` stores the result where a `Yield` would put it and sets the stack pointers in `Ctx`; any other status is an exit the worker has already prepared, and is passed on:
 
 ```llvm
-define i64 @u645_0(ptr %ctx, i64 %ap, i64 %fp.in, i64 %sp) {
+define i64 @u652_0(ptr %ctx, i64 %ap, i64 %fp.in, i64 %sp) {
   %pending.not = icmp eq i64 %ap, %fp.in
   br i1 %pending.not, label %enter, label %pending.exit, !prof !0
 
@@ -512,7 +520,7 @@ enter:
   %ix1 = add i64 %ap, 1
   %u1 = load i64, ptr (ustk + ix1)            ; the argument
   %b1 = load ptr, ptr (bstk + ix1)
-  %r = tail call tailcc { i64, i64, ptr } @u645_0_w(ptr %ctx, i64 %ap, i64 %u1, ptr %b1)
+  %r = call tailcc { i64, i64, ptr } @u652_0_w(ptr %ctx, i64 %ap, i64 %u1, ptr %b1)
   %st = extractvalue { i64, i64, ptr } %r, 0
   %cond = icmp eq i64 %st, 0
   br i1 %cond, label %ok, label %exit
@@ -531,11 +539,11 @@ exit:
 
 pending.exit:                                 ; the stack pointers go back as they came
   ...
-  ret i64 2982                                ; status: resume this function in the interpreter
+  ret i64 3263                                ; status: resume this function in the interpreter
 }
 ```
 
-(The `ptr (ctx + 16)` forms are a shorthand for the `getelementptr` and `load` pairs in the real output. The module also holds a third function, `@u645_2`: the re-entry point for the `Let`'s body, which the interpreter calls when the recursive call exited and it has run the rest; it has the uniform signature and adds the two values.)
+(The `ptr (ctx + 16)` forms are a shorthand for the `getelementptr` and `load` pairs in the real output. The module also holds a third function, `@u652_2`: the re-entry point for the `Let`'s body, which the interpreter calls when the recursive call exited and it has run the rest; it has the uniform signature, loads the frame's six slots from the Unison stack, and adds the two values. The dump is reproduced with a transcript that defines `sumTo` and evaluates it, under `UNISON_JIT=eager UNISON_JIT_DUMP_IR=DIR`.)
 
 ### Calls
 

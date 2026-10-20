@@ -6,9 +6,9 @@
 -- | MCode to LLVM IR, for the subset the JIT supports. See design.md for
 -- the conventions ("Code generation" for how this module is organized).
 --
--- Within a function, every Unison stack slot is an LLVM alloca (decision
--- D11): @%u<k>@ holds the unboxed word and @%b<k>@ the boxed pointer of the
--- slot at frame offset @k@, which is stack index @fp + k@. The frame depth
+-- Within a function, every Unison stack slot is an LLVM alloca: @%u<k>@
+-- holds the unboxed word and @%b<k>@ the boxed pointer of the slot at
+-- frame offset @k@, which is stack index @fp + k@. The frame depth
 -- @d@ (the interpreter's @sp - fp@) is known statically at every point, so
 -- MCode's "slot @i@ from the top" is frame offset @d - i@. The real stack
 -- is touched only at entry, before a tail call, and on exit paths.
