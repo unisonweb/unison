@@ -2284,41 +2284,115 @@ genBoolBranch fe d c br sect = case br of
       unless ok $ sideBlockNamed label (exitResume fe d sect)
       pure label
 
--- | A match on a data closure. The pointer tag says which of the four
--- constructor closures it is; each keeps the constructor tag at a
--- different offset, so four small blocks load it and meet at a switch.
--- Each arm then pushes the fields as @dataBranch@ does: the first field
--- on top. How many fields a constructor has comes from the data type's
--- declaration ('envTypes'); one with three or more is a @DataG@ holding
--- two arrays.
+-- | A match on a data closure. The type's constructor arities
+-- ('envTypes', from its declaration) fix each constructor's shape: no
+-- fields is @GEnum@, 1 to 6 are @GData1@ to @GData6@, more is @GDataG@.
+-- The shape is what the pointer tag gives, from bits already in a
+-- register (tag 7, which @GData3@, @GData4@, @GData6@ and @GDataG@
+-- share, with a load of the info pointer). So the dispatch is over the
+-- shapes the type has a constructor of: a shape with one constructor
+-- branches straight to its arm, and only a shape two or more
+-- constructors share loads the packed tag, switching among those. Any
+-- other shape or tag is a runtime bug and exits. Each arm pushes the
+-- fields as @dataBranch@ does, the first field on top. A type whose
+-- arities aren't known (Boolean and the other builtin references) can
+-- still be matched when the value is an enumeration, which the pointer
+-- tag says; that path loads the packed tag.
 genDMatchClosure :: FnEnv -> Int -> Int -> Maybe Reference -> GBranch (RComb Val) -> MSection -> Gen ()
 genDMatchClosure fe d i mr br sect = do
   let env = feEnv fe
       ls = envLayouts env
-      arities = mr >>= \r -> Map.lookup r (envTypes env)
-      -- a type whose arities aren't known (Boolean and the other builtin
-      -- references) can still be matched when the value is an enumeration,
-      -- which the pointer tag says; the other kinds exit
-      kinds = case arities of
-        Just _ -> V.toList (lData ls) ++ [lDataG ls]
-        Nothing -> [lData ls V.! 0]
   p <- loadB (d - i)
   raw <- fresh "raw"
   emit (raw <> " = ptrtoint ptr " <> p <> " to i64")
   other <- exitBlock fe d (Resume (feCix fe) sect)
-  Pair base packed <- loadPackedTag raw other kinds
-  tag <- fresh "tag"
-  emit (tag <> " = and i64 " <> packed <> ", 65535") -- maskTags
-  -- an arm for constructor u knows its field count, so it knows the kind
-  let arm u body = case arities of
-        Nothing -> genSection fe d body
-        Just as -> case D.lookup (fromIntegral u) as of
-          Nothing -> exitResume fe d sect
-          Just 0 -> genSection fe d body
-          Just n -> do
-            pushFields fe d base n other
-            genSection fe (d + n) body
-  genBranchWith fe d tag br sect arm
+  case mr >>= \r -> Map.lookup r (envTypes env) of
+    Nothing -> do
+      Pair _ packed <- loadPackedTag raw other [lData ls V.! 0]
+      tag <- fresh "tag"
+      emit (tag <> " = and i64 " <> packed <> ", 65535") -- maskTags
+      genBranchWith fe d tag br sect (\_ -> genSection fe d)
+    Just as
+      | TestT {} <- br -> exitResume fe d sect
+      | TestY {} <- br -> exitResume fe d sect
+      | otherwise -> do
+          tagBits <- fresh "ptrtag"
+          emit (tagBits <> " = and i64 " <> raw <> ", 7")
+          base <- fresh "base"
+          emit (base <> " = sub i64 " <> raw <> ", " <> tagBits)
+          let ctors = zip [0 :: Word64 ..] (D.toList as)
+              shapeOf n = min n 7 -- 7 is DataG
+              layoutOf s = if s <= 6 then lData ls V.! s else lDataG ls
+              shapes = [Pair s cs | s <- [0 .. 7], let cs = [c | c@(_, n) <- ctors, shapeOf n == s], not (null cs)]
+              -- an arm off to the side; one that can't be generated exits at the match
+              armBlock name code = do
+                label <- freshLabel name
+                ok <- attempt (withKinds (sideBlockNamed label code))
+                unless ok $ sideBlockNamed label (exitResume fe d sect)
+                pure label
+          -- the default arm runs at depth d with nothing pushed (the
+          -- interpreter's dataBranch does the same); once, if needed
+          defaultL <-
+            if all (isJust . branchArmOf br . fst) ctors
+              then pure Nothing
+              else Just <$> armBlock "default" (genSection fe d (branchDefaultOf br))
+          let armFor (u, n) = case branchArmOf br u of
+                Nothing -> pure (maybe other id defaultL)
+                Just body -> armBlock "case" $ do
+                  when (n > 0) (pushFields fe d base n other)
+                  genSection fe (d + n) body
+              -- a shape's block: the arm itself for one constructor; for
+              -- several, a load of the packed tag at the shape's offset
+              -- and a switch among them
+              shapeBlock (Pair _ [c]) = armFor c
+              shapeBlock (Pair s cs) = do
+                arms <- forM cs $ \c -> Pair (fst c) <$> armFor c
+                l <- freshLabel "shape"
+                sideBlockNamed l $ do
+                  let layout = layoutOf s
+                  addr <- fresh "tag.a"
+                  emit (addr <> " = add i64 " <> base <> ", " <> tshow (lFieldOffset layout (lPtrs layout)))
+                  ptr <- fresh "tag.p"
+                  emit (ptr <> " = inttoptr i64 " <> addr <> " to ptr")
+                  packed <- fresh "packed"
+                  emit (packed <> " = load i64, ptr " <> ptr)
+                  tag <- fresh "tag"
+                  emit (tag <> " = and i64 " <> packed <> ", 65535") -- maskTags
+                  emit ("switch i64 " <> tag <> ", label %" <> other <> " [ " <> intercalateT " " (D.fromList (map (\(Pair u al) -> "i64 " <> tshow u <> ", label %" <> al) arms)) <> " ]")
+                pure l
+          entries <- forM shapes $ \sh@(Pair s _) -> Pair (layoutOf s) <$> shapeBlock sh
+          let owns = [Pair (lPtrTag layout) l | Pair layout l <- entries, lPtrTag layout /= 7]
+              shared = [Pair (lInfo layout) l | Pair layout l <- entries, lPtrTag layout == 7]
+          sevenL <-
+            if null shared
+              then pure other
+              else do
+                l <- freshLabel "shape7"
+                sideBlockNamed l $ do
+                  bp <- fresh "base.p"
+                  emit (bp <> " = inttoptr i64 " <> base <> " to ptr")
+                  info <- fresh "info"
+                  emit (info <> " = load i64, ptr " <> bp)
+                  emit ("switch i64 " <> info <> ", label %" <> other <> " [ " <> intercalateT " " (D.fromList (map (\(Pair inf al) -> "i64 " <> tshow inf <> ", label %" <> al) shared)) <> " ]")
+                pure l
+          emit ("switch i64 " <> tagBits <> ", label %" <> other <> " [ " <> intercalateT " " (D.fromList (map (\(Pair t l) -> "i64 " <> tshow t <> ", label %" <> l) owns ++ ["i64 7, label %" <> sevenL | not (null shared)])) <> " ]")
+
+-- | The arm of a branch for a constructor number, if it has one.
+branchArmOf :: GBranch c -> Word64 -> Maybe (GSection c)
+branchArmOf br u = case br of
+  Test1 v cv _ -> if u == v then Just cv else Nothing
+  Test2 v cv w cw _ -> if u == v then Just cv else if u == w then Just cw else Nothing
+  TestW _ cs -> EC.lookup u cs
+  _ -> Nothing
+
+-- | The default arm of a branch.
+branchDefaultOf :: GBranch c -> GSection c
+branchDefaultOf = \case
+  Test1 _ _ df -> df
+  Test2 _ _ _ _ df -> df
+  TestW df _ -> df
+  TestT df _ -> df
+  TestY df _ -> df
 
 -- | Loads the packed tag of the data closure whose tagged pointer is the
 -- i64 in @raw@, admitting the given shapes: a switch on the pointer tag
