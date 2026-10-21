@@ -1516,7 +1516,7 @@ probeNames ls = do
       !first = any' $! pap [] []
   arr <- newArray 4 first :: IO (MutableArray (PrimState IO) Any)
   put arr 1 (any' nat)
-  oks <- forM [(old, n) | old <- [0, 1, 3], n <- [1 .. 4 :: Int]] $ \(old, n) -> do
+  oks <- forM [(old, n) | old <- [0, 1, 3], n <- [1 .. 7 :: Int]] $ \(old, n) -> do
     let olds = [50 .. 49 + old]
     put arr 0 (any' $! pap olds (map (const nat) olds))
     h <- nameTest arr n

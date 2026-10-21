@@ -92,8 +92,7 @@ void *unison_jit_ref_new(UnisonJitCtx *ctx, int64_t u, void *b);
 void *unison_jit_ref_read_for_cas(UnisonJitCtx *ctx, void *ref);
 int64_t unison_jit_ref_cas(UnisonJitCtx *ctx, void *ref, void *ticket, int64_t u, void *b);
 JitNat unison_jit_murmur(int64_t u, void *b);
-void *unison_jit_name(UnisonJitCtx *ctx, void *fun, int64_t n, int64_t u0, void *b0, int64_t u1, void *b1, int64_t u2,
-                      void *b2, int64_t u3, void *b3);
+void *unison_jit_name(UnisonJitCtx *ctx, void *fun, int64_t n, int64_t base);
 
 int64_t unison_jit_set_aff(UnisonJitCtx *ctx, void *aff, void *v);
 void *unison_jit_local_env(UnisonJitCtx *ctx, void *aff);

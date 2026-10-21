@@ -306,7 +306,7 @@ modulePrelude =
       "declare i64 @unison_jit_bytes_read_at(ptr, i64, i64, i64)",
       "declare ptr @unison_jit_bytes_to_base(ptr, ptr, i64)",
       "declare ptr @unison_jit_bytes_from_base(ptr, ptr, i64, ptr, i64)",
-      "declare ptr @unison_jit_name(ptr, ptr, i64, i64, ptr, i64, ptr, i64, ptr, i64, ptr)",
+      "declare ptr @unison_jit_name(ptr, ptr, i64, i64)",
       "declare i64 @llvm.ctlz.i64(i64, i1)",
       "declare i64 @llvm.cttz.i64(i64, i1)",
       "declare i64 @llvm.ctpop.i64(i64)",
@@ -1964,8 +1964,8 @@ genLet fe d binding bcix@(CIx _ _ w) f body cell sect = case EC.lookup w (envCom
               genNonTailCall fe d d ccell srcs m sect (Just (Pair ix d)) $
                 genSection fe (d + m) body
           -- Fewer arguments than the function takes: the value of the binding
-          -- is a partial application, built here (see "Partial applications"
-          -- in jit_rt.c) from the function's closure in the pool.
+          -- is a partial application, built in place from the function's
+          -- closure in the pool ('genNameInline').
           | enabled fe "name",
             Nothing <- feFast fe,
             m == 1,
@@ -1973,12 +1973,8 @@ genLet fe d binding bcix@(CIx _ _ w) f body cell sect = case EC.lookup w (envCom
             let srcs = argSources fe d args,
             not (D.null srcs),
             D.size srcs < arity,
-            D.size srcs <= 4,
             Just pix <- Map.lookup (KeyComb ccix info) (envPool env) -> do
-              slow <- exitBlock fe d (Resume (feCix fe) sect)
-              vals <- loadSources srcs
-              fn <- poolValue pix
-              listHelper d slow (nameCall fn vals)
+              genNameInline fe d pix srcs
               genSection fe (d + 1) body
           | enabled fe "app",
             ZArgs <- args,
@@ -3302,26 +3298,23 @@ genInstr fe d instr sect k = case instr of
   Prim1 REFR i | enabled fe "ref" -> do
     genRefRead fe d (d - i) instr sect
     k (d + 1)
-  -- A partial application: a copy of the function's closure with the
-  -- arguments added (a C helper; see "Partial applications" in jit_rt.c).
-  Name r args
+  -- A partial application: a function value with the arguments added.
+  -- Of a known function, whose closure is in the pool: built in place
+  -- ('genNameInline'). Of a function value on the stack: a copy made by
+  -- a C helper, with the arguments passed on the Unison stack
+  -- ('genNameStack'). Any number of arguments either way.
+  Name (MCode.Env cix comb) args
     | enabled fe "name",
-      srcs <- argSources fe d args,
-      D.size srcs <= 4,
-      Just closure <- nameClosure r -> do
-        slow <- callOutExit True fe d instr sect
-        vals <- loadSources srcs
-        f <- closure
-        listHelper d slow (nameCall f vals)
+      Comb info <- unRComb comb,
+      Just ix <- Map.lookup (KeyComb cix info) (envPool (feEnv fe)) -> do
+        genNameInline fe d ix (argSources fe d args)
         k (d + 1)
-    where
-      nameClosure = \case
-        Stk i -> Just (loadB (d - i))
-        MCode.Env cix comb
-          | Comb info <- unRComb comb,
-            Just ix <- Map.lookup (KeyComb cix info) (envPool (feEnv fe)) ->
-              Just (poolValue ix)
-        _ -> Nothing
+  Name (Stk i) args
+    | enabled fe "name" -> do
+        slow <- callOutExit True fe d instr sect
+        f <- loadB (d - i)
+        genNameStack fe d slow f (argSources fe d args)
+        k (d + 1)
   -- Lists: C helpers that are ports of the Haskell operations (see "Lists"
   -- in jit_rt.c). They handle every list; the slow path is only for a
   -- closure that isn't one.
@@ -4982,12 +4975,98 @@ unitHelper fe d slow unitIx call = do
 
 -- | The call that builds a partial application of the closure @f@ with up
 -- to four more arguments (given as unboxed and boxed halves).
-nameCall :: Text -> Deque (Pair Text Text) -> Text
-nameCall f vals =
-  "@unison_jit_name(ptr %ctx, ptr " <> f <> ", i64 " <> tshow (D.size vals) <> ", " <> intercalateT ", " padded <> ")"
-  where
-    arg (Pair u b) = "i64 " <> u <> ", ptr " <> b
-    padded = fmap arg vals <> D.fromList (replicate (4 - D.size vals) "i64 0, ptr null")
+-- | A partial application of a known function (@Name (Env f)@, or a
+-- @Let@ whose binding applies @f@ to fewer arguments than it takes),
+-- built in place. The function's closure in the pool (index @pix@) is a
+-- @PAp@ with nothing captured; the new one is a copy of its words with
+-- two new arrays holding the @n@ values from the slots @srcs@, laid out
+-- as the interpreter's @augSeg@ lays them (the last argument at index
+-- 0; see "Partial applications" in jit_rt.c). The closure and its arrays
+-- are one chunk, as a wide constructor's are ('genPack'). Pushes the
+-- closure at @d + 1@. No limit on @n@: nothing goes through registers.
+genNameInline :: FnEnv -> Int -> Int -> Deque Int -> Gen ()
+genNameInline fe d pix srcs = do
+  let env = feEnv fe
+      ls = envLayouts env
+      rts = envRts env
+      layout = lPAp ls
+      n = D.size srcs
+      papWords = 1 + lPtrs layout + lNptrs layout
+      cardWords = (n + (1 `shiftL` rCardBits rts) - 1) `shiftR` rCardBits rts
+      cardWords' = (cardWords + 7) `div` 8
+      bytesWords = rBytesHeader rts + n
+      ptrsWords = rPtrsHeader rts + n + cardWords'
+      ubytes = papWords
+      bptrs = ubytes + bytesWords
+      -- payload word i of the closure, as a word index from its header
+      field i = lFieldOffset layout i `div` 8
+  -- the values, before the allocation so nothing is held across it
+  vals <- loadSources srcs
+  tmpl <- poolValue pix
+  ti <- fresh "pap.i"
+  emit (ti <> " = ptrtoint ptr " <> tmpl <> " to i64")
+  tb <- fresh "pap.base"
+  emit (tb <> " = and i64 " <> ti <> ", -8")
+  tp <- fresh "pap.p"
+  emit (tp <> " = inttoptr i64 " <> tb <> " to ptr")
+  obj <- allocWords env (papWords + bytesWords + ptrsWords)
+  let word i = do
+        a <- fresh "w"
+        emit (a <> " = getelementptr i64, ptr " <> obj <> ", i64 " <> tshow i)
+        pure a
+      storeAt i what = word i >>= \a -> emit ("store " <> what <> ", ptr " <> a)
+  -- the closure: the template's words (the header, the reference, the
+  -- entry, its empty arrays, and the combinator's numbers)...
+  forM_ [0 .. papWords - 1] $ \i -> do
+    sa <- fresh "t.a"
+    emit (sa <> " = getelementptr i64, ptr " <> tp <> ", i64 " <> tshow i)
+    v <- fresh "t"
+    emit (v <> " = load i64, ptr " <> sa)
+    storeAt i ("i64 " <> v)
+  -- ...then the ByteArray# and the Array# after it, the fields in reverse
+  storeAt ubytes ("i64 " <> tshow (rArrWordsInfo rts))
+  storeAt (ubytes + rBytesCount rts) ("i64 " <> tshow (8 * n))
+  storeAt bptrs ("i64 " <> tshow (rArrPtrsInfo rts))
+  storeAt (bptrs + rPtrsCount rts) ("i64 " <> tshow n)
+  storeAt (bptrs + rPtrsSize rts) ("i64 " <> tshow (n + cardWords'))
+  forM_ [0 .. cardWords' - 1] $ \c -> storeAt (bptrs + rPtrsHeader rts + n + c) "i64 0"
+  iforM_ vals $ \j (Pair u b) -> do
+    storeAt (ubytes + rBytesHeader rts + (n - 1 - j)) ("i64 " <> u)
+    storeAt (bptrs + rPtrsHeader rts + (n - 1 - j)) ("ptr " <> b)
+  -- the closure's two array fields point at them
+  ua <- word ubytes
+  storeAt (field 2) ("ptr " <> ua)
+  ba <- word bptrs
+  storeAt (field 3) ("ptr " <> ba)
+  oi <- fresh "pap"
+  emit (oi <> " = ptrtoint ptr " <> obj <> " to i64")
+  tg <- fresh "pap.tagged"
+  emit (tg <> " = or i64 " <> oi <> ", " <> tshow (lPtrTag layout))
+  tgp <- fresh "pap"
+  emit (tgp <> " = inttoptr i64 " <> tg <> " to ptr")
+  storeU (d + 1) "-1"
+  storeB (d + 1) tgp
+
+-- | A partial application of a function value found on the stack (@Name
+-- (Stk i)@, the closure in register @f@): the C helper copies it with the
+-- values added, since how much it already holds is only known when it
+-- runs. The values go to the helper on the Unison stack, in the slots
+-- above the depth, which are scratch here as they are for a call's
+-- arguments and which the entry check covers. Null from the helper (not
+-- a @PAp@) takes @slow@.
+genNameStack :: FnEnv -> Int -> Text -> Text -> Deque Int -> Gen ()
+genNameStack fe d slow f srcs = do
+  let n = D.size srcs
+  vals <- loadSources srcs
+  iforM_ vals $ \j (Pair u b) -> do
+    ua <- stackAddrU (d + 1 + j)
+    emit ("store i64 " <> u <> ", ptr " <> ua)
+    ba <- stackAddrB (d + 1 + j)
+    emit ("store ptr " <> b <> ", ptr " <> ba)
+  base <- fpPlus (d + 1)
+  top <- fpPlus (d + n)
+  markWritten (feEnv fe) top
+  listHelper d slow ("@unison_jit_name(ptr %ctx, ptr " <> f <> ", i64 " <> tshow n <> ", i64 " <> base <> ")")
 
 -- | Calls a list helper that returns a boxed result, or null for a case
 -- it leaves to the interpreter (@slow@); pushes the result.

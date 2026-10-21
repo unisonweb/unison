@@ -1867,7 +1867,7 @@ more n =
     go (acc + g i + applyAll g 3 0) (i + 1)
   go 0 0
 
--- five captured values: more than the helper takes, so the interpreter builds it
+-- five captured values (once more than the helper took as arguments)
 five : Nat -> Nat
 five n =
   go acc i = if i == n then acc else
@@ -1906,6 +1906,591 @@ five n =
     40 | > five 3000
            ⧩
            45045000
+```
+
+### Every arity and argument count
+
+`f2` to `f6` take two to six arguments and return them as the digits of a number, the
+first argument in the units: `f3 1 2 3` is 321, so arguments in the wrong order or the
+wrong slot show in the result. For each arity, each number of arguments is supplied first,
+to the known function (`knownN_M`, built in place from the function's closure in the pool),
+to the same function passed in as a value (`valueN_M`, the helper copying the closure with
+the arguments on the Unison stack), and one at a time to a closure that already holds the
+earlier ones (`chainN`). Every combination runs 300 times, so that `on` mode compiles it.
+
+``` unison
+use Nat + - * / == < > <= >=
+
+f2 : Nat -> Nat -> Nat
+f2 a b = a + 10*b
+
+f3 : Nat -> Nat -> Nat -> Nat
+f3 a b c = a + 10*b + 100*c
+
+f4 : Nat -> Nat -> Nat -> Nat -> Nat
+f4 a b c d = a + 10*b + 100*c + 1000*d
+
+f5 : Nat -> Nat -> Nat -> Nat -> Nat -> Nat
+f5 a b c d e = a + 10*b + 100*c + 1000*d + 10000*e
+
+f6 : Nat -> Nat -> Nat -> Nat -> Nat -> Nat -> Nat
+f6 a b c d e f = a + 10*b + 100*c + 1000*d + 10000*e + 100000*f
+
+known2_1 : Nat -> Nat
+known2_1 n =
+  go acc i = if i == n then acc else
+    p = f2 (i + 1)
+    go (acc + p (i + 2)) (i + 1)
+  go 0 0
+
+value2_1 : (Nat -> Nat -> Nat) -> Nat -> Nat
+value2_1 f n =
+  go acc i = if i == n then acc else
+    q = f (i + 1)
+    go (acc + q (i + 2)) (i + 1)
+  go 0 0
+
+chain2 : Nat -> Nat
+chain2 n =
+  go acc i = if i == n then acc else
+    p1 = f2 (i + 1)
+    go (acc + p1 (i + 2)) (i + 1)
+  go 0 0
+
+known3_1 : Nat -> Nat
+known3_1 n =
+  go acc i = if i == n then acc else
+    p = f3 (i + 1)
+    go (acc + p (i + 2) (i + 3)) (i + 1)
+  go 0 0
+
+value3_1 : (Nat -> Nat -> Nat -> Nat) -> Nat -> Nat
+value3_1 f n =
+  go acc i = if i == n then acc else
+    q = f (i + 1)
+    go (acc + q (i + 2) (i + 3)) (i + 1)
+  go 0 0
+
+known3_2 : Nat -> Nat
+known3_2 n =
+  go acc i = if i == n then acc else
+    p = f3 (i + 1) (i + 2)
+    go (acc + p (i + 3)) (i + 1)
+  go 0 0
+
+value3_2 : (Nat -> Nat -> Nat -> Nat) -> Nat -> Nat
+value3_2 f n =
+  go acc i = if i == n then acc else
+    q = f (i + 1) (i + 2)
+    go (acc + q (i + 3)) (i + 1)
+  go 0 0
+
+chain3 : Nat -> Nat
+chain3 n =
+  go acc i = if i == n then acc else
+    p1 = f3 (i + 1)
+    p2 = p1 (i + 2)
+    go (acc + p2 (i + 3)) (i + 1)
+  go 0 0
+
+known4_1 : Nat -> Nat
+known4_1 n =
+  go acc i = if i == n then acc else
+    p = f4 (i + 1)
+    go (acc + p (i + 2) (i + 3) (i + 4)) (i + 1)
+  go 0 0
+
+value4_1 : (Nat -> Nat -> Nat -> Nat -> Nat) -> Nat -> Nat
+value4_1 f n =
+  go acc i = if i == n then acc else
+    q = f (i + 1)
+    go (acc + q (i + 2) (i + 3) (i + 4)) (i + 1)
+  go 0 0
+
+known4_2 : Nat -> Nat
+known4_2 n =
+  go acc i = if i == n then acc else
+    p = f4 (i + 1) (i + 2)
+    go (acc + p (i + 3) (i + 4)) (i + 1)
+  go 0 0
+
+value4_2 : (Nat -> Nat -> Nat -> Nat -> Nat) -> Nat -> Nat
+value4_2 f n =
+  go acc i = if i == n then acc else
+    q = f (i + 1) (i + 2)
+    go (acc + q (i + 3) (i + 4)) (i + 1)
+  go 0 0
+
+known4_3 : Nat -> Nat
+known4_3 n =
+  go acc i = if i == n then acc else
+    p = f4 (i + 1) (i + 2) (i + 3)
+    go (acc + p (i + 4)) (i + 1)
+  go 0 0
+
+value4_3 : (Nat -> Nat -> Nat -> Nat -> Nat) -> Nat -> Nat
+value4_3 f n =
+  go acc i = if i == n then acc else
+    q = f (i + 1) (i + 2) (i + 3)
+    go (acc + q (i + 4)) (i + 1)
+  go 0 0
+
+chain4 : Nat -> Nat
+chain4 n =
+  go acc i = if i == n then acc else
+    p1 = f4 (i + 1)
+    p2 = p1 (i + 2)
+    p3 = p2 (i + 3)
+    go (acc + p3 (i + 4)) (i + 1)
+  go 0 0
+
+known5_1 : Nat -> Nat
+known5_1 n =
+  go acc i = if i == n then acc else
+    p = f5 (i + 1)
+    go (acc + p (i + 2) (i + 3) (i + 4) (i + 5)) (i + 1)
+  go 0 0
+
+value5_1 : (Nat -> Nat -> Nat -> Nat -> Nat -> Nat) -> Nat -> Nat
+value5_1 f n =
+  go acc i = if i == n then acc else
+    q = f (i + 1)
+    go (acc + q (i + 2) (i + 3) (i + 4) (i + 5)) (i + 1)
+  go 0 0
+
+known5_2 : Nat -> Nat
+known5_2 n =
+  go acc i = if i == n then acc else
+    p = f5 (i + 1) (i + 2)
+    go (acc + p (i + 3) (i + 4) (i + 5)) (i + 1)
+  go 0 0
+
+value5_2 : (Nat -> Nat -> Nat -> Nat -> Nat -> Nat) -> Nat -> Nat
+value5_2 f n =
+  go acc i = if i == n then acc else
+    q = f (i + 1) (i + 2)
+    go (acc + q (i + 3) (i + 4) (i + 5)) (i + 1)
+  go 0 0
+
+known5_3 : Nat -> Nat
+known5_3 n =
+  go acc i = if i == n then acc else
+    p = f5 (i + 1) (i + 2) (i + 3)
+    go (acc + p (i + 4) (i + 5)) (i + 1)
+  go 0 0
+
+value5_3 : (Nat -> Nat -> Nat -> Nat -> Nat -> Nat) -> Nat -> Nat
+value5_3 f n =
+  go acc i = if i == n then acc else
+    q = f (i + 1) (i + 2) (i + 3)
+    go (acc + q (i + 4) (i + 5)) (i + 1)
+  go 0 0
+
+known5_4 : Nat -> Nat
+known5_4 n =
+  go acc i = if i == n then acc else
+    p = f5 (i + 1) (i + 2) (i + 3) (i + 4)
+    go (acc + p (i + 5)) (i + 1)
+  go 0 0
+
+value5_4 : (Nat -> Nat -> Nat -> Nat -> Nat -> Nat) -> Nat -> Nat
+value5_4 f n =
+  go acc i = if i == n then acc else
+    q = f (i + 1) (i + 2) (i + 3) (i + 4)
+    go (acc + q (i + 5)) (i + 1)
+  go 0 0
+
+chain5 : Nat -> Nat
+chain5 n =
+  go acc i = if i == n then acc else
+    p1 = f5 (i + 1)
+    p2 = p1 (i + 2)
+    p3 = p2 (i + 3)
+    p4 = p3 (i + 4)
+    go (acc + p4 (i + 5)) (i + 1)
+  go 0 0
+
+known6_1 : Nat -> Nat
+known6_1 n =
+  go acc i = if i == n then acc else
+    p = f6 (i + 1)
+    go (acc + p (i + 2) (i + 3) (i + 4) (i + 5) (i + 6)) (i + 1)
+  go 0 0
+
+value6_1 : (Nat -> Nat -> Nat -> Nat -> Nat -> Nat -> Nat) -> Nat -> Nat
+value6_1 f n =
+  go acc i = if i == n then acc else
+    q = f (i + 1)
+    go (acc + q (i + 2) (i + 3) (i + 4) (i + 5) (i + 6)) (i + 1)
+  go 0 0
+
+known6_2 : Nat -> Nat
+known6_2 n =
+  go acc i = if i == n then acc else
+    p = f6 (i + 1) (i + 2)
+    go (acc + p (i + 3) (i + 4) (i + 5) (i + 6)) (i + 1)
+  go 0 0
+
+value6_2 : (Nat -> Nat -> Nat -> Nat -> Nat -> Nat -> Nat) -> Nat -> Nat
+value6_2 f n =
+  go acc i = if i == n then acc else
+    q = f (i + 1) (i + 2)
+    go (acc + q (i + 3) (i + 4) (i + 5) (i + 6)) (i + 1)
+  go 0 0
+
+known6_3 : Nat -> Nat
+known6_3 n =
+  go acc i = if i == n then acc else
+    p = f6 (i + 1) (i + 2) (i + 3)
+    go (acc + p (i + 4) (i + 5) (i + 6)) (i + 1)
+  go 0 0
+
+value6_3 : (Nat -> Nat -> Nat -> Nat -> Nat -> Nat -> Nat) -> Nat -> Nat
+value6_3 f n =
+  go acc i = if i == n then acc else
+    q = f (i + 1) (i + 2) (i + 3)
+    go (acc + q (i + 4) (i + 5) (i + 6)) (i + 1)
+  go 0 0
+
+known6_4 : Nat -> Nat
+known6_4 n =
+  go acc i = if i == n then acc else
+    p = f6 (i + 1) (i + 2) (i + 3) (i + 4)
+    go (acc + p (i + 5) (i + 6)) (i + 1)
+  go 0 0
+
+value6_4 : (Nat -> Nat -> Nat -> Nat -> Nat -> Nat -> Nat) -> Nat -> Nat
+value6_4 f n =
+  go acc i = if i == n then acc else
+    q = f (i + 1) (i + 2) (i + 3) (i + 4)
+    go (acc + q (i + 5) (i + 6)) (i + 1)
+  go 0 0
+
+known6_5 : Nat -> Nat
+known6_5 n =
+  go acc i = if i == n then acc else
+    p = f6 (i + 1) (i + 2) (i + 3) (i + 4) (i + 5)
+    go (acc + p (i + 6)) (i + 1)
+  go 0 0
+
+value6_5 : (Nat -> Nat -> Nat -> Nat -> Nat -> Nat -> Nat) -> Nat -> Nat
+value6_5 f n =
+  go acc i = if i == n then acc else
+    q = f (i + 1) (i + 2) (i + 3) (i + 4) (i + 5)
+    go (acc + q (i + 6)) (i + 1)
+  go 0 0
+
+chain6 : Nat -> Nat
+chain6 n =
+  go acc i = if i == n then acc else
+    p1 = f6 (i + 1)
+    p2 = p1 (i + 2)
+    p3 = p2 (i + 3)
+    p4 = p3 (i + 4)
+    p5 = p4 (i + 5)
+    go (acc + p5 (i + 6)) (i + 1)
+  go 0 0
+
+> known2_1 300
+> value2_1 f2 300
+> chain2 300
+> known3_1 300
+> value3_1 f3 300
+> known3_2 300
+> value3_2 f3 300
+> chain3 300
+> known4_1 300
+> value4_1 f4 300
+> known4_2 300
+> value4_2 f4 300
+> known4_3 300
+> value4_3 f4 300
+> chain4 300
+> known5_1 300
+> value5_1 f5 300
+> known5_2 300
+> value5_2 f5 300
+> known5_3 300
+> value5_3 f5 300
+> known5_4 300
+> value5_4 f5 300
+> chain5 300
+> known6_1 300
+> value6_1 f6 300
+> known6_2 300
+> value6_2 f6 300
+> known6_3 300
+> value6_3 f6 300
+> known6_4 300
+> value6_4 f6 300
+> known6_5 300
+> value6_5 f6 300
+> chain6 300
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  + chain2   : Nat -> Nat
+  + chain3   : Nat -> Nat
+  + chain4   : Nat -> Nat
+  + chain5   : Nat -> Nat
+  + chain6   : Nat -> Nat
+  + f2       : Nat -> Nat -> Nat
+  + f3       : Nat -> Nat -> Nat -> Nat
+  + f4       : Nat -> Nat -> Nat -> Nat -> Nat
+  + f5       : Nat -> Nat -> Nat -> Nat -> Nat -> Nat
+  + f6       : Nat -> Nat -> Nat -> Nat -> Nat -> Nat -> Nat
+  + known2_1 : Nat -> Nat
+  + known3_1 : Nat -> Nat
+  + known3_2 : Nat -> Nat
+  + known4_1 : Nat -> Nat
+  + known4_2 : Nat -> Nat
+  + known4_3 : Nat -> Nat
+  + known5_1 : Nat -> Nat
+  + known5_2 : Nat -> Nat
+  + known5_3 : Nat -> Nat
+  + known5_4 : Nat -> Nat
+  + known6_1 : Nat -> Nat
+  + known6_2 : Nat -> Nat
+  + known6_3 : Nat -> Nat
+  + known6_4 : Nat -> Nat
+  + known6_5 : Nat -> Nat
+  + value2_1 : (Nat ->{g1} Nat ->{g} Nat) -> Nat ->{g, g1} Nat
+  + value3_1 : (Nat ->{g2} Nat ->{g1} Nat ->{g} Nat)
+               -> Nat
+               ->{g, g1, g2} Nat
+  + value3_2 : (Nat ->{g2} Nat ->{g1} Nat ->{g} Nat)
+               -> Nat
+               ->{g, g1, g2} Nat
+  + value4_1 : (Nat ->{g3} Nat ->{g2} Nat ->{g1} Nat ->{g} Nat)
+               -> Nat
+               ->{g, g1, g2, g3} Nat
+  + value4_2 : (Nat ->{g3} Nat ->{g2} Nat ->{g1} Nat ->{g} Nat)
+               -> Nat
+               ->{g, g1, g2, g3} Nat
+  + value4_3 : (Nat ->{g3} Nat ->{g2} Nat ->{g1} Nat ->{g} Nat)
+               -> Nat
+               ->{g, g1, g2, g3} Nat
+  + value5_1 : (Nat
+                ->{g4} Nat
+                ->{g3} Nat
+                ->{g2} Nat
+                ->{g1} Nat
+                ->{g} Nat)
+               -> Nat
+               ->{g, g1, g2, g3, g4} Nat
+  + value5_2 : (Nat
+                ->{g4} Nat
+                ->{g3} Nat
+                ->{g2} Nat
+                ->{g1} Nat
+                ->{g} Nat)
+               -> Nat
+               ->{g, g1, g2, g3, g4} Nat
+  + value5_3 : (Nat
+                ->{g4} Nat
+                ->{g3} Nat
+                ->{g2} Nat
+                ->{g1} Nat
+                ->{g} Nat)
+               -> Nat
+               ->{g, g1, g2, g3, g4} Nat
+  + value5_4 : (Nat
+                ->{g4} Nat
+                ->{g3} Nat
+                ->{g2} Nat
+                ->{g1} Nat
+                ->{g} Nat)
+               -> Nat
+               ->{g, g1, g2, g3, g4} Nat
+  + value6_1 : (Nat
+                ->{g5} Nat
+                ->{g4} Nat
+                ->{g3} Nat
+                ->{g2} Nat
+                ->{g1} Nat
+                ->{g} Nat)
+               -> Nat
+               ->{g, g1, g2, g3, g4, g5} Nat
+  + value6_2 : (Nat
+                ->{g5} Nat
+                ->{g4} Nat
+                ->{g3} Nat
+                ->{g2} Nat
+                ->{g1} Nat
+                ->{g} Nat)
+               -> Nat
+               ->{g, g1, g2, g3, g4, g5} Nat
+  + value6_3 : (Nat
+                ->{g5} Nat
+                ->{g4} Nat
+                ->{g3} Nat
+                ->{g2} Nat
+                ->{g1} Nat
+                ->{g} Nat)
+               -> Nat
+               ->{g, g1, g2, g3, g4, g5} Nat
+  + value6_4 : (Nat
+                ->{g5} Nat
+                ->{g4} Nat
+                ->{g3} Nat
+                ->{g2} Nat
+                ->{g1} Nat
+                ->{g} Nat)
+               -> Nat
+               ->{g, g1, g2, g3, g4, g5} Nat
+  + value6_5 : (Nat
+                ->{g5} Nat
+                ->{g4} Nat
+                ->{g3} Nat
+                ->{g2} Nat
+                ->{g1} Nat
+                ->{g} Nat)
+               -> Nat
+               ->{g, g1, g2, g3, g4, g5} Nat
+
+  Run `update` to apply these changes to your codebase.
+
+    273 | > known2_1 300
+            ⧩
+            499650
+
+    274 | > value2_1 f2 300
+            ⧩
+            499650
+
+    275 | > chain2 300
+            ⧩
+            499650
+
+    276 | > known3_1 300
+            ⧩
+            5074650
+
+    277 | > value3_1 f3 300
+            ⧩
+            5074650
+
+    278 | > known3_2 300
+            ⧩
+            5074650
+
+    279 | > value3_2 f3 300
+            ⧩
+            5074650
+
+    280 | > chain3 300
+            ⧩
+            5074650
+
+    281 | > known4_1 300
+            ⧩
+            51124650
+
+    282 | > value4_1 f4 300
+            ⧩
+            51124650
+
+    283 | > known4_2 300
+            ⧩
+            51124650
+
+    284 | > value4_2 f4 300
+            ⧩
+            51124650
+
+    285 | > known4_3 300
+            ⧩
+            51124650
+
+    286 | > value4_3 f4 300
+            ⧩
+            51124650
+
+    287 | > chain4 300
+            ⧩
+            51124650
+
+    288 | > known5_1 300
+            ⧩
+            514624650
+
+    289 | > value5_1 f5 300
+            ⧩
+            514624650
+
+    290 | > known5_2 300
+            ⧩
+            514624650
+
+    291 | > value5_2 f5 300
+            ⧩
+            514624650
+
+    292 | > known5_3 300
+            ⧩
+            514624650
+
+    293 | > value5_3 f5 300
+            ⧩
+            514624650
+
+    294 | > known5_4 300
+            ⧩
+            514624650
+
+    295 | > value5_4 f5 300
+            ⧩
+            514624650
+
+    296 | > chain5 300
+            ⧩
+            514624650
+
+    297 | > known6_1 300
+            ⧩
+            5179624650
+
+    298 | > value6_1 f6 300
+            ⧩
+            5179624650
+
+    299 | > known6_2 300
+            ⧩
+            5179624650
+
+    300 | > value6_2 f6 300
+            ⧩
+            5179624650
+
+    301 | > known6_3 300
+            ⧩
+            5179624650
+
+    302 | > value6_3 f6 300
+            ⧩
+            5179624650
+
+    303 | > known6_4 300
+            ⧩
+            5179624650
+
+    304 | > value6_4 f6 300
+            ⧩
+            5179624650
+
+    305 | > known6_5 300
+            ⧩
+            5179624650
+
+    306 | > value6_5 f6 300
+            ⧩
+            5179624650
+
+    307 | > chain6 300
+            ⧩
+            5179624650
 ```
 
 ## Floats, pow and representation casts

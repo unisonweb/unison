@@ -160,21 +160,11 @@ resumes in the interpreter: whether the call is under-saturated is only known at
 the closure-call code needs a second continuation that joins the body with the new closure
 instead of a call's result. The helper already handles closures with captured arguments.
 
-Also: more than four arguments at once. `Name` with five or more captured values is a
-call-out (`D.size srcs <= 4` in Codegen.hs), and the cloud library's local `Remote`
-runtime builds a closure over eight values three times per `Ref.modify`: the broad
-suite's "Mutate a local Remote.Ref 10k times" takes 30,002 exits at those three sites
-and runs slower with everything compiled (33 ms) than interpreted (22.6 ms); measured
-2026-10-20 with `run suite.localCloud` under `UNISON_JIT=eager UNISON_JIT_STATS=1`. (In
-`on` mode the row's 10,000 iterations finish before the compile thread installs the code,
-so the 0.90× against trunk in the 2026-10-16 record is the branch's interpreter against
-trunk's, not native code.) The limit is the helper's signature: `unison_jit_name` takes
-four (word, pointer) pairs as C arguments, padded with zeros (`NAME_MAX_ARGS` in jit_rt.c,
-`nameCall` in Codegen.hs), and the generator refuses larger sites at both places that
-call it (`Name`, and a `Let` whose binding is a partial application). To lift it, pass the
-values through a block on the C stack instead, as the write-back does with `%xargs`: one
-alloca per function sized by the largest site, the pairs stored into it, and the helper
-given its address and the count. Then any number of captured values is one call.
+The four-argument limit of `Name` is gone (2026-10-20): a partial application of a known
+function is built inline, and the helper for one of a function value takes its arguments
+on the Unison stack. It was found through the broad suite's "Mutate a local Remote.Ref 10k
+times", where the cloud library's local `Remote` runtime closes over eight values three
+times per `Ref.modify`; see [2026-10-20 Name](benchmarks/2026-10-20-name.md).
 
 ### Ensure no thunks on the boxed stack
 

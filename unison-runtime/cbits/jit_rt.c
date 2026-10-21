@@ -369,13 +369,16 @@ int64_t unison_jit_rts_facts(int64_t *out, int64_t n) {
 
 static StgWord PF_pap_info, PF_pap_tag;
 enum { PAP_USEG = 2, PAP_BSEG = 3, PAP_WORDS = 9 };
-#define NAME_MAX_ARGS 4
 
 void unison_jit_closure_init(int64_t *info) { PF_pap_info = info[0], PF_pap_tag = info[1]; }
 
-// NULL if `fun` isn't a PAp.
-void *unison_jit_name(UnisonJitCtx *ctx, void *fun, int64_t n, int64_t u0, void *b0, int64_t u1, void *b1,
-                      int64_t u2, void *b2, int64_t u3, void *b3) {
+// NULL if `fun` isn't a PAp. The `n` new arguments are on the Unison stack,
+// a word and a pointer each, at slots base .. base + n - 1, where the
+// generated code put them; it passes them this way rather than as C
+// arguments so that there is no limit on their number. (A partial
+// application of a function known when the code is generated is built
+// inline instead: Codegen's genNameInline.)
+void *unison_jit_name(UnisonJitCtx *ctx, void *fun, int64_t n, int64_t base) {
   if (LTAG(fun) != (int)PF_pap_tag || (StgWord)LUN(fun)->header.info != PF_pap_info) return NULL;
   StgArrBytes *us = (StgArrBytes *)LP(fun, PAP_USEG);
   StgMutArrPtrs *bs = (StgMutArrPtrs *)LP(fun, PAP_BSEG);
@@ -395,23 +398,27 @@ void *unison_jit_name(UnisonJitCtx *ctx, void *fun, int64_t n, int64_t u0, void 
   nbs->ptrs = total;
   nbs->size = total + cards;
   memset(&nbs->payload[total], 0, cards * sizeof(StgWord));
-  int64_t u[NAME_MAX_ARGS] = {u0, u1, u2, u3};
-  void *b[NAME_MAX_ARGS] = {b0, b1, b2, b3};
   for (int64_t k = 0; k < n; k++) {
-    nus->payload[n - 1 - k] = u[k];
-    nbs->payload[n - 1 - k] = (StgClosure *)b[k];
+    nus->payload[n - 1 - k] = ctx->ustk[base + k];
+    nbs->payload[n - 1 - k] = (StgClosure *)ctx->bstk[base + k];
   }
   memcpy(&nus->payload[n], us->payload, old * sizeof(StgWord));
   memcpy(&nbs->payload[n], bs->payload, old * sizeof(StgWord));
   return (void *)((StgWord)p | PF_pap_tag);
 }
 
-// For the startup self-test: Name on elems[0] with `n` arguments, the k-th
-// being the word 100 + k and the closure elems[1]; the result goes in elems[3].
+// For the startup self-test: Name on elems[0] with `n` arguments (at most
+// 8), the k-th being the word 100 + k and the closure elems[1]; the result
+// goes in elems[3]. The arguments are put on a stack of the test's own.
 int64_t unison_jit_name_test(void **elems, int64_t n) {
   UnisonJitCtx tmp = {0}, *ctx = &tmp;
+  int64_t u[8];
+  void *b[8];
+  if (n > 8) return 0;
+  for (int64_t k = 0; k < n; k++) u[k] = 100 + k, b[k] = elems[1];
+  ctx->ustk = u, ctx->bstk = b;
   ctx->cap = rts_unsafeGetMyCapability();
-  void *res = unison_jit_name(ctx, elems[0], n, 100, elems[1], 101, elems[1], 102, elems[1], 103, elems[1]);
+  void *res = unison_jit_name(ctx, elems[0], n, 0);
   if (res == NULL) return 0;
   elems[3] = res;
   unison_jit_mark_bstk(elems, 3, 3);
