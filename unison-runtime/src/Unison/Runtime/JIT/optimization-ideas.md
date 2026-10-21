@@ -168,8 +168,13 @@ and runs slower with everything compiled (33 ms) than interpreted (22.6 ms); mea
 2026-10-20 with `run suite.localCloud` under `UNISON_JIT=eager UNISON_JIT_STATS=1`. (In
 `on` mode the row's 10,000 iterations finish before the compile thread installs the code,
 so the 0.90× against trunk in the 2026-10-16 record is the branch's interpreter against
-trunk's, not native code.) The helper takes its arguments as a list already, so the limit
-is the generator's, not the helper's.
+trunk's, not native code.) The limit is the helper's signature: `unison_jit_name` takes
+four (word, pointer) pairs as C arguments, padded with zeros (`NAME_MAX_ARGS` in jit_rt.c,
+`nameCall` in Codegen.hs), and the generator refuses larger sites at both places that
+call it (`Name`, and a `Let` whose binding is a partial application). To lift it, pass the
+values through a block on the C stack instead, as the write-back does with `%xargs`: one
+alloca per function sized by the largest site, the pairs stored into it, and the helper
+given its address and the count. Then any number of captured values is one call.
 
 ### Ensure no thunks on the boxed stack
 
