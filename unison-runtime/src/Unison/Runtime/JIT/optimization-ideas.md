@@ -25,6 +25,66 @@ either:
 
 If it helps, I don't think we need more than 16 bits for the constructor arity or for the constructor number. 
 
+Against the uniform two-array representation, in either form (2026-10-21): the packed
+tag and the fields are loaded from the same base, so the tag load issues alongside the
+field loads and is in front of the branch only; two arrays put a second dependent load in
+front of every field read, in the arm, and make a `Pack` three objects. The one-object
+layout was chosen over `DataG` on that measurement (2026-10-15). What would give a
+constructor number without a load and keep one object is the second option limited to
+the most common (constructor, arity) pairs, say (0,0), (1,0), (0,1), (1,1), (0,2), (1,2),
+but GHC has six pointer tags and they are spent, on `GList`, `GText`, `GEnum`, `GData1`,
+`GData2` and `GData5`, by measurement; moving two would be a measured trade against the
+list, text and `Map` rows. First do the following, which needs no representation change.
+
+### Match dispatch from the type's arities
+
+`genDMatchClosure` matches a data value in two levels: a switch on the pointer tag over
+every data shape (`GEnum`, `GData1`, `GData2`, `GData5` have their own tags; `GData3`,
+`GData4`, `GData6` and `GDataG` share tag 7 and are told apart by a switch on the info
+pointer), one block per shape computing where that shape keeps the packed tag, a phi, a
+load of the packed tag, and a switch on the constructor number. For
+
+```unison
+type MyTree = MyLeaf | MyNode MyTree Nat MyTree
+
+sumTree t = match t with
+  MyLeaf -> 0
+  MyNode l v r -> sumTree l + v + sumTree r
+```
+
+the optimized IR is a five-way switch on the tag bits, a four-way switch on the info
+pointer for tag 7, eight shape blocks, a phi, the tag load and a two-way switch: for a
+`MyNode` three dependent branches and two loads before its arm, and most of the code
+for shapes the type has no constructor of.
+
+The generator knows every constructor's arity from the type's declaration (`envTypes`,
+registered by the interface as types load), and the arity fixes the shape: 0 is `GEnum`,
+1 to 6 are `GData1` to `GData6`, more is `GDataG`. So the shape, which the pointer tag
+gives from bits already in a register, names the constructor whenever no two constructors
+of the type have the same arity, and the packed tag need not be loaded at all. The
+rules:
+
+- Switch only over the shapes the type has a constructor of; everything else is the
+  exit (the type system says it can't happen, the compare is the insurance against a
+  runtime bug, and it is one predictable compare).
+- A shape with exactly one constructor branches straight to that constructor's arm,
+  pushing its fields from the known offsets.
+- A shape with two or more constructors (`Either`'s two `GData1`s, `Boolean`'s two
+  `GEnum`s, `Ordering`, two constructors of seven or more fields in `GDataG`) loads the
+  packed tag at that shape's offset and switches among those constructors only.
+- A constructor the branch has no arm for goes to the default arm, as now.
+
+For `MyTree` that is one compare of the tag bits (`GEnum`, so `MyLeaf`), otherwise one
+load of the info pointer and one compare against `GData3`'s (`MyNode`), and no packed
+tag; `Optional`, list views, `Map` nodes and tuples are the same. `Either` is one compare
+of the tag bits, then one load and one compare. A type with two unary and two
+five-field constructors keeps two levels, the first on the tag bits and the second one
+load and a two-way switch, which is today's structure trimmed to what the type has.
+`genRMatch` can do the same per ability (`envAbilities`). The interpreter's `dataBranch`
+is already one `case` and one compare and stays as it is. The rows to measure are the
+binary tree ones and anything matching three-to-six-field constructors; the list walk
+is bound by `unison_jit_list_view` and its allocation, not the match.
+
 ### One allocation for several `Pack`s
 
 Consecutive `Pack`s in a straight-line run, and the arithmetic between them, could share one
