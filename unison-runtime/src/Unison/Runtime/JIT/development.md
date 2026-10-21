@@ -22,7 +22,7 @@ Run it with `UNISON_JIT=off`, `on` and `eager` at least, and the [matrix](#the-t
 
 ```bash
 scripts/jit-test-matrix.sh            # every row, fast build; --opt, --debug, --list, or row names
-``` A matching output says nothing about whether the JIT was on: run with `UNISON_JIT_LOG=1` and look for the compile lines.
+``` A matching output says nothing about whether the JIT was on: run with `UNISON_JIT_LOG=1` and look for the compile lines. The transcripts proof (`scripts/proofs/transcripts.sh`, see the root [development.md](../../../../../development.md)) runs jit-tests.md with the JIT off like every transcript and then again under `UNISON_JIT=on` with `UNISON_JIT_THRESHOLD=5` in a fresh codebase, so a change that breaks native code fails the proof before full CI; it warns, rather than fails, when the log says the JIT didn't activate or compiled nothing (a machine without LLVM), and the CI `jit` job is the one that insists on native code, on every platform.
 
 **Benchmark**, on the optimized build, on an idle machine, the two suites:
 
