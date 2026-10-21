@@ -116,13 +116,14 @@ every module, so it is left at the default until there is more to decide it on.
 
 ### Build IR without text
 
-The generator builds each module as Haskell `String`s, megabytes of them, which is most of
-what the compile thread allocates, and that allocation is shared with the running program
-(more GCs, major ones sooner). A builder over byte arrays, or LLVM's C API or bitcode, would
-cut it. Not for the parse: that is about 1% of a module's compile time
-([2026-10-09 O0](benchmarks/2026-10-09-o0.md)).
+The generator builds each module as text (`Unison.Util.Text`, strict and chunked, no
+longer `String`), megabytes of it per module, then converts it to a `Data.Text` and to
+UTF-8 for LLVM's parser (`UT.toText` in Compile.hs, `encodeUtf8` in LLVM.hs), two more
+copies. That is most of what the compile thread allocates, and the allocation is shared
+with the running program (more GCs, major ones sooner). Building the module through
+LLVM's C API, or as bitcode, would be a slight improvement.
 
-TODO: is this still relevant?
+But parsing IR is very fast, about 1% of a module's compile time ([2026-10-09 O0](benchmarks/2026-10-09-o0.md)), so this doesn't really seem like a big win.
 
 ### Ideas for calling convention improvements
 
@@ -140,20 +141,6 @@ TODO: is this still relevant?
   unwinds turn out to be frequent.
 - A leaner entry for leaf functions, for the ones the "too small to enter" verdict keeps
   interpreted today.
-
-### Partial applications of function values
-
-A partial application is built natively when the function is known at code generation. A
-function value applied to too few arguments (`g = f x` where `f` is itself a closure) still
-resumes in the interpreter: whether the call is under-saturated is only known at run time, so
-the closure-call code needs a second continuation that joins the body with the new closure
-instead of a call's result. The helper already handles closures with captured arguments.
-
-The four-argument limit of `Name` is gone (2026-10-20): a partial application of a known
-function is built inline, and the helper for one of a function value takes its arguments
-on the Unison stack. It was found through the broad suite's "Mutate a local Remote.Ref 10k
-times", where the cloud library's local `Remote` runtime closes over eight values three
-times per `Ref.modify`; see [2026-10-20 Name](benchmarks/2026-10-20-name.md).
 
 ### Ensure no thunks on the boxed stack
 
@@ -304,48 +291,25 @@ frames of a small function; deeper recursion bounces through the interpreter eve
 frames. Switching to a large malloc'd stack in `unison_jit_enter` would make that many times
 rarer. Cheap to try; needs care with signal handlers and anything that inspects the stack.
 
-### Oddity: text append performance is bimodal
+### Linear re-entry code for all cases (low priority)
 
-`Text: append "hi" 10000 times` in `jit-benchmarks.md` gives either about 50 µs or 200 to
-250 µs from one run to the next, on the optimized build with `--jit on`, from the codebase
-and compiled alike ([2026-10-18](benchmarks/2026-10-18-compiled-programs.md)); the records
-before that day only ever saw the slow mode. The fast mode would be the slack-chunk append
-in place every time and the slow mode a copy per append, so something decides per run
-whether the chunk keeps its slack (the CAS on the used length losing to a stale length,
-or the first chunk's allocation), and finding it could make the row 4× faster every time.
+A re-entry function is the whole suffix of its function from its point on, generated
+inline, so a function whose n re-entry points in sequence all get generated holds about
+n²/2 of its instructions. In `on` mode that doesn't happen: certain call-outs are linear
+(the parent stops at the call-out and each segment appears once), and the cap on ad hoc
+re-entry functions (`UNISON_JIT_REENTRY_ADHOC`, 2026-10-20) bounds what the poll and stack
+growth can ask for.
 
-### Linear re-entry code (low priority)
+What remains is `eager` mode (intended only for testing), which generates every Let body by design,
+and two cases that don't occur in practice: Let bodies whose callees always exit (the
+estimate leaves such functions interpreted) and the deferred copies after slow-path
+call-outs (needs many sites of one function to keep taking their slow paths).
 
-Noticed 2026-10-20 when asking whether a long-running function accumulates a re-entry
-point for every place it can be interrupted. A re-entry function is the whole suffix of
-its function from its point on, generated inline, so a function with n re-entry points in
-sequence that all get generated holds about n²/2 of its instructions. The memo per
-(section, depth, base) stops the nesting of bindings being exponential; it does not
-remove the overlap of suffixes. Certain call-outs are already linear: the parent stops
-at the call-out and each segment appears once.
-
-What can still reach the quadratic amount, after the cap on ad hoc re-entry functions
-(`UNISON_JIT_REENTRY_ADHOC`, same day; "Re-entry functions on demand" in design.md):
-
-- **`eager` mode**, which compiles every Let body with its group whether or not anything
-  exits there (`groupUnits` with lazy false). That is the mode's purpose, for tests.
-- **Let bodies whose callees exit for structural reasons**, in `on` mode. Bounded by the
-  code, and in practice by the estimate: a function whose calls all exit is left
-  interpreted (`Estimate.judge`), so only a few of a compiled function's Lets can be of
-  this kind.
-- **The deferred copies after slow-path call-outs**: the continuation is inlined in the
-  parent on the fast path and again in each deferred function, and each of those inlines
-  the suffix past the next site too. Needs the slow path to be taken often enough at
-  each of many sites of one function, which is to say a function whose list, text or
-  arithmetic operations keep meeting closures the helpers refuse. Not expected to happen,
-  if ever.
-
-If one of these turns out to matter, the fix is the same for Let bodies and deferred
-functions: generate a re-entry function as its own binding followed by a call through
-the *next* Let's (or deferred site's) cell, a direct call when that cell is compiled and
-otherwise the same exit the interpreter would take on an empty cell, instead of inlining
-the rest. Only the root function needs the straight inline path; the re-entry path is
-cold.
+If one of those ever matters, the fix is to generate a re-entry function as its own binding
+followed by a call through the *next* Let's (or deferred site's) cell instead of inlining the
+rest: a direct call when that cell is compiled, otherwise the exit the interpreter would
+take on an empty cell. Only the root function needs the straight inline path; the re-entry
+path is cold.
 
 ## Rejected
 
