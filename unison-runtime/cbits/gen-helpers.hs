@@ -1,7 +1,29 @@
 -- Makes clang's IR for jit_helpers.c and jit_exit.c platform-independent:
--- reads the .ll on stdin, writes the stripped one on stdout. What goes and
--- why is in "The IR helpers" in src/Unison/Runtime/JIT/design.md. Run
--- through gen-helpers.sh (`stack runghc`), which needs nothing beyond base.
+-- reads the .ll on stdin, writes the stripped one on stdout. Run through
+-- gen-helpers.sh (`stack runghc`), which needs nothing beyond base.
+--
+-- What goes, and why the result runs on every target the JIT does: the
+-- target triple and data layout (the JIT applies the host's); the function
+-- attributes that name a CPU, its features, the frame-pointer and
+-- stack-protector policy, keeping only the target-neutral ones; the
+-- metadata; clang's spelling of the 16-byte return, `[2 x i64]` on arm64
+-- against `{ i64, i64 }` on x86-64, normalized to the struct the generator
+-- declares; and the alignment of private constant arrays, 16 on x86-64 and
+-- 8 on arm64, normalized to 8 (the one difference the Intel runner's check
+-- found on 2026-10-18). Clang's output for the same source was compared
+-- across arm64 macOS and x86-64 Linux: identical after that normalization,
+-- down to the folded closure offsets, which depend only on 64-bit
+-- little-endian words. On Windows clang would return the pair through a
+-- hidden pointer, a different shape, which is why the committed file is
+-- generated on macOS or Linux and used everywhere.
+--
+-- The layout tables jit_helpers.c reads stay `static` in jit_rt.c's
+-- translation unit, because an exported global is addressed through the
+-- global offset table, an extra dependent load in every helper that reads
+-- one (a few percent on the rope rows), where a private one is a direct
+-- address; jit_rt.c lists their names and addresses instead
+-- (unison_jit_table_addresses) and startup defines each as an absolute
+-- symbol in the JIT before the module is added, as it does the helpers.
 module Main (main) where
 
 import Data.Char (isAlphaNum, isDigit)

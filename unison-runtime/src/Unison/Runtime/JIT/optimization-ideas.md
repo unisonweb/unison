@@ -14,30 +14,6 @@ own nullary constructors, one per (type, constructor) could be shared instead of
 at every `Pack`. The constant pool already holds one per `Pack … ZArgs` site for native code; the
 interpreter's `buildData` would read a per-cache table of them.
 
-### Faster pattern matching
-
-Native code has dispatched on the shape since 2026-10-21 ([match dispatch](benchmarks/2026-10-21-match-dispatch.md)): the constructor arities fix each constructor's shape, the switch covers only the shapes the type has, a shape with one constructor goes straight to its arm, and only a shape two or more constructors share loads the packed tag. What remains of the two levels is in types with several constructors of one arity (`Either`, `Ordering`, an expression type with many unary constructors), where the packed tag is loaded, and in the interpreter, whose `dataBranch` is one `case` on the closure and one compare. The ideas below are about those.
-
-Right now, pattern matching has to do two levels of matching, first, to determine
-which arity constructor it is, and then to branch on that constructor's tag. We could
-either: 
-
-* Switch back to the generic DataN representation for everything, which lets you skip the first level of matching to determine if it's a `Data1`, `Data2`, etc, then still needing to match on the constructor number. This has the downside that it uses more memory per closure since you have to store two arrays, boxed and unboxed, for the constructor's arguments. And copying an array is a bit slower than manually copying a couple words. Though I don't know that we have benchmarks showing this exact combination.
-* Have more `Closure` constructors, one for each (constructor number, arity) combination (perhaps z-ordered or using hilbert curve?), so that both the interpreter and native code can gain information about both with a single match. 
-
-If it helps, I don't think we need more than 16 bits for the constructor arity or for the constructor number. 
-
-Against the uniform two-array representation, in either form (2026-10-21): the packed
-tag and the fields are loaded from the same base, so the tag load issues alongside the
-field loads and is in front of the branch only; two arrays put a second dependent load in
-front of every field read, in the arm, and make a `Pack` three objects. The one-object
-layout was chosen over `DataG` on that measurement (2026-10-15). What would give a
-constructor number without a load and keep one object is the second option limited to
-the most common (constructor, arity) pairs, say (0,0), (1,0), (0,1), (1,1), (0,2), (1,2),
-but GHC has six pointer tags and they are spent, on `GList`, `GText`, `GEnum`, `GData1`,
-`GData2` and `GData5`, by measurement; moving two would be a measured trade against the
-list, text and `Map` rows.
-
 ### One allocation for several `Pack`s
 
 Consecutive `Pack`s in a straight-line run, and the arithmetic between them, could share one
