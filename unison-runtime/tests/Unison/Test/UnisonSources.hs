@@ -22,6 +22,7 @@ import Unison.PrintError qualified as PrintError
 import Unison.Result (Result, pattern Result)
 import Unison.Result qualified as Result
 import Unison.Runtime.Interface qualified as RTI
+import Unison.Runtime.JIT qualified as JIT
 import Unison.Symbol (Symbol)
 import Unison.Term qualified as Term
 import Unison.Test.Common (parseAndSynthesizeAsFile, parsingEnv)
@@ -53,7 +54,7 @@ bad r = EasyTest.expectLeft r >> done
 
 test :: Test ()
 test = do
-  using (RTI.startRuntime False RTI.OneOff "") RTI.terminate \rt -> do
+  using (JIT.readConfig >>= JIT.newJIT >>= \jit -> RTI.startRuntime jit False RTI.OneOff "") RTI.terminate \rt -> do
     scope "unison-src"
       . tests
       $ [ go rt shouldPassNow good,

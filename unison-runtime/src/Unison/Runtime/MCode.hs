@@ -1,16 +1,23 @@
 {-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE EmptyDataDecls #-}
 {-# LANGUAGE GADTs #-}
+{-# LANGUAGE MagicHash #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PatternGuards #-}
 {-# LANGUAGE PatternSynonyms #-}
+{-# LANGUAGE UnboxedTuples #-}
+-- See the note in Stack.hs: the JIT relies on GCombInfo's optimized layout.
+{-# OPTIONS_GHC -O2 -funbox-strict-fields #-}
 
 module Unison.Runtime.MCode
   ( Args' (..),
     Args (..),
     FieldRef (..),
     RecordShape (..),
+    mkRecordShape,
+    shapeSlot,
     recordShape,
     recordShapeFrom,
     RefNums (..),
@@ -23,6 +30,27 @@ module Unison.Runtime.MCode
     Section,
     GComb (.., Lam),
     GCombInfo (..),
+    NativeCell,
+    readNativeCode,
+    readNativeEntry,
+    writeNativeCode,
+    bumpNativeCount,
+    readNativeCount,
+    writeNativeCount,
+    claimNativeCell,
+    releaseNativeCell,
+    takeNativeCell,
+    nativeCellRequested,
+    readNativeVerdict,
+    writeNativeVerdict,
+    NativeCellPool (..),
+    newNativeCells,
+    nativeCellAt,
+    newNativeCellPool,
+    takeNativeCells,
+    growNativeCellPool,
+    noNativeCell,
+    attachNativeCells,
     Comb,
     RComb (..),
     RCombInfo,
@@ -54,9 +82,12 @@ module Unison.Runtime.MCode
     combTypes,
     prettyCombs,
     prettyComb,
+    prettySection,
+    prettyIns,
   )
 where
 
+import Control.Monad (forM_, when)
 import Control.Monad.RWS
 import Control.Monad.Reader
 import Control.Monad.State.Strict
@@ -64,7 +95,7 @@ import Control.Monad.Trans.Writer.CPS (WriterT, runWriterT)
 import Data.Bifoldable (Bifoldable (..))
 import Data.Bifunctor (Bifunctor, bimap, first)
 import Data.Bitraversable (Bitraversable (..), bifoldMapDefault, bimapDefault)
-import Data.Bits (shiftL, shiftR, (.|.))
+import Data.Bits (shiftL, shiftR, (.&.), (.|.))
 import Data.Coerce
 import Data.Function ((&))
 import Data.Functor ((<&>))
@@ -80,7 +111,14 @@ import Data.Vector (Vector)
 import Data.Vector qualified as V
 import Data.Void (Void, absurd)
 import Data.Word (Word16, Word64)
+import Foreign.Marshal.Alloc (callocBytes)
+import Foreign.Ptr (nullPtr, plusPtr)
+import Foreign.Storable (peekByteOff, pokeByteOff)
+import GHC.Exts (Word#, atomicCasWordAddr#, eqWord#, isTrue#, plusAddr#)
+import GHC.IO (IO (..))
+import GHC.Ptr (Ptr (..))
 import GHC.Stack (HasCallStack)
+import System.IO.Unsafe (unsafePerformIO)
 import Unison.ABT.Normalized (pattern TAbss)
 import Unison.Reference (Reference, showShort)
 import Unison.Referent (Referent)
@@ -330,10 +368,50 @@ data RecordShape = RecordShape
     -- | The record's field names, ascending. Slot @i@ of a record value holds
     -- the value of @shapeFields ! i@.
     shapeFields :: !(Vector ANF.FieldName),
-    -- | Slot index of each field, for 'RecUnpack'.
-    shapePositions :: !(EC.EnumMap FieldRef Int)
+    -- | The field numbers ('FieldRef'), ascending; with 'shapeSlots' the
+    -- slot of each field, for 'RecUnpack' and 'RecSet'. Two unboxed arrays
+    -- searched by 'shapeSlot' rather than a map: a lookup is a binary search
+    -- over a few words, and native code does the same search over the
+    -- @ByteArray#@s (unison_jit_rec_pos). Built by 'mkRecordShape'.
+    shapeKeys :: !(PrimArray Word64),
+    -- | The slot of the field at the same index of 'shapeKeys'.
+    shapeSlots :: !(PrimArray Int)
   }
   deriving stock (Show)
+
+-- | A shape from its reference, its field names ascending, and the number of
+-- each field in that order (so the field at slot @i@ has number @refs !! i@).
+mkRecordShape :: ANF.RecordRef -> Vector ANF.FieldName -> [FieldRef] -> RecordShape
+mkRecordShape ref names refs =
+  RecordShape
+    { shapeRef = ref,
+      shapeFields = names,
+      shapeKeys = PA.primArrayFromList (map (\(FieldRef k, _) -> k) sorted),
+      shapeSlots = PA.primArrayFromList (map snd sorted)
+    }
+  where
+    sorted = M.toAscList (M.fromList (zip refs [0 ..]))
+
+-- | The slot of a field in a record of this shape: a binary search of
+-- 'shapeKeys'. A field the shape lacks is an error, not a result: typechecked
+-- code only reads fields the record has, so there is nothing to recover
+-- from, and nothing to allocate on the way out.
+shapeSlot :: RecordShape -> FieldRef -> Int
+shapeSlot shape (FieldRef k) = go 0 (PA.sizeofPrimArray keys)
+  where
+    keys = shapeKeys shape
+    go !lo !hi
+      | lo >= hi = error ("shapeSlot: no field " ++ show k ++ " in record " ++ show (V.toList (shapeFields shape)))
+      | otherwise =
+          let mid = (lo + hi) `div` 2
+              k' = PA.indexPrimArray keys mid
+           in if k' < k
+                then go (mid + 1) hi
+                else
+                  if k' > k
+                    then go lo mid
+                    else PA.indexPrimArray (shapeSlots shape) mid
+{-# INLINE shapeSlot #-}
 
 -- | Records are equal and ordered by field name, never by 'shapeRef', so that
 -- the result doesn't depend on the order field names happened to be interned.
@@ -354,12 +432,7 @@ recordShapeFrom ::
 recordShapeFrom (RecordFieldMappings _ m) ref (ANF.RecordSchema fields) = do
   let names = V.fromList (Set.toAscList fields)
   refs <- traverse (\n -> BiMap.lookupL n m) names
-  pure
-    RecordShape
-      { shapeRef = ref,
-        shapeFields = names,
-        shapePositions = EC.mapFromList (zip (V.toList refs) [0 ..])
-      }
+  pure (mkRecordShape ref names (V.toList refs))
 
 -- | Build the shape for a record schema, assigning a 'FieldRef' to any field
 -- name not yet seen.
@@ -371,12 +444,7 @@ recordShape ::
 recordShape ref (ANF.RecordSchema fields) = do
   let names = V.fromList (Set.toAscList fields)
   refs <- convertFieldNamesToRefs names
-  pure
-    RecordShape
-      { shapeRef = ref,
-        shapeFields = names,
-        shapePositions = EC.mapFromList (zip (V.toList refs) [0 ..])
-      }
+  pure (mkRecordShape ref names (V.toList refs))
 
 argsToLists :: Args -> [Int]
 argsToLists = \case
@@ -397,8 +465,19 @@ countArgs (VArgN us) = sizeofPrimArray us
 countArgs (VArgV {}) = internalBug [] "countArgs: DArgV"
 {-# INLINEABLE countArgs #-}
 
+-- The first six constructors are the ones the interpreter dispatches on
+-- most (measured 2026-10-15; "Layouts" in JIT/design.md): GHC
+-- gives a type's first six constructors their own pointer tags, and a case
+-- on any later one reads the info table. Nothing serializes or orders by
+-- this order; the Tag instances are explicit.
 data Prim1
-  = -- integral
+  = VWLS -- viewl
+  | VWRS -- viewr
+  | SIZS -- size
+  | SIZT -- size
+  | UCNS -- uncons
+  | REFR -- Ref.read
+  | -- integral
     DECI -- decrement
   | DECN
   | INCI -- increment
@@ -437,9 +516,7 @@ data Prim1
   -- Bools
   | NOTB -- not
   -- text
-  | SIZT -- size
   | USNC -- unsnoc
-  | UCNS -- uncons
   | ITOT -- intToText
   | NTOT -- natToText
   | FTOT -- floatToText
@@ -449,9 +526,6 @@ data Prim1
   | PAKT -- pack
   | UPKT -- unpack
   -- sequence
-  | VWLS -- viewl
-  | VWRS -- viewr
-  | SIZS -- size
   | PAKB -- pack
   | UPKB -- unpack
   | SIZB -- size
@@ -469,19 +543,27 @@ data Prim1
   | SDBL -- sandbox link list
   | -- Refs
     REFN -- Ref.new
-  | REFR -- Ref.read
   | RRFC
   | TIKR
   deriving (Show, Eq, Ord, Enum, Bounded)
 
+-- The first six constructors are the ones the interpreter dispatches on
+-- most (measured 2026-10-15; "Layouts" in JIT/design.md): GHC
+-- gives a type's first six constructors their own pointer tags, and a case
+-- on any later one reads the info table. Nothing serializes or orders by
+-- this order; the Tag instances are explicit.
 data Prim2
-  = -- integral
+  = ADDN
+  | EQLN
+  | LESN
+  | DRPN -- dropn
+  | LEQN
+  | MULN
+  | -- integral
     ADDI -- +
-  | ADDN
   | SUBI -- -
   | SUBN
   | MULI
-  | MULN
   | DIVI -- /
   | DIVN
   | MODI -- mod
@@ -493,13 +575,10 @@ data Prim2
   | POWI -- pow
   | POWN
   | EQLI -- ==
-  | EQLN
   | NEQI -- !=
   | NEQN
   | LEQI -- <=
-  | LEQN
   | LESI -- <
-  | LESN
   | ANDN -- and
   | ANDI
   | IORN -- or
@@ -521,7 +600,6 @@ data Prim2
   | MAXF -- max
   | MINF -- min
   | CAST -- unboxed runtime type cast (int to nat, etc.)
-  | DRPN -- dropn
   -- Bools
   | ANDB -- and
   | IORB -- or
@@ -579,24 +657,42 @@ type RInstr val = GInstr (RComb val)
 
 -- Instructions for manipulating the data stack in the main portion of
 -- a block
+-- The first six constructors are the ones the interpreter dispatches on
+-- most (measured 2026-10-15; "Layouts" in JIT/design.md): GHC
+-- gives a type's first six constructors their own pointer tags, and a case
+-- on any later one reads the info table. Nothing serializes or orders by
+-- this order; the Tag instances are explicit.
 data GInstr comb
-  = -- 1-argument primitive operations
-    Prim1
-      !Prim1 -- primitive instruction
-      !Int -- index of prim argument
-  | -- 2-argument unboxed primitive operations
+  = -- 2-argument unboxed primitive operations
     Prim2
       !Prim2 -- primitive instruction
       !Int -- index of first prim argument
       !Int -- index of second prim argument
-  | -- Use a check-and-set ticket to update a reference
-    -- (ref stack index, ticket stack index, new value stack index)
-    RefCAS !Int !Int !Int
+  | -- Push a particular value onto the appropriate stack
+    Lit !MLit -- value to push onto the stack
+  | -- 1-argument primitive operations
+    Prim1
+      !Prim1 -- primitive instruction
+      !Int -- index of prim argument
   | -- Call out to a Haskell function.
     ForeignCall
       !Bool -- catch exceptions
       !ForeignFunc -- FFI call
       !Args -- arguments
+  | -- Pack a data type value into a closure and place it
+    -- on the stack.
+    Pack
+      !Reference -- data type reference
+      !PackedTag -- tag
+      !Args -- arguments to pack
+  | -- This is essentially the opposite of `Call`. Pack a given
+    -- statically known function into a closure with arguments.
+    -- No stack is necessary, because no nested evaluation happens,
+    -- so the instruction directly takes a follow-up.
+    Name !(GRef comb) !Args
+  | -- Use a check-and-set ticket to update a reference
+    -- (ref stack index, ticket stack index, new value stack index)
+    RefCAS !Int !Int !Int
   | -- Call a dynamically loaded function. The vacuous form of this
     -- instruction is due to the very limited circumstances it can be
     -- called in. Foreign DLL functions are only loaded at runtime, so
@@ -623,20 +719,9 @@ data GInstr comb
     Capture !Word64 -- the prompt tag
   | -- Discard the continuation up to a given marker.
     Discard !Int -- the index of the affine handler info
-  | -- This is essentially the opposite of `Call`. Pack a given
-    -- statically known function into a closure with arguments.
-    -- No stack is necessary, because no nested evaluation happens,
-    -- so the instruction directly takes a follow-up.
-    Name !(GRef comb) !Args
   | -- Dump some debugging information about the machine state to
     -- the screen.
     Info !String -- prefix for output
-  | -- Pack a data type value into a closure and place it
-    -- on the stack.
-    Pack
-      !Reference -- data type reference
-      !PackedTag -- tag
-      !Args -- arguments to pack
   | -- Pack a record type into a closure and place it on the stack.
     -- The args arrive in ascending field-name order, matching the shape's
     -- slot order.
@@ -661,8 +746,6 @@ data GInstr comb
     RecSet
       !FieldRef {- field to replace -}
       !Args {- the record and the new value -}
-  | -- Push a particular value onto the appropriate stack
-    Lit !MLit -- value to push onto the stack
   | -- Print a value on the unboxed stack
     Print !Int -- index of the primitive value to print
   | -- Put a delimiter and initial handler on the continuation.
@@ -706,14 +789,14 @@ type Section = GSection CombIx
 
 type RSection val = GSection (RComb val)
 
+-- The first six constructors are the ones the interpreter dispatches on
+-- most (measured 2026-10-15; "Layouts" in JIT/design.md): GHC
+-- gives a type's first six constructors their own pointer tags, and a case
+-- on any later one reads the info table. Nothing serializes or orders by
+-- this order; the Tag instances are explicit.
 data GSection comb
-  = -- Apply a function to arguments. This is the 'slow path', and
-    -- handles applying functions from arbitrary sources. This
-    -- requires checks to determine what exactly should happen.
-    App
-      !Bool -- skip argument check for known calling convention
-      !(GRef comb) -- function to call
-      !Args -- arguments
+  = -- Prefix an instruction onto a section
+    Ins !(GInstr comb) !(GSection comb)
   | -- This is the 'fast path', for when we statically know we're
     -- making an exactly saturated call to a statically known
     -- function. This allows skipping various checks that can cost
@@ -725,18 +808,12 @@ data GSection comb
       !CombIx
       {- Lazy! Might be cyclic -} comb
       !Args -- arguments
-  | -- Jump to a captured continuation value.
-    Jump
-      !Int -- index of captured continuation
-      !Args -- arguments to send to continuation
-  | -- Branch on the value in the unboxed data stack
-    Match
-      !Int -- index of unboxed item to match on
+  | -- Branch on a data type without dumping the tag onto the unboxed
+    -- stack.
+    DMatch
+      !(Maybe Reference) -- expected data type
+      !Int -- index of data item on boxed stack
       !(GBranch comb) -- branches
-  | -- Yield control to the current continuation, with arguments
-    Yield !Args -- values to yield
-  | -- Prefix an instruction onto a section
-    Ins !(GInstr comb) !(GSection comb)
   | -- Sequence two sections. The second is pushed as a return
     -- point for the results of the first. Stack modifications in
     -- the first are lost on return to the second.
@@ -751,17 +828,29 @@ data GSection comb
       !CombIx -- body section refrence
       !Int -- stack safety
       !(GSection comb) -- body code
+      !(Ptr NativeCell) -- native code cell of the body's combinator (the re-entry point)
+  | -- Yield control to the current continuation, with arguments
+    Yield !Args -- values to yield
+  | -- Apply a function to arguments. This is the 'slow path', and
+    -- handles applying functions from arbitrary sources. This
+    -- requires checks to determine what exactly should happen.
+    App
+      !Bool -- skip argument check for known calling convention
+      !(GRef comb) -- function to call
+      !Args -- arguments
+  | -- Jump to a captured continuation value.
+    Jump
+      !Int -- index of captured continuation
+      !Args -- arguments to send to continuation
+  | -- Branch on the value in the unboxed data stack
+    Match
+      !Int -- index of unboxed item to match on
+      !(GBranch comb) -- branches
   | -- Throw an exception with the given message
     Die String
   | -- Immediately stop a thread of interpretation. This is more of
     -- a debugging tool than a proper operation to target.
     Exit
-  | -- Branch on a data type without dumping the tag onto the unboxed
-    -- stack.
-    DMatch
-      !(Maybe Reference) -- expected data type
-      !Int -- index of data item on boxed stack
-      !(GBranch comb) -- branches
   | -- Branch on a numeric type without dumping it to the stack
     NMatch
       !(Maybe Reference) -- expected data type
@@ -811,7 +900,210 @@ data GCombInfo comb
       !Int -- Number of arguments
       !Int -- Maximum needed frame size
       !(GSection comb) -- Entry
+      !(Ptr NativeCell) -- Where the JIT keeps this combinator's compiled code
   deriving stock (Show, Eq, Ord, Functor, Foldable, Traversable)
+
+-- | A native code cell (see unison-runtime/src/Unison/Runtime/JIT/design.md): the mutable part of a
+-- combinator, 32 bytes outside the Haskell heap, never moved and never
+-- freed, so generated code can refer to it by address. As a C struct:
+--
+-- > struct cell {
+-- >   void    *code;    // offset 0: the compiled entry point, NULL until compiled
+-- >   int64_t  count;   // offset 8: calls made while code was NULL
+-- >   int64_t  state;   // offset 16: 0 not yet requested, 1 queued, 2 taken by the compile thread
+-- >   int64_t  verdict; // offset 24: whether it is worth compiling (see readNativeVerdict)
+-- > };
+--
+-- The state only moves forward, so a combinator is asked for only once.
+-- The layout is a contract between two readers: this module (the
+-- @ and @ accessors below, at those offsets) and
+-- the generated code, which loads @ at offset 0 to call through a
+-- cell and writes @ at offset 8 (JIT/Codegen.hs); nothing in the C
+-- runtime reads a cell.
+--
+-- The count starts at minus the JIT's compilation threshold when the JIT
+-- compiles what gets hot, so that "hot" is the count reaching zero: the
+-- interpreter's test is one comparison with a constant. A count that
+-- starts at zero or above never gets there.
+data NativeCell
+
+nativeCellSize :: Int
+nativeCellSize = 32
+
+-- | Reads the compiled code pointer of a cell. Null means "interpret".
+readNativeCode :: Ptr NativeCell -> IO (Ptr ())
+readNativeCode cell = peekByteOff cell 0
+{-# INLINE readNativeCode #-}
+
+-- | The compiled code the interpreter should enter, if any. Null means
+-- "interpret": there is no code, or the function is so small that getting
+-- into native code and back costs more than interpreting it (verdict 3;
+-- native callers still call it directly).
+readNativeEntry :: Ptr NativeCell -> IO (Ptr ())
+readNativeEntry cell = do
+  code <- peekByteOff cell 0
+  if code == nullPtr
+    then pure code
+    else do
+      verdict <- peekByteOff cell 24 :: IO Int
+      pure (if verdict .&. 3 == 3 then nullPtr else code)
+{-# INLINE readNativeEntry #-}
+
+-- | Installs compiled code. A single pointer write; readers on other
+-- threads see either the old value or the new one.
+writeNativeCode :: Ptr NativeCell -> Ptr () -> IO ()
+writeNativeCode cell code = pokeByteOff cell 0 code
+
+-- | Counts a call made while the cell had no compiled code, and says
+-- whether that made it hot (the count reached zero). Not atomic; a lost
+-- count under contention does not matter.
+bumpNativeCount :: Ptr NativeCell -> IO Bool
+bumpNativeCount cell = do
+  n <- peekByteOff cell 8 :: IO Int
+  pokeByteOff cell 8 (n + 1)
+  pure (n == -1)
+{-# INLINE bumpNativeCount #-}
+
+readNativeCount :: Ptr NativeCell -> IO Int
+readNativeCount cell = peekByteOff cell 8
+
+-- | Sets a cell's count: negative, to make it hot after that many more
+-- calls.
+writeNativeCount :: Ptr NativeCell -> Int -> IO ()
+writeNativeCount cell n = pokeByteOff cell 8 n
+
+-- | Marks the cell as requested (state 0 to 1), atomically, and says
+-- whether this call was the one that did. Whoever does owns the request,
+-- and queues it.
+claimNativeCell :: Ptr NativeCell -> IO Bool
+claimNativeCell cell = casNativeState cell 0## 1##
+
+-- | Puts the state back to 0: for a request that could not be queued.
+releaseNativeCell :: Ptr NativeCell -> IO ()
+releaseNativeCell cell = pokeByteOff cell 16 (0 :: Int)
+
+-- | The compile thread takes the cell (state 2), whether it was requested
+-- or not, and says whether this call was the one that did. A combinator
+-- that is taken is being compiled, or has been, or can't be. A request
+-- found already taken when it comes off the queue is dropped: its
+-- combinator went into an earlier batch.
+takeNativeCell :: Ptr NativeCell -> IO Bool
+takeNativeCell cell = do
+  wasRequested <- casNativeState cell 1## 2##
+  if wasRequested then pure True else casNativeState cell 0## 2##
+
+casNativeState :: Ptr NativeCell -> Word# -> Word# -> IO Bool
+casNativeState (Ptr cell) from to = IO $ \s ->
+  case atomicCasWordAddr# (plusAddr# cell 16#) from to s of
+    (# s', old #) -> (# s', isTrue# (eqWord# old from) #)
+
+-- | Whether a request for the cell is queued.
+nativeCellRequested :: Ptr NativeCell -> IO Bool
+nativeCellRequested cell = (== (1 :: Int)) <$> peekByteOff cell 16
+
+-- | What the JIT has decided about compiling the cell's combinator. Zero:
+-- nothing yet. Otherwise the low two bits say: 1 worth compiling, 2 better
+-- left to the interpreter, because native code for it would spend its time
+-- leaving native code, 3 worth compiling for native callers but too small
+-- to be worth entering from the interpreter. The bits above hold an
+-- estimate the JIT keeps for judging callers (see JIT.Estimate). Only the thread that compiles writes
+-- this; the interpreter reads it when it finds code in the cell.
+readNativeVerdict :: Ptr NativeCell -> IO Int
+readNativeVerdict cell = peekByteOff cell 24
+
+writeNativeVerdict :: Ptr NativeCell -> Int -> IO ()
+writeNativeVerdict cell v = pokeByteOff cell 24 v
+
+-- | Allocates zeroed cells for @n@ combinators, as one block that is
+-- never freed.
+newNativeCells :: Int -> IO (Ptr NativeCell)
+newNativeCells n = callocBytes (max 1 n * nativeCellSize)
+
+-- | The cell at index @i@ of a block from 'newNativeCells'.
+nativeCellAt :: Ptr NativeCell -> Int -> Ptr NativeCell
+nativeCellAt base i = base `plusPtr` (i * nativeCellSize)
+
+-- | A shared cell for combinators that are never compiled: builtins,
+-- and combinators that were not loaded through the code cache.
+noNativeCell :: Ptr NativeCell
+noNativeCell = unsafePerformIO (newNativeCells 1)
+{-# NOINLINE noNativeCell #-}
+
+-- | Cells are handed out from a pool, so that loading code (an STM
+-- transaction) never has to allocate memory: a retried transaction
+-- would leak it. The pool is a block of cells and a count of how many
+-- are in use. When it runs out, a new block is allocated outside the
+-- transaction with 'growNativeCellPool'. Old blocks stay in use, and
+-- are never freed.
+data NativeCellPool = NativeCellPool !(Ptr NativeCell) !Int !Int -- block, used, capacity
+
+-- The first argument is the count every cell starts with: minus the
+-- threshold in the JIT's @on@ mode, zero (never hot) otherwise
+-- (JIT.initialNativeCount).
+newNativeCellPool :: Int -> Int -> IO NativeCellPool
+newNativeCellPool initialNativeCount capacity = do
+  block <- newNativeCells capacity
+  when (initialNativeCount /= 0) $
+    forM_ [0 .. capacity - 1] $
+      \i -> writeNativeCount (nativeCellAt block i) initialNativeCount
+  pure (NativeCellPool block 0 capacity)
+
+-- | Takes @n@ cells from the pool, or fails if it has fewer left.
+takeNativeCells :: Int -> NativeCellPool -> Maybe (Ptr NativeCell, NativeCellPool)
+takeNativeCells n (NativeCellPool block used capacity)
+  | used + n <= capacity = Just (nativeCellAt block used, NativeCellPool block (used + n) capacity)
+  | otherwise = Nothing
+
+-- | A fresh block with room for at least @n@ cells, and at least twice
+-- the old capacity so that growing stays rare.
+growNativeCellPool :: Int -> Int -> NativeCellPool -> IO NativeCellPool
+growNativeCellPool initialNativeCount n (NativeCellPool _ _ capacity) = newNativeCellPool initialNativeCount (max n (2 * capacity))
+
+-- | Gives every combinator in a group of freshly loaded code its own
+-- cell from @base@, numbering them in order. Returns the count used.
+attachNativeCells ::
+  Ptr NativeCell -> EnumMap Word64 (GCombs val comb) -> (Int, EnumMap Word64 (GCombs val comb))
+attachNativeCells base groups = (n, fmap attachLets groups')
+  where
+    (groups', n) = runState (traverse (traverse attach) groups) 0
+    attach (Comb (LamI a f s _)) = state \i -> (Comb (LamI a f s (nativeCellAt base i)), i + 1)
+    attach c = pure c
+    -- Every Let names its body's combinator, which is in the same group;
+    -- the Let carries that combinator's cell so the interpreter can find
+    -- the body's native code when it pops the Let's frame. That only
+    -- works when the body combinator's arity is the depth of the frame the
+    -- interpreter has at that point. Inside a Let binding it isn't: the
+    -- binding runs in a fresh frame, but the combinator's arguments also
+    -- include the enclosing function's slots below that frame. So a Let
+    -- inside a binding gets no re-entry point and its body is interpreted.
+    attachLets combs = fmap attachComb combs
+      where
+        attachComb (Comb (LamI a f s c)) = Comb (LamI a f (setLets False s) c)
+        attachComb c = c
+        cellOf inBinding w
+          | inBinding = noNativeCell
+          | otherwise = case EC.lookup w combs of
+              Just (Comb (LamI _ _ _ c)) -> c
+              _ -> noNativeCell
+        setLets inB section = case section of
+          Let b cix@(CIx _ _ w) f bd _ -> Let (setLets True b) cix f (setLets inB bd) (cellOf inB w)
+          Ins i nx -> Ins i (setLets inB nx)
+          Match i bs -> Match i (setLetsB inB bs)
+          DMatch i j bs -> DMatch i j (setLetsB inB bs)
+          NMatch i j bs -> NMatch i j (setLetsB inB bs)
+          RMatch i s bs -> RMatch i (setLets inB s) (fmap (setLetsB inB) bs)
+          App {} -> section
+          Call {} -> section
+          Jump {} -> section
+          Yield {} -> section
+          Die {} -> section
+          Exit -> section
+        setLetsB inB = \case
+          Test1 i s d -> Test1 i (setLets inB s) (setLets inB d)
+          Test2 i s j t d -> Test2 i (setLets inB s) j (setLets inB t) (setLets inB d)
+          TestW d m -> TestW (setLets inB d) (fmap (setLets inB) m)
+          TestT d m -> TestT (setLets inB d) (fmap (setLets inB) m)
+          TestY d m -> TestY (setLets inB d) (fmap (setLets inB) m)
 
 data GComb val comb
   = Comb {-# UNPACK #-} !(GCombInfo comb)
@@ -819,9 +1111,14 @@ data GComb val comb
     CachedVal !Word64 {- top level comb ix -} !val
   deriving stock (Show, Eq, Ord, Functor, Foldable, Traversable)
 
+-- | Matches any combinator, ignoring its native code cell. Building one
+-- with this gives it the shared "never compiled" cell, so don't use it to
+-- rebuild a combinator that already has a cell of its own.
 pattern Lam ::
   Int -> Int -> GSection comb -> GComb val comb
-pattern Lam a f sect = Comb (LamI a f sect)
+pattern Lam a f sect <- Comb (LamI a f sect _)
+  where
+    Lam a f sect = Comb (LamI a f sect noNativeCell)
 
 -- it seems GHC can't figure this out itself
 {-# COMPLETE CachedVal, Lam #-}
@@ -834,7 +1131,7 @@ instance Bifoldable GComb where
 
 instance Bitraversable GComb where
   bitraverse f _ (CachedVal cix c) = CachedVal cix <$> f c
-  bitraverse _ f (Lam a fr s) = Lam a fr <$> traverse f s
+  bitraverse _ f (Comb (LamI a fr s cell)) = Comb . (\s' -> LamI a fr s' cell) <$> traverse f s
 
 type RCombs val = GCombs val (RComb val)
 
@@ -1514,7 +1811,7 @@ emitLet rns grpr grpn rec d vcs ctx bnd
   where
     f s (w, Lam _ f bd) =
       let cix = (CIx grpr grpn w)
-       in Let s cix f bd
+       in Let s cix f bd noNativeCell
 
 -- Translate from ANF prim ops to machine code operations. The
 -- machine code operations are divided with respect to more detailed
@@ -1920,13 +2217,13 @@ sectionDeps (NMatch _ _ br) = branchDeps br
 sectionDeps (Ins i s)
   | Name (Env (CIx _ w _) _) _ <- i = w : sectionDeps s
   | otherwise = sectionDeps s
-sectionDeps (Let s (CIx _ w _) _ b) =
+sectionDeps (Let s (CIx _ w _) _ b _) =
   w : sectionDeps s ++ sectionDeps b
 sectionDeps _ = []
 
 sectionTypes :: GSection comb -> [Word64]
 sectionTypes (Ins i s) = instrTypes i ++ sectionTypes s
-sectionTypes (Let s _ _ b) = sectionTypes s ++ sectionTypes b
+sectionTypes (Let s _ _ b _) = sectionTypes s ++ sectionTypes b
 sectionTypes (Match _ br) = branchTypes br
 sectionTypes (DMatch _ _ br) = branchTypes br
 sectionTypes (NMatch _ _ br) = branchTypes br
@@ -2014,7 +2311,7 @@ prettySection ind sec =
     Yield as -> showString "Yield " . prettyArgs as
     Ins i nx ->
       prettyIns i . showString "\n" . prettySection ind nx
-    Let s _ _ b ->
+    Let s _ _ b _ ->
       showString "Let\n"
         . prettySection (ind + 2) s
         . showString "\n"
@@ -2128,7 +2425,7 @@ sanitizeSection sandboxedForeigns section = case section of
   Jump {} -> section
   Match i bs -> Match i (sanitizeBranches sandboxedForeigns bs)
   Yield {} -> section
-  Let s i f b -> Let (sanitizeSection sandboxedForeigns s) i f (sanitizeSection sandboxedForeigns b)
+  Let s i f b c -> Let (sanitizeSection sandboxedForeigns s) i f (sanitizeSection sandboxedForeigns b) c
   Die {} -> section
   Exit -> section
   DMatch i j bs -> DMatch i j (sanitizeBranches sandboxedForeigns bs)

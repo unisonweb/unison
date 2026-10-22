@@ -1,6 +1,6 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.38.1.
+-- This file has been generated from package.yaml by hpack version 0.39.6.
 --
 -- see: https://github.com/sol/hpack
 
@@ -12,6 +12,20 @@ copyright:      Copyright (C) 2013-2024 Unison Computing, PBC and contributors
 license:        MIT
 license-file:   LICENSE
 build-type:     Simple
+extra-source-files:
+    cbits/jit_builtins_arrays.c
+    cbits/jit_builtins_bytes.c
+    cbits/jit_builtins_compare.c
+    cbits/jit_builtins_lists.c
+    cbits/jit_builtins_math.c
+    cbits/jit_builtins_records.c
+    cbits/jit_builtins_ropes.c
+    cbits/jit_builtins_text.c
+    cbits/jit_builtins.h
+    cbits/jit_internal.h
+    cbits/jit_rt.h
+    cbits/jit_helpers.ll
+    cbits/jit_exit.ll
 
 source-repository head
   type: git
@@ -66,6 +80,20 @@ library
       Unison.Runtime.Interface
       Unison.Runtime.InternalError
       Unison.Runtime.IOSource
+      Unison.Runtime.JIT
+      Unison.Runtime.JIT.Codegen
+      Unison.Runtime.JIT.Compile
+      Unison.Runtime.JIT.Config
+      Unison.Runtime.JIT.Estimate
+      Unison.Runtime.JIT.Exits
+      Unison.Runtime.JIT.Frames
+      Unison.Runtime.JIT.Helpers
+      Unison.Runtime.JIT.Layout
+      Unison.Runtime.JIT.LLVM
+      Unison.Runtime.JIT.Native
+      Unison.Runtime.JIT.Native.Probes
+      Unison.Runtime.JIT.Pool
+      Unison.Runtime.JIT.Strict
       Unison.Runtime.Machine
       Unison.Runtime.Machine.Primops
       Unison.Runtime.Machine.Types
@@ -116,6 +144,8 @@ library
   ghc-options: -fmax-worker-args=100 -Wall -funbox-strict-fields -O2
   c-sources:
       cbits/i2d.c
+      cbits/jit_llvm.c
+      cbits/jit_rt.c
   build-depends:
       asn1-encoding
     , asn1-types
@@ -173,8 +203,10 @@ library
     , unison-pretty-printer
     , unison-syntax
     , unison-util-bytes
+    , unison-util-file-embed
     , unison-util-recursion
     , unison-util-relation
+    , unison-util-rope
     , unliftio
     , unordered-containers
     , vector

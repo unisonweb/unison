@@ -7,11 +7,15 @@ module Unison.Runtime.MCode.Serialize
     getComb,
     putCombIx,
     getCombIx,
+    putRecordShape,
+    getRecordShape,
   )
 where
 
 import Data.ByteString.Builder (Builder)
 import Data.ByteString.Builder qualified as BU
+import Data.List (sortOn)
+import Data.Primitive.PrimArray (primArrayToList)
 import Data.Void (Void)
 import Data.Word (Word64)
 import GHC.Exts (IsList (..))
@@ -111,7 +115,7 @@ putSection = \case
   Match i b -> putTag MatchT <> pInt i <> putBranch b
   Yield a -> putTag YieldT <> putArgs a
   Ins i s -> putTag InsT <> putInstr i <> putSection s
-  Let s ci f bd ->
+  Let s ci f bd _ ->
     putTag LetT
       <> putSection s
       <> putCombIx ci
@@ -141,7 +145,7 @@ getSection =
     YieldT -> Yield <$> getArgs
     InsT -> Ins <$> getInstr <*> getSection
     LetT ->
-      Let <$> getSection <*> getCombIx <*> gInt <*> getSection
+      Let <$> getSection <*> getCombIx <*> gInt <*> getSection <*> pure noNativeCell
     DieT -> Die <$> getString
     ExitT -> pure Exit
     DMatchT -> DMatch <$> getMaybe getReference <*> gInt <*> getBranch
@@ -272,17 +276,20 @@ putInstr = \case
     error "putInstr: Unexpected serialized DLLCall"
 
 putRecordShape :: RecordShape -> Builder
-putRecordShape (RecordShape ref fields positions) =
-  putRecordRef ref
-    <> putFoldable putText fields
-    <> putEnumMap putFieldRef pInt positions
+putRecordShape shape =
+  putRecordRef (shapeRef shape)
+    <> putFoldable putText (shapeFields shape)
+    -- the field numbers in slot order; the arrays are rebuilt on the way in
+    <> putFoldable putFieldRef (slotRefs shape)
+  where
+    slotRefs s = map snd . sortOn fst $ zip (primArrayToList (shapeSlots s)) (map FieldRef (primArrayToList (shapeKeys s)))
 
 getRecordShape :: (PrimBase m) => Get m RecordShape
 getRecordShape =
-  RecordShape
+  mkRecordShape
     <$> getRecordRef
     <*> getVector getText
-    <*> getEnumMap getFieldRef gInt
+    <*> getList getFieldRef
 
 getInstr :: (PrimBase m) => Get m Instr
 getInstr =

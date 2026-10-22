@@ -12,6 +12,7 @@ module Unison.Runtime.Machine
     Tracer (..),
     apply0,
     baseCCache,
+    initialNativeCells,
     cacheAdd,
     cacheAdd0,
     eval0,
@@ -29,6 +30,7 @@ module Unison.Runtime.Machine
 where
 
 import Control.Concurrent (ThreadId)
+import Control.Concurrent qualified as Conc
 import Control.Concurrent.STM as STM
 import Control.Exception
 import Control.Lens
@@ -38,7 +40,7 @@ import Data.HashMap.Lazy qualified as HM
 import Data.IORef (IORef, newIORef, readIORef, writeIORef)
 import Data.Map.Strict qualified as M
 import Data.Map.Strict.Internal qualified as M
-import Data.Sequence qualified as Sq
+import Data.Sequence qualified as Seq
 import Data.Set qualified as S
 import Data.Set qualified as Set
 import Data.Text qualified as DTx
@@ -77,6 +79,14 @@ import Unison.Runtime.ANF as ANF
   )
 import Unison.Runtime.ANF qualified as ANF
 import Unison.Runtime.ANF.Optimize qualified as ANF
+import Unison.Runtime.JIT (initialNativeCount, jitCompileGroup, jitConfig, jitExits, jitFrames, jitPool, jitRequestCell, jitRequestGroup, jitStats, jitTracing, noteAdHocExit, noteOutput, printJITStats, registerTypeNumbers, stackSlots)
+import Unison.Runtime.JIT.Config qualified as JIT
+import Unison.Runtime.JIT.Exits
+import Unison.Runtime.JIT.Frames
+import Unison.Runtime.JIT.Native
+import Unison.Runtime.JIT.Pool (currentPool)
+import Unison.Util.Deque qualified as Sq
+import Unsafe.Coerce (unsafeCoerce)
 #ifdef CODE_SERIAL_CHECK
 import Unison.Runtime.ANF.Serialize (serializeCode, deserializeCode)
 #endif
@@ -132,7 +142,7 @@ infos ctx s = putStrLn $ ctx ++ ": " ++ s
 eval0 ::
   (RuntimeProfiler p) => CCache p -> ActiveThreads -> MSection -> IO ()
 eval0 env !activeThreads !co = do
-  stk <- alloc
+  stk <- alloc (stackSlots (jit env))
   cmbs <- readTVarIO $ combs env
   (henv, k) <- do
     rfTy <- readTVarIO (refTy env)
@@ -169,7 +179,7 @@ topAEnv combs rfTy rfTm
       ahv <- extendPAp clo . BoxedVal $ Affine (setSingleton n) mempty ar
       writeIORef r ahv
       pure (EC.mapSingleton n ar, AMark 0 mempty ar)
-topAEnv _ _ _ = pure (mempty, id)
+topAEnv _ _ _ = pure (emptyAEnv, id)
 
 topHEnv ::
   EnumMap Word64 MCombs ->
@@ -177,7 +187,7 @@ topHEnv ::
   M.Map Reference Word64 ->
   IO (HEnv, K -> K)
 topHEnv combs rfTy rfTm =
-  first (flip HEnv mempty) <$> topAEnv combs rfTy rfTm
+  first (flip HEnv emptyDEnv) <$> topAEnv combs rfTy rfTm
 
 -- Entry point for evaluating a numbered combinator.
 -- An optional callback for the base of the stack may be supplied.
@@ -192,7 +202,7 @@ apply0 ::
   Word64 ->
   IO ()
 apply0 !callback env !threadTracker !i = do
-  stk <- alloc
+  stk <- alloc (stackSlots (jit env))
   cmbrs <- readTVarIO $ combRefs env
   cmbs <- readTVarIO $ combs env
   (henv, kf) <- do
@@ -246,9 +256,9 @@ apply1 ::
   Val ->
   IO ()
 apply1 callback env threadTracker clo = do
-  stk <- alloc
+  stk <- alloc (stackSlots (jit env))
   (tick, cancelTicks) <- startTicker $ profiler env
-  apply tick env mempty threadTracker stk k0 True ZArgs clo
+  apply tick env (HEnv emptyAEnv emptyDEnv) threadTracker stk k0 True ZArgs clo
     `finally` cancelTicks
   where
     k0 = CB $ Hook (\stk -> callback $ packXStack stk)
@@ -260,7 +270,7 @@ unitValue = BoxedVal $ unitClosure
 
 litToVal :: MLit -> Val
 litToVal = \case
-  MT t -> BoxedVal $ Foreign (WrapText t)
+  MT t -> BoxedVal $ TextC t
   MM r -> BoxedVal $ Foreign (WrapReferent r)
   MY r -> BoxedVal $ Foreign (WrapReference r)
   MI i -> IntVal i
@@ -340,14 +350,14 @@ exec _ _henv !_activeThreads !stk !k _ (Discard i) = do
   bpeekOff stk i >>= \case
     Affine _ _ r -> do
       (aenv, stk, k) <- abortCont stk k r
-      henv <- evaluate $ HEnv aenv mempty
+      henv <- evaluate $ HEnv aenv emptyDEnv
       pure (False, henv, stk, k)
     _ -> die [] "Discard called with bad handler reference"
 exec _env henv0 !_activeThreads !stk !k _ (InLocal i) = do
   bpeekOff stk i >>= \case
     Affine _ aenv _ -> do
       (stk, a) <- saveArgs stk
-      henv <- evaluate $ HEnv aenv mempty
+      henv <- evaluate $ HEnv aenv emptyDEnv
       pure (False, henv, stk, Local henv0 a k)
     v -> die [] $ "InLocal called with bad handler reference\n" ++ show v
 exec env henv !_activeThreads !stk !k _ (Prim1 CACH i)
@@ -442,10 +452,9 @@ exec _ henv !_activeThreads !stk !k _ (RecUnpack desiredFields recIndex) = do
       -- The slot a field sits in depends on the *value's* shape, not the
       -- pattern's: one pattern matches records of several shapes, in which a
       -- given field may sit at a different slot.
-      let positions = shapePositions shape
       let seg =
             V.toList desiredFields
-              <&> (\f -> vals V.! (positions EC.! f))
+              <&> (\f -> vals V.! shapeSlot shape f)
               & segFromList
       stk' <- dumpSeg stk seg S
       pure (False, henv, stk', k)
@@ -458,7 +467,7 @@ exec _ henv !_activeThreads !stk !k _ (RecSet field args) = do
       case rv of
         RecordG shape vals -> do
           -- The value's own shape says which slot the field sits in.
-          let pos = shapePositions shape EC.! field
+          let pos = shapeSlot shape field
           stk <- bump stk
           bpoke stk . RecordG shape $ vals V.// [(pos, nv)]
           pure (False, henv, stk, k)
@@ -481,7 +490,9 @@ exec _ henv !_activeThreads !stk !k _ (Reset ps nhi mah)
       ahv0 <- peekOff stk ahi
       r <- newIORef BlackHole
       let ar = ARef r
-      ahv <- extendPAp ahv0 . BoxedVal $ Affine ps aenv0 ar
+          -- evaluated: the JIT's handler code reads it from the stack
+          !aff = Affine ps aenv0 ar
+      ahv <- extendPAp ahv0 (BoxedVal aff)
       writeIORef r ahv
       aenv <- evaluate $ EC.unionWith const (mapFromSet ps ar) aenv0
       henv <- evaluate $ henv {aenv = aenv}
@@ -498,8 +509,10 @@ exec _ henv !_activeThreads !stk !k _ (Seq as) = do
   stk <- bump stk
   pokeS stk $ Sq.fromList l
   pure (False, henv, stk, k)
-exec _env henv !_activeThreads !stk !k _ (ForeignCall _ func args) = do
+exec env henv !_activeThreads !stk !k _ (ForeignCall _ func args) = do
   (b, stk) <- exStackIOToIO $ foreignCall func args (unpackXStack stk)
+  -- for the JIT's per-output statistics; nothing unless they are on
+  noteOutput (jit env) func
   pure (b, henv, stk, k)
 exec env henv !activeThreads !stk !k _ (Fork i)
   | sandboxed env = die [] "attempted to use sandboxed operation: fork"
@@ -798,7 +811,7 @@ eval' !yld env henv !activeThreads !stk !k here (Call ck combIx rcomb args) = do
   enter yld env henv activeThreads stk k combIx ck args rcomb
 eval' !yld env henv !activeThreads !stk !k _ (Jump i args) =
   bpeekOff stk i >>= jump yld env henv activeThreads stk k args
-eval' !yld env henv !activeThreads !stk !k r (Let nw cix f sect) = do
+eval' !yld env henv !activeThreads !stk !k r (Let nw cix f sect cell) = do
   (stk, fsz, asz) <- saveFrame stk
   eval
     yld
@@ -806,7 +819,7 @@ eval' !yld env henv !activeThreads !stk !k r (Let nw cix f sect) = do
     henv
     activeThreads
     stk
-    (Push fsz asz cix f sect k)
+    (Push fsz asz cix f sect cell k)
     r
     nw
 eval' !yld env henv !activeThreads !stk !k r (Ins i nx) = do
@@ -821,7 +834,7 @@ eval' !yld env henv !activeThreads !stk !k r (Ins i nx) = do
           fv <- peek stk
           bpoke stk $ Data1 exceptionRef TT.exceptionRaiseTag fv
           (stk, fsz, asz) <- saveFrame stk
-          let kk = Push fsz asz fakeCix 10 nx k
+          let kk = Push fsz asz fakeCix 10 nx noNativeCell k
           apply yld env henv activeThreads stk kk False (VArg1 0) eh
       | otherwise -> eval yld env henv activeThreads stk k r nx
 eval' !_ _ _ !_ !_activeThreads !_ _ Exit = pure ()
@@ -981,18 +994,186 @@ enter ::
   MComb ->
   IO ()
 enter !yld env henv !activeThreads !stk !k !cref !sck !args = \case
-  (RComb (Lam a f entry)) -> do
-    -- check for stack check _skip_
-    stk <- if sck then pure stk else ensure stk f
-    stk <- moveArgs stk args
-    stk <- acceptArgs stk a
-    eval yld env henv activeThreads stk k cref entry
+  (RComb (Comb (LamI a f entry cell))) -> do
+    native <- readNativeEntry cell
+    if native == nullPtr
+      then do
+        countInterpreted env cref cell
+        -- check for stack check _skip_
+        stk <- if sck then pure stk else ensure stk f
+        stk <- moveArgs stk args
+        stk <- acceptArgs stk a
+        eval yld env henv activeThreads stk k cref entry
+      else do
+        when (jitTracing (jit env)) $
+          JIT.jitDump ("enter native " ++ show cref ++ " arity " ++ show a ++ " args " ++ show args ++ " cell " ++ show cell ++ " code " ++ show native ++ " stack before " ++ show stk)
+        stk <- if sck then pure stk else ensure stk f
+        stk <- moveArgs stk args
+        stk <- acceptArgs stk a
+        when (jitTracing (jit env)) $ JIT.jitDump ("  stack after " ++ show stk)
+        runNative yld env henv activeThreads stk k (castPtrToFunPtr native)
   (RComb (CachedVal _ val)) -> do
     stk <- discardFrame stk
     stk <- bump stk
     poke stk val
     yield yld env henv activeThreads stk k
 {-# INLINE enter #-}
+
+-- Counts a call the interpreter is about to run itself because the
+-- combinator has no native code, and asks for the combinator's definition
+-- to be compiled when the count says it is hot (in the JIT's `on` mode).
+countInterpreted :: CCache prof -> CombIx -> Ptr NativeCell -> IO ()
+countInterpreted env cix cell = do
+  hot <- bumpNativeCount cell
+  when hot (jitRequestGroup (jit env) (sandboxed env) (combs env) (combRefs env) cix cell)
+{-# INLINE countInterpreted #-}
+
+-- Likewise for a re-entry point: counts a time the interpreter continued
+-- at a place where native code would have, had it been generated, and asks
+-- for it to be once that has happened often enough.
+countReentry :: CCache prof -> Ptr NativeCell -> IO ()
+countReentry env cell = do
+  hot <- bumpNativeCount cell
+  when hot (jitRequestCell (jit env) cell)
+{-# INLINE countReentry #-}
+
+-- The trampoline: runs compiled code for a combinator whose frame has
+-- been set up as `enter` sets it up, then acts on the status it returns.
+-- See unison-runtime/src/Unison/Runtime/JIT/design.md, "The trampoline".
+runNative ::
+  (RuntimeProfiler prof) =>
+  Ticker prof ->
+  CCache prof ->
+  HEnv ->
+  ActiveThreads ->
+  Stack ->
+  K ->
+  FunPtr NativeFn ->
+  IO ()
+runNative !yld env henv0 !activeThreads !stk0 !k0 fn0 = go fn0 henv0 stk0 k0
+  where
+    -- read once: these are consulted several times per round trip, and
+    -- the tables on every one
+    !tracing = jitTracing (jit env)
+    !counting = jitStats (jit env)
+    !exits = jitExits (jit env)
+    !frames = jitFrames (jit env)
+    !pool = jitPool (jit env)
+    go fn henv (Stack ap fp sp ustk bstk) k = do
+      poolArr <- currentPool pool
+      let !size = bstkSlots bstk
+      when counting $ countEntry exits (castFunPtrToPtr fn)
+      -- the handler environment goes in the boxed stack's out-area, where
+      -- the collector sees it; forced here, since native code can read a
+      -- constructor but not a thunk
+      let !henvC = unsafeCoerce henv :: Closure
+      writeArray bstk size henvC
+      status <- enterNative fn ustk bstk poolArr size ap fp sp
+      ap' <- outAp ustk size
+      fp' <- outFp ustk size
+      sp' <- outSp ustk size
+      let !stk = Stack ap' fp' sp' ustk bstk
+      if status == statusOK
+        then do
+          when tracing $ JIT.jitDump ("native returned OK with ap/fp/sp " ++ show (ap', fp', sp') ++ " (entered with " ++ show (ap, fp, sp) ++ ")")
+          yield yld env henv activeThreads stk k
+        else
+          if status == statusError
+            then die [] "native code reported an error"
+            else do
+              -- the frame records of the native callers above the exit;
+              -- they can be read once
+              n <- outFrameCount ustk size
+              records <- if n == 0 then pure [] else outFrames ustk size
+              when tracing $
+                JIT.jitDump ("native returned " ++ show status ++ " with ap/fp/sp " ++ show (ap', fp', sp') ++ " (entered with " ++ show (ap, fp, sp) ++ ")" ++ concatMap (("\n  frame record " ++) . show) records)
+              when counting $ do
+                total <- countExit exits status
+                let every = JIT.statsEvery (jitConfig (jit env))
+                when (every > 0 && total `mod` every == 0) (printJITStats (jit env))
+              exit <- lookupExit exits status
+              -- Records are written innermost caller first; K has the
+              -- innermost frame on top, so build from the last record.
+              k <- if n == 0 then pure k else foldM (pushRecord bstk size (isAdHoc exit)) k (reverse records)
+              -- the environment native code was running with: switched,
+              -- when it exited from inside a handler case
+              henv' <- unsafeCoerce <$> readArray bstk size
+              act henv' stk k exit
+    pushRecord bstk size adHoc k (FrameRecord i fsz asz)
+      | i < 0 = do
+          -- an affine handler case's environment switch, in force at the
+          -- exit: the frame that switches back (see exec's InLocal)
+          henv0 <- unsafeCoerce <$> readArray bstk (size + 1 + (-1 - i))
+          pure (Local henv0 asz k)
+      | otherwise = do
+          Frame cix@(CIx _ grp _) f sect cell <- lookupFrame frames i
+          -- an exit the code didn't cause, through a Let whose body has
+          -- no code: the frame carries no cell, so that popping it doesn't
+          -- count the miss (leap), and the JIT's budget for such re-entry
+          -- functions decides whether to count it (JIT.noteAdHocExit)
+          cell' <-
+            if adHoc && cell /= noNativeCell
+              then do
+                code <- readNativeCode cell
+                if code == nullPtr then noNativeCell <$ noteAdHocExit (jit env) grp cell else pure cell
+              else pure cell
+          pure (Push fsz asz cix f sect cell' k)
+    act henv stk k = \case
+      Named _ e -> act henv stk k e
+      Resume cix sect -> do
+        when tracing $ JIT.jitDump ("resume " ++ show cix ++ " at\n" ++ prettySection 4 sect "")
+        eval yld env henv activeThreads stk k cix sect
+      -- Grow by at least the stack's current size, ensuring push is amortized O(1)
+      GrowStack n cell -> do
+        when tracing $ JIT.jitDump ("grow stack by " ++ show n)
+        stk <- ensureGenerously stk n
+        again cell henv stk k
+      Reenter cell -> do
+        when tracing $ JIT.jitDump "reenter"
+        Conc.yield
+        again cell henv stk k
+      -- The interpreter runs one instruction, then native code continues
+      -- after it, with whatever the instruction did to the handler
+      -- environment and K. The exception case is eval's, except that the
+      -- handler's continuation can be native too.
+      CallOut cix instr rest n cell -> do
+        when tracing $ JIT.jitDump ("call out " ++ show cix ++ " for " ++ show instr)
+        code <- readNativeEntry cell
+        exec env henv activeThreads stk k cix instr >>= \case
+          (exception, henv, !stk', !k')
+            | exception -> do
+                eh <- resolveExceptionHandler henv
+                fv <- peek stk'
+                bpoke stk' $ Data1 exceptionRef TT.exceptionRaiseTag fv
+                (stk', fsz, asz) <- saveFrame stk'
+                let cell' = if n == 1 then cell else noNativeCell
+                    kk = Push fsz asz fakeCix 10 rest cell' k'
+                apply yld env henv activeThreads stk' kk False (VArg1 0) eh
+            | code /= nullPtr,
+              sp stk' == sp stk + n,
+              fp stk' == fp stk ->
+                go (castPtrToFunPtr code) henv stk' k'
+            | otherwise -> do
+                when (code == nullPtr) (countReentry env cell)
+                when tracing $ JIT.jitDump ("  no re-entry: pushed " ++ show (sp stk' - sp stk) ++ ", expected " ++ show n ++ "; fp " ++ show (fp stk, fp stk') ++ ", code " ++ show code)
+                eval yld env henv activeThreads stk' k' cix rest
+    -- The exit says which function to call again. It is the one that took
+    -- the exit, which after tail calls need not be the one entered here.
+    --
+    -- Its cell can still be empty: the functions of a module call each
+    -- other directly, and one can be running before the compile thread
+    -- has written the cell of another that it called. The cell is about
+    -- to be filled, so wait for it.
+    again cell henv stk k = wait (10000 :: Int)
+      where
+        wait n = do
+          code <- readNativeCode cell
+          if code /= nullPtr
+            then go (castPtrToFunPtr code) henv stk k
+            else
+              if n == 0
+                then die [] "native code disappeared from its cell"
+                else Conc.threadDelay 1000 >> wait (n - 1)
 
 -- fast path by-name delaying
 name :: Stack -> Args -> Val -> IO Stack
@@ -1010,14 +1191,15 @@ extendPAp (BoxedVal (PAp cix comb (useg0, bseg0))) new = do
   ucop <- newByteArray $ ussz + 8
   copyByteArray ucop 8 useg0 0 ussz
   writeByteArray ucop 0 $ getUnboxedVal new
-  useg <- unsafeFreezeByteArray ucop
+  !useg <- unsafeFreezeByteArray ucop
 
   bcop <- newArray (bssz + 1) BlackHole
   copyArray bcop 1 bseg0 0 bssz
-  writeArray bcop 0 $ getBoxedVal new
-  bseg <- unsafeFreezeArray bcop
+  writeArray bcop 0 $! getBoxedVal new
+  !bseg <- unsafeFreezeArray bcop
 
-  pure $ PAp cix comb (useg, bseg)
+  -- evaluated: the JIT's request code reads the ref this goes into
+  pure $! PAp cix comb (useg, bseg)
   where
     ussz = sizeofByteArray useg0
     bssz = sizeofArray bseg0
@@ -1046,13 +1228,21 @@ apply !yld env henv !activeThreads !stk !k !ck !args !val =
   case val of
     BoxedVal (PAp cix comb seg) ->
       case comb of
-        LamI a f entry
+        LamI a f entry cell
           | ck || a <= ac -> do
               stk <- ensure stk f
               stk <- moveArgs stk args
               stk <- dumpSeg stk seg A
               stk <- acceptArgs stk a
-              eval yld env henv activeThreads stk k cix entry
+              native <- readNativeEntry cell
+              if native == nullPtr || "apply" `elem` JIT.disabled (jitConfig (jit env))
+                then do
+                  countInterpreted env cix cell
+                  eval yld env henv activeThreads stk k cix entry
+                else do
+                  when (jitTracing (jit env)) $
+                    JIT.jitDump ("apply native " ++ show cix ++ " arity " ++ show a ++ " stack " ++ show stk)
+                  runNative yld env henv activeThreads stk k (castPtrToFunPtr native)
           | otherwise -> do
               seg <- closeArgs C stk seg args
               stk <- discardFrame =<< frameArgs stk
@@ -1104,8 +1294,8 @@ jump !yld env henv !activeThreads !stk !k !args clo = case clo of
     adjust :: K -> (SZ, K)
     adjust (Mark a rs denv k) =
       (0, Mark (a + asize stk) rs denv k)
-    adjust (Push n a cix f rsect k) =
-      (0, Push n (a + asize stk) cix f rsect k)
+    adjust (Push n a cix f rsect c k) =
+      (0, Push n (a + asize stk) cix f rsect c k)
     adjust k = (asize stk, k)
 {-# INLINE jump #-}
 
@@ -1134,8 +1324,8 @@ repush !yld env !activeThreads !stk (HEnv aenv denv0) = go denv0
       where
         denv' = cs <> EC.withoutKeys denv ps
         cs' = EC.restrictKeys denv ps
-    go !denv (Push n a cix f rsect sk) !k =
-      go denv sk $ Push n a cix f rsect k
+    go !denv (Push n a cix f rsect c sk) !k =
+      go denv sk $ Push n a cix f rsect c k
     go !_ (Local {}) !_ = die [] "repush: captured Local frame"
     go !_ (AMark {}) !_ = die [] "repush: captured AMark frame"
     go !_ (Keep {}) !_ = die [] "repush: captured Keep frame"
@@ -1199,21 +1389,42 @@ buildData !stk !r !t (VArg2 i j) = do
   v1 <- peekOff stk i
   v2 <- peekOff stk j
   pure $ Data2 r t v1 v2
-buildData !stk !r !t (VArgR i l) = do
-  seg <- augSeg I stk nullSeg (Just $ ArgR i l)
-  pure $ DataG r t seg
-buildData !stk !r !t (VArgN as) = do
-  seg <- augSeg I stk nullSeg (Just $ ArgN as)
-  pure $ DataG r t seg
-buildData !stk !r !t (VArgV i) = do
-  seg <-
-    if l > 0
-      then augSeg I stk nullSeg (Just $ ArgR 0 l)
-      else pure nullSeg
-  pure $ DataG r t seg
+buildData !stk !r !t (VArgR i l)
+  | l <= 6 = buildDataAt stk r t l (i +)
+  | otherwise = do
+      seg <- augSeg I stk nullSeg (Just $ ArgR i l)
+      pure $ DataG r t seg
+buildData !stk !r !t (VArgN as)
+  | n <= 6 = buildDataAt stk r t n (PA.indexPrimArray as)
+  | otherwise = do
+      seg <- augSeg I stk nullSeg (Just $ ArgN as)
+      pure $ DataG r t seg
+  where
+    n = PA.sizeofPrimArray as
+buildData !stk !r !t (VArgV i)
+  | l <= 6 = buildDataAt stk r t l id
+  | otherwise = do
+      seg <- augSeg I stk nullSeg (Just $ ArgR 0 l)
+      pure $ DataG r t seg
   where
     l = fsize stk - i
 {-# INLINE buildData #-}
+
+-- | A constructor of @n@ (up to six) fields, field @k@ read from slot
+-- @slot k@.
+buildDataAt :: Stack -> Reference -> PackedTag -> Int -> (Int -> Int) -> IO Closure
+buildDataAt !stk !r !t !n slot = case n of
+  0 -> pure $ Enum r t
+  1 -> Data1 r t <$> at 0
+  2 -> Data2 r t <$> at 0 <*> at 1
+  3 -> Data3 r t <$> at 0 <*> at 1 <*> at 2
+  4 -> Data4 r t <$> at 0 <*> at 1 <*> at 2 <*> at 3
+  5 -> Data5 r t <$> at 0 <*> at 1 <*> at 2 <*> at 3 <*> at 4
+  6 -> Data6 r t <$> at 0 <*> at 1 <*> at 2 <*> at 3 <*> at 4 <*> at 5
+  _ -> die [] "buildDataAt: more than six fields"
+  where
+    at k = peekOff stk (slot k)
+{-# INLINE buildDataAt #-}
 
 -- | Pack some number of args into a record value of the given shape. The args
 -- are emitted in ascending field-name order, which is the shape's slot order,
@@ -1221,7 +1432,7 @@ buildData !stk !r !t (VArgV i) = do
 buildRec :: Stack -> RecordShape -> Args -> IO Closure
 buildRec !stk shape args = do
   seg <- augSeg I stk nullSeg (Just $ argsToArgs' args)
-  pure . RecordG shape . V.fromList $ segToList seg
+  pure . RecordG shape $ recordVals seg
 {-# INLINE buildRec #-}
 
 dumpDataValNoTag ::
@@ -1245,14 +1456,17 @@ dumpDataNoTag !mr !stk = \case
   -- Normally we want to avoid dumping unboxed values since it's unnecessary, but sometimes we don't know the type of
   -- the incoming value and end up dumping unboxed values, so we just push them back to the stack as-is. e.g. in type-casts/coercions
   Enum _ _ -> pure stk
-  Data1 _ _ x -> do
+  Data1 _ _ a -> do
     stk <- bump stk
-    poke stk x
-    pure stk
-  Data2 _ _ x y -> do
+    stk <$ poke stk a
+  Data2 _ _ a b -> do
     stk <- bumpn stk 2
-    pokeOff stk 1 y
-    stk <$ poke stk x
+    pokeOff stk 1 b
+    stk <$ poke stk a
+  clo@(Data3 {}) -> dumpDataWide stk clo
+  clo@(Data4 {}) -> dumpDataWide stk clo
+  clo@(Data5 {}) -> dumpDataWide stk clo
+  clo@(Data6 {}) -> dumpDataWide stk clo
   DataG _ _ seg -> dumpSeg stk seg S
   clo ->
     die [3320] $
@@ -1260,6 +1474,39 @@ dumpDataNoTag !mr !stk = \case
         ++ show clo
         ++ maybe "" (\r -> "\nexpected type: " ++ show r) mr
 {-# INLINE dumpDataNoTag #-}
+
+-- | The fields of a constructor with three to six fields, out of line so
+-- that the interpreter's loop only inlines the common shapes.
+dumpDataWide :: Stack -> Closure -> IO Stack
+dumpDataWide !stk = \case
+  Data3 _ _ a b c -> do
+    stk <- bumpn stk 3
+    pokeOff stk 2 c
+    pokeOff stk 1 b
+    stk <$ poke stk a
+  Data4 _ _ a b c d -> do
+    stk <- bumpn stk 4
+    pokeOff stk 3 d
+    pokeOff stk 2 c
+    pokeOff stk 1 b
+    stk <$ poke stk a
+  Data5 _ _ a b c d e -> do
+    stk <- bumpn stk 5
+    pokeOff stk 4 e
+    pokeOff stk 3 d
+    pokeOff stk 2 c
+    pokeOff stk 1 b
+    stk <$ poke stk a
+  Data6 _ _ a b c d e f -> do
+    stk <- bumpn stk 6
+    pokeOff stk 5 f
+    pokeOff stk 4 e
+    pokeOff stk 3 d
+    pokeOff stk 2 c
+    pokeOff stk 1 b
+    stk <$ poke stk a
+  clo -> die [3321] $ "dumpDataWide: bad closure: " ++ show clo
+{-# NOINLINE dumpDataWide #-}
 
 -- Note: although the representation allows it, it is impossible
 -- to under-apply one sort of argument while over-applying the
@@ -1312,12 +1559,18 @@ yield !yld env henv0 !activeThreads !stk = leap
       stk <- bump stk
       bpoke stk $ Data1 Rf.effectRef (PackedTag 0) v
       stk <- adjustArgs stk a
-      henv <- evaluate $ HEnv aenv mempty
+      henv <- evaluate $ HEnv aenv emptyDEnv
       apply yld env henv activeThreads stk k False (VArg1 0) h
-    leap (Push fsz asz cix f nx k) = do
+    leap (Push fsz asz cix f nx cell k) = do
       stk <- restoreFrame stk fsz asz
       stk <- ensure stk f
-      eval yld env henv0 activeThreads stk k cix nx
+      -- The Let body may have native code (the re-entry point).
+      native <- readNativeEntry cell
+      if native == nullPtr
+        then do
+          countReentry env cell
+          eval yld env henv0 activeThreads stk k cix nx
+        else runNative yld env henv0 activeThreads stk k (castPtrToFunPtr native)
     leap (Local henv asz k) = do
       stk <- restoreFrame stk 0 asz
       yield yld env henv activeThreads stk k
@@ -1358,98 +1611,56 @@ selectBranch _ (TestY {}) = error "impossible"
 -- uniformly expect _no_ values to be added to the stack.
 dataBranch ::
   Maybe Reference -> Stack -> MBranch -> Closure -> IO (MSection, Stack)
-dataBranch mrf stk (Test1 u cu df) = \case
-  Enum _ t
-    | maskTags t == u -> pure (cu, stk)
-    | otherwise -> pure (df, stk)
-  Data1 _ t x
-    | maskTags t == u -> do
-        stk <- bump stk
-        (cu, stk) <$ poke stk x
-    | otherwise -> pure (df, stk)
-  Data2 _ t x y
-    | maskTags t == u -> do
-        stk <- bumpn stk 2
-        pokeOff stk 1 y
-        (cu, stk) <$ poke stk x
-    | otherwise -> pure (df, stk)
-  DataG _ t seg
-    | maskTags t == u -> (cu,) <$> dumpSeg stk seg S
-    | otherwise -> pure (df, stk)
+dataBranch mrf stk br = \case
+  -- one case on the closure: each shape looks its arm up and pushes its
+  -- fields in the same alternative (a second dispatch to push them cost a
+  -- few nanoseconds per match, 2026-10-15)
+  Enum _ t -> pick t (pure stk)
+  Data1 _ t a -> pick t do
+    stk <- bump stk
+    stk <$ poke stk a
+  Data2 _ t a b -> pick t do
+    stk <- bumpn stk 2
+    pokeOff stk 1 b
+    stk <$ poke stk a
+  clo@(Data3 _ t _ _ _) -> pick t (dumpDataWide stk clo)
+  clo@(Data4 _ t _ _ _ _) -> pick t (dumpDataWide stk clo)
+  clo@(Data5 _ t _ _ _ _ _) -> pick t (dumpDataWide stk clo)
+  clo@(Data6 _ t _ _ _ _ _ _) -> pick t (dumpDataWide stk clo)
+  DataG _ t seg -> pick t (dumpSeg stk seg S)
   Foreign (WrapMap m) -> case m of
     M.Bin sz k e l r
-      | u == Rf.mapBin -> (cu,) <$> dumpBin sz k e l r stk
+      | Just ca <- branchArm br Rf.mapBin -> (ca,) <$> dumpBin sz k e l r stk
     M.Tip
-      | u == Rf.mapTip -> pure (cu, stk)
-    _ -> pure (df, stk)
-  clo -> (df, stk) <$ dataBranchClosureError mrf clo
-dataBranch mrf stk (Test2 u cu v cv df) = \case
-  Enum _ t
-    | maskTags t == u -> pure (cu, stk)
-    | maskTags t == v -> pure (cv, stk)
-    | otherwise -> pure (df, stk)
-  Data1 _ t x
-    | maskTags t == u -> do
-        stk <- bump stk
-        (cu, stk) <$ poke stk x
-    | maskTags t == v -> do
-        stk <- bump stk
-        (cv, stk) <$ poke stk x
-    | otherwise -> pure (df, stk)
-  Data2 _ t x y
-    | maskTags t == u -> do
-        stk <- bumpn stk 2
-        pokeOff stk 1 y
-        (cu, stk) <$ poke stk x
-    | maskTags t == v -> do
-        stk <- bumpn stk 2
-        pokeOff stk 1 y
-        (cv, stk) <$ poke stk x
-    | otherwise -> pure (df, stk)
-  DataG _ t seg
-    | maskTags t == u -> (cu,) <$> dumpSeg stk seg S
-    | maskTags t == v -> (cv,) <$> dumpSeg stk seg S
-    | otherwise -> pure (df, stk)
-  Foreign (WrapMap m) -> case m of
-    M.Bin sz k e l r
-      | u == Rf.mapBin -> (cu,) <$> dumpBin sz k e l r stk
-      | v == Rf.mapBin -> (cv,) <$> dumpBin sz k e l r stk
-    M.Tip
-      | u == Rf.mapTip -> pure (cu, stk)
-      | v == Rf.mapTip -> pure (cv, stk)
-    _ -> pure (df, stk)
-  clo -> (df, stk) <$ dataBranchClosureError mrf clo
-dataBranch mrf stk (TestW df bs) = \case
-  Enum _ t
-    | Just ca <- EC.lookup (maskTags t) bs -> pure (ca, stk)
-    | otherwise -> pure (df, stk)
-  Data1 _ t x
-    | Just ca <- EC.lookup (maskTags t) bs -> do
-        stk <- bump stk
-        (ca, stk) <$ poke stk x
-    | otherwise -> pure (df, stk)
-  Data2 _ t x y
-    | Just ca <- EC.lookup (maskTags t) bs -> do
-        stk <- bumpn stk 2
-        pokeOff stk 1 y
-        (ca, stk) <$ poke stk x
-    | otherwise -> pure (df, stk)
-  DataG _ t seg
-    | Just ca <- EC.lookup (maskTags t) bs ->
-        (ca,) <$> dumpSeg stk seg S
-    | otherwise -> pure (df, stk)
-  Foreign (WrapMap m) -> case m of
-    M.Bin sz k e l r
-      | Just ca <- EC.lookup Rf.mapBin bs ->
-          (ca,) <$> dumpBin sz k e l r stk
-    M.Tip
-      | Just ca <- EC.lookup Rf.mapTip bs ->
-          pure (ca, stk)
-    _ -> pure (df, stk)
-  clo -> (df, stk) <$ dataBranchClosureError mrf clo
-dataBranch _ _ br = \_ ->
-  dataBranchBranchError br
+      | Just ca <- branchArm br Rf.mapTip -> pure (ca, stk)
+    _ -> pure (branchDefault br, stk)
+  clo -> (branchDefault br, stk) <$ dataBranchClosureError mrf clo
+  where
+    pick :: PackedTag -> IO Stack -> IO (MSection, Stack)
+    pick t push = case branchArm br (maskTags t) of
+      Just ca -> (ca,) <$> push
+      Nothing -> pure (branchDefault br, stk)
+    {-# INLINE pick #-}
 {-# INLINE dataBranch #-}
+
+-- | The section of a data branch for a constructor number, if it has one.
+-- Inlined into a case, so the Maybe costs nothing.
+branchArm :: MBranch -> Word64 -> Maybe MSection
+branchArm br ct = case br of
+  Test1 u cu _ -> if ct == u then Just cu else Nothing
+  Test2 u cu v cv _ -> if ct == u then Just cu else if ct == v then Just cv else Nothing
+  TestW _ bs -> EC.lookup ct bs
+  _ -> Nothing
+{-# INLINE branchArm #-}
+
+-- | The default section of a data branch.
+branchDefault :: MBranch -> MSection
+branchDefault = \case
+  Test1 _ _ d -> d
+  Test2 _ _ _ _ d -> d
+  TestW d _ -> d
+  br -> throw (Panic ("dataBranch: unexpected branch: " ++ show br) Nothing)
+{-# INLINE branchDefault #-}
 
 dumpBin :: Int -> Val -> Val -> Map Val Val -> Map Val Val -> Stack -> IO Stack
 dumpBin sz k e l r stk = do
@@ -1504,13 +1715,12 @@ dataBranchClosureError mrf clo =
       UnboxedTypeTag FloatTag -> "a floating point number"
       UnboxedTypeTag IntTag -> "an integer"
       UnboxedTypeTag NatTag -> "a natural number"
+      TextC {} -> "a builtin value of type `" <> prettyRef Rf.textRef <> "`"
+      ListC {} -> "a builtin value of type `" <> prettyRef Rf.listRef <> "`"
+      BytesC {} -> "a builtin value of type `" <> prettyRef Rf.bytesRef <> "`"
       Foreign (foreignRef -> rf) ->
         "a builtin value of type `" <> prettyRef rf <> "`"
       RecordC {} -> "a record"
-
-dataBranchBranchError :: MBranch -> IO a
-dataBranchBranchError br =
-  die [] $ "dataBranch: unexpected branch: " <> show br
 
 -- Splits off a portion of the continuation up to a given prompt.
 --
@@ -1551,11 +1761,11 @@ splitCont !denv !stk !k !p =
       where
         denv' = cs <> EC.withoutKeys denv ps
         cs' = EC.restrictKeys denv ps
-    walk !denv !sz !ck (Push n a br p brSect k) =
+    walk !denv !sz !ck (Push n a br p brSect c k) =
       walk
         denv
         (sz + n + a)
-        (Push n a br p brSect ck)
+        (Push n a br p brSect c ck)
         k
 
     finish :: DEnv -> SZ -> SZ -> K -> K -> IO (Val, DEnv, Stack, K)
@@ -1577,7 +1787,7 @@ abortCont !stk !k !r = walk (asize stk) k
       KE -> die [] "abortCont: fell off stack"
       (CB _) -> die [] "abortCont: fell off stack"
       (Local _ a k) -> walk (sz + a) k
-      (Push n a _ _ _ k) -> walk (sz + n + a) k
+      (Push n a _ _ _ _ k) -> walk (sz + n + a) k
       (Keep _ a k) -> walk (sz + a) k
       -- dynamic mark cannot match
       (Mark a _ _ k) -> walk (sz + a) k
@@ -1691,81 +1901,117 @@ cacheAdd0 ::
   [(Reference, Set Reference)] ->
   CCache p ->
   IO ()
-cacheAdd0 ntys0 (normalizeCodes -> termSuperGroups) sands cc = do
-  let toAdd = M.fromList (termSuperGroups <&> second codeGroup)
-  -- Which record schemas this code needs is a property of the code, so read it
-  -- off the groups rather than making every caller work it out.
-  let recSchemas = foldMap (ANF.groupRecordSchemas . codeGroup . snd) termSuperGroups
-  (unresolvedCacheableCombs, unresolvedNonCacheableCombs) <- atomically $ do
-    have <- readTVar (intermed cc)
-    haveRecSchemas <- readTVar (recordRefs cc)
-    let new = M.difference toAdd have
-    let sz = fromIntegral $ M.size new
-    let rs = M.keys new
-    int <- updateMap new (intermed cc)
-    let replace =
-          ANF.replaceConstructors pseudoConstructors
-            . ANF.replaceFunctions functionReplacements
-        haff (cmbs, opts) =
-          (M.mapWithKey (ANF.optimizeHandler Builtin opts) cmbs, opts)
-    opt <-
-      stateTVar (optInfos cc) $ haff . ANF.optimize (fmap replace new)
-    rty <- addRefs (freshTy cc) (refTy cc) (tagRefs cc) ntys0
-    ntm <- stateTVar (freshTm cc) $ \i -> (i, i + sz)
-    let newRecSchemas = recSchemas `Set.difference` (BM.keysSetL haveRecSchemas)
-    let numNewRecSchemas = fromIntegral $ Set.size newRecSchemas
-    nrs <- stateTVar (freshRecSchema cc) $ \i -> (i, i + numNewRecSchemas)
-    let newRecSchemaMap = BM.fromList $ zip (Set.toList newRecSchemas) (ANF.RecordRef <$> [nrs ..])
-    rtm <- updateMap (M.fromList $ zip rs [ntm ..]) (refTm cc)
-    rrLookup <- updateMap newRecSchemaMap (recordRefs cc)
-    -- Field names no longer need pre-registering here: building a record's
-    -- shape during emit interns any name it hasn't seen.
-    oldRfms <- readTVar (recordFieldMappings cc)
-    -- check for missing references
-    let arities = fmap (head . ANF.arities) int <> builtinArities
-        rns = RN (refLookup "ty" rty) (refLookup "tm" rtm) (flip M.lookup arities) (recordRefLookup rrLookup)
-        combinate :: Word64 -> (Reference, SuperGroup Reference Symbol) -> State RecordFieldMappings (Word64, EnumMap Word64 Comb)
-        combinate n (r, g) = (n,) <$> emitCombs rns r n g
-    let combRefUpdates = (mapFromList $ zip [ntm ..] rs)
-    let combIdFromRefMap = (M.fromList $ zip rs [ntm ..])
-    let newCacheableCombs =
-          termSuperGroups
-            & mapMaybe
-              ( \case
-                  (ref, CodeRep _ Cacheable) ->
-                    M.lookup ref combIdFromRefMap
-                  _ -> Nothing
-              )
-            & EC.setFromList
-    newCombRefs <- updateMap combRefUpdates (combRefs cc)
-    (newRFMs, unresolvedNewCombs, unresolvedCacheableCombs, unresolvedNonCacheableCombs, updatedCombs) <- stateTVar (combs cc) \oldCombs ->
+cacheAdd0 ntys0 (normalizeCodes -> termSuperGroups) sands cc = go
+  where
+    toAdd = M.fromList (termSuperGroups <&> second codeGroup)
+    -- Which record schemas this code needs is a property of the code, so read it
+    -- off the groups rather than making every caller work it out.
+    recSchemas = foldMap (ANF.groupRecordSchemas . codeGroup . snd) termSuperGroups
+
+    -- Every new combinator gets a native code cell (see unison-runtime/src/Unison/Runtime/JIT/design.md).
+    -- Cells come from the cache's pool, so the transaction never allocates
+    -- memory, which a retried transaction would leak. If the pool is too
+    -- small, the transaction makes no changes to the code and reports how
+    -- many cells it needs; the pool is grown outside the transaction and
+    -- the whole thing is tried again.
+    go = do
+      result <- atomically transaction
+      case result of
+        Left needed -> do
+          pool <- readTVarIO (nativeCells cc)
+          pool' <- growNativeCellPool (initialNativeCount (jit cc)) needed pool
+          atomically $ writeTVar (nativeCells cc) pool'
+          go
+        Right (unresolvedCacheableCombs, unresolvedNonCacheableCombs, newCombs, newCombRefs) -> do
+          readTVarIO (tagRefs cc) >>= registerTypeNumbers (jit cc)
+          when (JIT.dumpMCode (jitConfig (jit cc))) $
+            for_ (EC.mapToList (unresolvedCacheableCombs <> unresolvedNonCacheableCombs)) \(w, cmbs) ->
+              for_ (EC.mapToList cmbs) \(i, c) -> JIT.jitDump (prettyComb w i c "")
+          for_ (EC.mapToList newCombs) \(w, cmbs) ->
+            for_ (EC.lookup w newCombRefs) \r -> jitCompileGroup (jit cc) (sandboxed cc) r w cmbs
+          preEvalTopLevelConstants unresolvedCacheableCombs unresolvedNonCacheableCombs cc
+
+    transaction = do
+      have <- readTVar (intermed cc)
+      haveRecSchemas <- readTVar (recordRefs cc)
+      let new = M.difference toAdd have
+      let sz = fromIntegral $ M.size new
+      let rs = M.keys new
+      let int = new <> have
+      let replace =
+            ANF.replaceConstructors pseudoConstructors
+              . ANF.replaceFunctions functionReplacements
+          haff (cmbs, opts) =
+            (M.mapWithKey (ANF.optimizeHandler Builtin opts) cmbs, opts)
+      (opt, optInfos') <- haff . ANF.optimize (fmap replace new) <$> readTVar (optInfos cc)
+      -- These three number things. Numbering is harmless to commit even if the
+      -- pool turns out to be too small: the numbers are simply used or skipped.
+      rty <- addRefs (freshTy cc) (refTy cc) (tagRefs cc) ntys0
+      ntm <- stateTVar (freshTm cc) $ \i -> (i, i + sz)
+      let newRefTm = M.fromList $ zip rs [ntm ..]
+      rtm <- (newRefTm <>) <$> readTVar (refTm cc)
+      let newRecSchemas = recSchemas `Set.difference` (BM.keysSetL haveRecSchemas)
+      let numNewRecSchemas = fromIntegral $ Set.size newRecSchemas
+      nrs <- stateTVar (freshRecSchema cc) $ \i -> (i, i + numNewRecSchemas)
+      let newRecSchemaMap = BM.fromList $ zip (Set.toList newRecSchemas) (ANF.RecordRef <$> [nrs ..])
+          rrLookup = newRecSchemaMap <> haveRecSchemas
+      -- Field names no longer need pre-registering here: building a record's
+      -- shape during emit interns any name it hasn't seen.
+      oldRfms <- readTVar (recordFieldMappings cc)
+      -- check for missing references
+      let arities = fmap (head . ANF.arities) int <> builtinArities
+          rns = RN (refLookup "ty" rty) (refLookup "tm" rtm) (flip M.lookup arities) (recordRefLookup rrLookup)
+          combinate :: Word64 -> (Reference, SuperGroup Reference Symbol) -> State RecordFieldMappings (Word64, EnumMap Word64 Comb)
+          combinate n (r, g) = (n,) <$> emitCombs rns r n g
+      let combRefUpdates = (mapFromList $ zip [ntm ..] rs)
+      let combIdFromRefMap = (M.fromList $ zip rs [ntm ..])
+      let newCacheableCombs =
+            termSuperGroups
+              & mapMaybe
+                ( \case
+                    (ref, CodeRep _ Cacheable) ->
+                      M.lookup ref combIdFromRefMap
+                    _ -> Nothing
+                )
+              & EC.setFromList
       let (emittedCombs, newRFMs) =
             zipWith combinate [ntm ..] (M.toList opt)
               & sequenceA
               & flip runState oldRfms
-          unresolvedNewCombs :: EnumMap Word64 (GCombs any CombIx)
-          unresolvedNewCombs =
-            emittedCombs
-              & mapFromList
-              & sanitizeCombsOfForeignFuncs (sandboxed cc) sandboxedForeignFuncs
-              & absurdCombs
-          (unresolvedCacheableCombs, unresolvedNonCacheableCombs) =
-            EC.mapToList unresolvedNewCombs & foldMap \(w, gcombs) ->
-              if EC.member w newCacheableCombs
-                then (EC.mapSingleton w gcombs, mempty)
-                else (mempty, EC.mapSingleton w gcombs)
-          newCombs :: EnumMap Word64 MCombs
-          newCombs = resolveCombs (Just oldCombs) $ unresolvedNewCombs
-          updatedCombs = newCombs <> oldCombs
-       in ((newRFMs, unresolvedNewCombs, unresolvedCacheableCombs, unresolvedNonCacheableCombs, updatedCombs), updatedCombs)
-    nsc <- updateMap unresolvedNewCombs (srcCombs cc)
-    nsn <- updateMap (M.fromList sands) (sandbox cc)
-    ncc <- updateMap newCacheableCombs (cacheableCombs cc)
-    writeTVar (recordFieldMappings cc) newRFMs
-    -- Now that the code cache is primed with everything we need,
-    -- we can pre-evaluate the top-level constants.
-    pure $ int `seq` rtm `seq` newCombRefs `seq` updatedCombs `seq` nsn `seq` ncc `seq` nsc `seq` (unresolvedCacheableCombs, unresolvedNonCacheableCombs)
-  preEvalTopLevelConstants unresolvedCacheableCombs unresolvedNonCacheableCombs cc
+          uncelled =
+            sanitizeCombsOfForeignFuncs (sandboxed cc) sandboxedForeignFuncs $
+              mapFromList emittedCombs
+          (cellCount, _) = attachNativeCells nullPtr uncelled
+      pool <- readTVar (nativeCells cc)
+      case takeNativeCells cellCount pool of
+        Nothing -> pure (Left cellCount)
+        Just (cells, pool') -> do
+          -- Everything is in hand. From here on the transaction only writes.
+          writeTVar (nativeCells cc) pool'
+          int' <- updateMap new (intermed cc)
+          writeTVar (optInfos cc) optInfos'
+          rtm' <- updateMap newRefTm (refTm cc)
+          rrs <- updateMap newRecSchemaMap (recordRefs cc)
+          newCombRefs <- updateMap combRefUpdates (combRefs cc)
+          (unresolvedNewCombs, unresolvedCacheableCombs, unresolvedNonCacheableCombs, newCombs, updatedCombs) <- stateTVar (combs cc) \oldCombs ->
+            let unresolvedNewCombs :: EnumMap Word64 (GCombs any CombIx)
+                unresolvedNewCombs = absurdCombs (snd (attachNativeCells cells uncelled))
+                (unresolvedCacheableCombs, unresolvedNonCacheableCombs) =
+                  EC.mapToList unresolvedNewCombs & foldMap \(w, gcombs) ->
+                    if EC.member w newCacheableCombs
+                      then (EC.mapSingleton w gcombs, mempty)
+                      else (mempty, EC.mapSingleton w gcombs)
+                newCombs :: EnumMap Word64 MCombs
+                newCombs = resolveCombs (Just oldCombs) $ unresolvedNewCombs
+                updatedCombs = newCombs <> oldCombs
+             in ((unresolvedNewCombs, unresolvedCacheableCombs, unresolvedNonCacheableCombs, newCombs, updatedCombs), updatedCombs)
+          nsc <- updateMap unresolvedNewCombs (srcCombs cc)
+          nsn <- updateMap (M.fromList sands) (sandbox cc)
+          ncc <- updateMap newCacheableCombs (cacheableCombs cc)
+          writeTVar (recordFieldMappings cc) newRFMs
+          -- Now that the code cache is primed with everything we need,
+          -- we can pre-evaluate the top-level constants.
+          pure $ int' `seq` rtm' `seq` rrs `seq` newCombRefs `seq` updatedCombs `seq` nsn `seq` ncc `seq` nsc `seq` Right (unresolvedCacheableCombs, unresolvedNonCacheableCombs, newCombs, newCombRefs)
 
 preEvalTopLevelConstants ::
   (RuntimeProfiler p) =>
@@ -1934,6 +2180,27 @@ resolveTm rtm w =
             pure (rn, st)
         | otherwise -> throwIO $ ReflectExn "unknown term reference"
 
+-- | A map deserialized from the interchange form, in the form the
+-- program's own maps have: the Haskell 'WrapMap' when base's @Map@ type is
+-- replaced, the Unison tree otherwise (see `mapReplaced`).
+mapVal :: M.Map Val Val -> Val
+mapVal m
+  | mapReplaced = encodeVal m
+  | otherwise = boxedVal (inflateMap m)
+
+-- | The key/value pairs of base's @Map@ tree in key order, when the type
+-- isn't replaced and the tree has the shape `inflateMap` builds; the tree
+-- is serialized as the interchange `Map` node, as the Haskell map is, so
+-- that the bytes (and the typed hash) don't depend on the setting or on
+-- the tree's shape.
+nativeMapPairs :: Closure -> Maybe [(Val, Val)]
+nativeMapPairs = go []
+  where
+    go acc (Enum _ t) | t == TT.mapTipTag = Just acc
+    go acc (Data5 _ t _sz k v (BoxedVal l) (BoxedVal r))
+      | t == TT.mapBinTag = go acc r >>= \acc' -> go ((k, v) : acc') l
+    go _ _ = Nothing
+
 -- Reflects a runtime value into an interchange value, given a mapping
 -- from numberings to references.
 --
@@ -1987,21 +2254,16 @@ reflectValue0 rty rtm = goV0
         case clos of
           PAp cix _rComb args ->
             ANF.Partial <$> goIx cix <*> goVs args
-          Enum _ t -> do
-            r <- resolveTy rty $ TT.typeTag t
-            pure $ ANF.Data r (maskTags t) []
-          Data1 _ t u -> do
-            r <- resolveTy rty $ TT.typeTag t
-            u <- goV u
-            pure $ ANF.Data r (maskTags t) [u]
-          Data2 _ t u v -> do
-            r <- resolveTy rty $ TT.typeTag t
-            u <- goV u
-            v <- goV v
-            pure $ ANF.Data r (maskTags t) [u, v]
-          DataG _ t seg -> do
-            r <- resolveTy rty $ TT.typeTag t
-            ANF.Data r (maskTags t) <$> goVs seg
+          Enum _ t
+            | not mapReplaced, t == TT.mapTipTag -> pure $ ANF.BLit (ANF.Map [])
+          DataC _ t vs
+            | not mapReplaced,
+              t == TT.mapBinTag,
+              Just kvs <- nativeMapPairs clos ->
+                ANF.BLit . ANF.Map <$> traverse (\(k, v) -> (,) <$> goV k <*> goV v) kvs
+            | otherwise -> do
+                r <- resolveTy rty $ TT.typeTag t
+                ANF.Data r (maskTags t) <$> traverse goV vs
           RecordC shape vals ->
             -- The shape carries the field names, in the same ascending order
             -- as the slots, which is also the order `reifyValue` expects.
@@ -2009,6 +2271,9 @@ reflectValue0 rty rtm = goV0
               <$> traverse goV (V.toList vals)
           Captured k _ segs ->
             ANF.Cont <$> goVs segs <*> goK k
+          TextC t -> pure (ANF.BLit (ANF.Text t))
+          ListC s -> ANF.BLit . ANF.List . Seq.fromList <$> traverse goV (toList s)
+          BytesC b -> pure (ANF.BLit (ANF.Bytes b))
           Foreign f -> ANF.BLit <$> goF f
           BlackHole -> reflExn "black hole"
           UnboxedTypeTag {} ->
@@ -2024,7 +2289,7 @@ reflectValue0 rty rtm = goV0
       ps <- traverse (resolveTy rty) (EC.setToList ps)
       de <- traverse (\(k, v) -> (,) <$> resolveTy rty k <*> goV v) (mapToList de)
       ANF.Mark (fromIntegral a) ps de <$> goK k
-    goK (Push f a cix _ _rsect k) =
+    goK (Push f a cix _ _rsect _ k) =
       ANF.Push
         (fromIntegral f)
         (fromIntegral a)
@@ -2032,9 +2297,6 @@ reflectValue0 rty rtm = goV0
         <*> goK k
 
     goF = \case
-      WrapText t -> pure (ANF.Text t)
-      WrapBytes b -> pure (ANF.Bytes b)
-      WrapSeq s -> ANF.List <$> traverse goV s
       WrapReferent l -> ANF.TmLink <$> canonicalizeReferent l
       WrapReference l -> ANF.TyLink <$> canonicalizeReference True l
       WrapValue v -> ANF.Quote <$> canonicalizeReferenced v
@@ -2149,8 +2411,8 @@ reifyValue0Canon combs tys tms rty rtm rrLookup rfms = goV
     goVArr :: Array (ANF.Value RefNum) -> IO (Array Val)
     goVArr vs = traverseArrayIO goV vs
 
-    goVSeq :: Seq (ANF.Value RefNum) -> IO (Seq Val)
-    goVSeq vs = traverse goV vs
+    goVSeq :: Seq (ANF.Value RefNum) -> IO USeq
+    goVSeq vs = Sq.fromList <$> traverse goV (toList vs)
 
     goV :: ANF.Value RefNum -> IO Val
     goV (ANF.Partial gr vs) =
@@ -2176,7 +2438,7 @@ reifyValue0Canon combs tys tms rty rtm rrLookup rfms = goV
       -- `putValue` writes the values in ascending field-name order, which is
       -- the shape's slot order, so no reordering is needed.
       vals' <- goVs vals
-      pure . boxedVal . RecordG shape . V.fromList $ segToList vals'
+      pure . boxedVal . RecordG shape $ recordVals vals'
     goV (ANF.Cont vs k) = do
       k' <- goK k
       vs' <- goVs vs
@@ -2199,13 +2461,14 @@ reifyValue0Canon combs tys tms rty rtm rrLookup rfms = goV
           Mark (fromIntegral a) (setFromList ps) (mapFromList de) k
     goK (ANF.Push f a gr k) =
       goIx gr >>= \case
-        (cix, RComb (Lam _ fr sect)) ->
+        (cix, RComb (Comb (LamI _ fr sect cell))) ->
           Push
             (fromIntegral f)
             (fromIntegral a)
             cix
             fr
             sect
+            cell
             <$> goK k
         (CIx r _ _, _) ->
           die [] . err $
@@ -2228,7 +2491,7 @@ reifyValue0Canon combs tys tms rty rtm rrLookup rfms = goV
     goL (ANF.Neg w) = pure $ IntVal (negate (fromIntegral w :: Int))
     goL (ANF.Float d) = pure $ DoubleVal d
     goL (ANF.Arr a) = encodeVal <$> goVArr a
-    goL (ANF.Map l) = encodeVal . M.fromList <$> traverse goP l
+    goL (ANF.Map l) = mapVal . M.fromList <$> traverse goP l
       where
         goP (x, y) = (,) <$> goV x <*> goV y
     goL (ANF.BigInt i) = pure $ encodeVal i
@@ -2284,7 +2547,7 @@ reifyValue0 (combs, rty, rtm, rrLookup, rfms) = goV
       -- `putValue` writes the values in ascending field-name order, which is
       -- the shape's slot order, so no reordering is needed.
       vals' <- goVs vals
-      pure . boxedVal . RecordG shape . V.fromList $ segToList vals'
+      pure . boxedVal . RecordG shape $ recordVals vals'
     goV (ANF.Cont vs k) = do
       k' <- goK k
       vs' <- goVs vs
@@ -2307,13 +2570,14 @@ reifyValue0 (combs, rty, rtm, rrLookup, rfms) = goV
           Mark (fromIntegral a) (setFromList ps) (mapFromList de) k
     goK (ANF.Push f a gr k) =
       goIx gr >>= \case
-        (cix, RComb (Lam _ fr sect)) ->
+        (cix, RComb (Comb (LamI _ fr sect cell))) ->
           Push
             (fromIntegral f)
             (fromIntegral a)
             cix
             fr
             sect
+            cell
             <$> goK k
         (CIx r _ _, _) ->
           die [] . err $
@@ -2322,7 +2586,7 @@ reifyValue0 (combs, rty, rtm, rrLookup, rfms) = goV
 
     goL :: ANF.BLit Reference -> IO Val
     goL (ANF.Text t) = pure $ encodeVal t
-    goL (ANF.List l) = boxedVal . Foreign . WrapSeq <$> traverse goV l
+    goL (ANF.List l) = boxedVal . ListC . Sq.fromList <$> traverse goV (toList l)
     goL (ANF.TmLink r) = pure $ encodeVal r
     goL (ANF.TyLink r) = pure $ encodeVal r
     goL (ANF.Bytes b) = pure $ encodeVal b
@@ -2336,7 +2600,7 @@ reifyValue0 (combs, rty, rtm, rrLookup, rfms) = goV
     goL (ANF.Neg w) = pure $ IntVal (negate (fromIntegral w :: Int))
     goL (ANF.Float d) = pure $ DoubleVal d
     goL (ANF.Arr a) = encodeVal <$> goVArr a
-    goL (ANF.Map l) = encodeVal . M.fromList <$> traverse goP l
+    goL (ANF.Map l) = mapVal . M.fromList <$> traverse goP l
       where
         goP (x, y) = (,) <$> goV x <*> goV y
     goL (ANF.BigInt i) = pure $ encodeVal i

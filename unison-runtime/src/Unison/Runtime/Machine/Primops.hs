@@ -7,7 +7,6 @@ import Data.Bits
 import Data.IORef (IORef)
 import Data.IORef qualified as IORef
 import Data.Map.Strict qualified as M
-import Data.Sequence qualified as Sq
 import Data.Set qualified as S
 import Data.Word
 import Unison.Builtin.Decls qualified as Ty
@@ -25,6 +24,7 @@ import Unison.Runtime.TypeTags qualified as Ty
 import Unison.ShortHash qualified as SH
 import Unison.Util.Bytes (Bytes)
 import Unison.Util.Bytes qualified as By
+import Unison.Util.Deque qualified as Sq
 import Unison.Util.Text as UText
 
 prim1wrap ::
@@ -396,7 +396,7 @@ vwrs stk s = writeBack stk result
 {-# INLINE vwrs #-}
 
 pakt :: Stack -> USeq -> IO ()
-pakt stk s = pokeBi stk . UText.pack . toList $ val2char <$> s
+pakt stk s = pokeBi stk . UText.pack $ val2char <$> toList s
   where
     val2char :: Val -> Char
     val2char (CharVal c) = c

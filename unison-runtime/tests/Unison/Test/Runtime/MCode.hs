@@ -16,6 +16,7 @@ import Unison.Runtime.ANF
     lamLift,
     superNormalize,
   )
+import Unison.Runtime.JIT qualified as JIT
 import Unison.Runtime.Machine
   ( CCache (..),
     apply0,
@@ -42,7 +43,8 @@ testEval0 ::
   Test ()
 testEval0 env main =
   ok << io do
-    cc <- baseCCache False
+    jit <- JIT.newJIT =<< JIT.readConfig
+    cc <- baseCCache jit False
     _ <- cacheAdd ((fmap . fmap) uncacheable $ (mainRef, main) : env) cc
     rtm <- readTVarIO (refTm cc)
     apply0 Nothing cc Nothing (rtm Map.! mainRef)
