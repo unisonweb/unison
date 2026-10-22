@@ -1,0 +1,316 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE CPP, NoImplicitPrelude #-}</span><span>
+</span><span id="line-2"></span><span class="hs-comment">-- | This backports the modern &quot;Data.Semigroup&quot; interface back to</span><span>
+</span><span id="line-3"></span><span class="hs-comment">-- @base-4.9@/GHC 8.0.</span><span>
+</span><span id="line-4"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Data.List.NonEmpty.Compat.html"><span class="hs-identifier">Data.List.NonEmpty.Compat</span></a></span><span> </span><span class="hs-special">(</span><span>
+</span><span id="line-5"></span><span>  </span><span class="annot"><span class="hs-comment">-- * The type of non-empty streams</span></span><span>
+</span><span id="line-6"></span><span>    </span><span class="annot"><span class="hs-identifier">NonEmpty</span></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-7"></span><span>
+</span><span id="line-8"></span><span>  </span><span class="annot"><span class="hs-comment">-- * Non-empty stream transformations</span></span><span>
+</span><span id="line-9"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">map</span></span><span>
+</span><span id="line-10"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">intersperse</span></span><span>
+</span><span id="line-11"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">scanl</span></span><span>
+</span><span id="line-12"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">scanr</span></span><span>
+</span><span id="line-13"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">scanl1</span></span><span>
+</span><span id="line-14"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">scanr1</span></span><span>
+</span><span id="line-15"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">transpose</span></span><span>
+</span><span id="line-16"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">sortBy</span></span><span>
+</span><span id="line-17"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">sortWith</span></span><span>
+</span><span id="line-18"></span><span>  </span><span class="annot"><span class="hs-comment">-- * Basic functions</span></span><span>
+</span><span id="line-19"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">length</span></span><span>
+</span><span id="line-20"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.List.NonEmpty.Compat.html#compareLength"><span class="hs-identifier">compareLength</span></a></span><span>
+</span><span id="line-21"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">head</span></span><span>
+</span><span id="line-22"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">tail</span></span><span>
+</span><span id="line-23"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">last</span></span><span>
+</span><span id="line-24"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">init</span></span><span>
+</span><span id="line-25"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">singleton</span></span><span>
+</span><span id="line-26"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-operator">(&lt;|)</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">cons</span></span><span>
+</span><span id="line-27"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">uncons</span></span><span>
+</span><span id="line-28"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">unfoldr</span></span><span>
+</span><span id="line-29"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">sort</span></span><span>
+</span><span id="line-30"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">sortOn</span></span><span>
+</span><span id="line-31"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">reverse</span></span><span>
+</span><span id="line-32"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">inits</span></span><span>
+</span><span id="line-33"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">inits1</span></span><span>
+</span><span id="line-34"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">tails</span></span><span>
+</span><span id="line-35"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">tails1</span></span><span>
+</span><span id="line-36"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">append</span></span><span>
+</span><span id="line-37"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">appendList</span></span><span>
+</span><span id="line-38"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">prependList</span></span><span>
+</span><span id="line-39"></span><span>  </span><span class="annot"><span class="hs-comment">-- * Building streams</span></span><span>
+</span><span id="line-40"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">iterate</span></span><span>
+</span><span id="line-41"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">repeat</span></span><span>
+</span><span id="line-42"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">cycle</span></span><span>
+</span><span id="line-43"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">unfold</span></span><span>
+</span><span id="line-44"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">insert</span></span><span>
+</span><span id="line-45"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">some1</span></span><span>
+</span><span id="line-46"></span><span>  </span><span class="annot"><span class="hs-comment">-- * Extracting sublists</span></span><span>
+</span><span id="line-47"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">take</span></span><span>
+</span><span id="line-48"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">drop</span></span><span>
+</span><span id="line-49"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">splitAt</span></span><span>
+</span><span id="line-50"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">takeWhile</span></span><span>
+</span><span id="line-51"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">dropWhile</span></span><span>
+</span><span id="line-52"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">span</span></span><span>
+</span><span id="line-53"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">break</span></span><span>
+</span><span id="line-54"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">filter</span></span><span>
+</span><span id="line-55"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">partition</span></span><span>
+</span><span id="line-56"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">group</span></span><span>
+</span><span id="line-57"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">groupBy</span></span><span>
+</span><span id="line-58"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">groupWith</span></span><span>
+</span><span id="line-59"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">groupAllWith</span></span><span>
+</span><span id="line-60"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">group1</span></span><span>
+</span><span id="line-61"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">groupBy1</span></span><span>
+</span><span id="line-62"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">groupWith1</span></span><span>
+</span><span id="line-63"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">groupAllWith1</span></span><span>
+</span><span id="line-64"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">permutations</span></span><span>
+</span><span id="line-65"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">permutations1</span></span><span>
+</span><span id="line-66"></span><span>  </span><span class="annot"><span class="hs-comment">-- * Sublist predicates</span></span><span>
+</span><span id="line-67"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">isPrefixOf</span></span><span>
+</span><span id="line-68"></span><span>  </span><span class="annot"><span class="hs-comment">-- * \&quot;Set\&quot; operations</span></span><span>
+</span><span id="line-69"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">nub</span></span><span>
+</span><span id="line-70"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">nubBy</span></span><span>
+</span><span id="line-71"></span><span>  </span><span class="annot"><span class="hs-comment">-- * Indexing streams</span></span><span>
+</span><span id="line-72"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-operator">(!!)</span></span><span>
+</span><span id="line-73"></span><span>  </span><span class="annot"><span class="hs-comment">-- * Zipping and unzipping streams</span></span><span>
+</span><span id="line-74"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">zip</span></span><span>
+</span><span id="line-75"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">zipWith</span></span><span>
+</span><span id="line-76"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">unzip</span></span><span>
+</span><span id="line-77"></span><span>  </span><span class="annot"><span class="hs-comment">-- * Converting to and from a list</span></span><span>
+</span><span id="line-78"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">fromList</span></span><span>
+</span><span id="line-79"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">toList</span></span><span>
+</span><span id="line-80"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">nonEmpty</span></span><span>
+</span><span id="line-81"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">xor</span></span><span>
+</span><span id="line-82"></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-83"></span><span>
+</span><span id="line-84"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.List.NonEmpty</span></span><span class="hs-cpp">
+
+#if !(MIN_VERSION_base(4,20,0))
+</span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-identifier">Prelude.Compat</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="hs-identifier">Prelude</span><span>
+</span><span id="line-88"></span><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">Prelude.Compat</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="hs-operator">.</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-89"></span><span>
+</span><span id="line-90"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-identifier">Data.List.Compat</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="hs-identifier">List</span><span class="hs-cpp">
+#endif
+</span><span class="hs-cpp">
+#if !(MIN_VERSION_base(4,21,0))
+</span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Prelude.Compat.html"><span class="hs-identifier">Prelude.Compat</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Int</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">Num</span></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">Ord</span></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">Ordering</span></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">otherwise</span></span><span class="hs-special">)</span><span>
+</span><span id="line-95"></span><span>
+</span><span id="line-96"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Data.Foldable.Compat.html"><span class="hs-identifier">Data.Foldable.Compat</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Foldable</span></span><span class="hs-cpp">
+#endif
+</span><span class="hs-cpp">
+#if !(MIN_VERSION_base(4,15,0))
+</span><span class="hs-comment">-- | Construct a 'NonEmpty' list from a single element.</span><span>
+</span><span id="line-101"></span><span class="hs-comment">--</span><span>
+</span><span id="line-102"></span><span class="hs-comment">-- /Since: 4.15/</span><span>
+</span><span id="line-103"></span><span class="hs-identifier">singleton</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">a</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">NonEmpty</span><span> </span><span class="hs-identifier">a</span><span>
+</span><span id="line-104"></span><span class="hs-identifier">singleton</span><span> </span><span class="hs-identifier">a</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">a</span><span> </span><span class="hs-operator">:|</span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span class="hs-cpp">
+#endif
+</span><span class="hs-cpp">
+#if !(MIN_VERSION_base(4,16,0))
+</span><span class="hs-comment">-- | A monomorphic version of 'Prelude.&lt;&gt;' for 'NonEmpty'.</span><span>
+</span><span id="line-109"></span><span class="hs-comment">--</span><span>
+</span><span id="line-110"></span><span class="hs-comment">-- &gt;&gt;&gt; append (1 :| []) (2 :| [3])</span><span>
+</span><span id="line-111"></span><span class="hs-comment">-- 1 :| [2,3]</span><span>
+</span><span id="line-112"></span><span class="hs-comment">--</span><span>
+</span><span id="line-113"></span><span class="hs-comment">-- /Since: 4.16/</span><span>
+</span><span id="line-114"></span><span class="hs-identifier">append</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">NonEmpty</span><span> </span><span class="hs-identifier">a</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">NonEmpty</span><span> </span><span class="hs-identifier">a</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">NonEmpty</span><span> </span><span class="hs-identifier">a</span><span>
+</span><span id="line-115"></span><span class="hs-identifier">append</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="hs-operator">Prelude.&lt;&gt;</span><span class="hs-special">)</span><span>
+</span><span id="line-116"></span><span>
+</span><span id="line-117"></span><span class="hs-comment">-- | Attach a list at the end of a 'NonEmpty'.</span><span>
+</span><span id="line-118"></span><span class="hs-comment">--</span><span>
+</span><span id="line-119"></span><span class="hs-comment">-- &gt;&gt;&gt; appendList (1 :| [2,3]) []</span><span>
+</span><span id="line-120"></span><span class="hs-comment">-- 1 :| [2,3]</span><span>
+</span><span id="line-121"></span><span class="hs-comment">--</span><span>
+</span><span id="line-122"></span><span class="hs-comment">-- &gt;&gt;&gt; appendList (1 :| [2,3]) [4,5]</span><span>
+</span><span id="line-123"></span><span class="hs-comment">-- 1 :| [2,3,4,5]</span><span>
+</span><span id="line-124"></span><span class="hs-comment">--</span><span>
+</span><span id="line-125"></span><span class="hs-comment">-- /Since: 4.16/</span><span>
+</span><span id="line-126"></span><span class="hs-identifier">appendList</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">NonEmpty</span><span> </span><span class="hs-identifier">a</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="hs-identifier">a</span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">NonEmpty</span><span> </span><span class="hs-identifier">a</span><span>
+</span><span id="line-127"></span><span class="hs-identifier">appendList</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">x</span><span> </span><span class="hs-operator">:|</span><span> </span><span class="hs-identifier">xs</span><span class="hs-special">)</span><span> </span><span class="hs-identifier">ys</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">x</span><span> </span><span class="hs-operator">:|</span><span> </span><span class="hs-identifier">xs</span><span> </span><span class="hs-operator">Prelude.&lt;&gt;</span><span> </span><span class="hs-identifier">ys</span><span>
+</span><span id="line-128"></span><span>
+</span><span id="line-129"></span><span class="hs-comment">-- | Attach a list at the beginning of a 'NonEmpty'.</span><span>
+</span><span id="line-130"></span><span class="hs-comment">--</span><span>
+</span><span id="line-131"></span><span class="hs-comment">-- &gt;&gt;&gt; prependList [] (1 :| [2,3])</span><span>
+</span><span id="line-132"></span><span class="hs-comment">-- 1 :| [2,3]</span><span>
+</span><span id="line-133"></span><span class="hs-comment">--</span><span>
+</span><span id="line-134"></span><span class="hs-comment">-- &gt;&gt;&gt; prependList [negate 1, 0] (1 :| [2, 3])</span><span>
+</span><span id="line-135"></span><span class="hs-comment">-- -1 :| [0,1,2,3]</span><span>
+</span><span id="line-136"></span><span class="hs-comment">--</span><span>
+</span><span id="line-137"></span><span class="hs-comment">-- /Since: 4.16/</span><span>
+</span><span id="line-138"></span><span class="hs-identifier">prependList</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="hs-identifier">a</span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">NonEmpty</span><span> </span><span class="hs-identifier">a</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">NonEmpty</span><span> </span><span class="hs-identifier">a</span><span>
+</span><span id="line-139"></span><span class="hs-identifier">prependList</span><span> </span><span class="hs-identifier">ls</span><span> </span><span class="hs-identifier">ne</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="hs-identifier">ls</span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-140"></span><span>  </span><span class="hs-special">[</span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">ne</span><span>
+</span><span id="line-141"></span><span>  </span><span class="hs-special">(</span><span class="hs-identifier">x</span><span> </span><span class="hs-glyph">:</span><span> </span><span class="hs-identifier">xs</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">x</span><span> </span><span class="hs-operator">:|</span><span> </span><span class="hs-identifier">xs</span><span> </span><span class="hs-operator">Prelude.&lt;&gt;</span><span> </span><span class="hs-identifier">toList</span><span> </span><span class="hs-identifier">ne</span><span class="hs-cpp">
+#endif
+</span><span class="hs-cpp">
+#if !(MIN_VERSION_base(4,18,0))
+</span><span class="hs-comment">-- | The 'inits1' function takes a 'NonEmpty' stream @xs@ and returns all the</span><span>
+</span><span id="line-146"></span><span class="hs-comment">-- 'NonEmpty' finite prefixes of @xs@, starting with the shortest.</span><span>
+</span><span id="line-147"></span><span class="hs-comment">--</span><span>
+</span><span id="line-148"></span><span class="hs-comment">-- &gt; inits1 (1 :| [2,3]) == (1 :| []) :| [1 :| [2], 1 :| [2,3]]</span><span>
+</span><span id="line-149"></span><span class="hs-comment">-- &gt; inits1 (1 :| []) == (1 :| []) :| []</span><span>
+</span><span id="line-150"></span><span class="hs-comment">--</span><span>
+</span><span id="line-151"></span><span class="hs-comment">-- /Since: 4.18/</span><span>
+</span><span id="line-152"></span><span class="hs-identifier">inits1</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">NonEmpty</span><span> </span><span class="hs-identifier">a</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">NonEmpty</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">NonEmpty</span><span> </span><span class="hs-identifier">a</span><span class="hs-special">)</span><span>
+</span><span id="line-153"></span><span class="hs-identifier">inits1</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-154"></span><span>  </span><span class="hs-comment">-- fromList is an unsafe function, but this usage should be safe, since:</span><span>
+</span><span id="line-155"></span><span>  </span><span class="hs-comment">-- - `inits xs = [[], ..., init (init xs), init xs, xs]`</span><span>
+</span><span id="line-156"></span><span>  </span><span class="hs-comment">-- - If `xs` is nonempty, it follows that `inits xs` contains at least one nonempty</span><span>
+</span><span id="line-157"></span><span>  </span><span class="hs-comment">--   list, since `last (inits xs) = xs`.</span><span>
+</span><span id="line-158"></span><span>  </span><span class="hs-comment">-- - The only empty element of `inits xs` is the first one (by the definition of `inits`)</span><span>
+</span><span id="line-159"></span><span>  </span><span class="hs-comment">-- - Therefore, if we take all but the first element of `inits xs` i.e.</span><span>
+</span><span id="line-160"></span><span>  </span><span class="hs-comment">--   `tail (inits xs)`, we have a nonempty list of nonempty lists</span><span>
+</span><span id="line-161"></span><span>  </span><span class="hs-identifier">fromList</span><span> </span><span class="hs-operator">.</span><span> </span><span class="hs-identifier">Prelude.map</span><span> </span><span class="hs-identifier">fromList</span><span> </span><span class="hs-operator">.</span><span> </span><span class="hs-identifier">List.tail</span><span> </span><span class="hs-operator">.</span><span> </span><span class="hs-identifier">List.inits</span><span> </span><span class="hs-operator">.</span><span> </span><span class="hs-identifier">Foldable.toList</span><span>
+</span><span id="line-162"></span><span>
+</span><span id="line-163"></span><span class="hs-comment">-- | The 'tails1' function takes a 'NonEmpty' stream @xs@ and returns all the</span><span>
+</span><span id="line-164"></span><span class="hs-comment">-- non-empty suffixes of @xs@, starting with the longest.</span><span>
+</span><span id="line-165"></span><span class="hs-comment">--</span><span>
+</span><span id="line-166"></span><span class="hs-comment">-- &gt; tails1 (1 :| [2,3]) == (1 :| [2,3]) :| [2 :| [3], 3 :| []]</span><span>
+</span><span id="line-167"></span><span class="hs-comment">-- &gt; tails1 (1 :| []) == (1 :| []) :| []</span><span>
+</span><span id="line-168"></span><span class="hs-comment">--</span><span>
+</span><span id="line-169"></span><span class="hs-comment">-- /Since: 4.18/</span><span>
+</span><span id="line-170"></span><span class="hs-identifier">tails1</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">NonEmpty</span><span> </span><span class="hs-identifier">a</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">NonEmpty</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">NonEmpty</span><span> </span><span class="hs-identifier">a</span><span class="hs-special">)</span><span>
+</span><span id="line-171"></span><span class="hs-identifier">tails1</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-172"></span><span>  </span><span class="hs-comment">-- fromList is an unsafe function, but this usage should be safe, since:</span><span>
+</span><span id="line-173"></span><span>  </span><span class="hs-comment">-- - `tails xs = [xs, tail xs, tail (tail xs), ..., []]`</span><span>
+</span><span id="line-174"></span><span>  </span><span class="hs-comment">-- - If `xs` is nonempty, it follows that `tails xs` contains at least one nonempty</span><span>
+</span><span id="line-175"></span><span>  </span><span class="hs-comment">--   list, since `head (tails xs) = xs`.</span><span>
+</span><span id="line-176"></span><span>  </span><span class="hs-comment">-- - The only empty element of `tails xs` is the last one (by the definition of `tails`)</span><span>
+</span><span id="line-177"></span><span>  </span><span class="hs-comment">-- - Therefore, if we take all but the last element of `tails xs` i.e.</span><span>
+</span><span id="line-178"></span><span>  </span><span class="hs-comment">--   `init (tails xs)`, we have a nonempty list of nonempty lists</span><span>
+</span><span id="line-179"></span><span>  </span><span class="hs-identifier">fromList</span><span> </span><span class="hs-operator">.</span><span> </span><span class="hs-identifier">Prelude.map</span><span> </span><span class="hs-identifier">fromList</span><span> </span><span class="hs-operator">.</span><span> </span><span class="hs-identifier">List.init</span><span> </span><span class="hs-operator">.</span><span> </span><span class="hs-identifier">List.tails</span><span> </span><span class="hs-operator">.</span><span> </span><span class="hs-identifier">Foldable.toList</span><span class="hs-cpp">
+#endif
+</span><span class="hs-cpp">
+#if !(MIN_VERSION_base(4,20,0))
+</span><span class="hs-comment">-- | The 'permutations' function returns the list of all permutations of the argument.</span><span>
+</span><span id="line-184"></span><span class="hs-comment">--</span><span>
+</span><span id="line-185"></span><span class="hs-comment">-- /Since: 4.20.0.0/</span><span>
+</span><span id="line-186"></span><span class="hs-identifier">permutations</span><span>            </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="hs-identifier">a</span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">NonEmpty</span><span> </span><span class="hs-special">[</span><span class="hs-identifier">a</span><span class="hs-special">]</span><span>
+</span><span id="line-187"></span><span class="hs-identifier">permutations</span><span> </span><span class="hs-identifier">xs0</span><span>        </span><span class="hs-glyph">=</span><span>  </span><span class="hs-identifier">xs0</span><span> </span><span class="hs-operator">:|</span><span> </span><span class="hs-identifier">perms</span><span> </span><span class="hs-identifier">xs0</span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span>
+</span><span id="line-188"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-189"></span><span>    </span><span class="hs-identifier">perms</span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span>     </span><span class="hs-identifier">_</span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span>
+</span><span id="line-190"></span><span>    </span><span class="hs-identifier">perms</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">t</span><span class="hs-glyph">:</span><span class="hs-identifier">ts</span><span class="hs-special">)</span><span> </span><span class="hs-identifier">is</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">List.foldr</span><span> </span><span class="hs-identifier">interleave</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">perms</span><span> </span><span class="hs-identifier">ts</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">t</span><span class="hs-glyph">:</span><span class="hs-identifier">is</span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">permutations</span><span> </span><span class="hs-identifier">is</span><span class="hs-special">)</span><span>
+</span><span id="line-191"></span><span>      </span><span class="hs-keyword">where</span><span> </span><span class="hs-identifier">interleave</span><span>    </span><span class="hs-identifier">xs</span><span>     </span><span class="hs-identifier">r</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">let</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">_</span><span class="hs-special">,</span><span class="hs-identifier">zs</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">interleave'</span><span> </span><span class="hs-identifier">Prelude.id</span><span> </span><span class="hs-identifier">xs</span><span> </span><span class="hs-identifier">r</span><span> </span><span class="hs-keyword">in</span><span> </span><span class="hs-identifier">zs</span><span>
+</span><span id="line-192"></span><span>            </span><span class="hs-identifier">interleave'</span><span> </span><span class="hs-identifier">_</span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span>     </span><span class="hs-identifier">r</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">ts</span><span class="hs-special">,</span><span> </span><span class="hs-identifier">r</span><span class="hs-special">)</span><span>
+</span><span id="line-193"></span><span>            </span><span class="hs-identifier">interleave'</span><span> </span><span class="hs-identifier">f</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">y</span><span class="hs-glyph">:</span><span class="hs-identifier">ys</span><span class="hs-special">)</span><span> </span><span class="hs-identifier">r</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">let</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">us</span><span class="hs-special">,</span><span class="hs-identifier">zs</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">interleave'</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">f</span><span> </span><span class="hs-operator">.</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">y</span><span class="hs-glyph">:</span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-identifier">ys</span><span> </span><span class="hs-identifier">r</span><span>
+</span><span id="line-194"></span><span>                                     </span><span class="hs-keyword">in</span><span>  </span><span class="hs-special">(</span><span class="hs-identifier">y</span><span class="hs-glyph">:</span><span class="hs-identifier">us</span><span class="hs-special">,</span><span> </span><span class="hs-identifier">f</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">t</span><span class="hs-glyph">:</span><span class="hs-identifier">y</span><span class="hs-glyph">:</span><span class="hs-identifier">us</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">:</span><span> </span><span class="hs-identifier">zs</span><span class="hs-special">)</span><span>
+</span><span id="line-195"></span><span class="hs-comment">-- The implementation of 'permutations' is adopted from 'GHC.Internal.Data.List.permutations',</span><span>
+</span><span id="line-196"></span><span class="hs-comment">-- see there for discussion and explanations.</span><span>
+</span><span id="line-197"></span><span>
+</span><span id="line-198"></span><span class="hs-comment">-- | 'permutations1' operates like 'permutations', but uses the knowledge that its input is</span><span>
+</span><span id="line-199"></span><span class="hs-comment">-- non-empty to produce output where every element is non-empty.</span><span>
+</span><span id="line-200"></span><span class="hs-comment">--</span><span>
+</span><span id="line-201"></span><span class="hs-comment">-- &gt; permutations1 = fmap fromList . permutations . toList</span><span>
+</span><span id="line-202"></span><span class="hs-comment">--</span><span>
+</span><span id="line-203"></span><span class="hs-comment">-- /Since: 4.20.0.0/</span><span>
+</span><span id="line-204"></span><span class="hs-identifier">permutations1</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">NonEmpty</span><span> </span><span class="hs-identifier">a</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">NonEmpty</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">NonEmpty</span><span> </span><span class="hs-identifier">a</span><span class="hs-special">)</span><span>
+</span><span id="line-205"></span><span class="hs-identifier">permutations1</span><span> </span><span class="hs-identifier">xs</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">fromList</span><span> </span><span class="hs-operator">Prelude.&lt;$&gt;</span><span> </span><span class="hs-identifier">permutations</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">toList</span><span> </span><span class="hs-identifier">xs</span><span class="hs-special">)</span><span>
+</span><span id="line-206"></span><span>
+</span><span id="line-207"></span><span class="hs-comment">-- | Sort a 'NonEmpty' on a user-supplied projection of its elements.</span><span>
+</span><span id="line-208"></span><span class="hs-comment">-- See 'List.sortOn' for more detailed information.</span><span>
+</span><span id="line-209"></span><span class="hs-comment">--</span><span>
+</span><span id="line-210"></span><span class="hs-comment">-- ==== __Examples__</span><span>
+</span><span id="line-211"></span><span class="hs-comment">--</span><span>
+</span><span id="line-212"></span><span class="hs-comment">-- &gt;&gt;&gt; sortOn fst $ (2, &quot;world&quot;) :| [(4, &quot;!&quot;), (1, &quot;Hello&quot;)]</span><span>
+</span><span id="line-213"></span><span class="hs-comment">-- (1,&quot;Hello&quot;) :| [(2,&quot;world&quot;),(4,&quot;!&quot;)]</span><span>
+</span><span id="line-214"></span><span class="hs-comment">--</span><span>
+</span><span id="line-215"></span><span class="hs-comment">-- &gt;&gt;&gt; sortOn length $ &quot;jim&quot; :| [&quot;creed&quot;, &quot;pam&quot;, &quot;michael&quot;, &quot;dwight&quot;, &quot;kevin&quot;]</span><span>
+</span><span id="line-216"></span><span class="hs-comment">-- &quot;jim&quot; :| [&quot;pam&quot;,&quot;creed&quot;,&quot;kevin&quot;,&quot;dwight&quot;,&quot;michael&quot;]</span><span>
+</span><span id="line-217"></span><span class="hs-comment">--</span><span>
+</span><span id="line-218"></span><span class="hs-comment">-- ==== __Performance notes__</span><span>
+</span><span id="line-219"></span><span class="hs-comment">--</span><span>
+</span><span id="line-220"></span><span class="hs-comment">-- This function minimises the projections performed, by materialising</span><span>
+</span><span id="line-221"></span><span class="hs-comment">-- the projections in an intermediate list.</span><span>
+</span><span id="line-222"></span><span class="hs-comment">--</span><span>
+</span><span id="line-223"></span><span class="hs-comment">-- For trivial projections, you should prefer using 'sortBy' with</span><span>
+</span><span id="line-224"></span><span class="hs-comment">-- 'comparing', for example:</span><span>
+</span><span id="line-225"></span><span class="hs-comment">--</span><span>
+</span><span id="line-226"></span><span class="hs-comment">-- &gt;&gt;&gt; sortBy (comparing fst) $ (3, 1) :| [(2, 2), (1, 3)]</span><span>
+</span><span id="line-227"></span><span class="hs-comment">-- (1,3) :| [(2,2),(3,1)]</span><span>
+</span><span id="line-228"></span><span class="hs-comment">--</span><span>
+</span><span id="line-229"></span><span class="hs-comment">-- Or, for the exact same API as 'sortOn', you can use `sortBy . comparing`:</span><span>
+</span><span id="line-230"></span><span class="hs-comment">--</span><span>
+</span><span id="line-231"></span><span class="hs-comment">-- &gt;&gt;&gt; (sortBy . comparing) fst $ (3, 1) :| [(2, 2), (1, 3)]</span><span>
+</span><span id="line-232"></span><span class="hs-comment">-- (1,3) :| [(2,2),(3,1)]</span><span>
+</span><span id="line-233"></span><span class="hs-comment">--</span><span>
+</span><span id="line-234"></span><span class="hs-comment">-- 'sortWith' is an alias for `sortBy . comparing`.</span><span>
+</span><span id="line-235"></span><span class="hs-comment">--</span><span>
+</span><span id="line-236"></span><span class="hs-comment">-- /Since: 4.20.0.0/</span><span>
+</span><span id="line-237"></span><span class="hs-identifier">sortOn</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">Prelude.Ord</span><span> </span><span class="hs-identifier">b</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">a</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">b</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">NonEmpty</span><span> </span><span class="hs-identifier">a</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">NonEmpty</span><span> </span><span class="hs-identifier">a</span><span>
+</span><span id="line-238"></span><span class="hs-identifier">sortOn</span><span> </span><span class="hs-identifier">f</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">lift</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">List.sortOn</span><span> </span><span class="hs-identifier">f</span><span class="hs-special">)</span><span>
+</span><span id="line-239"></span><span>
+</span><span id="line-240"></span><span class="hs-comment">-- | Lift list operations to work on a 'NonEmpty' stream.</span><span>
+</span><span id="line-241"></span><span class="hs-comment">--</span><span>
+</span><span id="line-242"></span><span class="hs-comment">-- /Beware/: If the provided function returns an empty list,</span><span>
+</span><span id="line-243"></span><span class="hs-comment">-- this will raise an error.</span><span>
+</span><span id="line-244"></span><span class="hs-identifier">lift</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">Foldable.Foldable</span><span> </span><span class="hs-identifier">f</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-special">(</span><span class="hs-special">[</span><span class="hs-identifier">a</span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="hs-identifier">b</span><span class="hs-special">]</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">f</span><span> </span><span class="hs-identifier">a</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">NonEmpty</span><span> </span><span class="hs-identifier">b</span><span>
+</span><span id="line-245"></span><span class="hs-identifier">lift</span><span> </span><span class="hs-identifier">f</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">fromList</span><span> </span><span class="hs-operator">.</span><span> </span><span class="hs-identifier">f</span><span> </span><span class="hs-operator">.</span><span> </span><span class="hs-identifier">Foldable.toList</span><span class="hs-cpp">
+#endif
+</span><span class="hs-cpp">
+#if !(MIN_VERSION_base(4,21,0))
+</span><span class="hs-comment">-- | Use 'compareLength' @xs@ @n@ as a safer and faster alternative</span><span>
+</span><span id="line-250"></span><span class="hs-comment">-- to 'compare' ('length' @xs@) @n@. Similarly, it's better</span><span>
+</span><span id="line-251"></span><span class="hs-comment">-- to write @compareLength xs 10 == LT@ instead of @length xs &lt; 10@.</span><span>
+</span><span id="line-252"></span><span class="hs-comment">--</span><span>
+</span><span id="line-253"></span><span class="hs-comment">-- While 'length' would force and traverse</span><span>
+</span><span id="line-254"></span><span class="hs-comment">-- the entire spine of @xs@ (which could even diverge if @xs@ is infinite),</span><span>
+</span><span id="line-255"></span><span class="hs-comment">-- 'compareLength' traverses at most @n@ elements to determine its result.</span><span>
+</span><span id="line-256"></span><span class="hs-comment">--</span><span>
+</span><span id="line-257"></span><span class="hs-comment">-- &gt;&gt;&gt; compareLength ('a' :| []) 1</span><span>
+</span><span id="line-258"></span><span class="hs-comment">-- EQ</span><span>
+</span><span id="line-259"></span><span class="hs-comment">-- &gt;&gt;&gt; compareLength ('a' :| ['b']) 3</span><span>
+</span><span id="line-260"></span><span class="hs-comment">-- LT</span><span>
+</span><span id="line-261"></span><span class="hs-comment">-- &gt;&gt;&gt; compareLength (0 :| [1..]) 100</span><span>
+</span><span id="line-262"></span><span class="hs-comment">-- GT</span><span>
+</span><span id="line-263"></span><span class="hs-comment">-- &gt;&gt;&gt; compareLength undefined 0</span><span>
+</span><span id="line-264"></span><span class="hs-comment">-- GT</span><span>
+</span><span id="line-265"></span><span class="hs-comment">-- &gt;&gt;&gt; compareLength ('a' :| 'b' : undefined) 1</span><span>
+</span><span id="line-266"></span><span class="hs-comment">-- GT</span><span>
+</span><span id="line-267"></span><span class="hs-comment">--</span><span>
+</span><span id="line-268"></span><span class="hs-comment">-- @since 4.21.0.0</span><span>
+</span><span id="line-269"></span><span class="hs-comment">--</span><span>
+</span><span id="line-270"></span><span id="local-6989586621679052404"><span class="annot"><a href="Data.List.NonEmpty.Compat.html#compareLength"><span class="hs-identifier hs-type">compareLength</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">NonEmpty</span></span><span> </span><span class="annot"><a href="#local-6989586621679052404"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ordering</span></span></span><span>
+</span><span id="line-271"></span><span id="compareLength"><span class="annot"><span class="annottext">compareLength :: forall a. NonEmpty a -&gt; Int -&gt; Ordering
+</span><a href="Data.List.NonEmpty.Compat.html#compareLength"><span class="hs-identifier hs-var hs-var">compareLength</span></a></span></span><span> </span><span id="local-6989586621679052490"><span class="annot"><span class="annottext">NonEmpty a
+</span><a href="#local-6989586621679052490"><span class="hs-identifier hs-var">xs</span></a></span></span><span> </span><span id="local-6989586621679052491"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679052491"><span class="hs-identifier hs-var">n</span></a></span></span><span>
+</span><span id="line-272"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679052491"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&lt;</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Ordering
+</span><span class="hs-identifier hs-var">GT</span></span><span>
+</span><span id="line-273"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(a -&gt; (Int -&gt; Ordering) -&gt; Int -&gt; Ordering)
+-&gt; (Int -&gt; Ordering) -&gt; NonEmpty a -&gt; Int -&gt; Ordering
+forall a b. (a -&gt; b -&gt; b) -&gt; b -&gt; NonEmpty a -&gt; b
+forall (t :: * -&gt; *) a b.
+Foldable t =&gt;
+(a -&gt; b -&gt; b) -&gt; b -&gt; t a -&gt; b
+</span><span class="hs-identifier hs-var">Foldable.foldr</span></span><span>
+</span><span id="line-274"></span><span>    </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span class="annot"><span class="annottext">a
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621679052494"><span class="annot"><span class="annottext">Int -&gt; Ordering
+</span><a href="#local-6989586621679052494"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span id="local-6989586621679052495"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679052495"><span class="hs-identifier hs-var">m</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679052495"><span class="hs-identifier hs-var">m</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&gt;</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span> </span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Ordering
+</span><a href="#local-6989586621679052494"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679052495"><span class="hs-identifier hs-var">m</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="annottext">Ordering
+</span><span class="hs-identifier hs-var">GT</span></span><span class="hs-special">)</span><span>
+</span><span id="line-275"></span><span>    </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span id="local-6989586621679052497"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679052497"><span class="hs-identifier hs-var">m</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679052497"><span class="hs-identifier hs-var">m</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&gt;</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span> </span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="annottext">Ordering
+</span><span class="hs-identifier hs-var">LT</span></span><span> </span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="annottext">Ordering
+</span><span class="hs-identifier hs-var">EQ</span></span><span class="hs-special">)</span><span>
+</span><span id="line-276"></span><span>    </span><span class="annot"><span class="annottext">NonEmpty a
+</span><a href="#local-6989586621679052490"><span class="hs-identifier hs-var">xs</span></a></span><span>
+</span><span id="line-277"></span><span>    </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679052491"><span class="hs-identifier hs-var">n</span></a></span><span class="hs-cpp">
+#endif
+</span></pre></body></html>

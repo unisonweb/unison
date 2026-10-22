@@ -1,0 +1,21 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-comment">-- |</span><span>
+</span><span id="line-2"></span><span class="hs-comment">-- The Github RateLimit API, as described at</span><span>
+</span><span id="line-3"></span><span class="hs-comment">-- &lt;http://developer.github.com/v3/rate_limit/&gt;.</span><span>
+</span><span id="line-4"></span><span>
+</span><span id="line-5"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="GitHub.Endpoints.RateLimit.html"><span class="hs-identifier">GitHub.Endpoints.RateLimit</span></a></span><span> </span><span class="hs-special">(</span><span>
+</span><span id="line-6"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.RateLimit.html#rateLimitR"><span class="hs-identifier">rateLimitR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-7"></span><span>    </span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="GitHub.Data.html"><span class="hs-identifier">GitHub.Data</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-8"></span><span>    </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-9"></span><span>
+</span><span id="line-10"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GitHub.Data.html"><span class="hs-identifier">GitHub.Data</span></a></span><span>
+</span><span id="line-11"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Prelude</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-12"></span><span>
+</span><span id="line-13"></span><span class="hs-comment">-- | Get your current rate limit status.</span><span>
+</span><span id="line-14"></span><span class="hs-comment">-- &lt;https://developer.github.com/v3/rate_limit/#get-your-current-rate-limit-status&gt;</span><span>
+</span><span id="line-15"></span><span id="local-6989586621679548163"><span class="annot"><a href="GitHub.Endpoints.RateLimit.html#rateLimitR"><span class="hs-identifier hs-type">rateLimitR</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GitHub.Data.Request.html#Request"><span class="hs-identifier hs-type">Request</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679548163"><span class="hs-identifier hs-type">k</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.RateLimit.html#RateLimit"><span class="hs-identifier hs-type">RateLimit</span></a></span></span><span>
+</span><span id="line-16"></span><span id="rateLimitR"><span class="annot"><span class="annottext">rateLimitR :: forall (k :: RW). Request k RateLimit
+</span><a href="GitHub.Endpoints.RateLimit.html#rateLimitR"><span class="hs-identifier hs-var hs-var">rateLimitR</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Paths -&gt; QueryString -&gt; Request k RateLimit
+forall (mt :: RW) a. Paths -&gt; QueryString -&gt; Request mt a
+</span><a href="GitHub.Data.Request.html#query"><span class="hs-identifier hs-var">query</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;rate_limit&quot;</span></span><span class="hs-special">]</span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span>
+</span><span id="line-17"></span></pre></body></html>

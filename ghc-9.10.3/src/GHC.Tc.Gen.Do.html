@@ -1,0 +1,1182 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# LANGUAGE ConstraintKinds  #-}</span><span>
+</span><span id="line-3"></span><span class="hs-pragma">{-# LANGUAGE FlexibleContexts #-}</span><span>
+</span><span id="line-4"></span><span class="hs-pragma">{-# LANGUAGE RankNTypes       #-}</span><span>
+</span><span id="line-5"></span><span class="hs-pragma">{-# LANGUAGE RecordWildCards  #-}</span><span>
+</span><span id="line-6"></span><span class="hs-pragma">{-# LANGUAGE TupleSections    #-}</span><span>
+</span><span id="line-7"></span><span class="hs-pragma">{-# LANGUAGE TypeFamilies     #-}</span><span>
+</span><span id="line-8"></span><span>
+</span><span id="line-9"></span><span class="hs-pragma">{-# OPTIONS_GHC -Wno-incomplete-uni-patterns   #-}</span><span>
+</span><span id="line-10"></span><span>
+</span><span id="line-11"></span><span class="hs-comment">{-
+(c) The University of Glasgow 2006
+(c) The GRASP/AQUA Project, Glasgow University, 1992-1998
+(c) The University of Iowa 2023
+
+-}</span><span>
+</span><span id="line-17"></span><span>
+</span><span id="line-18"></span><span class="hs-comment">-- | Expand @Do@ block statements into @(&gt;&gt;=)@, @(&gt;&gt;)@ and @let@s</span><span>
+</span><span id="line-19"></span><span class="hs-comment">--   After renaming but right ebefore type checking</span><span>
+</span><span id="line-20"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="GHC.Tc.Gen.Do.html"><span class="hs-identifier">GHC.Tc.Gen.Do</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Tc.Gen.Do.html#expandDoStmts"><span class="hs-identifier">expandDoStmts</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-21"></span><span>
+</span><span id="line-22"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Prelude.html"><span class="hs-identifier">GHC.Prelude</span></a></span><span>
+</span><span id="line-23"></span><span>
+</span><span id="line-24"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Rename.Utils.html"><span class="hs-identifier">GHC.Rename.Utils</span></a></span><span> </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="GHC.Rename.Utils.html#wrapGenSpan"><span class="hs-identifier">wrapGenSpan</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Rename.Utils.html#genHsExpApps"><span class="hs-identifier">genHsExpApps</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Rename.Utils.html#genHsApp"><span class="hs-identifier">genHsApp</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Rename.Utils.html#genHsLet"><span class="hs-identifier">genHsLet</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-25"></span><span>                          </span><span class="annot"><a href="GHC.Rename.Utils.html#genHsLamDoExp"><span class="hs-identifier">genHsLamDoExp</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Rename.Utils.html#genHsCaseAltDoExp"><span class="hs-identifier">genHsCaseAltDoExp</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Rename.Utils.html#genWildPat"><span class="hs-identifier">genWildPat</span></a></span><span> </span><span class="hs-special">)</span><span>
+</span><span id="line-26"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Tc.Utils.Monad.html"><span class="hs-identifier">GHC.Tc.Utils.Monad</span></a></span><span>
+</span><span id="line-27"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Tc.Gen.Pat.html"><span class="hs-identifier">GHC.Tc.Gen.Pat</span></a></span><span>
+</span><span id="line-28"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Tc.Utils.TcMType.html"><span class="hs-identifier">GHC.Tc.Utils.TcMType</span></a></span><span>
+</span><span id="line-29"></span><span>
+</span><span id="line-30"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Hs.html"><span class="hs-identifier">GHC.Hs</span></a></span><span>
+</span><span id="line-31"></span><span>
+</span><span id="line-32"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Utils.Outputable.html"><span class="hs-identifier">GHC.Utils.Outputable</span></a></span><span>
+</span><span id="line-33"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Utils.Panic.html"><span class="hs-identifier">GHC.Utils.Panic</span></a></span><span>
+</span><span id="line-34"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Driver.DynFlags.html"><span class="hs-identifier">GHC.Driver.DynFlags</span></a></span><span> </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="GHC.Driver.DynFlags.html#DynFlags"><span class="hs-identifier">DynFlags</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Driver.DynFlags.html#getDynFlags"><span class="hs-identifier">getDynFlags</span></a></span><span> </span><span class="hs-special">)</span><span>
+</span><span id="line-35"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Driver.Ppr.html"><span class="hs-identifier">GHC.Driver.Ppr</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Driver.Ppr.html#showPpr"><span class="hs-identifier">showPpr</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-36"></span><span>
+</span><span id="line-37"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Types.SrcLoc.html"><span class="hs-identifier">GHC.Types.SrcLoc</span></a></span><span>
+</span><span id="line-38"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Types.Basic.html"><span class="hs-identifier">GHC.Types.Basic</span></a></span><span>
+</span><span id="line-39"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="../../ghc-boot-9.10.3-46f3/src/GHC.LanguageExtensions.html"><span class="hs-identifier">GHC.LanguageExtensions</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">LangExt</span></span><span>
+</span><span id="line-40"></span><span>
+</span><span id="line-41"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.20.2.0-6654/src/Data.List.html"><span class="hs-identifier">Data.List</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-operator">(\\)</span></span><span class="hs-special">)</span><span>
+</span><span id="line-42"></span><span>
+</span><span id="line-43"></span><span>
+</span><span id="line-44"></span><span class="hs-comment">{-
+************************************************************************
+*                                                                      *
+\subsection{XXExprGhcRn for Do Statements}
+*                                                                      *
+************************************************************************
+-}</span><span>
+</span><span id="line-51"></span><span>
+</span><span id="line-52"></span><span class="hs-comment">-- | Expand the `do`-statments into expressions right after renaming</span><span>
+</span><span id="line-53"></span><span class="hs-comment">--   so that they can be typechecked.</span><span>
+</span><span id="line-54"></span><span class="hs-comment">--   See Note [Expanding HsDo with XXExprGhcRn] below for `HsDo` specific commentary</span><span>
+</span><span id="line-55"></span><span class="hs-comment">--   and Note [Handling overloaded and rebindable constructs] for high level commentary</span><span>
+</span><span id="line-56"></span><span class="annot"><a href="GHC.Tc.Gen.Do.html#expandDoStmts"><span class="hs-identifier hs-type">expandDoStmts</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Language.Haskell.Syntax.Expr.html#HsDoFlavour"><span class="hs-identifier hs-type">HsDoFlavour</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Language.Haskell.Syntax.Expr.html#ExprLStmt"><span class="hs-identifier hs-type">ExprLStmt</span></a></span><span> </span><span class="annot"><a href="GHC.Hs.Extension.html#GhcRn"><span class="hs-identifier hs-type">GhcRn</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Tc.Types.html#TcM"><span class="hs-identifier hs-type">TcM</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.Haskell.Syntax.Expr.html#LHsExpr"><span class="hs-identifier hs-type">LHsExpr</span></a></span><span> </span><span class="annot"><a href="GHC.Hs.Extension.html#GhcRn"><span class="hs-identifier hs-type">GhcRn</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-57"></span><span id="expandDoStmts"><span class="annot"><span class="annottext">expandDoStmts :: HsDoFlavour
+-&gt; [ExprLStmt (GhcPass 'Renamed)]
+-&gt; TcM (LHsExpr (GhcPass 'Renamed))
+</span><a href="GHC.Tc.Gen.Do.html#expandDoStmts"><span class="hs-identifier hs-var hs-var">expandDoStmts</span></a></span></span><span> </span><span id="local-6989586621682881276"><span class="annot"><span class="annottext">HsDoFlavour
+</span><a href="#local-6989586621682881276"><span class="hs-identifier hs-var">doFlav</span></a></span></span><span> </span><span id="local-6989586621682881277"><span class="annot"><span class="annottext">[ExprLStmt (GhcPass 'Renamed)]
+</span><a href="#local-6989586621682881277"><span class="hs-identifier hs-var">stmts</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span> </span><span id="local-6989586621682881278"><span class="annot"><a href="#local-6989586621682881278"><span class="hs-identifier hs-var">expanded_expr</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">HsDoFlavour
+-&gt; [ExprLStmt (GhcPass 'Renamed)]
+-&gt; TcM (LHsExpr (GhcPass 'Renamed))
+</span><a href="GHC.Tc.Gen.Do.html#expand_do_stmts"><span class="hs-identifier hs-var">expand_do_stmts</span></a></span><span> </span><span class="annot"><span class="annottext">HsDoFlavour
+</span><a href="#local-6989586621682881276"><span class="hs-identifier hs-var">doFlav</span></a></span><span> </span><span class="annot"><span class="annottext">[ExprLStmt (GhcPass 'Renamed)]
+</span><a href="#local-6989586621682881277"><span class="hs-identifier hs-var">stmts</span></a></span><span>
+</span><span id="line-58"></span><span>                                </span><span class="hs-keyword">case</span><span> </span><span class="annot"><a href="#local-6989586621682881278"><span class="hs-identifier hs-type">expanded_expr</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-59"></span><span>                                         </span><span class="annot"><a href="GHC.Types.SrcLoc.html#L"><span class="hs-identifier hs-type">L</span></a></span><span> </span><span class="annot"><span class="annottext">SrcSpanAnnA
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.Haskell.Syntax.Expr.html#XExpr"><span class="hs-identifier hs-type">XExpr</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Hs.Expr.html#PopErrCtxt"><span class="hs-identifier hs-type">PopErrCtxt</span></a></span><span> </span><span id="local-6989586621682881283"><span class="annot"><span class="annottext">LHsExpr (GhcPass 'Renamed)
+</span><a href="#local-6989586621682881283"><span class="hs-identifier hs-var">e</span></a></span></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">LocatedA (HsExpr (GhcPass 'Renamed))
+-&gt; IOEnv
+     (Env TcGblEnv TcLclEnv) (LocatedA (HsExpr (GhcPass 'Renamed)))
+forall a. a -&gt; IOEnv (Env TcGblEnv TcLclEnv) a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">LHsExpr (GhcPass 'Renamed)
+LocatedA (HsExpr (GhcPass 'Renamed))
+</span><a href="#local-6989586621682881283"><span class="hs-identifier hs-var">e</span></a></span><span>
+</span><span id="line-60"></span><span>                                         </span><span class="hs-comment">-- The first expanded stmt doesn't need a pop as</span><span>
+</span><span id="line-61"></span><span>                                         </span><span class="hs-comment">-- it would otherwise pop the &quot;In the expression do ... &quot; from</span><span>
+</span><span id="line-62"></span><span>                                         </span><span class="hs-comment">-- the error context</span><span>
+</span><span id="line-63"></span><span>                                         </span><span class="annot"><span class="annottext">LocatedA (HsExpr (GhcPass 'Renamed))
+</span><span class="hs-identifier">_</span></span><span>                          </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">LocatedA (HsExpr (GhcPass 'Renamed))
+-&gt; IOEnv
+     (Env TcGblEnv TcLclEnv) (LocatedA (HsExpr (GhcPass 'Renamed)))
+forall a. a -&gt; IOEnv (Env TcGblEnv TcLclEnv) a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">LocatedA (HsExpr (GhcPass 'Renamed))
+</span><a href="#local-6989586621682881278"><span class="hs-identifier hs-var">expanded_expr</span></a></span><span>
+</span><span id="line-64"></span><span>
+</span><span id="line-65"></span><span class="hs-comment">-- | The main work horse for expanding do block statements into applications of binds and thens</span><span>
+</span><span id="line-66"></span><span class="hs-comment">--   See Note [Expanding HsDo with XXExprGhcRn]</span><span>
+</span><span id="line-67"></span><span class="annot"><a href="GHC.Tc.Gen.Do.html#expand_do_stmts"><span class="hs-identifier hs-type">expand_do_stmts</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Language.Haskell.Syntax.Expr.html#HsDoFlavour"><span class="hs-identifier hs-type">HsDoFlavour</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Language.Haskell.Syntax.Expr.html#ExprLStmt"><span class="hs-identifier hs-type">ExprLStmt</span></a></span><span> </span><span class="annot"><a href="GHC.Hs.Extension.html#GhcRn"><span class="hs-identifier hs-type">GhcRn</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Tc.Types.html#TcM"><span class="hs-identifier hs-type">TcM</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.Haskell.Syntax.Expr.html#LHsExpr"><span class="hs-identifier hs-type">LHsExpr</span></a></span><span> </span><span class="annot"><a href="GHC.Hs.Extension.html#GhcRn"><span class="hs-identifier hs-type">GhcRn</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-68"></span><span>
+</span><span id="line-69"></span><span id="expand_do_stmts"><span class="annot"><span class="annottext">expand_do_stmts :: HsDoFlavour
+-&gt; [ExprLStmt (GhcPass 'Renamed)]
+-&gt; TcM (LHsExpr (GhcPass 'Renamed))
+</span><a href="GHC.Tc.Gen.Do.html#expand_do_stmts"><span class="hs-identifier hs-var hs-var">expand_do_stmts</span></a></span></span><span> </span><span class="annot"><span class="annottext">HsDoFlavour
+</span><a href="Language.Haskell.Syntax.Expr.html#ListComp"><span class="hs-identifier hs-var">ListComp</span></a></span><span> </span><span class="annot"><span class="annottext">[ExprLStmt (GhcPass 'Renamed)]
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-70"></span><span>  </span><span class="annot"><span class="annottext">String
+-&gt; SDoc
+-&gt; IOEnv
+     (Env TcGblEnv TcLclEnv) (LocatedA (HsExpr (GhcPass 'Renamed)))
+forall a. HasCallStack =&gt; String -&gt; SDoc -&gt; a
+</span><a href="GHC.Utils.Panic.html#pprPanic"><span class="hs-identifier hs-var">pprPanic</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;expand_do_stmts: impossible happened. ListComp&quot;</span></span><span> </span><span class="annot"><span class="annottext">SDoc
+forall doc. IsOutput doc =&gt; doc
+</span><a href="GHC.Utils.Outputable.html#empty"><span class="hs-identifier hs-var">empty</span></a></span><span>
+</span><span id="line-71"></span><span>        </span><span class="hs-comment">-- handeled by `GHC.Tc.Gen.Match.tcLcStmt`</span><span>
+</span><span id="line-72"></span><span>
+</span><span id="line-73"></span><span class="annot"><a href="GHC.Tc.Gen.Do.html#expand_do_stmts"><span class="hs-identifier hs-var">expand_do_stmts</span></a></span><span> </span><span class="annot"><span class="annottext">HsDoFlavour
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+-&gt; SDoc
+-&gt; IOEnv
+     (Env TcGblEnv TcLclEnv) (LocatedA (HsExpr (GhcPass 'Renamed)))
+forall a. HasCallStack =&gt; String -&gt; SDoc -&gt; a
+</span><a href="GHC.Utils.Panic.html#pprPanic"><span class="hs-identifier hs-var">pprPanic</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;expand_do_stmts: impossible happened. Empty stmts&quot;</span></span><span> </span><span class="annot"><span class="annottext">SDoc
+forall doc. IsOutput doc =&gt; doc
+</span><a href="GHC.Utils.Outputable.html#empty"><span class="hs-identifier hs-var">empty</span></a></span><span>
+</span><span id="line-74"></span><span>
+</span><span id="line-75"></span><span class="annot"><a href="GHC.Tc.Gen.Do.html#expand_do_stmts"><span class="hs-identifier hs-var">expand_do_stmts</span></a></span><span> </span><span class="annot"><span class="annottext">HsDoFlavour
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621682881287"><span class="annot"><span class="annottext">stmt :: ExprLStmt (GhcPass 'Renamed)
+</span><a href="#local-6989586621682881287"><span class="hs-identifier hs-var">stmt</span></a></span></span><span class="hs-glyph">@</span><span class="hs-special">(</span><span class="annot"><a href="GHC.Types.SrcLoc.html#L"><span class="hs-identifier hs-type">L</span></a></span><span> </span><span class="annot"><span class="annottext">SrcSpanAnnA
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.Haskell.Syntax.Expr.html#TransStmt"><span class="hs-identifier hs-type">TransStmt</span></a></span><span> </span><span class="hs-special">{</span><span class="hs-special">}</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span class="annot"><span class="annottext">[ExprLStmt (GhcPass 'Renamed)]
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-76"></span><span>  </span><span class="annot"><span class="annottext">String -&gt; SDoc -&gt; TcM (LHsExpr (GhcPass 'Renamed))
+forall a. HasCallStack =&gt; String -&gt; SDoc -&gt; a
+</span><a href="GHC.Utils.Panic.html#pprPanic"><span class="hs-identifier hs-var">pprPanic</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;expand_do_stmts: TransStmt&quot;</span></span><span> </span><span class="annot"><span class="annottext">(SDoc -&gt; TcM (LHsExpr (GhcPass 'Renamed)))
+-&gt; SDoc -&gt; TcM (LHsExpr (GhcPass 'Renamed))
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">GenLocated
+  SrcSpanAnnA
+  (StmtLR
+     (GhcPass 'Renamed)
+     (GhcPass 'Renamed)
+     (LocatedA (HsExpr (GhcPass 'Renamed))))
+-&gt; SDoc
+forall a. Outputable a =&gt; a -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#ppr"><span class="hs-identifier hs-var">ppr</span></a></span><span> </span><span class="annot"><span class="annottext">ExprLStmt (GhcPass 'Renamed)
+GenLocated
+  SrcSpanAnnA
+  (StmtLR
+     (GhcPass 'Renamed)
+     (GhcPass 'Renamed)
+     (LocatedA (HsExpr (GhcPass 'Renamed))))
+</span><a href="#local-6989586621682881287"><span class="hs-identifier hs-var">stmt</span></a></span><span>
+</span><span id="line-77"></span><span>  </span><span class="hs-comment">-- handeled by `GHC.Tc.Gen.Match.tcLcStmt`</span><span>
+</span><span id="line-78"></span><span>
+</span><span id="line-79"></span><span class="annot"><a href="GHC.Tc.Gen.Do.html#expand_do_stmts"><span class="hs-identifier hs-var">expand_do_stmts</span></a></span><span> </span><span class="annot"><span class="annottext">HsDoFlavour
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621682881290"><span class="annot"><span class="annottext">stmt :: ExprLStmt (GhcPass 'Renamed)
+</span><a href="#local-6989586621682881290"><span class="hs-identifier hs-var">stmt</span></a></span></span><span class="hs-glyph">@</span><span class="hs-special">(</span><span class="annot"><a href="GHC.Types.SrcLoc.html#L"><span class="hs-identifier hs-type">L</span></a></span><span> </span><span class="annot"><span class="annottext">SrcSpanAnnA
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.Haskell.Syntax.Expr.html#ParStmt"><span class="hs-identifier hs-type">ParStmt</span></a></span><span> </span><span class="hs-special">{</span><span class="hs-special">}</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span class="annot"><span class="annottext">[ExprLStmt (GhcPass 'Renamed)]
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-80"></span><span>  </span><span class="annot"><span class="annottext">String -&gt; SDoc -&gt; TcM (LHsExpr (GhcPass 'Renamed))
+forall a. HasCallStack =&gt; String -&gt; SDoc -&gt; a
+</span><a href="GHC.Utils.Panic.html#pprPanic"><span class="hs-identifier hs-var">pprPanic</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;expand_do_stmts: ParStmt&quot;</span></span><span> </span><span class="annot"><span class="annottext">(SDoc -&gt; TcM (LHsExpr (GhcPass 'Renamed)))
+-&gt; SDoc -&gt; TcM (LHsExpr (GhcPass 'Renamed))
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">GenLocated
+  SrcSpanAnnA
+  (StmtLR
+     (GhcPass 'Renamed)
+     (GhcPass 'Renamed)
+     (LocatedA (HsExpr (GhcPass 'Renamed))))
+-&gt; SDoc
+forall a. Outputable a =&gt; a -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#ppr"><span class="hs-identifier hs-var">ppr</span></a></span><span> </span><span class="annot"><span class="annottext">ExprLStmt (GhcPass 'Renamed)
+GenLocated
+  SrcSpanAnnA
+  (StmtLR
+     (GhcPass 'Renamed)
+     (GhcPass 'Renamed)
+     (LocatedA (HsExpr (GhcPass 'Renamed))))
+</span><a href="#local-6989586621682881290"><span class="hs-identifier hs-var">stmt</span></a></span><span>
+</span><span id="line-81"></span><span>  </span><span class="hs-comment">-- handeled by `GHC.Tc.Gen.Match.tcLcStmt`</span><span>
+</span><span id="line-82"></span><span>
+</span><span id="line-83"></span><span class="annot"><a href="GHC.Tc.Gen.Do.html#expand_do_stmts"><span class="hs-identifier hs-var">expand_do_stmts</span></a></span><span> </span><span class="annot"><span class="annottext">HsDoFlavour
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621682881292"><span class="annot"><span class="annottext">stmt :: ExprLStmt (GhcPass 'Renamed)
+</span><a href="#local-6989586621682881292"><span class="hs-identifier hs-var">stmt</span></a></span></span><span class="hs-glyph">@</span><span class="hs-special">(</span><span class="annot"><a href="GHC.Types.SrcLoc.html#L"><span class="hs-identifier hs-type">L</span></a></span><span> </span><span class="annot"><span class="annottext">SrcSpanAnnA
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.Haskell.Syntax.Expr.html#ApplicativeStmt"><span class="hs-identifier hs-type">ApplicativeStmt</span></a></span><span class="hs-special">{</span><span class="hs-special">}</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span> </span><span class="annot"><span class="annottext">[ExprLStmt (GhcPass 'Renamed)]
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-84"></span><span>  </span><span class="annot"><span class="annottext">String -&gt; SDoc -&gt; TcM (LHsExpr (GhcPass 'Renamed))
+forall a. HasCallStack =&gt; String -&gt; SDoc -&gt; a
+</span><a href="GHC.Utils.Panic.html#pprPanic"><span class="hs-identifier hs-var">pprPanic</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;expand_do_stmts: Applicative Stmt&quot;</span></span><span> </span><span class="annot"><span class="annottext">(SDoc -&gt; TcM (LHsExpr (GhcPass 'Renamed)))
+-&gt; SDoc -&gt; TcM (LHsExpr (GhcPass 'Renamed))
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">GenLocated
+  SrcSpanAnnA
+  (StmtLR
+     (GhcPass 'Renamed)
+     (GhcPass 'Renamed)
+     (LocatedA (HsExpr (GhcPass 'Renamed))))
+-&gt; SDoc
+forall a. Outputable a =&gt; a -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#ppr"><span class="hs-identifier hs-var">ppr</span></a></span><span> </span><span class="annot"><span class="annottext">ExprLStmt (GhcPass 'Renamed)
+GenLocated
+  SrcSpanAnnA
+  (StmtLR
+     (GhcPass 'Renamed)
+     (GhcPass 'Renamed)
+     (LocatedA (HsExpr (GhcPass 'Renamed))))
+</span><a href="#local-6989586621682881292"><span class="hs-identifier hs-var">stmt</span></a></span><span>
+</span><span id="line-85"></span><span>  </span><span class="hs-comment">-- Handeled by tcSyntaxOp see `GHC.Tc.Gen.Match.tcStmtsAndThen`</span><span>
+</span><span id="line-86"></span><span>
+</span><span id="line-87"></span><span>
+</span><span id="line-88"></span><span class="annot"><a href="GHC.Tc.Gen.Do.html#expand_do_stmts"><span class="hs-identifier hs-var">expand_do_stmts</span></a></span><span> </span><span class="annot"><span class="annottext">HsDoFlavour
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-special">[</span><span id="local-6989586621682881294"><span class="annot"><span class="annottext">stmt :: ExprLStmt (GhcPass 'Renamed)
+</span><a href="#local-6989586621682881294"><span class="hs-identifier hs-var">stmt</span></a></span></span><span class="hs-glyph">@</span><span class="hs-special">(</span><span class="annot"><a href="GHC.Types.SrcLoc.html#L"><span class="hs-identifier hs-type">L</span></a></span><span> </span><span id="local-6989586621682881295"><span class="annot"><span class="annottext">SrcSpanAnnA
+</span><a href="#local-6989586621682881295"><span class="hs-identifier hs-var">loc</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.Haskell.Syntax.Expr.html#LastStmt"><span class="hs-identifier hs-type">LastStmt</span></a></span><span> </span><span class="annot"><span class="annottext">XLastStmt
+  (GhcPass 'Renamed)
+  (GhcPass 'Renamed)
+  (LocatedA (HsExpr (GhcPass 'Renamed)))
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Types.SrcLoc.html#L"><span class="hs-identifier hs-type">L</span></a></span><span> </span><span id="local-6989586621682881297"><span class="annot"><span class="annottext">SrcSpanAnnA
+</span><a href="#local-6989586621682881297"><span class="hs-identifier hs-var">body_loc</span></a></span></span><span> </span><span id="local-6989586621682881298"><span class="annot"><span class="annottext">HsExpr (GhcPass 'Renamed)
+</span><a href="#local-6989586621682881298"><span class="hs-identifier hs-var">body</span></a></span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Maybe Bool
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621682881299"><span class="annot"><span class="annottext">SyntaxExpr (GhcPass 'Renamed)
+</span><a href="#local-6989586621682881299"><span class="hs-identifier hs-var">ret_expr</span></a></span></span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">]</span><span>
+</span><span id="line-89"></span><span class="hs-comment">-- See  Note [Expanding HsDo with XXExprGhcRn] Equation (5) below</span><span>
+</span><span id="line-90"></span><span class="hs-comment">-- last statement of a list comprehension, needs to explicitly return it</span><span>
+</span><span id="line-91"></span><span class="hs-comment">-- See `checkLastStmt` and `Syntax.Expr.StmtLR.LastStmt`</span><span>
+</span><span id="line-92"></span><span>   </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">SyntaxExpr (GhcPass 'Renamed)
+SyntaxExprRn
+</span><a href="GHC.Hs.Expr.html#NoSyntaxExprRn"><span class="hs-identifier hs-var">NoSyntaxExprRn</span></a></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">SyntaxExpr (GhcPass 'Renamed)
+</span><a href="#local-6989586621682881299"><span class="hs-identifier hs-var">ret_expr</span></a></span><span>
+</span><span id="line-93"></span><span>   </span><span class="hs-comment">-- Last statement is just body if we are not in ListComp context. See Syntax.Expr.LastStmt</span><span>
+</span><span id="line-94"></span><span>   </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span> </span><span class="annot"><span class="annottext">String -&gt; SDoc -&gt; TcRn ()
+</span><a href="GHC.Tc.Utils.Monad.html#traceTc"><span class="hs-identifier hs-var">traceTc</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;expand_do_stmts last&quot;</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">SyntaxExprRn -&gt; SDoc
+forall a. Outputable a =&gt; a -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#ppr"><span class="hs-identifier hs-var">ppr</span></a></span><span> </span><span class="annot"><span class="annottext">SyntaxExpr (GhcPass 'Renamed)
+SyntaxExprRn
+</span><a href="#local-6989586621682881299"><span class="hs-identifier hs-var">ret_expr</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-95"></span><span>        </span><span class="annot"><span class="annottext">LHsExpr (GhcPass 'Renamed) -&gt; TcM (LHsExpr (GhcPass 'Renamed))
+forall a. a -&gt; IOEnv (Env TcGblEnv TcLclEnv) a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">(LHsExpr (GhcPass 'Renamed) -&gt; TcM (LHsExpr (GhcPass 'Renamed)))
+-&gt; LHsExpr (GhcPass 'Renamed) -&gt; TcM (LHsExpr (GhcPass 'Renamed))
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">SrcSpanAnnA
+-&gt; ExprLStmt (GhcPass 'Renamed)
+-&gt; HsExpr (GhcPass 'Renamed)
+-&gt; LHsExpr (GhcPass 'Renamed)
+</span><a href="GHC.Hs.Expr.html#mkExpandedStmtPopAt"><span class="hs-identifier hs-var">mkExpandedStmtPopAt</span></a></span><span> </span><span class="annot"><span class="annottext">SrcSpanAnnA
+</span><a href="#local-6989586621682881295"><span class="hs-identifier hs-var">loc</span></a></span><span> </span><span class="annot"><span class="annottext">ExprLStmt (GhcPass 'Renamed)
+</span><a href="#local-6989586621682881294"><span class="hs-identifier hs-var">stmt</span></a></span><span> </span><span class="annot"><span class="annottext">HsExpr (GhcPass 'Renamed)
+</span><a href="#local-6989586621682881298"><span class="hs-identifier hs-var">body</span></a></span><span>
+</span><span id="line-96"></span><span>
+</span><span id="line-97"></span><span>   </span><span class="hs-glyph">|</span><span> </span><span class="annot"><a href="GHC.Hs.Expr.html#SyntaxExprRn"><span class="hs-identifier hs-type">SyntaxExprRn</span></a></span><span> </span><span id="local-6989586621682881304"><span class="annot"><span class="annottext">HsExpr (GhcPass 'Renamed)
+</span><a href="#local-6989586621682881304"><span class="hs-identifier hs-var">ret</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">SyntaxExpr (GhcPass 'Renamed)
+</span><a href="#local-6989586621682881299"><span class="hs-identifier hs-var">ret_expr</span></a></span><span>
+</span><span id="line-98"></span><span>   </span><span class="hs-comment">--</span><span>
+</span><span id="line-99"></span><span>   </span><span class="hs-comment">--    ------------------------------------------------</span><span>
+</span><span id="line-100"></span><span>   </span><span class="hs-comment">--               return e  ~~&gt; return e</span><span>
+</span><span id="line-101"></span><span>   </span><span class="hs-comment">-- to make T18324 work</span><span>
+</span><span id="line-102"></span><span>   </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span> </span><span class="annot"><span class="annottext">String -&gt; SDoc -&gt; TcRn ()
+</span><a href="GHC.Tc.Utils.Monad.html#traceTc"><span class="hs-identifier hs-var">traceTc</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;expand_do_stmts last&quot;</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">SyntaxExprRn -&gt; SDoc
+forall a. Outputable a =&gt; a -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#ppr"><span class="hs-identifier hs-var">ppr</span></a></span><span> </span><span class="annot"><span class="annottext">SyntaxExpr (GhcPass 'Renamed)
+SyntaxExprRn
+</span><a href="#local-6989586621682881299"><span class="hs-identifier hs-var">ret_expr</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-103"></span><span>        </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621682881305"><span class="annot"><span class="annottext">expansion :: HsExpr (GhcPass 'Renamed)
+</span><a href="#local-6989586621682881305"><span class="hs-identifier hs-var hs-var">expansion</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">HsExpr (GhcPass 'Renamed)
+-&gt; LHsExpr (GhcPass 'Renamed) -&gt; HsExpr (GhcPass 'Renamed)
+</span><a href="GHC.Rename.Utils.html#genHsApp"><span class="hs-identifier hs-var">genHsApp</span></a></span><span> </span><span class="annot"><span class="annottext">HsExpr (GhcPass 'Renamed)
+</span><a href="#local-6989586621682881304"><span class="hs-identifier hs-var">ret</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">SrcSpanAnnA
+-&gt; HsExpr (GhcPass 'Renamed)
+-&gt; LocatedA (HsExpr (GhcPass 'Renamed))
+forall l e. l -&gt; e -&gt; GenLocated l e
+</span><a href="GHC.Types.SrcLoc.html#L"><span class="hs-identifier hs-var">L</span></a></span><span> </span><span class="annot"><span class="annottext">SrcSpanAnnA
+</span><a href="#local-6989586621682881297"><span class="hs-identifier hs-var">body_loc</span></a></span><span> </span><span class="annot"><span class="annottext">HsExpr (GhcPass 'Renamed)
+</span><a href="#local-6989586621682881298"><span class="hs-identifier hs-var">body</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-104"></span><span>        </span><span class="annot"><span class="annottext">LHsExpr (GhcPass 'Renamed) -&gt; TcM (LHsExpr (GhcPass 'Renamed))
+forall a. a -&gt; IOEnv (Env TcGblEnv TcLclEnv) a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">(LHsExpr (GhcPass 'Renamed) -&gt; TcM (LHsExpr (GhcPass 'Renamed)))
+-&gt; LHsExpr (GhcPass 'Renamed) -&gt; TcM (LHsExpr (GhcPass 'Renamed))
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">SrcSpanAnnA
+-&gt; ExprLStmt (GhcPass 'Renamed)
+-&gt; HsExpr (GhcPass 'Renamed)
+-&gt; LHsExpr (GhcPass 'Renamed)
+</span><a href="GHC.Hs.Expr.html#mkExpandedStmtPopAt"><span class="hs-identifier hs-var">mkExpandedStmtPopAt</span></a></span><span> </span><span class="annot"><span class="annottext">SrcSpanAnnA
+</span><a href="#local-6989586621682881295"><span class="hs-identifier hs-var">loc</span></a></span><span> </span><span class="annot"><span class="annottext">ExprLStmt (GhcPass 'Renamed)
+</span><a href="#local-6989586621682881294"><span class="hs-identifier hs-var">stmt</span></a></span><span> </span><span class="annot"><span class="annottext">HsExpr (GhcPass 'Renamed)
+</span><a href="#local-6989586621682881305"><span class="hs-identifier hs-var">expansion</span></a></span><span>
+</span><span id="line-105"></span><span>
+</span><span id="line-106"></span><span class="annot"><a href="GHC.Tc.Gen.Do.html#expand_do_stmts"><span class="hs-identifier hs-var">expand_do_stmts</span></a></span><span> </span><span id="local-6989586621682881306"><span class="annot"><span class="annottext">HsDoFlavour
+</span><a href="#local-6989586621682881306"><span class="hs-identifier hs-var">do_or_lc</span></a></span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621682881307"><span class="annot"><span class="annottext">stmt :: ExprLStmt (GhcPass 'Renamed)
+</span><a href="#local-6989586621682881307"><span class="hs-identifier hs-var">stmt</span></a></span></span><span class="hs-glyph">@</span><span class="hs-special">(</span><span class="annot"><a href="GHC.Types.SrcLoc.html#L"><span class="hs-identifier hs-type">L</span></a></span><span> </span><span id="local-6989586621682881308"><span class="annot"><span class="annottext">SrcSpanAnnA
+</span><a href="#local-6989586621682881308"><span class="hs-identifier hs-var">loc</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.Haskell.Syntax.Expr.html#LetStmt"><span class="hs-identifier hs-type">LetStmt</span></a></span><span> </span><span class="annot"><span class="annottext">XLetStmt
+  (GhcPass 'Renamed)
+  (GhcPass 'Renamed)
+  (LocatedA (HsExpr (GhcPass 'Renamed)))
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621682881310"><span class="annot"><span class="annottext">HsLocalBindsLR (GhcPass 'Renamed) (GhcPass 'Renamed)
+</span><a href="#local-6989586621682881310"><span class="hs-identifier hs-var">bs</span></a></span></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span> </span><span id="local-6989586621682881311"><span class="annot"><span class="annottext">[ExprLStmt (GhcPass 'Renamed)]
+</span><a href="#local-6989586621682881311"><span class="hs-identifier hs-var">lstmts</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-107"></span><span class="hs-comment">-- See  Note [Expanding HsDo with XXExprGhcRn] Equation (3) below</span><span>
+</span><span id="line-108"></span><span class="hs-comment">--                      stmts ~~&gt; stmts'</span><span>
+</span><span id="line-109"></span><span class="hs-comment">--    ------------------------------------------------</span><span>
+</span><span id="line-110"></span><span class="hs-comment">--       let x = e ; stmts ~~&gt; let x = e in stmts'</span><span>
+</span><span id="line-111"></span><span>  </span><span class="hs-keyword">do</span><span> </span><span id="local-6989586621682881312"><span class="annot"><a href="#local-6989586621682881312"><span class="hs-identifier hs-var">expand_stmts</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">HsDoFlavour
+-&gt; [ExprLStmt (GhcPass 'Renamed)]
+-&gt; TcM (LHsExpr (GhcPass 'Renamed))
+</span><a href="GHC.Tc.Gen.Do.html#expand_do_stmts"><span class="hs-identifier hs-var">expand_do_stmts</span></a></span><span> </span><span class="annot"><span class="annottext">HsDoFlavour
+</span><a href="#local-6989586621682881306"><span class="hs-identifier hs-var">do_or_lc</span></a></span><span> </span><span class="annot"><span class="annottext">[ExprLStmt (GhcPass 'Renamed)]
+</span><a href="#local-6989586621682881311"><span class="hs-identifier hs-var">lstmts</span></a></span><span>
+</span><span id="line-112"></span><span>     </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621682881313"><span class="annot"><a href="#local-6989586621682881313"><span class="hs-identifier hs-var hs-var">expansion</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">HsLocalBindsLR (GhcPass 'Renamed) (GhcPass 'Renamed)
+-&gt; LHsExpr (GhcPass 'Renamed) -&gt; HsExpr (GhcPass 'Renamed)
+</span><a href="GHC.Rename.Utils.html#genHsLet"><span class="hs-identifier hs-var">genHsLet</span></a></span><span> </span><span class="annot"><span class="annottext">HsLocalBindsLR (GhcPass 'Renamed) (GhcPass 'Renamed)
+</span><a href="#local-6989586621682881310"><span class="hs-identifier hs-var">bs</span></a></span><span> </span><span class="annot"><span class="annottext">LHsExpr (GhcPass 'Renamed)
+LocatedA (HsExpr (GhcPass 'Renamed))
+</span><a href="#local-6989586621682881312"><span class="hs-identifier hs-var">expand_stmts</span></a></span><span>
+</span><span id="line-113"></span><span>     </span><span class="annot"><span class="hs-identifier hs-type">return</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">$</span></span><span> </span><span class="annot"><a href="GHC.Hs.Expr.html#mkExpandedStmtPopAt"><span class="hs-identifier hs-type">mkExpandedStmtPopAt</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682881308"><span class="hs-identifier hs-type">loc</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682881307"><span class="hs-identifier hs-type">stmt</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682881313"><span class="hs-identifier hs-type">expansion</span></a></span><span>
+</span><span id="line-114"></span><span>
+</span><span id="line-115"></span><span class="annot"><a href="GHC.Tc.Gen.Do.html#expand_do_stmts"><span class="hs-identifier hs-var">expand_do_stmts</span></a></span><span> </span><span id="local-6989586621682881314"><span class="annot"><span class="annottext">HsDoFlavour
+</span><a href="#local-6989586621682881314"><span class="hs-identifier hs-var">do_or_lc</span></a></span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621682881315"><span class="annot"><span class="annottext">stmt :: ExprLStmt (GhcPass 'Renamed)
+</span><a href="#local-6989586621682881315"><span class="hs-identifier hs-var">stmt</span></a></span></span><span class="hs-glyph">@</span><span class="hs-special">(</span><span class="annot"><a href="GHC.Types.SrcLoc.html#L"><span class="hs-identifier hs-type">L</span></a></span><span> </span><span id="local-6989586621682881316"><span class="annot"><span class="annottext">SrcSpanAnnA
+</span><a href="#local-6989586621682881316"><span class="hs-identifier hs-var">loc</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.Haskell.Syntax.Expr.html#BindStmt"><span class="hs-identifier hs-type">BindStmt</span></a></span><span> </span><span id="local-6989586621682881318"><span class="annot"><span class="annottext">XBindStmt
+  (GhcPass 'Renamed)
+  (GhcPass 'Renamed)
+  (LocatedA (HsExpr (GhcPass 'Renamed)))
+</span><a href="#local-6989586621682881318"><span class="hs-identifier hs-var">xbsrn</span></a></span></span><span> </span><span id="local-6989586621682881319"><span class="annot"><span class="annottext">LPat (GhcPass 'Renamed)
+</span><a href="#local-6989586621682881319"><span class="hs-identifier hs-var">pat</span></a></span></span><span> </span><span id="local-6989586621682881320"><span class="annot"><span class="annottext">LocatedA (HsExpr (GhcPass 'Renamed))
+</span><a href="#local-6989586621682881320"><span class="hs-identifier hs-var">e</span></a></span></span><span class="hs-special">)</span><span class="hs-special">)</span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span> </span><span id="local-6989586621682881321"><span class="annot"><span class="annottext">[ExprLStmt (GhcPass 'Renamed)]
+</span><a href="#local-6989586621682881321"><span class="hs-identifier hs-var">lstmts</span></a></span></span><span class="hs-special">)</span><span>
+</span><span id="line-116"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><a href="GHC.Hs.Expr.html#SyntaxExprRn"><span class="hs-identifier hs-type">SyntaxExprRn</span></a></span><span> </span><span id="local-6989586621682881322"><span class="annot"><span class="annottext">HsExpr (GhcPass 'Renamed)
+</span><a href="#local-6989586621682881322"><span class="hs-identifier hs-var">bind_op</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">XBindStmtRn -&gt; SyntaxExpr (GhcPass 'Renamed)
+</span><a href="GHC.Hs.Expr.html#xbsrn_bindOp"><span class="hs-identifier hs-var">xbsrn_bindOp</span></a></span><span> </span><span class="annot"><span class="annottext">XBindStmt
+  (GhcPass 'Renamed)
+  (GhcPass 'Renamed)
+  (LocatedA (HsExpr (GhcPass 'Renamed)))
+XBindStmtRn
+</span><a href="#local-6989586621682881318"><span class="hs-identifier hs-var">xbsrn</span></a></span><span>
+</span><span id="line-117"></span><span>  </span><span class="hs-special">,</span><span> </span><span id="local-6989586621682881324"><span class="annot"><span class="annottext">FailOperator (GhcPass 'Renamed)
+</span><a href="#local-6989586621682881324"><span class="hs-identifier hs-var">fail_op</span></a></span></span><span>              </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">XBindStmtRn -&gt; FailOperator (GhcPass 'Renamed)
+</span><a href="GHC.Hs.Expr.html#xbsrn_failOp"><span class="hs-identifier hs-var">xbsrn_failOp</span></a></span><span> </span><span class="annot"><span class="annottext">XBindStmt
+  (GhcPass 'Renamed)
+  (GhcPass 'Renamed)
+  (LocatedA (HsExpr (GhcPass 'Renamed)))
+XBindStmtRn
+</span><a href="#local-6989586621682881318"><span class="hs-identifier hs-var">xbsrn</span></a></span><span>
+</span><span id="line-118"></span><span class="hs-comment">-- See  Note [Expanding HsDo with XXExprGhcRn] Equation (2) below</span><span>
+</span><span id="line-119"></span><span class="hs-comment">-- the pattern binding pat can fail</span><span>
+</span><span id="line-120"></span><span class="hs-comment">--      stmts ~~&gt; stmt'    f = \case pat -&gt; stmts';</span><span>
+</span><span id="line-121"></span><span class="hs-comment">--                                   _   -&gt; fail &quot;Pattern match failure ..&quot;</span><span>
+</span><span id="line-122"></span><span class="hs-comment">--    -------------------------------------------------------</span><span>
+</span><span id="line-123"></span><span class="hs-comment">--       pat &lt;- e ; stmts   ~~&gt; (&gt;&gt;=) e f</span><span>
+</span><span id="line-124"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span> </span><span id="local-6989586621682881326"><span class="annot"><a href="#local-6989586621682881326"><span class="hs-identifier hs-var">expand_stmts</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">HsDoFlavour
+-&gt; [ExprLStmt (GhcPass 'Renamed)]
+-&gt; TcM (LHsExpr (GhcPass 'Renamed))
+</span><a href="GHC.Tc.Gen.Do.html#expand_do_stmts"><span class="hs-identifier hs-var">expand_do_stmts</span></a></span><span> </span><span class="annot"><span class="annottext">HsDoFlavour
+</span><a href="#local-6989586621682881314"><span class="hs-identifier hs-var">do_or_lc</span></a></span><span> </span><span class="annot"><span class="annottext">[ExprLStmt (GhcPass 'Renamed)]
+</span><a href="#local-6989586621682881321"><span class="hs-identifier hs-var">lstmts</span></a></span><span>
+</span><span id="line-125"></span><span>       </span><span id="local-6989586621682881327"><span class="annot"><a href="#local-6989586621682881327"><span class="hs-identifier hs-var">failable_expr</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><a href="GHC.Tc.Gen.Do.html#mk_failable_expr"><span class="hs-identifier hs-type">mk_failable_expr</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682881314"><span class="hs-identifier hs-type">do_or_lc</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682881319"><span class="hs-identifier hs-type">pat</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682881326"><span class="hs-identifier hs-type">expand_stmts</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682881324"><span class="hs-identifier hs-type">fail_op</span></a></span><span>
+</span><span id="line-126"></span><span>       </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621682881329"><span class="annot"><a href="#local-6989586621682881329"><span class="hs-identifier hs-var hs-var">expansion</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">HsExpr (GhcPass 'Renamed)
+-&gt; [LHsExpr (GhcPass 'Renamed)] -&gt; HsExpr (GhcPass 'Renamed)
+</span><a href="GHC.Rename.Utils.html#genHsExpApps"><span class="hs-identifier hs-var">genHsExpApps</span></a></span><span> </span><span class="annot"><span class="annottext">HsExpr (GhcPass 'Renamed)
+</span><a href="#local-6989586621682881322"><span class="hs-identifier hs-var">bind_op</span></a></span><span>  </span><span class="hs-comment">-- (&gt;&gt;=)</span><span>
+</span><span id="line-127"></span><span>                       </span><span class="hs-special">[</span><span> </span><span class="annot"><span class="annottext">LHsExpr (GhcPass 'Renamed)
+LocatedA (HsExpr (GhcPass 'Renamed))
+</span><a href="#local-6989586621682881320"><span class="hs-identifier hs-var">e</span></a></span><span>
+</span><span id="line-128"></span><span>                       </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">LHsExpr (GhcPass 'Renamed)
+LocatedA (HsExpr (GhcPass 'Renamed))
+</span><a href="#local-6989586621682881327"><span class="hs-identifier hs-var">failable_expr</span></a></span><span> </span><span class="hs-special">]</span><span>
+</span><span id="line-129"></span><span>       </span><span class="annot"><span class="hs-identifier hs-type">return</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">$</span></span><span> </span><span class="annot"><a href="GHC.Hs.Expr.html#mkExpandedStmtPopAt"><span class="hs-identifier hs-type">mkExpandedStmtPopAt</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682881316"><span class="hs-identifier hs-type">loc</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682881315"><span class="hs-identifier hs-type">stmt</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682881329"><span class="hs-identifier hs-type">expansion</span></a></span><span>
+</span><span id="line-130"></span><span>
+</span><span id="line-131"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span>
+</span><span id="line-132"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+-&gt; SDoc
+-&gt; IOEnv
+     (Env TcGblEnv TcLclEnv) (LocatedA (HsExpr (GhcPass 'Renamed)))
+forall a. HasCallStack =&gt; String -&gt; SDoc -&gt; a
+</span><a href="GHC.Utils.Panic.html#pprPanic"><span class="hs-identifier hs-var">pprPanic</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;expand_do_stmts: The impossible happened, missing bind operator from renamer&quot;</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String -&gt; SDoc
+forall doc. IsLine doc =&gt; String -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#text"><span class="hs-identifier hs-var">text</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;stmt&quot;</span></span><span> </span><span class="annot"><span class="annottext">SDoc -&gt; SDoc -&gt; SDoc
+forall doc. IsLine doc =&gt; doc -&gt; doc -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#%3C%2B%3E"><span class="hs-operator hs-var">&lt;+&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">GenLocated
+  SrcSpanAnnA
+  (StmtLR
+     (GhcPass 'Renamed)
+     (GhcPass 'Renamed)
+     (LocatedA (HsExpr (GhcPass 'Renamed))))
+-&gt; SDoc
+forall a. Outputable a =&gt; a -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#ppr"><span class="hs-identifier hs-var">ppr</span></a></span><span>  </span><span class="annot"><span class="annottext">ExprLStmt (GhcPass 'Renamed)
+GenLocated
+  SrcSpanAnnA
+  (StmtLR
+     (GhcPass 'Renamed)
+     (GhcPass 'Renamed)
+     (LocatedA (HsExpr (GhcPass 'Renamed))))
+</span><a href="#local-6989586621682881315"><span class="hs-identifier hs-var">stmt</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-133"></span><span>
+</span><span id="line-134"></span><span class="annot"><a href="GHC.Tc.Gen.Do.html#expand_do_stmts"><span class="hs-identifier hs-var">expand_do_stmts</span></a></span><span> </span><span id="local-6989586621682881332"><span class="annot"><span class="annottext">HsDoFlavour
+</span><a href="#local-6989586621682881332"><span class="hs-identifier hs-var">do_or_lc</span></a></span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621682881333"><span class="annot"><span class="annottext">stmt :: ExprLStmt (GhcPass 'Renamed)
+</span><a href="#local-6989586621682881333"><span class="hs-identifier hs-var">stmt</span></a></span></span><span class="hs-glyph">@</span><span class="hs-special">(</span><span class="annot"><a href="GHC.Types.SrcLoc.html#L"><span class="hs-identifier hs-type">L</span></a></span><span> </span><span id="local-6989586621682881334"><span class="annot"><span class="annottext">SrcSpanAnnA
+</span><a href="#local-6989586621682881334"><span class="hs-identifier hs-var">loc</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.Haskell.Syntax.Expr.html#BodyStmt"><span class="hs-identifier hs-type">BodyStmt</span></a></span><span> </span><span class="annot"><span class="annottext">XBodyStmt
+  (GhcPass 'Renamed)
+  (GhcPass 'Renamed)
+  (LocatedA (HsExpr (GhcPass 'Renamed)))
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621682881336"><span class="annot"><span class="annottext">LocatedA (HsExpr (GhcPass 'Renamed))
+</span><a href="#local-6989586621682881336"><span class="hs-identifier hs-var">e</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Hs.Expr.html#SyntaxExprRn"><span class="hs-identifier hs-type">SyntaxExprRn</span></a></span><span> </span><span id="local-6989586621682881337"><span class="annot"><span class="annottext">HsExpr (GhcPass 'Renamed)
+</span><a href="#local-6989586621682881337"><span class="hs-identifier hs-var">then_op</span></a></span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">SyntaxExpr (GhcPass 'Renamed)
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span> </span><span id="local-6989586621682881338"><span class="annot"><span class="annottext">[ExprLStmt (GhcPass 'Renamed)]
+</span><a href="#local-6989586621682881338"><span class="hs-identifier hs-var">lstmts</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-135"></span><span class="hs-comment">-- See Note [BodyStmt] in Language.Haskell.Syntax.Expr</span><span>
+</span><span id="line-136"></span><span class="hs-comment">-- See  Note [Expanding HsDo with XXExprGhcRn] Equation (1) below</span><span>
+</span><span id="line-137"></span><span class="hs-comment">--              stmts ~~&gt; stmts'</span><span>
+</span><span id="line-138"></span><span class="hs-comment">--    ----------------------------------------------</span><span>
+</span><span id="line-139"></span><span class="hs-comment">--      e ; stmts ~~&gt; (&gt;&gt;) e stmts'</span><span>
+</span><span id="line-140"></span><span>  </span><span class="hs-keyword">do</span><span> </span><span id="local-6989586621682881339"><span class="annot"><a href="#local-6989586621682881339"><span class="hs-identifier hs-var">expand_stmts_expr</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">HsDoFlavour
+-&gt; [ExprLStmt (GhcPass 'Renamed)]
+-&gt; TcM (LHsExpr (GhcPass 'Renamed))
+</span><a href="GHC.Tc.Gen.Do.html#expand_do_stmts"><span class="hs-identifier hs-var">expand_do_stmts</span></a></span><span> </span><span class="annot"><span class="annottext">HsDoFlavour
+</span><a href="#local-6989586621682881332"><span class="hs-identifier hs-var">do_or_lc</span></a></span><span> </span><span class="annot"><span class="annottext">[ExprLStmt (GhcPass 'Renamed)]
+</span><a href="#local-6989586621682881338"><span class="hs-identifier hs-var">lstmts</span></a></span><span>
+</span><span id="line-141"></span><span>     </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621682881340"><span class="annot"><a href="#local-6989586621682881340"><span class="hs-identifier hs-var hs-var">expansion</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">HsExpr (GhcPass 'Renamed)
+-&gt; [LHsExpr (GhcPass 'Renamed)] -&gt; HsExpr (GhcPass 'Renamed)
+</span><a href="GHC.Rename.Utils.html#genHsExpApps"><span class="hs-identifier hs-var">genHsExpApps</span></a></span><span> </span><span class="annot"><span class="annottext">HsExpr (GhcPass 'Renamed)
+</span><a href="#local-6989586621682881337"><span class="hs-identifier hs-var">then_op</span></a></span><span>  </span><span class="hs-comment">-- (&gt;&gt;)</span><span>
+</span><span id="line-142"></span><span>                                  </span><span class="hs-special">[</span><span> </span><span class="annot"><span class="annottext">LHsExpr (GhcPass 'Renamed)
+LocatedA (HsExpr (GhcPass 'Renamed))
+</span><a href="#local-6989586621682881336"><span class="hs-identifier hs-var">e</span></a></span><span>
+</span><span id="line-143"></span><span>                                  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">LHsExpr (GhcPass 'Renamed)
+LocatedA (HsExpr (GhcPass 'Renamed))
+</span><a href="#local-6989586621682881339"><span class="hs-identifier hs-var">expand_stmts_expr</span></a></span><span> </span><span class="hs-special">]</span><span>
+</span><span id="line-144"></span><span>     </span><span class="annot"><span class="hs-identifier hs-type">return</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">$</span></span><span> </span><span class="annot"><a href="GHC.Hs.Expr.html#mkExpandedStmtPopAt"><span class="hs-identifier hs-type">mkExpandedStmtPopAt</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682881334"><span class="hs-identifier hs-type">loc</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682881333"><span class="hs-identifier hs-type">stmt</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682881340"><span class="hs-identifier hs-type">expansion</span></a></span><span>
+</span><span id="line-145"></span><span>
+</span><span id="line-146"></span><span class="annot"><a href="GHC.Tc.Gen.Do.html#expand_do_stmts"><span class="hs-identifier hs-var">expand_do_stmts</span></a></span><span> </span><span id="local-6989586621682881341"><span class="annot"><span class="annottext">HsDoFlavour
+</span><a href="#local-6989586621682881341"><span class="hs-identifier hs-var">do_or_lc</span></a></span></span><span>
+</span><span id="line-147"></span><span>       </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><a href="GHC.Types.SrcLoc.html#L"><span class="hs-identifier hs-type">L</span></a></span><span> </span><span id="local-6989586621682881342"><span class="annot"><span class="annottext">SrcSpanAnnA
+</span><a href="#local-6989586621682881342"><span class="hs-identifier hs-var">loc</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.Haskell.Syntax.Expr.html#RecStmt"><span class="hs-identifier hs-type">RecStmt</span></a></span><span> </span><span class="hs-special">{</span><span> </span><span class="annot"><span class="annottext">recS_stmts :: forall idL idR body.
+StmtLR idL idR body -&gt; XRec idR [LStmtLR idL idR body]
+</span><a href="Language.Haskell.Syntax.Expr.html#recS_stmts"><span class="hs-identifier hs-var">recS_stmts</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="GHC.Types.SrcLoc.html#L"><span class="hs-identifier hs-type">L</span></a></span><span> </span><span id="local-6989586621682881345"><span class="annot"><span class="annottext">SrcSpanAnnL
+</span><a href="#local-6989586621682881345"><span class="hs-identifier hs-var">stmts_loc</span></a></span></span><span> </span><span id="local-6989586621682881346"><span class="annot"><span class="annottext">[GenLocated
+   SrcSpanAnnA
+   (StmtLR
+      (GhcPass 'Renamed)
+      (GhcPass 'Renamed)
+      (LocatedA (HsExpr (GhcPass 'Renamed))))]
+</span><a href="#local-6989586621682881346"><span class="hs-identifier hs-var">rec_stmts</span></a></span></span><span>
+</span><span id="line-148"></span><span>                        </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">recS_later_ids :: forall idL idR body. StmtLR idL idR body -&gt; [IdP idR]
+</span><a href="Language.Haskell.Syntax.Expr.html#recS_later_ids"><span class="hs-identifier hs-var">recS_later_ids</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="local-6989586621682881348"><span class="annot"><span class="annottext">[IdP (GhcPass 'Renamed)]
+</span><a href="#local-6989586621682881348"><span class="hs-identifier hs-var">later_ids</span></a></span></span><span>  </span><span class="hs-comment">-- forward referenced local ids</span><span>
+</span><span id="line-149"></span><span>                        </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">recS_rec_ids :: forall idL idR body. StmtLR idL idR body -&gt; [IdP idR]
+</span><a href="Language.Haskell.Syntax.Expr.html#recS_rec_ids"><span class="hs-identifier hs-var">recS_rec_ids</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="local-6989586621682881350"><span class="annot"><span class="annottext">[IdP (GhcPass 'Renamed)]
+</span><a href="#local-6989586621682881350"><span class="hs-identifier hs-var">local_ids</span></a></span></span><span>     </span><span class="hs-comment">-- ids referenced outside of the rec block</span><span>
+</span><span id="line-150"></span><span>                        </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">recS_bind_fn :: forall idL idR body. StmtLR idL idR body -&gt; SyntaxExpr idR
+</span><a href="Language.Haskell.Syntax.Expr.html#recS_bind_fn"><span class="hs-identifier hs-var">recS_bind_fn</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="GHC.Hs.Expr.html#SyntaxExprRn"><span class="hs-identifier hs-type">SyntaxExprRn</span></a></span><span> </span><span id="local-6989586621682881352"><span class="annot"><span class="annottext">HsExpr (GhcPass 'Renamed)
+</span><a href="#local-6989586621682881352"><span class="hs-identifier hs-var">bind_fun</span></a></span></span><span>   </span><span class="hs-comment">-- the (&gt;&gt;=) expr</span><span>
+</span><span id="line-151"></span><span>                        </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">recS_mfix_fn :: forall idL idR body. StmtLR idL idR body -&gt; SyntaxExpr idR
+</span><a href="Language.Haskell.Syntax.Expr.html#recS_mfix_fn"><span class="hs-identifier hs-var">recS_mfix_fn</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="GHC.Hs.Expr.html#SyntaxExprRn"><span class="hs-identifier hs-type">SyntaxExprRn</span></a></span><span> </span><span id="local-6989586621682881354"><span class="annot"><span class="annottext">HsExpr (GhcPass 'Renamed)
+</span><a href="#local-6989586621682881354"><span class="hs-identifier hs-var">mfix_fun</span></a></span></span><span>   </span><span class="hs-comment">-- the `mfix` expr</span><span>
+</span><span id="line-152"></span><span>                        </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">recS_ret_fn :: forall idL idR body. StmtLR idL idR body -&gt; SyntaxExpr idR
+</span><a href="Language.Haskell.Syntax.Expr.html#recS_ret_fn"><span class="hs-identifier hs-var">recS_ret_fn</span></a></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="GHC.Hs.Expr.html#SyntaxExprRn"><span class="hs-identifier hs-type">SyntaxExprRn</span></a></span><span> </span><span id="local-6989586621682881356"><span class="annot"><span class="annottext">HsExpr (GhcPass 'Renamed)
+</span><a href="#local-6989586621682881356"><span class="hs-identifier hs-var">return_fun</span></a></span></span><span> </span><span class="hs-comment">-- the `return` expr</span><span>
+</span><span id="line-153"></span><span>                                                          </span><span class="hs-comment">-- use it explicitly</span><span>
+</span><span id="line-154"></span><span>                                                          </span><span class="hs-comment">-- at the end of expanded rec block</span><span>
+</span><span id="line-155"></span><span>                        </span><span class="hs-special">}</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-156"></span><span>         </span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span> </span><span id="local-6989586621682881357"><span class="annot"><span class="annottext">[ExprLStmt (GhcPass 'Renamed)]
+</span><a href="#local-6989586621682881357"><span class="hs-identifier hs-var">lstmts</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-157"></span><span class="hs-comment">-- See Note [Typing a RecStmt] in Language.Haskell.Syntax.Expr</span><span>
+</span><span id="line-158"></span><span class="hs-comment">-- See  Note [Expanding HsDo with XXExprGhcRn] Equation (4) and (6) below</span><span>
+</span><span id="line-159"></span><span class="hs-comment">--                                   stmts ~~&gt; stmts'</span><span>
+</span><span id="line-160"></span><span class="hs-comment">--    -------------------------------------------------------------------------------------------</span><span>
+</span><span id="line-161"></span><span class="hs-comment">--      rec { later_ids, local_ids, rec_block } ; stmts</span><span>
+</span><span id="line-162"></span><span class="hs-comment">--                    ~~&gt; (&gt;&gt;=) (mfix (\[ local_only_ids ++ later_ids ]</span><span>
+</span><span id="line-163"></span><span class="hs-comment">--                                           -&gt; do { rec_stmts</span><span>
+</span><span id="line-164"></span><span class="hs-comment">--                                                 ; return (local_only_ids ++ later_ids) } ))</span><span>
+</span><span id="line-165"></span><span class="hs-comment">--                              (\ [ local_only_ids ++ later_ids ] -&gt; stmts')</span><span>
+</span><span id="line-166"></span><span>  </span><span class="hs-keyword">do</span><span> </span><span id="local-6989586621682881358"><span class="annot"><a href="#local-6989586621682881358"><span class="hs-identifier hs-var">expand_stmts</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">HsDoFlavour
+-&gt; [ExprLStmt (GhcPass 'Renamed)]
+-&gt; TcM (LHsExpr (GhcPass 'Renamed))
+</span><a href="GHC.Tc.Gen.Do.html#expand_do_stmts"><span class="hs-identifier hs-var">expand_do_stmts</span></a></span><span> </span><span class="annot"><span class="annottext">HsDoFlavour
+</span><a href="#local-6989586621682881341"><span class="hs-identifier hs-var">do_or_lc</span></a></span><span> </span><span class="annot"><span class="annottext">[ExprLStmt (GhcPass 'Renamed)]
+</span><a href="#local-6989586621682881357"><span class="hs-identifier hs-var">lstmts</span></a></span><span>
+</span><span id="line-167"></span><span>     </span><span class="hs-comment">-- NB: No need to wrap the expansion with an ExpandedStmt</span><span>
+</span><span id="line-168"></span><span>     </span><span class="hs-comment">-- as we want to flatten the rec block statements into its parent do block anyway</span><span>
+</span><span id="line-169"></span><span>     </span><span class="annot"><span class="hs-identifier hs-type">return</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">$</span></span><span> </span><span class="annot"><a href="GHC.Hs.Utils.html#mkHsApps"><span class="hs-identifier hs-type">mkHsApps</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Rename.Utils.html#wrapGenSpan"><span class="hs-identifier hs-type">wrapGenSpan</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682881352"><span class="hs-identifier hs-type">bind_fun</span></a></span><span class="hs-special">)</span><span>                                           </span><span class="hs-comment">-- (&gt;&gt;=)</span><span>
+</span><span id="line-170"></span><span>                      </span><span class="hs-special">[</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Rename.Utils.html#wrapGenSpan"><span class="hs-identifier hs-type">wrapGenSpan</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682881354"><span class="hs-identifier hs-type">mfix_fun</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><a href="GHC.Hs.Utils.html#mkHsApp"><span class="hs-operator hs-type">`mkHsApp`</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682881361"><span class="hs-identifier hs-type">mfix_expr</span></a></span><span>           </span><span class="hs-comment">-- (mfix (do block))</span><span>
+</span><span id="line-171"></span><span>                      </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Rename.Utils.html#genHsLamDoExp"><span class="hs-identifier hs-type">genHsLamDoExp</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682881341"><span class="hs-identifier hs-type">do_or_lc</span></a></span><span> </span><span class="hs-special">[</span><span> </span><span class="annot"><a href="GHC.Hs.Utils.html#mkBigLHsVarPatTup"><span class="hs-identifier hs-type">mkBigLHsVarPatTup</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682881363"><span class="hs-identifier hs-type">all_ids</span></a></span><span> </span><span class="hs-special">]</span><span> </span><span class="hs-comment">--        (\ x -&gt;</span><span>
+</span><span id="line-172"></span><span>                                       </span><span class="annot"><a href="#local-6989586621682881358"><span class="hs-identifier hs-type">expand_stmts</span></a></span><span>                          </span><span class="hs-comment">--               stmts')</span><span>
+</span><span id="line-173"></span><span>                      </span><span class="hs-special">]</span><span>
+</span><span id="line-174"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-175"></span><span>    </span><span id="local-6989586621682881364"><span class="annot"><span class="annottext">local_only_ids :: [Name]
+</span><a href="#local-6989586621682881364"><span class="hs-identifier hs-var hs-var">local_only_ids</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[IdP (GhcPass 'Renamed)]
+[Name]
+</span><a href="#local-6989586621682881350"><span class="hs-identifier hs-var">local_ids</span></a></span><span> </span><span class="annot"><span class="annottext">[Name] -&gt; [Name] -&gt; [Name]
+forall a. Eq a =&gt; [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">\\</span></span><span> </span><span class="annot"><span class="annottext">[IdP (GhcPass 'Renamed)]
+[Name]
+</span><a href="#local-6989586621682881348"><span class="hs-identifier hs-var">later_ids</span></a></span><span> </span><span class="hs-comment">-- get unique local rec ids;</span><span>
+</span><span id="line-176"></span><span>                                            </span><span class="hs-comment">-- local rec ids and later ids can overlap</span><span>
+</span><span id="line-177"></span><span>    </span><span id="local-6989586621682881363"><span class="annot"><span class="annottext">all_ids :: [Name]
+</span><a href="#local-6989586621682881363"><span class="hs-identifier hs-var hs-var">all_ids</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Name]
+</span><a href="#local-6989586621682881364"><span class="hs-identifier hs-var">local_only_ids</span></a></span><span> </span><span class="annot"><span class="annottext">[Name] -&gt; [Name] -&gt; [Name]
+forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">[IdP (GhcPass 'Renamed)]
+[Name]
+</span><a href="#local-6989586621682881348"><span class="hs-identifier hs-var">later_ids</span></a></span><span>   </span><span class="hs-comment">-- put local ids before return ids</span><span>
+</span><span id="line-178"></span><span>
+</span><span id="line-179"></span><span>    </span><span class="annot"><a href="#local-6989586621682881365"><span class="hs-identifier hs-type">return_stmt</span></a></span><span>  </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Language.Haskell.Syntax.Expr.html#ExprLStmt"><span class="hs-identifier hs-type">ExprLStmt</span></a></span><span> </span><span class="annot"><a href="GHC.Hs.Extension.html#GhcRn"><span class="hs-identifier hs-type">GhcRn</span></a></span><span>
+</span><span id="line-180"></span><span>    </span><span id="local-6989586621682881365"><span class="annot"><span class="annottext">return_stmt :: ExprLStmt (GhcPass 'Renamed)
+</span><a href="#local-6989586621682881365"><span class="hs-identifier hs-var hs-var">return_stmt</span></a></span></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">StmtLR
+  (GhcPass 'Renamed)
+  (GhcPass 'Renamed)
+  (LocatedA (HsExpr (GhcPass 'Renamed)))
+-&gt; GenLocated
+     SrcSpanAnnA
+     (StmtLR
+        (GhcPass 'Renamed)
+        (GhcPass 'Renamed)
+        (LocatedA (HsExpr (GhcPass 'Renamed))))
+forall an a. NoAnn an =&gt; a -&gt; LocatedAn an a
+</span><a href="GHC.Rename.Utils.html#wrapGenSpan"><span class="hs-identifier hs-var">wrapGenSpan</span></a></span><span> </span><span class="annot"><span class="annottext">(StmtLR
+   (GhcPass 'Renamed)
+   (GhcPass 'Renamed)
+   (LocatedA (HsExpr (GhcPass 'Renamed)))
+ -&gt; GenLocated
+      SrcSpanAnnA
+      (StmtLR
+         (GhcPass 'Renamed)
+         (GhcPass 'Renamed)
+         (LocatedA (HsExpr (GhcPass 'Renamed)))))
+-&gt; StmtLR
+     (GhcPass 'Renamed)
+     (GhcPass 'Renamed)
+     (LocatedA (HsExpr (GhcPass 'Renamed)))
+-&gt; GenLocated
+     SrcSpanAnnA
+     (StmtLR
+        (GhcPass 'Renamed)
+        (GhcPass 'Renamed)
+        (LocatedA (HsExpr (GhcPass 'Renamed))))
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">XLastStmt
+  (GhcPass 'Renamed)
+  (GhcPass 'Renamed)
+  (LocatedA (HsExpr (GhcPass 'Renamed)))
+-&gt; LocatedA (HsExpr (GhcPass 'Renamed))
+-&gt; Maybe Bool
+-&gt; SyntaxExpr (GhcPass 'Renamed)
+-&gt; StmtLR
+     (GhcPass 'Renamed)
+     (GhcPass 'Renamed)
+     (LocatedA (HsExpr (GhcPass 'Renamed)))
+forall idL idR body.
+XLastStmt idL idR body
+-&gt; body -&gt; Maybe Bool -&gt; SyntaxExpr idR -&gt; StmtLR idL idR body
+</span><a href="Language.Haskell.Syntax.Expr.html#LastStmt"><span class="hs-identifier hs-var">LastStmt</span></a></span><span> </span><span class="annot"><span class="annottext">XLastStmt
+  (GhcPass 'Renamed)
+  (GhcPass 'Renamed)
+  (LocatedA (HsExpr (GhcPass 'Renamed)))
+NoExtField
+</span><a href="Language.Haskell.Syntax.Extension.html#noExtField"><span class="hs-identifier hs-var">noExtField</span></a></span><span>
+</span><span id="line-181"></span><span>                                     </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[LHsExpr (GhcPass 'Renamed)]
+-&gt; XExplicitTuple (GhcPass 'Renamed) -&gt; LHsExpr (GhcPass 'Renamed)
+forall (id :: Pass).
+[LHsExpr (GhcPass id)]
+-&gt; XExplicitTuple (GhcPass id) -&gt; LHsExpr (GhcPass id)
+</span><a href="GHC.Hs.Utils.html#mkBigLHsTup"><span class="hs-identifier hs-var">mkBigLHsTup</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(Name -&gt; LocatedA (HsExpr (GhcPass 'Renamed)))
+-&gt; [Name] -&gt; [LocatedA (HsExpr (GhcPass 'Renamed))]
+forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+</span><span class="hs-identifier hs-var">map</span></span><span> </span><span class="annot"><span class="annottext">IdP (GhcPass 'Renamed) -&gt; LHsExpr (GhcPass 'Renamed)
+Name -&gt; LocatedA (HsExpr (GhcPass 'Renamed))
+forall (p :: Pass) a.
+IsSrcSpanAnn p a =&gt;
+IdP (GhcPass p) -&gt; LHsExpr (GhcPass p)
+</span><a href="GHC.Hs.Utils.html#nlHsVar"><span class="hs-identifier hs-var">nlHsVar</span></a></span><span> </span><span class="annot"><span class="annottext">[Name]
+</span><a href="#local-6989586621682881363"><span class="hs-identifier hs-var">all_ids</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">XExplicitTuple (GhcPass 'Renamed)
+NoExtField
+</span><a href="Language.Haskell.Syntax.Extension.html#noExtField"><span class="hs-identifier hs-var">noExtField</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-182"></span><span>                                     </span><span class="annot"><span class="annottext">Maybe Bool
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-183"></span><span>                                     </span><span class="hs-special">(</span><span class="annot"><span class="annottext">HsExpr (GhcPass 'Renamed) -&gt; SyntaxExprRn
+</span><a href="GHC.Hs.Expr.html#SyntaxExprRn"><span class="hs-identifier hs-var">SyntaxExprRn</span></a></span><span> </span><span class="annot"><span class="annottext">HsExpr (GhcPass 'Renamed)
+</span><a href="#local-6989586621682881356"><span class="hs-identifier hs-var">return_fun</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-184"></span><span>    </span><span class="annot"><a href="#local-6989586621682881369"><span class="hs-identifier hs-type">do_stmts</span></a></span><span>     </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Language.Haskell.Syntax.Extension.html#XRec"><span class="hs-identifier hs-type">XRec</span></a></span><span> </span><span class="annot"><a href="GHC.Hs.Extension.html#GhcRn"><span class="hs-identifier hs-type">GhcRn</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Language.Haskell.Syntax.Expr.html#ExprLStmt"><span class="hs-identifier hs-type">ExprLStmt</span></a></span><span> </span><span class="annot"><a href="GHC.Hs.Extension.html#GhcRn"><span class="hs-identifier hs-type">GhcRn</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-185"></span><span>    </span><span id="local-6989586621682881369"><span class="annot"><span class="annottext">do_stmts :: XRec (GhcPass 'Renamed) [ExprLStmt (GhcPass 'Renamed)]
+</span><a href="#local-6989586621682881369"><span class="hs-identifier hs-var hs-var">do_stmts</span></a></span></span><span>     </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">SrcSpanAnnL
+-&gt; [GenLocated
+      SrcSpanAnnA
+      (StmtLR
+         (GhcPass 'Renamed)
+         (GhcPass 'Renamed)
+         (LocatedA (HsExpr (GhcPass 'Renamed))))]
+-&gt; GenLocated
+     SrcSpanAnnL
+     [GenLocated
+        SrcSpanAnnA
+        (StmtLR
+           (GhcPass 'Renamed)
+           (GhcPass 'Renamed)
+           (LocatedA (HsExpr (GhcPass 'Renamed))))]
+forall l e. l -&gt; e -&gt; GenLocated l e
+</span><a href="GHC.Types.SrcLoc.html#L"><span class="hs-identifier hs-var">L</span></a></span><span> </span><span class="annot"><span class="annottext">SrcSpanAnnL
+</span><a href="#local-6989586621682881345"><span class="hs-identifier hs-var">stmts_loc</span></a></span><span> </span><span class="annot"><span class="annottext">([GenLocated
+    SrcSpanAnnA
+    (StmtLR
+       (GhcPass 'Renamed)
+       (GhcPass 'Renamed)
+       (LocatedA (HsExpr (GhcPass 'Renamed))))]
+ -&gt; GenLocated
+      SrcSpanAnnL
+      [GenLocated
+         SrcSpanAnnA
+         (StmtLR
+            (GhcPass 'Renamed)
+            (GhcPass 'Renamed)
+            (LocatedA (HsExpr (GhcPass 'Renamed))))])
+-&gt; [GenLocated
+      SrcSpanAnnA
+      (StmtLR
+         (GhcPass 'Renamed)
+         (GhcPass 'Renamed)
+         (LocatedA (HsExpr (GhcPass 'Renamed))))]
+-&gt; GenLocated
+     SrcSpanAnnL
+     [GenLocated
+        SrcSpanAnnA
+        (StmtLR
+           (GhcPass 'Renamed)
+           (GhcPass 'Renamed)
+           (LocatedA (HsExpr (GhcPass 'Renamed))))]
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">[GenLocated
+   SrcSpanAnnA
+   (StmtLR
+      (GhcPass 'Renamed)
+      (GhcPass 'Renamed)
+      (LocatedA (HsExpr (GhcPass 'Renamed))))]
+</span><a href="#local-6989586621682881346"><span class="hs-identifier hs-var">rec_stmts</span></a></span><span> </span><span class="annot"><span class="annottext">[GenLocated
+   SrcSpanAnnA
+   (StmtLR
+      (GhcPass 'Renamed)
+      (GhcPass 'Renamed)
+      (LocatedA (HsExpr (GhcPass 'Renamed))))]
+-&gt; [GenLocated
+      SrcSpanAnnA
+      (StmtLR
+         (GhcPass 'Renamed)
+         (GhcPass 'Renamed)
+         (LocatedA (HsExpr (GhcPass 'Renamed))))]
+-&gt; [GenLocated
+      SrcSpanAnnA
+      (StmtLR
+         (GhcPass 'Renamed)
+         (GhcPass 'Renamed)
+         (LocatedA (HsExpr (GhcPass 'Renamed))))]
+forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">ExprLStmt (GhcPass 'Renamed)
+GenLocated
+  SrcSpanAnnA
+  (StmtLR
+     (GhcPass 'Renamed)
+     (GhcPass 'Renamed)
+     (LocatedA (HsExpr (GhcPass 'Renamed))))
+</span><a href="#local-6989586621682881365"><span class="hs-identifier hs-var">return_stmt</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-186"></span><span>    </span><span class="annot"><a href="#local-6989586621682881370"><span class="hs-identifier hs-type">do_block</span></a></span><span>     </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Language.Haskell.Syntax.Expr.html#LHsExpr"><span class="hs-identifier hs-type">LHsExpr</span></a></span><span> </span><span class="annot"><a href="GHC.Hs.Extension.html#GhcRn"><span class="hs-identifier hs-type">GhcRn</span></a></span><span>
+</span><span id="line-187"></span><span>    </span><span id="local-6989586621682881370"><span class="annot"><span class="annottext">do_block :: LHsExpr (GhcPass 'Renamed)
+</span><a href="#local-6989586621682881370"><span class="hs-identifier hs-var hs-var">do_block</span></a></span></span><span>     </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">SrcSpanAnnA
+-&gt; HsExpr (GhcPass 'Renamed)
+-&gt; LocatedA (HsExpr (GhcPass 'Renamed))
+forall l e. l -&gt; e -&gt; GenLocated l e
+</span><a href="GHC.Types.SrcLoc.html#L"><span class="hs-identifier hs-var">L</span></a></span><span> </span><span class="annot"><span class="annottext">SrcSpanAnnA
+</span><a href="#local-6989586621682881342"><span class="hs-identifier hs-var">loc</span></a></span><span> </span><span class="annot"><span class="annottext">(HsExpr (GhcPass 'Renamed) -&gt; LocatedA (HsExpr (GhcPass 'Renamed)))
+-&gt; HsExpr (GhcPass 'Renamed)
+-&gt; LocatedA (HsExpr (GhcPass 'Renamed))
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">XDo (GhcPass 'Renamed)
+-&gt; HsDoFlavour
+-&gt; XRec (GhcPass 'Renamed) [ExprLStmt (GhcPass 'Renamed)]
+-&gt; HsExpr (GhcPass 'Renamed)
+forall p. XDo p -&gt; HsDoFlavour -&gt; XRec p [ExprLStmt p] -&gt; HsExpr p
+</span><a href="Language.Haskell.Syntax.Expr.html#HsDo"><span class="hs-identifier hs-var">HsDo</span></a></span><span> </span><span class="annot"><span class="annottext">XDo (GhcPass 'Renamed)
+NoExtField
+</span><a href="Language.Haskell.Syntax.Extension.html#noExtField"><span class="hs-identifier hs-var">noExtField</span></a></span><span> </span><span class="annot"><span class="annottext">HsDoFlavour
+</span><a href="#local-6989586621682881341"><span class="hs-identifier hs-var">do_or_lc</span></a></span><span> </span><span class="annot"><span class="annottext">XRec (GhcPass 'Renamed) [ExprLStmt (GhcPass 'Renamed)]
+</span><a href="#local-6989586621682881369"><span class="hs-identifier hs-var">do_stmts</span></a></span><span>
+</span><span id="line-188"></span><span>    </span><span class="annot"><a href="#local-6989586621682881361"><span class="hs-identifier hs-type">mfix_expr</span></a></span><span>    </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Language.Haskell.Syntax.Expr.html#LHsExpr"><span class="hs-identifier hs-type">LHsExpr</span></a></span><span> </span><span class="annot"><a href="GHC.Hs.Extension.html#GhcRn"><span class="hs-identifier hs-type">GhcRn</span></a></span><span>
+</span><span id="line-189"></span><span>    </span><span id="local-6989586621682881361"><span class="annot"><span class="annottext">mfix_expr :: LHsExpr (GhcPass 'Renamed)
+</span><a href="#local-6989586621682881361"><span class="hs-identifier hs-var hs-var">mfix_expr</span></a></span></span><span>    </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">HsDoFlavour
+-&gt; [LPat (GhcPass 'Renamed)]
+-&gt; LHsExpr (GhcPass 'Renamed)
+-&gt; LHsExpr (GhcPass 'Renamed)
+forall (p :: Pass).
+(IsPass p, XMG (GhcPass p) (LHsExpr (GhcPass p)) ~ Origin) =&gt;
+HsDoFlavour
+-&gt; [LPat (GhcPass p)] -&gt; LHsExpr (GhcPass p) -&gt; LHsExpr (GhcPass p)
+</span><a href="GHC.Rename.Utils.html#genHsLamDoExp"><span class="hs-identifier hs-var">genHsLamDoExp</span></a></span><span> </span><span class="annot"><span class="annottext">HsDoFlavour
+</span><a href="#local-6989586621682881341"><span class="hs-identifier hs-var">do_or_lc</span></a></span><span> </span><span class="hs-special">[</span><span> </span><span class="annot"><span class="annottext">Pat (GhcPass 'Renamed)
+-&gt; GenLocated SrcSpanAnnA (Pat (GhcPass 'Renamed))
+forall an a. NoAnn an =&gt; a -&gt; LocatedAn an a
+</span><a href="GHC.Rename.Utils.html#wrapGenSpan"><span class="hs-identifier hs-var">wrapGenSpan</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">XLazyPat (GhcPass 'Renamed)
+-&gt; LPat (GhcPass 'Renamed) -&gt; Pat (GhcPass 'Renamed)
+forall p. XLazyPat p -&gt; LPat p -&gt; Pat p
+</span><a href="Language.Haskell.Syntax.Pat.html#LazyPat"><span class="hs-identifier hs-var">LazyPat</span></a></span><span> </span><span class="annot"><span class="annottext">XLazyPat (GhcPass 'Renamed)
+NoExtField
+</span><a href="Language.Haskell.Syntax.Extension.html#noExtField"><span class="hs-identifier hs-var">noExtField</span></a></span><span> </span><span class="annot"><span class="annottext">(LPat (GhcPass 'Renamed) -&gt; Pat (GhcPass 'Renamed))
+-&gt; LPat (GhcPass 'Renamed) -&gt; Pat (GhcPass 'Renamed)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">[IdP (GhcPass 'Renamed)] -&gt; LPat (GhcPass 'Renamed)
+</span><a href="GHC.Hs.Utils.html#mkBigLHsVarPatTup"><span class="hs-identifier hs-var">mkBigLHsVarPatTup</span></a></span><span> </span><span class="annot"><span class="annottext">[IdP (GhcPass 'Renamed)]
+[Name]
+</span><a href="#local-6989586621682881363"><span class="hs-identifier hs-var">all_ids</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">]</span><span>
+</span><span id="line-190"></span><span>                                          </span><span class="annot"><span class="annottext">(LHsExpr (GhcPass 'Renamed) -&gt; LHsExpr (GhcPass 'Renamed))
+-&gt; LHsExpr (GhcPass 'Renamed) -&gt; LHsExpr (GhcPass 'Renamed)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">LHsExpr (GhcPass 'Renamed)
+</span><a href="#local-6989586621682881370"><span class="hs-identifier hs-var">do_block</span></a></span><span>
+</span><span id="line-191"></span><span>                             </span><span class="hs-comment">-- NB: LazyPat because we do not want to eagerly evaluate the pattern</span><span>
+</span><span id="line-192"></span><span>                             </span><span class="hs-comment">-- and potentially loop forever</span><span>
+</span><span id="line-193"></span><span>
+</span><span id="line-194"></span><span class="annot"><a href="GHC.Tc.Gen.Do.html#expand_do_stmts"><span class="hs-identifier hs-var">expand_do_stmts</span></a></span><span> </span><span class="annot"><span class="annottext">HsDoFlavour
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621682881372"><span class="annot"><span class="annottext">[ExprLStmt (GhcPass 'Renamed)]
+</span><a href="#local-6989586621682881372"><span class="hs-identifier hs-var">stmts</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; SDoc -&gt; TcM (LHsExpr (GhcPass 'Renamed))
+forall a. HasCallStack =&gt; String -&gt; SDoc -&gt; a
+</span><a href="GHC.Utils.Panic.html#pprPanic"><span class="hs-identifier hs-var">pprPanic</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;expand_do_stmts: impossible happened&quot;</span></span><span> </span><span class="annot"><span class="annottext">(SDoc -&gt; TcM (LHsExpr (GhcPass 'Renamed)))
+-&gt; SDoc -&gt; TcM (LHsExpr (GhcPass 'Renamed))
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[GenLocated
+   SrcSpanAnnA
+   (StmtLR
+      (GhcPass 'Renamed)
+      (GhcPass 'Renamed)
+      (LocatedA (HsExpr (GhcPass 'Renamed))))]
+-&gt; SDoc
+forall a. Outputable a =&gt; a -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#ppr"><span class="hs-identifier hs-var">ppr</span></a></span><span> </span><span class="annot"><span class="annottext">[ExprLStmt (GhcPass 'Renamed)]
+[GenLocated
+   SrcSpanAnnA
+   (StmtLR
+      (GhcPass 'Renamed)
+      (GhcPass 'Renamed)
+      (LocatedA (HsExpr (GhcPass 'Renamed))))]
+</span><a href="#local-6989586621682881372"><span class="hs-identifier hs-var">stmts</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-195"></span><span>
+</span><span id="line-196"></span><span class="hs-comment">-- checks the pattern `pat`for irrefutability which decides if we need to wrap it with a fail block</span><span>
+</span><span id="line-197"></span><span class="annot"><a href="GHC.Tc.Gen.Do.html#mk_failable_expr"><span class="hs-identifier hs-type">mk_failable_expr</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Language.Haskell.Syntax.Expr.html#HsDoFlavour"><span class="hs-identifier hs-type">HsDoFlavour</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Language.Haskell.Syntax.Pat.html#LPat"><span class="hs-identifier hs-type">LPat</span></a></span><span> </span><span class="annot"><a href="GHC.Hs.Extension.html#GhcRn"><span class="hs-identifier hs-type">GhcRn</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Language.Haskell.Syntax.Expr.html#LHsExpr"><span class="hs-identifier hs-type">LHsExpr</span></a></span><span> </span><span class="annot"><a href="GHC.Hs.Extension.html#GhcRn"><span class="hs-identifier hs-type">GhcRn</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Language.Haskell.Syntax.Expr.html#FailOperator"><span class="hs-identifier hs-type">FailOperator</span></a></span><span> </span><span class="annot"><a href="GHC.Hs.Extension.html#GhcRn"><span class="hs-identifier hs-type">GhcRn</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Tc.Types.html#TcM"><span class="hs-identifier hs-type">TcM</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.Haskell.Syntax.Expr.html#LHsExpr"><span class="hs-identifier hs-type">LHsExpr</span></a></span><span> </span><span class="annot"><a href="GHC.Hs.Extension.html#GhcRn"><span class="hs-identifier hs-type">GhcRn</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-198"></span><span id="mk_failable_expr"><span class="annot"><span class="annottext">mk_failable_expr :: HsDoFlavour
+-&gt; LPat (GhcPass 'Renamed)
+-&gt; LHsExpr (GhcPass 'Renamed)
+-&gt; FailOperator (GhcPass 'Renamed)
+-&gt; TcM (LHsExpr (GhcPass 'Renamed))
+</span><a href="GHC.Tc.Gen.Do.html#mk_failable_expr"><span class="hs-identifier hs-var hs-var">mk_failable_expr</span></a></span></span><span> </span><span id="local-6989586621682881373"><span class="annot"><span class="annottext">HsDoFlavour
+</span><a href="#local-6989586621682881373"><span class="hs-identifier hs-var">doFlav</span></a></span></span><span> </span><span id="local-6989586621682881374"><span class="annot"><span class="annottext">pat :: LPat (GhcPass 'Renamed)
+</span><a href="#local-6989586621682881374"><span class="hs-identifier hs-var">pat</span></a></span></span><span class="hs-glyph">@</span><span class="hs-special">(</span><span class="annot"><a href="GHC.Types.SrcLoc.html#L"><span class="hs-identifier hs-type">L</span></a></span><span> </span><span id="local-6989586621682881375"><span class="annot"><span class="annottext">SrcSpanAnnA
+</span><a href="#local-6989586621682881375"><span class="hs-identifier hs-var">loc</span></a></span></span><span> </span><span class="annot"><span class="annottext">Pat (GhcPass 'Renamed)
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621682881376"><span class="annot"><span class="annottext">LHsExpr (GhcPass 'Renamed)
+</span><a href="#local-6989586621682881376"><span class="hs-identifier hs-var">expr</span></a></span></span><span> </span><span id="local-6989586621682881377"><span class="annot"><span class="annottext">FailOperator (GhcPass 'Renamed)
+</span><a href="#local-6989586621682881377"><span class="hs-identifier hs-var">fail_op</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-199"></span><span>  </span><span class="hs-keyword">do</span><span> </span><span class="hs-special">{</span><span> </span><span id="local-6989586621682881378"><span class="annot"><a href="#local-6989586621682881378"><span class="hs-identifier hs-var">is_strict</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Extension -&gt; TcRnIf TcGblEnv TcLclEnv Bool
+forall gbl lcl. Extension -&gt; TcRnIf gbl lcl Bool
+</span><a href="GHC.Tc.Utils.Monad.html#xoptM"><span class="hs-identifier hs-var">xoptM</span></a></span><span> </span><span class="annot"><span class="annottext">Extension
+</span><span class="hs-identifier hs-var">LangExt.Strict</span></span><span>
+</span><span id="line-200"></span><span>     </span><span class="hs-special">;</span><span> </span><span id="local-6989586621682881381"><span class="annot"><a href="#local-6989586621682881381"><span class="hs-identifier hs-var">irrf_pat</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><a href="GHC.Tc.Gen.Pat.html#isIrrefutableHsPatRnTcM"><span class="hs-identifier hs-type">isIrrefutableHsPatRnTcM</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682881378"><span class="hs-identifier hs-type">is_strict</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682881374"><span class="hs-identifier hs-type">pat</span></a></span><span>
+</span><span id="line-201"></span><span>     </span><span class="hs-special">;</span><span> </span><span class="annot"><a href="GHC.Tc.Utils.Monad.html#traceTc"><span class="hs-identifier hs-type">traceTc</span></a></span><span> </span><span class="annot"><span class="hs-string">&quot;mk_failable_expr&quot;</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Utils.Outputable.html#vcat"><span class="hs-identifier hs-type">vcat</span></a></span><span> </span><span class="hs-special">[</span><span> </span><span class="annot"><a href="GHC.Utils.Outputable.html#text"><span class="hs-identifier hs-type">text</span></a></span><span> </span><span class="annot"><span class="hs-string">&quot;pat:&quot;</span></span><span> </span><span class="annot"><a href="GHC.Utils.Outputable.html#%3C%2B%3E"><span class="hs-operator hs-type">&lt;+&gt;</span></a></span><span> </span><span class="annot"><a href="GHC.Utils.Outputable.html#ppr"><span class="hs-identifier hs-type">ppr</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682881374"><span class="hs-identifier hs-type">pat</span></a></span><span>
+</span><span id="line-202"></span><span>                                        </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Utils.Outputable.html#text"><span class="hs-identifier hs-type">text</span></a></span><span> </span><span class="annot"><span class="hs-string">&quot;isIrrefutable:&quot;</span></span><span> </span><span class="annot"><a href="GHC.Utils.Outputable.html#%3C%2B%3E"><span class="hs-operator hs-type">&lt;+&gt;</span></a></span><span> </span><span class="annot"><a href="GHC.Utils.Outputable.html#ppr"><span class="hs-identifier hs-type">ppr</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682881381"><span class="hs-identifier hs-type">irrf_pat</span></a></span><span>
+</span><span id="line-203"></span><span>                                        </span><span class="hs-special">]</span><span class="hs-special">)</span><span>
+</span><span id="line-204"></span><span>
+</span><span id="line-205"></span><span>     </span><span class="hs-special">;</span><span> </span><span class="hs-keyword">if</span><span> </span><span class="annot"><a href="#local-6989586621682881381"><span class="hs-identifier hs-type">irrf_pat</span></a></span><span>                        </span><span class="hs-comment">-- don't wrap with fail block if</span><span>
+</span><span id="line-206"></span><span>                                          </span><span class="hs-comment">-- the pattern is irrefutable</span><span>
+</span><span id="line-207"></span><span>       </span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="hs-identifier hs-type">return</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">$</span></span><span> </span><span class="annot"><a href="GHC.Rename.Utils.html#genHsLamDoExp"><span class="hs-identifier hs-type">genHsLamDoExp</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682881373"><span class="hs-identifier hs-type">doFlav</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><a href="#local-6989586621682881374"><span class="hs-identifier hs-type">pat</span></a></span><span class="hs-special">]</span><span> </span><span class="annot"><a href="#local-6989586621682881376"><span class="hs-identifier hs-type">expr</span></a></span><span>
+</span><span id="line-208"></span><span>       </span><span class="hs-keyword">else</span><span> </span><span class="annot"><a href="GHC.Types.SrcLoc.html#L"><span class="hs-identifier hs-type">L</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682881375"><span class="hs-identifier hs-type">loc</span></a></span><span> </span><span class="annot"><span class="hs-operator hs-type">&lt;$&gt;</span></span><span> </span><span class="annot"><a href="GHC.Tc.Gen.Do.html#mk_fail_block"><span class="hs-identifier hs-type">mk_fail_block</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682881373"><span class="hs-identifier hs-type">doFlav</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682881374"><span class="hs-identifier hs-type">pat</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682881376"><span class="hs-identifier hs-type">expr</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682881377"><span class="hs-identifier hs-type">fail_op</span></a></span><span>
+</span><span id="line-209"></span><span>     </span><span class="hs-special">}</span><span>
+</span><span id="line-210"></span><span>
+</span><span id="line-211"></span><span class="hs-comment">-- makes the fail block with a given fail_op</span><span>
+</span><span id="line-212"></span><span class="annot"><a href="GHC.Tc.Gen.Do.html#mk_fail_block"><span class="hs-identifier hs-type">mk_fail_block</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Language.Haskell.Syntax.Expr.html#HsDoFlavour"><span class="hs-identifier hs-type">HsDoFlavour</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Language.Haskell.Syntax.Pat.html#LPat"><span class="hs-identifier hs-type">LPat</span></a></span><span> </span><span class="annot"><a href="GHC.Hs.Extension.html#GhcRn"><span class="hs-identifier hs-type">GhcRn</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Language.Haskell.Syntax.Expr.html#LHsExpr"><span class="hs-identifier hs-type">LHsExpr</span></a></span><span> </span><span class="annot"><a href="GHC.Hs.Extension.html#GhcRn"><span class="hs-identifier hs-type">GhcRn</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Language.Haskell.Syntax.Expr.html#FailOperator"><span class="hs-identifier hs-type">FailOperator</span></a></span><span> </span><span class="annot"><a href="GHC.Hs.Extension.html#GhcRn"><span class="hs-identifier hs-type">GhcRn</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Tc.Types.html#TcM"><span class="hs-identifier hs-type">TcM</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.Haskell.Syntax.Expr.html#HsExpr"><span class="hs-identifier hs-type">HsExpr</span></a></span><span> </span><span class="annot"><a href="GHC.Hs.Extension.html#GhcRn"><span class="hs-identifier hs-type">GhcRn</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-213"></span><span id="mk_fail_block"><span class="annot"><span class="annottext">mk_fail_block :: HsDoFlavour
+-&gt; LPat (GhcPass 'Renamed)
+-&gt; LHsExpr (GhcPass 'Renamed)
+-&gt; FailOperator (GhcPass 'Renamed)
+-&gt; IOEnv (Env TcGblEnv TcLclEnv) (HsExpr (GhcPass 'Renamed))
+</span><a href="GHC.Tc.Gen.Do.html#mk_fail_block"><span class="hs-identifier hs-var hs-var">mk_fail_block</span></a></span></span><span> </span><span id="local-6989586621682881386"><span class="annot"><span class="annottext">HsDoFlavour
+</span><a href="#local-6989586621682881386"><span class="hs-identifier hs-var">doFlav</span></a></span></span><span> </span><span id="local-6989586621682881387"><span class="annot"><span class="annottext">pat :: LPat (GhcPass 'Renamed)
+</span><a href="#local-6989586621682881387"><span class="hs-identifier hs-var">pat</span></a></span></span><span class="hs-glyph">@</span><span class="hs-special">(</span><span class="annot"><a href="GHC.Types.SrcLoc.html#L"><span class="hs-identifier hs-type">L</span></a></span><span> </span><span id="local-6989586621682881388"><span class="annot"><span class="annottext">SrcSpanAnnA
+</span><a href="#local-6989586621682881388"><span class="hs-identifier hs-var">ploc</span></a></span></span><span> </span><span class="annot"><span class="annottext">Pat (GhcPass 'Renamed)
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621682881389"><span class="annot"><span class="annottext">LHsExpr (GhcPass 'Renamed)
+</span><a href="#local-6989586621682881389"><span class="hs-identifier hs-var">e</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Hs.Expr.html#SyntaxExprRn"><span class="hs-identifier hs-type">SyntaxExprRn</span></a></span><span> </span><span id="local-6989586621682881390"><span class="annot"><span class="annottext">HsExpr (GhcPass 'Renamed)
+</span><a href="#local-6989586621682881390"><span class="hs-identifier hs-var">fail_op</span></a></span></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-214"></span><span>  </span><span class="hs-keyword">do</span><span>  </span><span id="local-6989586621682881391"><span class="annot"><a href="#local-6989586621682881391"><span class="hs-identifier hs-var">dflags</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">IOEnv (Env TcGblEnv TcLclEnv) DynFlags
+forall (m :: * -&gt; *). HasDynFlags m =&gt; m DynFlags
+</span><a href="GHC.Driver.DynFlags.html#getDynFlags"><span class="hs-identifier hs-var">getDynFlags</span></a></span><span>
+</span><span id="line-215"></span><span>      </span><span class="annot"><span class="hs-identifier hs-type">return</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">$</span></span><span> </span><span class="annot"><a href="Language.Haskell.Syntax.Expr.html#HsLam"><span class="hs-identifier hs-type">HsLam</span></a></span><span> </span><span class="annot"><a href="GHC.Parser.Annotation.html#noAnn"><span class="hs-identifier hs-type">noAnn</span></a></span><span> </span><span class="annot"><a href="Language.Haskell.Syntax.Expr.html#LamCases"><span class="hs-identifier hs-type">LamCases</span></a></span><span> </span><span class="annot"><span class="hs-operator hs-type">$</span></span><span> </span><span class="annot"><a href="GHC.Hs.Utils.html#mkMatchGroup"><span class="hs-identifier hs-type">mkMatchGroup</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Types.Basic.html#doExpansionOrigin"><span class="hs-identifier hs-type">doExpansionOrigin</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682881386"><span class="hs-identifier hs-type">doFlav</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-comment">-- \</span><span>
+</span><span id="line-216"></span><span>                </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Rename.Utils.html#wrapGenSpan"><span class="hs-identifier hs-type">wrapGenSpan</span></a></span><span> </span><span class="hs-special">[</span><span> </span><span class="annot"><a href="GHC.Rename.Utils.html#genHsCaseAltDoExp"><span class="hs-identifier hs-type">genHsCaseAltDoExp</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682881386"><span class="hs-identifier hs-type">doFlav</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682881387"><span class="hs-identifier hs-type">pat</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682881389"><span class="hs-identifier hs-type">e</span></a></span><span>                 </span><span class="hs-comment">--  pat -&gt; expr</span><span>
+</span><span id="line-217"></span><span>                             </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621682881397"><span class="hs-identifier hs-type">fail_alt_case</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682881391"><span class="hs-identifier hs-type">dflags</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682881387"><span class="hs-identifier hs-type">pat</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682881390"><span class="hs-identifier hs-type">fail_op</span></a></span><span>               </span><span class="hs-comment">--  _   -&gt; fail &quot;fail pattern&quot;</span><span>
+</span><span id="line-218"></span><span>                             </span><span class="hs-special">]</span><span class="hs-special">)</span><span>
+</span><span id="line-219"></span><span>        </span><span class="hs-keyword">where</span><span>
+</span><span id="line-220"></span><span>          </span><span class="annot"><a href="#local-6989586621682881397"><span class="hs-identifier hs-type">fail_alt_case</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Driver.DynFlags.html#DynFlags"><span class="hs-identifier hs-type">DynFlags</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Language.Haskell.Syntax.Pat.html#LPat"><span class="hs-identifier hs-type">LPat</span></a></span><span> </span><span class="annot"><a href="GHC.Hs.Extension.html#GhcRn"><span class="hs-identifier hs-type">GhcRn</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Language.Haskell.Syntax.Expr.html#HsExpr"><span class="hs-identifier hs-type">HsExpr</span></a></span><span> </span><span class="annot"><a href="GHC.Hs.Extension.html#GhcRn"><span class="hs-identifier hs-type">GhcRn</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Language.Haskell.Syntax.Expr.html#LMatch"><span class="hs-identifier hs-type">LMatch</span></a></span><span> </span><span class="annot"><a href="GHC.Hs.Extension.html#GhcRn"><span class="hs-identifier hs-type">GhcRn</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.Haskell.Syntax.Expr.html#LHsExpr"><span class="hs-identifier hs-type">LHsExpr</span></a></span><span> </span><span class="annot"><a href="GHC.Hs.Extension.html#GhcRn"><span class="hs-identifier hs-type">GhcRn</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-221"></span><span>          </span><span id="local-6989586621682881397"><span class="annot"><span class="annottext">fail_alt_case :: DynFlags
+-&gt; LPat (GhcPass 'Renamed)
+-&gt; HsExpr (GhcPass 'Renamed)
+-&gt; LMatch (GhcPass 'Renamed) (LHsExpr (GhcPass 'Renamed))
+</span><a href="#local-6989586621682881397"><span class="hs-identifier hs-var hs-var">fail_alt_case</span></a></span></span><span> </span><span id="local-6989586621682881398"><span class="annot"><span class="annottext">DynFlags
+</span><a href="#local-6989586621682881398"><span class="hs-identifier hs-var">dflags</span></a></span></span><span> </span><span id="local-6989586621682881399"><span class="annot"><span class="annottext">LPat (GhcPass 'Renamed)
+</span><a href="#local-6989586621682881399"><span class="hs-identifier hs-var">pat</span></a></span></span><span> </span><span id="local-6989586621682881400"><span class="annot"><span class="annottext">HsExpr (GhcPass 'Renamed)
+</span><a href="#local-6989586621682881400"><span class="hs-identifier hs-var">fail_op</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">HsDoFlavour
+-&gt; LPat (GhcPass 'Renamed)
+-&gt; LocatedA (HsExpr (GhcPass 'Renamed))
+-&gt; LMatch (GhcPass 'Renamed) (LocatedA (HsExpr (GhcPass 'Renamed)))
+forall (p :: Pass) (body :: * -&gt; *).
+(Anno (GRHS (GhcPass p) (LocatedA (body (GhcPass p)))) ~ EpAnnCO,
+ Anno (Match (GhcPass p) (LocatedA (body (GhcPass p))))
+ ~ SrcSpanAnnA) =&gt;
+HsDoFlavour
+-&gt; LPat (GhcPass p)
+-&gt; LocatedA (body (GhcPass p))
+-&gt; LMatch (GhcPass p) (LocatedA (body (GhcPass p)))
+</span><a href="GHC.Rename.Utils.html#genHsCaseAltDoExp"><span class="hs-identifier hs-var">genHsCaseAltDoExp</span></a></span><span> </span><span class="annot"><span class="annottext">HsDoFlavour
+</span><a href="#local-6989586621682881386"><span class="hs-identifier hs-var">doFlav</span></a></span><span> </span><span class="annot"><span class="annottext">LPat (GhcPass 'Renamed)
+</span><a href="GHC.Rename.Utils.html#genWildPat"><span class="hs-identifier hs-var">genWildPat</span></a></span><span> </span><span class="annot"><span class="annottext">(LocatedA (HsExpr (GhcPass 'Renamed))
+ -&gt; LMatch
+      (GhcPass 'Renamed) (LocatedA (HsExpr (GhcPass 'Renamed))))
+-&gt; LocatedA (HsExpr (GhcPass 'Renamed))
+-&gt; LMatch (GhcPass 'Renamed) (LocatedA (HsExpr (GhcPass 'Renamed)))
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-222"></span><span>                                             </span><span class="annot"><span class="annottext">SrcSpanAnnA
+-&gt; HsExpr (GhcPass 'Renamed)
+-&gt; LocatedA (HsExpr (GhcPass 'Renamed))
+forall l e. l -&gt; e -&gt; GenLocated l e
+</span><a href="GHC.Types.SrcLoc.html#L"><span class="hs-identifier hs-var">L</span></a></span><span> </span><span class="annot"><span class="annottext">SrcSpanAnnA
+</span><a href="#local-6989586621682881388"><span class="hs-identifier hs-var">ploc</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">DynFlags
+-&gt; LPat (GhcPass 'Renamed)
+-&gt; HsExpr (GhcPass 'Renamed)
+-&gt; HsExpr (GhcPass 'Renamed)
+</span><a href="#local-6989586621682881401"><span class="hs-identifier hs-var">fail_op_expr</span></a></span><span> </span><span class="annot"><span class="annottext">DynFlags
+</span><a href="#local-6989586621682881398"><span class="hs-identifier hs-var">dflags</span></a></span><span> </span><span class="annot"><span class="annottext">LPat (GhcPass 'Renamed)
+</span><a href="#local-6989586621682881399"><span class="hs-identifier hs-var">pat</span></a></span><span> </span><span class="annot"><span class="annottext">HsExpr (GhcPass 'Renamed)
+</span><a href="#local-6989586621682881400"><span class="hs-identifier hs-var">fail_op</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-223"></span><span>
+</span><span id="line-224"></span><span>          </span><span class="annot"><a href="#local-6989586621682881401"><span class="hs-identifier hs-type">fail_op_expr</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Driver.DynFlags.html#DynFlags"><span class="hs-identifier hs-type">DynFlags</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Language.Haskell.Syntax.Pat.html#LPat"><span class="hs-identifier hs-type">LPat</span></a></span><span> </span><span class="annot"><a href="GHC.Hs.Extension.html#GhcRn"><span class="hs-identifier hs-type">GhcRn</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Language.Haskell.Syntax.Expr.html#HsExpr"><span class="hs-identifier hs-type">HsExpr</span></a></span><span> </span><span class="annot"><a href="GHC.Hs.Extension.html#GhcRn"><span class="hs-identifier hs-type">GhcRn</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Language.Haskell.Syntax.Expr.html#HsExpr"><span class="hs-identifier hs-type">HsExpr</span></a></span><span> </span><span class="annot"><a href="GHC.Hs.Extension.html#GhcRn"><span class="hs-identifier hs-type">GhcRn</span></a></span><span>
+</span><span id="line-225"></span><span>          </span><span id="local-6989586621682881401"><span class="annot"><span class="annottext">fail_op_expr :: DynFlags
+-&gt; LPat (GhcPass 'Renamed)
+-&gt; HsExpr (GhcPass 'Renamed)
+-&gt; HsExpr (GhcPass 'Renamed)
+</span><a href="#local-6989586621682881401"><span class="hs-identifier hs-var hs-var">fail_op_expr</span></a></span></span><span> </span><span id="local-6989586621682881402"><span class="annot"><span class="annottext">DynFlags
+</span><a href="#local-6989586621682881402"><span class="hs-identifier hs-var">dflags</span></a></span></span><span> </span><span id="local-6989586621682881403"><span class="annot"><span class="annottext">LPat (GhcPass 'Renamed)
+</span><a href="#local-6989586621682881403"><span class="hs-identifier hs-var">pat</span></a></span></span><span> </span><span id="local-6989586621682881404"><span class="annot"><span class="annottext">HsExpr (GhcPass 'Renamed)
+</span><a href="#local-6989586621682881404"><span class="hs-identifier hs-var">fail_op</span></a></span></span><span>
+</span><span id="line-226"></span><span>            </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">LPat (GhcPass 'Renamed)
+-&gt; HsExpr (GhcPass 'Renamed) -&gt; HsExpr (GhcPass 'Renamed)
+</span><a href="GHC.Hs.Expr.html#mkExpandedPatRn"><span class="hs-identifier hs-var">mkExpandedPatRn</span></a></span><span> </span><span class="annot"><span class="annottext">LPat (GhcPass 'Renamed)
+</span><a href="#local-6989586621682881403"><span class="hs-identifier hs-var">pat</span></a></span><span> </span><span class="annot"><span class="annottext">(HsExpr (GhcPass 'Renamed) -&gt; HsExpr (GhcPass 'Renamed))
+-&gt; HsExpr (GhcPass 'Renamed) -&gt; HsExpr (GhcPass 'Renamed)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-227"></span><span>                    </span><span class="annot"><span class="annottext">HsExpr (GhcPass 'Renamed)
+-&gt; LHsExpr (GhcPass 'Renamed) -&gt; HsExpr (GhcPass 'Renamed)
+</span><a href="GHC.Rename.Utils.html#genHsApp"><span class="hs-identifier hs-var">genHsApp</span></a></span><span> </span><span class="annot"><span class="annottext">HsExpr (GhcPass 'Renamed)
+</span><a href="#local-6989586621682881404"><span class="hs-identifier hs-var">fail_op</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">DynFlags -&gt; LPat (GhcPass 'Renamed) -&gt; LHsExpr (GhcPass 'Renamed)
+</span><a href="#local-6989586621682881406"><span class="hs-identifier hs-var">mk_fail_msg_expr</span></a></span><span> </span><span class="annot"><span class="annottext">DynFlags
+</span><a href="#local-6989586621682881402"><span class="hs-identifier hs-var">dflags</span></a></span><span> </span><span class="annot"><span class="annottext">LPat (GhcPass 'Renamed)
+</span><a href="#local-6989586621682881403"><span class="hs-identifier hs-var">pat</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-228"></span><span>
+</span><span id="line-229"></span><span>          </span><span class="annot"><a href="#local-6989586621682881406"><span class="hs-identifier hs-type">mk_fail_msg_expr</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Driver.DynFlags.html#DynFlags"><span class="hs-identifier hs-type">DynFlags</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Language.Haskell.Syntax.Pat.html#LPat"><span class="hs-identifier hs-type">LPat</span></a></span><span> </span><span class="annot"><a href="GHC.Hs.Extension.html#GhcRn"><span class="hs-identifier hs-type">GhcRn</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Language.Haskell.Syntax.Expr.html#LHsExpr"><span class="hs-identifier hs-type">LHsExpr</span></a></span><span> </span><span class="annot"><a href="GHC.Hs.Extension.html#GhcRn"><span class="hs-identifier hs-type">GhcRn</span></a></span><span>
+</span><span id="line-230"></span><span>          </span><span id="local-6989586621682881406"><span class="annot"><span class="annottext">mk_fail_msg_expr :: DynFlags -&gt; LPat (GhcPass 'Renamed) -&gt; LHsExpr (GhcPass 'Renamed)
+</span><a href="#local-6989586621682881406"><span class="hs-identifier hs-var hs-var">mk_fail_msg_expr</span></a></span></span><span> </span><span id="local-6989586621682881407"><span class="annot"><span class="annottext">DynFlags
+</span><a href="#local-6989586621682881407"><span class="hs-identifier hs-var">dflags</span></a></span></span><span> </span><span id="local-6989586621682881408"><span class="annot"><span class="annottext">LPat (GhcPass 'Renamed)
+</span><a href="#local-6989586621682881408"><span class="hs-identifier hs-var">pat</span></a></span></span><span>
+</span><span id="line-231"></span><span>            </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">HsLit (GhcPass 'Renamed) -&gt; LHsExpr (GhcPass 'Renamed)
+forall (p :: Pass). HsLit (GhcPass p) -&gt; LHsExpr (GhcPass p)
+</span><a href="GHC.Hs.Utils.html#nlHsLit"><span class="hs-identifier hs-var">nlHsLit</span></a></span><span> </span><span class="annot"><span class="annottext">(HsLit (GhcPass 'Renamed) -&gt; LHsExpr (GhcPass 'Renamed))
+-&gt; HsLit (GhcPass 'Renamed) -&gt; LHsExpr (GhcPass 'Renamed)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; HsLit (GhcPass 'Renamed)
+forall (p :: Pass). String -&gt; HsLit (GhcPass p)
+</span><a href="GHC.Hs.Utils.html#mkHsString"><span class="hs-identifier hs-var">mkHsString</span></a></span><span> </span><span class="annot"><span class="annottext">(String -&gt; HsLit (GhcPass 'Renamed))
+-&gt; String -&gt; HsLit (GhcPass 'Renamed)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">DynFlags -&gt; SDoc -&gt; String
+forall a. Outputable a =&gt; DynFlags -&gt; a -&gt; String
+</span><a href="GHC.Driver.Ppr.html#showPpr"><span class="hs-identifier hs-var">showPpr</span></a></span><span> </span><span class="annot"><span class="annottext">DynFlags
+</span><a href="#local-6989586621682881407"><span class="hs-identifier hs-var">dflags</span></a></span><span> </span><span class="annot"><span class="annottext">(SDoc -&gt; String) -&gt; SDoc -&gt; String
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-232"></span><span>              </span><span class="annot"><span class="annottext">String -&gt; SDoc
+forall doc. IsLine doc =&gt; String -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#text"><span class="hs-identifier hs-var">text</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Pattern match failure in&quot;</span></span><span> </span><span class="annot"><span class="annottext">SDoc -&gt; SDoc -&gt; SDoc
+forall doc. IsLine doc =&gt; doc -&gt; doc -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#%3C%2B%3E"><span class="hs-operator hs-var">&lt;+&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">HsDoFlavour -&gt; SDoc
+</span><a href="GHC.Hs.Expr.html#pprHsDoFlavour"><span class="hs-identifier hs-var">pprHsDoFlavour</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Maybe ModuleName -&gt; HsDoFlavour
+</span><a href="Language.Haskell.Syntax.Expr.html#DoExpr"><span class="hs-identifier hs-var">DoExpr</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe ModuleName
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span class="hs-special">)</span><span>
+</span><span id="line-233"></span><span>                   </span><span class="annot"><span class="annottext">SDoc -&gt; SDoc -&gt; SDoc
+forall doc. IsLine doc =&gt; doc -&gt; doc -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#%3C%2B%3E"><span class="hs-operator hs-var">&lt;+&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">String -&gt; SDoc
+forall doc. IsLine doc =&gt; String -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#text"><span class="hs-identifier hs-var">text</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;at&quot;</span></span><span> </span><span class="annot"><span class="annottext">SDoc -&gt; SDoc -&gt; SDoc
+forall doc. IsLine doc =&gt; doc -&gt; doc -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#%3C%2B%3E"><span class="hs-operator hs-var">&lt;+&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">SrcSpan -&gt; SDoc
+forall a. Outputable a =&gt; a -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#ppr"><span class="hs-identifier hs-var">ppr</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">GenLocated SrcSpanAnnA (Pat (GhcPass 'Renamed)) -&gt; SrcSpan
+forall a e. HasLoc a =&gt; GenLocated a e -&gt; SrcSpan
+</span><a href="GHC.Parser.Annotation.html#getLocA"><span class="hs-identifier hs-var">getLocA</span></a></span><span> </span><span class="annot"><span class="annottext">LPat (GhcPass 'Renamed)
+GenLocated SrcSpanAnnA (Pat (GhcPass 'Renamed))
+</span><a href="#local-6989586621682881408"><span class="hs-identifier hs-var">pat</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-234"></span><span>
+</span><span id="line-235"></span><span>
+</span><span id="line-236"></span><span class="annot"><a href="GHC.Tc.Gen.Do.html#mk_fail_block"><span class="hs-identifier hs-var">mk_fail_block</span></a></span><span> </span><span class="annot"><span class="annottext">HsDoFlavour
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">LPat (GhcPass 'Renamed)
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">LHsExpr (GhcPass 'Renamed)
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">FailOperator (GhcPass 'Renamed)
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+-&gt; SDoc
+-&gt; IOEnv (Env TcGblEnv TcLclEnv) (HsExpr (GhcPass 'Renamed))
+forall a. HasCallStack =&gt; String -&gt; SDoc -&gt; a
+</span><a href="GHC.Utils.Panic.html#pprPanic"><span class="hs-identifier hs-var">pprPanic</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;mk_fail_block: impossible happened&quot;</span></span><span> </span><span class="annot"><span class="annottext">SDoc
+forall doc. IsOutput doc =&gt; doc
+</span><a href="GHC.Utils.Outputable.html#empty"><span class="hs-identifier hs-var">empty</span></a></span><span>
+</span><span id="line-237"></span><span>
+</span><span id="line-238"></span><span>
+</span><span id="line-239"></span><span class="hs-comment">{- Note [Expanding HsDo with XXExprGhcRn]
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+We expand `do`-blocks before typechecking it, by re-using the existing `XXExprGhcRns` and `RebindableSyntax` machinery.
+This is very similar to:
+  1. Expansions done in `GHC.Rename.Expr.rnHsIf` for expanding `HsIf`; and
+  2. `desugarRecordUpd` in `GHC.Tc.Gen.Expr.tcExpr` for expanding `RecordUpd`
+See Note [Handling overloaded and rebindable constructs] in GHC.Rename.Expr
+
+To disabmiguate desugaring (`HsExpr GhcTc -&gt; Core.Expr`) we use the phrase expansion
+(`HsExpr GhcRn -&gt; HsExpr GhcRn`)
+
+This expansion is done right before typechecking and after renaming
+See Part 2. of Note [Doing XXExprGhcRn in the Renamer vs Typechecker] in `GHC.Rename.Expr`
+
+Historical note START
+---------------------
+In previous versions of GHC, the `do`-notation wasn't expanded before typechecking,
+instead the typechecker would operate directly on the original.
+Why? because it ensured that type error messages were explained in terms of
+what the programmer has written. In practice, however, this didn't work very well:
+
+* Attempts to typecheck the original source code turned out to be buggy, and virtually impossible
+  to fix (#14963, #15598, #21206 and others)
+
+* The typechecker expected the `&gt;&gt;=` operator to have a type that matches
+  `m _ -&gt; (_ -&gt; m _) -&gt; m _` for some `m`. With `RebindableSyntax` or
+  `QualifiedDo` the `&gt;&gt;=` operator might not have the
+  standard type. It might have a type like
+
+      (&gt;&gt;=) :: Wombat m =&gt; m a1 a2 b -&gt; (b -&gt; m a2 a3 c) -&gt; m a1 a3 c
+
+  Typechecking the term `(&gt;&gt;=) e1 (\x -&gt; e2)` deals with all of this automatically.
+
+* With `ImpredicativeTypes` the programmer will expect Quick Look to instantiate
+  the quantifiers impredicatively (#18324). Again, that happens automatically if
+  you typecheck the expanded expression.
+
+Historical note END
+-------------------
+
+Do Expansions Equationally
+--------------------------
+We have the following schema for expanding `do`-statements.
+They capture the essence of statement expansions as implemented in `expand_do_stmts`
+
+  DO&#12304; _ &#12305; maps a sequence of do statements and recursively converts them into expressions
+
+          (1) DO&#12304; s; ss &#12305;      = &#8249;ExpansionStmt s&#8250;((&gt;&gt;) s (&#8249;PopErrCtxt&#8250;DO&#12304; ss &#12305;))
+
+          (2) DO&#12304; p &lt;- e; ss &#12305; = if p is irrefutable
+                                   then &#8249;ExpansionStmt (p &lt;- e)&#8250;
+                                          (&gt;&gt;=) s (&#8249;PopExprCtxt&#8250;(\ p -&gt; DO&#12304; ss &#12305;))
+                                   else &#8249;ExpansionStmt (p &lt;- e)&#8250;
+                                          (&gt;&gt;=) s (&#8249;PopExprCtxt&#8250;(\case p -&gt; DO&#12304; ss &#12305;
+                                                                       _ -&gt; fail &quot;pattern p failure&quot;))
+
+          (3) DO&#12304; let x = e; ss &#12305;
+                                 = &#8249;ExpansionStmt (let x = e)&#8250; (let x = e in (&#8249;PopErrCtxt&#8250;DO&#12304; ss &#12305;))
+
+
+          (4) DO&#12304; rec ss; sss &#12305;
+                                 = (&gt;&gt;=) e (\vars -&gt; &#8249;PopErrCtxt&#8250;DO&#12304; sss &#12305;))
+                                           where (vars, e) = RECDO&#12304; ss &#12305;
+
+          (5) DO&#12304; s &#12305;          = s
+
+  RECDO&#12304; _ &#12305; maps a sequence of recursively dependent monadic statements and converts it into an expression paired
+              with the variables that the rec finds a fix point of.
+
+          (6) RECDO&#12304; ss &#12305;     = (vars, mfix (\~vars -&gt; (&gt;&gt;=) (DO&#12304; ss &#12305;) (return vars)))
+                                  where vars are all the variables free in ss
+
+
+For a concrete example, consider a `do`-block written by the user
+
+    f = {l0} do {l1} {pl}p &lt;- {l1'} e1
+                {l2} g p
+                {l3} return {l3'} p
+
+The expanded version (performed by `expand_do_stmts`) looks like:
+
+    f = {g1} (&gt;&gt;=) ({l1'} e1) (\ {pl}p -&gt;
+                   {g2} (&gt;&gt;) ({l2} g p)
+                             ({l3} return p))
+
+The {l1} etc are location/source span information stored in the AST by the parser,
+{g1} are compiler generated source spans.
+
+
+The 3 non-obvious points to consider are:
+ 1. Wrap the expression with a `fail` block if the pattern match is not irrefutable.
+    See Part 1. below
+ 2. Generate appropriate warnings for discarded results in a body statement
+    eg. say `do { .. ; (g p :: m Int) ; ... }`
+    See Part 2. below
+ 3. Generating appropriate type error messages which blame the correct source spans
+    See Part 3. below
+
+Part 1. Expanding Patterns Bindings
+-----------------------------------
+If `p` is a failable pattern---checked by `GHC.Tc.Gen.Pat.isIrrefutableHsPatRnTcM`---
+we need to wrap it with a `fail`-block. See Equation (2) above.
+
+The expansion of the `do`-block
+
+        do { Just p &lt;- e1; e2 }
+
+(ignoring the location information) will be
+
+        (&gt;&gt;=) (e1)
+              (\case                 -- anonymous continuation lambda
+                 Just p -&gt; e2
+                 _      -&gt; fail &quot;failable pattern p at location&quot;)
+
+The `fail`-block wrapping is done by `GHC.Tc.Gen.Do.mk_failable_expr`.
+
+* Note the explicit call to `fail`, in the monad of the `do`-block.  Part of the specification
+  of do-notation is that if the pattern match fails, we fail in the monad, *not* just crash
+  at runtime.
+
+* According to the language specification, when the pattern is irrefutable,
+  we should not add the `fail` alternative. This is important because
+  the occurrence of `fail` means that the typechecker will generate a `MonadFail` constraint,
+  and irrefutable patterns shouldn't need a fail alternative.
+
+* _Wrinkel 1_: Note that pattern synonyms count as refutable during type checking,
+  (see `GHC.Tc.Gen.Pat.isIrrefutableHsPatRnTcM`). They will hence generate a
+  `MonadFail` constraint and they will always be wrapped in a `fail`able-block.
+
+  Consider a patten synonym declaration (testcase T24552):
+
+             pattern MyJust :: a -&gt; Maybe a
+             pattern MyJust x &lt;- Just x where MyJust = Just
+
+  and a `do`-block with the following bind and return statement
+
+             do { MyJust x &lt;- [MyNothing, MyJust ()]
+                ; return x }
+
+  The `do`-expansion will generate the expansion
+
+            (&gt;&gt;=) ([MyNothing, MyJust ()])
+                  (\case MyJust x -&gt; return x                     -- (1)
+                         _        -&gt; fail &quot;failable pattern .. &quot;  -- (2)
+                  )
+
+  This code (specifically the `match` spanning lines (1) and (2)) is a compiler generated code;
+  the associated `Origin` in tagged `Generated`
+  The alternative statements will thus be ignored by the pattern match check (c.f. `isMatchContextPmChecked`).
+  This ensures we do not generate spurious redundant-pattern-match warnings due to the line (2) above.
+  See Note [Generated code and pattern-match checking]
+  See Note [Long-distance information in matchWrapper]
+
+* _Wrinkle 2_: The call to `fail` will give rise to a `MonadFail` constraint. What `CtOrigin` do we
+  attach to that constraint?  When the `MonadFail` constraint can't be solved, it'll show up in error
+  messages and it needs to be a good location.  Ideally, it should identify the
+  pattern `p`.  Hence, we wrap the `fail` alternative expression with a `ExpandedPat`
+  that tags the fail expression with the failable pattern. (See testcase MonadFailErrors.hs)
+
+Part 2. Generate warnings for discarded body statement results
+--------------------------------------------------------------
+If the `do`-blocks' body statement is an expression that returns a
+value that is not of type `()`, we need to warn the user about discarded
+the value when `-Wunused-binds` flag is turned on. (See testcase T3263-2.hs)
+
+For example the `do`-block
+
+    do { e1;  e2 } -- where, e1 :: m Int
+
+expands to
+
+    (&gt;&gt;) e1 e2
+
+* If `e1` returns a non-() value we want to emit a warning, telling the user that they
+  are discarding the value returned by e1. This is done by `HsToCore.dsExpr` in the `HsApp`
+  with a call to `HsToCore.warnUnusedBindValue`.
+
+* The decision to trigger the warning is: if the function is a compiler generated `(&gt;&gt;)`,
+  and its first argument `e1` has a non-() type
+
+Part 3. Blaming Offending Source Code and Generating Appropriate Error Messages
+-------------------------------------------------------------------------------
+To ensure we correctly track source of the offending user written source code,
+in this case the `do`-statement, we need to keep track of
+which source statement's expansion the typechecker is currently typechecking.
+For this purpose we use the `XXExprGhcRn.ExpansionRn`.
+It stores the original statement (with location) and the expanded expression
+
+  A. Expanding Body Statements
+  -----------------------------
+  For example, the `do`-block
+
+      do { e1;  e2; e3 }
+
+  expands (ignoring the location info) to
+
+      &#8249;ExpandedThingRn do { e1; e2; e3 }&#8250;                        -- Original Do Expression
+                                                                 -- Expanded Do Expression
+          (&#8249;ExpandedThingRn e1&#8250;                                  -- Original Statement
+               ({(&gt;&gt;) e1}                                        -- Expanded Expression
+                  &#8249;PopErrCtxt&#8250; (&#8249;ExpandedThingRn e2&#8250;
+                         ({(&gt;&gt;) e2}
+                            &#8249;PopErrCtxt&#8250; (&#8249;ExpandedThingRn e3&#8250; {e3})))))
+
+  * Whenever the typechecker steps through an `ExpandedThingRn`,
+    we push the original statement in the error context, set the error location to the
+    location of the statement, and then typecheck the expanded expression.
+    This is similar to vanilla `XXExprGhcRn` and rebindable syntax
+    See Note [Rebindable syntax and XXExprGhcRn] in `GHC.Hs.Expr`.
+
+  * Recall, that when a source function argument fails to typecheck,
+    we print an error message like &quot;In the second argument of the function f..&quot;.
+    However, `(&gt;&gt;)` is generated thus, we don't want to display that to the user; it would be confusing.
+    But also, we do not want to completely ignore it as we do want to keep the error blame carets
+    as precise as possible, and not just blame the complete `do`-block.
+    Thus, when we typecheck the application `(&gt;&gt;) e1`, we push the &quot;In the stmt of do block e1&quot; with
+    the source location of `e1` in the error context stack as we walk inside an `ExpandedThingRn`.
+    See also Note [splitHsApps].
+
+  * After the expanded expression of a `do`-statement is typechecked
+    and before moving to the next statement of the `do`-block, we need to first pop the top
+    of the error context stack which contains the error message for
+    the previous statement: eg. &quot;In the stmt of a do block: e1&quot;.
+    This is explicitly encoded in the expansion expression using
+    the `XXExprGhcRn.PopErrCtxt`. Whenever `GHC.Tc.Gen.Expr.tcExpr` (via `GHC.Tc.Gen.tcXExpr`)
+    sees a `PopErrCtxt` it calls `GHC.Tc.Utils.Monad.popErrCtxt` to pop of the top of error context stack.
+    See &#8249;PopErrCtxt&#8250; in the example above.
+    Without this popping business for error context stack,
+    if there is a type error in `e2`, we would get a spurious and confusing error message
+    which mentions &quot;In the stmt of a do block e1&quot; along with the message
+    &quot;In the stmt of a do block e2&quot;.
+
+  B. Expanding Bind Statements
+  -----------------------------
+  A `do`-block with a bind statement:
+
+      do { p &lt;- e1; e2 }
+
+  expands (ignoring the location information) to
+
+     &#8249;ExpandedThingRn do{ p &lt;- e1; e2 }&#8250;                                      -- Original Do Expression
+                                                                              --
+         (&#8249;ExpandedThingRn (p &lt;- e1)&#8250;                                         -- Original Statement
+                        (((&gt;&gt;=) e1)                                           -- Expanded Expression
+                           &#8249;PopErrCtxt&#8250; ((\ p -&gt; &#8249;ExpandedThingRn (e2)&#8250; e2)))
+         )
+
+
+  However, the expansion lambda `(\p -&gt; e2)` is special as it is generated from a `do`-stmt expansion
+  and if a type checker error occurs in the pattern `p` (which is source generated), we need to say
+  &quot;in a pattern binding in a do block&quot; and not &quot;in the pattern of a lambda&quot; (cf. Typeable1.hs).
+  We hence use a tag `GenReason` in `Ghc.Tc.Origin`. When typechecking a `HsLam` in `Tc.Gen.Expr.tcExpr`
+  the `match_ctxt` is set to a `StmtCtxt` if `GenOrigin` is a `DoExpansionOrigin`.
+-}</span><span>
+</span><span id="line-493"></span></pre></body></html>

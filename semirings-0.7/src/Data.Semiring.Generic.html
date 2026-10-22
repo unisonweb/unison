@@ -1,0 +1,490 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE DeriveGeneric        #-}</span><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# LANGUAGE FlexibleContexts     #-}</span><span>
+</span><span id="line-3"></span><span class="hs-pragma">{-# LANGUAGE TypeOperators        #-}</span><span>
+</span><span id="line-4"></span><span class="hs-pragma">{-# LANGUAGE UndecidableInstances #-}</span><span>
+</span><span id="line-5"></span><span>
+</span><span id="line-6"></span><span class="hs-comment">-----------------------------------------------------------------------------</span><span>
+</span><span id="line-7"></span><span class="hs-comment">-- |</span><span>
+</span><span id="line-8"></span><span class="hs-comment">-- Module      :  Data.Semiring.Generic</span><span>
+</span><span id="line-9"></span><span class="hs-comment">-- Copyright   :  (C) 2018 chessai</span><span>
+</span><span id="line-10"></span><span class="hs-comment">-- License     :  MIT (see the file LICENSE)</span><span>
+</span><span id="line-11"></span><span class="hs-comment">--</span><span>
+</span><span id="line-12"></span><span class="hs-comment">-- Maintainer  :  chessai &lt;chessai1996@gmail.com&gt;</span><span>
+</span><span id="line-13"></span><span class="hs-comment">-- Stability   :  provisional</span><span>
+</span><span id="line-14"></span><span class="hs-comment">-- Portability :  portable</span><span>
+</span><span id="line-15"></span><span class="hs-comment">--</span><span>
+</span><span id="line-16"></span><span class="hs-comment">-- This module provides generic deriving tools for semirings and rings for</span><span>
+</span><span id="line-17"></span><span class="hs-comment">-- product-like structures.</span><span>
+</span><span id="line-18"></span><span class="hs-comment">--</span><span>
+</span><span id="line-19"></span><span class="hs-comment">----------------------------------------------------------------------------</span><span>
+</span><span id="line-20"></span><span>
+</span><span id="line-21"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Data.Semiring.Generic.html"><span class="hs-identifier">Data.Semiring.Generic</span></a></span><span>
+</span><span id="line-22"></span><span>  </span><span class="hs-special">(</span><span>
+</span><span id="line-23"></span><span>    </span><span class="annot"><a href="Data.Semiring.Generic.html#GSemiring"><span class="hs-identifier">GSemiring</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-24"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Semiring.Generic.html#gzero"><span class="hs-identifier">gzero</span></a></span><span>
+</span><span id="line-25"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Semiring.Generic.html#gone"><span class="hs-identifier">gone</span></a></span><span>
+</span><span id="line-26"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Semiring.Generic.html#gplus"><span class="hs-identifier">gplus</span></a></span><span>
+</span><span id="line-27"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Semiring.Generic.html#gtimes"><span class="hs-identifier">gtimes</span></a></span><span>
+</span><span id="line-28"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Semiring.Generic.html#gfromNatural"><span class="hs-identifier">gfromNatural</span></a></span><span>
+</span><span id="line-29"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Semiring.Generic.html#GRing"><span class="hs-identifier">GRing</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-30"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Semiring.Generic.html#gnegate"><span class="hs-identifier">gnegate</span></a></span><span>
+</span><span id="line-31"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Semiring.Generic.html#GenericSemiring"><span class="hs-identifier">GenericSemiring</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-32"></span><span>  </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-33"></span><span>
+</span><span id="line-34"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><a href="Data.Semiring.html"><span class="hs-identifier">Data.Semiring</span></a></span><span>
+</span><span id="line-35"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">GHC.Generics</span></span><span>
+</span><span id="line-36"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Numeric.Natural</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Natural</span></span><span class="hs-special">)</span><span>
+</span><span id="line-37"></span><span>
+</span><span id="line-38"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Prelude</span></span><span> </span><span class="hs-keyword">hiding</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Num</span></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-39"></span><span>
+</span><span id="line-40"></span><span class="hs-comment">-- | An Identity-style wrapper with a 'Generic' interface</span><span>
+</span><span id="line-41"></span><span class="hs-comment">--   to be used with '-XDerivingVia'.</span><span>
+</span><span id="line-42"></span><span class="hs-keyword">newtype</span><span> </span><span id="GenericSemiring"><span class="annot"><a href="Data.Semiring.Generic.html#GenericSemiring"><span class="hs-identifier hs-var">GenericSemiring</span></a></span></span><span> </span><span id="local-6989586621679114651"><span class="annot"><a href="#local-6989586621679114651"><span class="hs-identifier hs-type">a</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="GenericSemiring"><span class="annot"><a href="Data.Semiring.Generic.html#GenericSemiring"><span class="hs-identifier hs-var">GenericSemiring</span></a></span></span><span> </span><span class="annot"><a href="#local-6989586621679114651"><span class="hs-identifier hs-type">a</span></a></span><span>
+</span><span id="line-43"></span><span>
+</span><span id="line-44"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679114650"><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Generic</span></span><span> </span><span class="annot"><a href="#local-6989586621679114650"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Semiring.Generic.html#GSemiring"><span class="hs-identifier hs-type">GSemiring</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Rep</span></span><span> </span><span class="annot"><a href="#local-6989586621679114650"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Data.Semiring.html#Semiring"><span class="hs-identifier hs-type">Semiring</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Semiring.Generic.html#GenericSemiring"><span class="hs-identifier hs-type">GenericSemiring</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679114650"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-45"></span><span>  </span><span id="local-6989586621679114769"><span class="annot"><span class="annottext">zero :: GenericSemiring a
+</span><a href="#local-6989586621679114769"><span class="hs-identifier hs-var hs-var hs-var">zero</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">a -&gt; GenericSemiring a
+forall a. a -&gt; GenericSemiring a
+</span><a href="Data.Semiring.Generic.html#GenericSemiring"><span class="hs-identifier hs-var">GenericSemiring</span></a></span><span> </span><span class="annot"><span class="annottext">a
+forall a. (Generic a, GSemiring (Rep a)) =&gt; a
+</span><a href="Data.Semiring.Generic.html#gzero"><span class="hs-identifier hs-var">gzero</span></a></span><span>
+</span><span id="line-46"></span><span>  </span><span id="local-6989586621679114773"><span class="annot"><span class="annottext">one :: GenericSemiring a
+</span><a href="#local-6989586621679114773"><span class="hs-identifier hs-var hs-var hs-var">one</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">a -&gt; GenericSemiring a
+forall a. a -&gt; GenericSemiring a
+</span><a href="Data.Semiring.Generic.html#GenericSemiring"><span class="hs-identifier hs-var">GenericSemiring</span></a></span><span> </span><span class="annot"><span class="annottext">a
+forall a. (Generic a, GSemiring (Rep a)) =&gt; a
+</span><a href="Data.Semiring.Generic.html#gone"><span class="hs-identifier hs-var">gone</span></a></span><span>
+</span><span id="line-47"></span><span>  </span><span id="local-6989586621679114777"><span class="annot"><span class="annottext">plus :: GenericSemiring a -&gt; GenericSemiring a -&gt; GenericSemiring a
+</span><a href="#local-6989586621679114777"><span class="hs-identifier hs-var hs-var hs-var">plus</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Semiring.Generic.html#GenericSemiring"><span class="hs-identifier hs-type">GenericSemiring</span></a></span><span> </span><span id="local-6989586621679114779"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679114779"><span class="hs-identifier hs-var">x</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Semiring.Generic.html#GenericSemiring"><span class="hs-identifier hs-type">GenericSemiring</span></a></span><span> </span><span id="local-6989586621679114780"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679114780"><span class="hs-identifier hs-var">y</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">a -&gt; GenericSemiring a
+forall a. a -&gt; GenericSemiring a
+</span><a href="Data.Semiring.Generic.html#GenericSemiring"><span class="hs-identifier hs-var">GenericSemiring</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a -&gt; a -&gt; a
+forall a. (Generic a, GSemiring (Rep a)) =&gt; a -&gt; a -&gt; a
+</span><a href="Data.Semiring.Generic.html#gplus"><span class="hs-identifier hs-var">gplus</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679114779"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679114780"><span class="hs-identifier hs-var">y</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-48"></span><span>  </span><span id="local-6989586621679114783"><span class="annot"><span class="annottext">times :: GenericSemiring a -&gt; GenericSemiring a -&gt; GenericSemiring a
+</span><a href="#local-6989586621679114783"><span class="hs-identifier hs-var hs-var hs-var">times</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Semiring.Generic.html#GenericSemiring"><span class="hs-identifier hs-type">GenericSemiring</span></a></span><span> </span><span id="local-6989586621679114785"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679114785"><span class="hs-identifier hs-var">x</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Semiring.Generic.html#GenericSemiring"><span class="hs-identifier hs-type">GenericSemiring</span></a></span><span> </span><span id="local-6989586621679114786"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679114786"><span class="hs-identifier hs-var">y</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">a -&gt; GenericSemiring a
+forall a. a -&gt; GenericSemiring a
+</span><a href="Data.Semiring.Generic.html#GenericSemiring"><span class="hs-identifier hs-var">GenericSemiring</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a -&gt; a -&gt; a
+forall a. (Generic a, GSemiring (Rep a)) =&gt; a -&gt; a -&gt; a
+</span><a href="Data.Semiring.Generic.html#gtimes"><span class="hs-identifier hs-var">gtimes</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679114785"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679114786"><span class="hs-identifier hs-var">y</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-49"></span><span>  </span><span id="local-6989586621679114789"><span class="annot"><span class="annottext">fromNatural :: Natural -&gt; GenericSemiring a
+</span><a href="#local-6989586621679114789"><span class="hs-identifier hs-var hs-var hs-var">fromNatural</span></a></span></span><span> </span><span id="local-6989586621679114791"><span class="annot"><span class="annottext">Natural
+</span><a href="#local-6989586621679114791"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">a -&gt; GenericSemiring a
+forall a. a -&gt; GenericSemiring a
+</span><a href="Data.Semiring.Generic.html#GenericSemiring"><span class="hs-identifier hs-var">GenericSemiring</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Natural -&gt; a
+forall a. (Generic a, GSemiring (Rep a)) =&gt; Natural -&gt; a
+</span><a href="Data.Semiring.Generic.html#gfromNatural"><span class="hs-identifier hs-var">gfromNatural</span></a></span><span> </span><span class="annot"><span class="annottext">Natural
+</span><a href="#local-6989586621679114791"><span class="hs-identifier hs-var">x</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-50"></span><span>
+</span><span id="line-51"></span><span class="hs-comment">{--------------------------------------------------------------------
+  Generics
+--------------------------------------------------------------------}</span><span>
+</span><span id="line-54"></span><span>
+</span><span id="line-55"></span><span class="hs-comment">-- | Generic 'Semiring' class, used to implement 'plus', 'times', 'zero',</span><span>
+</span><span id="line-56"></span><span class="hs-comment">--   and 'one' for product-like types implementing 'Generic'.</span><span>
+</span><span id="line-57"></span><span class="hs-keyword">class</span><span> </span><span id="GSemiring"><span class="annot"><a href="Data.Semiring.Generic.html#GSemiring"><span class="hs-identifier hs-var">GSemiring</span></a></span></span><span> </span><span id="local-6989586621679114659"><span class="annot"><a href="#local-6989586621679114659"><span class="hs-identifier hs-type">f</span></a></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-58"></span><span>  </span><span class="hs-pragma">{-# MINIMAL</span><span> </span><span class="annot"><a href="Data.Semiring.Generic.html#gplus%27"><span class="hs-pragma hs-type">gplus'</span></a></span><span class="hs-pragma">,</span><span> </span><span class="annot"><a href="Data.Semiring.Generic.html#gzero%27"><span class="hs-pragma hs-type">gzero'</span></a></span><span class="hs-pragma">,</span><span> </span><span class="annot"><a href="Data.Semiring.Generic.html#gtimes%27"><span class="hs-pragma hs-type">gtimes'</span></a></span><span class="hs-pragma">,</span><span> </span><span class="annot"><a href="Data.Semiring.Generic.html#gone%27"><span class="hs-pragma hs-type">gone'</span></a></span><span class="hs-pragma">,</span><span> </span><span class="annot"><a href="Data.Semiring.Generic.html#gfromNatural%27"><span class="hs-pragma hs-type">gfromNatural'</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-59"></span><span>  </span><span id="gzero%27"><span class="annot"><a href="Data.Semiring.Generic.html#gzero%27"><span class="hs-identifier hs-type">gzero'</span></a></span></span><span>  </span><span class="hs-glyph">::</span><span> </span><span id="local-6989586621679114658"><span class="annot"><a href="#local-6989586621679114659"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679114658"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-60"></span><span>  </span><span id="gone%27"><span class="annot"><a href="Data.Semiring.Generic.html#gone%27"><span class="hs-identifier hs-type">gone'</span></a></span></span><span>   </span><span class="hs-glyph">::</span><span> </span><span id="local-6989586621679114661"><span class="annot"><a href="#local-6989586621679114659"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679114661"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-61"></span><span>  </span><span id="gplus%27"><span class="annot"><a href="Data.Semiring.Generic.html#gplus%27"><span class="hs-identifier hs-type">gplus'</span></a></span></span><span>  </span><span class="hs-glyph">::</span><span> </span><span id="local-6989586621679114668"><span class="annot"><a href="#local-6989586621679114659"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679114668"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679114659"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679114668"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679114659"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679114668"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-62"></span><span>  </span><span id="gtimes%27"><span class="annot"><a href="Data.Semiring.Generic.html#gtimes%27"><span class="hs-identifier hs-type">gtimes'</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span id="local-6989586621679114670"><span class="annot"><a href="#local-6989586621679114659"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679114670"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679114659"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679114670"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679114659"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679114670"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-63"></span><span>  </span><span id="gfromNatural%27"><span class="annot"><a href="Data.Semiring.Generic.html#gfromNatural%27"><span class="hs-identifier hs-type">gfromNatural'</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span id="local-6989586621679114675"><span class="annot"><span class="hs-identifier hs-type">Natural</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679114659"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679114675"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-64"></span><span>
+</span><span id="line-65"></span><span class="hs-comment">-- | Generic 'Ring' class, used to implement 'negate' for product-like</span><span>
+</span><span id="line-66"></span><span class="hs-comment">--   types implementing 'Generic'.</span><span>
+</span><span id="line-67"></span><span class="hs-keyword">class</span><span> </span><span id="GRing"><span class="annot"><a href="Data.Semiring.Generic.html#GRing"><span class="hs-identifier hs-var">GRing</span></a></span></span><span> </span><span id="local-6989586621679114680"><span class="annot"><a href="#local-6989586621679114680"><span class="hs-identifier hs-type">f</span></a></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-68"></span><span>  </span><span class="hs-pragma">{-# MINIMAL</span><span> </span><span class="annot"><a href="Data.Semiring.Generic.html#gnegate%27"><span class="hs-pragma hs-type">gnegate'</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-69"></span><span>  </span><span id="gnegate%27"><span class="annot"><a href="Data.Semiring.Generic.html#gnegate%27"><span class="hs-identifier hs-type">gnegate'</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span id="local-6989586621679114679"><span class="annot"><a href="#local-6989586621679114680"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679114679"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679114680"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679114679"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-70"></span><span>
+</span><span id="line-71"></span><span class="hs-comment">-- | Generically generate a 'Semiring' 'zero' for any product-like type</span><span>
+</span><span id="line-72"></span><span class="hs-comment">-- implementing 'Generic'.</span><span>
+</span><span id="line-73"></span><span class="hs-comment">--</span><span>
+</span><span id="line-74"></span><span class="hs-comment">-- It is only defined for product types.</span><span>
+</span><span id="line-75"></span><span class="hs-comment">--</span><span>
+</span><span id="line-76"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-77"></span><span class="hs-comment">-- 'gplus' 'gzero' a = a = 'gplus' a 'gzero'</span><span>
+</span><span id="line-78"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-79"></span><span id="local-6989586621679114652"><span class="annot"><a href="Data.Semiring.Generic.html#gzero"><span class="hs-identifier hs-type">gzero</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Generic</span></span><span> </span><span class="annot"><a href="#local-6989586621679114652"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Semiring.Generic.html#GSemiring"><span class="hs-identifier hs-type">GSemiring</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Rep</span></span><span> </span><span class="annot"><a href="#local-6989586621679114652"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679114652"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-80"></span><span id="gzero"><span class="annot"><span class="annottext">gzero :: forall a. (Generic a, GSemiring (Rep a)) =&gt; a
+</span><a href="Data.Semiring.Generic.html#gzero"><span class="hs-identifier hs-var hs-var">gzero</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Rep a (ZonkAny 5) -&gt; a
+forall a x. Generic a =&gt; Rep a x -&gt; a
+forall x. Rep a x -&gt; a
+</span><span class="hs-identifier hs-var">to</span></span><span> </span><span class="annot"><span class="annottext">Rep a (ZonkAny 5)
+forall a. Rep a a
+forall (f :: * -&gt; *) a. GSemiring f =&gt; f a
+</span><a href="Data.Semiring.Generic.html#gzero%27"><span class="hs-identifier hs-var">gzero'</span></a></span><span>
+</span><span id="line-81"></span><span>
+</span><span id="line-82"></span><span class="hs-comment">-- | Generically generate a 'Semiring' 'one' for any product-like type</span><span>
+</span><span id="line-83"></span><span class="hs-comment">-- implementing 'Generic'.</span><span>
+</span><span id="line-84"></span><span class="hs-comment">--</span><span>
+</span><span id="line-85"></span><span class="hs-comment">-- It is only defined for product types.</span><span>
+</span><span id="line-86"></span><span class="hs-comment">--</span><span>
+</span><span id="line-87"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-88"></span><span class="hs-comment">-- 'gtimes' 'gone' a = a = 'gtimes' a 'gone'</span><span>
+</span><span id="line-89"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-90"></span><span id="local-6989586621679114804"><span class="annot"><a href="Data.Semiring.Generic.html#gone"><span class="hs-identifier hs-type">gone</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Generic</span></span><span> </span><span class="annot"><a href="#local-6989586621679114804"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Semiring.Generic.html#GSemiring"><span class="hs-identifier hs-type">GSemiring</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Rep</span></span><span> </span><span class="annot"><a href="#local-6989586621679114804"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679114804"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-91"></span><span id="gone"><span class="annot"><span class="annottext">gone :: forall a. (Generic a, GSemiring (Rep a)) =&gt; a
+</span><a href="Data.Semiring.Generic.html#gone"><span class="hs-identifier hs-var hs-var">gone</span></a></span></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Rep a (ZonkAny 4) -&gt; a
+forall a x. Generic a =&gt; Rep a x -&gt; a
+forall x. Rep a x -&gt; a
+</span><span class="hs-identifier hs-var">to</span></span><span> </span><span class="annot"><span class="annottext">Rep a (ZonkAny 4)
+forall a. Rep a a
+forall (f :: * -&gt; *) a. GSemiring f =&gt; f a
+</span><a href="Data.Semiring.Generic.html#gone%27"><span class="hs-identifier hs-var">gone'</span></a></span><span>
+</span><span id="line-92"></span><span>
+</span><span id="line-93"></span><span class="hs-comment">-- | Generically generate a 'Semiring' 'plus' operation for any type</span><span>
+</span><span id="line-94"></span><span class="hs-comment">-- implementing 'Generic'. It is only defined for product types.</span><span>
+</span><span id="line-95"></span><span class="hs-comment">--</span><span>
+</span><span id="line-96"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-97"></span><span class="hs-comment">-- 'gplus' a b = 'gplus' b a</span><span>
+</span><span id="line-98"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-99"></span><span id="local-6989586621679114653"><span class="annot"><a href="Data.Semiring.Generic.html#gplus"><span class="hs-identifier hs-type">gplus</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Generic</span></span><span> </span><span class="annot"><a href="#local-6989586621679114653"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Semiring.Generic.html#GSemiring"><span class="hs-identifier hs-type">GSemiring</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Rep</span></span><span> </span><span class="annot"><a href="#local-6989586621679114653"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679114653"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679114653"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679114653"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-100"></span><span id="gplus"><span class="annot"><span class="annottext">gplus :: forall a. (Generic a, GSemiring (Rep a)) =&gt; a -&gt; a -&gt; a
+</span><a href="Data.Semiring.Generic.html#gplus"><span class="hs-identifier hs-var hs-var">gplus</span></a></span></span><span> </span><span id="local-6989586621679114815"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679114815"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span id="local-6989586621679114816"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679114816"><span class="hs-identifier hs-var">y</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Rep a (ZonkAny 3) -&gt; a
+forall a x. Generic a =&gt; Rep a x -&gt; a
+forall x. Rep a x -&gt; a
+</span><span class="hs-identifier hs-var">to</span></span><span> </span><span class="annot"><span class="annottext">(Rep a (ZonkAny 3) -&gt; a) -&gt; Rep a (ZonkAny 3) -&gt; a
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; Rep a (ZonkAny 3)
+forall x. a -&gt; Rep a x
+forall a x. Generic a =&gt; a -&gt; Rep a x
+</span><span class="hs-identifier hs-var">from</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679114815"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">Rep a (ZonkAny 3) -&gt; Rep a (ZonkAny 3) -&gt; Rep a (ZonkAny 3)
+forall a. Rep a a -&gt; Rep a a -&gt; Rep a a
+forall (f :: * -&gt; *) a. GSemiring f =&gt; f a -&gt; f a -&gt; f a
+</span><a href="Data.Semiring.Generic.html#gplus%27"><span class="hs-operator hs-var">`gplus'`</span></a></span><span> </span><span class="annot"><span class="annottext">a -&gt; Rep a (ZonkAny 3)
+forall x. a -&gt; Rep a x
+forall a x. Generic a =&gt; a -&gt; Rep a x
+</span><span class="hs-identifier hs-var">from</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679114816"><span class="hs-identifier hs-var">y</span></a></span><span>
+</span><span id="line-101"></span><span>
+</span><span id="line-102"></span><span class="hs-comment">-- | Generically generate a 'Semiring' 'times' operation for any type</span><span>
+</span><span id="line-103"></span><span class="hs-comment">-- implementing 'Generic'. It is only defined for product types.</span><span>
+</span><span id="line-104"></span><span class="hs-comment">--</span><span>
+</span><span id="line-105"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-106"></span><span class="hs-comment">-- 'gtimes' a ('gtimes' b c) = 'gtimes' ('gtimes' a b) c</span><span>
+</span><span id="line-107"></span><span class="hs-comment">-- 'gtimes' a 'gzero' = 'gzero' = 'gtimes' 'gzero' a</span><span>
+</span><span id="line-108"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-109"></span><span id="local-6989586621679114818"><span class="annot"><a href="Data.Semiring.Generic.html#gtimes"><span class="hs-identifier hs-type">gtimes</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Generic</span></span><span> </span><span class="annot"><a href="#local-6989586621679114818"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Semiring.Generic.html#GSemiring"><span class="hs-identifier hs-type">GSemiring</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Rep</span></span><span> </span><span class="annot"><a href="#local-6989586621679114818"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679114818"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679114818"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679114818"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-110"></span><span id="gtimes"><span class="annot"><span class="annottext">gtimes :: forall a. (Generic a, GSemiring (Rep a)) =&gt; a -&gt; a -&gt; a
+</span><a href="Data.Semiring.Generic.html#gtimes"><span class="hs-identifier hs-var hs-var">gtimes</span></a></span></span><span> </span><span id="local-6989586621679114825"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679114825"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span id="local-6989586621679114826"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679114826"><span class="hs-identifier hs-var">y</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Rep a (ZonkAny 2) -&gt; a
+forall a x. Generic a =&gt; Rep a x -&gt; a
+forall x. Rep a x -&gt; a
+</span><span class="hs-identifier hs-var">to</span></span><span> </span><span class="annot"><span class="annottext">(Rep a (ZonkAny 2) -&gt; a) -&gt; Rep a (ZonkAny 2) -&gt; a
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; Rep a (ZonkAny 2)
+forall x. a -&gt; Rep a x
+forall a x. Generic a =&gt; a -&gt; Rep a x
+</span><span class="hs-identifier hs-var">from</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679114825"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">Rep a (ZonkAny 2) -&gt; Rep a (ZonkAny 2) -&gt; Rep a (ZonkAny 2)
+forall a. Rep a a -&gt; Rep a a -&gt; Rep a a
+forall (f :: * -&gt; *) a. GSemiring f =&gt; f a -&gt; f a -&gt; f a
+</span><a href="Data.Semiring.Generic.html#gtimes%27"><span class="hs-operator hs-var">`gtimes'`</span></a></span><span> </span><span class="annot"><span class="annottext">a -&gt; Rep a (ZonkAny 2)
+forall x. a -&gt; Rep a x
+forall a x. Generic a =&gt; a -&gt; Rep a x
+</span><span class="hs-identifier hs-var">from</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679114826"><span class="hs-identifier hs-var">y</span></a></span><span>
+</span><span id="line-111"></span><span>
+</span><span id="line-112"></span><span class="hs-comment">-- | Generically generate a 'Semiring' 'fromNatural' for any product-like type</span><span>
+</span><span id="line-113"></span><span class="hs-comment">-- implementing 'Generic'.</span><span>
+</span><span id="line-114"></span><span class="hs-comment">--</span><span>
+</span><span id="line-115"></span><span class="hs-comment">-- It is only defined for product types.</span><span>
+</span><span id="line-116"></span><span id="local-6989586621679114654"><span class="annot"><a href="Data.Semiring.Generic.html#gfromNatural"><span class="hs-identifier hs-type">gfromNatural</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Generic</span></span><span> </span><span class="annot"><a href="#local-6989586621679114654"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Semiring.Generic.html#GSemiring"><span class="hs-identifier hs-type">GSemiring</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Rep</span></span><span> </span><span class="annot"><a href="#local-6989586621679114654"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Natural</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679114654"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-117"></span><span id="gfromNatural"><span class="annot"><span class="annottext">gfromNatural :: forall a. (Generic a, GSemiring (Rep a)) =&gt; Natural -&gt; a
+</span><a href="Data.Semiring.Generic.html#gfromNatural"><span class="hs-identifier hs-var hs-var">gfromNatural</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Rep a (ZonkAny 1) -&gt; a
+forall a x. Generic a =&gt; Rep a x -&gt; a
+forall x. Rep a x -&gt; a
+</span><span class="hs-identifier hs-var">to</span></span><span> </span><span class="annot"><span class="annottext">(Rep a (ZonkAny 1) -&gt; a)
+-&gt; (Natural -&gt; Rep a (ZonkAny 1)) -&gt; Natural -&gt; a
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Natural -&gt; Rep a (ZonkAny 1)
+forall a. Natural -&gt; Rep a a
+forall (f :: * -&gt; *) a. GSemiring f =&gt; Natural -&gt; f a
+</span><a href="Data.Semiring.Generic.html#gfromNatural%27"><span class="hs-identifier hs-var">gfromNatural'</span></a></span><span>
+</span><span id="line-118"></span><span>
+</span><span id="line-119"></span><span class="hs-comment">-- | Generically generate a 'Ring' 'negate' operation for any type</span><span>
+</span><span id="line-120"></span><span class="hs-comment">-- implementing 'Generic'. It is only defined for product types.</span><span>
+</span><span id="line-121"></span><span class="hs-comment">--</span><span>
+</span><span id="line-122"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-123"></span><span class="hs-comment">-- 'gplus' a ('gnegate' a) = 'zero'</span><span>
+</span><span id="line-124"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-125"></span><span id="local-6989586621679114676"><span class="annot"><a href="Data.Semiring.Generic.html#gnegate"><span class="hs-identifier hs-type">gnegate</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Generic</span></span><span> </span><span class="annot"><a href="#local-6989586621679114676"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Semiring.Generic.html#GRing"><span class="hs-identifier hs-type">GRing</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Rep</span></span><span> </span><span class="annot"><a href="#local-6989586621679114676"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679114676"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679114676"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-126"></span><span id="gnegate"><span class="annot"><span class="annottext">gnegate :: forall a. (Generic a, GRing (Rep a)) =&gt; a -&gt; a
+</span><a href="Data.Semiring.Generic.html#gnegate"><span class="hs-identifier hs-var hs-var">gnegate</span></a></span></span><span> </span><span id="local-6989586621679114837"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679114837"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Rep a (ZonkAny 0) -&gt; a
+forall a x. Generic a =&gt; Rep a x -&gt; a
+forall x. Rep a x -&gt; a
+</span><span class="hs-identifier hs-var">to</span></span><span> </span><span class="annot"><span class="annottext">(Rep a (ZonkAny 0) -&gt; a) -&gt; Rep a (ZonkAny 0) -&gt; a
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Rep a (ZonkAny 0) -&gt; Rep a (ZonkAny 0)
+forall a. Rep a a -&gt; Rep a a
+forall (f :: * -&gt; *) a. GRing f =&gt; f a -&gt; f a
+</span><a href="Data.Semiring.Generic.html#gnegate%27"><span class="hs-identifier hs-var">gnegate'</span></a></span><span> </span><span class="annot"><span class="annottext">(Rep a (ZonkAny 0) -&gt; Rep a (ZonkAny 0))
+-&gt; Rep a (ZonkAny 0) -&gt; Rep a (ZonkAny 0)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; Rep a (ZonkAny 0)
+forall x. a -&gt; Rep a x
+forall a x. Generic a =&gt; a -&gt; Rep a x
+</span><span class="hs-identifier hs-var">from</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679114837"><span class="hs-identifier hs-var">x</span></a></span><span>
+</span><span id="line-127"></span><span>
+</span><span id="line-128"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="Data.Semiring.Generic.html#GSemiring"><span class="hs-identifier hs-type">GSemiring</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">U1</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-129"></span><span>  </span><span id="local-6989586621679114845"><span class="annot"><span class="annottext">gzero' :: forall a. U1 a
+</span><a href="Data.Semiring.Generic.html#gzero%27"><span class="hs-identifier hs-var hs-var hs-var">gzero'</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">U1 a
+forall k (p :: k). U1 p
+</span><span class="hs-identifier hs-var">U1</span></span><span>
+</span><span id="line-130"></span><span>  </span><span id="local-6989586621679114847"><span class="annot"><span class="annottext">gone' :: forall a. U1 a
+</span><a href="Data.Semiring.Generic.html#gone%27"><span class="hs-identifier hs-var hs-var hs-var">gone'</span></a></span></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">U1 a
+forall k (p :: k). U1 p
+</span><span class="hs-identifier hs-var">U1</span></span><span>
+</span><span id="line-131"></span><span>  </span><span id="local-6989586621679114848"><span class="annot"><span class="annottext">gplus' :: forall a. U1 a -&gt; U1 a -&gt; U1 a
+</span><a href="Data.Semiring.Generic.html#gplus%27"><span class="hs-identifier hs-var hs-var hs-var">gplus'</span></a></span></span><span>  </span><span class="annot"><span class="annottext">U1 a
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">U1 a
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">U1 a
+forall k (p :: k). U1 p
+</span><span class="hs-identifier hs-var">U1</span></span><span>
+</span><span id="line-132"></span><span>  </span><span id="local-6989586621679114849"><span class="annot"><span class="annottext">gtimes' :: forall a. U1 a -&gt; U1 a -&gt; U1 a
+</span><a href="Data.Semiring.Generic.html#gtimes%27"><span class="hs-identifier hs-var hs-var hs-var">gtimes'</span></a></span></span><span> </span><span class="annot"><span class="annottext">U1 a
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">U1 a
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">U1 a
+forall k (p :: k). U1 p
+</span><span class="hs-identifier hs-var">U1</span></span><span>
+</span><span id="line-133"></span><span>  </span><span id="local-6989586621679114850"><span class="annot"><span class="annottext">gfromNatural' :: forall a. Natural -&gt; U1 a
+</span><a href="Data.Semiring.Generic.html#gfromNatural%27"><span class="hs-identifier hs-var hs-var hs-var">gfromNatural'</span></a></span></span><span> </span><span class="annot"><span class="annottext">Natural
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">U1 a
+forall k (p :: k). U1 p
+</span><span class="hs-identifier hs-var">U1</span></span><span>
+</span><span id="line-134"></span><span>
+</span><span id="line-135"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="Data.Semiring.Generic.html#GRing"><span class="hs-identifier hs-type">GRing</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">U1</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-136"></span><span>  </span><span id="local-6989586621679114854"><span class="annot"><span class="annottext">gnegate' :: forall a. U1 a -&gt; U1 a
+</span><a href="Data.Semiring.Generic.html#gnegate%27"><span class="hs-identifier hs-var hs-var hs-var">gnegate'</span></a></span></span><span> </span><span class="annot"><span class="annottext">U1 a
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">U1 a
+forall k (p :: k). U1 p
+</span><span class="hs-identifier hs-var">U1</span></span><span>
+</span><span id="line-137"></span><span>
+</span><span id="line-138"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679114691"><span id="local-6989586621679114692"><span class="hs-special">(</span><span class="annot"><a href="Data.Semiring.Generic.html#GSemiring"><span class="hs-identifier hs-type">GSemiring</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679114691"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Semiring.Generic.html#GSemiring"><span class="hs-identifier hs-type">GSemiring</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679114692"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Data.Semiring.Generic.html#GSemiring"><span class="hs-identifier hs-type">GSemiring</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679114691"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="annot"><span class="hs-operator hs-type">:*:</span></span><span> </span><span class="annot"><a href="#local-6989586621679114692"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">)</span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-139"></span><span>  </span><span id="local-6989586621679114865"><span class="annot"><span class="annottext">gzero' :: forall a. (:*:) a b a
+</span><a href="Data.Semiring.Generic.html#gzero%27"><span class="hs-identifier hs-var hs-var hs-var">gzero'</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">a a
+forall a. a a
+forall (f :: * -&gt; *) a. GSemiring f =&gt; f a
+</span><a href="Data.Semiring.Generic.html#gzero%27"><span class="hs-identifier hs-var">gzero'</span></a></span><span> </span><span class="annot"><span class="annottext">a a -&gt; b a -&gt; (:*:) a b a
+forall k (f :: k -&gt; *) (g :: k -&gt; *) (p :: k).
+f p -&gt; g p -&gt; (:*:) f g p
+</span><span class="hs-operator hs-var">:*:</span></span><span> </span><span class="annot"><span class="annottext">b a
+forall a. b a
+forall (f :: * -&gt; *) a. GSemiring f =&gt; f a
+</span><a href="Data.Semiring.Generic.html#gzero%27"><span class="hs-identifier hs-var">gzero'</span></a></span><span>
+</span><span id="line-140"></span><span>  </span><span id="local-6989586621679114869"><span class="annot"><span class="annottext">gone' :: forall a. (:*:) a b a
+</span><a href="Data.Semiring.Generic.html#gone%27"><span class="hs-identifier hs-var hs-var hs-var">gone'</span></a></span></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">a a
+forall a. a a
+forall (f :: * -&gt; *) a. GSemiring f =&gt; f a
+</span><a href="Data.Semiring.Generic.html#gone%27"><span class="hs-identifier hs-var">gone'</span></a></span><span>  </span><span class="annot"><span class="annottext">a a -&gt; b a -&gt; (:*:) a b a
+forall k (f :: k -&gt; *) (g :: k -&gt; *) (p :: k).
+f p -&gt; g p -&gt; (:*:) f g p
+</span><span class="hs-operator hs-var">:*:</span></span><span> </span><span class="annot"><span class="annottext">b a
+forall a. b a
+forall (f :: * -&gt; *) a. GSemiring f =&gt; f a
+</span><a href="Data.Semiring.Generic.html#gone%27"><span class="hs-identifier hs-var">gone'</span></a></span><span>
+</span><span id="line-141"></span><span>  </span><span id="local-6989586621679114872"><span class="annot"><span class="annottext">gplus' :: forall a. (:*:) a b a -&gt; (:*:) a b a -&gt; (:*:) a b a
+</span><a href="Data.Semiring.Generic.html#gplus%27"><span class="hs-identifier hs-var hs-var hs-var">gplus'</span></a></span></span><span>  </span><span class="hs-special">(</span><span id="local-6989586621679114873"><span class="annot"><span class="annottext">a a
+</span><a href="#local-6989586621679114873"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span class="annot"><span class="hs-operator hs-type">:*:</span></span><span> </span><span id="local-6989586621679114874"><span class="annot"><span class="annottext">b a
+</span><a href="#local-6989586621679114874"><span class="hs-identifier hs-var">b</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679114875"><span class="annot"><span class="annottext">a a
+</span><a href="#local-6989586621679114875"><span class="hs-identifier hs-var">c</span></a></span></span><span> </span><span class="annot"><span class="hs-operator hs-type">:*:</span></span><span> </span><span id="local-6989586621679114876"><span class="annot"><span class="annottext">b a
+</span><a href="#local-6989586621679114876"><span class="hs-identifier hs-var">d</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">a a -&gt; a a -&gt; a a
+forall a. a a -&gt; a a -&gt; a a
+forall (f :: * -&gt; *) a. GSemiring f =&gt; f a -&gt; f a -&gt; f a
+</span><a href="Data.Semiring.Generic.html#gplus%27"><span class="hs-identifier hs-var">gplus'</span></a></span><span>  </span><span class="annot"><span class="annottext">a a
+</span><a href="#local-6989586621679114873"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="annot"><span class="annottext">a a
+</span><a href="#local-6989586621679114875"><span class="hs-identifier hs-var">c</span></a></span><span> </span><span class="annot"><span class="annottext">a a -&gt; b a -&gt; (:*:) a b a
+forall k (f :: k -&gt; *) (g :: k -&gt; *) (p :: k).
+f p -&gt; g p -&gt; (:*:) f g p
+</span><span class="hs-operator hs-var">:*:</span></span><span> </span><span class="annot"><span class="annottext">b a -&gt; b a -&gt; b a
+forall a. b a -&gt; b a -&gt; b a
+forall (f :: * -&gt; *) a. GSemiring f =&gt; f a -&gt; f a -&gt; f a
+</span><a href="Data.Semiring.Generic.html#gplus%27"><span class="hs-identifier hs-var">gplus'</span></a></span><span> </span><span class="annot"><span class="annottext">b a
+</span><a href="#local-6989586621679114874"><span class="hs-identifier hs-var">b</span></a></span><span> </span><span class="annot"><span class="annottext">b a
+</span><a href="#local-6989586621679114876"><span class="hs-identifier hs-var">d</span></a></span><span>
+</span><span id="line-142"></span><span>  </span><span id="local-6989586621679114879"><span class="annot"><span class="annottext">gtimes' :: forall a. (:*:) a b a -&gt; (:*:) a b a -&gt; (:*:) a b a
+</span><a href="Data.Semiring.Generic.html#gtimes%27"><span class="hs-identifier hs-var hs-var hs-var">gtimes'</span></a></span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679114880"><span class="annot"><span class="annottext">a a
+</span><a href="#local-6989586621679114880"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span class="annot"><span class="hs-operator hs-type">:*:</span></span><span> </span><span id="local-6989586621679114881"><span class="annot"><span class="annottext">b a
+</span><a href="#local-6989586621679114881"><span class="hs-identifier hs-var">b</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679114882"><span class="annot"><span class="annottext">a a
+</span><a href="#local-6989586621679114882"><span class="hs-identifier hs-var">c</span></a></span></span><span> </span><span class="annot"><span class="hs-operator hs-type">:*:</span></span><span> </span><span id="local-6989586621679114883"><span class="annot"><span class="annottext">b a
+</span><a href="#local-6989586621679114883"><span class="hs-identifier hs-var">d</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">a a -&gt; a a -&gt; a a
+forall a. a a -&gt; a a -&gt; a a
+forall (f :: * -&gt; *) a. GSemiring f =&gt; f a -&gt; f a -&gt; f a
+</span><a href="Data.Semiring.Generic.html#gtimes%27"><span class="hs-identifier hs-var">gtimes'</span></a></span><span> </span><span class="annot"><span class="annottext">a a
+</span><a href="#local-6989586621679114880"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="annot"><span class="annottext">a a
+</span><a href="#local-6989586621679114882"><span class="hs-identifier hs-var">c</span></a></span><span> </span><span class="annot"><span class="annottext">a a -&gt; b a -&gt; (:*:) a b a
+forall k (f :: k -&gt; *) (g :: k -&gt; *) (p :: k).
+f p -&gt; g p -&gt; (:*:) f g p
+</span><span class="hs-operator hs-var">:*:</span></span><span> </span><span class="annot"><span class="annottext">b a -&gt; b a -&gt; b a
+forall a. b a -&gt; b a -&gt; b a
+forall (f :: * -&gt; *) a. GSemiring f =&gt; f a -&gt; f a -&gt; f a
+</span><a href="Data.Semiring.Generic.html#gtimes%27"><span class="hs-identifier hs-var">gtimes'</span></a></span><span> </span><span class="annot"><span class="annottext">b a
+</span><a href="#local-6989586621679114881"><span class="hs-identifier hs-var">b</span></a></span><span> </span><span class="annot"><span class="annottext">b a
+</span><a href="#local-6989586621679114883"><span class="hs-identifier hs-var">d</span></a></span><span>
+</span><span id="line-143"></span><span>  </span><span id="local-6989586621679114886"><span class="annot"><span class="annottext">gfromNatural' :: forall a. Natural -&gt; (:*:) a b a
+</span><a href="Data.Semiring.Generic.html#gfromNatural%27"><span class="hs-identifier hs-var hs-var hs-var">gfromNatural'</span></a></span></span><span> </span><span id="local-6989586621679114887"><span class="annot"><span class="annottext">Natural
+</span><a href="#local-6989586621679114887"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Natural -&gt; a a
+forall a. Natural -&gt; a a
+forall (f :: * -&gt; *) a. GSemiring f =&gt; Natural -&gt; f a
+</span><a href="Data.Semiring.Generic.html#gfromNatural%27"><span class="hs-identifier hs-var">gfromNatural'</span></a></span><span> </span><span class="annot"><span class="annottext">Natural
+</span><a href="#local-6989586621679114887"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">a a -&gt; b a -&gt; (:*:) a b a
+forall k (f :: k -&gt; *) (g :: k -&gt; *) (p :: k).
+f p -&gt; g p -&gt; (:*:) f g p
+</span><span class="hs-operator hs-var">:*:</span></span><span> </span><span class="annot"><span class="annottext">Natural -&gt; b a
+forall a. Natural -&gt; b a
+forall (f :: * -&gt; *) a. GSemiring f =&gt; Natural -&gt; f a
+</span><a href="Data.Semiring.Generic.html#gfromNatural%27"><span class="hs-identifier hs-var">gfromNatural'</span></a></span><span> </span><span class="annot"><span class="annottext">Natural
+</span><a href="#local-6989586621679114887"><span class="hs-identifier hs-var">n</span></a></span><span>
+</span><span id="line-144"></span><span>
+</span><span id="line-145"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679114704"><span id="local-6989586621679114705"><span class="hs-special">(</span><span class="annot"><a href="Data.Semiring.Generic.html#GRing"><span class="hs-identifier hs-type">GRing</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679114704"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Semiring.Generic.html#GRing"><span class="hs-identifier hs-type">GRing</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679114705"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Data.Semiring.Generic.html#GRing"><span class="hs-identifier hs-type">GRing</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679114704"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="annot"><span class="hs-operator hs-type">:*:</span></span><span> </span><span class="annot"><a href="#local-6989586621679114705"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">)</span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-146"></span><span>  </span><span id="local-6989586621679114894"><span class="annot"><span class="annottext">gnegate' :: forall a. (:*:) a b a -&gt; (:*:) a b a
+</span><a href="Data.Semiring.Generic.html#gnegate%27"><span class="hs-identifier hs-var hs-var hs-var">gnegate'</span></a></span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679114895"><span class="annot"><span class="annottext">a a
+</span><a href="#local-6989586621679114895"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span class="annot"><span class="hs-operator hs-type">:*:</span></span><span> </span><span id="local-6989586621679114896"><span class="annot"><span class="annottext">b a
+</span><a href="#local-6989586621679114896"><span class="hs-identifier hs-var">b</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">a a -&gt; a a
+forall a. a a -&gt; a a
+forall (f :: * -&gt; *) a. GRing f =&gt; f a -&gt; f a
+</span><a href="Data.Semiring.Generic.html#gnegate%27"><span class="hs-identifier hs-var">gnegate'</span></a></span><span> </span><span class="annot"><span class="annottext">a a
+</span><a href="#local-6989586621679114895"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="annot"><span class="annottext">a a -&gt; b a -&gt; (:*:) a b a
+forall k (f :: k -&gt; *) (g :: k -&gt; *) (p :: k).
+f p -&gt; g p -&gt; (:*:) f g p
+</span><span class="hs-operator hs-var">:*:</span></span><span> </span><span class="annot"><span class="annottext">b a -&gt; b a
+forall a. b a -&gt; b a
+forall (f :: * -&gt; *) a. GRing f =&gt; f a -&gt; f a
+</span><a href="Data.Semiring.Generic.html#gnegate%27"><span class="hs-identifier hs-var">gnegate'</span></a></span><span> </span><span class="annot"><span class="annottext">b a
+</span><a href="#local-6989586621679114896"><span class="hs-identifier hs-var">b</span></a></span><span>
+</span><span id="line-147"></span><span>
+</span><span id="line-148"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679114711"><span id="local-6989586621679114712"><span id="local-6989586621679114713"><span class="hs-special">(</span><span class="annot"><a href="Data.Semiring.Generic.html#GSemiring"><span class="hs-identifier hs-type">GSemiring</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679114711"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Data.Semiring.Generic.html#GSemiring"><span class="hs-identifier hs-type">GSemiring</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">M1</span></span><span> </span><span class="annot"><a href="#local-6989586621679114712"><span class="hs-identifier hs-type">i</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679114713"><span class="hs-identifier hs-type">c</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679114711"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-149"></span><span>  </span><span id="local-6989586621679114905"><span class="annot"><span class="annottext">gzero' :: forall a. M1 i c a a
+</span><a href="Data.Semiring.Generic.html#gzero%27"><span class="hs-identifier hs-var hs-var hs-var">gzero'</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">a a -&gt; M1 i c a a
+forall k i (c :: Meta) (f :: k -&gt; *) (p :: k). f p -&gt; M1 i c f p
+</span><span class="hs-identifier hs-var">M1</span></span><span> </span><span class="annot"><span class="annottext">a a
+forall a. a a
+forall (f :: * -&gt; *) a. GSemiring f =&gt; f a
+</span><a href="Data.Semiring.Generic.html#gzero%27"><span class="hs-identifier hs-var">gzero'</span></a></span><span>
+</span><span id="line-150"></span><span>  </span><span id="local-6989586621679114908"><span class="annot"><span class="annottext">gone' :: forall a. M1 i c a a
+</span><a href="Data.Semiring.Generic.html#gone%27"><span class="hs-identifier hs-var hs-var hs-var">gone'</span></a></span></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">a a -&gt; M1 i c a a
+forall k i (c :: Meta) (f :: k -&gt; *) (p :: k). f p -&gt; M1 i c f p
+</span><span class="hs-identifier hs-var">M1</span></span><span> </span><span class="annot"><span class="annottext">a a
+forall a. a a
+forall (f :: * -&gt; *) a. GSemiring f =&gt; f a
+</span><a href="Data.Semiring.Generic.html#gone%27"><span class="hs-identifier hs-var">gone'</span></a></span><span>
+</span><span id="line-151"></span><span>  </span><span id="local-6989586621679114910"><span class="annot"><span class="annottext">gplus' :: forall a. M1 i c a a -&gt; M1 i c a a -&gt; M1 i c a a
+</span><a href="Data.Semiring.Generic.html#gplus%27"><span class="hs-identifier hs-var hs-var hs-var">gplus'</span></a></span></span><span>  </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">M1</span></span><span> </span><span id="local-6989586621679114911"><span class="annot"><span class="annottext">a a
+</span><a href="#local-6989586621679114911"><span class="hs-identifier hs-var">x</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">M1</span></span><span> </span><span id="local-6989586621679114912"><span class="annot"><span class="annottext">a a
+</span><a href="#local-6989586621679114912"><span class="hs-identifier hs-var">y</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">a a -&gt; M1 i c a a
+forall k i (c :: Meta) (f :: k -&gt; *) (p :: k). f p -&gt; M1 i c f p
+</span><span class="hs-identifier hs-var">M1</span></span><span> </span><span class="annot"><span class="annottext">(a a -&gt; M1 i c a a) -&gt; a a -&gt; M1 i c a a
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">a a -&gt; a a -&gt; a a
+forall a. a a -&gt; a a -&gt; a a
+forall (f :: * -&gt; *) a. GSemiring f =&gt; f a -&gt; f a -&gt; f a
+</span><a href="Data.Semiring.Generic.html#gplus%27"><span class="hs-identifier hs-var">gplus'</span></a></span><span>  </span><span class="annot"><span class="annottext">a a
+</span><a href="#local-6989586621679114911"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">a a
+</span><a href="#local-6989586621679114912"><span class="hs-identifier hs-var">y</span></a></span><span>
+</span><span id="line-152"></span><span>  </span><span id="local-6989586621679114914"><span class="annot"><span class="annottext">gtimes' :: forall a. M1 i c a a -&gt; M1 i c a a -&gt; M1 i c a a
+</span><a href="Data.Semiring.Generic.html#gtimes%27"><span class="hs-identifier hs-var hs-var hs-var">gtimes'</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">M1</span></span><span> </span><span id="local-6989586621679114915"><span class="annot"><span class="annottext">a a
+</span><a href="#local-6989586621679114915"><span class="hs-identifier hs-var">x</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">M1</span></span><span> </span><span id="local-6989586621679114916"><span class="annot"><span class="annottext">a a
+</span><a href="#local-6989586621679114916"><span class="hs-identifier hs-var">y</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">a a -&gt; M1 i c a a
+forall k i (c :: Meta) (f :: k -&gt; *) (p :: k). f p -&gt; M1 i c f p
+</span><span class="hs-identifier hs-var">M1</span></span><span> </span><span class="annot"><span class="annottext">(a a -&gt; M1 i c a a) -&gt; a a -&gt; M1 i c a a
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">a a -&gt; a a -&gt; a a
+forall a. a a -&gt; a a -&gt; a a
+forall (f :: * -&gt; *) a. GSemiring f =&gt; f a -&gt; f a -&gt; f a
+</span><a href="Data.Semiring.Generic.html#gtimes%27"><span class="hs-identifier hs-var">gtimes'</span></a></span><span> </span><span class="annot"><span class="annottext">a a
+</span><a href="#local-6989586621679114915"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">a a
+</span><a href="#local-6989586621679114916"><span class="hs-identifier hs-var">y</span></a></span><span>
+</span><span id="line-153"></span><span>  </span><span id="local-6989586621679114918"><span class="annot"><span class="annottext">gfromNatural' :: forall a. Natural -&gt; M1 i c a a
+</span><a href="Data.Semiring.Generic.html#gfromNatural%27"><span class="hs-identifier hs-var hs-var hs-var">gfromNatural'</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">a a -&gt; M1 i c a a
+forall k i (c :: Meta) (f :: k -&gt; *) (p :: k). f p -&gt; M1 i c f p
+</span><span class="hs-identifier hs-var">M1</span></span><span> </span><span class="annot"><span class="annottext">(a a -&gt; M1 i c a a) -&gt; (Natural -&gt; a a) -&gt; Natural -&gt; M1 i c a a
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Natural -&gt; a a
+forall a. Natural -&gt; a a
+forall (f :: * -&gt; *) a. GSemiring f =&gt; Natural -&gt; f a
+</span><a href="Data.Semiring.Generic.html#gfromNatural%27"><span class="hs-identifier hs-var">gfromNatural'</span></a></span><span>
+</span><span id="line-154"></span><span>
+</span><span id="line-155"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679114727"><span id="local-6989586621679114728"><span id="local-6989586621679114729"><span class="hs-special">(</span><span class="annot"><a href="Data.Semiring.Generic.html#GRing"><span class="hs-identifier hs-type">GRing</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679114727"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Data.Semiring.Generic.html#GRing"><span class="hs-identifier hs-type">GRing</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">M1</span></span><span> </span><span class="annot"><a href="#local-6989586621679114728"><span class="hs-identifier hs-type">i</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679114729"><span class="hs-identifier hs-type">c</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679114727"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-156"></span><span>  </span><span id="local-6989586621679114923"><span class="annot"><span class="annottext">gnegate' :: forall a. M1 i c a a -&gt; M1 i c a a
+</span><a href="Data.Semiring.Generic.html#gnegate%27"><span class="hs-identifier hs-var hs-var hs-var">gnegate'</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">M1</span></span><span> </span><span id="local-6989586621679114924"><span class="annot"><span class="annottext">a a
+</span><a href="#local-6989586621679114924"><span class="hs-identifier hs-var">x</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">a a -&gt; M1 i c a a
+forall k i (c :: Meta) (f :: k -&gt; *) (p :: k). f p -&gt; M1 i c f p
+</span><span class="hs-identifier hs-var">M1</span></span><span> </span><span class="annot"><span class="annottext">(a a -&gt; M1 i c a a) -&gt; a a -&gt; M1 i c a a
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">a a -&gt; a a
+forall a. a a -&gt; a a
+forall (f :: * -&gt; *) a. GRing f =&gt; f a -&gt; f a
+</span><a href="Data.Semiring.Generic.html#gnegate%27"><span class="hs-identifier hs-var">gnegate'</span></a></span><span> </span><span class="annot"><span class="annottext">a a
+</span><a href="#local-6989586621679114924"><span class="hs-identifier hs-var">x</span></a></span><span>
+</span><span id="line-157"></span><span>
+</span><span id="line-158"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679114733"><span id="local-6989586621679114734"><span class="hs-special">(</span><span class="annot"><a href="Data.Semiring.html#Semiring"><span class="hs-identifier hs-type">Semiring</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679114733"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Data.Semiring.Generic.html#GSemiring"><span class="hs-identifier hs-type">GSemiring</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">K1</span></span><span> </span><span class="annot"><a href="#local-6989586621679114734"><span class="hs-identifier hs-type">i</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679114733"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-159"></span><span>  </span><span id="local-6989586621679114933"><span class="annot"><span class="annottext">gzero' :: forall a. K1 i a a
+</span><a href="Data.Semiring.Generic.html#gzero%27"><span class="hs-identifier hs-var hs-var hs-var">gzero'</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">a -&gt; K1 i a a
+forall k i c (p :: k). c -&gt; K1 i c p
+</span><span class="hs-identifier hs-var">K1</span></span><span> </span><span class="annot"><span class="annottext">a
+forall a. Semiring a =&gt; a
+</span><a href="Data.Semiring.html#zero"><span class="hs-identifier hs-var">zero</span></a></span><span>
+</span><span id="line-160"></span><span>  </span><span id="local-6989586621679114936"><span class="annot"><span class="annottext">gone' :: forall a. K1 i a a
+</span><a href="Data.Semiring.Generic.html#gone%27"><span class="hs-identifier hs-var hs-var hs-var">gone'</span></a></span></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">a -&gt; K1 i a a
+forall k i c (p :: k). c -&gt; K1 i c p
+</span><span class="hs-identifier hs-var">K1</span></span><span> </span><span class="annot"><span class="annottext">a
+forall a. Semiring a =&gt; a
+</span><a href="Data.Semiring.html#one"><span class="hs-identifier hs-var">one</span></a></span><span>
+</span><span id="line-161"></span><span>  </span><span id="local-6989586621679114938"><span class="annot"><span class="annottext">gplus' :: forall a. K1 i a a -&gt; K1 i a a -&gt; K1 i a a
+</span><a href="Data.Semiring.Generic.html#gplus%27"><span class="hs-identifier hs-var hs-var hs-var">gplus'</span></a></span></span><span>  </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">K1</span></span><span> </span><span id="local-6989586621679114939"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679114939"><span class="hs-identifier hs-var">x</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">K1</span></span><span> </span><span id="local-6989586621679114940"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679114940"><span class="hs-identifier hs-var">y</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">a -&gt; K1 i a a
+forall k i c (p :: k). c -&gt; K1 i c p
+</span><span class="hs-identifier hs-var">K1</span></span><span> </span><span class="annot"><span class="annottext">(a -&gt; K1 i a a) -&gt; a -&gt; K1 i a a
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; a -&gt; a
+forall a. Semiring a =&gt; a -&gt; a -&gt; a
+</span><a href="Data.Semiring.html#plus"><span class="hs-identifier hs-var">plus</span></a></span><span>  </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679114939"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679114940"><span class="hs-identifier hs-var">y</span></a></span><span>
+</span><span id="line-162"></span><span>  </span><span id="local-6989586621679114942"><span class="annot"><span class="annottext">gtimes' :: forall a. K1 i a a -&gt; K1 i a a -&gt; K1 i a a
+</span><a href="Data.Semiring.Generic.html#gtimes%27"><span class="hs-identifier hs-var hs-var hs-var">gtimes'</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">K1</span></span><span> </span><span id="local-6989586621679114943"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679114943"><span class="hs-identifier hs-var">x</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">K1</span></span><span> </span><span id="local-6989586621679114944"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679114944"><span class="hs-identifier hs-var">y</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">a -&gt; K1 i a a
+forall k i c (p :: k). c -&gt; K1 i c p
+</span><span class="hs-identifier hs-var">K1</span></span><span> </span><span class="annot"><span class="annottext">(a -&gt; K1 i a a) -&gt; a -&gt; K1 i a a
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; a -&gt; a
+forall a. Semiring a =&gt; a -&gt; a -&gt; a
+</span><a href="Data.Semiring.html#times"><span class="hs-identifier hs-var">times</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679114943"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679114944"><span class="hs-identifier hs-var">y</span></a></span><span>
+</span><span id="line-163"></span><span>  </span><span id="local-6989586621679114946"><span class="annot"><span class="annottext">gfromNatural' :: forall a. Natural -&gt; K1 i a a
+</span><a href="Data.Semiring.Generic.html#gfromNatural%27"><span class="hs-identifier hs-var hs-var hs-var">gfromNatural'</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">a -&gt; K1 i a a
+forall k i c (p :: k). c -&gt; K1 i c p
+</span><span class="hs-identifier hs-var">K1</span></span><span> </span><span class="annot"><span class="annottext">(a -&gt; K1 i a a) -&gt; (Natural -&gt; a) -&gt; Natural -&gt; K1 i a a
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Natural -&gt; a
+forall a. Semiring a =&gt; Natural -&gt; a
+</span><a href="Data.Semiring.html#fromNatural"><span class="hs-identifier hs-var">fromNatural</span></a></span><span>
+</span><span id="line-164"></span><span>
+</span><span id="line-165"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679114747"><span id="local-6989586621679114748"><span class="hs-special">(</span><span class="annot"><a href="Data.Semiring.html#Ring"><span class="hs-identifier hs-type">Ring</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679114747"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Data.Semiring.Generic.html#GRing"><span class="hs-identifier hs-type">GRing</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">K1</span></span><span> </span><span class="annot"><a href="#local-6989586621679114748"><span class="hs-identifier hs-type">i</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679114747"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-166"></span><span>  </span><span id="local-6989586621679114951"><span class="annot"><span class="annottext">gnegate' :: forall a. K1 i a a -&gt; K1 i a a
+</span><a href="Data.Semiring.Generic.html#gnegate%27"><span class="hs-identifier hs-var hs-var hs-var">gnegate'</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">K1</span></span><span> </span><span id="local-6989586621679114952"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679114952"><span class="hs-identifier hs-var">x</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">a -&gt; K1 i a a
+forall k i c (p :: k). c -&gt; K1 i c p
+</span><span class="hs-identifier hs-var">K1</span></span><span> </span><span class="annot"><span class="annottext">(a -&gt; K1 i a a) -&gt; a -&gt; K1 i a a
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; a
+forall a. Ring a =&gt; a -&gt; a
+</span><a href="Data.Semiring.html#negate"><span class="hs-identifier hs-var">negate</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679114952"><span class="hs-identifier hs-var">x</span></a></span><span>
+</span><span id="line-167"></span></pre></body></html>

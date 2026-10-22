@@ -1,0 +1,64 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE Safe #-}</span><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# LANGUAGE MagicHash #-}</span><span>
+</span><span id="line-3"></span><span class="hs-pragma">{-# OPTIONS_HADDOCK not-home #-}</span><span>
+</span><span id="line-4"></span><span>
+</span><span id="line-5"></span><span class="hs-comment">-- |</span><span>
+</span><span id="line-6"></span><span class="hs-comment">--</span><span>
+</span><span id="line-7"></span><span class="hs-comment">-- Module      :  GHC.Int</span><span>
+</span><span id="line-8"></span><span class="hs-comment">-- Copyright   :  (c) The University of Glasgow 1997-2002</span><span>
+</span><span id="line-9"></span><span class="hs-comment">-- License     :  see libraries/base/LICENSE</span><span>
+</span><span id="line-10"></span><span class="hs-comment">--</span><span>
+</span><span id="line-11"></span><span class="hs-comment">-- Maintainer  :  ghc-devs@haskell.org</span><span>
+</span><span id="line-12"></span><span class="hs-comment">-- Stability   :  internal</span><span>
+</span><span id="line-13"></span><span class="hs-comment">-- Portability :  non-portable (GHC Extensions)</span><span>
+</span><span id="line-14"></span><span class="hs-comment">--</span><span>
+</span><span id="line-15"></span><span class="hs-comment">-- The sized integral datatypes, 'Int8', 'Int16', 'Int32', and 'Int64'.</span><span>
+</span><span id="line-16"></span><span class="hs-comment">--</span><span>
+</span><span id="line-17"></span><span>
+</span><span id="line-18"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="GHC.Int.html"><span class="hs-identifier">GHC.Int</span></a></span><span>
+</span><span id="line-19"></span><span>    </span><span class="hs-special">(</span><span class="annot"><a href="../../ghc-prim-0.12.0-595c/src/GHC.Types.html#Int"><span class="hs-identifier">Int</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-20"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Int.html#Int8"><span class="hs-identifier">Int8</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-21"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Int.html#Int16"><span class="hs-identifier">Int16</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-22"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Int.html#Int32"><span class="hs-identifier">Int32</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-23"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Int.html#Int64"><span class="hs-identifier">Int64</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-24"></span><span>     </span><span class="annot"><a href="../../ghc-prim-0.12.0-595c/src/GHC.Prim.html#uncheckedIShiftL64%23"><span class="hs-identifier">uncheckedIShiftL64#</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-25"></span><span>     </span><span class="annot"><a href="../../ghc-prim-0.12.0-595c/src/GHC.Prim.html#uncheckedIShiftRA64%23"><span class="hs-identifier">uncheckedIShiftRA64#</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-26"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Int.html#shiftRLInt8%23"><span class="hs-identifier">shiftRLInt8#</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-27"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Int.html#shiftRLInt16%23"><span class="hs-identifier">shiftRLInt16#</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-28"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Int.html#shiftRLInt32%23"><span class="hs-identifier">shiftRLInt32#</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-29"></span><span>     </span><span class="annot"><span class="hs-comment">-- *  Equality operators</span></span><span>
+</span><span id="line-30"></span><span>     </span><span class="annot"><span class="hs-comment">-- |  See GHC.Classes#matching_overloaded_methods_in_rules</span></span><span>
+</span><span id="line-31"></span><span>     </span><span class="annot"><a href="../../ghc-prim-0.12.0-595c/src/GHC.Classes.html#eqInt"><span class="hs-identifier">eqInt</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-32"></span><span>     </span><span class="annot"><a href="../../ghc-prim-0.12.0-595c/src/GHC.Classes.html#neInt"><span class="hs-identifier">neInt</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-33"></span><span>     </span><span class="annot"><a href="../../ghc-prim-0.12.0-595c/src/GHC.Classes.html#gtInt"><span class="hs-identifier">gtInt</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-34"></span><span>     </span><span class="annot"><a href="../../ghc-prim-0.12.0-595c/src/GHC.Classes.html#geInt"><span class="hs-identifier">geInt</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-35"></span><span>     </span><span class="annot"><a href="../../ghc-prim-0.12.0-595c/src/GHC.Classes.html#ltInt"><span class="hs-identifier">ltInt</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-36"></span><span>     </span><span class="annot"><a href="../../ghc-prim-0.12.0-595c/src/GHC.Classes.html#leInt"><span class="hs-identifier">leInt</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-37"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Int.html#eqInt8"><span class="hs-identifier">eqInt8</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-38"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Int.html#neInt8"><span class="hs-identifier">neInt8</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-39"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Int.html#gtInt8"><span class="hs-identifier">gtInt8</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-40"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Int.html#geInt8"><span class="hs-identifier">geInt8</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-41"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Int.html#ltInt8"><span class="hs-identifier">ltInt8</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-42"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Int.html#leInt8"><span class="hs-identifier">leInt8</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-43"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Int.html#eqInt16"><span class="hs-identifier">eqInt16</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-44"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Int.html#neInt16"><span class="hs-identifier">neInt16</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-45"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Int.html#gtInt16"><span class="hs-identifier">gtInt16</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-46"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Int.html#geInt16"><span class="hs-identifier">geInt16</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-47"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Int.html#ltInt16"><span class="hs-identifier">ltInt16</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-48"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Int.html#leInt16"><span class="hs-identifier">leInt16</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-49"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Int.html#eqInt32"><span class="hs-identifier">eqInt32</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-50"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Int.html#neInt32"><span class="hs-identifier">neInt32</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-51"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Int.html#gtInt32"><span class="hs-identifier">gtInt32</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-52"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Int.html#geInt32"><span class="hs-identifier">geInt32</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-53"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Int.html#ltInt32"><span class="hs-identifier">ltInt32</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-54"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Int.html#leInt32"><span class="hs-identifier">leInt32</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-55"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Int.html#eqInt64"><span class="hs-identifier">eqInt64</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-56"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Int.html#neInt64"><span class="hs-identifier">neInt64</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-57"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Int.html#gtInt64"><span class="hs-identifier">gtInt64</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-58"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Int.html#geInt64"><span class="hs-identifier">geInt64</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-59"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Int.html#ltInt64"><span class="hs-identifier">ltInt64</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-60"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Int.html#leInt64"><span class="hs-identifier">leInt64</span></a></span><span>
+</span><span id="line-61"></span><span>     </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-62"></span><span>
+</span><span id="line-63"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Int.html"><span class="hs-identifier">GHC.Internal.Int</span></a></span><span>
+</span><span id="line-64"></span></pre></body></html>

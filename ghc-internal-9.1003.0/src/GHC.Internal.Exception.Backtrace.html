@@ -1,0 +1,442 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE NoImplicitPrelude #-}</span><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# LANGUAGE ImplicitParams #-}</span><span>
+</span><span id="line-3"></span><span class="hs-pragma">{-# LANGUAGE NamedFieldPuns #-}</span><span>
+</span><span id="line-4"></span><span class="hs-pragma">{-# LANGUAGE RankNTypes #-}</span><span>
+</span><span id="line-5"></span><span>
+</span><span id="line-6"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="GHC.Internal.Exception.Backtrace.html"><span class="hs-identifier">GHC.Internal.Exception.Backtrace</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-7"></span><span>
+</span><span id="line-8"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Internal.Base.html"><span class="hs-identifier">GHC.Internal.Base</span></a></span><span>
+</span><span id="line-9"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Internal.Data.OldList.html"><span class="hs-identifier">GHC.Internal.Data.OldList</span></a></span><span>
+</span><span id="line-10"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Internal.IORef.html"><span class="hs-identifier">GHC.Internal.IORef</span></a></span><span>
+</span><span id="line-11"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Internal.IO.Unsafe.html"><span class="hs-identifier">GHC.Internal.IO.Unsafe</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Internal.IO.Unsafe.html#unsafePerformIO"><span class="hs-identifier">unsafePerformIO</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-12"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Internal.Exception.Context.html"><span class="hs-identifier">GHC.Internal.Exception.Context</span></a></span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Internal.Ptr.html"><span class="hs-identifier">GHC.Internal.Ptr</span></a></span><span>
+</span><span id="line-14"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Internal.Stack.Types.html"><span class="hs-identifier">GHC.Internal.Stack.Types</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">GHC.Stack</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Internal.Stack.Types.html#CallStack"><span class="hs-identifier">CallStack</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-15"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="GHC.Internal.Stack.html"><span class="hs-identifier">GHC.Internal.Stack</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">HCS</span></span><span>
+</span><span id="line-16"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="GHC.Internal.ExecutionStack.html"><span class="hs-identifier">GHC.Internal.ExecutionStack</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">ExecStack</span></span><span>
+</span><span id="line-17"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="GHC.Internal.ExecutionStack.Internal.html"><span class="hs-identifier">GHC.Internal.ExecutionStack.Internal</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">ExecStack</span></span><span>
+</span><span id="line-18"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="GHC.Internal.Stack.CloneStack.html"><span class="hs-identifier">GHC.Internal.Stack.CloneStack</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">CloneStack</span></span><span>
+</span><span id="line-19"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="GHC.Internal.Stack.CCS.html"><span class="hs-identifier">GHC.Internal.Stack.CCS</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">CCS</span></span><span>
+</span><span id="line-20"></span><span>
+</span><span id="line-21"></span><span class="annot"><span class="hs-comment">-- | How to collect a backtrace when an exception is thrown.</span></span><span>
+</span><span id="line-22"></span><span class="hs-keyword">data</span><span> </span><span id="BacktraceMechanism"><span class="annot"><a href="GHC.Internal.Exception.Backtrace.html#BacktraceMechanism"><span class="hs-identifier hs-var">BacktraceMechanism</span></a></span></span><span>
+</span><span id="line-23"></span><span>  </span><span class="annot"><span class="hs-comment">-- | collect cost-centre stack backtraces (only available when built with profiling)</span></span><span>
+</span><span id="line-24"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span id="CostCentreBacktrace"><span class="annot"><a href="GHC.Internal.Exception.Backtrace.html#CostCentreBacktrace"><span class="hs-identifier hs-var">CostCentreBacktrace</span></a></span></span><span>
+</span><span id="line-25"></span><span>  </span><span class="annot"><span class="hs-comment">-- | collect 'HasCallStack' backtraces</span></span><span>
+</span><span id="line-26"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="HasCallStackBacktrace"><span class="annot"><a href="GHC.Internal.Exception.Backtrace.html#HasCallStackBacktrace"><span class="hs-identifier hs-var">HasCallStackBacktrace</span></a></span></span><span>
+</span><span id="line-27"></span><span>  </span><span class="annot"><span class="hs-comment">-- | collect backtraces via native execution stack unwinding (e.g. using DWARF debug information)</span></span><span>
+</span><span id="line-28"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="ExecutionBacktrace"><span class="annot"><a href="GHC.Internal.Exception.Backtrace.html#ExecutionBacktrace"><span class="hs-identifier hs-var">ExecutionBacktrace</span></a></span></span><span>
+</span><span id="line-29"></span><span>  </span><span class="annot"><span class="hs-comment">-- | collect backtraces from Info Table Provenance Entries</span></span><span>
+</span><span id="line-30"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="IPEBacktrace"><span class="annot"><a href="GHC.Internal.Exception.Backtrace.html#IPEBacktrace"><span class="hs-identifier hs-var">IPEBacktrace</span></a></span></span><span>
+</span><span id="line-31"></span><span>
+</span><span id="line-32"></span><span class="hs-keyword">data</span><span> </span><span id="EnabledBacktraceMechanisms"><span class="annot"><a href="GHC.Internal.Exception.Backtrace.html#EnabledBacktraceMechanisms"><span class="hs-identifier hs-var">EnabledBacktraceMechanisms</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-33"></span><span>    </span><span id="EnabledBacktraceMechanisms"><span class="annot"><a href="GHC.Internal.Exception.Backtrace.html#EnabledBacktraceMechanisms"><span class="hs-identifier hs-var">EnabledBacktraceMechanisms</span></a></span></span><span>
+</span><span id="line-34"></span><span>      </span><span class="hs-special">{</span><span> </span><span id="costCentreBacktraceEnabled"><span class="annot"><span class="annottext">EnabledBacktraceMechanisms -&gt; Bool
+</span><a href="GHC.Internal.Exception.Backtrace.html#costCentreBacktraceEnabled"><span class="hs-identifier hs-var hs-var">costCentreBacktraceEnabled</span></a></span></span><span>   </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><a href="../../ghc-prim-0.12.0-595c/src/GHC.Types.html#Bool"><span class="hs-identifier hs-type">Bool</span></a></span><span>
+</span><span id="line-35"></span><span>      </span><span class="hs-special">,</span><span> </span><span id="hasCallStackBacktraceEnabled"><span class="annot"><span class="annottext">EnabledBacktraceMechanisms -&gt; Bool
+</span><a href="GHC.Internal.Exception.Backtrace.html#hasCallStackBacktraceEnabled"><span class="hs-identifier hs-var hs-var">hasCallStackBacktraceEnabled</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><a href="../../ghc-prim-0.12.0-595c/src/GHC.Types.html#Bool"><span class="hs-identifier hs-type">Bool</span></a></span><span>
+</span><span id="line-36"></span><span>      </span><span class="hs-special">,</span><span> </span><span id="executionBacktraceEnabled"><span class="annot"><span class="annottext">EnabledBacktraceMechanisms -&gt; Bool
+</span><a href="GHC.Internal.Exception.Backtrace.html#executionBacktraceEnabled"><span class="hs-identifier hs-var hs-var">executionBacktraceEnabled</span></a></span></span><span>    </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><a href="../../ghc-prim-0.12.0-595c/src/GHC.Types.html#Bool"><span class="hs-identifier hs-type">Bool</span></a></span><span>
+</span><span id="line-37"></span><span>      </span><span class="hs-special">,</span><span> </span><span id="ipeBacktraceEnabled"><span class="annot"><span class="annottext">EnabledBacktraceMechanisms -&gt; Bool
+</span><a href="GHC.Internal.Exception.Backtrace.html#ipeBacktraceEnabled"><span class="hs-identifier hs-var hs-var">ipeBacktraceEnabled</span></a></span></span><span>          </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><a href="../../ghc-prim-0.12.0-595c/src/GHC.Types.html#Bool"><span class="hs-identifier hs-type">Bool</span></a></span><span>
+</span><span id="line-38"></span><span>      </span><span class="hs-special">}</span><span>
+</span><span id="line-39"></span><span>
+</span><span id="line-40"></span><span class="annot"><a href="GHC.Internal.Exception.Backtrace.html#defaultEnabledBacktraceMechanisms"><span class="hs-identifier hs-type">defaultEnabledBacktraceMechanisms</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Internal.Exception.Backtrace.html#EnabledBacktraceMechanisms"><span class="hs-identifier hs-type">EnabledBacktraceMechanisms</span></a></span><span>
+</span><span id="line-41"></span><span id="defaultEnabledBacktraceMechanisms"><span class="annot"><span class="annottext">defaultEnabledBacktraceMechanisms :: EnabledBacktraceMechanisms
+</span><a href="GHC.Internal.Exception.Backtrace.html#defaultEnabledBacktraceMechanisms"><span class="hs-identifier hs-var hs-var">defaultEnabledBacktraceMechanisms</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="GHC.Internal.Exception.Backtrace.html#EnabledBacktraceMechanisms"><span class="hs-identifier hs-type">EnabledBacktraceMechanisms</span></a></span><span>
+</span><span id="line-42"></span><span>  </span><span class="hs-special">{</span><span> </span><span class="annot"><span class="annottext">costCentreBacktraceEnabled :: Bool
+</span><a href="GHC.Internal.Exception.Backtrace.html#costCentreBacktraceEnabled"><span class="hs-identifier hs-var">costCentreBacktraceEnabled</span></a></span><span>   </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="../../ghc-prim-0.12.0-595c/src/GHC.Types.html#False"><span class="hs-identifier hs-var">False</span></a></span><span>
+</span><span id="line-43"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">hasCallStackBacktraceEnabled :: Bool
+</span><a href="GHC.Internal.Exception.Backtrace.html#hasCallStackBacktraceEnabled"><span class="hs-identifier hs-var">hasCallStackBacktraceEnabled</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="../../ghc-prim-0.12.0-595c/src/GHC.Types.html#True"><span class="hs-identifier hs-var">True</span></a></span><span>
+</span><span id="line-44"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">executionBacktraceEnabled :: Bool
+</span><a href="GHC.Internal.Exception.Backtrace.html#executionBacktraceEnabled"><span class="hs-identifier hs-var">executionBacktraceEnabled</span></a></span><span>    </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="../../ghc-prim-0.12.0-595c/src/GHC.Types.html#False"><span class="hs-identifier hs-var">False</span></a></span><span>
+</span><span id="line-45"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">ipeBacktraceEnabled :: Bool
+</span><a href="GHC.Internal.Exception.Backtrace.html#ipeBacktraceEnabled"><span class="hs-identifier hs-var">ipeBacktraceEnabled</span></a></span><span>          </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="../../ghc-prim-0.12.0-595c/src/GHC.Types.html#False"><span class="hs-identifier hs-var">False</span></a></span><span>
+</span><span id="line-46"></span><span>  </span><span class="hs-special">}</span><span>
+</span><span id="line-47"></span><span>
+</span><span id="line-48"></span><span class="annot"><a href="GHC.Internal.Exception.Backtrace.html#backtraceMechanismEnabled"><span class="hs-identifier hs-type">backtraceMechanismEnabled</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Internal.Exception.Backtrace.html#BacktraceMechanism"><span class="hs-identifier hs-type">BacktraceMechanism</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Internal.Exception.Backtrace.html#EnabledBacktraceMechanisms"><span class="hs-identifier hs-type">EnabledBacktraceMechanisms</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="../../ghc-prim-0.12.0-595c/src/GHC.Types.html#Bool"><span class="hs-identifier hs-type">Bool</span></a></span><span>
+</span><span id="line-49"></span><span id="backtraceMechanismEnabled"><span class="annot"><span class="annottext">backtraceMechanismEnabled :: BacktraceMechanism -&gt; EnabledBacktraceMechanisms -&gt; Bool
+</span><a href="GHC.Internal.Exception.Backtrace.html#backtraceMechanismEnabled"><span class="hs-identifier hs-var hs-var">backtraceMechanismEnabled</span></a></span></span><span> </span><span id="local-6989586621679679896"><span class="annot"><span class="annottext">BacktraceMechanism
+</span><a href="#local-6989586621679679896"><span class="hs-identifier hs-var">bm</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-50"></span><span>  </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">BacktraceMechanism
+</span><a href="#local-6989586621679679896"><span class="hs-identifier hs-var">bm</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-51"></span><span>    </span><span class="annot"><span class="annottext">BacktraceMechanism
+</span><a href="GHC.Internal.Exception.Backtrace.html#CostCentreBacktrace"><span class="hs-identifier hs-var">CostCentreBacktrace</span></a></span><span>   </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">EnabledBacktraceMechanisms -&gt; Bool
+</span><a href="GHC.Internal.Exception.Backtrace.html#costCentreBacktraceEnabled"><span class="hs-identifier hs-var">costCentreBacktraceEnabled</span></a></span><span>
+</span><span id="line-52"></span><span>    </span><span class="annot"><span class="annottext">BacktraceMechanism
+</span><a href="GHC.Internal.Exception.Backtrace.html#HasCallStackBacktrace"><span class="hs-identifier hs-var">HasCallStackBacktrace</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">EnabledBacktraceMechanisms -&gt; Bool
+</span><a href="GHC.Internal.Exception.Backtrace.html#hasCallStackBacktraceEnabled"><span class="hs-identifier hs-var">hasCallStackBacktraceEnabled</span></a></span><span>
+</span><span id="line-53"></span><span>    </span><span class="annot"><span class="annottext">BacktraceMechanism
+</span><a href="GHC.Internal.Exception.Backtrace.html#ExecutionBacktrace"><span class="hs-identifier hs-var">ExecutionBacktrace</span></a></span><span>    </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">EnabledBacktraceMechanisms -&gt; Bool
+</span><a href="GHC.Internal.Exception.Backtrace.html#executionBacktraceEnabled"><span class="hs-identifier hs-var">executionBacktraceEnabled</span></a></span><span>
+</span><span id="line-54"></span><span>    </span><span class="annot"><span class="annottext">BacktraceMechanism
+</span><a href="GHC.Internal.Exception.Backtrace.html#IPEBacktrace"><span class="hs-identifier hs-var">IPEBacktrace</span></a></span><span>          </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">EnabledBacktraceMechanisms -&gt; Bool
+</span><a href="GHC.Internal.Exception.Backtrace.html#ipeBacktraceEnabled"><span class="hs-identifier hs-var">ipeBacktraceEnabled</span></a></span><span>
+</span><span id="line-55"></span><span>
+</span><span id="line-56"></span><span class="annot"><a href="GHC.Internal.Exception.Backtrace.html#setBacktraceMechanismEnabled"><span class="hs-identifier hs-type">setBacktraceMechanismEnabled</span></a></span><span>
+</span><span id="line-57"></span><span>    </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Internal.Exception.Backtrace.html#BacktraceMechanism"><span class="hs-identifier hs-type">BacktraceMechanism</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="../../ghc-prim-0.12.0-595c/src/GHC.Types.html#Bool"><span class="hs-identifier hs-type">Bool</span></a></span><span>
+</span><span id="line-58"></span><span>    </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Internal.Exception.Backtrace.html#EnabledBacktraceMechanisms"><span class="hs-identifier hs-type">EnabledBacktraceMechanisms</span></a></span><span>
+</span><span id="line-59"></span><span>    </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Internal.Exception.Backtrace.html#EnabledBacktraceMechanisms"><span class="hs-identifier hs-type">EnabledBacktraceMechanisms</span></a></span><span>
+</span><span id="line-60"></span><span id="setBacktraceMechanismEnabled"><span class="annot"><span class="annottext">setBacktraceMechanismEnabled :: BacktraceMechanism
+-&gt; Bool -&gt; EnabledBacktraceMechanisms -&gt; EnabledBacktraceMechanisms
+</span><a href="GHC.Internal.Exception.Backtrace.html#setBacktraceMechanismEnabled"><span class="hs-identifier hs-var hs-var">setBacktraceMechanismEnabled</span></a></span></span><span> </span><span id="local-6989586621679679898"><span class="annot"><span class="annottext">BacktraceMechanism
+</span><a href="#local-6989586621679679898"><span class="hs-identifier hs-var">bm</span></a></span></span><span> </span><span id="local-6989586621679679899"><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679679899"><span class="hs-identifier hs-var">enabled</span></a></span></span><span> </span><span id="local-6989586621679679900"><span class="annot"><span class="annottext">EnabledBacktraceMechanisms
+</span><a href="#local-6989586621679679900"><span class="hs-identifier hs-var">en</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-61"></span><span>    </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">BacktraceMechanism
+</span><a href="#local-6989586621679679898"><span class="hs-identifier hs-var">bm</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-62"></span><span>      </span><span class="annot"><span class="annottext">BacktraceMechanism
+</span><a href="GHC.Internal.Exception.Backtrace.html#CostCentreBacktrace"><span class="hs-identifier hs-var">CostCentreBacktrace</span></a></span><span>   </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">EnabledBacktraceMechanisms
+</span><a href="#local-6989586621679679900"><span class="hs-identifier hs-var">en</span></a></span><span> </span><span class="hs-special">{</span><span> </span><span class="annot"><a href="GHC.Internal.Exception.Backtrace.html#costCentreBacktraceEnabled"><span class="hs-identifier hs-var">costCentreBacktraceEnabled</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="#local-6989586621679679899"><span class="hs-identifier hs-type">enabled</span></a></span><span> </span><span class="hs-special">}</span><span>
+</span><span id="line-63"></span><span>      </span><span class="annot"><span class="annottext">BacktraceMechanism
+</span><a href="GHC.Internal.Exception.Backtrace.html#HasCallStackBacktrace"><span class="hs-identifier hs-var">HasCallStackBacktrace</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">EnabledBacktraceMechanisms
+</span><a href="#local-6989586621679679900"><span class="hs-identifier hs-var">en</span></a></span><span> </span><span class="hs-special">{</span><span> </span><span class="annot"><a href="GHC.Internal.Exception.Backtrace.html#hasCallStackBacktraceEnabled"><span class="hs-identifier hs-var">hasCallStackBacktraceEnabled</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="#local-6989586621679679899"><span class="hs-identifier hs-type">enabled</span></a></span><span> </span><span class="hs-special">}</span><span>
+</span><span id="line-64"></span><span>      </span><span class="annot"><span class="annottext">BacktraceMechanism
+</span><a href="GHC.Internal.Exception.Backtrace.html#ExecutionBacktrace"><span class="hs-identifier hs-var">ExecutionBacktrace</span></a></span><span>    </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">EnabledBacktraceMechanisms
+</span><a href="#local-6989586621679679900"><span class="hs-identifier hs-var">en</span></a></span><span> </span><span class="hs-special">{</span><span> </span><span class="annot"><a href="GHC.Internal.Exception.Backtrace.html#executionBacktraceEnabled"><span class="hs-identifier hs-var">executionBacktraceEnabled</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="#local-6989586621679679899"><span class="hs-identifier hs-type">enabled</span></a></span><span> </span><span class="hs-special">}</span><span>
+</span><span id="line-65"></span><span>      </span><span class="annot"><span class="annottext">BacktraceMechanism
+</span><a href="GHC.Internal.Exception.Backtrace.html#IPEBacktrace"><span class="hs-identifier hs-var">IPEBacktrace</span></a></span><span>          </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">EnabledBacktraceMechanisms
+</span><a href="#local-6989586621679679900"><span class="hs-identifier hs-var">en</span></a></span><span> </span><span class="hs-special">{</span><span> </span><span class="annot"><a href="GHC.Internal.Exception.Backtrace.html#ipeBacktraceEnabled"><span class="hs-identifier hs-var">ipeBacktraceEnabled</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="#local-6989586621679679899"><span class="hs-identifier hs-type">enabled</span></a></span><span> </span><span class="hs-special">}</span><span>
+</span><span id="line-66"></span><span>
+</span><span id="line-67"></span><span class="annot"><a href="GHC.Internal.Exception.Backtrace.html#enabledBacktraceMechanismsRef"><span class="hs-identifier hs-type">enabledBacktraceMechanismsRef</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Internal.IORef.html#IORef"><span class="hs-identifier hs-type">IORef</span></a></span><span> </span><span class="annot"><a href="GHC.Internal.Exception.Backtrace.html#EnabledBacktraceMechanisms"><span class="hs-identifier hs-type">EnabledBacktraceMechanisms</span></a></span><span>
+</span><span id="line-68"></span><span id="enabledBacktraceMechanismsRef"><span class="annot"><span class="annottext">enabledBacktraceMechanismsRef :: IORef EnabledBacktraceMechanisms
+</span><a href="GHC.Internal.Exception.Backtrace.html#enabledBacktraceMechanismsRef"><span class="hs-identifier hs-var hs-var">enabledBacktraceMechanismsRef</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-69"></span><span>    </span><span class="annot"><span class="annottext">IO (IORef EnabledBacktraceMechanisms)
+-&gt; IORef EnabledBacktraceMechanisms
+forall a. IO a -&gt; a
+</span><a href="GHC.Internal.IO.Unsafe.html#unsafePerformIO"><span class="hs-identifier hs-var">unsafePerformIO</span></a></span><span> </span><span class="annot"><span class="annottext">(IO (IORef EnabledBacktraceMechanisms)
+ -&gt; IORef EnabledBacktraceMechanisms)
+-&gt; IO (IORef EnabledBacktraceMechanisms)
+-&gt; IORef EnabledBacktraceMechanisms
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="GHC.Internal.Base.html#%24"><span class="hs-operator hs-var">$</span></a></span><span> </span><span class="annot"><span class="annottext">EnabledBacktraceMechanisms -&gt; IO (IORef EnabledBacktraceMechanisms)
+forall a. a -&gt; IO (IORef a)
+</span><a href="GHC.Internal.IORef.html#newIORef"><span class="hs-identifier hs-var">newIORef</span></a></span><span> </span><span class="annot"><span class="annottext">EnabledBacktraceMechanisms
+</span><a href="GHC.Internal.Exception.Backtrace.html#defaultEnabledBacktraceMechanisms"><span class="hs-identifier hs-var">defaultEnabledBacktraceMechanisms</span></a></span><span>
+</span><span id="line-70"></span><span class="hs-pragma">{-# NOINLINE</span><span> </span><span class="annot"><a href="GHC.Internal.Exception.Backtrace.html#enabledBacktraceMechanismsRef"><span class="hs-pragma hs-type">enabledBacktraceMechanismsRef</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-71"></span><span>
+</span><span id="line-72"></span><span class="annot"><span class="hs-comment">-- | Returns the currently enabled 'BacktraceMechanism's.</span></span><span>
+</span><span id="line-73"></span><span class="annot"><a href="GHC.Internal.Exception.Backtrace.html#getEnabledBacktraceMechanisms"><span class="hs-identifier hs-type">getEnabledBacktraceMechanisms</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="../../ghc-prim-0.12.0-595c/src/GHC.Types.html#IO"><span class="hs-identifier hs-type">IO</span></a></span><span> </span><span class="annot"><a href="GHC.Internal.Exception.Backtrace.html#EnabledBacktraceMechanisms"><span class="hs-identifier hs-type">EnabledBacktraceMechanisms</span></a></span><span>
+</span><span id="line-74"></span><span id="getEnabledBacktraceMechanisms"><span class="annot"><span class="annottext">getEnabledBacktraceMechanisms :: IO EnabledBacktraceMechanisms
+</span><a href="GHC.Internal.Exception.Backtrace.html#getEnabledBacktraceMechanisms"><span class="hs-identifier hs-var hs-var">getEnabledBacktraceMechanisms</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">IORef EnabledBacktraceMechanisms -&gt; IO EnabledBacktraceMechanisms
+forall a. IORef a -&gt; IO a
+</span><a href="GHC.Internal.IORef.html#readIORef"><span class="hs-identifier hs-var">readIORef</span></a></span><span> </span><span class="annot"><span class="annottext">IORef EnabledBacktraceMechanisms
+</span><a href="GHC.Internal.Exception.Backtrace.html#enabledBacktraceMechanismsRef"><span class="hs-identifier hs-var">enabledBacktraceMechanismsRef</span></a></span><span>
+</span><span id="line-75"></span><span>
+</span><span id="line-76"></span><span class="hs-comment">-- | Will the given 'BacktraceMechanism' be used when collecting</span><span>
+</span><span id="line-77"></span><span class="hs-comment">-- backtraces?</span><span>
+</span><span id="line-78"></span><span class="annot"><a href="GHC.Internal.Exception.Backtrace.html#getBacktraceMechanismState"><span class="hs-identifier hs-type">getBacktraceMechanismState</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Internal.Exception.Backtrace.html#BacktraceMechanism"><span class="hs-identifier hs-type">BacktraceMechanism</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="../../ghc-prim-0.12.0-595c/src/GHC.Types.html#IO"><span class="hs-identifier hs-type">IO</span></a></span><span> </span><span class="annot"><a href="../../ghc-prim-0.12.0-595c/src/GHC.Types.html#Bool"><span class="hs-identifier hs-type">Bool</span></a></span><span>
+</span><span id="line-79"></span><span id="getBacktraceMechanismState"><span class="annot"><span class="annottext">getBacktraceMechanismState :: BacktraceMechanism -&gt; IO Bool
+</span><a href="GHC.Internal.Exception.Backtrace.html#getBacktraceMechanismState"><span class="hs-identifier hs-var hs-var">getBacktraceMechanismState</span></a></span></span><span> </span><span id="local-6989586621679679906"><span class="annot"><span class="annottext">BacktraceMechanism
+</span><a href="#local-6989586621679679906"><span class="hs-identifier hs-var">bm</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-80"></span><span>    </span><span class="annot"><span class="annottext">BacktraceMechanism -&gt; EnabledBacktraceMechanisms -&gt; Bool
+</span><a href="GHC.Internal.Exception.Backtrace.html#backtraceMechanismEnabled"><span class="hs-identifier hs-var">backtraceMechanismEnabled</span></a></span><span> </span><span class="annot"><span class="annottext">BacktraceMechanism
+</span><a href="#local-6989586621679679906"><span class="hs-identifier hs-var">bm</span></a></span><span> </span><span class="annot"><span class="annottext">(EnabledBacktraceMechanisms -&gt; Bool)
+-&gt; IO EnabledBacktraceMechanisms -&gt; IO Bool
+forall a b. (a -&gt; b) -&gt; IO a -&gt; IO b
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><a href="GHC.Internal.Base.html#fmap"><span class="hs-operator hs-var">`fmap`</span></a></span><span> </span><span class="annot"><span class="annottext">IO EnabledBacktraceMechanisms
+</span><a href="GHC.Internal.Exception.Backtrace.html#getEnabledBacktraceMechanisms"><span class="hs-identifier hs-var">getEnabledBacktraceMechanisms</span></a></span><span>
+</span><span id="line-81"></span><span>
+</span><span id="line-82"></span><span class="hs-comment">-- | Set whether the given 'BacktraceMechanism' will be used when collecting</span><span>
+</span><span id="line-83"></span><span class="hs-comment">-- backtraces?</span><span>
+</span><span id="line-84"></span><span class="annot"><a href="GHC.Internal.Exception.Backtrace.html#setBacktraceMechanismState"><span class="hs-identifier hs-type">setBacktraceMechanismState</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Internal.Exception.Backtrace.html#BacktraceMechanism"><span class="hs-identifier hs-type">BacktraceMechanism</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="../../ghc-prim-0.12.0-595c/src/GHC.Types.html#Bool"><span class="hs-identifier hs-type">Bool</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="../../ghc-prim-0.12.0-595c/src/GHC.Types.html#IO"><span class="hs-identifier hs-type">IO</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-85"></span><span id="setBacktraceMechanismState"><span class="annot"><span class="annottext">setBacktraceMechanismState :: BacktraceMechanism -&gt; Bool -&gt; IO ()
+</span><a href="GHC.Internal.Exception.Backtrace.html#setBacktraceMechanismState"><span class="hs-identifier hs-var hs-var">setBacktraceMechanismState</span></a></span></span><span> </span><span id="local-6989586621679679908"><span class="annot"><span class="annottext">BacktraceMechanism
+</span><a href="#local-6989586621679679908"><span class="hs-identifier hs-var">bm</span></a></span></span><span> </span><span id="local-6989586621679679909"><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679679909"><span class="hs-identifier hs-var">enabled</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-86"></span><span>    </span><span class="annot"><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">IORef EnabledBacktraceMechanisms
+-&gt; (EnabledBacktraceMechanisms -&gt; EnabledBacktraceMechanisms)
+-&gt; IO (EnabledBacktraceMechanisms, EnabledBacktraceMechanisms)
+forall a. IORef a -&gt; (a -&gt; a) -&gt; IO (a, a)
+</span><a href="GHC.Internal.IORef.html#atomicModifyIORef%27_"><span class="hs-identifier hs-var">atomicModifyIORef'_</span></a></span><span> </span><span class="annot"><span class="annottext">IORef EnabledBacktraceMechanisms
+</span><a href="GHC.Internal.Exception.Backtrace.html#enabledBacktraceMechanismsRef"><span class="hs-identifier hs-var">enabledBacktraceMechanismsRef</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">BacktraceMechanism
+-&gt; Bool -&gt; EnabledBacktraceMechanisms -&gt; EnabledBacktraceMechanisms
+</span><a href="GHC.Internal.Exception.Backtrace.html#setBacktraceMechanismEnabled"><span class="hs-identifier hs-var">setBacktraceMechanismEnabled</span></a></span><span> </span><span class="annot"><span class="annottext">BacktraceMechanism
+</span><a href="#local-6989586621679679908"><span class="hs-identifier hs-var">bm</span></a></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679679909"><span class="hs-identifier hs-var">enabled</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-87"></span><span>    </span><span class="annot"><a href="GHC.Internal.Base.html#return"><span class="hs-identifier hs-type">return</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-88"></span><span>
+</span><span id="line-89"></span><span class="annot"><span class="hs-comment">-- | A collection of backtraces.</span></span><span>
+</span><span id="line-90"></span><span class="hs-keyword">data</span><span> </span><span id="Backtraces"><span class="annot"><a href="GHC.Internal.Exception.Backtrace.html#Backtraces"><span class="hs-identifier hs-var">Backtraces</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-91"></span><span>    </span><span id="Backtraces"><span class="annot"><a href="GHC.Internal.Exception.Backtrace.html#Backtraces"><span class="hs-identifier hs-var">Backtraces</span></a></span></span><span> </span><span class="hs-special">{</span><span>
+</span><span id="line-92"></span><span>        </span><span id="btrCostCentre"><span class="annot"><span class="annottext">Backtraces -&gt; Maybe (Ptr CostCentreStack)
+</span><a href="GHC.Internal.Exception.Backtrace.html#btrCostCentre"><span class="hs-identifier hs-var hs-var">btrCostCentre</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Internal.Maybe.html#Maybe"><span class="hs-identifier hs-type">Maybe</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Internal.Ptr.html#Ptr"><span class="hs-identifier hs-type">Ptr</span></a></span><span> </span><span class="annot"><a href="GHC.Internal.Stack.CCS.html#CostCentreStack"><span class="hs-identifier hs-type">CCS.CostCentreStack</span></a></span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-93"></span><span>        </span><span id="btrHasCallStack"><span class="annot"><span class="annottext">Backtraces -&gt; Maybe CallStack
+</span><a href="GHC.Internal.Exception.Backtrace.html#btrHasCallStack"><span class="hs-identifier hs-var hs-var">btrHasCallStack</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Internal.Maybe.html#Maybe"><span class="hs-identifier hs-type">Maybe</span></a></span><span> </span><span class="annot"><a href="GHC.Internal.Stack.Types.html#CallStack"><span class="hs-identifier hs-type">HCS.CallStack</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-94"></span><span>        </span><span id="btrExecutionStack"><span class="annot"><span class="annottext">Backtraces -&gt; Maybe [Location]
+</span><a href="GHC.Internal.Exception.Backtrace.html#btrExecutionStack"><span class="hs-identifier hs-var hs-var">btrExecutionStack</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Internal.Maybe.html#Maybe"><span class="hs-identifier hs-type">Maybe</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><a href="GHC.Internal.ExecutionStack.Internal.html#Location"><span class="hs-identifier hs-type">ExecStack.Location</span></a></span><span class="hs-special">]</span><span class="hs-special">,</span><span>
+</span><span id="line-95"></span><span>        </span><span id="btrIpe"><span class="annot"><span class="annottext">Backtraces -&gt; Maybe [StackEntry]
+</span><a href="GHC.Internal.Exception.Backtrace.html#btrIpe"><span class="hs-identifier hs-var hs-var">btrIpe</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Internal.Maybe.html#Maybe"><span class="hs-identifier hs-type">Maybe</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><a href="GHC.Internal.Stack.CloneStack.html#StackEntry"><span class="hs-identifier hs-type">CloneStack.StackEntry</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-96"></span><span>    </span><span class="hs-special">}</span><span>
+</span><span id="line-97"></span><span>
+</span><span id="line-98"></span><span class="annot"><span class="hs-comment">-- | Render a set of backtraces to a human-readable string.</span></span><span>
+</span><span id="line-99"></span><span class="annot"><a href="GHC.Internal.Exception.Backtrace.html#displayBacktraces"><span class="hs-identifier hs-type">displayBacktraces</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Internal.Exception.Backtrace.html#Backtraces"><span class="hs-identifier hs-type">Backtraces</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Internal.Base.html#String"><span class="hs-identifier hs-type">String</span></a></span><span>
+</span><span id="line-100"></span><span id="displayBacktraces"><span class="annot"><span class="annottext">displayBacktraces :: Backtraces -&gt; String
+</span><a href="GHC.Internal.Exception.Backtrace.html#displayBacktraces"><span class="hs-identifier hs-var hs-var">displayBacktraces</span></a></span></span><span> </span><span id="local-6989586621679679917"><span class="annot"><span class="annottext">Backtraces
+</span><a href="#local-6989586621679679917"><span class="hs-identifier hs-var">bts</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[String] -&gt; String
+forall a. [[a]] -&gt; [a]
+</span><a href="GHC.Internal.List.html#concat"><span class="hs-identifier hs-var">concat</span></a></span><span>
+</span><span id="line-101"></span><span>    </span><span class="hs-special">[</span><span> </span><span class="annot"><span class="annottext">String
+-&gt; (Backtraces -&gt; Maybe (Ptr CostCentreStack))
+-&gt; (Ptr CostCentreStack -&gt; String)
+-&gt; String
+forall rep.
+String -&gt; (Backtraces -&gt; Maybe rep) -&gt; (rep -&gt; String) -&gt; String
+</span><a href="#local-6989586621679679918"><span class="hs-identifier hs-var">displayOne</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Cost-centre stack backtrace&quot;</span></span><span> </span><span class="annot"><span class="annottext">Backtraces -&gt; Maybe (Ptr CostCentreStack)
+</span><a href="GHC.Internal.Exception.Backtrace.html#btrCostCentre"><span class="hs-identifier hs-var">btrCostCentre</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr CostCentreStack -&gt; String
+</span><a href="#local-6989586621679679919"><span class="hs-identifier hs-var">displayCc</span></a></span><span>
+</span><span id="line-102"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+-&gt; (Backtraces -&gt; Maybe [Location])
+-&gt; ([Location] -&gt; String)
+-&gt; String
+forall rep.
+String -&gt; (Backtraces -&gt; Maybe rep) -&gt; (rep -&gt; String) -&gt; String
+</span><a href="#local-6989586621679679918"><span class="hs-identifier hs-var">displayOne</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Native stack backtrace&quot;</span></span><span> </span><span class="annot"><span class="annottext">Backtraces -&gt; Maybe [Location]
+</span><a href="GHC.Internal.Exception.Backtrace.html#btrExecutionStack"><span class="hs-identifier hs-var">btrExecutionStack</span></a></span><span> </span><span class="annot"><span class="annottext">[Location] -&gt; String
+</span><a href="#local-6989586621679679920"><span class="hs-identifier hs-var">displayExec</span></a></span><span>
+</span><span id="line-103"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+-&gt; (Backtraces -&gt; Maybe [StackEntry])
+-&gt; ([StackEntry] -&gt; String)
+-&gt; String
+forall rep.
+String -&gt; (Backtraces -&gt; Maybe rep) -&gt; (rep -&gt; String) -&gt; String
+</span><a href="#local-6989586621679679918"><span class="hs-identifier hs-var">displayOne</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;IPE backtrace&quot;</span></span><span> </span><span class="annot"><span class="annottext">Backtraces -&gt; Maybe [StackEntry]
+</span><a href="GHC.Internal.Exception.Backtrace.html#btrIpe"><span class="hs-identifier hs-var">btrIpe</span></a></span><span> </span><span class="annot"><span class="annottext">[StackEntry] -&gt; String
+</span><a href="#local-6989586621679679921"><span class="hs-identifier hs-var">displayIpe</span></a></span><span>
+</span><span id="line-104"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+-&gt; (Backtraces -&gt; Maybe CallStack)
+-&gt; (CallStack -&gt; String)
+-&gt; String
+forall rep.
+String -&gt; (Backtraces -&gt; Maybe rep) -&gt; (rep -&gt; String) -&gt; String
+</span><a href="#local-6989586621679679918"><span class="hs-identifier hs-var">displayOne</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;HasCallStack backtrace&quot;</span></span><span> </span><span class="annot"><span class="annottext">Backtraces -&gt; Maybe CallStack
+</span><a href="GHC.Internal.Exception.Backtrace.html#btrHasCallStack"><span class="hs-identifier hs-var">btrHasCallStack</span></a></span><span> </span><span class="annot"><span class="annottext">CallStack -&gt; String
+</span><a href="#local-6989586621679679922"><span class="hs-identifier hs-var">displayHsc</span></a></span><span>
+</span><span id="line-105"></span><span>    </span><span class="hs-special">]</span><span>
+</span><span id="line-106"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-107"></span><span>    </span><span class="annot"><a href="#local-6989586621679679923"><span class="hs-identifier hs-type">indent</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="../../ghc-prim-0.12.0-595c/src/GHC.Types.html#Int"><span class="hs-identifier hs-type">Int</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Internal.Base.html#String"><span class="hs-identifier hs-type">String</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Internal.Base.html#String"><span class="hs-identifier hs-type">String</span></a></span><span>
+</span><span id="line-108"></span><span>    </span><span id="local-6989586621679679923"><span class="annot"><span class="annottext">indent :: Int -&gt; String -&gt; String
+</span><a href="#local-6989586621679679923"><span class="hs-identifier hs-var hs-var">indent</span></a></span></span><span> </span><span id="local-6989586621679679924"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679679924"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span id="local-6989586621679679925"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679679925"><span class="hs-identifier hs-var">s</span></a></span></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Char -&gt; String
+forall a. Int -&gt; a -&gt; [a]
+</span><a href="GHC.Internal.List.html#replicate"><span class="hs-identifier hs-var">replicate</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679679924"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">Char
+</span><span class="hs-char">' '</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; String -&gt; String
+forall a. [a] -&gt; [a] -&gt; [a]
+</span><a href="GHC.Internal.Base.html#%2B%2B"><span class="hs-operator hs-var">++</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679679925"><span class="hs-identifier hs-var">s</span></a></span><span>
+</span><span id="line-109"></span><span>
+</span><span id="line-110"></span><span>    </span><span class="hs-comment">-- The unsafePerformIO here is safe as we don't currently unload cost-centres.</span><span>
+</span><span id="line-111"></span><span>    </span><span id="local-6989586621679679919"><span class="annot"><span class="annottext">displayCc :: Ptr CostCentreStack -&gt; String
+</span><a href="#local-6989586621679679919"><span class="hs-identifier hs-var hs-var">displayCc</span></a></span></span><span>   </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[String] -&gt; String
+</span><a href="GHC.Internal.Data.OldList.html#unlines"><span class="hs-identifier hs-var">unlines</span></a></span><span> </span><span class="annot"><span class="annottext">([String] -&gt; String)
+-&gt; (Ptr CostCentreStack -&gt; [String])
+-&gt; Ptr CostCentreStack
+-&gt; String
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><a href="GHC.Internal.Base.html#."><span class="hs-operator hs-var">.</span></a></span><span> </span><span class="annot"><span class="annottext">(String -&gt; String) -&gt; [String] -&gt; [String]
+forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+</span><a href="GHC.Internal.Base.html#map"><span class="hs-identifier hs-var">map</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; String -&gt; String
+</span><a href="#local-6989586621679679923"><span class="hs-identifier hs-var">indent</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">2</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">([String] -&gt; [String])
+-&gt; (Ptr CostCentreStack -&gt; [String])
+-&gt; Ptr CostCentreStack
+-&gt; [String]
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><a href="GHC.Internal.Base.html#."><span class="hs-operator hs-var">.</span></a></span><span> </span><span class="annot"><span class="annottext">IO [String] -&gt; [String]
+forall a. IO a -&gt; a
+</span><a href="GHC.Internal.IO.Unsafe.html#unsafePerformIO"><span class="hs-identifier hs-var">unsafePerformIO</span></a></span><span> </span><span class="annot"><span class="annottext">(IO [String] -&gt; [String])
+-&gt; (Ptr CostCentreStack -&gt; IO [String])
+-&gt; Ptr CostCentreStack
+-&gt; [String]
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><a href="GHC.Internal.Base.html#."><span class="hs-operator hs-var">.</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr CostCentreStack -&gt; IO [String]
+</span><a href="GHC.Internal.Stack.CCS.html#ccsToStrings"><span class="hs-identifier hs-var">CCS.ccsToStrings</span></a></span><span>
+</span><span id="line-112"></span><span>    </span><span id="local-6989586621679679920"><span class="annot"><span class="annottext">displayExec :: [Location] -&gt; String
+</span><a href="#local-6989586621679679920"><span class="hs-identifier hs-var hs-var">displayExec</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[String] -&gt; String
+</span><a href="GHC.Internal.Data.OldList.html#unlines"><span class="hs-identifier hs-var">unlines</span></a></span><span> </span><span class="annot"><span class="annottext">([String] -&gt; String)
+-&gt; ([Location] -&gt; [String]) -&gt; [Location] -&gt; String
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><a href="GHC.Internal.Base.html#."><span class="hs-operator hs-var">.</span></a></span><span> </span><span class="annot"><span class="annottext">(Location -&gt; String) -&gt; [Location] -&gt; [String]
+forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+</span><a href="GHC.Internal.Base.html#map"><span class="hs-identifier hs-var">map</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; String -&gt; String
+</span><a href="#local-6989586621679679923"><span class="hs-identifier hs-var">indent</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">2</span></span><span> </span><span class="annot"><span class="annottext">(String -&gt; String) -&gt; (Location -&gt; String) -&gt; Location -&gt; String
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><a href="GHC.Internal.Base.html#."><span class="hs-operator hs-var">.</span></a></span><span> </span><span class="annot"><span class="annottext">(Location -&gt; String -&gt; String) -&gt; String -&gt; Location -&gt; String
+forall a b c. (a -&gt; b -&gt; c) -&gt; b -&gt; a -&gt; c
+</span><a href="GHC.Internal.Base.html#flip"><span class="hs-identifier hs-var">flip</span></a></span><span> </span><span class="annot"><span class="annottext">Location -&gt; String -&gt; String
+</span><a href="GHC.Internal.ExecutionStack.Internal.html#showLocation"><span class="hs-identifier hs-var">ExecStack.showLocation</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;&quot;</span></span><span class="hs-special">)</span><span>
+</span><span id="line-113"></span><span>    </span><span id="local-6989586621679679921"><span class="annot"><span class="annottext">displayIpe :: [StackEntry] -&gt; String
+</span><a href="#local-6989586621679679921"><span class="hs-identifier hs-var hs-var">displayIpe</span></a></span></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[String] -&gt; String
+</span><a href="GHC.Internal.Data.OldList.html#unlines"><span class="hs-identifier hs-var">unlines</span></a></span><span> </span><span class="annot"><span class="annottext">([String] -&gt; String)
+-&gt; ([StackEntry] -&gt; [String]) -&gt; [StackEntry] -&gt; String
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><a href="GHC.Internal.Base.html#."><span class="hs-operator hs-var">.</span></a></span><span> </span><span class="annot"><span class="annottext">(StackEntry -&gt; String) -&gt; [StackEntry] -&gt; [String]
+forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+</span><a href="GHC.Internal.Base.html#map"><span class="hs-identifier hs-var">map</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; String -&gt; String
+</span><a href="#local-6989586621679679923"><span class="hs-identifier hs-var">indent</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">2</span></span><span> </span><span class="annot"><span class="annottext">(String -&gt; String)
+-&gt; (StackEntry -&gt; String) -&gt; StackEntry -&gt; String
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><a href="GHC.Internal.Base.html#."><span class="hs-operator hs-var">.</span></a></span><span> </span><span class="annot"><span class="annottext">StackEntry -&gt; String
+</span><a href="GHC.Internal.Stack.CloneStack.html#prettyStackEntry"><span class="hs-identifier hs-var">CloneStack.prettyStackEntry</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-114"></span><span>    </span><span id="local-6989586621679679922"><span class="annot"><span class="annottext">displayHsc :: CallStack -&gt; String
+</span><a href="#local-6989586621679679922"><span class="hs-identifier hs-var hs-var">displayHsc</span></a></span></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[String] -&gt; String
+</span><a href="GHC.Internal.Data.OldList.html#unlines"><span class="hs-identifier hs-var">unlines</span></a></span><span> </span><span class="annot"><span class="annottext">([String] -&gt; String)
+-&gt; (CallStack -&gt; [String]) -&gt; CallStack -&gt; String
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><a href="GHC.Internal.Base.html#."><span class="hs-operator hs-var">.</span></a></span><span> </span><span class="annot"><span class="annottext">((String, SrcLoc) -&gt; String) -&gt; [(String, SrcLoc)] -&gt; [String]
+forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+</span><a href="GHC.Internal.Base.html#map"><span class="hs-identifier hs-var">map</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; String -&gt; String
+</span><a href="#local-6989586621679679923"><span class="hs-identifier hs-var">indent</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">2</span></span><span> </span><span class="annot"><span class="annottext">(String -&gt; String)
+-&gt; ((String, SrcLoc) -&gt; String) -&gt; (String, SrcLoc) -&gt; String
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><a href="GHC.Internal.Base.html#."><span class="hs-operator hs-var">.</span></a></span><span> </span><span class="annot"><span class="annottext">(String, SrcLoc) -&gt; String
+</span><a href="#local-6989586621679679933"><span class="hs-identifier hs-var">prettyCallSite</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">([(String, SrcLoc)] -&gt; [String])
+-&gt; (CallStack -&gt; [(String, SrcLoc)]) -&gt; CallStack -&gt; [String]
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><a href="GHC.Internal.Base.html#."><span class="hs-operator hs-var">.</span></a></span><span> </span><span class="annot"><span class="annottext">CallStack -&gt; [(String, SrcLoc)]
+</span><a href="GHC.Internal.Stack.Types.html#getCallStack"><span class="hs-identifier hs-var">HCS.getCallStack</span></a></span><span>
+</span><span id="line-115"></span><span>      </span><span class="hs-keyword">where</span><span> </span><span id="local-6989586621679679933"><span class="annot"><span class="annottext">prettyCallSite :: (String, SrcLoc) -&gt; String
+</span><a href="#local-6989586621679679933"><span class="hs-identifier hs-var hs-var">prettyCallSite</span></a></span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679679935"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679679935"><span class="hs-identifier hs-var">f</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679679936"><span class="annot"><span class="annottext">SrcLoc
+</span><a href="#local-6989586621679679936"><span class="hs-identifier hs-var">loc</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679679935"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">String -&gt; String -&gt; String
+forall a. [a] -&gt; [a] -&gt; [a]
+</span><a href="GHC.Internal.Base.html#%2B%2B"><span class="hs-operator hs-var">++</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;, called at &quot;</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; String -&gt; String
+forall a. [a] -&gt; [a] -&gt; [a]
+</span><a href="GHC.Internal.Base.html#%2B%2B"><span class="hs-operator hs-var">++</span></a></span><span> </span><span class="annot"><span class="annottext">SrcLoc -&gt; String
+</span><a href="GHC.Internal.Stack.html#prettySrcLoc"><span class="hs-identifier hs-var">HCS.prettySrcLoc</span></a></span><span> </span><span class="annot"><span class="annottext">SrcLoc
+</span><a href="#local-6989586621679679936"><span class="hs-identifier hs-var">loc</span></a></span><span>
+</span><span id="line-116"></span><span>
+</span><span id="line-117"></span><span>    </span><span id="local-6989586621679679856"><span class="annot"><a href="#local-6989586621679679918"><span class="hs-identifier hs-type">displayOne</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Internal.Base.html#String"><span class="hs-identifier hs-type">String</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Internal.Exception.Backtrace.html#Backtraces"><span class="hs-identifier hs-type">Backtraces</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Internal.Maybe.html#Maybe"><span class="hs-identifier hs-type">Maybe</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679679856"><span class="hs-identifier hs-type">rep</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679679856"><span class="hs-identifier hs-type">rep</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Internal.Base.html#String"><span class="hs-identifier hs-type">String</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Internal.Base.html#String"><span class="hs-identifier hs-type">String</span></a></span></span><span>
+</span><span id="line-118"></span><span>    </span><span id="local-6989586621679679918"><span class="annot"><span class="annottext">displayOne :: forall rep.
+String -&gt; (Backtraces -&gt; Maybe rep) -&gt; (rep -&gt; String) -&gt; String
+</span><a href="#local-6989586621679679918"><span class="hs-identifier hs-var hs-var">displayOne</span></a></span></span><span> </span><span id="local-6989586621679679938"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679679938"><span class="hs-keyword hs-var">label</span></a></span></span><span> </span><span id="local-6989586621679679939"><span class="annot"><span class="annottext">Backtraces -&gt; Maybe rep
+</span><a href="#local-6989586621679679939"><span class="hs-identifier hs-var">getBt</span></a></span></span><span> </span><span id="local-6989586621679679940"><span class="annot"><span class="annottext">rep -&gt; String
+</span><a href="#local-6989586621679679940"><span class="hs-identifier hs-var">displ</span></a></span></span><span>
+</span><span id="line-119"></span><span>      </span><span class="hs-glyph">|</span><span> </span><span class="annot"><a href="GHC.Internal.Maybe.html#Just"><span class="hs-identifier hs-type">Just</span></a></span><span> </span><span id="local-6989586621679679941"><span class="annot"><span class="annottext">rep
+</span><a href="#local-6989586621679679941"><span class="hs-identifier hs-var">bt</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Backtraces -&gt; Maybe rep
+</span><a href="#local-6989586621679679939"><span class="hs-identifier hs-var">getBt</span></a></span><span> </span><span class="annot"><span class="annottext">Backtraces
+</span><a href="#local-6989586621679679917"><span class="hs-identifier hs-var">bts</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[String] -&gt; String
+forall a. [[a]] -&gt; [a]
+</span><a href="GHC.Internal.List.html#concat"><span class="hs-identifier hs-var">concat</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679679938"><span class="hs-keyword hs-var">label</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;:\n&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">rep -&gt; String
+</span><a href="#local-6989586621679679940"><span class="hs-identifier hs-var">displ</span></a></span><span> </span><span class="annot"><span class="annottext">rep
+</span><a href="#local-6989586621679679941"><span class="hs-identifier hs-var">bt</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-120"></span><span>      </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="GHC.Internal.Base.html#otherwise"><span class="hs-identifier hs-var">otherwise</span></a></span><span>            </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;&quot;</span></span><span>
+</span><span id="line-121"></span><span>
+</span><span id="line-122"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="GHC.Internal.Exception.Context.html#ExceptionAnnotation"><span class="hs-identifier hs-type">ExceptionAnnotation</span></a></span><span> </span><span class="annot"><a href="GHC.Internal.Exception.Backtrace.html#Backtraces"><span class="hs-identifier hs-type">Backtraces</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-123"></span><span>    </span><span id="local-6989586621679679947"><span class="annot"><span class="annottext">displayExceptionAnnotation :: Backtraces -&gt; String
+</span><a href="#local-6989586621679679947"><span class="hs-identifier hs-var hs-var hs-var">displayExceptionAnnotation</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Backtraces -&gt; String
+</span><a href="GHC.Internal.Exception.Backtrace.html#displayBacktraces"><span class="hs-identifier hs-var">displayBacktraces</span></a></span><span>
+</span><span id="line-124"></span><span>
+</span><span id="line-125"></span><span class="annot"><span class="hs-comment">-- | Collect a set of 'Backtraces'.</span></span><span>
+</span><span id="line-126"></span><span class="annot"><a href="GHC.Internal.Exception.Backtrace.html#collectBacktraces"><span class="hs-identifier hs-type">collectBacktraces</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="">?callStack</span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Internal.Stack.Types.html#CallStack"><span class="hs-identifier hs-type">CallStack</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="../../ghc-prim-0.12.0-595c/src/GHC.Types.html#IO"><span class="hs-identifier hs-type">IO</span></a></span><span> </span><span class="annot"><a href="GHC.Internal.Exception.Backtrace.html#Backtraces"><span class="hs-identifier hs-type">Backtraces</span></a></span><span>
+</span><span id="line-127"></span><span id="collectBacktraces"><span class="annot"><span class="annottext">collectBacktraces :: (?callStack::CallStack) =&gt; IO Backtraces
+</span><a href="GHC.Internal.Exception.Backtrace.html#collectBacktraces"><span class="hs-identifier hs-var hs-var">collectBacktraces</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">((?callStack::CallStack) =&gt; IO Backtraces) -&gt; IO Backtraces
+forall a.
+(?callStack::CallStack) =&gt;
+((?callStack::CallStack) =&gt; a) -&gt; a
+</span><a href="GHC.Internal.Stack.html#withFrozenCallStack"><span class="hs-identifier hs-var">HCS.withFrozenCallStack</span></a></span><span> </span><span class="annot"><span class="annottext">(((?callStack::CallStack) =&gt; IO Backtraces) -&gt; IO Backtraces)
+-&gt; ((?callStack::CallStack) =&gt; IO Backtraces) -&gt; IO Backtraces
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="GHC.Internal.Base.html#%24"><span class="hs-operator hs-var">$</span></a></span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-128"></span><span>    </span><span class="annot"><span class="annottext">IO EnabledBacktraceMechanisms
+</span><a href="GHC.Internal.Exception.Backtrace.html#getEnabledBacktraceMechanisms"><span class="hs-identifier hs-var">getEnabledBacktraceMechanisms</span></a></span><span> </span><span class="annot"><span class="annottext">IO EnabledBacktraceMechanisms
+-&gt; (EnabledBacktraceMechanisms -&gt; IO Backtraces) -&gt; IO Backtraces
+forall a b. IO a -&gt; (a -&gt; IO b) -&gt; IO b
+forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; (a -&gt; m b) -&gt; m b
+</span><a href="GHC.Internal.Base.html#%3E%3E%3D"><span class="hs-operator hs-var">&gt;&gt;=</span></a></span><span> </span><span class="annot"><span class="annottext">(?callStack::CallStack) =&gt;
+EnabledBacktraceMechanisms -&gt; IO Backtraces
+EnabledBacktraceMechanisms -&gt; IO Backtraces
+</span><a href="GHC.Internal.Exception.Backtrace.html#collectBacktraces%27"><span class="hs-identifier hs-var">collectBacktraces'</span></a></span><span>
+</span><span id="line-129"></span><span>
+</span><span id="line-130"></span><span class="annot"><a href="GHC.Internal.Exception.Backtrace.html#collectBacktraces%27"><span class="hs-identifier hs-type">collectBacktraces'</span></a></span><span>
+</span><span id="line-131"></span><span>    </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="">?callStack</span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Internal.Stack.Types.html#CallStack"><span class="hs-identifier hs-type">CallStack</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-132"></span><span>    </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="GHC.Internal.Exception.Backtrace.html#EnabledBacktraceMechanisms"><span class="hs-identifier hs-type">EnabledBacktraceMechanisms</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="../../ghc-prim-0.12.0-595c/src/GHC.Types.html#IO"><span class="hs-identifier hs-type">IO</span></a></span><span> </span><span class="annot"><a href="GHC.Internal.Exception.Backtrace.html#Backtraces"><span class="hs-identifier hs-type">Backtraces</span></a></span><span>
+</span><span id="line-133"></span><span id="collectBacktraces%27"><span class="annot"><span class="annottext">collectBacktraces' :: (?callStack::CallStack) =&gt;
+EnabledBacktraceMechanisms -&gt; IO Backtraces
+</span><a href="GHC.Internal.Exception.Backtrace.html#collectBacktraces%27"><span class="hs-identifier hs-var hs-var">collectBacktraces'</span></a></span></span><span> </span><span id="local-6989586621679679962"><span class="annot"><span class="annottext">EnabledBacktraceMechanisms
+</span><a href="#local-6989586621679679962"><span class="hs-identifier hs-var">enabled</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">((?callStack::CallStack) =&gt; IO Backtraces) -&gt; IO Backtraces
+forall a.
+(?callStack::CallStack) =&gt;
+((?callStack::CallStack) =&gt; a) -&gt; a
+</span><a href="GHC.Internal.Stack.html#withFrozenCallStack"><span class="hs-identifier hs-var">HCS.withFrozenCallStack</span></a></span><span> </span><span class="annot"><span class="annottext">(((?callStack::CallStack) =&gt; IO Backtraces) -&gt; IO Backtraces)
+-&gt; ((?callStack::CallStack) =&gt; IO Backtraces) -&gt; IO Backtraces
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="GHC.Internal.Base.html#%24"><span class="hs-operator hs-var">$</span></a></span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-134"></span><span>    </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679679874"><span class="annot"><a href="#local-6989586621679679975"><span class="hs-identifier hs-type">collect</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Internal.Exception.Backtrace.html#BacktraceMechanism"><span class="hs-identifier hs-type">BacktraceMechanism</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="../../ghc-prim-0.12.0-595c/src/GHC.Types.html#IO"><span class="hs-identifier hs-type">IO</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Internal.Maybe.html#Maybe"><span class="hs-identifier hs-type">Maybe</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679679874"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="../../ghc-prim-0.12.0-595c/src/GHC.Types.html#IO"><span class="hs-identifier hs-type">IO</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Internal.Maybe.html#Maybe"><span class="hs-identifier hs-type">Maybe</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679679874"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span><span>
+</span><span id="line-135"></span><span>        </span><span id="local-6989586621679679975"><span class="annot"><span class="annottext">collect :: forall a. BacktraceMechanism -&gt; IO (Maybe a) -&gt; IO (Maybe a)
+</span><a href="#local-6989586621679679975"><span class="hs-identifier hs-var hs-var hs-var">collect</span></a></span></span><span> </span><span id="local-6989586621679679977"><span class="annot"><span class="annottext">BacktraceMechanism
+</span><a href="#local-6989586621679679977"><span class="hs-identifier hs-var">mech</span></a></span></span><span> </span><span id="local-6989586621679679978"><span class="annot"><span class="annottext">IO (Maybe a)
+</span><a href="#local-6989586621679679978"><span class="hs-identifier hs-var">f</span></a></span></span><span>
+</span><span id="line-136"></span><span>          </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">BacktraceMechanism -&gt; EnabledBacktraceMechanisms -&gt; Bool
+</span><a href="GHC.Internal.Exception.Backtrace.html#backtraceMechanismEnabled"><span class="hs-identifier hs-var">backtraceMechanismEnabled</span></a></span><span> </span><span class="annot"><span class="annottext">BacktraceMechanism
+</span><a href="#local-6989586621679679977"><span class="hs-identifier hs-var">mech</span></a></span><span> </span><span class="annot"><span class="annottext">EnabledBacktraceMechanisms
+</span><a href="#local-6989586621679679962"><span class="hs-identifier hs-var">enabled</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">IO (Maybe a)
+</span><a href="#local-6989586621679679978"><span class="hs-identifier hs-var">f</span></a></span><span>
+</span><span id="line-137"></span><span>          </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="GHC.Internal.Base.html#otherwise"><span class="hs-identifier hs-var">otherwise</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Maybe a -&gt; IO (Maybe a)
+forall a. a -&gt; IO a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><a href="GHC.Internal.Base.html#return"><span class="hs-identifier hs-var">return</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe a
+forall a. Maybe a
+</span><a href="GHC.Internal.Maybe.html#Nothing"><span class="hs-identifier hs-var">Nothing</span></a></span><span>
+</span><span id="line-138"></span><span>
+</span><span id="line-139"></span><span>    </span><span id="local-6989586621679679979"><span class="annot"><a href="#local-6989586621679679979"><span class="hs-identifier hs-var">ccs</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">BacktraceMechanism
+-&gt; IO (Maybe (Ptr CostCentreStack))
+-&gt; IO (Maybe (Ptr CostCentreStack))
+forall a. BacktraceMechanism -&gt; IO (Maybe a) -&gt; IO (Maybe a)
+</span><a href="#local-6989586621679679975"><span class="hs-identifier hs-var">collect</span></a></span><span> </span><span class="annot"><span class="annottext">BacktraceMechanism
+</span><a href="GHC.Internal.Exception.Backtrace.html#CostCentreBacktrace"><span class="hs-identifier hs-var">CostCentreBacktrace</span></a></span><span> </span><span class="annot"><span class="annottext">(IO (Maybe (Ptr CostCentreStack))
+ -&gt; IO (Maybe (Ptr CostCentreStack)))
+-&gt; IO (Maybe (Ptr CostCentreStack))
+-&gt; IO (Maybe (Ptr CostCentreStack))
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="GHC.Internal.Base.html#%24"><span class="hs-operator hs-var">$</span></a></span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-140"></span><span>        </span><span class="annot"><span class="annottext">Ptr CostCentreStack -&gt; Maybe (Ptr CostCentreStack)
+forall a. a -&gt; Maybe a
+</span><a href="GHC.Internal.Maybe.html#Just"><span class="hs-identifier hs-var">Just</span></a></span><span> </span><span class="annot"><span class="annottext">(Ptr CostCentreStack -&gt; Maybe (Ptr CostCentreStack))
+-&gt; IO (Ptr CostCentreStack) -&gt; IO (Maybe (Ptr CostCentreStack))
+forall a b. (a -&gt; b) -&gt; IO a -&gt; IO b
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><a href="GHC.Internal.Base.html#fmap"><span class="hs-operator hs-var">`fmap`</span></a></span><span> </span><span class="annot"><span class="annottext">() -&gt; IO (Ptr CostCentreStack)
+forall dummy. dummy -&gt; IO (Ptr CostCentreStack)
+</span><a href="GHC.Internal.Stack.CCS.html#getCurrentCCS"><span class="hs-identifier hs-var">CCS.getCurrentCCS</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-141"></span><span>
+</span><span id="line-142"></span><span>    </span><span id="local-6989586621679679981"><span class="annot"><a href="#local-6989586621679679981"><span class="hs-identifier hs-var">exec</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><a href="#local-6989586621679679975"><span class="hs-identifier hs-type">collect</span></a></span><span> </span><span class="annot"><a href="GHC.Internal.Exception.Backtrace.html#ExecutionBacktrace"><span class="hs-identifier hs-type">ExecutionBacktrace</span></a></span><span> </span><span class="annot"><a href="GHC.Internal.Base.html#%24"><span class="hs-operator hs-type">$</span></a></span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-143"></span><span>        </span><span class="annot"><a href="GHC.Internal.ExecutionStack.html#getStackTrace"><span class="hs-identifier hs-type">ExecStack.getStackTrace</span></a></span><span>
+</span><span id="line-144"></span><span>
+</span><span id="line-145"></span><span>    </span><span id="local-6989586621679679983"><span class="annot"><a href="#local-6989586621679679983"><span class="hs-identifier hs-var">ipe</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><a href="#local-6989586621679679975"><span class="hs-identifier hs-type">collect</span></a></span><span> </span><span class="annot"><a href="GHC.Internal.Exception.Backtrace.html#IPEBacktrace"><span class="hs-identifier hs-type">IPEBacktrace</span></a></span><span> </span><span class="annot"><a href="GHC.Internal.Base.html#%24"><span class="hs-operator hs-type">$</span></a></span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-146"></span><span>        </span><span id="local-6989586621679679984"><span class="annot"><a href="#local-6989586621679679984"><span class="hs-identifier hs-var">stack</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><a href="GHC.Internal.Stack.CloneStack.html#cloneMyStack"><span class="hs-identifier hs-type">CloneStack.cloneMyStack</span></a></span><span>
+</span><span id="line-147"></span><span>        </span><span id="local-6989586621679679986"><span class="annot"><a href="#local-6989586621679679986"><span class="hs-identifier hs-var">stackEntries</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><a href="GHC.Internal.Stack.CloneStack.html#decode"><span class="hs-identifier hs-type">CloneStack.decode</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679679984"><span class="hs-identifier hs-type">stack</span></a></span><span>
+</span><span id="line-148"></span><span>        </span><span class="annot"><a href="GHC.Internal.Base.html#return"><span class="hs-identifier hs-type">return</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Internal.Maybe.html#Just"><span class="hs-identifier hs-type">Just</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679679986"><span class="hs-identifier hs-type">stackEntries</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-149"></span><span>
+</span><span id="line-150"></span><span>    </span><span id="local-6989586621679679988"><span class="annot"><a href="#local-6989586621679679988"><span class="hs-identifier hs-var">hcs</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><a href="#local-6989586621679679975"><span class="hs-identifier hs-type">collect</span></a></span><span> </span><span class="annot"><a href="GHC.Internal.Exception.Backtrace.html#HasCallStackBacktrace"><span class="hs-identifier hs-type">HasCallStackBacktrace</span></a></span><span> </span><span class="annot"><a href="GHC.Internal.Base.html#%24"><span class="hs-operator hs-type">$</span></a></span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-151"></span><span>        </span><span class="annot"><a href="GHC.Internal.Base.html#return"><span class="hs-identifier hs-type">return</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Internal.Maybe.html#Just"><span class="hs-identifier hs-type">Just</span></a></span><span> </span><span class="annot"><span class="">?callStack</span></span><span class="hs-special">)</span><span>
+</span><span id="line-152"></span><span>
+</span><span id="line-153"></span><span>    </span><span class="annot"><a href="GHC.Internal.Base.html#return"><span class="hs-identifier hs-type">return</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Internal.Exception.Backtrace.html#Backtraces"><span class="hs-identifier hs-type">Backtraces</span></a></span><span> </span><span class="hs-special">{</span><span> </span><span class="annot"><a href="GHC.Internal.Exception.Backtrace.html#btrCostCentre"><span class="hs-identifier hs-var">btrCostCentre</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="#local-6989586621679679979"><span class="hs-identifier hs-type">ccs</span></a></span><span>
+</span><span id="line-154"></span><span>                       </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Internal.Exception.Backtrace.html#btrHasCallStack"><span class="hs-identifier hs-var">btrHasCallStack</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="#local-6989586621679679988"><span class="hs-identifier hs-type">hcs</span></a></span><span>
+</span><span id="line-155"></span><span>                       </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Internal.Exception.Backtrace.html#btrExecutionStack"><span class="hs-identifier hs-var">btrExecutionStack</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="#local-6989586621679679981"><span class="hs-identifier hs-type">exec</span></a></span><span>
+</span><span id="line-156"></span><span>                       </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Internal.Exception.Backtrace.html#btrIpe"><span class="hs-identifier hs-var">btrIpe</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="#local-6989586621679679983"><span class="hs-identifier hs-type">ipe</span></a></span><span>
+</span><span id="line-157"></span><span>                       </span><span class="hs-special">}</span><span class="hs-special">)</span><span>
+</span><span id="line-158"></span></pre></body></html>

@@ -1,0 +1,42 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE Safe #-}</span><span>
+</span><span id="line-2"></span><span>
+</span><span id="line-3"></span><span class="hs-comment">-- |</span><span>
+</span><span id="line-4"></span><span class="hs-comment">--</span><span>
+</span><span id="line-5"></span><span class="hs-comment">-- Module      :  Foreign.Ptr</span><span>
+</span><span id="line-6"></span><span class="hs-comment">-- Copyright   :  (c) The FFI task force 2001</span><span>
+</span><span id="line-7"></span><span class="hs-comment">-- License     :  BSD-style (see the file libraries/base/LICENSE)</span><span>
+</span><span id="line-8"></span><span class="hs-comment">--</span><span>
+</span><span id="line-9"></span><span class="hs-comment">-- Maintainer  :  ffi@haskell.org</span><span>
+</span><span id="line-10"></span><span class="hs-comment">-- Stability   :  provisional</span><span>
+</span><span id="line-11"></span><span class="hs-comment">-- Portability :  portable</span><span>
+</span><span id="line-12"></span><span class="hs-comment">--</span><span>
+</span><span id="line-13"></span><span class="hs-comment">-- This module provides typed pointers to foreign data.  It is part</span><span>
+</span><span id="line-14"></span><span class="hs-comment">-- of the Foreign Function Interface (FFI) and will normally be</span><span>
+</span><span id="line-15"></span><span class="hs-comment">-- imported via the &quot;Foreign&quot; module.</span><span>
+</span><span id="line-16"></span><span class="hs-comment">--</span><span>
+</span><span id="line-17"></span><span>
+</span><span id="line-18"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Foreign.Ptr.html"><span class="hs-identifier">Foreign.Ptr</span></a></span><span>
+</span><span id="line-19"></span><span>    </span><span class="hs-special">(</span><span class="annot"><span class="hs-comment">-- *  Data pointers</span></span><span>
+</span><span id="line-20"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Ptr.html#Ptr"><span class="hs-identifier">Ptr</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-21"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Ptr.html#nullPtr"><span class="hs-identifier">nullPtr</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-22"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Ptr.html#castPtr"><span class="hs-identifier">castPtr</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-23"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Ptr.html#plusPtr"><span class="hs-identifier">plusPtr</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-24"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Ptr.html#alignPtr"><span class="hs-identifier">alignPtr</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-25"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Ptr.html#minusPtr"><span class="hs-identifier">minusPtr</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-26"></span><span>     </span><span class="annot"><span class="hs-comment">-- *  Function pointers</span></span><span>
+</span><span id="line-27"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Ptr.html#FunPtr"><span class="hs-identifier">FunPtr</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-28"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Ptr.html#nullFunPtr"><span class="hs-identifier">nullFunPtr</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-29"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Ptr.html#castFunPtr"><span class="hs-identifier">castFunPtr</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-30"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Ptr.html#castFunPtrToPtr"><span class="hs-identifier">castFunPtrToPtr</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-31"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Ptr.html#castPtrToFunPtr"><span class="hs-identifier">castPtrToFunPtr</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-32"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Foreign.Ptr.html#freeHaskellFunPtr"><span class="hs-identifier">freeHaskellFunPtr</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-33"></span><span>     </span><span class="annot"><span class="hs-comment">-- *  Integral types with lossless conversion to and from pointers</span></span><span>
+</span><span id="line-34"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Foreign.Ptr.html#IntPtr"><span class="hs-identifier">IntPtr</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-35"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Foreign.Ptr.html#ptrToIntPtr"><span class="hs-identifier">ptrToIntPtr</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-36"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Foreign.Ptr.html#intPtrToPtr"><span class="hs-identifier">intPtrToPtr</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-37"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Foreign.Ptr.html#WordPtr"><span class="hs-identifier">WordPtr</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-38"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Foreign.Ptr.html#ptrToWordPtr"><span class="hs-identifier">ptrToWordPtr</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-39"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Foreign.Ptr.html#wordPtrToPtr"><span class="hs-identifier">wordPtrToPtr</span></a></span><span>
+</span><span id="line-40"></span><span>     </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-41"></span><span>
+</span><span id="line-42"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Foreign.Ptr.html"><span class="hs-identifier">GHC.Internal.Foreign.Ptr</span></a></span></pre></body></html>

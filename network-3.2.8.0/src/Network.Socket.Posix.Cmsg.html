@@ -1,0 +1,1022 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LINE 1 &quot;Network/Socket/Posix/Cmsg.hsc&quot; #-}</span><span>
+</span><span id="line-1"></span><span class="hs-pragma">{-# LANGUAGE AllowAmbiguousTypes #-}</span><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# LANGUAGE CPP #-}</span><span>
+</span><span id="line-3"></span><span class="hs-pragma">{-# LANGUAGE FlexibleInstances #-}</span><span>
+</span><span id="line-4"></span><span class="hs-pragma">{-# LANGUAGE GeneralizedNewtypeDeriving #-}</span><span>
+</span><span id="line-5"></span><span class="hs-pragma">{-# LANGUAGE PatternSynonyms #-}</span><span>
+</span><span id="line-6"></span><span class="hs-pragma">{-# LANGUAGE RecordWildCards #-}</span><span>
+</span><span id="line-7"></span><span class="hs-pragma">{-# LANGUAGE ScopedTypeVariables #-}</span><span>
+</span><span id="line-8"></span><span class="hs-pragma">{-# LANGUAGE TypeApplications #-}</span><span>
+</span><span id="line-9"></span><span>
+</span><span id="line-10"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Network.Socket.Posix.Cmsg.html"><span class="hs-identifier">Network.Socket.Posix.Cmsg</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-11"></span><span>
+</span><span id="line-12"></span><span>
+</span><span id="line-13"></span><span>
+</span><span id="line-14"></span><span>
+</span><span id="line-15"></span><span>
+</span><span id="line-16"></span><span>
+</span><span id="line-17"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.ByteString.Internal</span></span><span>
+</span><span id="line-18"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Foreign.ForeignPtr</span></span><span>
+</span><span id="line-19"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Foreign.Marshal.Array</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">peekArray</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">pokeArray</span></span><span class="hs-special">)</span><span>
+</span><span id="line-20"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">System.IO.Unsafe</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">unsafeDupablePerformIO</span></span><span class="hs-special">)</span><span>
+</span><span id="line-21"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">System.Posix.Types</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Fd</span></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-22"></span><span>
+</span><span id="line-23"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Network.Socket.Imports.html"><span class="hs-identifier">Network.Socket.Imports</span></a></span><span>
+</span><span id="line-24"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Network.Socket.Types.html"><span class="hs-identifier">Network.Socket.Types</span></a></span><span>
+</span><span id="line-25"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Network.Socket.ReadShow.html"><span class="hs-identifier">Network.Socket.ReadShow</span></a></span><span>
+</span><span id="line-26"></span><span>
+</span><span id="line-27"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Text.Read</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">P</span></span><span>
+</span><span id="line-28"></span><span>
+</span><span id="line-29"></span><span class="annot"><span class="hs-comment">-- | Control message (ancillary data) including a pair of level and type.</span></span><span>
+</span><span id="line-30"></span><span class="hs-keyword">data</span><span> </span><span id="Cmsg"><span class="annot"><a href="Network.Socket.Posix.Cmsg.html#Cmsg"><span class="hs-identifier hs-var">Cmsg</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="Cmsg"><span class="annot"><a href="Network.Socket.Posix.Cmsg.html#Cmsg"><span class="hs-identifier hs-var">Cmsg</span></a></span></span><span> </span><span class="hs-special">{</span><span>
+</span><span id="line-31"></span><span>    </span><span id="cmsgId"><span class="annot"><span class="annottext">Cmsg -&gt; CmsgId
+</span><a href="Network.Socket.Posix.Cmsg.html#cmsgId"><span class="hs-identifier hs-var hs-var">cmsgId</span></a></span></span><span>   </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Network.Socket.Posix.Cmsg.html#CmsgId"><span class="hs-identifier hs-type">CmsgId</span></a></span><span>
+</span><span id="line-32"></span><span>  </span><span class="hs-special">,</span><span> </span><span id="cmsgData"><span class="annot"><span class="annottext">Cmsg -&gt; ByteString
+</span><a href="Network.Socket.Posix.Cmsg.html#cmsgData"><span class="hs-identifier hs-var hs-var">cmsgData</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">ByteString</span></span><span>
+</span><span id="line-33"></span><span>  </span><span class="hs-special">}</span><span> </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679090543"><span id="local-6989586621679090548"><span class="annot"><span class="annottext">Cmsg -&gt; Cmsg -&gt; Bool
+(Cmsg -&gt; Cmsg -&gt; Bool) -&gt; (Cmsg -&gt; Cmsg -&gt; Bool) -&gt; Eq Cmsg
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: Cmsg -&gt; Cmsg -&gt; Bool
+== :: Cmsg -&gt; Cmsg -&gt; Bool
+$c/= :: Cmsg -&gt; Cmsg -&gt; Bool
+/= :: Cmsg -&gt; Cmsg -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679090553"><span id="local-6989586621679090561"><span id="local-6989586621679090565"><span class="annot"><span class="annottext">Int -&gt; Cmsg -&gt; ShowS
+[Cmsg] -&gt; ShowS
+Cmsg -&gt; String
+(Int -&gt; Cmsg -&gt; ShowS)
+-&gt; (Cmsg -&gt; String) -&gt; ([Cmsg] -&gt; ShowS) -&gt; Show Cmsg
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; Cmsg -&gt; ShowS
+showsPrec :: Int -&gt; Cmsg -&gt; ShowS
+$cshow :: Cmsg -&gt; String
+show :: Cmsg -&gt; String
+$cshowList :: [Cmsg] -&gt; ShowS
+showList :: [Cmsg] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-34"></span><span>
+</span><span id="line-35"></span><span class="hs-comment">----------------------------------------------------------------</span><span>
+</span><span id="line-36"></span><span>
+</span><span id="line-37"></span><span class="annot"><span class="hs-comment">-- | Identifier of control message (ancillary data).</span></span><span>
+</span><span id="line-38"></span><span class="hs-keyword">data</span><span> </span><span id="CmsgId"><span class="annot"><a href="Network.Socket.Posix.Cmsg.html#CmsgId"><span class="hs-identifier hs-var">CmsgId</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="CmsgId"><span class="annot"><a href="Network.Socket.Posix.Cmsg.html#CmsgId"><span class="hs-identifier hs-var">CmsgId</span></a></span></span><span> </span><span class="hs-special">{</span><span>
+</span><span id="line-39"></span><span>    </span><span id="cmsgLevel"><span class="annot"><span class="annottext">CmsgId -&gt; CInt
+</span><a href="Network.Socket.Posix.Cmsg.html#cmsgLevel"><span class="hs-identifier hs-var hs-var">cmsgLevel</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">CInt</span></span><span>
+</span><span id="line-40"></span><span>  </span><span class="hs-special">,</span><span> </span><span id="cmsgType"><span class="annot"><span class="annottext">CmsgId -&gt; CInt
+</span><a href="Network.Socket.Posix.Cmsg.html#cmsgType"><span class="hs-identifier hs-var hs-var">cmsgType</span></a></span></span><span>  </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">CInt</span></span><span>
+</span><span id="line-41"></span><span>  </span><span class="hs-special">}</span><span> </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679090573"><span id="local-6989586621679090578"><span class="annot"><span class="annottext">CmsgId -&gt; CmsgId -&gt; Bool
+(CmsgId -&gt; CmsgId -&gt; Bool)
+-&gt; (CmsgId -&gt; CmsgId -&gt; Bool) -&gt; Eq CmsgId
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: CmsgId -&gt; CmsgId -&gt; Bool
+== :: CmsgId -&gt; CmsgId -&gt; Bool
+$c/= :: CmsgId -&gt; CmsgId -&gt; Bool
+/= :: CmsgId -&gt; CmsgId -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-42"></span><span>
+</span><span id="line-43"></span><span class="annot"><span class="hs-comment">-- | Unsupported identifier</span></span><span>
+</span><span id="line-44"></span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="Network.Socket.Posix.Cmsg.html#UnsupportedCmsgId"><span class="hs-identifier hs-type">UnsupportedCmsgId</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Network.Socket.Posix.Cmsg.html#CmsgId"><span class="hs-identifier hs-type">CmsgId</span></a></span><span>
+</span><span id="line-45"></span><span class="hs-keyword">pattern</span><span> </span><span id="UnsupportedCmsgId"><span id="%24mUnsupportedCmsgId"><span id="%24bUnsupportedCmsgId"><span class="annot"><span class="annottext">$mUnsupportedCmsgId :: forall {r}. CmsgId -&gt; ((# #) -&gt; r) -&gt; ((# #) -&gt; r) -&gt; r
+$bUnsupportedCmsgId :: CmsgId
+</span><a href="Network.Socket.Posix.Cmsg.html#UnsupportedCmsgId"><span class="hs-identifier hs-var hs-var hs-var">UnsupportedCmsgId</span></a></span></span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="Network.Socket.Posix.Cmsg.html#CmsgId"><span class="hs-identifier hs-type">CmsgId</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">-</span><span class="annot"><span class="hs-number">1</span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="hs-glyph">-</span><span class="annot"><span class="hs-number">1</span></span><span class="hs-special">)</span><span>
+</span><span id="line-46"></span><span>
+</span><span id="line-47"></span><span class="annot"><span class="hs-comment">-- | The identifier for 'IPv4TTL'.</span></span><span>
+</span><span id="line-48"></span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="Network.Socket.Posix.Cmsg.html#CmsgIdIPv4TTL"><span class="hs-identifier hs-type">CmsgIdIPv4TTL</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Network.Socket.Posix.Cmsg.html#CmsgId"><span class="hs-identifier hs-type">CmsgId</span></a></span><span>
+</span><span id="line-49"></span><span>
+</span><span id="line-50"></span><span class="hs-pragma">{-# LINE 52 &quot;Network/Socket/Posix/Cmsg.hsc&quot; #-}</span><span>
+</span><span id="line-52"></span><span class="hs-keyword">pattern</span><span> </span><span id="CmsgIdIPv4TTL"><span id="%24mCmsgIdIPv4TTL"><span id="%24bCmsgIdIPv4TTL"><span class="annot"><span class="annottext">$mCmsgIdIPv4TTL :: forall {r}. CmsgId -&gt; ((# #) -&gt; r) -&gt; ((# #) -&gt; r) -&gt; r
+$bCmsgIdIPv4TTL :: CmsgId
+</span><a href="Network.Socket.Posix.Cmsg.html#CmsgIdIPv4TTL"><span class="hs-identifier hs-var hs-var hs-var">CmsgIdIPv4TTL</span></a></span></span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="Network.Socket.Posix.Cmsg.html#CmsgId"><span class="hs-identifier hs-type">CmsgId</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-number">0</span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-number">2</span></span><span class="hs-special">)</span><span>
+</span><span id="line-53"></span><span class="hs-pragma">{-# LINE 53 &quot;Network/Socket/Posix/Cmsg.hsc&quot; #-}</span><span>
+</span><span id="line-53"></span><span>
+</span><span id="line-54"></span><span class="hs-pragma">{-# LINE 54 &quot;Network/Socket/Posix/Cmsg.hsc&quot; #-}</span><span>
+</span><span id="line-54"></span><span>
+</span><span id="line-55"></span><span class="annot"><span class="hs-comment">-- | The identifier for 'IPv6HopLimit'.</span></span><span>
+</span><span id="line-56"></span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="Network.Socket.Posix.Cmsg.html#CmsgIdIPv6HopLimit"><span class="hs-identifier hs-type">CmsgIdIPv6HopLimit</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Network.Socket.Posix.Cmsg.html#CmsgId"><span class="hs-identifier hs-type">CmsgId</span></a></span><span>
+</span><span id="line-57"></span><span class="hs-keyword">pattern</span><span> </span><span id="CmsgIdIPv6HopLimit"><span id="%24mCmsgIdIPv6HopLimit"><span id="%24bCmsgIdIPv6HopLimit"><span class="annot"><span class="annottext">$mCmsgIdIPv6HopLimit :: forall {r}. CmsgId -&gt; ((# #) -&gt; r) -&gt; ((# #) -&gt; r) -&gt; r
+$bCmsgIdIPv6HopLimit :: CmsgId
+</span><a href="Network.Socket.Posix.Cmsg.html#CmsgIdIPv6HopLimit"><span class="hs-identifier hs-var hs-var hs-var">CmsgIdIPv6HopLimit</span></a></span></span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="Network.Socket.Posix.Cmsg.html#CmsgId"><span class="hs-identifier hs-type">CmsgId</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-number">41</span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-number">52</span></span><span class="hs-special">)</span><span>
+</span><span id="line-58"></span><span class="hs-pragma">{-# LINE 58 &quot;Network/Socket/Posix/Cmsg.hsc&quot; #-}</span><span>
+</span><span id="line-58"></span><span>
+</span><span id="line-59"></span><span class="annot"><span class="hs-comment">-- | The identifier for 'IPv4TOS'.</span></span><span>
+</span><span id="line-60"></span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="Network.Socket.Posix.Cmsg.html#CmsgIdIPv4TOS"><span class="hs-identifier hs-type">CmsgIdIPv4TOS</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Network.Socket.Posix.Cmsg.html#CmsgId"><span class="hs-identifier hs-type">CmsgId</span></a></span><span>
+</span><span id="line-61"></span><span>
+</span><span id="line-62"></span><span class="hs-pragma">{-# LINE 64 &quot;Network/Socket/Posix/Cmsg.hsc&quot; #-}</span><span>
+</span><span id="line-64"></span><span class="hs-keyword">pattern</span><span> </span><span id="CmsgIdIPv4TOS"><span id="%24mCmsgIdIPv4TOS"><span id="%24bCmsgIdIPv4TOS"><span class="annot"><span class="annottext">$mCmsgIdIPv4TOS :: forall {r}. CmsgId -&gt; ((# #) -&gt; r) -&gt; ((# #) -&gt; r) -&gt; r
+$bCmsgIdIPv4TOS :: CmsgId
+</span><a href="Network.Socket.Posix.Cmsg.html#CmsgIdIPv4TOS"><span class="hs-identifier hs-var hs-var hs-var">CmsgIdIPv4TOS</span></a></span></span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="Network.Socket.Posix.Cmsg.html#CmsgId"><span class="hs-identifier hs-type">CmsgId</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-number">0</span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-number">1</span></span><span class="hs-special">)</span><span>
+</span><span id="line-65"></span><span class="hs-pragma">{-# LINE 65 &quot;Network/Socket/Posix/Cmsg.hsc&quot; #-}</span><span>
+</span><span id="line-65"></span><span>
+</span><span id="line-66"></span><span class="hs-pragma">{-# LINE 66 &quot;Network/Socket/Posix/Cmsg.hsc&quot; #-}</span><span>
+</span><span id="line-66"></span><span>
+</span><span id="line-67"></span><span class="annot"><span class="hs-comment">-- | The identifier for 'IPv6TClass'.</span></span><span>
+</span><span id="line-68"></span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="Network.Socket.Posix.Cmsg.html#CmsgIdIPv6TClass"><span class="hs-identifier hs-type">CmsgIdIPv6TClass</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Network.Socket.Posix.Cmsg.html#CmsgId"><span class="hs-identifier hs-type">CmsgId</span></a></span><span>
+</span><span id="line-69"></span><span class="hs-keyword">pattern</span><span> </span><span id="CmsgIdIPv6TClass"><span id="%24mCmsgIdIPv6TClass"><span id="%24bCmsgIdIPv6TClass"><span class="annot"><span class="annottext">$mCmsgIdIPv6TClass :: forall {r}. CmsgId -&gt; ((# #) -&gt; r) -&gt; ((# #) -&gt; r) -&gt; r
+$bCmsgIdIPv6TClass :: CmsgId
+</span><a href="Network.Socket.Posix.Cmsg.html#CmsgIdIPv6TClass"><span class="hs-identifier hs-var hs-var hs-var">CmsgIdIPv6TClass</span></a></span></span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="Network.Socket.Posix.Cmsg.html#CmsgId"><span class="hs-identifier hs-type">CmsgId</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-number">41</span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-number">67</span></span><span class="hs-special">)</span><span>
+</span><span id="line-70"></span><span class="hs-pragma">{-# LINE 70 &quot;Network/Socket/Posix/Cmsg.hsc&quot; #-}</span><span>
+</span><span id="line-70"></span><span>
+</span><span id="line-71"></span><span class="annot"><span class="hs-comment">-- | The identifier for 'IPv4PktInfo'.</span></span><span>
+</span><span id="line-72"></span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="Network.Socket.Posix.Cmsg.html#CmsgIdIPv4PktInfo"><span class="hs-identifier hs-type">CmsgIdIPv4PktInfo</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Network.Socket.Posix.Cmsg.html#CmsgId"><span class="hs-identifier hs-type">CmsgId</span></a></span><span>
+</span><span id="line-73"></span><span>
+</span><span id="line-74"></span><span class="hs-pragma">{-# LINE 74 &quot;Network/Socket/Posix/Cmsg.hsc&quot; #-}</span><span id="CmsgIdIPv4PktInfo"><span id="%24mCmsgIdIPv4PktInfo"><span id="%24bCmsgIdIPv4PktInfo"></span></span></span><span>
+</span><span id="line-74"></span><span class="hs-keyword">pattern</span><span> </span><span class="hs-identifier">CmsgIdIPv4PktInfo</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">CmsgId</span><span> </span><span class="hs-special">(</span><span class="hs-number">0</span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="hs-number">8</span><span class="hs-special">)</span><span>
+</span><span id="line-75"></span><span class="hs-pragma">{-# LINE 75 &quot;Network/Socket/Posix/Cmsg.hsc&quot; #-}</span><span>
+</span><span id="line-75"></span><span>
+</span><span id="line-76"></span><span class="hs-pragma">{-# LINE 78 &quot;Network/Socket/Posix/Cmsg.hsc&quot; #-}</span><span>
+</span><span id="line-78"></span><span>
+</span><span id="line-79"></span><span class="annot"><span class="hs-comment">-- | The identifier for 'IPv6PktInfo'.</span></span><span>
+</span><span id="line-80"></span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="Network.Socket.Posix.Cmsg.html#CmsgIdIPv6PktInfo"><span class="hs-identifier hs-type">CmsgIdIPv6PktInfo</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Network.Socket.Posix.Cmsg.html#CmsgId"><span class="hs-identifier hs-type">CmsgId</span></a></span><span>
+</span><span id="line-81"></span><span>
+</span><span id="line-82"></span><span class="hs-pragma">{-# LINE 82 &quot;Network/Socket/Posix/Cmsg.hsc&quot; #-}</span><span id="CmsgIdIPv6PktInfo"><span id="%24mCmsgIdIPv6PktInfo"><span id="%24bCmsgIdIPv6PktInfo"></span></span></span><span>
+</span><span id="line-82"></span><span class="hs-keyword">pattern</span><span> </span><span class="hs-identifier">CmsgIdIPv6PktInfo</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">CmsgId</span><span> </span><span class="hs-special">(</span><span class="hs-number">41</span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="hs-number">50</span><span class="hs-special">)</span><span>
+</span><span id="line-83"></span><span class="hs-pragma">{-# LINE 83 &quot;Network/Socket/Posix/Cmsg.hsc&quot; #-}</span><span>
+</span><span id="line-83"></span><span>
+</span><span id="line-84"></span><span class="hs-pragma">{-# LINE 86 &quot;Network/Socket/Posix/Cmsg.hsc&quot; #-}</span><span>
+</span><span id="line-86"></span><span>
+</span><span id="line-87"></span><span class="annot"><span class="hs-comment">-- | The identifier for 'Fds'.</span></span><span>
+</span><span id="line-88"></span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="Network.Socket.Posix.Cmsg.html#CmsgIdFds"><span class="hs-identifier hs-type">CmsgIdFds</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Network.Socket.Posix.Cmsg.html#CmsgId"><span class="hs-identifier hs-type">CmsgId</span></a></span><span>
+</span><span id="line-89"></span><span class="hs-keyword">pattern</span><span> </span><span id="CmsgIdFds"><span id="%24mCmsgIdFds"><span id="%24bCmsgIdFds"><span class="annot"><span class="annottext">$mCmsgIdFds :: forall {r}. CmsgId -&gt; ((# #) -&gt; r) -&gt; ((# #) -&gt; r) -&gt; r
+$bCmsgIdFds :: CmsgId
+</span><a href="Network.Socket.Posix.Cmsg.html#CmsgIdFds"><span class="hs-identifier hs-var hs-var hs-var">CmsgIdFds</span></a></span></span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="Network.Socket.Posix.Cmsg.html#CmsgId"><span class="hs-identifier hs-type">CmsgId</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-number">1</span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-number">1</span></span><span class="hs-special">)</span><span>
+</span><span id="line-90"></span><span class="hs-pragma">{-# LINE 90 &quot;Network/Socket/Posix/Cmsg.hsc&quot; #-}</span><span>
+</span><span id="line-90"></span><span>
+</span><span id="line-91"></span><span class="hs-comment">----------------------------------------------------------------</span><span>
+</span><span id="line-92"></span><span>
+</span><span id="line-93"></span><span class="hs-comment">-- | Locate a control message of the given type in a list of control</span><span>
+</span><span id="line-94"></span><span class="hs-comment">--   messages. The following shows an example usage:</span><span>
+</span><span id="line-95"></span><span class="hs-comment">--</span><span>
+</span><span id="line-96"></span><span class="hs-comment">-- &gt; (lookupCmsg CmsgIdIPv4TOS cmsgs &gt;&gt;= decodeCmsg) :: Maybe IPv4TOS</span><span>
+</span><span id="line-97"></span><span class="annot"><a href="Network.Socket.Posix.Cmsg.html#lookupCmsg"><span class="hs-identifier hs-type">lookupCmsg</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Network.Socket.Posix.Cmsg.html#CmsgId"><span class="hs-identifier hs-type">CmsgId</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Network.Socket.Posix.Cmsg.html#Cmsg"><span class="hs-identifier hs-type">Cmsg</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="Network.Socket.Posix.Cmsg.html#Cmsg"><span class="hs-identifier hs-type">Cmsg</span></a></span><span>
+</span><span id="line-98"></span><span id="lookupCmsg"><span class="annot"><span class="annottext">lookupCmsg :: CmsgId -&gt; [Cmsg] -&gt; Maybe Cmsg
+</span><a href="Network.Socket.Posix.Cmsg.html#lookupCmsg"><span class="hs-identifier hs-var hs-var">lookupCmsg</span></a></span></span><span> </span><span id="local-6989586621679090645"><span class="annot"><span class="annottext">CmsgId
+</span><a href="#local-6989586621679090645"><span class="hs-identifier hs-var">cid</span></a></span></span><span> </span><span id="local-6989586621679090646"><span class="annot"><span class="annottext">[Cmsg]
+</span><a href="#local-6989586621679090646"><span class="hs-identifier hs-var">cmsgs</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Cmsg -&gt; Bool) -&gt; [Cmsg] -&gt; Maybe Cmsg
+forall (t :: * -&gt; *) a. Foldable t =&gt; (a -&gt; Bool) -&gt; t a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">find</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span id="local-6989586621679090648"><span class="annot"><span class="annottext">Cmsg
+</span><a href="#local-6989586621679090648"><span class="hs-identifier hs-var">cmsg</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Cmsg -&gt; CmsgId
+</span><a href="Network.Socket.Posix.Cmsg.html#cmsgId"><span class="hs-identifier hs-var">cmsgId</span></a></span><span> </span><span class="annot"><span class="annottext">Cmsg
+</span><a href="#local-6989586621679090648"><span class="hs-identifier hs-var">cmsg</span></a></span><span> </span><span class="annot"><span class="annottext">CmsgId -&gt; CmsgId -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">CmsgId
+</span><a href="#local-6989586621679090645"><span class="hs-identifier hs-var">cid</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">[Cmsg]
+</span><a href="#local-6989586621679090646"><span class="hs-identifier hs-var">cmsgs</span></a></span><span>
+</span><span id="line-99"></span><span>
+</span><span id="line-100"></span><span class="annot"><span class="hs-comment">-- | Filtering control message.</span></span><span>
+</span><span id="line-101"></span><span class="annot"><a href="Network.Socket.Posix.Cmsg.html#filterCmsg"><span class="hs-identifier hs-type">filterCmsg</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Network.Socket.Posix.Cmsg.html#CmsgId"><span class="hs-identifier hs-type">CmsgId</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Network.Socket.Posix.Cmsg.html#Cmsg"><span class="hs-identifier hs-type">Cmsg</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Network.Socket.Posix.Cmsg.html#Cmsg"><span class="hs-identifier hs-type">Cmsg</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-102"></span><span id="filterCmsg"><span class="annot"><span class="annottext">filterCmsg :: CmsgId -&gt; [Cmsg] -&gt; [Cmsg]
+</span><a href="Network.Socket.Posix.Cmsg.html#filterCmsg"><span class="hs-identifier hs-var hs-var">filterCmsg</span></a></span></span><span> </span><span id="local-6989586621679090650"><span class="annot"><span class="annottext">CmsgId
+</span><a href="#local-6989586621679090650"><span class="hs-identifier hs-var">cid</span></a></span></span><span> </span><span id="local-6989586621679090651"><span class="annot"><span class="annottext">[Cmsg]
+</span><a href="#local-6989586621679090651"><span class="hs-identifier hs-var">cmsgs</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Cmsg -&gt; Bool) -&gt; [Cmsg] -&gt; [Cmsg]
+forall a. (a -&gt; Bool) -&gt; [a] -&gt; [a]
+</span><span class="hs-identifier hs-var">filter</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span id="local-6989586621679090652"><span class="annot"><span class="annottext">Cmsg
+</span><a href="#local-6989586621679090652"><span class="hs-identifier hs-var">cmsg</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Cmsg -&gt; CmsgId
+</span><a href="Network.Socket.Posix.Cmsg.html#cmsgId"><span class="hs-identifier hs-var">cmsgId</span></a></span><span> </span><span class="annot"><span class="annottext">Cmsg
+</span><a href="#local-6989586621679090652"><span class="hs-identifier hs-var">cmsg</span></a></span><span> </span><span class="annot"><span class="annottext">CmsgId -&gt; CmsgId -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">CmsgId
+</span><a href="#local-6989586621679090650"><span class="hs-identifier hs-var">cid</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">[Cmsg]
+</span><a href="#local-6989586621679090651"><span class="hs-identifier hs-var">cmsgs</span></a></span><span>
+</span><span id="line-103"></span><span>
+</span><span id="line-104"></span><span class="hs-comment">----------------------------------------------------------------</span><span>
+</span><span id="line-105"></span><span>
+</span><span id="line-106"></span><span class="hs-comment">-- | Control message type class.</span><span>
+</span><span id="line-107"></span><span class="hs-comment">--   Each control message type has a numeric 'CmsgId' and encode</span><span>
+</span><span id="line-108"></span><span class="hs-comment">--   and decode functions.</span><span>
+</span><span id="line-109"></span><span class="hs-keyword">class</span><span> </span><span id="ControlMessage"><span class="annot"><a href="Network.Socket.Posix.Cmsg.html#ControlMessage"><span class="hs-identifier hs-var">ControlMessage</span></a></span></span><span> </span><span id="local-6989586621679090427"><span class="annot"><a href="#local-6989586621679090427"><span class="hs-identifier hs-type">a</span></a></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-110"></span><span>    </span><span id="controlMessageId"><span class="annot"><a href="Network.Socket.Posix.Cmsg.html#controlMessageId"><span class="hs-identifier hs-type">controlMessageId</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Network.Socket.Posix.Cmsg.html#CmsgId"><span class="hs-identifier hs-type">CmsgId</span></a></span><span>
+</span><span id="line-111"></span><span>    </span><span id="encodeCmsg"><span class="annot"><a href="Network.Socket.Posix.Cmsg.html#encodeCmsg"><span class="hs-identifier hs-type">encodeCmsg</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="#local-6989586621679090427"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Network.Socket.Posix.Cmsg.html#Cmsg"><span class="hs-identifier hs-type">Cmsg</span></a></span><span>
+</span><span id="line-112"></span><span>    </span><span id="decodeCmsg"><span class="annot"><a href="Network.Socket.Posix.Cmsg.html#decodeCmsg"><span class="hs-identifier hs-type">decodeCmsg</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Network.Socket.Posix.Cmsg.html#Cmsg"><span class="hs-identifier hs-type">Cmsg</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="#local-6989586621679090427"><span class="hs-identifier hs-type">a</span></a></span><span>
+</span><span id="line-113"></span><span>
+</span><span id="line-114"></span><span class="annot"><a href="Network.Socket.Posix.Cmsg.html#encodeStorableCmsg"><span class="hs-identifier hs-type">encodeStorableCmsg</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-keyword">forall</span><span> </span><span id="local-6989586621679090414"><span class="annot"><a href="#local-6989586621679090414"><span class="hs-identifier hs-type">a</span></a></span></span><span> </span><span class="hs-operator">.</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Network.Socket.Posix.Cmsg.html#ControlMessage"><span class="hs-identifier hs-type">ControlMessage</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679090414"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Storable</span></span><span> </span><span class="annot"><a href="#local-6989586621679090414"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679090414"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Network.Socket.Posix.Cmsg.html#Cmsg"><span class="hs-identifier hs-type">Cmsg</span></a></span><span>
+</span><span id="line-115"></span><span id="encodeStorableCmsg"><span class="annot"><span class="annottext">encodeStorableCmsg :: forall a. (ControlMessage a, Storable a) =&gt; a -&gt; Cmsg
+</span><a href="Network.Socket.Posix.Cmsg.html#encodeStorableCmsg"><span class="hs-identifier hs-var hs-var">encodeStorableCmsg</span></a></span></span><span> </span><span id="local-6989586621679090663"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679090663"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">IO Cmsg -&gt; Cmsg
+forall a. IO a -&gt; a
+</span><span class="hs-identifier hs-var">unsafeDupablePerformIO</span></span><span> </span><span class="annot"><span class="annottext">(IO Cmsg -&gt; Cmsg) -&gt; IO Cmsg -&gt; Cmsg
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-116"></span><span>    </span><span id="local-6989586621679090664"><span class="annot"><a href="#local-6989586621679090664"><span class="hs-identifier hs-var">bs</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Int -&gt; (Ptr Word8 -&gt; IO ()) -&gt; IO ByteString
+</span><span class="hs-identifier hs-var">create</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679090666"><span class="hs-identifier hs-var">siz</span></a></span><span> </span><span class="annot"><span class="annottext">((Ptr Word8 -&gt; IO ()) -&gt; IO ByteString)
+-&gt; (Ptr Word8 -&gt; IO ()) -&gt; IO ByteString
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679090667"><span class="annot"><span class="annottext">Ptr Word8
+</span><a href="#local-6989586621679090667"><span class="hs-identifier hs-var">p0</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-117"></span><span>        </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679090668"><span class="annot"><span class="annottext">p :: Ptr b
+</span><a href="#local-6989586621679090668"><span class="hs-identifier hs-var hs-var">p</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Ptr Word8 -&gt; Ptr b
+forall a b. Ptr a -&gt; Ptr b
+</span><span class="hs-identifier hs-var">castPtr</span></span><span> </span><span class="annot"><span class="annottext">Ptr Word8
+</span><a href="#local-6989586621679090667"><span class="hs-identifier hs-var">p0</span></a></span><span>
+</span><span id="line-118"></span><span>        </span><span class="annot"><span class="annottext">Ptr a -&gt; a -&gt; IO ()
+forall a. Storable a =&gt; Ptr a -&gt; a -&gt; IO ()
+</span><span class="hs-identifier hs-var">poke</span></span><span> </span><span class="annot"><span class="annottext">Ptr a
+forall {b}. Ptr b
+</span><a href="#local-6989586621679090668"><span class="hs-identifier hs-var">p</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679090663"><span class="hs-identifier hs-var">x</span></a></span><span>
+</span><span id="line-119"></span><span>    </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679090672"><span class="annot"><a href="#local-6989586621679090672"><span class="hs-identifier hs-var hs-var">cmsid</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. ControlMessage a =&gt; CmsgId
+</span><a href="Network.Socket.Posix.Cmsg.html#controlMessageId"><span class="hs-identifier hs-var">controlMessageId</span></a></span><span> </span><span class="hs-glyph">@</span><span class="annot"><a href="#local-6989586621679090414"><span class="hs-identifier hs-type">a</span></a></span><span>
+</span><span id="line-120"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">return</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">$</span></span><span> </span><span class="annot"><a href="Network.Socket.Posix.Cmsg.html#Cmsg"><span class="hs-identifier hs-type">Cmsg</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679090672"><span class="hs-identifier hs-type">cmsid</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679090664"><span class="hs-identifier hs-type">bs</span></a></span><span>
+</span><span id="line-121"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-122"></span><span>    </span><span id="local-6989586621679090666"><span class="annot"><span class="annottext">siz :: Int
+</span><a href="#local-6989586621679090666"><span class="hs-identifier hs-var hs-var">siz</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">a -&gt; Int
+forall a. Storable a =&gt; a -&gt; Int
+</span><span class="hs-identifier hs-var">sizeOf</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679090663"><span class="hs-identifier hs-var">x</span></a></span><span>
+</span><span id="line-123"></span><span>
+</span><span id="line-124"></span><span class="annot"><a href="Network.Socket.Posix.Cmsg.html#decodeStorableCmsg"><span class="hs-identifier hs-type">decodeStorableCmsg</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-keyword">forall</span><span> </span><span id="local-6989586621679090430"><span class="annot"><a href="#local-6989586621679090430"><span class="hs-identifier hs-type">a</span></a></span></span><span> </span><span class="hs-operator">.</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Network.Socket.Posix.Cmsg.html#ControlMessage"><span class="hs-identifier hs-type">ControlMessage</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679090430"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Storable</span></span><span> </span><span class="annot"><a href="#local-6989586621679090430"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Network.Socket.Posix.Cmsg.html#Cmsg"><span class="hs-identifier hs-type">Cmsg</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="#local-6989586621679090430"><span class="hs-identifier hs-type">a</span></a></span><span>
+</span><span id="line-125"></span><span id="decodeStorableCmsg"><span class="annot"><span class="annottext">decodeStorableCmsg :: forall a. (ControlMessage a, Storable a) =&gt; Cmsg -&gt; Maybe a
+</span><a href="Network.Socket.Posix.Cmsg.html#decodeStorableCmsg"><span class="hs-identifier hs-var hs-var">decodeStorableCmsg</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Network.Socket.Posix.Cmsg.html#Cmsg"><span class="hs-identifier hs-type">Cmsg</span></a></span><span> </span><span id="local-6989586621679090683"><span class="annot"><span class="annottext">CmsgId
+</span><a href="#local-6989586621679090683"><span class="hs-identifier hs-var">cmsid</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">PS</span></span><span> </span><span id="local-6989586621679090685"><span class="annot"><span class="annottext">ForeignPtr Word8
+</span><a href="#local-6989586621679090685"><span class="hs-identifier hs-var">fptr</span></a></span></span><span> </span><span id="local-6989586621679090686"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679090686"><span class="hs-identifier hs-var">off</span></a></span></span><span> </span><span id="local-6989586621679090687"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679090687"><span class="hs-identifier hs-var">len</span></a></span></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-126"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">CmsgId
+</span><a href="#local-6989586621679090688"><span class="hs-identifier hs-var">cid</span></a></span><span> </span><span class="annot"><span class="annottext">CmsgId -&gt; CmsgId -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">/=</span></span><span> </span><span class="annot"><span class="annottext">CmsgId
+</span><a href="#local-6989586621679090683"><span class="hs-identifier hs-var">cmsid</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Maybe a
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-127"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679090687"><span class="hs-identifier hs-var">len</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&lt;</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679090691"><span class="hs-identifier hs-var">siz</span></a></span><span>    </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Maybe a
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-128"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span>    </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">IO (Maybe a) -&gt; Maybe a
+forall a. IO a -&gt; a
+</span><span class="hs-identifier hs-var">unsafeDupablePerformIO</span></span><span> </span><span class="annot"><span class="annottext">(IO (Maybe a) -&gt; Maybe a) -&gt; IO (Maybe a) -&gt; Maybe a
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">ForeignPtr Word8 -&gt; (Ptr Word8 -&gt; IO (Maybe a)) -&gt; IO (Maybe a)
+forall a b. ForeignPtr a -&gt; (Ptr a -&gt; IO b) -&gt; IO b
+</span><span class="hs-identifier hs-var">withForeignPtr</span></span><span> </span><span class="annot"><span class="annottext">ForeignPtr Word8
+</span><a href="#local-6989586621679090685"><span class="hs-identifier hs-var">fptr</span></a></span><span> </span><span class="annot"><span class="annottext">((Ptr Word8 -&gt; IO (Maybe a)) -&gt; IO (Maybe a))
+-&gt; (Ptr Word8 -&gt; IO (Maybe a)) -&gt; IO (Maybe a)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679090693"><span class="annot"><span class="annottext">Ptr Word8
+</span><a href="#local-6989586621679090693"><span class="hs-identifier hs-var">p0</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-129"></span><span>        </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679090694"><span class="annot"><span class="annottext">p :: Ptr b
+</span><a href="#local-6989586621679090694"><span class="hs-identifier hs-var hs-var">p</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Ptr (ZonkAny 0) -&gt; Ptr b
+forall a b. Ptr a -&gt; Ptr b
+</span><span class="hs-identifier hs-var">castPtr</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Ptr Word8
+</span><a href="#local-6989586621679090693"><span class="hs-identifier hs-var">p0</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr Word8 -&gt; Int -&gt; Ptr (ZonkAny 0)
+forall a b. Ptr a -&gt; Int -&gt; Ptr b
+</span><span class="hs-operator hs-var">`plusPtr`</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679090686"><span class="hs-identifier hs-var">off</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-130"></span><span>        </span><span class="annot"><span class="annottext">a -&gt; Maybe a
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">(a -&gt; Maybe a) -&gt; IO a -&gt; IO (Maybe a)
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">Ptr a -&gt; IO a
+forall a. Storable a =&gt; Ptr a -&gt; IO a
+</span><span class="hs-identifier hs-var">peek</span></span><span> </span><span class="annot"><span class="annottext">Ptr a
+forall {b}. Ptr b
+</span><a href="#local-6989586621679090694"><span class="hs-identifier hs-var">p</span></a></span><span>
+</span><span id="line-131"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-132"></span><span>    </span><span id="local-6989586621679090688"><span class="annot"><span class="annottext">cid :: CmsgId
+</span><a href="#local-6989586621679090688"><span class="hs-identifier hs-var hs-var">cid</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">forall a. ControlMessage a =&gt; CmsgId
+</span><a href="Network.Socket.Posix.Cmsg.html#controlMessageId"><span class="hs-identifier hs-var">controlMessageId</span></a></span><span> </span><span class="hs-glyph">@</span><span class="annot"><a href="#local-6989586621679090430"><span class="hs-identifier hs-type">a</span></a></span><span>
+</span><span id="line-133"></span><span>    </span><span id="local-6989586621679090691"><span class="annot"><span class="annottext">siz :: Int
+</span><a href="#local-6989586621679090691"><span class="hs-identifier hs-var hs-var">siz</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">a -&gt; Int
+forall a. Storable a =&gt; a -&gt; Int
+</span><span class="hs-identifier hs-var">sizeOf</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a
+forall a. HasCallStack =&gt; a
+</span><span class="hs-identifier hs-var">undefined</span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="#local-6989586621679090430"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-134"></span><span>
+</span><span id="line-135"></span><span class="hs-comment">----------------------------------------------------------------</span><span>
+</span><span id="line-136"></span><span>
+</span><span id="line-137"></span><span class="annot"><span class="hs-comment">-- | Time to live of IPv4.</span></span><span>
+</span><span id="line-138"></span><span>
+</span><span id="line-139"></span><span class="hs-pragma">{-# LINE 141 &quot;Network/Socket/Posix/Cmsg.hsc&quot; #-}</span><span>
+</span><span id="line-141"></span><span class="hs-keyword">newtype</span><span> </span><span id="IPv4TTL"><span class="annot"><a href="Network.Socket.Posix.Cmsg.html#IPv4TTL"><span class="hs-identifier hs-var">IPv4TTL</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="IPv4TTL"><span class="annot"><a href="Network.Socket.Posix.Cmsg.html#IPv4TTL"><span class="hs-identifier hs-var">IPv4TTL</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">CInt</span></span><span> </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679090704"><span id="local-6989586621679090708"><span class="annot"><span class="annottext">IPv4TTL -&gt; IPv4TTL -&gt; Bool
+(IPv4TTL -&gt; IPv4TTL -&gt; Bool)
+-&gt; (IPv4TTL -&gt; IPv4TTL -&gt; Bool) -&gt; Eq IPv4TTL
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: IPv4TTL -&gt; IPv4TTL -&gt; Bool
+== :: IPv4TTL -&gt; IPv4TTL -&gt; Bool
+$c/= :: IPv4TTL -&gt; IPv4TTL -&gt; Bool
+/= :: IPv4TTL -&gt; IPv4TTL -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679090713"><span id="local-6989586621679090718"><span id="local-6989586621679090722"><span class="annot"><span class="annottext">Int -&gt; IPv4TTL -&gt; ShowS
+[IPv4TTL] -&gt; ShowS
+IPv4TTL -&gt; String
+(Int -&gt; IPv4TTL -&gt; ShowS)
+-&gt; (IPv4TTL -&gt; String) -&gt; ([IPv4TTL] -&gt; ShowS) -&gt; Show IPv4TTL
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; IPv4TTL -&gt; ShowS
+showsPrec :: Int -&gt; IPv4TTL -&gt; ShowS
+$cshow :: IPv4TTL -&gt; String
+show :: IPv4TTL -&gt; String
+$cshowList :: [IPv4TTL] -&gt; ShowS
+showList :: [IPv4TTL] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679090725"><span id="local-6989586621679090730"><span id="local-6989586621679090734"><span id="local-6989586621679090738"><span id="local-6989586621679090742"><span id="local-6989586621679090746"><span id="local-6989586621679090750"><span id="local-6989586621679090754"><span class="annot"><span class="annottext">Ptr IPv4TTL -&gt; IO IPv4TTL
+Ptr IPv4TTL -&gt; Int -&gt; IO IPv4TTL
+Ptr IPv4TTL -&gt; Int -&gt; IPv4TTL -&gt; IO ()
+Ptr IPv4TTL -&gt; IPv4TTL -&gt; IO ()
+IPv4TTL -&gt; Int
+(IPv4TTL -&gt; Int)
+-&gt; (IPv4TTL -&gt; Int)
+-&gt; (Ptr IPv4TTL -&gt; Int -&gt; IO IPv4TTL)
+-&gt; (Ptr IPv4TTL -&gt; Int -&gt; IPv4TTL -&gt; IO ())
+-&gt; (forall b. Ptr b -&gt; Int -&gt; IO IPv4TTL)
+-&gt; (forall b. Ptr b -&gt; Int -&gt; IPv4TTL -&gt; IO ())
+-&gt; (Ptr IPv4TTL -&gt; IO IPv4TTL)
+-&gt; (Ptr IPv4TTL -&gt; IPv4TTL -&gt; IO ())
+-&gt; Storable IPv4TTL
+forall b. Ptr b -&gt; Int -&gt; IO IPv4TTL
+forall b. Ptr b -&gt; Int -&gt; IPv4TTL -&gt; IO ()
+forall a.
+(a -&gt; Int)
+-&gt; (a -&gt; Int)
+-&gt; (Ptr a -&gt; Int -&gt; IO a)
+-&gt; (Ptr a -&gt; Int -&gt; a -&gt; IO ())
+-&gt; (forall b. Ptr b -&gt; Int -&gt; IO a)
+-&gt; (forall b. Ptr b -&gt; Int -&gt; a -&gt; IO ())
+-&gt; (Ptr a -&gt; IO a)
+-&gt; (Ptr a -&gt; a -&gt; IO ())
+-&gt; Storable a
+$csizeOf :: IPv4TTL -&gt; Int
+sizeOf :: IPv4TTL -&gt; Int
+$calignment :: IPv4TTL -&gt; Int
+alignment :: IPv4TTL -&gt; Int
+$cpeekElemOff :: Ptr IPv4TTL -&gt; Int -&gt; IO IPv4TTL
+peekElemOff :: Ptr IPv4TTL -&gt; Int -&gt; IO IPv4TTL
+$cpokeElemOff :: Ptr IPv4TTL -&gt; Int -&gt; IPv4TTL -&gt; IO ()
+pokeElemOff :: Ptr IPv4TTL -&gt; Int -&gt; IPv4TTL -&gt; IO ()
+$cpeekByteOff :: forall b. Ptr b -&gt; Int -&gt; IO IPv4TTL
+peekByteOff :: forall b. Ptr b -&gt; Int -&gt; IO IPv4TTL
+$cpokeByteOff :: forall b. Ptr b -&gt; Int -&gt; IPv4TTL -&gt; IO ()
+pokeByteOff :: forall b. Ptr b -&gt; Int -&gt; IPv4TTL -&gt; IO ()
+$cpeek :: Ptr IPv4TTL -&gt; IO IPv4TTL
+peek :: Ptr IPv4TTL -&gt; IO IPv4TTL
+$cpoke :: Ptr IPv4TTL -&gt; IPv4TTL -&gt; IO ()
+poke :: Ptr IPv4TTL -&gt; IPv4TTL -&gt; IO ()
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Storable</span></span></span></span></span></span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-142"></span><span>
+</span><span id="line-143"></span><span class="hs-pragma">{-# LINE 143 &quot;Network/Socket/Posix/Cmsg.hsc&quot; #-}</span><span>
+</span><span id="line-143"></span><span>
+</span><span id="line-144"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="Network.Socket.Posix.Cmsg.html#ControlMessage"><span class="hs-identifier hs-type">ControlMessage</span></a></span><span> </span><span class="annot"><a href="Network.Socket.Posix.Cmsg.html#IPv4TTL"><span class="hs-identifier hs-type">IPv4TTL</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-145"></span><span>    </span><span id="local-6989586621679090769"><span class="annot"><span class="annottext">controlMessageId :: CmsgId
+</span><a href="Network.Socket.Posix.Cmsg.html#controlMessageId"><span class="hs-identifier hs-var hs-var hs-var">controlMessageId</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">CmsgId
+</span><a href="Network.Socket.Posix.Cmsg.html#CmsgIdIPv4TTL"><span class="hs-identifier hs-var">CmsgIdIPv4TTL</span></a></span><span>
+</span><span id="line-146"></span><span>    </span><span id="local-6989586621679090772"><span class="annot"><span class="annottext">encodeCmsg :: IPv4TTL -&gt; Cmsg
+</span><a href="Network.Socket.Posix.Cmsg.html#encodeCmsg"><span class="hs-identifier hs-var hs-var hs-var">encodeCmsg</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">IPv4TTL -&gt; Cmsg
+forall a. (ControlMessage a, Storable a) =&gt; a -&gt; Cmsg
+</span><a href="Network.Socket.Posix.Cmsg.html#encodeStorableCmsg"><span class="hs-identifier hs-var">encodeStorableCmsg</span></a></span><span>
+</span><span id="line-147"></span><span>    </span><span id="local-6989586621679090775"><span class="annot"><span class="annottext">decodeCmsg :: Cmsg -&gt; Maybe IPv4TTL
+</span><a href="Network.Socket.Posix.Cmsg.html#decodeCmsg"><span class="hs-identifier hs-var hs-var hs-var">decodeCmsg</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Cmsg -&gt; Maybe IPv4TTL
+forall a. (ControlMessage a, Storable a) =&gt; Cmsg -&gt; Maybe a
+</span><a href="Network.Socket.Posix.Cmsg.html#decodeStorableCmsg"><span class="hs-identifier hs-var">decodeStorableCmsg</span></a></span><span>
+</span><span id="line-148"></span><span>
+</span><span id="line-149"></span><span class="hs-comment">----------------------------------------------------------------</span><span>
+</span><span id="line-150"></span><span>
+</span><span id="line-151"></span><span class="annot"><span class="hs-comment">-- | Hop limit of IPv6.</span></span><span>
+</span><span id="line-152"></span><span class="hs-keyword">newtype</span><span> </span><span id="IPv6HopLimit"><span class="annot"><a href="Network.Socket.Posix.Cmsg.html#IPv6HopLimit"><span class="hs-identifier hs-var">IPv6HopLimit</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="IPv6HopLimit"><span class="annot"><a href="Network.Socket.Posix.Cmsg.html#IPv6HopLimit"><span class="hs-identifier hs-var">IPv6HopLimit</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">CInt</span></span><span> </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679090777"><span id="local-6989586621679090781"><span class="annot"><span class="annottext">IPv6HopLimit -&gt; IPv6HopLimit -&gt; Bool
+(IPv6HopLimit -&gt; IPv6HopLimit -&gt; Bool)
+-&gt; (IPv6HopLimit -&gt; IPv6HopLimit -&gt; Bool) -&gt; Eq IPv6HopLimit
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: IPv6HopLimit -&gt; IPv6HopLimit -&gt; Bool
+== :: IPv6HopLimit -&gt; IPv6HopLimit -&gt; Bool
+$c/= :: IPv6HopLimit -&gt; IPv6HopLimit -&gt; Bool
+/= :: IPv6HopLimit -&gt; IPv6HopLimit -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679090786"><span id="local-6989586621679090790"><span id="local-6989586621679090794"><span class="annot"><span class="annottext">Int -&gt; IPv6HopLimit -&gt; ShowS
+[IPv6HopLimit] -&gt; ShowS
+IPv6HopLimit -&gt; String
+(Int -&gt; IPv6HopLimit -&gt; ShowS)
+-&gt; (IPv6HopLimit -&gt; String)
+-&gt; ([IPv6HopLimit] -&gt; ShowS)
+-&gt; Show IPv6HopLimit
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; IPv6HopLimit -&gt; ShowS
+showsPrec :: Int -&gt; IPv6HopLimit -&gt; ShowS
+$cshow :: IPv6HopLimit -&gt; String
+show :: IPv6HopLimit -&gt; String
+$cshowList :: [IPv6HopLimit] -&gt; ShowS
+showList :: [IPv6HopLimit] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679090797"><span id="local-6989586621679090801"><span id="local-6989586621679090805"><span id="local-6989586621679090809"><span id="local-6989586621679090813"><span id="local-6989586621679090817"><span id="local-6989586621679090821"><span id="local-6989586621679090825"><span class="annot"><span class="annottext">Ptr IPv6HopLimit -&gt; IO IPv6HopLimit
+Ptr IPv6HopLimit -&gt; Int -&gt; IO IPv6HopLimit
+Ptr IPv6HopLimit -&gt; Int -&gt; IPv6HopLimit -&gt; IO ()
+Ptr IPv6HopLimit -&gt; IPv6HopLimit -&gt; IO ()
+IPv6HopLimit -&gt; Int
+(IPv6HopLimit -&gt; Int)
+-&gt; (IPv6HopLimit -&gt; Int)
+-&gt; (Ptr IPv6HopLimit -&gt; Int -&gt; IO IPv6HopLimit)
+-&gt; (Ptr IPv6HopLimit -&gt; Int -&gt; IPv6HopLimit -&gt; IO ())
+-&gt; (forall b. Ptr b -&gt; Int -&gt; IO IPv6HopLimit)
+-&gt; (forall b. Ptr b -&gt; Int -&gt; IPv6HopLimit -&gt; IO ())
+-&gt; (Ptr IPv6HopLimit -&gt; IO IPv6HopLimit)
+-&gt; (Ptr IPv6HopLimit -&gt; IPv6HopLimit -&gt; IO ())
+-&gt; Storable IPv6HopLimit
+forall b. Ptr b -&gt; Int -&gt; IO IPv6HopLimit
+forall b. Ptr b -&gt; Int -&gt; IPv6HopLimit -&gt; IO ()
+forall a.
+(a -&gt; Int)
+-&gt; (a -&gt; Int)
+-&gt; (Ptr a -&gt; Int -&gt; IO a)
+-&gt; (Ptr a -&gt; Int -&gt; a -&gt; IO ())
+-&gt; (forall b. Ptr b -&gt; Int -&gt; IO a)
+-&gt; (forall b. Ptr b -&gt; Int -&gt; a -&gt; IO ())
+-&gt; (Ptr a -&gt; IO a)
+-&gt; (Ptr a -&gt; a -&gt; IO ())
+-&gt; Storable a
+$csizeOf :: IPv6HopLimit -&gt; Int
+sizeOf :: IPv6HopLimit -&gt; Int
+$calignment :: IPv6HopLimit -&gt; Int
+alignment :: IPv6HopLimit -&gt; Int
+$cpeekElemOff :: Ptr IPv6HopLimit -&gt; Int -&gt; IO IPv6HopLimit
+peekElemOff :: Ptr IPv6HopLimit -&gt; Int -&gt; IO IPv6HopLimit
+$cpokeElemOff :: Ptr IPv6HopLimit -&gt; Int -&gt; IPv6HopLimit -&gt; IO ()
+pokeElemOff :: Ptr IPv6HopLimit -&gt; Int -&gt; IPv6HopLimit -&gt; IO ()
+$cpeekByteOff :: forall b. Ptr b -&gt; Int -&gt; IO IPv6HopLimit
+peekByteOff :: forall b. Ptr b -&gt; Int -&gt; IO IPv6HopLimit
+$cpokeByteOff :: forall b. Ptr b -&gt; Int -&gt; IPv6HopLimit -&gt; IO ()
+pokeByteOff :: forall b. Ptr b -&gt; Int -&gt; IPv6HopLimit -&gt; IO ()
+$cpeek :: Ptr IPv6HopLimit -&gt; IO IPv6HopLimit
+peek :: Ptr IPv6HopLimit -&gt; IO IPv6HopLimit
+$cpoke :: Ptr IPv6HopLimit -&gt; IPv6HopLimit -&gt; IO ()
+poke :: Ptr IPv6HopLimit -&gt; IPv6HopLimit -&gt; IO ()
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Storable</span></span></span></span></span></span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-153"></span><span>
+</span><span id="line-154"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="Network.Socket.Posix.Cmsg.html#ControlMessage"><span class="hs-identifier hs-type">ControlMessage</span></a></span><span> </span><span class="annot"><a href="Network.Socket.Posix.Cmsg.html#IPv6HopLimit"><span class="hs-identifier hs-type">IPv6HopLimit</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-155"></span><span>    </span><span id="local-6989586621679090833"><span class="annot"><span class="annottext">controlMessageId :: CmsgId
+</span><a href="Network.Socket.Posix.Cmsg.html#controlMessageId"><span class="hs-identifier hs-var hs-var hs-var">controlMessageId</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">CmsgId
+</span><a href="Network.Socket.Posix.Cmsg.html#CmsgIdIPv6HopLimit"><span class="hs-identifier hs-var">CmsgIdIPv6HopLimit</span></a></span><span>
+</span><span id="line-156"></span><span>    </span><span id="local-6989586621679090836"><span class="annot"><span class="annottext">encodeCmsg :: IPv6HopLimit -&gt; Cmsg
+</span><a href="Network.Socket.Posix.Cmsg.html#encodeCmsg"><span class="hs-identifier hs-var hs-var hs-var">encodeCmsg</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">IPv6HopLimit -&gt; Cmsg
+forall a. (ControlMessage a, Storable a) =&gt; a -&gt; Cmsg
+</span><a href="Network.Socket.Posix.Cmsg.html#encodeStorableCmsg"><span class="hs-identifier hs-var">encodeStorableCmsg</span></a></span><span>
+</span><span id="line-157"></span><span>    </span><span id="local-6989586621679090839"><span class="annot"><span class="annottext">decodeCmsg :: Cmsg -&gt; Maybe IPv6HopLimit
+</span><a href="Network.Socket.Posix.Cmsg.html#decodeCmsg"><span class="hs-identifier hs-var hs-var hs-var">decodeCmsg</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Cmsg -&gt; Maybe IPv6HopLimit
+forall a. (ControlMessage a, Storable a) =&gt; Cmsg -&gt; Maybe a
+</span><a href="Network.Socket.Posix.Cmsg.html#decodeStorableCmsg"><span class="hs-identifier hs-var">decodeStorableCmsg</span></a></span><span>
+</span><span id="line-158"></span><span>
+</span><span id="line-159"></span><span class="hs-comment">----------------------------------------------------------------</span><span>
+</span><span id="line-160"></span><span>
+</span><span id="line-161"></span><span class="annot"><span class="hs-comment">-- | TOS of IPv4.</span></span><span>
+</span><span id="line-162"></span><span class="hs-keyword">newtype</span><span> </span><span id="IPv4TOS"><span class="annot"><a href="Network.Socket.Posix.Cmsg.html#IPv4TOS"><span class="hs-identifier hs-var">IPv4TOS</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="IPv4TOS"><span class="annot"><a href="Network.Socket.Posix.Cmsg.html#IPv4TOS"><span class="hs-identifier hs-var">IPv4TOS</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">CChar</span></span><span> </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679090841"><span id="local-6989586621679090846"><span class="annot"><span class="annottext">IPv4TOS -&gt; IPv4TOS -&gt; Bool
+(IPv4TOS -&gt; IPv4TOS -&gt; Bool)
+-&gt; (IPv4TOS -&gt; IPv4TOS -&gt; Bool) -&gt; Eq IPv4TOS
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: IPv4TOS -&gt; IPv4TOS -&gt; Bool
+== :: IPv4TOS -&gt; IPv4TOS -&gt; Bool
+$c/= :: IPv4TOS -&gt; IPv4TOS -&gt; Bool
+/= :: IPv4TOS -&gt; IPv4TOS -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679090851"><span id="local-6989586621679090856"><span id="local-6989586621679090860"><span class="annot"><span class="annottext">Int -&gt; IPv4TOS -&gt; ShowS
+[IPv4TOS] -&gt; ShowS
+IPv4TOS -&gt; String
+(Int -&gt; IPv4TOS -&gt; ShowS)
+-&gt; (IPv4TOS -&gt; String) -&gt; ([IPv4TOS] -&gt; ShowS) -&gt; Show IPv4TOS
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; IPv4TOS -&gt; ShowS
+showsPrec :: Int -&gt; IPv4TOS -&gt; ShowS
+$cshow :: IPv4TOS -&gt; String
+show :: IPv4TOS -&gt; String
+$cshowList :: [IPv4TOS] -&gt; ShowS
+showList :: [IPv4TOS] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679090863"><span id="local-6989586621679090868"><span id="local-6989586621679090872"><span id="local-6989586621679090876"><span id="local-6989586621679090880"><span id="local-6989586621679090884"><span id="local-6989586621679090888"><span id="local-6989586621679090892"><span class="annot"><span class="annottext">Ptr IPv4TOS -&gt; IO IPv4TOS
+Ptr IPv4TOS -&gt; Int -&gt; IO IPv4TOS
+Ptr IPv4TOS -&gt; Int -&gt; IPv4TOS -&gt; IO ()
+Ptr IPv4TOS -&gt; IPv4TOS -&gt; IO ()
+IPv4TOS -&gt; Int
+(IPv4TOS -&gt; Int)
+-&gt; (IPv4TOS -&gt; Int)
+-&gt; (Ptr IPv4TOS -&gt; Int -&gt; IO IPv4TOS)
+-&gt; (Ptr IPv4TOS -&gt; Int -&gt; IPv4TOS -&gt; IO ())
+-&gt; (forall b. Ptr b -&gt; Int -&gt; IO IPv4TOS)
+-&gt; (forall b. Ptr b -&gt; Int -&gt; IPv4TOS -&gt; IO ())
+-&gt; (Ptr IPv4TOS -&gt; IO IPv4TOS)
+-&gt; (Ptr IPv4TOS -&gt; IPv4TOS -&gt; IO ())
+-&gt; Storable IPv4TOS
+forall b. Ptr b -&gt; Int -&gt; IO IPv4TOS
+forall b. Ptr b -&gt; Int -&gt; IPv4TOS -&gt; IO ()
+forall a.
+(a -&gt; Int)
+-&gt; (a -&gt; Int)
+-&gt; (Ptr a -&gt; Int -&gt; IO a)
+-&gt; (Ptr a -&gt; Int -&gt; a -&gt; IO ())
+-&gt; (forall b. Ptr b -&gt; Int -&gt; IO a)
+-&gt; (forall b. Ptr b -&gt; Int -&gt; a -&gt; IO ())
+-&gt; (Ptr a -&gt; IO a)
+-&gt; (Ptr a -&gt; a -&gt; IO ())
+-&gt; Storable a
+$csizeOf :: IPv4TOS -&gt; Int
+sizeOf :: IPv4TOS -&gt; Int
+$calignment :: IPv4TOS -&gt; Int
+alignment :: IPv4TOS -&gt; Int
+$cpeekElemOff :: Ptr IPv4TOS -&gt; Int -&gt; IO IPv4TOS
+peekElemOff :: Ptr IPv4TOS -&gt; Int -&gt; IO IPv4TOS
+$cpokeElemOff :: Ptr IPv4TOS -&gt; Int -&gt; IPv4TOS -&gt; IO ()
+pokeElemOff :: Ptr IPv4TOS -&gt; Int -&gt; IPv4TOS -&gt; IO ()
+$cpeekByteOff :: forall b. Ptr b -&gt; Int -&gt; IO IPv4TOS
+peekByteOff :: forall b. Ptr b -&gt; Int -&gt; IO IPv4TOS
+$cpokeByteOff :: forall b. Ptr b -&gt; Int -&gt; IPv4TOS -&gt; IO ()
+pokeByteOff :: forall b. Ptr b -&gt; Int -&gt; IPv4TOS -&gt; IO ()
+$cpeek :: Ptr IPv4TOS -&gt; IO IPv4TOS
+peek :: Ptr IPv4TOS -&gt; IO IPv4TOS
+$cpoke :: Ptr IPv4TOS -&gt; IPv4TOS -&gt; IO ()
+poke :: Ptr IPv4TOS -&gt; IPv4TOS -&gt; IO ()
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Storable</span></span></span></span></span></span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-163"></span><span>
+</span><span id="line-164"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="Network.Socket.Posix.Cmsg.html#ControlMessage"><span class="hs-identifier hs-type">ControlMessage</span></a></span><span> </span><span class="annot"><a href="Network.Socket.Posix.Cmsg.html#IPv4TOS"><span class="hs-identifier hs-type">IPv4TOS</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-165"></span><span>    </span><span id="local-6989586621679090900"><span class="annot"><span class="annottext">controlMessageId :: CmsgId
+</span><a href="Network.Socket.Posix.Cmsg.html#controlMessageId"><span class="hs-identifier hs-var hs-var hs-var">controlMessageId</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">CmsgId
+</span><a href="Network.Socket.Posix.Cmsg.html#CmsgIdIPv4TOS"><span class="hs-identifier hs-var">CmsgIdIPv4TOS</span></a></span><span>
+</span><span id="line-166"></span><span>    </span><span id="local-6989586621679090903"><span class="annot"><span class="annottext">encodeCmsg :: IPv4TOS -&gt; Cmsg
+</span><a href="Network.Socket.Posix.Cmsg.html#encodeCmsg"><span class="hs-identifier hs-var hs-var hs-var">encodeCmsg</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">IPv4TOS -&gt; Cmsg
+forall a. (ControlMessage a, Storable a) =&gt; a -&gt; Cmsg
+</span><a href="Network.Socket.Posix.Cmsg.html#encodeStorableCmsg"><span class="hs-identifier hs-var">encodeStorableCmsg</span></a></span><span>
+</span><span id="line-167"></span><span>    </span><span id="local-6989586621679090906"><span class="annot"><span class="annottext">decodeCmsg :: Cmsg -&gt; Maybe IPv4TOS
+</span><a href="Network.Socket.Posix.Cmsg.html#decodeCmsg"><span class="hs-identifier hs-var hs-var hs-var">decodeCmsg</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Cmsg -&gt; Maybe IPv4TOS
+forall a. (ControlMessage a, Storable a) =&gt; Cmsg -&gt; Maybe a
+</span><a href="Network.Socket.Posix.Cmsg.html#decodeStorableCmsg"><span class="hs-identifier hs-var">decodeStorableCmsg</span></a></span><span>
+</span><span id="line-168"></span><span>
+</span><span id="line-169"></span><span class="hs-comment">----------------------------------------------------------------</span><span>
+</span><span id="line-170"></span><span>
+</span><span id="line-171"></span><span class="annot"><span class="hs-comment">-- | Traffic class of IPv6.</span></span><span>
+</span><span id="line-172"></span><span class="hs-keyword">newtype</span><span> </span><span id="IPv6TClass"><span class="annot"><a href="Network.Socket.Posix.Cmsg.html#IPv6TClass"><span class="hs-identifier hs-var">IPv6TClass</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="IPv6TClass"><span class="annot"><a href="Network.Socket.Posix.Cmsg.html#IPv6TClass"><span class="hs-identifier hs-var">IPv6TClass</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">CInt</span></span><span> </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679090908"><span id="local-6989586621679090912"><span class="annot"><span class="annottext">IPv6TClass -&gt; IPv6TClass -&gt; Bool
+(IPv6TClass -&gt; IPv6TClass -&gt; Bool)
+-&gt; (IPv6TClass -&gt; IPv6TClass -&gt; Bool) -&gt; Eq IPv6TClass
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: IPv6TClass -&gt; IPv6TClass -&gt; Bool
+== :: IPv6TClass -&gt; IPv6TClass -&gt; Bool
+$c/= :: IPv6TClass -&gt; IPv6TClass -&gt; Bool
+/= :: IPv6TClass -&gt; IPv6TClass -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679090917"><span id="local-6989586621679090921"><span id="local-6989586621679090925"><span class="annot"><span class="annottext">Int -&gt; IPv6TClass -&gt; ShowS
+[IPv6TClass] -&gt; ShowS
+IPv6TClass -&gt; String
+(Int -&gt; IPv6TClass -&gt; ShowS)
+-&gt; (IPv6TClass -&gt; String)
+-&gt; ([IPv6TClass] -&gt; ShowS)
+-&gt; Show IPv6TClass
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; IPv6TClass -&gt; ShowS
+showsPrec :: Int -&gt; IPv6TClass -&gt; ShowS
+$cshow :: IPv6TClass -&gt; String
+show :: IPv6TClass -&gt; String
+$cshowList :: [IPv6TClass] -&gt; ShowS
+showList :: [IPv6TClass] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679090928"><span id="local-6989586621679090932"><span id="local-6989586621679090936"><span id="local-6989586621679090940"><span id="local-6989586621679090944"><span id="local-6989586621679090948"><span id="local-6989586621679090952"><span id="local-6989586621679090956"><span class="annot"><span class="annottext">Ptr IPv6TClass -&gt; IO IPv6TClass
+Ptr IPv6TClass -&gt; Int -&gt; IO IPv6TClass
+Ptr IPv6TClass -&gt; Int -&gt; IPv6TClass -&gt; IO ()
+Ptr IPv6TClass -&gt; IPv6TClass -&gt; IO ()
+IPv6TClass -&gt; Int
+(IPv6TClass -&gt; Int)
+-&gt; (IPv6TClass -&gt; Int)
+-&gt; (Ptr IPv6TClass -&gt; Int -&gt; IO IPv6TClass)
+-&gt; (Ptr IPv6TClass -&gt; Int -&gt; IPv6TClass -&gt; IO ())
+-&gt; (forall b. Ptr b -&gt; Int -&gt; IO IPv6TClass)
+-&gt; (forall b. Ptr b -&gt; Int -&gt; IPv6TClass -&gt; IO ())
+-&gt; (Ptr IPv6TClass -&gt; IO IPv6TClass)
+-&gt; (Ptr IPv6TClass -&gt; IPv6TClass -&gt; IO ())
+-&gt; Storable IPv6TClass
+forall b. Ptr b -&gt; Int -&gt; IO IPv6TClass
+forall b. Ptr b -&gt; Int -&gt; IPv6TClass -&gt; IO ()
+forall a.
+(a -&gt; Int)
+-&gt; (a -&gt; Int)
+-&gt; (Ptr a -&gt; Int -&gt; IO a)
+-&gt; (Ptr a -&gt; Int -&gt; a -&gt; IO ())
+-&gt; (forall b. Ptr b -&gt; Int -&gt; IO a)
+-&gt; (forall b. Ptr b -&gt; Int -&gt; a -&gt; IO ())
+-&gt; (Ptr a -&gt; IO a)
+-&gt; (Ptr a -&gt; a -&gt; IO ())
+-&gt; Storable a
+$csizeOf :: IPv6TClass -&gt; Int
+sizeOf :: IPv6TClass -&gt; Int
+$calignment :: IPv6TClass -&gt; Int
+alignment :: IPv6TClass -&gt; Int
+$cpeekElemOff :: Ptr IPv6TClass -&gt; Int -&gt; IO IPv6TClass
+peekElemOff :: Ptr IPv6TClass -&gt; Int -&gt; IO IPv6TClass
+$cpokeElemOff :: Ptr IPv6TClass -&gt; Int -&gt; IPv6TClass -&gt; IO ()
+pokeElemOff :: Ptr IPv6TClass -&gt; Int -&gt; IPv6TClass -&gt; IO ()
+$cpeekByteOff :: forall b. Ptr b -&gt; Int -&gt; IO IPv6TClass
+peekByteOff :: forall b. Ptr b -&gt; Int -&gt; IO IPv6TClass
+$cpokeByteOff :: forall b. Ptr b -&gt; Int -&gt; IPv6TClass -&gt; IO ()
+pokeByteOff :: forall b. Ptr b -&gt; Int -&gt; IPv6TClass -&gt; IO ()
+$cpeek :: Ptr IPv6TClass -&gt; IO IPv6TClass
+peek :: Ptr IPv6TClass -&gt; IO IPv6TClass
+$cpoke :: Ptr IPv6TClass -&gt; IPv6TClass -&gt; IO ()
+poke :: Ptr IPv6TClass -&gt; IPv6TClass -&gt; IO ()
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Storable</span></span></span></span></span></span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-173"></span><span>
+</span><span id="line-174"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="Network.Socket.Posix.Cmsg.html#ControlMessage"><span class="hs-identifier hs-type">ControlMessage</span></a></span><span> </span><span class="annot"><a href="Network.Socket.Posix.Cmsg.html#IPv6TClass"><span class="hs-identifier hs-type">IPv6TClass</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-175"></span><span>    </span><span id="local-6989586621679090964"><span class="annot"><span class="annottext">controlMessageId :: CmsgId
+</span><a href="Network.Socket.Posix.Cmsg.html#controlMessageId"><span class="hs-identifier hs-var hs-var hs-var">controlMessageId</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">CmsgId
+</span><a href="Network.Socket.Posix.Cmsg.html#CmsgIdIPv6TClass"><span class="hs-identifier hs-var">CmsgIdIPv6TClass</span></a></span><span>
+</span><span id="line-176"></span><span>    </span><span id="local-6989586621679090967"><span class="annot"><span class="annottext">encodeCmsg :: IPv6TClass -&gt; Cmsg
+</span><a href="Network.Socket.Posix.Cmsg.html#encodeCmsg"><span class="hs-identifier hs-var hs-var hs-var">encodeCmsg</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">IPv6TClass -&gt; Cmsg
+forall a. (ControlMessage a, Storable a) =&gt; a -&gt; Cmsg
+</span><a href="Network.Socket.Posix.Cmsg.html#encodeStorableCmsg"><span class="hs-identifier hs-var">encodeStorableCmsg</span></a></span><span>
+</span><span id="line-177"></span><span>    </span><span id="local-6989586621679090970"><span class="annot"><span class="annottext">decodeCmsg :: Cmsg -&gt; Maybe IPv6TClass
+</span><a href="Network.Socket.Posix.Cmsg.html#decodeCmsg"><span class="hs-identifier hs-var hs-var hs-var">decodeCmsg</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Cmsg -&gt; Maybe IPv6TClass
+forall a. (ControlMessage a, Storable a) =&gt; Cmsg -&gt; Maybe a
+</span><a href="Network.Socket.Posix.Cmsg.html#decodeStorableCmsg"><span class="hs-identifier hs-var">decodeStorableCmsg</span></a></span><span>
+</span><span id="line-178"></span><span>
+</span><span id="line-179"></span><span class="hs-comment">----------------------------------------------------------------</span><span>
+</span><span id="line-180"></span><span>
+</span><span id="line-181"></span><span class="annot"><span class="hs-comment">-- | Network interface ID and local IPv4 address.</span></span><span>
+</span><span id="line-182"></span><span class="hs-keyword">data</span><span> </span><span id="IPv4PktInfo"><span class="annot"><a href="Network.Socket.Posix.Cmsg.html#IPv4PktInfo"><span class="hs-identifier hs-var">IPv4PktInfo</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="IPv4PktInfo"><span class="annot"><a href="Network.Socket.Posix.Cmsg.html#IPv4PktInfo"><span class="hs-identifier hs-var">IPv4PktInfo</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="annot"><a href="Network.Socket.Types.html#HostAddress"><span class="hs-identifier hs-type">HostAddress</span></a></span><span> </span><span class="annot"><a href="Network.Socket.Types.html#HostAddress"><span class="hs-identifier hs-type">HostAddress</span></a></span><span> </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679090972"><span id="local-6989586621679090979"><span class="annot"><span class="annottext">IPv4PktInfo -&gt; IPv4PktInfo -&gt; Bool
+(IPv4PktInfo -&gt; IPv4PktInfo -&gt; Bool)
+-&gt; (IPv4PktInfo -&gt; IPv4PktInfo -&gt; Bool) -&gt; Eq IPv4PktInfo
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: IPv4PktInfo -&gt; IPv4PktInfo -&gt; Bool
+== :: IPv4PktInfo -&gt; IPv4PktInfo -&gt; Bool
+$c/= :: IPv4PktInfo -&gt; IPv4PktInfo -&gt; Bool
+/= :: IPv4PktInfo -&gt; IPv4PktInfo -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-183"></span><span>
+</span><span id="line-184"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679090983"><span id="local-6989586621679090988"><span class="annot"><span class="hs-identifier hs-type">Show</span></span><span> </span><span class="annot"><a href="Network.Socket.Posix.Cmsg.html#IPv4PktInfo"><span class="hs-identifier hs-type">IPv4PktInfo</span></a></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-185"></span><span>    </span><span id="local-6989586621679091000"><span class="annot"><span class="annottext">show :: IPv4PktInfo -&gt; String
+</span><a href="#local-6989586621679091000"><span class="hs-identifier hs-var hs-var hs-var">show</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Network.Socket.Posix.Cmsg.html#IPv4PktInfo"><span class="hs-identifier hs-type">IPv4PktInfo</span></a></span><span> </span><span id="local-6989586621679091002"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679091002"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span id="local-6989586621679091003"><span class="annot"><span class="annottext">HostAddress
+</span><a href="#local-6989586621679091003"><span class="hs-identifier hs-var">sa</span></a></span></span><span> </span><span id="local-6989586621679091004"><span class="annot"><span class="annottext">HostAddress
+</span><a href="#local-6989586621679091004"><span class="hs-identifier hs-var">ha</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;IPv4PktInfo &quot;</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; ShowS
+forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; String
+forall a. Show a =&gt; a -&gt; String
+</span><span class="hs-identifier hs-var">show</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679091002"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">String -&gt; ShowS
+forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot; &quot;</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; ShowS
+forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">(Word8, Word8, Word8, Word8) -&gt; String
+forall a. Show a =&gt; a -&gt; String
+</span><span class="hs-identifier hs-var">show</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">HostAddress -&gt; (Word8, Word8, Word8, Word8)
+</span><a href="Network.Socket.Types.html#hostAddressToTuple"><span class="hs-identifier hs-var">hostAddressToTuple</span></a></span><span> </span><span class="annot"><span class="annottext">HostAddress
+</span><a href="#local-6989586621679091003"><span class="hs-identifier hs-var">sa</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">String -&gt; ShowS
+forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot; &quot;</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; ShowS
+forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">(Word8, Word8, Word8, Word8) -&gt; String
+forall a. Show a =&gt; a -&gt; String
+</span><span class="hs-identifier hs-var">show</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">HostAddress -&gt; (Word8, Word8, Word8, Word8)
+</span><a href="Network.Socket.Types.html#hostAddressToTuple"><span class="hs-identifier hs-var">hostAddressToTuple</span></a></span><span> </span><span class="annot"><span class="annottext">HostAddress
+</span><a href="#local-6989586621679091004"><span class="hs-identifier hs-var">ha</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-186"></span><span>
+</span><span id="line-187"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="Network.Socket.Posix.Cmsg.html#ControlMessage"><span class="hs-identifier hs-type">ControlMessage</span></a></span><span> </span><span class="annot"><a href="Network.Socket.Posix.Cmsg.html#IPv4PktInfo"><span class="hs-identifier hs-type">IPv4PktInfo</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-188"></span><span>    </span><span id="local-6989586621679091010"><span class="annot"><span class="annottext">controlMessageId :: CmsgId
+</span><a href="Network.Socket.Posix.Cmsg.html#controlMessageId"><span class="hs-identifier hs-var hs-var hs-var">controlMessageId</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">CmsgId
+</span><a href="Network.Socket.Posix.Cmsg.html#CmsgIdIPv4PktInfo"><span class="hs-identifier hs-var">CmsgIdIPv4PktInfo</span></a></span><span>
+</span><span id="line-189"></span><span>    </span><span id="local-6989586621679091014"><span class="annot"><span class="annottext">encodeCmsg :: IPv4PktInfo -&gt; Cmsg
+</span><a href="Network.Socket.Posix.Cmsg.html#encodeCmsg"><span class="hs-identifier hs-var hs-var hs-var">encodeCmsg</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">IPv4PktInfo -&gt; Cmsg
+forall a. (ControlMessage a, Storable a) =&gt; a -&gt; Cmsg
+</span><a href="Network.Socket.Posix.Cmsg.html#encodeStorableCmsg"><span class="hs-identifier hs-var">encodeStorableCmsg</span></a></span><span>
+</span><span id="line-190"></span><span>    </span><span id="local-6989586621679091017"><span class="annot"><span class="annottext">decodeCmsg :: Cmsg -&gt; Maybe IPv4PktInfo
+</span><a href="Network.Socket.Posix.Cmsg.html#decodeCmsg"><span class="hs-identifier hs-var hs-var hs-var">decodeCmsg</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Cmsg -&gt; Maybe IPv4PktInfo
+forall a. (ControlMessage a, Storable a) =&gt; Cmsg -&gt; Maybe a
+</span><a href="Network.Socket.Posix.Cmsg.html#decodeStorableCmsg"><span class="hs-identifier hs-var">decodeStorableCmsg</span></a></span><span>
+</span><span id="line-191"></span><span>
+</span><span id="line-192"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679091021"><span id="local-6989586621679091024"><span id="local-6989586621679091027"><span id="local-6989586621679091030"><span class="annot"><span class="hs-identifier hs-type">Storable</span></span><span> </span><span class="annot"><a href="Network.Socket.Posix.Cmsg.html#IPv4PktInfo"><span class="hs-identifier hs-type">IPv4PktInfo</span></a></span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-193"></span><span>
+</span><span id="line-194"></span><span class="hs-pragma">{-# LINE 194 &quot;Network/Socket/Posix/Cmsg.hsc&quot; #-}</span><span>
+</span><span id="line-194"></span><span>    </span><span class="hs-identifier">sizeOf</span><span>    </span><span class="hs-glyph">~</span><span class="hs-identifier">_</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="hs-number">12</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-195"></span><span class="hs-pragma">{-# LINE 195 &quot;Network/Socket/Posix/Cmsg.hsc&quot; #-}</span><span>
+</span><span id="line-195"></span><span>    </span><span class="hs-identifier">alignment</span><span> </span><span class="hs-glyph">~</span><span class="hs-identifier">_</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">alignment</span><span> </span><span class="hs-special">(</span><span class="hs-number">0</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">CInt</span><span class="hs-special">)</span><span>
+</span><span id="line-196"></span><span>    </span><span id="local-6989586621679091047"><span class="annot"><span class="annottext">poke :: Ptr IPv4PktInfo -&gt; IPv4PktInfo -&gt; IO ()
+</span><span class="hs-identifier hs-var hs-var hs-var">poke</span></span></span><span> </span><span id="local-6989586621679091048"><span class="annot"><span class="annottext">Ptr IPv4PktInfo
+</span><a href="#local-6989586621679091048"><span class="hs-identifier hs-var">p</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Network.Socket.Posix.Cmsg.html#IPv4PktInfo"><span class="hs-identifier hs-type">IPv4PktInfo</span></a></span><span> </span><span id="local-6989586621679091049"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679091049"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span id="local-6989586621679091050"><span class="annot"><span class="annottext">HostAddress
+</span><a href="#local-6989586621679091050"><span class="hs-identifier hs-var">sa</span></a></span></span><span> </span><span id="local-6989586621679091051"><span class="annot"><span class="annottext">HostAddress
+</span><a href="#local-6989586621679091051"><span class="hs-identifier hs-var">ha</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-197"></span><span>        </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="hs-glyph">\</span><span id="local-6989586621679091052"><span class="annot"><span class="annottext">Ptr IPv4PktInfo
+</span><a href="#local-6989586621679091052"><span class="hs-identifier hs-var">hsc_ptr</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Ptr IPv4PktInfo -&gt; Int -&gt; CInt -&gt; IO ()
+forall b. Ptr b -&gt; Int -&gt; CInt -&gt; IO ()
+forall a b. Storable a =&gt; Ptr b -&gt; Int -&gt; a -&gt; IO ()
+</span><span class="hs-identifier hs-var">pokeByteOff</span></span><span> </span><span class="annot"><span class="annottext">Ptr IPv4PktInfo
+</span><a href="#local-6989586621679091052"><span class="hs-identifier hs-var">hsc_ptr</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span>  </span><span class="annot"><span class="annottext">Ptr IPv4PktInfo
+</span><a href="#local-6989586621679091048"><span class="hs-identifier hs-var">p</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; CInt
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679091049"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">CInt</span></span><span class="hs-special">)</span><span>
+</span><span id="line-198"></span><span class="hs-pragma">{-# LINE 198 &quot;Network/Socket/Posix/Cmsg.hsc&quot; #-}</span><span>
+</span><span id="line-198"></span><span>        </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="hs-glyph">\</span><span id="local-6989586621679091053"><span class="annot"><span class="annottext">Ptr IPv4PktInfo
+</span><a href="#local-6989586621679091053"><span class="hs-identifier hs-var">hsc_ptr</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Ptr IPv4PktInfo -&gt; Int -&gt; HostAddress -&gt; IO ()
+forall b. Ptr b -&gt; Int -&gt; HostAddress -&gt; IO ()
+forall a b. Storable a =&gt; Ptr b -&gt; Int -&gt; a -&gt; IO ()
+</span><span class="hs-identifier hs-var">pokeByteOff</span></span><span> </span><span class="annot"><span class="annottext">Ptr IPv4PktInfo
+</span><a href="#local-6989586621679091053"><span class="hs-identifier hs-var">hsc_ptr</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">4</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Ptr IPv4PktInfo
+</span><a href="#local-6989586621679091048"><span class="hs-identifier hs-var">p</span></a></span><span> </span><span class="annot"><span class="annottext">HostAddress
+</span><a href="#local-6989586621679091050"><span class="hs-identifier hs-var">sa</span></a></span><span>
+</span><span id="line-199"></span><span class="hs-pragma">{-# LINE 199 &quot;Network/Socket/Posix/Cmsg.hsc&quot; #-}</span><span>
+</span><span id="line-199"></span><span>        </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="hs-glyph">\</span><span id="local-6989586621679091054"><span class="annot"><span class="annottext">Ptr IPv4PktInfo
+</span><a href="#local-6989586621679091054"><span class="hs-identifier hs-var">hsc_ptr</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Ptr IPv4PktInfo -&gt; Int -&gt; HostAddress -&gt; IO ()
+forall b. Ptr b -&gt; Int -&gt; HostAddress -&gt; IO ()
+forall a b. Storable a =&gt; Ptr b -&gt; Int -&gt; a -&gt; IO ()
+</span><span class="hs-identifier hs-var">pokeByteOff</span></span><span> </span><span class="annot"><span class="annottext">Ptr IPv4PktInfo
+</span><a href="#local-6989586621679091054"><span class="hs-identifier hs-var">hsc_ptr</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">8</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span>     </span><span class="annot"><span class="annottext">Ptr IPv4PktInfo
+</span><a href="#local-6989586621679091048"><span class="hs-identifier hs-var">p</span></a></span><span> </span><span class="annot"><span class="annottext">HostAddress
+</span><a href="#local-6989586621679091051"><span class="hs-identifier hs-var">ha</span></a></span><span>
+</span><span id="line-200"></span><span class="hs-pragma">{-# LINE 200 &quot;Network/Socket/Posix/Cmsg.hsc&quot; #-}</span><span>
+</span><span id="line-200"></span><span>    </span><span class="hs-identifier">peek</span><span> </span><span class="hs-identifier">p</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-201"></span><span>        </span><span class="hs-identifier">n</span><span>  </span><span class="hs-glyph">&lt;-</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="hs-glyph">\</span><span class="hs-identifier">hsc_ptr</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">peekByteOff</span><span> </span><span class="hs-identifier">hsc_ptr</span><span> </span><span class="hs-number">0</span><span class="hs-special">)</span><span class="hs-special">)</span><span>  </span><span class="hs-identifier">p</span><span>
+</span><span id="line-202"></span><span class="hs-pragma">{-# LINE 202 &quot;Network/Socket/Posix/Cmsg.hsc&quot; #-}</span><span>
+</span><span id="line-202"></span><span>        </span><span class="hs-identifier">sa</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="hs-glyph">\</span><span class="hs-identifier">hsc_ptr</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">peekByteOff</span><span> </span><span class="hs-identifier">hsc_ptr</span><span> </span><span class="hs-number">4</span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-identifier">p</span><span>
+</span><span id="line-203"></span><span class="hs-pragma">{-# LINE 203 &quot;Network/Socket/Posix/Cmsg.hsc&quot; #-}</span><span>
+</span><span id="line-203"></span><span>        </span><span class="hs-identifier">ha</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="hs-glyph">\</span><span class="hs-identifier">hsc_ptr</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">peekByteOff</span><span> </span><span class="hs-identifier">hsc_ptr</span><span> </span><span class="hs-number">8</span><span class="hs-special">)</span><span class="hs-special">)</span><span>     </span><span class="hs-identifier">p</span><span>
+</span><span id="line-204"></span><span class="hs-pragma">{-# LINE 204 &quot;Network/Socket/Posix/Cmsg.hsc&quot; #-}</span><span>
+</span><span id="line-204"></span><span>        </span><span class="hs-identifier">return</span><span> </span><span class="hs-operator">$</span><span> </span><span class="hs-identifier">IPv4PktInfo</span><span> </span><span class="hs-identifier">n</span><span> </span><span class="hs-identifier">sa</span><span> </span><span class="hs-identifier">ha</span><span>
+</span><span id="line-205"></span><span>
+</span><span id="line-206"></span><span class="hs-pragma">{-# LINE 211 &quot;Network/Socket/Posix/Cmsg.hsc&quot; #-}</span><span>
+</span><span id="line-211"></span><span>
+</span><span id="line-212"></span><span class="hs-comment">----------------------------------------------------------------</span><span>
+</span><span id="line-213"></span><span>
+</span><span id="line-214"></span><span class="annot"><span class="hs-comment">-- | Network interface ID and local IPv4 address.</span></span><span>
+</span><span id="line-215"></span><span class="hs-keyword">data</span><span> </span><span id="IPv6PktInfo"><span class="annot"><a href="Network.Socket.Posix.Cmsg.html#IPv6PktInfo"><span class="hs-identifier hs-var">IPv6PktInfo</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="IPv6PktInfo"><span class="annot"><a href="Network.Socket.Posix.Cmsg.html#IPv6PktInfo"><span class="hs-identifier hs-var">IPv6PktInfo</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="annot"><a href="Network.Socket.Types.html#HostAddress6"><span class="hs-identifier hs-type">HostAddress6</span></a></span><span> </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679091072"><span id="local-6989586621679091081"><span class="annot"><span class="annottext">IPv6PktInfo -&gt; IPv6PktInfo -&gt; Bool
+(IPv6PktInfo -&gt; IPv6PktInfo -&gt; Bool)
+-&gt; (IPv6PktInfo -&gt; IPv6PktInfo -&gt; Bool) -&gt; Eq IPv6PktInfo
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: IPv6PktInfo -&gt; IPv6PktInfo -&gt; Bool
+== :: IPv6PktInfo -&gt; IPv6PktInfo -&gt; Bool
+$c/= :: IPv6PktInfo -&gt; IPv6PktInfo -&gt; Bool
+/= :: IPv6PktInfo -&gt; IPv6PktInfo -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-216"></span><span>
+</span><span id="line-217"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679091085"><span id="local-6989586621679091090"><span class="annot"><span class="hs-identifier hs-type">Show</span></span><span> </span><span class="annot"><a href="Network.Socket.Posix.Cmsg.html#IPv6PktInfo"><span class="hs-identifier hs-type">IPv6PktInfo</span></a></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-218"></span><span>    </span><span id="local-6989586621679091104"><span class="annot"><span class="annottext">show :: IPv6PktInfo -&gt; String
+</span><span class="hs-identifier hs-var hs-var hs-var">show</span></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Network.Socket.Posix.Cmsg.html#IPv6PktInfo"><span class="hs-identifier hs-type">IPv6PktInfo</span></a></span><span> </span><span id="local-6989586621679091105"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679091105"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span id="local-6989586621679091106"><span class="annot"><span class="annottext">HostAddress6
+</span><a href="#local-6989586621679091106"><span class="hs-identifier hs-var">ha6</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;IPv6PktInfo &quot;</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; ShowS
+forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; String
+forall a. Show a =&gt; a -&gt; String
+</span><span class="hs-identifier hs-var">show</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679091105"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">String -&gt; ShowS
+forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot; &quot;</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; ShowS
+forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">(Word16, Word16, Word16, Word16, Word16, Word16, Word16, Word16)
+-&gt; String
+forall a. Show a =&gt; a -&gt; String
+</span><span class="hs-identifier hs-var">show</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">HostAddress6
+-&gt; (Word16, Word16, Word16, Word16, Word16, Word16, Word16, Word16)
+</span><a href="Network.Socket.Types.html#hostAddress6ToTuple"><span class="hs-identifier hs-var">hostAddress6ToTuple</span></a></span><span> </span><span class="annot"><span class="annottext">HostAddress6
+</span><a href="#local-6989586621679091106"><span class="hs-identifier hs-var">ha6</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-219"></span><span>
+</span><span id="line-220"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="Network.Socket.Posix.Cmsg.html#ControlMessage"><span class="hs-identifier hs-type">ControlMessage</span></a></span><span> </span><span class="annot"><a href="Network.Socket.Posix.Cmsg.html#IPv6PktInfo"><span class="hs-identifier hs-type">IPv6PktInfo</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-221"></span><span>    </span><span id="local-6989586621679091112"><span class="annot"><span class="annottext">controlMessageId :: CmsgId
+</span><a href="Network.Socket.Posix.Cmsg.html#controlMessageId"><span class="hs-identifier hs-var hs-var hs-var">controlMessageId</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">CmsgId
+</span><a href="Network.Socket.Posix.Cmsg.html#CmsgIdIPv6PktInfo"><span class="hs-identifier hs-var">CmsgIdIPv6PktInfo</span></a></span><span>
+</span><span id="line-222"></span><span>    </span><span id="local-6989586621679091116"><span class="annot"><span class="annottext">encodeCmsg :: IPv6PktInfo -&gt; Cmsg
+</span><a href="Network.Socket.Posix.Cmsg.html#encodeCmsg"><span class="hs-identifier hs-var hs-var hs-var">encodeCmsg</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">IPv6PktInfo -&gt; Cmsg
+forall a. (ControlMessage a, Storable a) =&gt; a -&gt; Cmsg
+</span><a href="Network.Socket.Posix.Cmsg.html#encodeStorableCmsg"><span class="hs-identifier hs-var">encodeStorableCmsg</span></a></span><span>
+</span><span id="line-223"></span><span>    </span><span id="local-6989586621679091119"><span class="annot"><span class="annottext">decodeCmsg :: Cmsg -&gt; Maybe IPv6PktInfo
+</span><a href="Network.Socket.Posix.Cmsg.html#decodeCmsg"><span class="hs-identifier hs-var hs-var hs-var">decodeCmsg</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Cmsg -&gt; Maybe IPv6PktInfo
+forall a. (ControlMessage a, Storable a) =&gt; Cmsg -&gt; Maybe a
+</span><a href="Network.Socket.Posix.Cmsg.html#decodeStorableCmsg"><span class="hs-identifier hs-var">decodeStorableCmsg</span></a></span><span>
+</span><span id="line-224"></span><span>
+</span><span id="line-225"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679091123"><span id="local-6989586621679091126"><span id="local-6989586621679091129"><span id="local-6989586621679091132"><span class="annot"><span class="hs-identifier hs-type">Storable</span></span><span> </span><span class="annot"><a href="Network.Socket.Posix.Cmsg.html#IPv6PktInfo"><span class="hs-identifier hs-type">IPv6PktInfo</span></a></span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-226"></span><span>
+</span><span id="line-227"></span><span class="hs-pragma">{-# LINE 227 &quot;Network/Socket/Posix/Cmsg.hsc&quot; #-}</span><span>
+</span><span id="line-227"></span><span>    </span><span class="hs-identifier">sizeOf</span><span>    </span><span class="hs-glyph">~</span><span class="hs-identifier">_</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="hs-number">20</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-228"></span><span class="hs-pragma">{-# LINE 228 &quot;Network/Socket/Posix/Cmsg.hsc&quot; #-}</span><span>
+</span><span id="line-228"></span><span>    </span><span class="hs-identifier">alignment</span><span> </span><span class="hs-glyph">~</span><span class="hs-identifier">_</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">alignment</span><span> </span><span class="hs-special">(</span><span class="hs-number">0</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">CInt</span><span class="hs-special">)</span><span>
+</span><span id="line-229"></span><span>    </span><span id="local-6989586621679091146"><span class="annot"><span class="annottext">poke :: Ptr IPv6PktInfo -&gt; IPv6PktInfo -&gt; IO ()
+</span><span class="hs-identifier hs-var hs-var hs-var">poke</span></span></span><span> </span><span id="local-6989586621679091147"><span class="annot"><span class="annottext">Ptr IPv6PktInfo
+</span><a href="#local-6989586621679091147"><span class="hs-identifier hs-var">p</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Network.Socket.Posix.Cmsg.html#IPv6PktInfo"><span class="hs-identifier hs-type">IPv6PktInfo</span></a></span><span> </span><span id="local-6989586621679091148"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679091148"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span id="local-6989586621679091149"><span class="annot"><span class="annottext">HostAddress6
+</span><a href="#local-6989586621679091149"><span class="hs-identifier hs-var">ha6</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-230"></span><span>        </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="hs-glyph">\</span><span id="local-6989586621679091150"><span class="annot"><span class="annottext">Ptr IPv6PktInfo
+</span><a href="#local-6989586621679091150"><span class="hs-identifier hs-var">hsc_ptr</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Ptr IPv6PktInfo -&gt; Int -&gt; CInt -&gt; IO ()
+forall b. Ptr b -&gt; Int -&gt; CInt -&gt; IO ()
+forall a b. Storable a =&gt; Ptr b -&gt; Int -&gt; a -&gt; IO ()
+</span><span class="hs-identifier hs-var">pokeByteOff</span></span><span> </span><span class="annot"><span class="annottext">Ptr IPv6PktInfo
+</span><a href="#local-6989586621679091150"><span class="hs-identifier hs-var">hsc_ptr</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">16</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Ptr IPv6PktInfo
+</span><a href="#local-6989586621679091147"><span class="hs-identifier hs-var">p</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; CInt
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679091148"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">CInt</span></span><span class="hs-special">)</span><span>
+</span><span id="line-231"></span><span class="hs-pragma">{-# LINE 231 &quot;Network/Socket/Posix/Cmsg.hsc&quot; #-}</span><span>
+</span><span id="line-231"></span><span>        </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="hs-glyph">\</span><span id="local-6989586621679091151"><span class="annot"><span class="annottext">Ptr IPv6PktInfo
+</span><a href="#local-6989586621679091151"><span class="hs-identifier hs-var">hsc_ptr</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Ptr IPv6PktInfo -&gt; Int -&gt; In6Addr -&gt; IO ()
+forall b. Ptr b -&gt; Int -&gt; In6Addr -&gt; IO ()
+forall a b. Storable a =&gt; Ptr b -&gt; Int -&gt; a -&gt; IO ()
+</span><span class="hs-identifier hs-var">pokeByteOff</span></span><span> </span><span class="annot"><span class="annottext">Ptr IPv6PktInfo
+</span><a href="#local-6989586621679091151"><span class="hs-identifier hs-var">hsc_ptr</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span>    </span><span class="annot"><span class="annottext">Ptr IPv6PktInfo
+</span><a href="#local-6989586621679091147"><span class="hs-identifier hs-var">p</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">HostAddress6 -&gt; In6Addr
+</span><a href="Network.Socket.Types.html#In6Addr"><span class="hs-identifier hs-var">In6Addr</span></a></span><span> </span><span class="annot"><span class="annottext">HostAddress6
+</span><a href="#local-6989586621679091149"><span class="hs-identifier hs-var">ha6</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-232"></span><span class="hs-pragma">{-# LINE 232 &quot;Network/Socket/Posix/Cmsg.hsc&quot; #-}</span><span>
+</span><span id="line-232"></span><span>    </span><span class="hs-identifier">peek</span><span> </span><span class="hs-identifier">p</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-233"></span><span>        </span><span class="hs-identifier">In6Addr</span><span> </span><span class="hs-identifier">ha6</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="hs-glyph">\</span><span class="hs-identifier">hsc_ptr</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">peekByteOff</span><span> </span><span class="hs-identifier">hsc_ptr</span><span> </span><span class="hs-number">0</span><span class="hs-special">)</span><span class="hs-special">)</span><span>    </span><span class="hs-identifier">p</span><span>
+</span><span id="line-234"></span><span class="hs-pragma">{-# LINE 234 &quot;Network/Socket/Posix/Cmsg.hsc&quot; #-}</span><span>
+</span><span id="line-234"></span><span>        </span><span class="hs-identifier">n</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">CInt</span><span>   </span><span class="hs-glyph">&lt;-</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="hs-glyph">\</span><span class="hs-identifier">hsc_ptr</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">peekByteOff</span><span> </span><span class="hs-identifier">hsc_ptr</span><span> </span><span class="hs-number">16</span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-identifier">p</span><span>
+</span><span id="line-235"></span><span class="hs-pragma">{-# LINE 235 &quot;Network/Socket/Posix/Cmsg.hsc&quot; #-}</span><span>
+</span><span id="line-235"></span><span>        </span><span class="hs-identifier">return</span><span> </span><span class="hs-operator">$</span><span> </span><span class="hs-identifier">IPv6PktInfo</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">fromIntegral</span><span> </span><span class="hs-identifier">n</span><span class="hs-special">)</span><span> </span><span class="hs-identifier">ha6</span><span>
+</span><span id="line-236"></span><span>
+</span><span id="line-237"></span><span class="hs-pragma">{-# LINE 242 &quot;Network/Socket/Posix/Cmsg.hsc&quot; #-}</span><span>
+</span><span id="line-242"></span><span>
+</span><span id="line-243"></span><span class="hs-comment">----------------------------------------------------------------</span><span>
+</span><span id="line-244"></span><span>
+</span><span id="line-245"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="Network.Socket.Posix.Cmsg.html#ControlMessage"><span class="hs-identifier hs-type">ControlMessage</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">Fd</span></span><span class="hs-special">]</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-246"></span><span>    </span><span id="local-6989586621679091172"><span class="annot"><span class="annottext">controlMessageId :: CmsgId
+</span><a href="Network.Socket.Posix.Cmsg.html#controlMessageId"><span class="hs-identifier hs-var hs-var hs-var">controlMessageId</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">CmsgId
+</span><a href="Network.Socket.Posix.Cmsg.html#CmsgIdFds"><span class="hs-identifier hs-var">CmsgIdFds</span></a></span><span>
+</span><span id="line-247"></span><span>
+</span><span id="line-248"></span><span>    </span><span id="local-6989586621679091177"><span class="annot"><span class="annottext">encodeCmsg :: [Fd] -&gt; Cmsg
+</span><a href="Network.Socket.Posix.Cmsg.html#encodeCmsg"><span class="hs-identifier hs-var hs-var hs-var">encodeCmsg</span></a></span></span><span> </span><span id="local-6989586621679091178"><span class="annot"><span class="annottext">[Fd]
+</span><a href="#local-6989586621679091178"><span class="hs-identifier hs-var">fds</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">IO Cmsg -&gt; Cmsg
+forall a. IO a -&gt; a
+</span><span class="hs-identifier hs-var">unsafeDupablePerformIO</span></span><span> </span><span class="annot"><span class="annottext">(IO Cmsg -&gt; Cmsg) -&gt; IO Cmsg -&gt; Cmsg
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-249"></span><span>        </span><span id="local-6989586621679091179"><span class="annot"><a href="#local-6989586621679091179"><span class="hs-identifier hs-var">bs</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Int -&gt; (Ptr Word8 -&gt; IO ()) -&gt; IO ByteString
+</span><span class="hs-identifier hs-var">create</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679091180"><span class="hs-identifier hs-var">siz</span></a></span><span> </span><span class="annot"><span class="annottext">((Ptr Word8 -&gt; IO ()) -&gt; IO ByteString)
+-&gt; (Ptr Word8 -&gt; IO ()) -&gt; IO ByteString
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679091181"><span class="annot"><span class="annottext">Ptr Word8
+</span><a href="#local-6989586621679091181"><span class="hs-identifier hs-var">p0</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-250"></span><span>            </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679091182"><span class="annot"><span class="annottext">p :: Ptr b
+</span><a href="#local-6989586621679091182"><span class="hs-identifier hs-var hs-var">p</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Ptr Word8 -&gt; Ptr b
+forall a b. Ptr a -&gt; Ptr b
+</span><span class="hs-identifier hs-var">castPtr</span></span><span> </span><span class="annot"><span class="annottext">Ptr Word8
+</span><a href="#local-6989586621679091181"><span class="hs-identifier hs-var">p0</span></a></span><span>
+</span><span id="line-251"></span><span>            </span><span class="annot"><span class="annottext">Ptr Fd -&gt; [Fd] -&gt; IO ()
+forall a. Storable a =&gt; Ptr a -&gt; [a] -&gt; IO ()
+</span><span class="hs-identifier hs-var">pokeArray</span></span><span> </span><span class="annot"><span class="annottext">Ptr Fd
+forall {b}. Ptr b
+</span><a href="#local-6989586621679091182"><span class="hs-identifier hs-var">p</span></a></span><span> </span><span class="annot"><span class="annottext">[Fd]
+</span><a href="#local-6989586621679091178"><span class="hs-identifier hs-var">fds</span></a></span><span>
+</span><span id="line-252"></span><span>        </span><span class="annot"><span class="hs-identifier hs-type">return</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">$</span></span><span> </span><span class="annot"><a href="Network.Socket.Posix.Cmsg.html#Cmsg"><span class="hs-identifier hs-type">Cmsg</span></a></span><span> </span><span class="annot"><a href="Network.Socket.Posix.Cmsg.html#CmsgIdFds"><span class="hs-identifier hs-type">CmsgIdFds</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679091179"><span class="hs-identifier hs-type">bs</span></a></span><span>
+</span><span id="line-253"></span><span>        </span><span class="hs-keyword">where</span><span>
+</span><span id="line-254"></span><span>            </span><span id="local-6989586621679091180"><span class="annot"><span class="annottext">siz :: Int
+</span><a href="#local-6989586621679091180"><span class="hs-identifier hs-var hs-var">siz</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Fd -&gt; Int
+forall a. Storable a =&gt; a -&gt; Int
+</span><span class="hs-identifier hs-var">sizeOf</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Fd
+forall a. HasCallStack =&gt; a
+</span><span class="hs-identifier hs-var">undefined</span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Fd</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">*</span></span><span> </span><span class="annot"><span class="annottext">[Fd] -&gt; Int
+forall a. [a] -&gt; Int
+forall (t :: * -&gt; *) a. Foldable t =&gt; t a -&gt; Int
+</span><span class="hs-identifier hs-var">length</span></span><span> </span><span class="annot"><span class="annottext">[Fd]
+</span><a href="#local-6989586621679091178"><span class="hs-identifier hs-var">fds</span></a></span><span>
+</span><span id="line-255"></span><span>
+</span><span id="line-256"></span><span>    </span><span id="local-6989586621679091193"><span class="annot"><span class="annottext">decodeCmsg :: Cmsg -&gt; Maybe [Fd]
+</span><a href="Network.Socket.Posix.Cmsg.html#decodeCmsg"><span class="hs-identifier hs-var hs-var hs-var">decodeCmsg</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Network.Socket.Posix.Cmsg.html#Cmsg"><span class="hs-identifier hs-type">Cmsg</span></a></span><span> </span><span id="local-6989586621679091194"><span class="annot"><span class="annottext">CmsgId
+</span><a href="#local-6989586621679091194"><span class="hs-identifier hs-var">cmsid</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">PS</span></span><span> </span><span id="local-6989586621679091195"><span class="annot"><span class="annottext">ForeignPtr Word8
+</span><a href="#local-6989586621679091195"><span class="hs-identifier hs-var">fptr</span></a></span></span><span> </span><span id="local-6989586621679091196"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679091196"><span class="hs-identifier hs-var">off</span></a></span></span><span> </span><span id="local-6989586621679091197"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679091197"><span class="hs-identifier hs-var">len</span></a></span></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-257"></span><span>        </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">CmsgId
+</span><a href="#local-6989586621679091194"><span class="hs-identifier hs-var">cmsid</span></a></span><span> </span><span class="annot"><span class="annottext">CmsgId -&gt; CmsgId -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">/=</span></span><span> </span><span class="annot"><span class="annottext">CmsgId
+</span><a href="Network.Socket.Posix.Cmsg.html#CmsgIdFds"><span class="hs-identifier hs-var">CmsgIdFds</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Maybe [Fd]
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-258"></span><span>        </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span>          </span><span class="hs-glyph">=</span><span>
+</span><span id="line-259"></span><span>            </span><span class="annot"><span class="annottext">IO (Maybe [Fd]) -&gt; Maybe [Fd]
+forall a. IO a -&gt; a
+</span><span class="hs-identifier hs-var">unsafeDupablePerformIO</span></span><span> </span><span class="annot"><span class="annottext">(IO (Maybe [Fd]) -&gt; Maybe [Fd]) -&gt; IO (Maybe [Fd]) -&gt; Maybe [Fd]
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">ForeignPtr Word8
+-&gt; (Ptr Word8 -&gt; IO (Maybe [Fd])) -&gt; IO (Maybe [Fd])
+forall a b. ForeignPtr a -&gt; (Ptr a -&gt; IO b) -&gt; IO b
+</span><span class="hs-identifier hs-var">withForeignPtr</span></span><span> </span><span class="annot"><span class="annottext">ForeignPtr Word8
+</span><a href="#local-6989586621679091195"><span class="hs-identifier hs-var">fptr</span></a></span><span> </span><span class="annot"><span class="annottext">((Ptr Word8 -&gt; IO (Maybe [Fd])) -&gt; IO (Maybe [Fd]))
+-&gt; (Ptr Word8 -&gt; IO (Maybe [Fd])) -&gt; IO (Maybe [Fd])
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679091198"><span class="annot"><span class="annottext">Ptr Word8
+</span><a href="#local-6989586621679091198"><span class="hs-identifier hs-var">p0</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-260"></span><span>                </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679091199"><span class="annot"><span class="annottext">p :: Ptr b
+</span><a href="#local-6989586621679091199"><span class="hs-identifier hs-var hs-var">p</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Ptr (ZonkAny 1) -&gt; Ptr b
+forall a b. Ptr a -&gt; Ptr b
+</span><span class="hs-identifier hs-var">castPtr</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Ptr Word8
+</span><a href="#local-6989586621679091198"><span class="hs-identifier hs-var">p0</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr Word8 -&gt; Int -&gt; Ptr (ZonkAny 1)
+forall a b. Ptr a -&gt; Int -&gt; Ptr b
+</span><span class="hs-operator hs-var">`plusPtr`</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679091196"><span class="hs-identifier hs-var">off</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-261"></span><span>                    </span><span id="local-6989586621679091201"><span class="annot"><span class="annottext">numFds :: Int
+</span><a href="#local-6989586621679091201"><span class="hs-identifier hs-var hs-var">numFds</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679091197"><span class="hs-identifier hs-var">len</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Integral a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">`div`</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679091203"><span class="hs-identifier hs-var">sizeOfFd</span></a></span><span>
+</span><span id="line-262"></span><span>                </span><span class="annot"><span class="annottext">[Fd] -&gt; Maybe [Fd]
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">([Fd] -&gt; Maybe [Fd]) -&gt; IO [Fd] -&gt; IO (Maybe [Fd])
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Ptr Fd -&gt; IO [Fd]
+forall a. Storable a =&gt; Int -&gt; Ptr a -&gt; IO [a]
+</span><span class="hs-identifier hs-var">peekArray</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679091201"><span class="hs-identifier hs-var">numFds</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr Fd
+forall {b}. Ptr b
+</span><a href="#local-6989586621679091199"><span class="hs-identifier hs-var">p</span></a></span><span>
+</span><span id="line-263"></span><span>        </span><span class="hs-keyword">where</span><span>
+</span><span id="line-264"></span><span>            </span><span id="local-6989586621679091203"><span class="annot"><span class="annottext">sizeOfFd :: Int
+</span><a href="#local-6989586621679091203"><span class="hs-identifier hs-var hs-var">sizeOfFd</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Fd -&gt; Int
+forall a. Storable a =&gt; a -&gt; Int
+</span><span class="hs-identifier hs-var">sizeOf</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Fd
+forall a. HasCallStack =&gt; a
+</span><span class="hs-identifier hs-var">undefined</span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Fd</span></span><span class="hs-special">)</span><span>
+</span><span id="line-265"></span><span>
+</span><span id="line-266"></span><span class="annot"><a href="Network.Socket.Posix.Cmsg.html#cmsgIdBijection"><span class="hs-identifier hs-type">cmsgIdBijection</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Network.Socket.ReadShow.html#Bijection"><span class="hs-identifier hs-type">Bijection</span></a></span><span> </span><span class="annot"><a href="Network.Socket.Posix.Cmsg.html#CmsgId"><span class="hs-identifier hs-type">CmsgId</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span>
+</span><span id="line-267"></span><span id="cmsgIdBijection"><span class="annot"><span class="annottext">cmsgIdBijection :: Bijection CmsgId String
+</span><a href="Network.Socket.Posix.Cmsg.html#cmsgIdBijection"><span class="hs-identifier hs-var hs-var">cmsgIdBijection</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-268"></span><span>    </span><span class="hs-special">[</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">CmsgId
+</span><a href="Network.Socket.Posix.Cmsg.html#UnsupportedCmsgId"><span class="hs-identifier hs-var">UnsupportedCmsgId</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;UnsupportedCmsgId&quot;</span></span><span class="hs-special">)</span><span>
+</span><span id="line-269"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">CmsgId
+</span><a href="Network.Socket.Posix.Cmsg.html#CmsgIdIPv4TTL"><span class="hs-identifier hs-var">CmsgIdIPv4TTL</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;CmsgIdIPv4TTL&quot;</span></span><span class="hs-special">)</span><span>
+</span><span id="line-270"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">CmsgId
+</span><a href="Network.Socket.Posix.Cmsg.html#CmsgIdIPv6HopLimit"><span class="hs-identifier hs-var">CmsgIdIPv6HopLimit</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;CmsgIdIPv6HopLimit&quot;</span></span><span class="hs-special">)</span><span>
+</span><span id="line-271"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">CmsgId
+</span><a href="Network.Socket.Posix.Cmsg.html#CmsgIdIPv4TOS"><span class="hs-identifier hs-var">CmsgIdIPv4TOS</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;CmsgIdIPv4TOS&quot;</span></span><span class="hs-special">)</span><span>
+</span><span id="line-272"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">CmsgId
+</span><a href="Network.Socket.Posix.Cmsg.html#CmsgIdIPv6TClass"><span class="hs-identifier hs-var">CmsgIdIPv6TClass</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;CmsgIdIPv6TClass&quot;</span></span><span class="hs-special">)</span><span>
+</span><span id="line-273"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">CmsgId
+</span><a href="Network.Socket.Posix.Cmsg.html#CmsgIdIPv4PktInfo"><span class="hs-identifier hs-var">CmsgIdIPv4PktInfo</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;CmsgIdIPv4PktInfo&quot;</span></span><span class="hs-special">)</span><span>
+</span><span id="line-274"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">CmsgId
+</span><a href="Network.Socket.Posix.Cmsg.html#CmsgIdIPv6PktInfo"><span class="hs-identifier hs-var">CmsgIdIPv6PktInfo</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;CmsgIdIPv6PktInfo&quot;</span></span><span class="hs-special">)</span><span>
+</span><span id="line-275"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">CmsgId
+</span><a href="Network.Socket.Posix.Cmsg.html#CmsgIdFds"><span class="hs-identifier hs-var">CmsgIdFds</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;CmsgIdFds&quot;</span></span><span class="hs-special">)</span><span>
+</span><span id="line-276"></span><span>    </span><span class="hs-special">]</span><span>
+</span><span id="line-277"></span><span>
+</span><span id="line-278"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679091210"><span id="local-6989586621679091213"><span class="annot"><span class="hs-identifier hs-type">Show</span></span><span> </span><span class="annot"><a href="Network.Socket.Posix.Cmsg.html#CmsgId"><span class="hs-identifier hs-type">CmsgId</span></a></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-279"></span><span>    </span><span id="local-6989586621679091216"><span class="annot"><span class="annottext">showsPrec :: Int -&gt; CmsgId -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var">showsPrec</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bijection CmsgId String
+-&gt; (Int -&gt; CmsgId -&gt; ShowS) -&gt; Int -&gt; CmsgId -&gt; ShowS
+forall a.
+Eq a =&gt;
+Bijection a String -&gt; (Int -&gt; a -&gt; ShowS) -&gt; Int -&gt; a -&gt; ShowS
+</span><a href="Network.Socket.ReadShow.html#bijectiveShow"><span class="hs-identifier hs-var">bijectiveShow</span></a></span><span> </span><span class="annot"><span class="annottext">Bijection CmsgId String
+</span><a href="Network.Socket.Posix.Cmsg.html#cmsgIdBijection"><span class="hs-identifier hs-var">cmsgIdBijection</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; CmsgId -&gt; ShowS
+</span><a href="#local-6989586621679091218"><span class="hs-identifier hs-var">def</span></a></span><span>
+</span><span id="line-280"></span><span>      </span><span class="hs-keyword">where</span><span>
+</span><span id="line-281"></span><span>        </span><span id="local-6989586621679091219"><span class="annot"><span class="annottext">defname :: String
+</span><a href="#local-6989586621679091219"><span class="hs-identifier hs-var hs-var">defname</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;CmsgId&quot;</span></span><span>
+</span><span id="line-282"></span><span>        </span><span id="local-6989586621679091220"><span class="annot"><span class="annottext">unId :: CmsgId -&gt; (CInt, CInt)
+</span><a href="#local-6989586621679091220"><span class="hs-identifier hs-var hs-var">unId</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span class="hs-special">(</span><span class="annot"><a href="Network.Socket.Posix.Cmsg.html#CmsgId"><span class="hs-identifier hs-type">CmsgId</span></a></span><span> </span><span id="local-6989586621679091221"><span class="annot"><span class="annottext">CInt
+</span><a href="#local-6989586621679091221"><span class="hs-identifier hs-var">l</span></a></span></span><span> </span><span id="local-6989586621679091222"><span class="annot"><span class="annottext">CInt
+</span><a href="#local-6989586621679091222"><span class="hs-identifier hs-var">t</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">CInt
+</span><a href="#local-6989586621679091221"><span class="hs-identifier hs-var">l</span></a></span><span class="hs-special">,</span><span class="annot"><span class="annottext">CInt
+</span><a href="#local-6989586621679091222"><span class="hs-identifier hs-var">t</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-283"></span><span>        </span><span id="local-6989586621679091218"><span class="annot"><span class="annottext">def :: Int -&gt; CmsgId -&gt; ShowS
+</span><a href="#local-6989586621679091218"><span class="hs-identifier hs-var hs-var">def</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+-&gt; (CmsgId -&gt; (CInt, CInt))
+-&gt; (Int -&gt; (CInt, CInt) -&gt; ShowS)
+-&gt; Int
+-&gt; CmsgId
+-&gt; ShowS
+forall a b.
+Eq a =&gt;
+String -&gt; (a -&gt; b) -&gt; (Int -&gt; b -&gt; ShowS) -&gt; Int -&gt; a -&gt; ShowS
+</span><a href="Network.Socket.ReadShow.html#defShow"><span class="hs-identifier hs-var">defShow</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679091219"><span class="hs-identifier hs-var">defname</span></a></span><span> </span><span class="annot"><span class="annottext">CmsgId -&gt; (CInt, CInt)
+</span><a href="#local-6989586621679091220"><span class="hs-identifier hs-var">unId</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; (CInt, CInt) -&gt; ShowS
+forall a b. (Show a, Show b) =&gt; Int -&gt; (a, b) -&gt; ShowS
+</span><a href="Network.Socket.ReadShow.html#showIntInt"><span class="hs-identifier hs-var">showIntInt</span></a></span><span>
+</span><span id="line-284"></span><span>
+</span><span id="line-285"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679091229"><span id="local-6989586621679091233"><span id="local-6989586621679091237"><span class="annot"><span class="hs-identifier hs-type">Read</span></span><span> </span><span class="annot"><a href="Network.Socket.Posix.Cmsg.html#CmsgId"><span class="hs-identifier hs-type">CmsgId</span></a></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-286"></span><span>    </span><span id="local-6989586621679091241"><span class="annot"><span class="annottext">readPrec :: ReadPrec CmsgId
+</span><a href="#local-6989586621679091241"><span class="hs-identifier hs-var hs-var hs-var">readPrec</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bijection CmsgId String -&gt; ReadPrec CmsgId -&gt; ReadPrec CmsgId
+forall a. Eq a =&gt; Bijection a String -&gt; ReadPrec a -&gt; ReadPrec a
+</span><a href="Network.Socket.ReadShow.html#bijectiveRead"><span class="hs-identifier hs-var">bijectiveRead</span></a></span><span> </span><span class="annot"><span class="annottext">Bijection CmsgId String
+</span><a href="Network.Socket.Posix.Cmsg.html#cmsgIdBijection"><span class="hs-identifier hs-var">cmsgIdBijection</span></a></span><span> </span><span class="annot"><span class="annottext">ReadPrec CmsgId
+</span><a href="#local-6989586621679091244"><span class="hs-identifier hs-var">def</span></a></span><span>
+</span><span id="line-287"></span><span>      </span><span class="hs-keyword">where</span><span>
+</span><span id="line-288"></span><span>        </span><span id="local-6989586621679091245"><span class="annot"><span class="annottext">defname :: String
+</span><a href="#local-6989586621679091245"><span class="hs-identifier hs-var hs-var">defname</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;CmsgId&quot;</span></span><span>
+</span><span id="line-289"></span><span>        </span><span id="local-6989586621679091244"><span class="annot"><span class="annottext">def :: ReadPrec CmsgId
+</span><a href="#local-6989586621679091244"><span class="hs-identifier hs-var hs-var">def</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+-&gt; ((CInt, CInt) -&gt; CmsgId)
+-&gt; ReadPrec (CInt, CInt)
+-&gt; ReadPrec CmsgId
+forall a b. Eq a =&gt; String -&gt; (b -&gt; a) -&gt; ReadPrec b -&gt; ReadPrec a
+</span><a href="Network.Socket.ReadShow.html#defRead"><span class="hs-identifier hs-var">defRead</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679091245"><span class="hs-identifier hs-var">defname</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(CInt -&gt; CInt -&gt; CmsgId) -&gt; (CInt, CInt) -&gt; CmsgId
+forall a b c. (a -&gt; b -&gt; c) -&gt; (a, b) -&gt; c
+</span><span class="hs-identifier hs-var">uncurry</span></span><span> </span><span class="annot"><span class="annottext">CInt -&gt; CInt -&gt; CmsgId
+</span><a href="Network.Socket.Posix.Cmsg.html#CmsgId"><span class="hs-identifier hs-var">CmsgId</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">ReadPrec (CInt, CInt)
+forall a b.
+(Bounded a, Integral a, Bounded b, Integral b) =&gt;
+ReadPrec (a, b)
+</span><a href="Network.Socket.ReadShow.html#readIntInt"><span class="hs-identifier hs-var">readIntInt</span></a></span><span>
+</span><span id="line-290"></span></pre></body></html>

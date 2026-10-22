@@ -1,0 +1,556 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-comment">{- ORMOLU_DISABLE -}</span><span>
+</span><span id="line-2"></span><span class="hs-comment">{- HLINT ignore -}</span><span>
+</span><span id="line-3"></span><span class="hs-comment">-- THIS IS A GENERATED FILE, DO NOT EDIT</span><span>
+</span><span id="line-4"></span><span>
+</span><span id="line-5"></span><span class="hs-pragma">{-# OPTIONS_GHC -Wno-unused-imports #-}</span><span>
+</span><span id="line-6"></span><span class="hs-pragma">{-# OPTIONS_GHC -Wno-unused-matches #-}</span><span>
+</span><span id="line-7"></span><span class="hs-pragma">{-# OPTIONS_GHC -Wno-deprecations #-}</span><span>
+</span><span id="line-8"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.ClientCompletionItemOptions.html"><span class="hs-identifier">Language.LSP.Protocol.Internal.Types.ClientCompletionItemOptions</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-9"></span><span>
+</span><span id="line-10"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.DeepSeq</span></span><span>
+</span><span id="line-11"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Hashable</span></span><span>
+</span><span id="line-12"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">GHC.Generics</span></span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Utils.Misc.html"><span class="hs-identifier">Language.LSP.Protocol.Utils.Misc</span></a></span><span>
+</span><span id="line-14"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Prettyprinter</span></span><span>
+</span><span id="line-15"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Aeson</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Aeson</span></span><span>
+</span><span id="line-16"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Data.Row.Aeson.html"><span class="hs-identifier">Data.Row.Aeson</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Aeson</span></span><span>
+</span><span id="line-17"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Data.Row.Hashable.html"><span class="hs-identifier">Data.Row.Hashable</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Hashable</span></span><span>
+</span><span id="line-18"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.ClientCompletionItemInsertTextModeOptions.html"><span class="hs-identifier">Language.LSP.Protocol.Internal.Types.ClientCompletionItemInsertTextModeOptions</span></a></span><span>
+</span><span id="line-19"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.ClientCompletionItemResolveOptions.html"><span class="hs-identifier">Language.LSP.Protocol.Internal.Types.ClientCompletionItemResolveOptions</span></a></span><span>
+</span><span id="line-20"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.CompletionItemTagOptions.html"><span class="hs-identifier">Language.LSP.Protocol.Internal.Types.CompletionItemTagOptions</span></a></span><span>
+</span><span id="line-21"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.MarkupKind.html"><span class="hs-identifier">Language.LSP.Protocol.Internal.Types.MarkupKind</span></a></span><span>
+</span><span id="line-22"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Types.Common.html"><span class="hs-identifier">Language.LSP.Protocol.Types.Common</span></a></span><span>
+</span><span id="line-23"></span><span>
+</span><span id="line-24"></span><span class="annot"><span class="hs-comment">{-|
+@since 3.18.0
+@proposed
+-}</span></span><span>
+</span><span id="line-28"></span><span class="hs-keyword">data</span><span> </span><span id="ClientCompletionItemOptions"><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.ClientCompletionItemOptions.html#ClientCompletionItemOptions"><span class="hs-identifier hs-var">ClientCompletionItemOptions</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="ClientCompletionItemOptions"><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.ClientCompletionItemOptions.html#ClientCompletionItemOptions"><span class="hs-identifier hs-var">ClientCompletionItemOptions</span></a></span></span><span> </span><span>
+</span><span id="line-29"></span><span>  </span><span class="hs-special">{</span><span> </span><span class="annot"><span class="hs-comment">{-|
+  Client supports snippets as insert text.
+
+  A snippet can define tab stops and placeholders with `$1`, `$2`
+  and `${3:foo}`. `$0` defines the final tab stop, it defaults to
+  the end of the snippet. Placeholders with equal identifiers are linked,
+  that is typing in one will update others too.
+  -}</span></span><span>
+</span><span id="line-37"></span><span>  </span><span id="_snippetSupport"><span class="annot"><span class="annottext">ClientCompletionItemOptions -&gt; Maybe Bool
+</span><a href="Language.LSP.Protocol.Internal.Types.ClientCompletionItemOptions.html#_snippetSupport"><span class="hs-identifier hs-var hs-var">_snippetSupport</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span class="hs-special">)</span><span>
+</span><span id="line-38"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-comment">{-|
+  Client supports commit characters on a completion item.
+  -}</span></span><span>
+</span><span id="line-41"></span><span>  </span><span id="_commitCharactersSupport"><span class="annot"><span class="annottext">ClientCompletionItemOptions -&gt; Maybe Bool
+</span><a href="Language.LSP.Protocol.Internal.Types.ClientCompletionItemOptions.html#_commitCharactersSupport"><span class="hs-identifier hs-var hs-var">_commitCharactersSupport</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span class="hs-special">)</span><span>
+</span><span id="line-42"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-comment">{-|
+  Client supports the following content formats for the documentation
+  property. The order describes the preferred format of the client.
+  -}</span></span><span>
+</span><span id="line-46"></span><span>  </span><span id="_documentationFormat"><span class="annot"><span class="annottext">ClientCompletionItemOptions -&gt; Maybe [MarkupKind]
+</span><a href="Language.LSP.Protocol.Internal.Types.ClientCompletionItemOptions.html#_documentationFormat"><span class="hs-identifier hs-var hs-var">_documentationFormat</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.MarkupKind.html#MarkupKind"><span class="hs-identifier hs-type">Language.LSP.Protocol.Internal.Types.MarkupKind.MarkupKind</span></a></span><span class="hs-special">]</span><span class="hs-special">)</span><span>
+</span><span id="line-47"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-comment">{-|
+  Client supports the deprecated property on a completion item.
+  -}</span></span><span>
+</span><span id="line-50"></span><span>  </span><span id="_deprecatedSupport"><span class="annot"><span class="annottext">ClientCompletionItemOptions -&gt; Maybe Bool
+</span><a href="Language.LSP.Protocol.Internal.Types.ClientCompletionItemOptions.html#_deprecatedSupport"><span class="hs-identifier hs-var hs-var">_deprecatedSupport</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span class="hs-special">)</span><span>
+</span><span id="line-51"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-comment">{-|
+  Client supports the preselect property on a completion item.
+  -}</span></span><span>
+</span><span id="line-54"></span><span>  </span><span id="_preselectSupport"><span class="annot"><span class="annottext">ClientCompletionItemOptions -&gt; Maybe Bool
+</span><a href="Language.LSP.Protocol.Internal.Types.ClientCompletionItemOptions.html#_preselectSupport"><span class="hs-identifier hs-var hs-var">_preselectSupport</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span class="hs-special">)</span><span>
+</span><span id="line-55"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-comment">{-|
+  Client supports the tag property on a completion item. Clients supporting
+  tags have to handle unknown tags gracefully. Clients especially need to
+  preserve unknown tags when sending a completion item back to the server in
+  a resolve call.
+
+  @since 3.15.0
+  -}</span></span><span>
+</span><span id="line-63"></span><span>  </span><span id="_tagSupport"><span class="annot"><span class="annottext">ClientCompletionItemOptions -&gt; Maybe CompletionItemTagOptions
+</span><a href="Language.LSP.Protocol.Internal.Types.ClientCompletionItemOptions.html#_tagSupport"><span class="hs-identifier hs-var hs-var">_tagSupport</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.CompletionItemTagOptions.html#CompletionItemTagOptions"><span class="hs-identifier hs-type">Language.LSP.Protocol.Internal.Types.CompletionItemTagOptions.CompletionItemTagOptions</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-64"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-comment">{-|
+  Client support insert replace edit to control different behavior if a
+  completion item is inserted in the text or should replace text.
+
+  @since 3.16.0
+  -}</span></span><span>
+</span><span id="line-70"></span><span>  </span><span id="_insertReplaceSupport"><span class="annot"><span class="annottext">ClientCompletionItemOptions -&gt; Maybe Bool
+</span><a href="Language.LSP.Protocol.Internal.Types.ClientCompletionItemOptions.html#_insertReplaceSupport"><span class="hs-identifier hs-var hs-var">_insertReplaceSupport</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span class="hs-special">)</span><span>
+</span><span id="line-71"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-comment">{-|
+  Indicates which properties a client can resolve lazily on a completion
+  item. Before version 3.16.0 only the predefined properties `documentation`
+  and `details` could be resolved lazily.
+
+  @since 3.16.0
+  -}</span></span><span>
+</span><span id="line-78"></span><span>  </span><span id="_resolveSupport"><span class="annot"><span class="annottext">ClientCompletionItemOptions
+-&gt; Maybe ClientCompletionItemResolveOptions
+</span><a href="Language.LSP.Protocol.Internal.Types.ClientCompletionItemOptions.html#_resolveSupport"><span class="hs-identifier hs-var hs-var">_resolveSupport</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.ClientCompletionItemResolveOptions.html#ClientCompletionItemResolveOptions"><span class="hs-identifier hs-type">Language.LSP.Protocol.Internal.Types.ClientCompletionItemResolveOptions.ClientCompletionItemResolveOptions</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-79"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-comment">{-|
+  The client supports the `insertTextMode` property on
+  a completion item to override the whitespace handling mode
+  as defined by the client (see `insertTextMode`).
+
+  @since 3.16.0
+  -}</span></span><span>
+</span><span id="line-86"></span><span>  </span><span id="_insertTextModeSupport"><span class="annot"><span class="annottext">ClientCompletionItemOptions
+-&gt; Maybe ClientCompletionItemInsertTextModeOptions
+</span><a href="Language.LSP.Protocol.Internal.Types.ClientCompletionItemOptions.html#_insertTextModeSupport"><span class="hs-identifier hs-var hs-var">_insertTextModeSupport</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.ClientCompletionItemInsertTextModeOptions.html#ClientCompletionItemInsertTextModeOptions"><span class="hs-identifier hs-type">Language.LSP.Protocol.Internal.Types.ClientCompletionItemInsertTextModeOptions.ClientCompletionItemInsertTextModeOptions</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-87"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-comment">{-|
+  The client has support for completion item label
+  details (see also `CompletionItemLabelDetails`).
+
+  @since 3.17.0
+  -}</span></span><span>
+</span><span id="line-93"></span><span>  </span><span id="_labelDetailsSupport"><span class="annot"><span class="annottext">ClientCompletionItemOptions -&gt; Maybe Bool
+</span><a href="Language.LSP.Protocol.Internal.Types.ClientCompletionItemOptions.html#_labelDetailsSupport"><span class="hs-identifier hs-var hs-var">_labelDetailsSupport</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span class="hs-special">)</span><span>
+</span><span id="line-94"></span><span>  </span><span class="hs-special">}</span><span>
+</span><span id="line-95"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">stock</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621682614372"><span id="local-6989586621682614392"><span id="local-6989586621682614396"><span class="annot"><span class="annottext">Int -&gt; ClientCompletionItemOptions -&gt; ShowS
+[ClientCompletionItemOptions] -&gt; ShowS
+ClientCompletionItemOptions -&gt; String
+(Int -&gt; ClientCompletionItemOptions -&gt; ShowS)
+-&gt; (ClientCompletionItemOptions -&gt; String)
+-&gt; ([ClientCompletionItemOptions] -&gt; ShowS)
+-&gt; Show ClientCompletionItemOptions
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; ClientCompletionItemOptions -&gt; ShowS
+showsPrec :: Int -&gt; ClientCompletionItemOptions -&gt; ShowS
+$cshow :: ClientCompletionItemOptions -&gt; String
+show :: ClientCompletionItemOptions -&gt; String
+$cshowList :: [ClientCompletionItemOptions] -&gt; ShowS
+showList :: [ClientCompletionItemOptions] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682614408"><span id="local-6989586621682614426"><span class="annot"><span class="annottext">ClientCompletionItemOptions -&gt; ClientCompletionItemOptions -&gt; Bool
+(ClientCompletionItemOptions
+ -&gt; ClientCompletionItemOptions -&gt; Bool)
+-&gt; (ClientCompletionItemOptions
+    -&gt; ClientCompletionItemOptions -&gt; Bool)
+-&gt; Eq ClientCompletionItemOptions
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: ClientCompletionItemOptions -&gt; ClientCompletionItemOptions -&gt; Bool
+== :: ClientCompletionItemOptions -&gt; ClientCompletionItemOptions -&gt; Bool
+$c/= :: ClientCompletionItemOptions -&gt; ClientCompletionItemOptions -&gt; Bool
+/= :: ClientCompletionItemOptions -&gt; ClientCompletionItemOptions -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682614440"><span id="local-6989586621682614458"><span id="local-6989586621682614475"><span id="local-6989586621682614479"><span id="local-6989586621682614482"><span id="local-6989586621682614485"><span id="local-6989586621682614488"><span class="annot"><span class="annottext">Eq ClientCompletionItemOptions
+Eq ClientCompletionItemOptions =&gt;
+(ClientCompletionItemOptions
+ -&gt; ClientCompletionItemOptions -&gt; Ordering)
+-&gt; (ClientCompletionItemOptions
+    -&gt; ClientCompletionItemOptions -&gt; Bool)
+-&gt; (ClientCompletionItemOptions
+    -&gt; ClientCompletionItemOptions -&gt; Bool)
+-&gt; (ClientCompletionItemOptions
+    -&gt; ClientCompletionItemOptions -&gt; Bool)
+-&gt; (ClientCompletionItemOptions
+    -&gt; ClientCompletionItemOptions -&gt; Bool)
+-&gt; (ClientCompletionItemOptions
+    -&gt; ClientCompletionItemOptions -&gt; ClientCompletionItemOptions)
+-&gt; (ClientCompletionItemOptions
+    -&gt; ClientCompletionItemOptions -&gt; ClientCompletionItemOptions)
+-&gt; Ord ClientCompletionItemOptions
+ClientCompletionItemOptions -&gt; ClientCompletionItemOptions -&gt; Bool
+ClientCompletionItemOptions
+-&gt; ClientCompletionItemOptions -&gt; Ordering
+ClientCompletionItemOptions
+-&gt; ClientCompletionItemOptions -&gt; ClientCompletionItemOptions
+forall a.
+Eq a =&gt;
+(a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+$ccompare :: ClientCompletionItemOptions
+-&gt; ClientCompletionItemOptions -&gt; Ordering
+compare :: ClientCompletionItemOptions
+-&gt; ClientCompletionItemOptions -&gt; Ordering
+$c&lt; :: ClientCompletionItemOptions -&gt; ClientCompletionItemOptions -&gt; Bool
+&lt; :: ClientCompletionItemOptions -&gt; ClientCompletionItemOptions -&gt; Bool
+$c&lt;= :: ClientCompletionItemOptions -&gt; ClientCompletionItemOptions -&gt; Bool
+&lt;= :: ClientCompletionItemOptions -&gt; ClientCompletionItemOptions -&gt; Bool
+$c&gt; :: ClientCompletionItemOptions -&gt; ClientCompletionItemOptions -&gt; Bool
+&gt; :: ClientCompletionItemOptions -&gt; ClientCompletionItemOptions -&gt; Bool
+$c&gt;= :: ClientCompletionItemOptions -&gt; ClientCompletionItemOptions -&gt; Bool
+&gt;= :: ClientCompletionItemOptions -&gt; ClientCompletionItemOptions -&gt; Bool
+$cmax :: ClientCompletionItemOptions
+-&gt; ClientCompletionItemOptions -&gt; ClientCompletionItemOptions
+max :: ClientCompletionItemOptions
+-&gt; ClientCompletionItemOptions -&gt; ClientCompletionItemOptions
+$cmin :: ClientCompletionItemOptions
+-&gt; ClientCompletionItemOptions -&gt; ClientCompletionItemOptions
+min :: ClientCompletionItemOptions
+-&gt; ClientCompletionItemOptions -&gt; ClientCompletionItemOptions
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682614504"><span id="local-6989586621682614506"><span class="annot"><span class="annottext">(forall x.
+ ClientCompletionItemOptions -&gt; Rep ClientCompletionItemOptions x)
+-&gt; (forall x.
+    Rep ClientCompletionItemOptions x -&gt; ClientCompletionItemOptions)
+-&gt; Generic ClientCompletionItemOptions
+forall x.
+Rep ClientCompletionItemOptions x -&gt; ClientCompletionItemOptions
+forall x.
+ClientCompletionItemOptions -&gt; Rep ClientCompletionItemOptions x
+forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+$cfrom :: forall x.
+ClientCompletionItemOptions -&gt; Rep ClientCompletionItemOptions x
+from :: forall x.
+ClientCompletionItemOptions -&gt; Rep ClientCompletionItemOptions x
+$cto :: forall x.
+Rep ClientCompletionItemOptions x -&gt; ClientCompletionItemOptions
+to :: forall x.
+Rep ClientCompletionItemOptions x -&gt; ClientCompletionItemOptions
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Generic</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-96"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">anyclass</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621682614512"><span class="annot"><span class="annottext">ClientCompletionItemOptions -&gt; ()
+(ClientCompletionItemOptions -&gt; ())
+-&gt; NFData ClientCompletionItemOptions
+forall a. (a -&gt; ()) -&gt; NFData a
+$crnf :: ClientCompletionItemOptions -&gt; ()
+rnf :: ClientCompletionItemOptions -&gt; ()
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">NFData</span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682614568"><span id="local-6989586621682614575"><span class="annot"><span class="annottext">Eq ClientCompletionItemOptions
+Eq ClientCompletionItemOptions =&gt;
+(Int -&gt; ClientCompletionItemOptions -&gt; Int)
+-&gt; (ClientCompletionItemOptions -&gt; Int)
+-&gt; Hashable ClientCompletionItemOptions
+Int -&gt; ClientCompletionItemOptions -&gt; Int
+ClientCompletionItemOptions -&gt; Int
+forall a. Eq a =&gt; (Int -&gt; a -&gt; Int) -&gt; (a -&gt; Int) -&gt; Hashable a
+$chashWithSalt :: Int -&gt; ClientCompletionItemOptions -&gt; Int
+hashWithSalt :: Int -&gt; ClientCompletionItemOptions -&gt; Int
+$chash :: ClientCompletionItemOptions -&gt; Int
+hash :: ClientCompletionItemOptions -&gt; Int
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Hashable</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-97"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span id="local-6989586621682614625"><span id="local-6989586621682614631"><span class="annot"><span class="annottext">(forall ann. ClientCompletionItemOptions -&gt; Doc ann)
+-&gt; (forall ann. [ClientCompletionItemOptions] -&gt; Doc ann)
+-&gt; Pretty ClientCompletionItemOptions
+forall ann. [ClientCompletionItemOptions] -&gt; Doc ann
+forall ann. ClientCompletionItemOptions -&gt; Doc ann
+forall a.
+(forall ann. a -&gt; Doc ann)
+-&gt; (forall ann. [a] -&gt; Doc ann) -&gt; Pretty a
+$cpretty :: forall ann. ClientCompletionItemOptions -&gt; Doc ann
+pretty :: forall ann. ClientCompletionItemOptions -&gt; Doc ann
+$cprettyList :: forall ann. [ClientCompletionItemOptions] -&gt; Doc ann
+prettyList :: forall ann. [ClientCompletionItemOptions] -&gt; Doc ann
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Pretty</span></span></span></span><span> </span><span class="hs-keyword">via</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.LSP.Protocol.Utils.Misc.html#ViaJSON"><span class="hs-identifier hs-type">ViaJSON</span></a></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.ClientCompletionItemOptions.html#ClientCompletionItemOptions"><span class="hs-identifier hs-type">ClientCompletionItemOptions</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-98"></span><span>
+</span><span id="line-99"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621682614642"><span id="local-6989586621682614645"><span id="local-6989586621682614648"><span id="local-6989586621682614651"><span class="annot"><span class="hs-identifier hs-type">Aeson.ToJSON</span></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.ClientCompletionItemOptions.html#ClientCompletionItemOptions"><span class="hs-identifier hs-type">ClientCompletionItemOptions</span></a></span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-100"></span><span>  </span><span id="local-6989586621682614686"><span class="annot"><span class="annottext">toJSON :: ClientCompletionItemOptions -&gt; Value
+</span><a href="#local-6989586621682614686"><span class="hs-identifier hs-var hs-var hs-var">toJSON</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.ClientCompletionItemOptions.html#ClientCompletionItemOptions"><span class="hs-identifier hs-type">ClientCompletionItemOptions</span></a></span><span> </span><span id="local-6989586621682614688"><span class="annot"><span class="annottext">Maybe Bool
+</span><a href="#local-6989586621682614688"><span class="hs-identifier hs-var">arg0</span></a></span></span><span> </span><span id="local-6989586621682614689"><span class="annot"><span class="annottext">Maybe Bool
+</span><a href="#local-6989586621682614689"><span class="hs-identifier hs-var">arg1</span></a></span></span><span> </span><span id="local-6989586621682614690"><span class="annot"><span class="annottext">Maybe [MarkupKind]
+</span><a href="#local-6989586621682614690"><span class="hs-identifier hs-var">arg2</span></a></span></span><span> </span><span id="local-6989586621682614691"><span class="annot"><span class="annottext">Maybe Bool
+</span><a href="#local-6989586621682614691"><span class="hs-identifier hs-var">arg3</span></a></span></span><span> </span><span id="local-6989586621682614692"><span class="annot"><span class="annottext">Maybe Bool
+</span><a href="#local-6989586621682614692"><span class="hs-identifier hs-var">arg4</span></a></span></span><span> </span><span id="local-6989586621682614693"><span class="annot"><span class="annottext">Maybe CompletionItemTagOptions
+</span><a href="#local-6989586621682614693"><span class="hs-identifier hs-var">arg5</span></a></span></span><span> </span><span id="local-6989586621682614694"><span class="annot"><span class="annottext">Maybe Bool
+</span><a href="#local-6989586621682614694"><span class="hs-identifier hs-var">arg6</span></a></span></span><span> </span><span id="local-6989586621682614695"><span class="annot"><span class="annottext">Maybe ClientCompletionItemResolveOptions
+</span><a href="#local-6989586621682614695"><span class="hs-identifier hs-var">arg7</span></a></span></span><span> </span><span id="local-6989586621682614696"><span class="annot"><span class="annottext">Maybe ClientCompletionItemInsertTextModeOptions
+</span><a href="#local-6989586621682614696"><span class="hs-identifier hs-var">arg8</span></a></span></span><span> </span><span id="local-6989586621682614697"><span class="annot"><span class="annottext">Maybe Bool
+</span><a href="#local-6989586621682614697"><span class="hs-identifier hs-var">arg9</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Pair] -&gt; Value
+</span><span class="hs-identifier hs-var">Aeson.object</span></span><span> </span><span class="annot"><span class="annottext">([Pair] -&gt; Value) -&gt; [Pair] -&gt; Value
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">[[Pair]] -&gt; [Pair]
+forall (t :: * -&gt; *) a. Foldable t =&gt; t [a] -&gt; [a]
+</span><span class="hs-identifier hs-var">concat</span></span><span> </span><span class="annot"><span class="annottext">([[Pair]] -&gt; [Pair]) -&gt; [[Pair]] -&gt; [Pair]
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>  </span><span class="hs-special">[</span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;snippetSupport&quot;</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; Maybe Bool -&gt; [Pair]
+forall e kv v.
+(KeyValue e kv, ToJSON v) =&gt;
+String -&gt; Maybe v -&gt; [kv]
+</span><a href="Language.LSP.Protocol.Types.Common.html#.%3D%3F"><span class="hs-operator hs-var">Language.LSP.Protocol.Types.Common..=?</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe Bool
+</span><a href="#local-6989586621682614688"><span class="hs-identifier hs-var">arg0</span></a></span><span>
+</span><span id="line-101"></span><span>    </span><span class="hs-special">,</span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;commitCharactersSupport&quot;</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; Maybe Bool -&gt; [Pair]
+forall e kv v.
+(KeyValue e kv, ToJSON v) =&gt;
+String -&gt; Maybe v -&gt; [kv]
+</span><a href="Language.LSP.Protocol.Types.Common.html#.%3D%3F"><span class="hs-operator hs-var">Language.LSP.Protocol.Types.Common..=?</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe Bool
+</span><a href="#local-6989586621682614689"><span class="hs-identifier hs-var">arg1</span></a></span><span>
+</span><span id="line-102"></span><span>    </span><span class="hs-special">,</span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;documentationFormat&quot;</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; Maybe [MarkupKind] -&gt; [Pair]
+forall e kv v.
+(KeyValue e kv, ToJSON v) =&gt;
+String -&gt; Maybe v -&gt; [kv]
+</span><a href="Language.LSP.Protocol.Types.Common.html#.%3D%3F"><span class="hs-operator hs-var">Language.LSP.Protocol.Types.Common..=?</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe [MarkupKind]
+</span><a href="#local-6989586621682614690"><span class="hs-identifier hs-var">arg2</span></a></span><span>
+</span><span id="line-103"></span><span>    </span><span class="hs-special">,</span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;deprecatedSupport&quot;</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; Maybe Bool -&gt; [Pair]
+forall e kv v.
+(KeyValue e kv, ToJSON v) =&gt;
+String -&gt; Maybe v -&gt; [kv]
+</span><a href="Language.LSP.Protocol.Types.Common.html#.%3D%3F"><span class="hs-operator hs-var">Language.LSP.Protocol.Types.Common..=?</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe Bool
+</span><a href="#local-6989586621682614691"><span class="hs-identifier hs-var">arg3</span></a></span><span>
+</span><span id="line-104"></span><span>    </span><span class="hs-special">,</span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;preselectSupport&quot;</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; Maybe Bool -&gt; [Pair]
+forall e kv v.
+(KeyValue e kv, ToJSON v) =&gt;
+String -&gt; Maybe v -&gt; [kv]
+</span><a href="Language.LSP.Protocol.Types.Common.html#.%3D%3F"><span class="hs-operator hs-var">Language.LSP.Protocol.Types.Common..=?</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe Bool
+</span><a href="#local-6989586621682614692"><span class="hs-identifier hs-var">arg4</span></a></span><span>
+</span><span id="line-105"></span><span>    </span><span class="hs-special">,</span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;tagSupport&quot;</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; Maybe CompletionItemTagOptions -&gt; [Pair]
+forall e kv v.
+(KeyValue e kv, ToJSON v) =&gt;
+String -&gt; Maybe v -&gt; [kv]
+</span><a href="Language.LSP.Protocol.Types.Common.html#.%3D%3F"><span class="hs-operator hs-var">Language.LSP.Protocol.Types.Common..=?</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe CompletionItemTagOptions
+</span><a href="#local-6989586621682614693"><span class="hs-identifier hs-var">arg5</span></a></span><span>
+</span><span id="line-106"></span><span>    </span><span class="hs-special">,</span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;insertReplaceSupport&quot;</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; Maybe Bool -&gt; [Pair]
+forall e kv v.
+(KeyValue e kv, ToJSON v) =&gt;
+String -&gt; Maybe v -&gt; [kv]
+</span><a href="Language.LSP.Protocol.Types.Common.html#.%3D%3F"><span class="hs-operator hs-var">Language.LSP.Protocol.Types.Common..=?</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe Bool
+</span><a href="#local-6989586621682614694"><span class="hs-identifier hs-var">arg6</span></a></span><span>
+</span><span id="line-107"></span><span>    </span><span class="hs-special">,</span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;resolveSupport&quot;</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; Maybe ClientCompletionItemResolveOptions -&gt; [Pair]
+forall e kv v.
+(KeyValue e kv, ToJSON v) =&gt;
+String -&gt; Maybe v -&gt; [kv]
+</span><a href="Language.LSP.Protocol.Types.Common.html#.%3D%3F"><span class="hs-operator hs-var">Language.LSP.Protocol.Types.Common..=?</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe ClientCompletionItemResolveOptions
+</span><a href="#local-6989586621682614695"><span class="hs-identifier hs-var">arg7</span></a></span><span>
+</span><span id="line-108"></span><span>    </span><span class="hs-special">,</span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;insertTextModeSupport&quot;</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; Maybe ClientCompletionItemInsertTextModeOptions -&gt; [Pair]
+forall e kv v.
+(KeyValue e kv, ToJSON v) =&gt;
+String -&gt; Maybe v -&gt; [kv]
+</span><a href="Language.LSP.Protocol.Types.Common.html#.%3D%3F"><span class="hs-operator hs-var">Language.LSP.Protocol.Types.Common..=?</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe ClientCompletionItemInsertTextModeOptions
+</span><a href="#local-6989586621682614696"><span class="hs-identifier hs-var">arg8</span></a></span><span>
+</span><span id="line-109"></span><span>    </span><span class="hs-special">,</span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;labelDetailsSupport&quot;</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; Maybe Bool -&gt; [Pair]
+forall e kv v.
+(KeyValue e kv, ToJSON v) =&gt;
+String -&gt; Maybe v -&gt; [kv]
+</span><a href="Language.LSP.Protocol.Types.Common.html#.%3D%3F"><span class="hs-operator hs-var">Language.LSP.Protocol.Types.Common..=?</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe Bool
+</span><a href="#local-6989586621682614697"><span class="hs-identifier hs-var">arg9</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-110"></span><span>
+</span><span id="line-111"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621682614703"><span id="local-6989586621682614707"><span class="annot"><span class="hs-identifier hs-type">Aeson.FromJSON</span></span><span> </span><span class="annot"><a href="Language.LSP.Protocol.Internal.Types.ClientCompletionItemOptions.html#ClientCompletionItemOptions"><span class="hs-identifier hs-type">ClientCompletionItemOptions</span></a></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-112"></span><span>  </span><span id="local-6989586621682614750"><span class="annot"><span class="annottext">parseJSON :: Value -&gt; Parser ClientCompletionItemOptions
+</span><a href="#local-6989586621682614750"><span class="hs-identifier hs-var hs-var hs-var">parseJSON</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+-&gt; (Object -&gt; Parser ClientCompletionItemOptions)
+-&gt; Value
+-&gt; Parser ClientCompletionItemOptions
+forall a. String -&gt; (Object -&gt; Parser a) -&gt; Value -&gt; Parser a
+</span><span class="hs-identifier hs-var">Aeson.withObject</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;ClientCompletionItemOptions&quot;</span></span><span> </span><span class="annot"><span class="annottext">((Object -&gt; Parser ClientCompletionItemOptions)
+ -&gt; Value -&gt; Parser ClientCompletionItemOptions)
+-&gt; (Object -&gt; Parser ClientCompletionItemOptions)
+-&gt; Value
+-&gt; Parser ClientCompletionItemOptions
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621682614753"><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621682614753"><span class="hs-identifier hs-var">arg</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Maybe Bool
+-&gt; Maybe Bool
+-&gt; Maybe [MarkupKind]
+-&gt; Maybe Bool
+-&gt; Maybe Bool
+-&gt; Maybe CompletionItemTagOptions
+-&gt; Maybe Bool
+-&gt; Maybe ClientCompletionItemResolveOptions
+-&gt; Maybe ClientCompletionItemInsertTextModeOptions
+-&gt; Maybe Bool
+-&gt; ClientCompletionItemOptions
+</span><a href="Language.LSP.Protocol.Internal.Types.ClientCompletionItemOptions.html#ClientCompletionItemOptions"><span class="hs-identifier hs-var">ClientCompletionItemOptions</span></a></span><span> </span><span class="annot"><span class="annottext">(Maybe Bool
+ -&gt; Maybe Bool
+ -&gt; Maybe [MarkupKind]
+ -&gt; Maybe Bool
+ -&gt; Maybe Bool
+ -&gt; Maybe CompletionItemTagOptions
+ -&gt; Maybe Bool
+ -&gt; Maybe ClientCompletionItemResolveOptions
+ -&gt; Maybe ClientCompletionItemInsertTextModeOptions
+ -&gt; Maybe Bool
+ -&gt; ClientCompletionItemOptions)
+-&gt; Parser (Maybe Bool)
+-&gt; Parser
+     (Maybe Bool
+      -&gt; Maybe [MarkupKind]
+      -&gt; Maybe Bool
+      -&gt; Maybe Bool
+      -&gt; Maybe CompletionItemTagOptions
+      -&gt; Maybe Bool
+      -&gt; Maybe ClientCompletionItemResolveOptions
+      -&gt; Maybe ClientCompletionItemInsertTextModeOptions
+      -&gt; Maybe Bool
+      -&gt; ClientCompletionItemOptions)
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621682614753"><span class="hs-identifier hs-var">arg</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser (Maybe Bool)
+forall v. FromJSON v =&gt; Object -&gt; Key -&gt; Parser (Maybe v)
+</span><a href="Language.LSP.Protocol.Types.Common.html#.%3A%21%3F"><span class="hs-operator hs-var">Language.LSP.Protocol.Types.Common..:!?</span></a></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;snippetSupport&quot;</span></span><span> </span><span class="annot"><span class="annottext">Parser
+  (Maybe Bool
+   -&gt; Maybe [MarkupKind]
+   -&gt; Maybe Bool
+   -&gt; Maybe Bool
+   -&gt; Maybe CompletionItemTagOptions
+   -&gt; Maybe Bool
+   -&gt; Maybe ClientCompletionItemResolveOptions
+   -&gt; Maybe ClientCompletionItemInsertTextModeOptions
+   -&gt; Maybe Bool
+   -&gt; ClientCompletionItemOptions)
+-&gt; Parser (Maybe Bool)
+-&gt; Parser
+     (Maybe [MarkupKind]
+      -&gt; Maybe Bool
+      -&gt; Maybe Bool
+      -&gt; Maybe CompletionItemTagOptions
+      -&gt; Maybe Bool
+      -&gt; Maybe ClientCompletionItemResolveOptions
+      -&gt; Maybe ClientCompletionItemInsertTextModeOptions
+      -&gt; Maybe Bool
+      -&gt; ClientCompletionItemOptions)
+forall a b. Parser (a -&gt; b) -&gt; Parser a -&gt; Parser b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621682614753"><span class="hs-identifier hs-var">arg</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser (Maybe Bool)
+forall v. FromJSON v =&gt; Object -&gt; Key -&gt; Parser (Maybe v)
+</span><a href="Language.LSP.Protocol.Types.Common.html#.%3A%21%3F"><span class="hs-operator hs-var">Language.LSP.Protocol.Types.Common..:!?</span></a></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;commitCharactersSupport&quot;</span></span><span> </span><span class="annot"><span class="annottext">Parser
+  (Maybe [MarkupKind]
+   -&gt; Maybe Bool
+   -&gt; Maybe Bool
+   -&gt; Maybe CompletionItemTagOptions
+   -&gt; Maybe Bool
+   -&gt; Maybe ClientCompletionItemResolveOptions
+   -&gt; Maybe ClientCompletionItemInsertTextModeOptions
+   -&gt; Maybe Bool
+   -&gt; ClientCompletionItemOptions)
+-&gt; Parser (Maybe [MarkupKind])
+-&gt; Parser
+     (Maybe Bool
+      -&gt; Maybe Bool
+      -&gt; Maybe CompletionItemTagOptions
+      -&gt; Maybe Bool
+      -&gt; Maybe ClientCompletionItemResolveOptions
+      -&gt; Maybe ClientCompletionItemInsertTextModeOptions
+      -&gt; Maybe Bool
+      -&gt; ClientCompletionItemOptions)
+forall a b. Parser (a -&gt; b) -&gt; Parser a -&gt; Parser b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621682614753"><span class="hs-identifier hs-var">arg</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser (Maybe [MarkupKind])
+forall v. FromJSON v =&gt; Object -&gt; Key -&gt; Parser (Maybe v)
+</span><a href="Language.LSP.Protocol.Types.Common.html#.%3A%21%3F"><span class="hs-operator hs-var">Language.LSP.Protocol.Types.Common..:!?</span></a></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;documentationFormat&quot;</span></span><span> </span><span class="annot"><span class="annottext">Parser
+  (Maybe Bool
+   -&gt; Maybe Bool
+   -&gt; Maybe CompletionItemTagOptions
+   -&gt; Maybe Bool
+   -&gt; Maybe ClientCompletionItemResolveOptions
+   -&gt; Maybe ClientCompletionItemInsertTextModeOptions
+   -&gt; Maybe Bool
+   -&gt; ClientCompletionItemOptions)
+-&gt; Parser (Maybe Bool)
+-&gt; Parser
+     (Maybe Bool
+      -&gt; Maybe CompletionItemTagOptions
+      -&gt; Maybe Bool
+      -&gt; Maybe ClientCompletionItemResolveOptions
+      -&gt; Maybe ClientCompletionItemInsertTextModeOptions
+      -&gt; Maybe Bool
+      -&gt; ClientCompletionItemOptions)
+forall a b. Parser (a -&gt; b) -&gt; Parser a -&gt; Parser b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621682614753"><span class="hs-identifier hs-var">arg</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser (Maybe Bool)
+forall v. FromJSON v =&gt; Object -&gt; Key -&gt; Parser (Maybe v)
+</span><a href="Language.LSP.Protocol.Types.Common.html#.%3A%21%3F"><span class="hs-operator hs-var">Language.LSP.Protocol.Types.Common..:!?</span></a></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;deprecatedSupport&quot;</span></span><span> </span><span class="annot"><span class="annottext">Parser
+  (Maybe Bool
+   -&gt; Maybe CompletionItemTagOptions
+   -&gt; Maybe Bool
+   -&gt; Maybe ClientCompletionItemResolveOptions
+   -&gt; Maybe ClientCompletionItemInsertTextModeOptions
+   -&gt; Maybe Bool
+   -&gt; ClientCompletionItemOptions)
+-&gt; Parser (Maybe Bool)
+-&gt; Parser
+     (Maybe CompletionItemTagOptions
+      -&gt; Maybe Bool
+      -&gt; Maybe ClientCompletionItemResolveOptions
+      -&gt; Maybe ClientCompletionItemInsertTextModeOptions
+      -&gt; Maybe Bool
+      -&gt; ClientCompletionItemOptions)
+forall a b. Parser (a -&gt; b) -&gt; Parser a -&gt; Parser b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621682614753"><span class="hs-identifier hs-var">arg</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser (Maybe Bool)
+forall v. FromJSON v =&gt; Object -&gt; Key -&gt; Parser (Maybe v)
+</span><a href="Language.LSP.Protocol.Types.Common.html#.%3A%21%3F"><span class="hs-operator hs-var">Language.LSP.Protocol.Types.Common..:!?</span></a></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;preselectSupport&quot;</span></span><span> </span><span class="annot"><span class="annottext">Parser
+  (Maybe CompletionItemTagOptions
+   -&gt; Maybe Bool
+   -&gt; Maybe ClientCompletionItemResolveOptions
+   -&gt; Maybe ClientCompletionItemInsertTextModeOptions
+   -&gt; Maybe Bool
+   -&gt; ClientCompletionItemOptions)
+-&gt; Parser (Maybe CompletionItemTagOptions)
+-&gt; Parser
+     (Maybe Bool
+      -&gt; Maybe ClientCompletionItemResolveOptions
+      -&gt; Maybe ClientCompletionItemInsertTextModeOptions
+      -&gt; Maybe Bool
+      -&gt; ClientCompletionItemOptions)
+forall a b. Parser (a -&gt; b) -&gt; Parser a -&gt; Parser b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621682614753"><span class="hs-identifier hs-var">arg</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser (Maybe CompletionItemTagOptions)
+forall v. FromJSON v =&gt; Object -&gt; Key -&gt; Parser (Maybe v)
+</span><a href="Language.LSP.Protocol.Types.Common.html#.%3A%21%3F"><span class="hs-operator hs-var">Language.LSP.Protocol.Types.Common..:!?</span></a></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;tagSupport&quot;</span></span><span> </span><span class="annot"><span class="annottext">Parser
+  (Maybe Bool
+   -&gt; Maybe ClientCompletionItemResolveOptions
+   -&gt; Maybe ClientCompletionItemInsertTextModeOptions
+   -&gt; Maybe Bool
+   -&gt; ClientCompletionItemOptions)
+-&gt; Parser (Maybe Bool)
+-&gt; Parser
+     (Maybe ClientCompletionItemResolveOptions
+      -&gt; Maybe ClientCompletionItemInsertTextModeOptions
+      -&gt; Maybe Bool
+      -&gt; ClientCompletionItemOptions)
+forall a b. Parser (a -&gt; b) -&gt; Parser a -&gt; Parser b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621682614753"><span class="hs-identifier hs-var">arg</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser (Maybe Bool)
+forall v. FromJSON v =&gt; Object -&gt; Key -&gt; Parser (Maybe v)
+</span><a href="Language.LSP.Protocol.Types.Common.html#.%3A%21%3F"><span class="hs-operator hs-var">Language.LSP.Protocol.Types.Common..:!?</span></a></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;insertReplaceSupport&quot;</span></span><span> </span><span class="annot"><span class="annottext">Parser
+  (Maybe ClientCompletionItemResolveOptions
+   -&gt; Maybe ClientCompletionItemInsertTextModeOptions
+   -&gt; Maybe Bool
+   -&gt; ClientCompletionItemOptions)
+-&gt; Parser (Maybe ClientCompletionItemResolveOptions)
+-&gt; Parser
+     (Maybe ClientCompletionItemInsertTextModeOptions
+      -&gt; Maybe Bool -&gt; ClientCompletionItemOptions)
+forall a b. Parser (a -&gt; b) -&gt; Parser a -&gt; Parser b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621682614753"><span class="hs-identifier hs-var">arg</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser (Maybe ClientCompletionItemResolveOptions)
+forall v. FromJSON v =&gt; Object -&gt; Key -&gt; Parser (Maybe v)
+</span><a href="Language.LSP.Protocol.Types.Common.html#.%3A%21%3F"><span class="hs-operator hs-var">Language.LSP.Protocol.Types.Common..:!?</span></a></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;resolveSupport&quot;</span></span><span> </span><span class="annot"><span class="annottext">Parser
+  (Maybe ClientCompletionItemInsertTextModeOptions
+   -&gt; Maybe Bool -&gt; ClientCompletionItemOptions)
+-&gt; Parser (Maybe ClientCompletionItemInsertTextModeOptions)
+-&gt; Parser (Maybe Bool -&gt; ClientCompletionItemOptions)
+forall a b. Parser (a -&gt; b) -&gt; Parser a -&gt; Parser b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621682614753"><span class="hs-identifier hs-var">arg</span></a></span><span> </span><span class="annot"><span class="annottext">Object
+-&gt; Key -&gt; Parser (Maybe ClientCompletionItemInsertTextModeOptions)
+forall v. FromJSON v =&gt; Object -&gt; Key -&gt; Parser (Maybe v)
+</span><a href="Language.LSP.Protocol.Types.Common.html#.%3A%21%3F"><span class="hs-operator hs-var">Language.LSP.Protocol.Types.Common..:!?</span></a></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;insertTextModeSupport&quot;</span></span><span> </span><span class="annot"><span class="annottext">Parser (Maybe Bool -&gt; ClientCompletionItemOptions)
+-&gt; Parser (Maybe Bool) -&gt; Parser ClientCompletionItemOptions
+forall a b. Parser (a -&gt; b) -&gt; Parser a -&gt; Parser b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621682614753"><span class="hs-identifier hs-var">arg</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser (Maybe Bool)
+forall v. FromJSON v =&gt; Object -&gt; Key -&gt; Parser (Maybe v)
+</span><a href="Language.LSP.Protocol.Types.Common.html#.%3A%21%3F"><span class="hs-operator hs-var">Language.LSP.Protocol.Types.Common..:!?</span></a></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;labelDetailsSupport&quot;</span></span><span>
+</span><span id="line-113"></span></pre></body></html>

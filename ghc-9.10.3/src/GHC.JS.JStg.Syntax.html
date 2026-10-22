@@ -1,0 +1,1350 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span id="local-6989586621682373065"><span id="local-6989586621682373066"><span id="local-6989586621682373067"><span id="local-6989586621682373068"><span id="local-6989586621682373069"><span id="local-6989586621682373070"><span id="local-6989586621682373071"><span id="local-6989586621682373072"><span id="local-6989586621682373073"><span id="local-6989586621682373074"><span id="local-6989586621682373075"><span id="local-6989586621682373076"><span id="local-6989586621682373077"><span id="local-6989586621682373078"><span id="local-6989586621682373079"><span id="local-6989586621682373080"><span id="local-6989586621682373081"><span id="local-6989586621682373082"><span id="local-6989586621682373083"><span id="local-6989586621682373084"><span id="local-6989586621682373085"><span id="local-6989586621682373086"><span id="local-6989586621682373087"><span id="local-6989586621682373088"><span id="local-6989586621682373089"><span id="local-6989586621682373090"><span id="local-6989586621682373091"><span id="local-6989586621682373092"><span id="local-6989586621682373093"><span id="local-6989586621682373094"><span id="local-6989586621682373095"><span id="local-6989586621682373096"><span id="local-6989586621682373097"><span id="local-6989586621682373098"><span id="local-6989586621682373099"><span id="local-6989586621682373100"><span id="local-6989586621682373101"><span id="local-6989586621682373102"><span id="local-6989586621682373103"><span id="local-6989586621682373104"><span id="local-6989586621682373105"><span id="local-6989586621682373106"><span id="local-6989586621682373107"><span id="local-6989586621682373108"><span id="local-6989586621682373109"><span id="local-6989586621682373110"><span id="local-6989586621682373111"><span id="local-6989586621682373112"></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span><span class="hs-pragma">{-# LANGUAGE TypeFamilies #-}</span><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# LANGUAGE RankNTypes #-}</span><span>
+</span><span id="line-3"></span><span class="hs-pragma">{-# LANGUAGE DeriveDataTypeable #-}</span><span>
+</span><span id="line-4"></span><span class="hs-pragma">{-# LANGUAGE FlexibleContexts #-}</span><span>
+</span><span id="line-5"></span><span class="hs-pragma">{-# LANGUAGE ScopedTypeVariables #-}</span><span>
+</span><span id="line-6"></span><span class="hs-pragma">{-# LANGUAGE GADTs #-}</span><span>
+</span><span id="line-7"></span><span class="hs-pragma">{-# LANGUAGE DeriveGeneric #-}</span><span>
+</span><span id="line-8"></span><span class="hs-pragma">{-# LANGUAGE DerivingVia #-}</span><span>
+</span><span id="line-9"></span><span class="hs-pragma">{-# LANGUAGE BlockArguments #-}</span><span>
+</span><span id="line-10"></span><span class="hs-pragma">{-# LANGUAGE PatternSynonyms #-}</span><span>
+</span><span id="line-11"></span><span>
+</span><span id="line-12"></span><span class="hs-comment">-----------------------------------------------------------------------------</span><span>
+</span><span id="line-13"></span><span class="hs-comment">-- |</span><span>
+</span><span id="line-14"></span><span class="hs-comment">-- Module      :  GHC.JS.JStg.Syntax</span><span>
+</span><span id="line-15"></span><span class="hs-comment">-- Copyright   :  (c) The University of Glasgow 2001</span><span>
+</span><span id="line-16"></span><span class="hs-comment">-- License     :  BSD-style (see the file LICENSE)</span><span>
+</span><span id="line-17"></span><span class="hs-comment">--</span><span>
+</span><span id="line-18"></span><span class="hs-comment">-- Maintainer  :  Jeffrey Young  &lt;jeffrey.young@iohk.io&gt;</span><span>
+</span><span id="line-19"></span><span class="hs-comment">--                Luite Stegeman &lt;luite.stegeman@iohk.io&gt;</span><span>
+</span><span id="line-20"></span><span class="hs-comment">--                Sylvain Henry  &lt;sylvain.henry@iohk.io&gt;</span><span>
+</span><span id="line-21"></span><span class="hs-comment">--                Josh Meredith  &lt;josh.meredith@iohk.io&gt;</span><span>
+</span><span id="line-22"></span><span class="hs-comment">-- Stability   :  experimental</span><span>
+</span><span id="line-23"></span><span class="hs-comment">--</span><span>
+</span><span id="line-24"></span><span class="hs-comment">--</span><span>
+</span><span id="line-25"></span><span class="hs-comment">-- * Domain and Purpose</span><span>
+</span><span id="line-26"></span><span class="hs-comment">--</span><span>
+</span><span id="line-27"></span><span class="hs-comment">--     GHC.JS.JStg.Syntax defines the eDSL that the JS backend's runtime system</span><span>
+</span><span id="line-28"></span><span class="hs-comment">--     is written in. Nothing fancy, its just a straightforward deeply embedded</span><span>
+</span><span id="line-29"></span><span class="hs-comment">--     DSL.</span><span>
+</span><span id="line-30"></span><span class="hs-comment">--</span><span>
+</span><span id="line-31"></span><span class="hs-comment">-----------------------------------------------------------------------------</span><span>
+</span><span id="line-32"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html"><span class="hs-identifier">GHC.JS.JStg.Syntax</span></a></span><span>
+</span><span id="line-33"></span><span>  </span><span class="hs-special">(</span><span> </span><span class="annot"><span class="hs-comment">-- * Deeply embedded JS datatypes</span></span><span>
+</span><span id="line-34"></span><span>    </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#JStgStat"><span class="hs-identifier">JStgStat</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-35"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#JStgExpr"><span class="hs-identifier">JStgExpr</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-36"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#JVal"><span class="hs-identifier">JVal</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-37"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#Op"><span class="hs-identifier">Op</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-38"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#AOp"><span class="hs-identifier">AOp</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-39"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#UOp"><span class="hs-identifier">UOp</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-40"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#JsLabel"><span class="hs-identifier">JsLabel</span></a></span><span>
+</span><span id="line-41"></span><span>  </span><span class="annot"><span class="hs-comment">-- * pattern synonyms over JS operators</span></span><span>
+</span><span id="line-42"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#New"><span class="hs-identifier">New</span></a></span><span>
+</span><span id="line-43"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#Not"><span class="hs-identifier">Not</span></a></span><span>
+</span><span id="line-44"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#Negate"><span class="hs-identifier">Negate</span></a></span><span>
+</span><span id="line-45"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#Add"><span class="hs-identifier">Add</span></a></span><span>
+</span><span id="line-46"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#Sub"><span class="hs-identifier">Sub</span></a></span><span>
+</span><span id="line-47"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#Mul"><span class="hs-identifier">Mul</span></a></span><span>
+</span><span id="line-48"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#Div"><span class="hs-identifier">Div</span></a></span><span>
+</span><span id="line-49"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#Mod"><span class="hs-identifier">Mod</span></a></span><span>
+</span><span id="line-50"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#BOr"><span class="hs-identifier">BOr</span></a></span><span>
+</span><span id="line-51"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#BAnd"><span class="hs-identifier">BAnd</span></a></span><span>
+</span><span id="line-52"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#BXor"><span class="hs-identifier">BXor</span></a></span><span>
+</span><span id="line-53"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#BNot"><span class="hs-identifier">BNot</span></a></span><span>
+</span><span id="line-54"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#LOr"><span class="hs-identifier">LOr</span></a></span><span>
+</span><span id="line-55"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#LAnd"><span class="hs-identifier">LAnd</span></a></span><span>
+</span><span id="line-56"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#Int"><span class="hs-identifier">Int</span></a></span><span>
+</span><span id="line-57"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#String"><span class="hs-identifier">String</span></a></span><span>
+</span><span id="line-58"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#Var"><span class="hs-identifier">Var</span></a></span><span>
+</span><span id="line-59"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#PreInc"><span class="hs-identifier">PreInc</span></a></span><span>
+</span><span id="line-60"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#PostInc"><span class="hs-identifier">PostInc</span></a></span><span>
+</span><span id="line-61"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#PreDec"><span class="hs-identifier">PreDec</span></a></span><span>
+</span><span id="line-62"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#PostDec"><span class="hs-identifier">PostDec</span></a></span><span>
+</span><span id="line-63"></span><span>  </span><span class="annot"><span class="hs-comment">-- * Utility</span></span><span>
+</span><span id="line-64"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Types.SaneDouble.html#SaneDouble"><span class="hs-identifier">SaneDouble</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-65"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#Func"><span class="hs-identifier">Func</span></a></span><span>
+</span><span id="line-66"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#var"><span class="hs-identifier">var</span></a></span><span>
+</span><span id="line-67"></span><span>  </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-68"></span><span>
+</span><span id="line-69"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Prelude.html"><span class="hs-identifier">GHC.Prelude</span></a></span><span>
+</span><span id="line-70"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Utils.Outputable.html"><span class="hs-identifier">GHC.Utils.Outputable</span></a></span><span>
+</span><span id="line-71"></span><span>
+</span><span id="line-72"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.JS.Ident.html"><span class="hs-identifier">GHC.JS.Ident</span></a></span><span>
+</span><span id="line-73"></span><span>
+</span><span id="line-74"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../deepseq-1.5.0.0-a9b7/src/Control.DeepSeq.html"><span class="hs-identifier">Control.DeepSeq</span></a></span><span>
+</span><span id="line-75"></span><span>
+</span><span id="line-76"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.20.2.0-6654/src/Data.Data.html"><span class="hs-identifier">Data.Data</span></a></span><span>
+</span><span id="line-77"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="../../base-4.20.2.0-6654/src/Data.Semigroup.html"><span class="hs-identifier">Data.Semigroup</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Semigroup</span></span><span>
+</span><span id="line-78"></span><span>
+</span><span id="line-79"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.20.2.0-6654/src/GHC.Generics.html"><span class="hs-identifier">GHC.Generics</span></a></span><span>
+</span><span id="line-80"></span><span>
+</span><span id="line-81"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Data.FastString.html"><span class="hs-identifier">GHC.Data.FastString</span></a></span><span>
+</span><span id="line-82"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Types.Unique.Map.html"><span class="hs-identifier">GHC.Types.Unique.Map</span></a></span><span>
+</span><span id="line-83"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Types.SaneDouble.html"><span class="hs-identifier">GHC.Types.SaneDouble</span></a></span><span>
+</span><span id="line-84"></span><span>
+</span><span id="line-85"></span><span class="hs-comment">--------------------------------------------------------------------------------</span><span>
+</span><span id="line-86"></span><span class="hs-comment">--                            Statements</span><span>
+</span><span id="line-87"></span><span class="hs-comment">--------------------------------------------------------------------------------</span><span>
+</span><span id="line-88"></span><span class="hs-comment">-- | JavaScript statements, see the [ECMA262</span><span>
+</span><span id="line-89"></span><span class="hs-comment">-- Reference](https://tc39.es/ecma262/#sec-ecmascript-language-statements-and-declarations)</span><span>
+</span><span id="line-90"></span><span class="hs-comment">-- for details</span><span>
+</span><span id="line-91"></span><span class="hs-keyword">data</span><span> </span><span id="JStgStat"><span class="annot"><a href="GHC.JS.JStg.Syntax.html#JStgStat"><span class="hs-identifier hs-var">JStgStat</span></a></span></span><span>
+</span><span id="line-92"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span id="DeclStat"><span class="annot"><a href="GHC.JS.JStg.Syntax.html#DeclStat"><span class="hs-identifier hs-var">DeclStat</span></a></span></span><span>   </span><span class="hs-glyph">!</span><span class="annot"><a href="GHC.JS.Ident.html#Ident"><span class="hs-identifier hs-type">Ident</span></a></span><span> </span><span class="hs-glyph">!</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#JStgExpr"><span class="hs-identifier hs-type">JStgExpr</span></a></span><span class="hs-special">)</span><span>         </span><span class="annot"><span class="hs-comment">-- ^ Variable declarations: var foo [= e]</span></span><span>
+</span><span id="line-93"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="ReturnStat"><span class="annot"><a href="GHC.JS.JStg.Syntax.html#ReturnStat"><span class="hs-identifier hs-var">ReturnStat</span></a></span></span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#JStgExpr"><span class="hs-identifier hs-type">JStgExpr</span></a></span><span>                         </span><span class="annot"><span class="hs-comment">-- ^ Return</span></span><span>
+</span><span id="line-94"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="IfStat"><span class="annot"><a href="GHC.JS.JStg.Syntax.html#IfStat"><span class="hs-identifier hs-var">IfStat</span></a></span></span><span>     </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#JStgExpr"><span class="hs-identifier hs-type">JStgExpr</span></a></span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#JStgStat"><span class="hs-identifier hs-type">JStgStat</span></a></span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#JStgStat"><span class="hs-identifier hs-type">JStgStat</span></a></span><span>       </span><span class="annot"><span class="hs-comment">-- ^ If</span></span><span>
+</span><span id="line-95"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="WhileStat"><span class="annot"><a href="GHC.JS.JStg.Syntax.html#WhileStat"><span class="hs-identifier hs-var">WhileStat</span></a></span></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#JStgExpr"><span class="hs-identifier hs-type">JStgExpr</span></a></span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#JStgStat"><span class="hs-identifier hs-type">JStgStat</span></a></span><span>           </span><span class="annot"><span class="hs-comment">-- ^ While, bool is &quot;do&quot; when True</span></span><span>
+</span><span id="line-96"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="ForStat"><span class="annot"><a href="GHC.JS.JStg.Syntax.html#ForStat"><span class="hs-identifier hs-var">ForStat</span></a></span></span><span>    </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#JStgStat"><span class="hs-identifier hs-type">JStgStat</span></a></span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#JStgExpr"><span class="hs-identifier hs-type">JStgExpr</span></a></span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#JStgStat"><span class="hs-identifier hs-type">JStgStat</span></a></span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#JStgStat"><span class="hs-identifier hs-type">JStgStat</span></a></span><span> </span><span class="annot"><span class="hs-comment">-- ^ For</span></span><span>
+</span><span id="line-97"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="ForInStat"><span class="annot"><a href="GHC.JS.JStg.Syntax.html#ForInStat"><span class="hs-identifier hs-var">ForInStat</span></a></span></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span> </span><span class="annot"><a href="GHC.JS.Ident.html#Ident"><span class="hs-identifier hs-type">Ident</span></a></span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#JStgExpr"><span class="hs-identifier hs-type">JStgExpr</span></a></span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#JStgStat"><span class="hs-identifier hs-type">JStgStat</span></a></span><span>     </span><span class="annot"><span class="hs-comment">-- ^ For-in, bool is &quot;each' when True</span></span><span>
+</span><span id="line-98"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="SwitchStat"><span class="annot"><a href="GHC.JS.JStg.Syntax.html#SwitchStat"><span class="hs-identifier hs-var">SwitchStat</span></a></span></span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#JStgExpr"><span class="hs-identifier hs-type">JStgExpr</span></a></span><span> </span><span class="hs-special">[</span><span class="hs-special">(</span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#JStgExpr"><span class="hs-identifier hs-type">JStgExpr</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#JStgStat"><span class="hs-identifier hs-type">JStgStat</span></a></span><span class="hs-special">)</span><span class="hs-special">]</span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#JStgStat"><span class="hs-identifier hs-type">JStgStat</span></a></span><span>  </span><span class="annot"><span class="hs-comment">-- ^ Switch</span></span><span>
+</span><span id="line-99"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="TryStat"><span class="annot"><a href="GHC.JS.JStg.Syntax.html#TryStat"><span class="hs-identifier hs-var">TryStat</span></a></span></span><span>    </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#JStgStat"><span class="hs-identifier hs-type">JStgStat</span></a></span><span> </span><span class="annot"><a href="GHC.JS.Ident.html#Ident"><span class="hs-identifier hs-type">Ident</span></a></span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#JStgStat"><span class="hs-identifier hs-type">JStgStat</span></a></span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#JStgStat"><span class="hs-identifier hs-type">JStgStat</span></a></span><span>          </span><span class="annot"><span class="hs-comment">-- ^ Try</span></span><span>
+</span><span id="line-100"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="BlockStat"><span class="annot"><a href="GHC.JS.JStg.Syntax.html#BlockStat"><span class="hs-identifier hs-var">BlockStat</span></a></span></span><span>  </span><span class="hs-special">[</span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#JStgStat"><span class="hs-identifier hs-type">JStgStat</span></a></span><span class="hs-special">]</span><span>                       </span><span class="annot"><span class="hs-comment">-- ^ Blocks</span></span><span>
+</span><span id="line-101"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="ApplStat"><span class="annot"><a href="GHC.JS.JStg.Syntax.html#ApplStat"><span class="hs-identifier hs-var">ApplStat</span></a></span></span><span>   </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#JStgExpr"><span class="hs-identifier hs-type">JStgExpr</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#JStgExpr"><span class="hs-identifier hs-type">JStgExpr</span></a></span><span class="hs-special">]</span><span>              </span><span class="annot"><span class="hs-comment">-- ^ Application</span></span><span>
+</span><span id="line-102"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="UOpStat"><span class="annot"><a href="GHC.JS.JStg.Syntax.html#UOpStat"><span class="hs-identifier hs-var">UOpStat</span></a></span></span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#UOp"><span class="hs-identifier hs-type">UOp</span></a></span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#JStgExpr"><span class="hs-identifier hs-type">JStgExpr</span></a></span><span>                        </span><span class="annot"><span class="hs-comment">-- ^ Unary operators</span></span><span>
+</span><span id="line-103"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="AssignStat"><span class="annot"><a href="GHC.JS.JStg.Syntax.html#AssignStat"><span class="hs-identifier hs-var">AssignStat</span></a></span></span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#JStgExpr"><span class="hs-identifier hs-type">JStgExpr</span></a></span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#AOp"><span class="hs-identifier hs-type">AOp</span></a></span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#JStgExpr"><span class="hs-identifier hs-type">JStgExpr</span></a></span><span>            </span><span class="annot"><span class="hs-comment">-- ^ Binding form: @foo = bar@</span></span><span>
+</span><span id="line-104"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="LabelStat"><span class="annot"><a href="GHC.JS.JStg.Syntax.html#LabelStat"><span class="hs-identifier hs-var">LabelStat</span></a></span></span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#JsLabel"><span class="hs-identifier hs-type">JsLabel</span></a></span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#JStgStat"><span class="hs-identifier hs-type">JStgStat</span></a></span><span>                  </span><span class="annot"><span class="hs-comment">-- ^ Statement Labels, makes me nostalgic for qbasic</span></span><span>
+</span><span id="line-105"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="BreakStat"><span class="annot"><a href="GHC.JS.JStg.Syntax.html#BreakStat"><span class="hs-identifier hs-var">BreakStat</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#JsLabel"><span class="hs-identifier hs-type">JsLabel</span></a></span><span class="hs-special">)</span><span>                   </span><span class="annot"><span class="hs-comment">-- ^ Break</span></span><span>
+</span><span id="line-106"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="ContinueStat"><span class="annot"><a href="GHC.JS.JStg.Syntax.html#ContinueStat"><span class="hs-identifier hs-var">ContinueStat</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#JsLabel"><span class="hs-identifier hs-type">JsLabel</span></a></span><span class="hs-special">)</span><span>                </span><span class="annot"><span class="hs-comment">-- ^ Continue</span></span><span>
+</span><span id="line-107"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="FuncStat"><span class="annot"><a href="GHC.JS.JStg.Syntax.html#FuncStat"><span class="hs-identifier hs-var">FuncStat</span></a></span></span><span>   </span><span class="hs-glyph">!</span><span class="annot"><a href="GHC.JS.Ident.html#Ident"><span class="hs-identifier hs-type">Ident</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><a href="GHC.JS.Ident.html#Ident"><span class="hs-identifier hs-type">Ident</span></a></span><span class="hs-special">]</span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#JStgStat"><span class="hs-identifier hs-type">JStgStat</span></a></span><span>          </span><span class="annot"><span class="hs-comment">-- ^ an explicit function definition</span></span><span>
+</span><span id="line-108"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621682373153"><span id="local-6989586621682373207"><span class="annot"><span class="annottext">JStgStat -&gt; JStgStat -&gt; Bool
+(JStgStat -&gt; JStgStat -&gt; Bool)
+-&gt; (JStgStat -&gt; JStgStat -&gt; Bool) -&gt; Eq JStgStat
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: JStgStat -&gt; JStgStat -&gt; Bool
+== :: JStgStat -&gt; JStgStat -&gt; Bool
+$c/= :: JStgStat -&gt; JStgStat -&gt; Bool
+/= :: JStgStat -&gt; JStgStat -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Typeable</span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682373213"><span id="local-6989586621682373215"><span class="annot"><span class="annottext">(forall x. JStgStat -&gt; Rep JStgStat x)
+-&gt; (forall x. Rep JStgStat x -&gt; JStgStat) -&gt; Generic JStgStat
+forall x. Rep JStgStat x -&gt; JStgStat
+forall x. JStgStat -&gt; Rep JStgStat x
+forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+$cfrom :: forall x. JStgStat -&gt; Rep JStgStat x
+from :: forall x. JStgStat -&gt; Rep JStgStat x
+$cto :: forall x. Rep JStgStat x -&gt; JStgStat
+to :: forall x. Rep JStgStat x -&gt; JStgStat
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Generic</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-109"></span><span>
+</span><span id="line-110"></span><span class="hs-comment">-- | A Label used for 'JStgStat', specifically 'BreakStat', 'ContinueStat' and of</span><span>
+</span><span id="line-111"></span><span class="hs-comment">-- course 'LabelStat'</span><span>
+</span><span id="line-112"></span><span class="hs-keyword">type</span><span> </span><span id="JsLabel"><span class="annot"><a href="GHC.JS.JStg.Syntax.html#JsLabel"><span class="hs-identifier hs-var">JsLabel</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="GHC.Data.FastString.html#LexicalFastString"><span class="hs-identifier hs-type">LexicalFastString</span></a></span><span>
+</span><span id="line-113"></span><span>
+</span><span id="line-114"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621682373223"><span id="local-6989586621682373227"><span class="annot"><span class="hs-identifier hs-type">Semigroup</span></span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#JStgStat"><span class="hs-identifier hs-type">JStgStat</span></a></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-115"></span><span>  </span><span id="local-6989586621682373232"><span class="annot"><span class="annottext">&lt;&gt; :: JStgStat -&gt; JStgStat -&gt; JStgStat
+</span><span class="hs-operator hs-var hs-var hs-var">(&lt;&gt;)</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">JStgStat -&gt; JStgStat -&gt; JStgStat
+</span><a href="GHC.JS.JStg.Syntax.html#appendJStgStat"><span class="hs-identifier hs-var">appendJStgStat</span></a></span><span>
+</span><span id="line-116"></span><span>
+</span><span id="line-117"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621682373238"><span id="local-6989586621682373242"><span class="annot"><span class="hs-identifier hs-type">Monoid</span></span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#JStgStat"><span class="hs-identifier hs-type">JStgStat</span></a></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-118"></span><span>  </span><span id="local-6989586621682373245"><span class="annot"><span class="annottext">mempty :: JStgStat
+</span><span class="hs-identifier hs-var hs-var hs-var">mempty</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[JStgStat] -&gt; JStgStat
+</span><a href="GHC.JS.JStg.Syntax.html#BlockStat"><span class="hs-identifier hs-var">BlockStat</span></a></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span>
+</span><span id="line-119"></span><span>
+</span><span id="line-120"></span><span class="hs-comment">-- | Append a statement to another statement. 'appendJStgStat' only returns a</span><span>
+</span><span id="line-121"></span><span class="hs-comment">-- 'JStgStat' that is /not/ a 'BlockStat' when either @mx@ or @my is an empty</span><span>
+</span><span id="line-122"></span><span class="hs-comment">-- 'BlockStat'. That is:</span><span>
+</span><span id="line-123"></span><span class="hs-comment">-- &gt; (BlockStat [] , y           ) = y</span><span>
+</span><span id="line-124"></span><span class="hs-comment">-- &gt; (x            , BlockStat []) = x</span><span>
+</span><span id="line-125"></span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#appendJStgStat"><span class="hs-identifier hs-type">appendJStgStat</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#JStgStat"><span class="hs-identifier hs-type">JStgStat</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#JStgStat"><span class="hs-identifier hs-type">JStgStat</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#JStgStat"><span class="hs-identifier hs-type">JStgStat</span></a></span><span>
+</span><span id="line-126"></span><span id="appendJStgStat"><span class="annot"><span class="annottext">appendJStgStat :: JStgStat -&gt; JStgStat -&gt; JStgStat
+</span><a href="GHC.JS.JStg.Syntax.html#appendJStgStat"><span class="hs-identifier hs-var hs-var">appendJStgStat</span></a></span></span><span> </span><span id="local-6989586621682373246"><span class="annot"><span class="annottext">JStgStat
+</span><a href="#local-6989586621682373246"><span class="hs-identifier hs-var">mx</span></a></span></span><span> </span><span id="local-6989586621682373247"><span class="annot"><span class="annottext">JStgStat
+</span><a href="#local-6989586621682373247"><span class="hs-identifier hs-var">my</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">JStgStat
+</span><a href="#local-6989586621682373246"><span class="hs-identifier hs-var">mx</span></a></span><span class="hs-special">,</span><span class="annot"><span class="annottext">JStgStat
+</span><a href="#local-6989586621682373247"><span class="hs-identifier hs-var">my</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-127"></span><span>  </span><span class="hs-special">(</span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#BlockStat"><span class="hs-identifier hs-type">BlockStat</span></a></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span> </span><span class="hs-special">,</span><span> </span><span id="local-6989586621682373248"><span class="annot"><span class="annottext">JStgStat
+</span><a href="#local-6989586621682373248"><span class="hs-identifier hs-var">y</span></a></span></span><span>           </span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">JStgStat
+</span><a href="#local-6989586621682373248"><span class="hs-identifier hs-var">y</span></a></span><span>
+</span><span id="line-128"></span><span>  </span><span class="hs-special">(</span><span id="local-6989586621682373249"><span class="annot"><span class="annottext">JStgStat
+</span><a href="#local-6989586621682373249"><span class="hs-identifier hs-var">x</span></a></span></span><span>            </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#BlockStat"><span class="hs-identifier hs-type">BlockStat</span></a></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">JStgStat
+</span><a href="#local-6989586621682373249"><span class="hs-identifier hs-var">x</span></a></span><span>
+</span><span id="line-129"></span><span>  </span><span class="hs-special">(</span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#BlockStat"><span class="hs-identifier hs-type">BlockStat</span></a></span><span> </span><span id="local-6989586621682373250"><span class="annot"><span class="annottext">[JStgStat]
+</span><a href="#local-6989586621682373250"><span class="hs-identifier hs-var">xs</span></a></span></span><span> </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#BlockStat"><span class="hs-identifier hs-type">BlockStat</span></a></span><span> </span><span id="local-6989586621682373251"><span class="annot"><span class="annottext">[JStgStat]
+</span><a href="#local-6989586621682373251"><span class="hs-identifier hs-var">ys</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">[JStgStat] -&gt; JStgStat
+</span><a href="GHC.JS.JStg.Syntax.html#BlockStat"><span class="hs-identifier hs-var">BlockStat</span></a></span><span> </span><span class="annot"><span class="annottext">([JStgStat] -&gt; JStgStat) -&gt; [JStgStat] -&gt; JStgStat
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">[JStgStat]
+</span><a href="#local-6989586621682373250"><span class="hs-identifier hs-var">xs</span></a></span><span> </span><span class="annot"><span class="annottext">[JStgStat] -&gt; [JStgStat] -&gt; [JStgStat]
+forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">[JStgStat]
+</span><a href="#local-6989586621682373251"><span class="hs-identifier hs-var">ys</span></a></span><span>
+</span><span id="line-130"></span><span>  </span><span class="hs-special">(</span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#BlockStat"><span class="hs-identifier hs-type">BlockStat</span></a></span><span> </span><span id="local-6989586621682373252"><span class="annot"><span class="annottext">[JStgStat]
+</span><a href="#local-6989586621682373252"><span class="hs-identifier hs-var">xs</span></a></span></span><span> </span><span class="hs-special">,</span><span> </span><span id="local-6989586621682373253"><span class="annot"><span class="annottext">JStgStat
+</span><a href="#local-6989586621682373253"><span class="hs-identifier hs-var">ys</span></a></span></span><span>          </span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">[JStgStat] -&gt; JStgStat
+</span><a href="GHC.JS.JStg.Syntax.html#BlockStat"><span class="hs-identifier hs-var">BlockStat</span></a></span><span> </span><span class="annot"><span class="annottext">([JStgStat] -&gt; JStgStat) -&gt; [JStgStat] -&gt; JStgStat
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">[JStgStat]
+</span><a href="#local-6989586621682373252"><span class="hs-identifier hs-var">xs</span></a></span><span> </span><span class="annot"><span class="annottext">[JStgStat] -&gt; [JStgStat] -&gt; [JStgStat]
+forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">JStgStat
+</span><a href="#local-6989586621682373253"><span class="hs-identifier hs-var">ys</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-131"></span><span>  </span><span class="hs-special">(</span><span id="local-6989586621682373254"><span class="annot"><span class="annottext">JStgStat
+</span><a href="#local-6989586621682373254"><span class="hs-identifier hs-var">xs</span></a></span></span><span>           </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#BlockStat"><span class="hs-identifier hs-type">BlockStat</span></a></span><span> </span><span id="local-6989586621682373255"><span class="annot"><span class="annottext">[JStgStat]
+</span><a href="#local-6989586621682373255"><span class="hs-identifier hs-var">ys</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">[JStgStat] -&gt; JStgStat
+</span><a href="GHC.JS.JStg.Syntax.html#BlockStat"><span class="hs-identifier hs-var">BlockStat</span></a></span><span> </span><span class="annot"><span class="annottext">([JStgStat] -&gt; JStgStat) -&gt; [JStgStat] -&gt; JStgStat
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">JStgStat
+</span><a href="#local-6989586621682373254"><span class="hs-identifier hs-var">xs</span></a></span><span> </span><span class="annot"><span class="annottext">JStgStat -&gt; [JStgStat] -&gt; [JStgStat]
+forall a. a -&gt; [a] -&gt; [a]
+</span><span class="hs-glyph hs-var">:</span></span><span> </span><span class="annot"><span class="annottext">[JStgStat]
+</span><a href="#local-6989586621682373255"><span class="hs-identifier hs-var">ys</span></a></span><span>
+</span><span id="line-132"></span><span>  </span><span class="hs-special">(</span><span id="local-6989586621682373256"><span class="annot"><span class="annottext">JStgStat
+</span><a href="#local-6989586621682373256"><span class="hs-identifier hs-var">xs</span></a></span></span><span>           </span><span class="hs-special">,</span><span> </span><span id="local-6989586621682373257"><span class="annot"><span class="annottext">JStgStat
+</span><a href="#local-6989586621682373257"><span class="hs-identifier hs-var">ys</span></a></span></span><span>          </span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">[JStgStat] -&gt; JStgStat
+</span><a href="GHC.JS.JStg.Syntax.html#BlockStat"><span class="hs-identifier hs-var">BlockStat</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">JStgStat
+</span><a href="#local-6989586621682373256"><span class="hs-identifier hs-var">xs</span></a></span><span class="hs-special">,</span><span class="annot"><span class="annottext">JStgStat
+</span><a href="#local-6989586621682373257"><span class="hs-identifier hs-var">ys</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-133"></span><span>
+</span><span id="line-134"></span><span>
+</span><span id="line-135"></span><span class="hs-comment">--------------------------------------------------------------------------------</span><span>
+</span><span id="line-136"></span><span class="hs-comment">--                            Expressions</span><span>
+</span><span id="line-137"></span><span class="hs-comment">--------------------------------------------------------------------------------</span><span>
+</span><span id="line-138"></span><span class="annot"><span class="hs-comment">-- | JavaScript Expressions</span></span><span>
+</span><span id="line-139"></span><span class="hs-keyword">data</span><span> </span><span id="JStgExpr"><span class="annot"><a href="GHC.JS.JStg.Syntax.html#JStgExpr"><span class="hs-identifier hs-var">JStgExpr</span></a></span></span><span>
+</span><span id="line-140"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span id="ValExpr"><span class="annot"><a href="GHC.JS.JStg.Syntax.html#ValExpr"><span class="hs-identifier hs-var">ValExpr</span></a></span></span><span>    </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#JVal"><span class="hs-identifier hs-type">JVal</span></a></span><span>                 </span><span class="annot"><span class="hs-comment">-- ^ All values are trivially expressions</span></span><span>
+</span><span id="line-141"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="SelExpr"><span class="annot"><a href="GHC.JS.JStg.Syntax.html#SelExpr"><span class="hs-identifier hs-var">SelExpr</span></a></span></span><span>    </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#JStgExpr"><span class="hs-identifier hs-type">JStgExpr</span></a></span><span> </span><span class="annot"><a href="GHC.JS.Ident.html#Ident"><span class="hs-identifier hs-type">Ident</span></a></span><span>       </span><span class="annot"><span class="hs-comment">-- ^ Selection: Obj.foo, see 'GHC.JS.Make..^'</span></span><span>
+</span><span id="line-142"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="IdxExpr"><span class="annot"><a href="GHC.JS.JStg.Syntax.html#IdxExpr"><span class="hs-identifier hs-var">IdxExpr</span></a></span></span><span>    </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#JStgExpr"><span class="hs-identifier hs-type">JStgExpr</span></a></span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#JStgExpr"><span class="hs-identifier hs-type">JStgExpr</span></a></span><span>    </span><span class="annot"><span class="hs-comment">-- ^ Indexing:  Obj[foo], see 'GHC.JS.Make..!'</span></span><span>
+</span><span id="line-143"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="InfixExpr"><span class="annot"><a href="GHC.JS.JStg.Syntax.html#InfixExpr"><span class="hs-identifier hs-var">InfixExpr</span></a></span></span><span>  </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#Op"><span class="hs-identifier hs-type">Op</span></a></span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#JStgExpr"><span class="hs-identifier hs-type">JStgExpr</span></a></span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#JStgExpr"><span class="hs-identifier hs-type">JStgExpr</span></a></span><span> </span><span class="annot"><span class="hs-comment">-- ^ Infix Expressions, see 'JStgExpr' pattern synonyms</span></span><span>
+</span><span id="line-144"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="UOpExpr"><span class="annot"><a href="GHC.JS.JStg.Syntax.html#UOpExpr"><span class="hs-identifier hs-var">UOpExpr</span></a></span></span><span>    </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#UOp"><span class="hs-identifier hs-type">UOp</span></a></span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#JStgExpr"><span class="hs-identifier hs-type">JStgExpr</span></a></span><span>               </span><span class="annot"><span class="hs-comment">-- ^ Unary Expressions</span></span><span>
+</span><span id="line-145"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="IfExpr"><span class="annot"><a href="GHC.JS.JStg.Syntax.html#IfExpr"><span class="hs-identifier hs-var">IfExpr</span></a></span></span><span>     </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#JStgExpr"><span class="hs-identifier hs-type">JStgExpr</span></a></span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#JStgExpr"><span class="hs-identifier hs-type">JStgExpr</span></a></span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#JStgExpr"><span class="hs-identifier hs-type">JStgExpr</span></a></span><span>  </span><span class="annot"><span class="hs-comment">-- ^ If-expression</span></span><span>
+</span><span id="line-146"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="ApplExpr"><span class="annot"><a href="GHC.JS.JStg.Syntax.html#ApplExpr"><span class="hs-identifier hs-var">ApplExpr</span></a></span></span><span>   </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#JStgExpr"><span class="hs-identifier hs-type">JStgExpr</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#JStgExpr"><span class="hs-identifier hs-type">JStgExpr</span></a></span><span class="hs-special">]</span><span>         </span><span class="annot"><span class="hs-comment">-- ^ Application</span></span><span>
+</span><span id="line-147"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621682373266"><span id="local-6989586621682373287"><span class="annot"><span class="annottext">JStgExpr -&gt; JStgExpr -&gt; Bool
+(JStgExpr -&gt; JStgExpr -&gt; Bool)
+-&gt; (JStgExpr -&gt; JStgExpr -&gt; Bool) -&gt; Eq JStgExpr
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: JStgExpr -&gt; JStgExpr -&gt; Bool
+== :: JStgExpr -&gt; JStgExpr -&gt; Bool
+$c/= :: JStgExpr -&gt; JStgExpr -&gt; Bool
+/= :: JStgExpr -&gt; JStgExpr -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Typeable</span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682373290"><span id="local-6989586621682373292"><span class="annot"><span class="annottext">(forall x. JStgExpr -&gt; Rep JStgExpr x)
+-&gt; (forall x. Rep JStgExpr x -&gt; JStgExpr) -&gt; Generic JStgExpr
+forall x. Rep JStgExpr x -&gt; JStgExpr
+forall x. JStgExpr -&gt; Rep JStgExpr x
+forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+$cfrom :: forall x. JStgExpr -&gt; Rep JStgExpr x
+from :: forall x. JStgExpr -&gt; Rep JStgExpr x
+$cto :: forall x. Rep JStgExpr x -&gt; JStgExpr
+to :: forall x. Rep JStgExpr x -&gt; JStgExpr
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Generic</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-148"></span><span>
+</span><span id="line-149"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="GHC.Utils.Outputable.html#Outputable"><span class="hs-identifier hs-type">Outputable</span></a></span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#JStgExpr"><span class="hs-identifier hs-type">JStgExpr</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-150"></span><span>  </span><span id="local-6989586621682373321"><span class="annot"><span class="annottext">ppr :: JStgExpr -&gt; SDoc
+</span><a href="#local-6989586621682373321"><span class="hs-identifier hs-var hs-var hs-var">ppr</span></a></span></span><span> </span><span id="local-6989586621682373323"><span class="annot"><span class="annottext">JStgExpr
+</span><a href="#local-6989586621682373323"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">JStgExpr
+</span><a href="#local-6989586621682373323"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-151"></span><span>    </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#ValExpr"><span class="hs-identifier hs-type">ValExpr</span></a></span><span> </span><span class="annot"><span class="annottext">JVal
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">String -&gt; SDoc
+forall doc. IsLine doc =&gt; String -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#text"><span class="hs-identifier hs-var">text</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;ValExpr&quot;</span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span class="hs-special">)</span><span>
+</span><span id="line-152"></span><span>    </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#SelExpr"><span class="hs-identifier hs-type">SelExpr</span></a></span><span> </span><span id="local-6989586621682373325"><span class="annot"><span class="annottext">JStgExpr
+</span><a href="#local-6989586621682373325"><span class="hs-identifier hs-var">x'</span></a></span></span><span> </span><span class="annot"><span class="annottext">Ident
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">String -&gt; SDoc
+forall doc. IsLine doc =&gt; String -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#text"><span class="hs-identifier hs-var">text</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;SelExpr&quot;</span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">SDoc -&gt; SDoc -&gt; SDoc
+forall doc. IsLine doc =&gt; doc -&gt; doc -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#%3C%2B%3E"><span class="hs-operator hs-var">&lt;+&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">JStgExpr -&gt; SDoc
+forall a. Outputable a =&gt; a -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#ppr"><span class="hs-identifier hs-var">ppr</span></a></span><span> </span><span class="annot"><span class="annottext">JStgExpr
+</span><a href="#local-6989586621682373325"><span class="hs-identifier hs-var">x'</span></a></span><span>
+</span><span id="line-153"></span><span>    </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#IdxExpr"><span class="hs-identifier hs-type">IdxExpr</span></a></span><span> </span><span id="local-6989586621682373327"><span class="annot"><span class="annottext">JStgExpr
+</span><a href="#local-6989586621682373327"><span class="hs-identifier hs-var">x'</span></a></span></span><span> </span><span id="local-6989586621682373328"><span class="annot"><span class="annottext">JStgExpr
+</span><a href="#local-6989586621682373328"><span class="hs-identifier hs-var">y'</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">String -&gt; SDoc
+forall doc. IsLine doc =&gt; String -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#text"><span class="hs-identifier hs-var">text</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;IdxExpr&quot;</span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">SDoc -&gt; SDoc -&gt; SDoc
+forall doc. IsLine doc =&gt; doc -&gt; doc -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#%3C%2B%3E"><span class="hs-operator hs-var">&lt;+&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">(JStgExpr, JStgExpr) -&gt; SDoc
+forall a. Outputable a =&gt; a -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#ppr"><span class="hs-identifier hs-var">ppr</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">JStgExpr
+</span><a href="#local-6989586621682373327"><span class="hs-identifier hs-var">x'</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">JStgExpr
+</span><a href="#local-6989586621682373328"><span class="hs-identifier hs-var">y'</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-154"></span><span>    </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#InfixExpr"><span class="hs-identifier hs-type">InfixExpr</span></a></span><span> </span><span class="annot"><span class="annottext">Op
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621682373329"><span class="annot"><span class="annottext">JStgExpr
+</span><a href="#local-6989586621682373329"><span class="hs-identifier hs-var">x'</span></a></span></span><span> </span><span id="local-6989586621682373330"><span class="annot"><span class="annottext">JStgExpr
+</span><a href="#local-6989586621682373330"><span class="hs-identifier hs-var">y'</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">String -&gt; SDoc
+forall doc. IsLine doc =&gt; String -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#text"><span class="hs-identifier hs-var">text</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;InfixExpr&quot;</span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">SDoc -&gt; SDoc -&gt; SDoc
+forall doc. IsLine doc =&gt; doc -&gt; doc -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#%3C%2B%3E"><span class="hs-operator hs-var">&lt;+&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">(JStgExpr, JStgExpr) -&gt; SDoc
+forall a. Outputable a =&gt; a -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#ppr"><span class="hs-identifier hs-var">ppr</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">JStgExpr
+</span><a href="#local-6989586621682373329"><span class="hs-identifier hs-var">x'</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">JStgExpr
+</span><a href="#local-6989586621682373330"><span class="hs-identifier hs-var">y'</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-155"></span><span>    </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#UOpExpr"><span class="hs-identifier hs-type">UOpExpr</span></a></span><span> </span><span class="annot"><span class="annottext">UOp
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621682373331"><span class="annot"><span class="annottext">JStgExpr
+</span><a href="#local-6989586621682373331"><span class="hs-identifier hs-var">x'</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">String -&gt; SDoc
+forall doc. IsLine doc =&gt; String -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#text"><span class="hs-identifier hs-var">text</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;UOpExpr&quot;</span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">SDoc -&gt; SDoc -&gt; SDoc
+forall doc. IsLine doc =&gt; doc -&gt; doc -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#%3C%2B%3E"><span class="hs-operator hs-var">&lt;+&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">JStgExpr -&gt; SDoc
+forall a. Outputable a =&gt; a -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#ppr"><span class="hs-identifier hs-var">ppr</span></a></span><span> </span><span class="annot"><span class="annottext">JStgExpr
+</span><a href="#local-6989586621682373331"><span class="hs-identifier hs-var">x'</span></a></span><span>
+</span><span id="line-156"></span><span>    </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#IfExpr"><span class="hs-identifier hs-type">IfExpr</span></a></span><span> </span><span id="local-6989586621682373332"><span class="annot"><span class="annottext">JStgExpr
+</span><a href="#local-6989586621682373332"><span class="hs-identifier hs-var">p</span></a></span></span><span> </span><span id="local-6989586621682373333"><span class="annot"><span class="annottext">JStgExpr
+</span><a href="#local-6989586621682373333"><span class="hs-identifier hs-var">t</span></a></span></span><span> </span><span id="local-6989586621682373334"><span class="annot"><span class="annottext">JStgExpr
+</span><a href="#local-6989586621682373334"><span class="hs-identifier hs-var">e</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">String -&gt; SDoc
+forall doc. IsLine doc =&gt; String -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#text"><span class="hs-identifier hs-var">text</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;IfExpr&quot;</span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">SDoc -&gt; SDoc -&gt; SDoc
+forall doc. IsLine doc =&gt; doc -&gt; doc -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#%3C%2B%3E"><span class="hs-operator hs-var">&lt;+&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">(JStgExpr, JStgExpr, JStgExpr) -&gt; SDoc
+forall a. Outputable a =&gt; a -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#ppr"><span class="hs-identifier hs-var">ppr</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">JStgExpr
+</span><a href="#local-6989586621682373332"><span class="hs-identifier hs-var">p</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">JStgExpr
+</span><a href="#local-6989586621682373333"><span class="hs-identifier hs-var">t</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">JStgExpr
+</span><a href="#local-6989586621682373334"><span class="hs-identifier hs-var">e</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-157"></span><span>    </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#ApplExpr"><span class="hs-identifier hs-type">ApplExpr</span></a></span><span> </span><span id="local-6989586621682373335"><span class="annot"><span class="annottext">JStgExpr
+</span><a href="#local-6989586621682373335"><span class="hs-identifier hs-var">x'</span></a></span></span><span> </span><span id="local-6989586621682373336"><span class="annot"><span class="annottext">[JStgExpr]
+</span><a href="#local-6989586621682373336"><span class="hs-identifier hs-var">xs</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">String -&gt; SDoc
+forall doc. IsLine doc =&gt; String -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#text"><span class="hs-identifier hs-var">text</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;ApplExpr&quot;</span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">SDoc -&gt; SDoc -&gt; SDoc
+forall doc. IsLine doc =&gt; doc -&gt; doc -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#%3C%2B%3E"><span class="hs-operator hs-var">&lt;+&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">(JStgExpr, [JStgExpr]) -&gt; SDoc
+forall a. Outputable a =&gt; a -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#ppr"><span class="hs-identifier hs-var">ppr</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">JStgExpr
+</span><a href="#local-6989586621682373335"><span class="hs-identifier hs-var">x'</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">[JStgExpr]
+</span><a href="#local-6989586621682373336"><span class="hs-identifier hs-var">xs</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-158"></span><span>
+</span><span id="line-159"></span><span class="annot"><span class="hs-comment">-- * Useful pattern synonyms to ease programming with the deeply embedded JS</span></span><span>
+</span><span id="line-160"></span><span class="hs-comment">--   AST. Each pattern wraps @UOp@ and @Op@ into a @JStgExpr@s to save typing and</span><span>
+</span><span id="line-161"></span><span class="hs-comment">--   for convienience. In addition we include a string wrapper for JS string</span><span>
+</span><span id="line-162"></span><span class="hs-comment">--   and Integer literals.</span><span>
+</span><span id="line-163"></span><span>
+</span><span id="line-164"></span><span class="annot"><span class="hs-comment">-- | pattern synonym for a unary operator new</span></span><span>
+</span><span id="line-165"></span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#New"><span class="hs-identifier hs-type">New</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#JStgExpr"><span class="hs-identifier hs-type">JStgExpr</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#JStgExpr"><span class="hs-identifier hs-type">JStgExpr</span></a></span><span>
+</span><span id="line-166"></span><span class="hs-keyword">pattern</span><span> </span><span id="New"><span id="%24mNew"><span id="%24bNew"><span class="annot"><span class="annottext">$mNew :: forall {r}. JStgExpr -&gt; (JStgExpr -&gt; r) -&gt; ((# #) -&gt; r) -&gt; r
+$bNew :: JStgExpr -&gt; JStgExpr
+</span><a href="GHC.JS.JStg.Syntax.html#New"><span class="hs-identifier hs-var hs-var hs-var">New</span></a></span></span></span></span><span> </span><span class="annot"><a href="#local-6989586621682373339"><span class="hs-identifier hs-type">x</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#UOpExpr"><span class="hs-identifier hs-type">UOpExpr</span></a></span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#NewOp"><span class="hs-identifier hs-type">NewOp</span></a></span><span> </span><span id="local-6989586621682373339"><span class="annot"><a href="#local-6989586621682373339"><span class="hs-identifier hs-var">x</span></a></span></span><span>
+</span><span id="line-167"></span><span>
+</span><span id="line-168"></span><span class="annot"><span class="hs-comment">-- | pattern synonym for prefix increment @++x@</span></span><span>
+</span><span id="line-169"></span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#PreInc"><span class="hs-identifier hs-type">PreInc</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#JStgExpr"><span class="hs-identifier hs-type">JStgExpr</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#JStgExpr"><span class="hs-identifier hs-type">JStgExpr</span></a></span><span>
+</span><span id="line-170"></span><span class="hs-keyword">pattern</span><span> </span><span id="PreInc"><span id="%24mPreInc"><span id="%24bPreInc"><span class="annot"><span class="annottext">$mPreInc :: forall {r}. JStgExpr -&gt; (JStgExpr -&gt; r) -&gt; ((# #) -&gt; r) -&gt; r
+$bPreInc :: JStgExpr -&gt; JStgExpr
+</span><a href="GHC.JS.JStg.Syntax.html#PreInc"><span class="hs-identifier hs-var hs-var hs-var">PreInc</span></a></span></span></span></span><span> </span><span class="annot"><a href="#local-6989586621682373343"><span class="hs-identifier hs-type">x</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#UOpExpr"><span class="hs-identifier hs-type">UOpExpr</span></a></span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#PreIncOp"><span class="hs-identifier hs-type">PreIncOp</span></a></span><span> </span><span id="local-6989586621682373343"><span class="annot"><a href="#local-6989586621682373343"><span class="hs-identifier hs-var">x</span></a></span></span><span>
+</span><span id="line-171"></span><span>
+</span><span id="line-172"></span><span class="annot"><span class="hs-comment">-- | pattern synonym for postfix increment @x++@</span></span><span>
+</span><span id="line-173"></span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#PostInc"><span class="hs-identifier hs-type">PostInc</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#JStgExpr"><span class="hs-identifier hs-type">JStgExpr</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#JStgExpr"><span class="hs-identifier hs-type">JStgExpr</span></a></span><span>
+</span><span id="line-174"></span><span class="hs-keyword">pattern</span><span> </span><span id="PostInc"><span id="%24mPostInc"><span id="%24bPostInc"><span class="annot"><span class="annottext">$mPostInc :: forall {r}. JStgExpr -&gt; (JStgExpr -&gt; r) -&gt; ((# #) -&gt; r) -&gt; r
+$bPostInc :: JStgExpr -&gt; JStgExpr
+</span><a href="GHC.JS.JStg.Syntax.html#PostInc"><span class="hs-identifier hs-var hs-var hs-var">PostInc</span></a></span></span></span></span><span> </span><span class="annot"><a href="#local-6989586621682373347"><span class="hs-identifier hs-type">x</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#UOpExpr"><span class="hs-identifier hs-type">UOpExpr</span></a></span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#PostIncOp"><span class="hs-identifier hs-type">PostIncOp</span></a></span><span> </span><span id="local-6989586621682373347"><span class="annot"><a href="#local-6989586621682373347"><span class="hs-identifier hs-var">x</span></a></span></span><span>
+</span><span id="line-175"></span><span>
+</span><span id="line-176"></span><span class="annot"><span class="hs-comment">-- | pattern synonym for prefix decrement @--x@</span></span><span>
+</span><span id="line-177"></span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#PreDec"><span class="hs-identifier hs-type">PreDec</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#JStgExpr"><span class="hs-identifier hs-type">JStgExpr</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#JStgExpr"><span class="hs-identifier hs-type">JStgExpr</span></a></span><span>
+</span><span id="line-178"></span><span class="hs-keyword">pattern</span><span> </span><span id="PreDec"><span id="%24mPreDec"><span id="%24bPreDec"><span class="annot"><span class="annottext">$mPreDec :: forall {r}. JStgExpr -&gt; (JStgExpr -&gt; r) -&gt; ((# #) -&gt; r) -&gt; r
+$bPreDec :: JStgExpr -&gt; JStgExpr
+</span><a href="GHC.JS.JStg.Syntax.html#PreDec"><span class="hs-identifier hs-var hs-var hs-var">PreDec</span></a></span></span></span></span><span> </span><span class="annot"><a href="#local-6989586621682373351"><span class="hs-identifier hs-type">x</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#UOpExpr"><span class="hs-identifier hs-type">UOpExpr</span></a></span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#PreDecOp"><span class="hs-identifier hs-type">PreDecOp</span></a></span><span> </span><span id="local-6989586621682373351"><span class="annot"><a href="#local-6989586621682373351"><span class="hs-identifier hs-var">x</span></a></span></span><span>
+</span><span id="line-179"></span><span>
+</span><span id="line-180"></span><span class="annot"><span class="hs-comment">-- | pattern synonym for postfix decrement @--x@</span></span><span>
+</span><span id="line-181"></span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#PostDec"><span class="hs-identifier hs-type">PostDec</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#JStgExpr"><span class="hs-identifier hs-type">JStgExpr</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#JStgExpr"><span class="hs-identifier hs-type">JStgExpr</span></a></span><span>
+</span><span id="line-182"></span><span class="hs-keyword">pattern</span><span> </span><span id="PostDec"><span id="%24mPostDec"><span id="%24bPostDec"><span class="annot"><span class="annottext">$mPostDec :: forall {r}. JStgExpr -&gt; (JStgExpr -&gt; r) -&gt; ((# #) -&gt; r) -&gt; r
+$bPostDec :: JStgExpr -&gt; JStgExpr
+</span><a href="GHC.JS.JStg.Syntax.html#PostDec"><span class="hs-identifier hs-var hs-var hs-var">PostDec</span></a></span></span></span></span><span> </span><span class="annot"><a href="#local-6989586621682373355"><span class="hs-identifier hs-type">x</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#UOpExpr"><span class="hs-identifier hs-type">UOpExpr</span></a></span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#PostDecOp"><span class="hs-identifier hs-type">PostDecOp</span></a></span><span> </span><span id="local-6989586621682373355"><span class="annot"><a href="#local-6989586621682373355"><span class="hs-identifier hs-var">x</span></a></span></span><span>
+</span><span id="line-183"></span><span>
+</span><span id="line-184"></span><span class="annot"><span class="hs-comment">-- | pattern synonym for logical not @!@</span></span><span>
+</span><span id="line-185"></span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#Not"><span class="hs-identifier hs-type">Not</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#JStgExpr"><span class="hs-identifier hs-type">JStgExpr</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#JStgExpr"><span class="hs-identifier hs-type">JStgExpr</span></a></span><span>
+</span><span id="line-186"></span><span class="hs-keyword">pattern</span><span> </span><span id="Not"><span id="%24mNot"><span id="%24bNot"><span class="annot"><span class="annottext">$mNot :: forall {r}. JStgExpr -&gt; (JStgExpr -&gt; r) -&gt; ((# #) -&gt; r) -&gt; r
+$bNot :: JStgExpr -&gt; JStgExpr
+</span><a href="GHC.JS.JStg.Syntax.html#Not"><span class="hs-identifier hs-var hs-var hs-var">Not</span></a></span></span></span></span><span> </span><span class="annot"><a href="#local-6989586621682373359"><span class="hs-identifier hs-type">x</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#UOpExpr"><span class="hs-identifier hs-type">UOpExpr</span></a></span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#NotOp"><span class="hs-identifier hs-type">NotOp</span></a></span><span> </span><span id="local-6989586621682373359"><span class="annot"><a href="#local-6989586621682373359"><span class="hs-identifier hs-var">x</span></a></span></span><span>
+</span><span id="line-187"></span><span>
+</span><span id="line-188"></span><span class="annot"><span class="hs-comment">-- | pattern synonym for unary negation @-@</span></span><span>
+</span><span id="line-189"></span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#Negate"><span class="hs-identifier hs-type">Negate</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#JStgExpr"><span class="hs-identifier hs-type">JStgExpr</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#JStgExpr"><span class="hs-identifier hs-type">JStgExpr</span></a></span><span>
+</span><span id="line-190"></span><span class="hs-keyword">pattern</span><span> </span><span id="Negate"><span id="%24mNegate"><span id="%24bNegate"><span class="annot"><span class="annottext">$mNegate :: forall {r}. JStgExpr -&gt; (JStgExpr -&gt; r) -&gt; ((# #) -&gt; r) -&gt; r
+$bNegate :: JStgExpr -&gt; JStgExpr
+</span><a href="GHC.JS.JStg.Syntax.html#Negate"><span class="hs-identifier hs-var hs-var hs-var">Negate</span></a></span></span></span></span><span> </span><span class="annot"><a href="#local-6989586621682373363"><span class="hs-identifier hs-type">x</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#UOpExpr"><span class="hs-identifier hs-type">UOpExpr</span></a></span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#NegOp"><span class="hs-identifier hs-type">NegOp</span></a></span><span> </span><span id="local-6989586621682373363"><span class="annot"><a href="#local-6989586621682373363"><span class="hs-identifier hs-var">x</span></a></span></span><span>
+</span><span id="line-191"></span><span>
+</span><span id="line-192"></span><span class="annot"><span class="hs-comment">-- | pattern synonym for addition @+@</span></span><span>
+</span><span id="line-193"></span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#Add"><span class="hs-identifier hs-type">Add</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#JStgExpr"><span class="hs-identifier hs-type">JStgExpr</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#JStgExpr"><span class="hs-identifier hs-type">JStgExpr</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#JStgExpr"><span class="hs-identifier hs-type">JStgExpr</span></a></span><span>
+</span><span id="line-194"></span><span class="hs-keyword">pattern</span><span> </span><span id="Add"><span id="%24mAdd"><span id="%24bAdd"><span class="annot"><span class="annottext">$mAdd :: forall {r}.
+JStgExpr -&gt; (JStgExpr -&gt; JStgExpr -&gt; r) -&gt; ((# #) -&gt; r) -&gt; r
+$bAdd :: JStgExpr -&gt; JStgExpr -&gt; JStgExpr
+</span><a href="GHC.JS.JStg.Syntax.html#Add"><span class="hs-identifier hs-var hs-var hs-var">Add</span></a></span></span></span></span><span> </span><span class="annot"><a href="#local-6989586621682373367"><span class="hs-identifier hs-type">x</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682373368"><span class="hs-identifier hs-type">y</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#InfixExpr"><span class="hs-identifier hs-type">InfixExpr</span></a></span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#AddOp"><span class="hs-identifier hs-type">AddOp</span></a></span><span> </span><span id="local-6989586621682373367"><span class="annot"><a href="#local-6989586621682373367"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span id="local-6989586621682373368"><span class="annot"><a href="#local-6989586621682373368"><span class="hs-identifier hs-var">y</span></a></span></span><span>
+</span><span id="line-195"></span><span>
+</span><span id="line-196"></span><span class="annot"><span class="hs-comment">-- | pattern synonym for subtraction @-@</span></span><span>
+</span><span id="line-197"></span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#Sub"><span class="hs-identifier hs-type">Sub</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#JStgExpr"><span class="hs-identifier hs-type">JStgExpr</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#JStgExpr"><span class="hs-identifier hs-type">JStgExpr</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#JStgExpr"><span class="hs-identifier hs-type">JStgExpr</span></a></span><span>
+</span><span id="line-198"></span><span class="hs-keyword">pattern</span><span> </span><span id="Sub"><span id="%24mSub"><span id="%24bSub"><span class="annot"><span class="annottext">$mSub :: forall {r}.
+JStgExpr -&gt; (JStgExpr -&gt; JStgExpr -&gt; r) -&gt; ((# #) -&gt; r) -&gt; r
+$bSub :: JStgExpr -&gt; JStgExpr -&gt; JStgExpr
+</span><a href="GHC.JS.JStg.Syntax.html#Sub"><span class="hs-identifier hs-var hs-var hs-var">Sub</span></a></span></span></span></span><span> </span><span class="annot"><a href="#local-6989586621682373372"><span class="hs-identifier hs-type">x</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682373373"><span class="hs-identifier hs-type">y</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#InfixExpr"><span class="hs-identifier hs-type">InfixExpr</span></a></span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#SubOp"><span class="hs-identifier hs-type">SubOp</span></a></span><span> </span><span id="local-6989586621682373372"><span class="annot"><a href="#local-6989586621682373372"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span id="local-6989586621682373373"><span class="annot"><a href="#local-6989586621682373373"><span class="hs-identifier hs-var">y</span></a></span></span><span>
+</span><span id="line-199"></span><span>
+</span><span id="line-200"></span><span class="annot"><span class="hs-comment">-- | pattern synonym for multiplication @*@</span></span><span>
+</span><span id="line-201"></span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#Mul"><span class="hs-identifier hs-type">Mul</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#JStgExpr"><span class="hs-identifier hs-type">JStgExpr</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#JStgExpr"><span class="hs-identifier hs-type">JStgExpr</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#JStgExpr"><span class="hs-identifier hs-type">JStgExpr</span></a></span><span>
+</span><span id="line-202"></span><span class="hs-keyword">pattern</span><span> </span><span id="Mul"><span id="%24mMul"><span id="%24bMul"><span class="annot"><span class="annottext">$mMul :: forall {r}.
+JStgExpr -&gt; (JStgExpr -&gt; JStgExpr -&gt; r) -&gt; ((# #) -&gt; r) -&gt; r
+$bMul :: JStgExpr -&gt; JStgExpr -&gt; JStgExpr
+</span><a href="GHC.JS.JStg.Syntax.html#Mul"><span class="hs-identifier hs-var hs-var hs-var">Mul</span></a></span></span></span></span><span> </span><span class="annot"><a href="#local-6989586621682373377"><span class="hs-identifier hs-type">x</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682373378"><span class="hs-identifier hs-type">y</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#InfixExpr"><span class="hs-identifier hs-type">InfixExpr</span></a></span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#MulOp"><span class="hs-identifier hs-type">MulOp</span></a></span><span> </span><span id="local-6989586621682373377"><span class="annot"><a href="#local-6989586621682373377"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span id="local-6989586621682373378"><span class="annot"><a href="#local-6989586621682373378"><span class="hs-identifier hs-var">y</span></a></span></span><span>
+</span><span id="line-203"></span><span>
+</span><span id="line-204"></span><span class="annot"><span class="hs-comment">-- | pattern synonym for division @*@</span></span><span>
+</span><span id="line-205"></span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#Div"><span class="hs-identifier hs-type">Div</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#JStgExpr"><span class="hs-identifier hs-type">JStgExpr</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#JStgExpr"><span class="hs-identifier hs-type">JStgExpr</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#JStgExpr"><span class="hs-identifier hs-type">JStgExpr</span></a></span><span>
+</span><span id="line-206"></span><span class="hs-keyword">pattern</span><span> </span><span id="Div"><span id="%24mDiv"><span id="%24bDiv"><span class="annot"><span class="annottext">$mDiv :: forall {r}.
+JStgExpr -&gt; (JStgExpr -&gt; JStgExpr -&gt; r) -&gt; ((# #) -&gt; r) -&gt; r
+$bDiv :: JStgExpr -&gt; JStgExpr -&gt; JStgExpr
+</span><a href="GHC.JS.JStg.Syntax.html#Div"><span class="hs-identifier hs-var hs-var hs-var">Div</span></a></span></span></span></span><span> </span><span class="annot"><a href="#local-6989586621682373382"><span class="hs-identifier hs-type">x</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682373383"><span class="hs-identifier hs-type">y</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#InfixExpr"><span class="hs-identifier hs-type">InfixExpr</span></a></span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#DivOp"><span class="hs-identifier hs-type">DivOp</span></a></span><span> </span><span id="local-6989586621682373382"><span class="annot"><a href="#local-6989586621682373382"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span id="local-6989586621682373383"><span class="annot"><a href="#local-6989586621682373383"><span class="hs-identifier hs-var">y</span></a></span></span><span>
+</span><span id="line-207"></span><span>
+</span><span id="line-208"></span><span class="annot"><span class="hs-comment">-- | pattern synonym for remainder @%@</span></span><span>
+</span><span id="line-209"></span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#Mod"><span class="hs-identifier hs-type">Mod</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#JStgExpr"><span class="hs-identifier hs-type">JStgExpr</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#JStgExpr"><span class="hs-identifier hs-type">JStgExpr</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#JStgExpr"><span class="hs-identifier hs-type">JStgExpr</span></a></span><span>
+</span><span id="line-210"></span><span class="hs-keyword">pattern</span><span> </span><span id="Mod"><span id="%24mMod"><span id="%24bMod"><span class="annot"><span class="annottext">$mMod :: forall {r}.
+JStgExpr -&gt; (JStgExpr -&gt; JStgExpr -&gt; r) -&gt; ((# #) -&gt; r) -&gt; r
+$bMod :: JStgExpr -&gt; JStgExpr -&gt; JStgExpr
+</span><a href="GHC.JS.JStg.Syntax.html#Mod"><span class="hs-identifier hs-var hs-var hs-var">Mod</span></a></span></span></span></span><span> </span><span class="annot"><a href="#local-6989586621682373387"><span class="hs-identifier hs-type">x</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682373388"><span class="hs-identifier hs-type">y</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#InfixExpr"><span class="hs-identifier hs-type">InfixExpr</span></a></span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#ModOp"><span class="hs-identifier hs-type">ModOp</span></a></span><span> </span><span id="local-6989586621682373387"><span class="annot"><a href="#local-6989586621682373387"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span id="local-6989586621682373388"><span class="annot"><a href="#local-6989586621682373388"><span class="hs-identifier hs-var">y</span></a></span></span><span>
+</span><span id="line-211"></span><span>
+</span><span id="line-212"></span><span class="annot"><span class="hs-comment">-- | pattern synonym for Bitwise Or @|@</span></span><span>
+</span><span id="line-213"></span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#BOr"><span class="hs-identifier hs-type">BOr</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#JStgExpr"><span class="hs-identifier hs-type">JStgExpr</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#JStgExpr"><span class="hs-identifier hs-type">JStgExpr</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#JStgExpr"><span class="hs-identifier hs-type">JStgExpr</span></a></span><span>
+</span><span id="line-214"></span><span class="hs-keyword">pattern</span><span> </span><span id="BOr"><span id="%24mBOr"><span id="%24bBOr"><span class="annot"><span class="annottext">$mBOr :: forall {r}.
+JStgExpr -&gt; (JStgExpr -&gt; JStgExpr -&gt; r) -&gt; ((# #) -&gt; r) -&gt; r
+$bBOr :: JStgExpr -&gt; JStgExpr -&gt; JStgExpr
+</span><a href="GHC.JS.JStg.Syntax.html#BOr"><span class="hs-identifier hs-var hs-var hs-var">BOr</span></a></span></span></span></span><span> </span><span class="annot"><a href="#local-6989586621682373392"><span class="hs-identifier hs-type">x</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682373393"><span class="hs-identifier hs-type">y</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#InfixExpr"><span class="hs-identifier hs-type">InfixExpr</span></a></span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#BOrOp"><span class="hs-identifier hs-type">BOrOp</span></a></span><span> </span><span id="local-6989586621682373392"><span class="annot"><a href="#local-6989586621682373392"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span id="local-6989586621682373393"><span class="annot"><a href="#local-6989586621682373393"><span class="hs-identifier hs-var">y</span></a></span></span><span>
+</span><span id="line-215"></span><span>
+</span><span id="line-216"></span><span class="annot"><span class="hs-comment">-- | pattern synonym for Bitwise And @&amp;@</span></span><span>
+</span><span id="line-217"></span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#BAnd"><span class="hs-identifier hs-type">BAnd</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#JStgExpr"><span class="hs-identifier hs-type">JStgExpr</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#JStgExpr"><span class="hs-identifier hs-type">JStgExpr</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#JStgExpr"><span class="hs-identifier hs-type">JStgExpr</span></a></span><span>
+</span><span id="line-218"></span><span class="hs-keyword">pattern</span><span> </span><span id="BAnd"><span id="%24mBAnd"><span id="%24bBAnd"><span class="annot"><span class="annottext">$mBAnd :: forall {r}.
+JStgExpr -&gt; (JStgExpr -&gt; JStgExpr -&gt; r) -&gt; ((# #) -&gt; r) -&gt; r
+$bBAnd :: JStgExpr -&gt; JStgExpr -&gt; JStgExpr
+</span><a href="GHC.JS.JStg.Syntax.html#BAnd"><span class="hs-identifier hs-var hs-var hs-var">BAnd</span></a></span></span></span></span><span> </span><span class="annot"><a href="#local-6989586621682373397"><span class="hs-identifier hs-type">x</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682373398"><span class="hs-identifier hs-type">y</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#InfixExpr"><span class="hs-identifier hs-type">InfixExpr</span></a></span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#BAndOp"><span class="hs-identifier hs-type">BAndOp</span></a></span><span> </span><span id="local-6989586621682373397"><span class="annot"><a href="#local-6989586621682373397"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span id="local-6989586621682373398"><span class="annot"><a href="#local-6989586621682373398"><span class="hs-identifier hs-var">y</span></a></span></span><span>
+</span><span id="line-219"></span><span>
+</span><span id="line-220"></span><span class="annot"><span class="hs-comment">-- | pattern synonym for Bitwise XOr @^@</span></span><span>
+</span><span id="line-221"></span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#BXor"><span class="hs-identifier hs-type">BXor</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#JStgExpr"><span class="hs-identifier hs-type">JStgExpr</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#JStgExpr"><span class="hs-identifier hs-type">JStgExpr</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#JStgExpr"><span class="hs-identifier hs-type">JStgExpr</span></a></span><span>
+</span><span id="line-222"></span><span class="hs-keyword">pattern</span><span> </span><span id="BXor"><span id="%24mBXor"><span id="%24bBXor"><span class="annot"><span class="annottext">$mBXor :: forall {r}.
+JStgExpr -&gt; (JStgExpr -&gt; JStgExpr -&gt; r) -&gt; ((# #) -&gt; r) -&gt; r
+$bBXor :: JStgExpr -&gt; JStgExpr -&gt; JStgExpr
+</span><a href="GHC.JS.JStg.Syntax.html#BXor"><span class="hs-identifier hs-var hs-var hs-var">BXor</span></a></span></span></span></span><span> </span><span class="annot"><a href="#local-6989586621682373402"><span class="hs-identifier hs-type">x</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682373403"><span class="hs-identifier hs-type">y</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#InfixExpr"><span class="hs-identifier hs-type">InfixExpr</span></a></span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#BXorOp"><span class="hs-identifier hs-type">BXorOp</span></a></span><span> </span><span id="local-6989586621682373402"><span class="annot"><a href="#local-6989586621682373402"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span id="local-6989586621682373403"><span class="annot"><a href="#local-6989586621682373403"><span class="hs-identifier hs-var">y</span></a></span></span><span>
+</span><span id="line-223"></span><span>
+</span><span id="line-224"></span><span class="annot"><span class="hs-comment">-- | pattern synonym for Bitwise Not @~@</span></span><span>
+</span><span id="line-225"></span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#BNot"><span class="hs-identifier hs-type">BNot</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#JStgExpr"><span class="hs-identifier hs-type">JStgExpr</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#JStgExpr"><span class="hs-identifier hs-type">JStgExpr</span></a></span><span>
+</span><span id="line-226"></span><span class="hs-keyword">pattern</span><span> </span><span id="BNot"><span id="%24mBNot"><span id="%24bBNot"><span class="annot"><span class="annottext">$mBNot :: forall {r}. JStgExpr -&gt; (JStgExpr -&gt; r) -&gt; ((# #) -&gt; r) -&gt; r
+$bBNot :: JStgExpr -&gt; JStgExpr
+</span><a href="GHC.JS.JStg.Syntax.html#BNot"><span class="hs-identifier hs-var hs-var hs-var">BNot</span></a></span></span></span></span><span> </span><span class="annot"><a href="#local-6989586621682373407"><span class="hs-identifier hs-type">x</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#UOpExpr"><span class="hs-identifier hs-type">UOpExpr</span></a></span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#BNotOp"><span class="hs-identifier hs-type">BNotOp</span></a></span><span> </span><span id="local-6989586621682373407"><span class="annot"><a href="#local-6989586621682373407"><span class="hs-identifier hs-var">x</span></a></span></span><span>
+</span><span id="line-227"></span><span>
+</span><span id="line-228"></span><span class="annot"><span class="hs-comment">-- | pattern synonym for logical Or @||@</span></span><span>
+</span><span id="line-229"></span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#LOr"><span class="hs-identifier hs-type">LOr</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#JStgExpr"><span class="hs-identifier hs-type">JStgExpr</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#JStgExpr"><span class="hs-identifier hs-type">JStgExpr</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#JStgExpr"><span class="hs-identifier hs-type">JStgExpr</span></a></span><span>
+</span><span id="line-230"></span><span class="hs-keyword">pattern</span><span> </span><span id="LOr"><span id="%24mLOr"><span id="%24bLOr"><span class="annot"><span class="annottext">$mLOr :: forall {r}.
+JStgExpr -&gt; (JStgExpr -&gt; JStgExpr -&gt; r) -&gt; ((# #) -&gt; r) -&gt; r
+$bLOr :: JStgExpr -&gt; JStgExpr -&gt; JStgExpr
+</span><a href="GHC.JS.JStg.Syntax.html#LOr"><span class="hs-identifier hs-var hs-var hs-var">LOr</span></a></span></span></span></span><span> </span><span class="annot"><a href="#local-6989586621682373411"><span class="hs-identifier hs-type">x</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682373412"><span class="hs-identifier hs-type">y</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#InfixExpr"><span class="hs-identifier hs-type">InfixExpr</span></a></span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#LOrOp"><span class="hs-identifier hs-type">LOrOp</span></a></span><span> </span><span id="local-6989586621682373411"><span class="annot"><a href="#local-6989586621682373411"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span id="local-6989586621682373412"><span class="annot"><a href="#local-6989586621682373412"><span class="hs-identifier hs-var">y</span></a></span></span><span>
+</span><span id="line-231"></span><span>
+</span><span id="line-232"></span><span class="annot"><span class="hs-comment">-- | pattern synonym for logical And @&amp;&amp;@</span></span><span>
+</span><span id="line-233"></span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#LAnd"><span class="hs-identifier hs-type">LAnd</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#JStgExpr"><span class="hs-identifier hs-type">JStgExpr</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#JStgExpr"><span class="hs-identifier hs-type">JStgExpr</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#JStgExpr"><span class="hs-identifier hs-type">JStgExpr</span></a></span><span>
+</span><span id="line-234"></span><span class="hs-keyword">pattern</span><span> </span><span id="LAnd"><span id="%24mLAnd"><span id="%24bLAnd"><span class="annot"><span class="annottext">$mLAnd :: forall {r}.
+JStgExpr -&gt; (JStgExpr -&gt; JStgExpr -&gt; r) -&gt; ((# #) -&gt; r) -&gt; r
+$bLAnd :: JStgExpr -&gt; JStgExpr -&gt; JStgExpr
+</span><a href="GHC.JS.JStg.Syntax.html#LAnd"><span class="hs-identifier hs-var hs-var hs-var">LAnd</span></a></span></span></span></span><span> </span><span class="annot"><a href="#local-6989586621682373416"><span class="hs-identifier hs-type">x</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682373417"><span class="hs-identifier hs-type">y</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#InfixExpr"><span class="hs-identifier hs-type">InfixExpr</span></a></span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#LAndOp"><span class="hs-identifier hs-type">LAndOp</span></a></span><span> </span><span id="local-6989586621682373416"><span class="annot"><a href="#local-6989586621682373416"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span id="local-6989586621682373417"><span class="annot"><a href="#local-6989586621682373417"><span class="hs-identifier hs-var">y</span></a></span></span><span>
+</span><span id="line-235"></span><span>
+</span><span id="line-236"></span><span>
+</span><span id="line-237"></span><span class="annot"><span class="hs-comment">-- | pattern synonym to create integer values</span></span><span>
+</span><span id="line-238"></span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#Int"><span class="hs-identifier hs-type">Int</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Integer</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#JStgExpr"><span class="hs-identifier hs-type">JStgExpr</span></a></span><span>
+</span><span id="line-239"></span><span class="hs-keyword">pattern</span><span> </span><span id="Int"><span id="%24mInt"><span id="%24bInt"><span class="annot"><span class="annottext">$mInt :: forall {r}. JStgExpr -&gt; (Integer -&gt; r) -&gt; ((# #) -&gt; r) -&gt; r
+$bInt :: Integer -&gt; JStgExpr
+</span><a href="GHC.JS.JStg.Syntax.html#Int"><span class="hs-identifier hs-var hs-var hs-var">Int</span></a></span></span></span></span><span> </span><span class="annot"><a href="#local-6989586621682373421"><span class="hs-identifier hs-type">x</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#ValExpr"><span class="hs-identifier hs-type">ValExpr</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#JInt"><span class="hs-identifier hs-type">JInt</span></a></span><span> </span><span id="local-6989586621682373421"><span class="annot"><a href="#local-6989586621682373421"><span class="hs-identifier hs-var">x</span></a></span></span><span class="hs-special">)</span><span>
+</span><span id="line-240"></span><span>
+</span><span id="line-241"></span><span class="annot"><span class="hs-comment">-- | pattern synonym to create string values</span></span><span>
+</span><span id="line-242"></span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#String"><span class="hs-identifier hs-type">String</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Data.FastString.html#FastString"><span class="hs-identifier hs-type">FastString</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#JStgExpr"><span class="hs-identifier hs-type">JStgExpr</span></a></span><span>
+</span><span id="line-243"></span><span class="hs-keyword">pattern</span><span> </span><span id="String"><span id="%24mString"><span id="%24bString"><span class="annot"><span class="annottext">$mString :: forall {r}. JStgExpr -&gt; (FastString -&gt; r) -&gt; ((# #) -&gt; r) -&gt; r
+$bString :: FastString -&gt; JStgExpr
+</span><a href="GHC.JS.JStg.Syntax.html#String"><span class="hs-identifier hs-var hs-var hs-var">String</span></a></span></span></span></span><span> </span><span class="annot"><a href="#local-6989586621682373425"><span class="hs-identifier hs-type">x</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#ValExpr"><span class="hs-identifier hs-type">ValExpr</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#JStr"><span class="hs-identifier hs-type">JStr</span></a></span><span> </span><span id="local-6989586621682373425"><span class="annot"><a href="#local-6989586621682373425"><span class="hs-identifier hs-var">x</span></a></span></span><span class="hs-special">)</span><span>
+</span><span id="line-244"></span><span>
+</span><span id="line-245"></span><span class="annot"><span class="hs-comment">-- | pattern synonym to create a local variable reference</span></span><span>
+</span><span id="line-246"></span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#Var"><span class="hs-identifier hs-type">Var</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.JS.Ident.html#Ident"><span class="hs-identifier hs-type">Ident</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#JStgExpr"><span class="hs-identifier hs-type">JStgExpr</span></a></span><span>
+</span><span id="line-247"></span><span class="hs-keyword">pattern</span><span> </span><span id="Var"><span id="%24mVar"><span id="%24bVar"><span class="annot"><span class="annottext">$mVar :: forall {r}. JStgExpr -&gt; (Ident -&gt; r) -&gt; ((# #) -&gt; r) -&gt; r
+$bVar :: Ident -&gt; JStgExpr
+</span><a href="GHC.JS.JStg.Syntax.html#Var"><span class="hs-identifier hs-var hs-var hs-var">Var</span></a></span></span></span></span><span> </span><span class="annot"><a href="#local-6989586621682373429"><span class="hs-identifier hs-type">x</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#ValExpr"><span class="hs-identifier hs-type">ValExpr</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#JVar"><span class="hs-identifier hs-type">JVar</span></a></span><span> </span><span id="local-6989586621682373429"><span class="annot"><a href="#local-6989586621682373429"><span class="hs-identifier hs-var">x</span></a></span></span><span class="hs-special">)</span><span>
+</span><span id="line-248"></span><span>
+</span><span id="line-249"></span><span class="annot"><span class="hs-comment">-- | pattern synonym to create an anonymous function</span></span><span>
+</span><span id="line-250"></span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#Func"><span class="hs-identifier hs-type">Func</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="GHC.JS.Ident.html#Ident"><span class="hs-identifier hs-type">Ident</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#JStgStat"><span class="hs-identifier hs-type">JStgStat</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#JStgExpr"><span class="hs-identifier hs-type">JStgExpr</span></a></span><span>
+</span><span id="line-251"></span><span class="hs-keyword">pattern</span><span> </span><span id="Func"><span id="%24mFunc"><span id="%24bFunc"><span class="annot"><span class="annottext">$mFunc :: forall {r}.
+JStgExpr -&gt; ([Ident] -&gt; JStgStat -&gt; r) -&gt; ((# #) -&gt; r) -&gt; r
+$bFunc :: [Ident] -&gt; JStgStat -&gt; JStgExpr
+</span><a href="GHC.JS.JStg.Syntax.html#Func"><span class="hs-identifier hs-var hs-var hs-var">Func</span></a></span></span></span></span><span> </span><span class="annot"><a href="#local-6989586621682373433"><span class="hs-identifier hs-type">args</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682373434"><span class="hs-identifier hs-type">body</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#ValExpr"><span class="hs-identifier hs-type">ValExpr</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#JFunc"><span class="hs-identifier hs-type">JFunc</span></a></span><span> </span><span id="local-6989586621682373433"><span class="annot"><a href="#local-6989586621682373433"><span class="hs-identifier hs-var">args</span></a></span></span><span> </span><span id="local-6989586621682373434"><span class="annot"><a href="#local-6989586621682373434"><span class="hs-identifier hs-var">body</span></a></span></span><span class="hs-special">)</span><span>
+</span><span id="line-252"></span><span>
+</span><span id="line-253"></span><span class="hs-comment">--------------------------------------------------------------------------------</span><span>
+</span><span id="line-254"></span><span class="hs-comment">--                            Values</span><span>
+</span><span id="line-255"></span><span class="hs-comment">--------------------------------------------------------------------------------</span><span>
+</span><span id="line-256"></span><span class="annot"><span class="hs-comment">-- | JavaScript values</span></span><span>
+</span><span id="line-257"></span><span class="hs-keyword">data</span><span> </span><span id="JVal"><span class="annot"><a href="GHC.JS.JStg.Syntax.html#JVal"><span class="hs-identifier hs-var">JVal</span></a></span></span><span>
+</span><span id="line-258"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span id="JVar"><span class="annot"><a href="GHC.JS.JStg.Syntax.html#JVar"><span class="hs-identifier hs-var">JVar</span></a></span></span><span>     </span><span class="annot"><a href="GHC.JS.Ident.html#Ident"><span class="hs-identifier hs-type">Ident</span></a></span><span>                      </span><span class="annot"><span class="hs-comment">-- ^ A variable reference</span></span><span>
+</span><span id="line-259"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="JList"><span class="annot"><a href="GHC.JS.JStg.Syntax.html#JList"><span class="hs-identifier hs-var">JList</span></a></span></span><span>    </span><span class="hs-special">[</span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#JStgExpr"><span class="hs-identifier hs-type">JStgExpr</span></a></span><span class="hs-special">]</span><span>                 </span><span class="hs-comment">-- ^ A JavaScript list, or what JS</span><span>
+</span><span id="line-260"></span><span>                                        </span><span class="hs-comment">--   calls an Array</span><span>
+</span><span id="line-261"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="JDouble"><span class="annot"><a href="GHC.JS.JStg.Syntax.html#JDouble"><span class="hs-identifier hs-var">JDouble</span></a></span></span><span>  </span><span class="annot"><a href="GHC.Types.SaneDouble.html#SaneDouble"><span class="hs-identifier hs-type">SaneDouble</span></a></span><span>                 </span><span class="annot"><span class="hs-comment">-- ^ A Double</span></span><span>
+</span><span id="line-262"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="JInt"><span class="annot"><a href="GHC.JS.JStg.Syntax.html#JInt"><span class="hs-identifier hs-var">JInt</span></a></span></span><span>     </span><span class="annot"><span class="hs-identifier hs-type">Integer</span></span><span>                    </span><span class="annot"><span class="hs-comment">-- ^ A BigInt</span></span><span>
+</span><span id="line-263"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="JStr"><span class="annot"><a href="GHC.JS.JStg.Syntax.html#JStr"><span class="hs-identifier hs-var">JStr</span></a></span></span><span>     </span><span class="annot"><a href="GHC.Data.FastString.html#FastString"><span class="hs-identifier hs-type">FastString</span></a></span><span>                 </span><span class="annot"><span class="hs-comment">-- ^ A String</span></span><span>
+</span><span id="line-264"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="JRegEx"><span class="annot"><a href="GHC.JS.JStg.Syntax.html#JRegEx"><span class="hs-identifier hs-var">JRegEx</span></a></span></span><span>   </span><span class="annot"><a href="GHC.Data.FastString.html#FastString"><span class="hs-identifier hs-type">FastString</span></a></span><span>                 </span><span class="annot"><span class="hs-comment">-- ^ A Regex</span></span><span>
+</span><span id="line-265"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="JBool"><span class="annot"><a href="GHC.JS.JStg.Syntax.html#JBool"><span class="hs-identifier hs-var">JBool</span></a></span></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>                       </span><span class="annot"><span class="hs-comment">-- ^ A Boolean</span></span><span>
+</span><span id="line-266"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="JHash"><span class="annot"><a href="GHC.JS.JStg.Syntax.html#JHash"><span class="hs-identifier hs-var">JHash</span></a></span></span><span>    </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Types.Unique.Map.html#UniqMap"><span class="hs-identifier hs-type">UniqMap</span></a></span><span> </span><span class="annot"><a href="GHC.Data.FastString.html#FastString"><span class="hs-identifier hs-type">FastString</span></a></span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#JStgExpr"><span class="hs-identifier hs-type">JStgExpr</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="hs-comment">-- ^ A JS HashMap: @{&quot;foo&quot;: 0}@</span></span><span>
+</span><span id="line-267"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="JFunc"><span class="annot"><a href="GHC.JS.JStg.Syntax.html#JFunc"><span class="hs-identifier hs-var">JFunc</span></a></span></span><span>    </span><span class="hs-special">[</span><span class="annot"><a href="GHC.JS.Ident.html#Ident"><span class="hs-identifier hs-type">Ident</span></a></span><span class="hs-special">]</span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#JStgStat"><span class="hs-identifier hs-type">JStgStat</span></a></span><span>              </span><span class="annot"><span class="hs-comment">-- ^ A function</span></span><span>
+</span><span id="line-268"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621682373442"><span id="local-6989586621682373461"><span class="annot"><span class="annottext">JVal -&gt; JVal -&gt; Bool
+(JVal -&gt; JVal -&gt; Bool) -&gt; (JVal -&gt; JVal -&gt; Bool) -&gt; Eq JVal
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: JVal -&gt; JVal -&gt; Bool
+== :: JVal -&gt; JVal -&gt; Bool
+$c/= :: JVal -&gt; JVal -&gt; Bool
+/= :: JVal -&gt; JVal -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Typeable</span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682373464"><span id="local-6989586621682373466"><span class="annot"><span class="annottext">(forall x. JVal -&gt; Rep JVal x)
+-&gt; (forall x. Rep JVal x -&gt; JVal) -&gt; Generic JVal
+forall x. Rep JVal x -&gt; JVal
+forall x. JVal -&gt; Rep JVal x
+forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+$cfrom :: forall x. JVal -&gt; Rep JVal x
+from :: forall x. JVal -&gt; Rep JVal x
+$cto :: forall x. Rep JVal x -&gt; JVal
+to :: forall x. Rep JVal x -&gt; JVal
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Generic</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-269"></span><span>
+</span><span id="line-270"></span><span class="hs-comment">--------------------------------------------------------------------------------</span><span>
+</span><span id="line-271"></span><span class="hs-comment">--                            Operators</span><span>
+</span><span id="line-272"></span><span class="hs-comment">--------------------------------------------------------------------------------</span><span>
+</span><span id="line-273"></span><span class="hs-comment">-- | JS Binary Operators. We do not deeply embed the comma operator and the</span><span>
+</span><span id="line-274"></span><span class="hs-comment">-- assignment operators</span><span>
+</span><span id="line-275"></span><span class="hs-keyword">data</span><span> </span><span id="Op"><span class="annot"><a href="GHC.JS.JStg.Syntax.html#Op"><span class="hs-identifier hs-var">Op</span></a></span></span><span>
+</span><span id="line-276"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span id="EqOp"><span class="annot"><a href="GHC.JS.JStg.Syntax.html#EqOp"><span class="hs-identifier hs-var">EqOp</span></a></span></span><span>            </span><span class="annot"><span class="hs-comment">-- ^ Equality:              `==`</span></span><span>
+</span><span id="line-277"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="StrictEqOp"><span class="annot"><a href="GHC.JS.JStg.Syntax.html#StrictEqOp"><span class="hs-identifier hs-var">StrictEqOp</span></a></span></span><span>      </span><span class="annot"><span class="hs-comment">-- ^ Strict Equality:       `===`</span></span><span>
+</span><span id="line-278"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="NeqOp"><span class="annot"><a href="GHC.JS.JStg.Syntax.html#NeqOp"><span class="hs-identifier hs-var">NeqOp</span></a></span></span><span>           </span><span class="annot"><span class="hs-comment">-- ^ InEquality:            `!=`</span></span><span>
+</span><span id="line-279"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="StrictNeqOp"><span class="annot"><a href="GHC.JS.JStg.Syntax.html#StrictNeqOp"><span class="hs-identifier hs-var">StrictNeqOp</span></a></span></span><span>     </span><span class="annot"><span class="hs-comment">-- ^ Strict InEquality      `!==`</span></span><span>
+</span><span id="line-280"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="GtOp"><span class="annot"><a href="GHC.JS.JStg.Syntax.html#GtOp"><span class="hs-identifier hs-var">GtOp</span></a></span></span><span>            </span><span class="annot"><span class="hs-comment">-- ^ Greater Than:          `&gt;`</span></span><span>
+</span><span id="line-281"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="GeOp"><span class="annot"><a href="GHC.JS.JStg.Syntax.html#GeOp"><span class="hs-identifier hs-var">GeOp</span></a></span></span><span>            </span><span class="annot"><span class="hs-comment">-- ^ Greater Than or Equal: `&gt;=`</span></span><span>
+</span><span id="line-282"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="LtOp"><span class="annot"><a href="GHC.JS.JStg.Syntax.html#LtOp"><span class="hs-identifier hs-var">LtOp</span></a></span></span><span>            </span><span class="annot"><span class="hs-comment">-- ^ Less Than:              &lt;</span></span><span>
+</span><span id="line-283"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="LeOp"><span class="annot"><a href="GHC.JS.JStg.Syntax.html#LeOp"><span class="hs-identifier hs-var">LeOp</span></a></span></span><span>            </span><span class="annot"><span class="hs-comment">-- ^ Less Than or Equal:     &lt;=</span></span><span>
+</span><span id="line-284"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="AddOp"><span class="annot"><a href="GHC.JS.JStg.Syntax.html#AddOp"><span class="hs-identifier hs-var">AddOp</span></a></span></span><span>           </span><span class="annot"><span class="hs-comment">-- ^ Addition:               +</span></span><span>
+</span><span id="line-285"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="SubOp"><span class="annot"><a href="GHC.JS.JStg.Syntax.html#SubOp"><span class="hs-identifier hs-var">SubOp</span></a></span></span><span>           </span><span class="annot"><span class="hs-comment">-- ^ Subtraction:            -</span></span><span>
+</span><span id="line-286"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="MulOp"><span class="annot"><a href="GHC.JS.JStg.Syntax.html#MulOp"><span class="hs-identifier hs-var">MulOp</span></a></span></span><span>           </span><span class="annot"><span class="hs-comment">-- ^ Multiplication          \*</span></span><span>
+</span><span id="line-287"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="DivOp"><span class="annot"><a href="GHC.JS.JStg.Syntax.html#DivOp"><span class="hs-identifier hs-var">DivOp</span></a></span></span><span>           </span><span class="annot"><span class="hs-comment">-- ^ Division:               \/</span></span><span>
+</span><span id="line-288"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="ModOp"><span class="annot"><a href="GHC.JS.JStg.Syntax.html#ModOp"><span class="hs-identifier hs-var">ModOp</span></a></span></span><span>           </span><span class="annot"><span class="hs-comment">-- ^ Remainder:              %</span></span><span>
+</span><span id="line-289"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="LeftShiftOp"><span class="annot"><a href="GHC.JS.JStg.Syntax.html#LeftShiftOp"><span class="hs-identifier hs-var">LeftShiftOp</span></a></span></span><span>     </span><span class="annot"><span class="hs-comment">-- ^ Left Shift:             \&lt;\&lt;</span></span><span>
+</span><span id="line-290"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="RightShiftOp"><span class="annot"><a href="GHC.JS.JStg.Syntax.html#RightShiftOp"><span class="hs-identifier hs-var">RightShiftOp</span></a></span></span><span>    </span><span class="annot"><span class="hs-comment">-- ^ Right Shift:            \&gt;\&gt;</span></span><span>
+</span><span id="line-291"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="ZRightShiftOp"><span class="annot"><a href="GHC.JS.JStg.Syntax.html#ZRightShiftOp"><span class="hs-identifier hs-var">ZRightShiftOp</span></a></span></span><span>   </span><span class="annot"><span class="hs-comment">-- ^ Unsigned RightShift:    \&gt;\&gt;\&gt;</span></span><span>
+</span><span id="line-292"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="BAndOp"><span class="annot"><a href="GHC.JS.JStg.Syntax.html#BAndOp"><span class="hs-identifier hs-var">BAndOp</span></a></span></span><span>          </span><span class="annot"><span class="hs-comment">-- ^ Bitwise And:            &amp;</span></span><span>
+</span><span id="line-293"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="BOrOp"><span class="annot"><a href="GHC.JS.JStg.Syntax.html#BOrOp"><span class="hs-identifier hs-var">BOrOp</span></a></span></span><span>           </span><span class="annot"><span class="hs-comment">-- ^ Bitwise Or:             |</span></span><span>
+</span><span id="line-294"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="BXorOp"><span class="annot"><a href="GHC.JS.JStg.Syntax.html#BXorOp"><span class="hs-identifier hs-var">BXorOp</span></a></span></span><span>          </span><span class="annot"><span class="hs-comment">-- ^ Bitwise XOr:            ^</span></span><span>
+</span><span id="line-295"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="LAndOp"><span class="annot"><a href="GHC.JS.JStg.Syntax.html#LAndOp"><span class="hs-identifier hs-var">LAndOp</span></a></span></span><span>          </span><span class="annot"><span class="hs-comment">-- ^ Logical And:            &amp;&amp;</span></span><span>
+</span><span id="line-296"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="LOrOp"><span class="annot"><a href="GHC.JS.JStg.Syntax.html#LOrOp"><span class="hs-identifier hs-var">LOrOp</span></a></span></span><span>           </span><span class="annot"><span class="hs-comment">-- ^ Logical Or:             ||</span></span><span>
+</span><span id="line-297"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="InstanceofOp"><span class="annot"><a href="GHC.JS.JStg.Syntax.html#InstanceofOp"><span class="hs-identifier hs-var">InstanceofOp</span></a></span></span><span>    </span><span class="annot"><span class="hs-comment">-- ^ @instanceof@</span></span><span>
+</span><span id="line-298"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="InOp"><span class="annot"><a href="GHC.JS.JStg.Syntax.html#InOp"><span class="hs-identifier hs-var">InOp</span></a></span></span><span>            </span><span class="annot"><span class="hs-comment">-- ^ @in@</span></span><span>
+</span><span id="line-299"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621682373483"><span id="local-6989586621682373485"><span id="local-6989586621682373489"><span class="annot"><span class="annottext">Int -&gt; Op -&gt; ShowS
+[Op] -&gt; ShowS
+Op -&gt; String
+(Int -&gt; Op -&gt; ShowS)
+-&gt; (Op -&gt; String) -&gt; ([Op] -&gt; ShowS) -&gt; Show Op
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; Op -&gt; ShowS
+showsPrec :: Int -&gt; Op -&gt; ShowS
+$cshow :: Op -&gt; String
+show :: Op -&gt; String
+$cshowList :: [Op] -&gt; ShowS
+showList :: [Op] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682373494"><span id="local-6989586621682373498"><span class="annot"><span class="annottext">Op -&gt; Op -&gt; Bool
+(Op -&gt; Op -&gt; Bool) -&gt; (Op -&gt; Op -&gt; Bool) -&gt; Eq Op
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: Op -&gt; Op -&gt; Bool
+== :: Op -&gt; Op -&gt; Bool
+$c/= :: Op -&gt; Op -&gt; Bool
+/= :: Op -&gt; Op -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682373503"><span id="local-6989586621682373507"><span id="local-6989586621682373511"><span id="local-6989586621682373515"><span id="local-6989586621682373518"><span id="local-6989586621682373521"><span id="local-6989586621682373524"><span class="annot"><span class="annottext">Eq Op
+Eq Op =&gt;
+(Op -&gt; Op -&gt; Ordering)
+-&gt; (Op -&gt; Op -&gt; Bool)
+-&gt; (Op -&gt; Op -&gt; Bool)
+-&gt; (Op -&gt; Op -&gt; Bool)
+-&gt; (Op -&gt; Op -&gt; Bool)
+-&gt; (Op -&gt; Op -&gt; Op)
+-&gt; (Op -&gt; Op -&gt; Op)
+-&gt; Ord Op
+Op -&gt; Op -&gt; Bool
+Op -&gt; Op -&gt; Ordering
+Op -&gt; Op -&gt; Op
+forall a.
+Eq a =&gt;
+(a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+$ccompare :: Op -&gt; Op -&gt; Ordering
+compare :: Op -&gt; Op -&gt; Ordering
+$c&lt; :: Op -&gt; Op -&gt; Bool
+&lt; :: Op -&gt; Op -&gt; Bool
+$c&lt;= :: Op -&gt; Op -&gt; Bool
+&lt;= :: Op -&gt; Op -&gt; Bool
+$c&gt; :: Op -&gt; Op -&gt; Bool
+&gt; :: Op -&gt; Op -&gt; Bool
+$c&gt;= :: Op -&gt; Op -&gt; Bool
+&gt;= :: Op -&gt; Op -&gt; Bool
+$cmax :: Op -&gt; Op -&gt; Op
+max :: Op -&gt; Op -&gt; Op
+$cmin :: Op -&gt; Op -&gt; Op
+min :: Op -&gt; Op -&gt; Op
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682373531"><span id="local-6989586621682373540"><span id="local-6989586621682373547"><span id="local-6989586621682373557"><span id="local-6989586621682373560"><span id="local-6989586621682373565"><span id="local-6989586621682373571"><span id="local-6989586621682373575"><span class="annot"><span class="annottext">Int -&gt; Op
+Op -&gt; Int
+Op -&gt; [Op]
+Op -&gt; Op
+Op -&gt; Op -&gt; [Op]
+Op -&gt; Op -&gt; Op -&gt; [Op]
+(Op -&gt; Op)
+-&gt; (Op -&gt; Op)
+-&gt; (Int -&gt; Op)
+-&gt; (Op -&gt; Int)
+-&gt; (Op -&gt; [Op])
+-&gt; (Op -&gt; Op -&gt; [Op])
+-&gt; (Op -&gt; Op -&gt; [Op])
+-&gt; (Op -&gt; Op -&gt; Op -&gt; [Op])
+-&gt; Enum Op
+forall a.
+(a -&gt; a)
+-&gt; (a -&gt; a)
+-&gt; (Int -&gt; a)
+-&gt; (a -&gt; Int)
+-&gt; (a -&gt; [a])
+-&gt; (a -&gt; a -&gt; [a])
+-&gt; (a -&gt; a -&gt; [a])
+-&gt; (a -&gt; a -&gt; a -&gt; [a])
+-&gt; Enum a
+$csucc :: Op -&gt; Op
+succ :: Op -&gt; Op
+$cpred :: Op -&gt; Op
+pred :: Op -&gt; Op
+$ctoEnum :: Int -&gt; Op
+toEnum :: Int -&gt; Op
+$cfromEnum :: Op -&gt; Int
+fromEnum :: Op -&gt; Int
+$cenumFrom :: Op -&gt; [Op]
+enumFrom :: Op -&gt; [Op]
+$cenumFromThen :: Op -&gt; Op -&gt; [Op]
+enumFromThen :: Op -&gt; Op -&gt; [Op]
+$cenumFromTo :: Op -&gt; Op -&gt; [Op]
+enumFromTo :: Op -&gt; Op -&gt; [Op]
+$cenumFromThenTo :: Op -&gt; Op -&gt; Op -&gt; [Op]
+enumFromThenTo :: Op -&gt; Op -&gt; Op -&gt; [Op]
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Enum</span></span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682373585"><span id="local-6989586621682373587"><span id="local-6989586621682373589"><span id="local-6989586621682373591"><span id="local-6989586621682373593"><span id="local-6989586621682373599"><span id="local-6989586621682373604"><span id="local-6989586621682373607"><span id="local-6989586621682373610"><span id="local-6989586621682373613"><span id="local-6989586621682373616"><span id="local-6989586621682373619"><span id="local-6989586621682373624"><span id="local-6989586621682373629"><span class="annot"><span class="annottext">Typeable Op
+Typeable Op =&gt;
+(forall (c :: * -&gt; *).
+ (forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+ -&gt; (forall g. g -&gt; c g) -&gt; Op -&gt; c Op)
+-&gt; (forall (c :: * -&gt; *).
+    (forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+    -&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c Op)
+-&gt; (Op -&gt; Constr)
+-&gt; (Op -&gt; DataType)
+-&gt; (forall (t :: * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d. Data d =&gt; c (t d)) -&gt; Maybe (c Op))
+-&gt; (forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d e. (Data d, Data e) =&gt; c (t d e)) -&gt; Maybe (c Op))
+-&gt; ((forall b. Data b =&gt; b -&gt; b) -&gt; Op -&gt; Op)
+-&gt; (forall r r'.
+    (r -&gt; r' -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; Op -&gt; r)
+-&gt; (forall r r'.
+    (r' -&gt; r -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; Op -&gt; r)
+-&gt; (forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; Op -&gt; [u])
+-&gt; (forall u. Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; Op -&gt; u)
+-&gt; (forall (m :: * -&gt; *).
+    Monad m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; Op -&gt; m Op)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; Op -&gt; m Op)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; Op -&gt; m Op)
+-&gt; Data Op
+Op -&gt; Constr
+Op -&gt; DataType
+(forall b. Data b =&gt; b -&gt; b) -&gt; Op -&gt; Op
+forall a.
+Typeable a =&gt;
+(forall (c :: * -&gt; *).
+ (forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+ -&gt; (forall g. g -&gt; c g) -&gt; a -&gt; c a)
+-&gt; (forall (c :: * -&gt; *).
+    (forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+    -&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c a)
+-&gt; (a -&gt; Constr)
+-&gt; (a -&gt; DataType)
+-&gt; (forall (t :: * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d. Data d =&gt; c (t d)) -&gt; Maybe (c a))
+-&gt; (forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d e. (Data d, Data e) =&gt; c (t d e)) -&gt; Maybe (c a))
+-&gt; ((forall b. Data b =&gt; b -&gt; b) -&gt; a -&gt; a)
+-&gt; (forall r r'.
+    (r -&gt; r' -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; a -&gt; r)
+-&gt; (forall r r'.
+    (r' -&gt; r -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; a -&gt; r)
+-&gt; (forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; a -&gt; [u])
+-&gt; (forall u. Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; a -&gt; u)
+-&gt; (forall (m :: * -&gt; *).
+    Monad m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; a -&gt; m a)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; a -&gt; m a)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; a -&gt; m a)
+-&gt; Data a
+forall u. Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; Op -&gt; u
+forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; Op -&gt; [u]
+forall r r'.
+(r -&gt; r' -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; Op -&gt; r
+forall r r'.
+(r' -&gt; r -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; Op -&gt; r
+forall (m :: * -&gt; *).
+Monad m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; Op -&gt; m Op
+forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; Op -&gt; m Op
+forall (c :: * -&gt; *).
+(forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+-&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c Op
+forall (c :: * -&gt; *).
+(forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+-&gt; (forall g. g -&gt; c g) -&gt; Op -&gt; c Op
+forall (t :: * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d. Data d =&gt; c (t d)) -&gt; Maybe (c Op)
+forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d e. (Data d, Data e) =&gt; c (t d e)) -&gt; Maybe (c Op)
+$cgfoldl :: forall (c :: * -&gt; *).
+(forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+-&gt; (forall g. g -&gt; c g) -&gt; Op -&gt; c Op
+gfoldl :: forall (c :: * -&gt; *).
+(forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+-&gt; (forall g. g -&gt; c g) -&gt; Op -&gt; c Op
+$cgunfold :: forall (c :: * -&gt; *).
+(forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+-&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c Op
+gunfold :: forall (c :: * -&gt; *).
+(forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+-&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c Op
+$ctoConstr :: Op -&gt; Constr
+toConstr :: Op -&gt; Constr
+$cdataTypeOf :: Op -&gt; DataType
+dataTypeOf :: Op -&gt; DataType
+$cdataCast1 :: forall (t :: * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d. Data d =&gt; c (t d)) -&gt; Maybe (c Op)
+dataCast1 :: forall (t :: * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d. Data d =&gt; c (t d)) -&gt; Maybe (c Op)
+$cdataCast2 :: forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d e. (Data d, Data e) =&gt; c (t d e)) -&gt; Maybe (c Op)
+dataCast2 :: forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d e. (Data d, Data e) =&gt; c (t d e)) -&gt; Maybe (c Op)
+$cgmapT :: (forall b. Data b =&gt; b -&gt; b) -&gt; Op -&gt; Op
+gmapT :: (forall b. Data b =&gt; b -&gt; b) -&gt; Op -&gt; Op
+$cgmapQl :: forall r r'.
+(r -&gt; r' -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; Op -&gt; r
+gmapQl :: forall r r'.
+(r -&gt; r' -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; Op -&gt; r
+$cgmapQr :: forall r r'.
+(r' -&gt; r -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; Op -&gt; r
+gmapQr :: forall r r'.
+(r' -&gt; r -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; Op -&gt; r
+$cgmapQ :: forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; Op -&gt; [u]
+gmapQ :: forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; Op -&gt; [u]
+$cgmapQi :: forall u. Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; Op -&gt; u
+gmapQi :: forall u. Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; Op -&gt; u
+$cgmapM :: forall (m :: * -&gt; *).
+Monad m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; Op -&gt; m Op
+gmapM :: forall (m :: * -&gt; *).
+Monad m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; Op -&gt; m Op
+$cgmapMp :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; Op -&gt; m Op
+gmapMp :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; Op -&gt; m Op
+$cgmapMo :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; Op -&gt; m Op
+gmapMo :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; Op -&gt; m Op
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Data</span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Typeable</span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682373639"><span id="local-6989586621682373641"><span class="annot"><span class="annottext">(forall x. Op -&gt; Rep Op x)
+-&gt; (forall x. Rep Op x -&gt; Op) -&gt; Generic Op
+forall x. Rep Op x -&gt; Op
+forall x. Op -&gt; Rep Op x
+forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+$cfrom :: forall x. Op -&gt; Rep Op x
+from :: forall x. Op -&gt; Rep Op x
+$cto :: forall x. Rep Op x -&gt; Op
+to :: forall x. Rep Op x -&gt; Op
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Generic</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-300"></span><span>
+</span><span id="line-301"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621682373644"><span class="annot"><a href="../../deepseq-1.5.0.0-a9b7/src/Control.DeepSeq.html#NFData"><span class="hs-identifier hs-type">NFData</span></a></span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#Op"><span class="hs-identifier hs-type">Op</span></a></span></span><span>
+</span><span id="line-302"></span><span>
+</span><span id="line-303"></span><span class="annot"><span class="hs-comment">-- | JS Unary Operators</span></span><span>
+</span><span id="line-304"></span><span class="hs-keyword">data</span><span> </span><span id="UOp"><span class="annot"><a href="GHC.JS.JStg.Syntax.html#UOp"><span class="hs-identifier hs-var">UOp</span></a></span></span><span>
+</span><span id="line-305"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span id="NotOp"><span class="annot"><a href="GHC.JS.JStg.Syntax.html#NotOp"><span class="hs-identifier hs-var">NotOp</span></a></span></span><span>           </span><span class="annot"><span class="hs-comment">-- ^ Logical Not: @!@</span></span><span>
+</span><span id="line-306"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="BNotOp"><span class="annot"><a href="GHC.JS.JStg.Syntax.html#BNotOp"><span class="hs-identifier hs-var">BNotOp</span></a></span></span><span>          </span><span class="annot"><span class="hs-comment">-- ^ Bitwise Not: @~@</span></span><span>
+</span><span id="line-307"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="NegOp"><span class="annot"><a href="GHC.JS.JStg.Syntax.html#NegOp"><span class="hs-identifier hs-var">NegOp</span></a></span></span><span>           </span><span class="annot"><span class="hs-comment">-- ^ Negation:    @-@</span></span><span>
+</span><span id="line-308"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="PlusOp"><span class="annot"><a href="GHC.JS.JStg.Syntax.html#PlusOp"><span class="hs-identifier hs-var">PlusOp</span></a></span></span><span>          </span><span class="annot"><span class="hs-comment">-- ^ Unary Plus:  @+x@</span></span><span>
+</span><span id="line-309"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="NewOp"><span class="annot"><a href="GHC.JS.JStg.Syntax.html#NewOp"><span class="hs-identifier hs-var">NewOp</span></a></span></span><span>           </span><span class="annot"><span class="hs-comment">-- ^ new    x</span></span><span>
+</span><span id="line-310"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="TypeofOp"><span class="annot"><a href="GHC.JS.JStg.Syntax.html#TypeofOp"><span class="hs-identifier hs-var">TypeofOp</span></a></span></span><span>        </span><span class="annot"><span class="hs-comment">-- ^ typeof x</span></span><span>
+</span><span id="line-311"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="DeleteOp"><span class="annot"><a href="GHC.JS.JStg.Syntax.html#DeleteOp"><span class="hs-identifier hs-var">DeleteOp</span></a></span></span><span>        </span><span class="annot"><span class="hs-comment">-- ^ delete x</span></span><span>
+</span><span id="line-312"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="YieldOp"><span class="annot"><a href="GHC.JS.JStg.Syntax.html#YieldOp"><span class="hs-identifier hs-var">YieldOp</span></a></span></span><span>         </span><span class="annot"><span class="hs-comment">-- ^ yield  x</span></span><span>
+</span><span id="line-313"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="VoidOp"><span class="annot"><a href="GHC.JS.JStg.Syntax.html#VoidOp"><span class="hs-identifier hs-var">VoidOp</span></a></span></span><span>          </span><span class="annot"><span class="hs-comment">-- ^ void   x</span></span><span>
+</span><span id="line-314"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="PreIncOp"><span class="annot"><a href="GHC.JS.JStg.Syntax.html#PreIncOp"><span class="hs-identifier hs-var">PreIncOp</span></a></span></span><span>        </span><span class="annot"><span class="hs-comment">-- ^ Prefix Increment:  @++x@</span></span><span>
+</span><span id="line-315"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="PostIncOp"><span class="annot"><a href="GHC.JS.JStg.Syntax.html#PostIncOp"><span class="hs-identifier hs-var">PostIncOp</span></a></span></span><span>       </span><span class="annot"><span class="hs-comment">-- ^ Postfix Increment: @x++@</span></span><span>
+</span><span id="line-316"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="PreDecOp"><span class="annot"><a href="GHC.JS.JStg.Syntax.html#PreDecOp"><span class="hs-identifier hs-var">PreDecOp</span></a></span></span><span>        </span><span class="annot"><span class="hs-comment">-- ^ Prefix Decrement:  @--x@</span></span><span>
+</span><span id="line-317"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="PostDecOp"><span class="annot"><a href="GHC.JS.JStg.Syntax.html#PostDecOp"><span class="hs-identifier hs-var">PostDecOp</span></a></span></span><span>       </span><span class="annot"><span class="hs-comment">-- ^ Postfix Decrement: @x--@</span></span><span>
+</span><span id="line-318"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621682373706"><span id="local-6989586621682373708"><span id="local-6989586621682373712"><span class="annot"><span class="annottext">Int -&gt; UOp -&gt; ShowS
+[UOp] -&gt; ShowS
+UOp -&gt; String
+(Int -&gt; UOp -&gt; ShowS)
+-&gt; (UOp -&gt; String) -&gt; ([UOp] -&gt; ShowS) -&gt; Show UOp
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; UOp -&gt; ShowS
+showsPrec :: Int -&gt; UOp -&gt; ShowS
+$cshow :: UOp -&gt; String
+show :: UOp -&gt; String
+$cshowList :: [UOp] -&gt; ShowS
+showList :: [UOp] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682373715"><span id="local-6989586621682373719"><span class="annot"><span class="annottext">UOp -&gt; UOp -&gt; Bool
+(UOp -&gt; UOp -&gt; Bool) -&gt; (UOp -&gt; UOp -&gt; Bool) -&gt; Eq UOp
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: UOp -&gt; UOp -&gt; Bool
+== :: UOp -&gt; UOp -&gt; Bool
+$c/= :: UOp -&gt; UOp -&gt; Bool
+/= :: UOp -&gt; UOp -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682373724"><span id="local-6989586621682373728"><span id="local-6989586621682373732"><span id="local-6989586621682373736"><span id="local-6989586621682373739"><span id="local-6989586621682373742"><span id="local-6989586621682373745"><span class="annot"><span class="annottext">Eq UOp
+Eq UOp =&gt;
+(UOp -&gt; UOp -&gt; Ordering)
+-&gt; (UOp -&gt; UOp -&gt; Bool)
+-&gt; (UOp -&gt; UOp -&gt; Bool)
+-&gt; (UOp -&gt; UOp -&gt; Bool)
+-&gt; (UOp -&gt; UOp -&gt; Bool)
+-&gt; (UOp -&gt; UOp -&gt; UOp)
+-&gt; (UOp -&gt; UOp -&gt; UOp)
+-&gt; Ord UOp
+UOp -&gt; UOp -&gt; Bool
+UOp -&gt; UOp -&gt; Ordering
+UOp -&gt; UOp -&gt; UOp
+forall a.
+Eq a =&gt;
+(a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+$ccompare :: UOp -&gt; UOp -&gt; Ordering
+compare :: UOp -&gt; UOp -&gt; Ordering
+$c&lt; :: UOp -&gt; UOp -&gt; Bool
+&lt; :: UOp -&gt; UOp -&gt; Bool
+$c&lt;= :: UOp -&gt; UOp -&gt; Bool
+&lt;= :: UOp -&gt; UOp -&gt; Bool
+$c&gt; :: UOp -&gt; UOp -&gt; Bool
+&gt; :: UOp -&gt; UOp -&gt; Bool
+$c&gt;= :: UOp -&gt; UOp -&gt; Bool
+&gt;= :: UOp -&gt; UOp -&gt; Bool
+$cmax :: UOp -&gt; UOp -&gt; UOp
+max :: UOp -&gt; UOp -&gt; UOp
+$cmin :: UOp -&gt; UOp -&gt; UOp
+min :: UOp -&gt; UOp -&gt; UOp
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682373748"><span id="local-6989586621682373755"><span id="local-6989586621682373762"><span id="local-6989586621682373770"><span id="local-6989586621682373773"><span id="local-6989586621682373777"><span id="local-6989586621682373783"><span id="local-6989586621682373787"><span class="annot"><span class="annottext">Int -&gt; UOp
+UOp -&gt; Int
+UOp -&gt; [UOp]
+UOp -&gt; UOp
+UOp -&gt; UOp -&gt; [UOp]
+UOp -&gt; UOp -&gt; UOp -&gt; [UOp]
+(UOp -&gt; UOp)
+-&gt; (UOp -&gt; UOp)
+-&gt; (Int -&gt; UOp)
+-&gt; (UOp -&gt; Int)
+-&gt; (UOp -&gt; [UOp])
+-&gt; (UOp -&gt; UOp -&gt; [UOp])
+-&gt; (UOp -&gt; UOp -&gt; [UOp])
+-&gt; (UOp -&gt; UOp -&gt; UOp -&gt; [UOp])
+-&gt; Enum UOp
+forall a.
+(a -&gt; a)
+-&gt; (a -&gt; a)
+-&gt; (Int -&gt; a)
+-&gt; (a -&gt; Int)
+-&gt; (a -&gt; [a])
+-&gt; (a -&gt; a -&gt; [a])
+-&gt; (a -&gt; a -&gt; [a])
+-&gt; (a -&gt; a -&gt; a -&gt; [a])
+-&gt; Enum a
+$csucc :: UOp -&gt; UOp
+succ :: UOp -&gt; UOp
+$cpred :: UOp -&gt; UOp
+pred :: UOp -&gt; UOp
+$ctoEnum :: Int -&gt; UOp
+toEnum :: Int -&gt; UOp
+$cfromEnum :: UOp -&gt; Int
+fromEnum :: UOp -&gt; Int
+$cenumFrom :: UOp -&gt; [UOp]
+enumFrom :: UOp -&gt; [UOp]
+$cenumFromThen :: UOp -&gt; UOp -&gt; [UOp]
+enumFromThen :: UOp -&gt; UOp -&gt; [UOp]
+$cenumFromTo :: UOp -&gt; UOp -&gt; [UOp]
+enumFromTo :: UOp -&gt; UOp -&gt; [UOp]
+$cenumFromThenTo :: UOp -&gt; UOp -&gt; UOp -&gt; [UOp]
+enumFromThenTo :: UOp -&gt; UOp -&gt; UOp -&gt; [UOp]
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Enum</span></span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682373792"><span id="local-6989586621682373794"><span id="local-6989586621682373796"><span id="local-6989586621682373798"><span id="local-6989586621682373800"><span id="local-6989586621682373806"><span id="local-6989586621682373811"><span id="local-6989586621682373814"><span id="local-6989586621682373817"><span id="local-6989586621682373820"><span id="local-6989586621682373823"><span id="local-6989586621682373826"><span id="local-6989586621682373831"><span id="local-6989586621682373836"><span class="annot"><span class="annottext">Typeable UOp
+Typeable UOp =&gt;
+(forall (c :: * -&gt; *).
+ (forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+ -&gt; (forall g. g -&gt; c g) -&gt; UOp -&gt; c UOp)
+-&gt; (forall (c :: * -&gt; *).
+    (forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+    -&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c UOp)
+-&gt; (UOp -&gt; Constr)
+-&gt; (UOp -&gt; DataType)
+-&gt; (forall (t :: * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d. Data d =&gt; c (t d)) -&gt; Maybe (c UOp))
+-&gt; (forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d e. (Data d, Data e) =&gt; c (t d e)) -&gt; Maybe (c UOp))
+-&gt; ((forall b. Data b =&gt; b -&gt; b) -&gt; UOp -&gt; UOp)
+-&gt; (forall r r'.
+    (r -&gt; r' -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; UOp -&gt; r)
+-&gt; (forall r r'.
+    (r' -&gt; r -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; UOp -&gt; r)
+-&gt; (forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; UOp -&gt; [u])
+-&gt; (forall u. Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; UOp -&gt; u)
+-&gt; (forall (m :: * -&gt; *).
+    Monad m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; UOp -&gt; m UOp)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; UOp -&gt; m UOp)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; UOp -&gt; m UOp)
+-&gt; Data UOp
+UOp -&gt; Constr
+UOp -&gt; DataType
+(forall b. Data b =&gt; b -&gt; b) -&gt; UOp -&gt; UOp
+forall a.
+Typeable a =&gt;
+(forall (c :: * -&gt; *).
+ (forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+ -&gt; (forall g. g -&gt; c g) -&gt; a -&gt; c a)
+-&gt; (forall (c :: * -&gt; *).
+    (forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+    -&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c a)
+-&gt; (a -&gt; Constr)
+-&gt; (a -&gt; DataType)
+-&gt; (forall (t :: * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d. Data d =&gt; c (t d)) -&gt; Maybe (c a))
+-&gt; (forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d e. (Data d, Data e) =&gt; c (t d e)) -&gt; Maybe (c a))
+-&gt; ((forall b. Data b =&gt; b -&gt; b) -&gt; a -&gt; a)
+-&gt; (forall r r'.
+    (r -&gt; r' -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; a -&gt; r)
+-&gt; (forall r r'.
+    (r' -&gt; r -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; a -&gt; r)
+-&gt; (forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; a -&gt; [u])
+-&gt; (forall u. Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; a -&gt; u)
+-&gt; (forall (m :: * -&gt; *).
+    Monad m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; a -&gt; m a)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; a -&gt; m a)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; a -&gt; m a)
+-&gt; Data a
+forall u. Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; UOp -&gt; u
+forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; UOp -&gt; [u]
+forall r r'.
+(r -&gt; r' -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; UOp -&gt; r
+forall r r'.
+(r' -&gt; r -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; UOp -&gt; r
+forall (m :: * -&gt; *).
+Monad m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; UOp -&gt; m UOp
+forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; UOp -&gt; m UOp
+forall (c :: * -&gt; *).
+(forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+-&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c UOp
+forall (c :: * -&gt; *).
+(forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+-&gt; (forall g. g -&gt; c g) -&gt; UOp -&gt; c UOp
+forall (t :: * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d. Data d =&gt; c (t d)) -&gt; Maybe (c UOp)
+forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d e. (Data d, Data e) =&gt; c (t d e)) -&gt; Maybe (c UOp)
+$cgfoldl :: forall (c :: * -&gt; *).
+(forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+-&gt; (forall g. g -&gt; c g) -&gt; UOp -&gt; c UOp
+gfoldl :: forall (c :: * -&gt; *).
+(forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+-&gt; (forall g. g -&gt; c g) -&gt; UOp -&gt; c UOp
+$cgunfold :: forall (c :: * -&gt; *).
+(forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+-&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c UOp
+gunfold :: forall (c :: * -&gt; *).
+(forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+-&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c UOp
+$ctoConstr :: UOp -&gt; Constr
+toConstr :: UOp -&gt; Constr
+$cdataTypeOf :: UOp -&gt; DataType
+dataTypeOf :: UOp -&gt; DataType
+$cdataCast1 :: forall (t :: * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d. Data d =&gt; c (t d)) -&gt; Maybe (c UOp)
+dataCast1 :: forall (t :: * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d. Data d =&gt; c (t d)) -&gt; Maybe (c UOp)
+$cdataCast2 :: forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d e. (Data d, Data e) =&gt; c (t d e)) -&gt; Maybe (c UOp)
+dataCast2 :: forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d e. (Data d, Data e) =&gt; c (t d e)) -&gt; Maybe (c UOp)
+$cgmapT :: (forall b. Data b =&gt; b -&gt; b) -&gt; UOp -&gt; UOp
+gmapT :: (forall b. Data b =&gt; b -&gt; b) -&gt; UOp -&gt; UOp
+$cgmapQl :: forall r r'.
+(r -&gt; r' -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; UOp -&gt; r
+gmapQl :: forall r r'.
+(r -&gt; r' -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; UOp -&gt; r
+$cgmapQr :: forall r r'.
+(r' -&gt; r -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; UOp -&gt; r
+gmapQr :: forall r r'.
+(r' -&gt; r -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; UOp -&gt; r
+$cgmapQ :: forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; UOp -&gt; [u]
+gmapQ :: forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; UOp -&gt; [u]
+$cgmapQi :: forall u. Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; UOp -&gt; u
+gmapQi :: forall u. Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; UOp -&gt; u
+$cgmapM :: forall (m :: * -&gt; *).
+Monad m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; UOp -&gt; m UOp
+gmapM :: forall (m :: * -&gt; *).
+Monad m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; UOp -&gt; m UOp
+$cgmapMp :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; UOp -&gt; m UOp
+gmapMp :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; UOp -&gt; m UOp
+$cgmapMo :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; UOp -&gt; m UOp
+gmapMo :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; UOp -&gt; m UOp
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Data</span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Typeable</span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682373841"><span id="local-6989586621682373843"><span class="annot"><span class="annottext">(forall x. UOp -&gt; Rep UOp x)
+-&gt; (forall x. Rep UOp x -&gt; UOp) -&gt; Generic UOp
+forall x. Rep UOp x -&gt; UOp
+forall x. UOp -&gt; Rep UOp x
+forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+$cfrom :: forall x. UOp -&gt; Rep UOp x
+from :: forall x. UOp -&gt; Rep UOp x
+$cto :: forall x. Rep UOp x -&gt; UOp
+to :: forall x. Rep UOp x -&gt; UOp
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Generic</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-319"></span><span>
+</span><span id="line-320"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621682373846"><span class="annot"><a href="../../deepseq-1.5.0.0-a9b7/src/Control.DeepSeq.html#NFData"><span class="hs-identifier hs-type">NFData</span></a></span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#UOp"><span class="hs-identifier hs-type">UOp</span></a></span></span><span>
+</span><span id="line-321"></span><span>
+</span><span id="line-322"></span><span class="annot"><span class="hs-comment">-- | JS Unary Operators</span></span><span>
+</span><span id="line-323"></span><span class="hs-keyword">data</span><span> </span><span id="AOp"><span class="annot"><a href="GHC.JS.JStg.Syntax.html#AOp"><span class="hs-identifier hs-var">AOp</span></a></span></span><span>
+</span><span id="line-324"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span id="AssignOp"><span class="annot"><a href="GHC.JS.JStg.Syntax.html#AssignOp"><span class="hs-identifier hs-var">AssignOp</span></a></span></span><span>    </span><span class="annot"><span class="hs-comment">-- ^ Vanilla  Assignment: =</span></span><span>
+</span><span id="line-325"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="AddAssignOp"><span class="annot"><a href="GHC.JS.JStg.Syntax.html#AddAssignOp"><span class="hs-identifier hs-var">AddAssignOp</span></a></span></span><span> </span><span class="annot"><span class="hs-comment">-- ^ Addition Assignment: +=</span></span><span>
+</span><span id="line-326"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="SubAssignOp"><span class="annot"><a href="GHC.JS.JStg.Syntax.html#SubAssignOp"><span class="hs-identifier hs-var">SubAssignOp</span></a></span></span><span> </span><span class="annot"><span class="hs-comment">-- ^ Subtraction Assignment: -=</span></span><span>
+</span><span id="line-327"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621682373882"><span id="local-6989586621682373884"><span id="local-6989586621682373888"><span class="annot"><span class="annottext">Int -&gt; AOp -&gt; ShowS
+[AOp] -&gt; ShowS
+AOp -&gt; String
+(Int -&gt; AOp -&gt; ShowS)
+-&gt; (AOp -&gt; String) -&gt; ([AOp] -&gt; ShowS) -&gt; Show AOp
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; AOp -&gt; ShowS
+showsPrec :: Int -&gt; AOp -&gt; ShowS
+$cshow :: AOp -&gt; String
+show :: AOp -&gt; String
+$cshowList :: [AOp] -&gt; ShowS
+showList :: [AOp] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682373891"><span id="local-6989586621682373895"><span class="annot"><span class="annottext">AOp -&gt; AOp -&gt; Bool
+(AOp -&gt; AOp -&gt; Bool) -&gt; (AOp -&gt; AOp -&gt; Bool) -&gt; Eq AOp
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: AOp -&gt; AOp -&gt; Bool
+== :: AOp -&gt; AOp -&gt; Bool
+$c/= :: AOp -&gt; AOp -&gt; Bool
+/= :: AOp -&gt; AOp -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682373900"><span id="local-6989586621682373904"><span id="local-6989586621682373908"><span id="local-6989586621682373912"><span id="local-6989586621682373915"><span id="local-6989586621682373918"><span id="local-6989586621682373921"><span class="annot"><span class="annottext">Eq AOp
+Eq AOp =&gt;
+(AOp -&gt; AOp -&gt; Ordering)
+-&gt; (AOp -&gt; AOp -&gt; Bool)
+-&gt; (AOp -&gt; AOp -&gt; Bool)
+-&gt; (AOp -&gt; AOp -&gt; Bool)
+-&gt; (AOp -&gt; AOp -&gt; Bool)
+-&gt; (AOp -&gt; AOp -&gt; AOp)
+-&gt; (AOp -&gt; AOp -&gt; AOp)
+-&gt; Ord AOp
+AOp -&gt; AOp -&gt; Bool
+AOp -&gt; AOp -&gt; Ordering
+AOp -&gt; AOp -&gt; AOp
+forall a.
+Eq a =&gt;
+(a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+$ccompare :: AOp -&gt; AOp -&gt; Ordering
+compare :: AOp -&gt; AOp -&gt; Ordering
+$c&lt; :: AOp -&gt; AOp -&gt; Bool
+&lt; :: AOp -&gt; AOp -&gt; Bool
+$c&lt;= :: AOp -&gt; AOp -&gt; Bool
+&lt;= :: AOp -&gt; AOp -&gt; Bool
+$c&gt; :: AOp -&gt; AOp -&gt; Bool
+&gt; :: AOp -&gt; AOp -&gt; Bool
+$c&gt;= :: AOp -&gt; AOp -&gt; Bool
+&gt;= :: AOp -&gt; AOp -&gt; Bool
+$cmax :: AOp -&gt; AOp -&gt; AOp
+max :: AOp -&gt; AOp -&gt; AOp
+$cmin :: AOp -&gt; AOp -&gt; AOp
+min :: AOp -&gt; AOp -&gt; AOp
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682373924"><span id="local-6989586621682373931"><span id="local-6989586621682373938"><span id="local-6989586621682373946"><span id="local-6989586621682373949"><span id="local-6989586621682373953"><span id="local-6989586621682373959"><span id="local-6989586621682373963"><span class="annot"><span class="annottext">Int -&gt; AOp
+AOp -&gt; Int
+AOp -&gt; [AOp]
+AOp -&gt; AOp
+AOp -&gt; AOp -&gt; [AOp]
+AOp -&gt; AOp -&gt; AOp -&gt; [AOp]
+(AOp -&gt; AOp)
+-&gt; (AOp -&gt; AOp)
+-&gt; (Int -&gt; AOp)
+-&gt; (AOp -&gt; Int)
+-&gt; (AOp -&gt; [AOp])
+-&gt; (AOp -&gt; AOp -&gt; [AOp])
+-&gt; (AOp -&gt; AOp -&gt; [AOp])
+-&gt; (AOp -&gt; AOp -&gt; AOp -&gt; [AOp])
+-&gt; Enum AOp
+forall a.
+(a -&gt; a)
+-&gt; (a -&gt; a)
+-&gt; (Int -&gt; a)
+-&gt; (a -&gt; Int)
+-&gt; (a -&gt; [a])
+-&gt; (a -&gt; a -&gt; [a])
+-&gt; (a -&gt; a -&gt; [a])
+-&gt; (a -&gt; a -&gt; a -&gt; [a])
+-&gt; Enum a
+$csucc :: AOp -&gt; AOp
+succ :: AOp -&gt; AOp
+$cpred :: AOp -&gt; AOp
+pred :: AOp -&gt; AOp
+$ctoEnum :: Int -&gt; AOp
+toEnum :: Int -&gt; AOp
+$cfromEnum :: AOp -&gt; Int
+fromEnum :: AOp -&gt; Int
+$cenumFrom :: AOp -&gt; [AOp]
+enumFrom :: AOp -&gt; [AOp]
+$cenumFromThen :: AOp -&gt; AOp -&gt; [AOp]
+enumFromThen :: AOp -&gt; AOp -&gt; [AOp]
+$cenumFromTo :: AOp -&gt; AOp -&gt; [AOp]
+enumFromTo :: AOp -&gt; AOp -&gt; [AOp]
+$cenumFromThenTo :: AOp -&gt; AOp -&gt; AOp -&gt; [AOp]
+enumFromThenTo :: AOp -&gt; AOp -&gt; AOp -&gt; [AOp]
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Enum</span></span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682373968"><span id="local-6989586621682373970"><span id="local-6989586621682373972"><span id="local-6989586621682373974"><span id="local-6989586621682373976"><span id="local-6989586621682373982"><span id="local-6989586621682373987"><span id="local-6989586621682373990"><span id="local-6989586621682373993"><span id="local-6989586621682373996"><span id="local-6989586621682373999"><span id="local-6989586621682374002"><span id="local-6989586621682374007"><span id="local-6989586621682374012"><span class="annot"><span class="annottext">Typeable AOp
+Typeable AOp =&gt;
+(forall (c :: * -&gt; *).
+ (forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+ -&gt; (forall g. g -&gt; c g) -&gt; AOp -&gt; c AOp)
+-&gt; (forall (c :: * -&gt; *).
+    (forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+    -&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c AOp)
+-&gt; (AOp -&gt; Constr)
+-&gt; (AOp -&gt; DataType)
+-&gt; (forall (t :: * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d. Data d =&gt; c (t d)) -&gt; Maybe (c AOp))
+-&gt; (forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d e. (Data d, Data e) =&gt; c (t d e)) -&gt; Maybe (c AOp))
+-&gt; ((forall b. Data b =&gt; b -&gt; b) -&gt; AOp -&gt; AOp)
+-&gt; (forall r r'.
+    (r -&gt; r' -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; AOp -&gt; r)
+-&gt; (forall r r'.
+    (r' -&gt; r -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; AOp -&gt; r)
+-&gt; (forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; AOp -&gt; [u])
+-&gt; (forall u. Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; AOp -&gt; u)
+-&gt; (forall (m :: * -&gt; *).
+    Monad m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; AOp -&gt; m AOp)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; AOp -&gt; m AOp)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; AOp -&gt; m AOp)
+-&gt; Data AOp
+AOp -&gt; Constr
+AOp -&gt; DataType
+(forall b. Data b =&gt; b -&gt; b) -&gt; AOp -&gt; AOp
+forall a.
+Typeable a =&gt;
+(forall (c :: * -&gt; *).
+ (forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+ -&gt; (forall g. g -&gt; c g) -&gt; a -&gt; c a)
+-&gt; (forall (c :: * -&gt; *).
+    (forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+    -&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c a)
+-&gt; (a -&gt; Constr)
+-&gt; (a -&gt; DataType)
+-&gt; (forall (t :: * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d. Data d =&gt; c (t d)) -&gt; Maybe (c a))
+-&gt; (forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d e. (Data d, Data e) =&gt; c (t d e)) -&gt; Maybe (c a))
+-&gt; ((forall b. Data b =&gt; b -&gt; b) -&gt; a -&gt; a)
+-&gt; (forall r r'.
+    (r -&gt; r' -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; a -&gt; r)
+-&gt; (forall r r'.
+    (r' -&gt; r -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; a -&gt; r)
+-&gt; (forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; a -&gt; [u])
+-&gt; (forall u. Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; a -&gt; u)
+-&gt; (forall (m :: * -&gt; *).
+    Monad m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; a -&gt; m a)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; a -&gt; m a)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; a -&gt; m a)
+-&gt; Data a
+forall u. Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; AOp -&gt; u
+forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; AOp -&gt; [u]
+forall r r'.
+(r -&gt; r' -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; AOp -&gt; r
+forall r r'.
+(r' -&gt; r -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; AOp -&gt; r
+forall (m :: * -&gt; *).
+Monad m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; AOp -&gt; m AOp
+forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; AOp -&gt; m AOp
+forall (c :: * -&gt; *).
+(forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+-&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c AOp
+forall (c :: * -&gt; *).
+(forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+-&gt; (forall g. g -&gt; c g) -&gt; AOp -&gt; c AOp
+forall (t :: * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d. Data d =&gt; c (t d)) -&gt; Maybe (c AOp)
+forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d e. (Data d, Data e) =&gt; c (t d e)) -&gt; Maybe (c AOp)
+$cgfoldl :: forall (c :: * -&gt; *).
+(forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+-&gt; (forall g. g -&gt; c g) -&gt; AOp -&gt; c AOp
+gfoldl :: forall (c :: * -&gt; *).
+(forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+-&gt; (forall g. g -&gt; c g) -&gt; AOp -&gt; c AOp
+$cgunfold :: forall (c :: * -&gt; *).
+(forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+-&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c AOp
+gunfold :: forall (c :: * -&gt; *).
+(forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+-&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c AOp
+$ctoConstr :: AOp -&gt; Constr
+toConstr :: AOp -&gt; Constr
+$cdataTypeOf :: AOp -&gt; DataType
+dataTypeOf :: AOp -&gt; DataType
+$cdataCast1 :: forall (t :: * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d. Data d =&gt; c (t d)) -&gt; Maybe (c AOp)
+dataCast1 :: forall (t :: * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d. Data d =&gt; c (t d)) -&gt; Maybe (c AOp)
+$cdataCast2 :: forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d e. (Data d, Data e) =&gt; c (t d e)) -&gt; Maybe (c AOp)
+dataCast2 :: forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d e. (Data d, Data e) =&gt; c (t d e)) -&gt; Maybe (c AOp)
+$cgmapT :: (forall b. Data b =&gt; b -&gt; b) -&gt; AOp -&gt; AOp
+gmapT :: (forall b. Data b =&gt; b -&gt; b) -&gt; AOp -&gt; AOp
+$cgmapQl :: forall r r'.
+(r -&gt; r' -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; AOp -&gt; r
+gmapQl :: forall r r'.
+(r -&gt; r' -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; AOp -&gt; r
+$cgmapQr :: forall r r'.
+(r' -&gt; r -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; AOp -&gt; r
+gmapQr :: forall r r'.
+(r' -&gt; r -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; AOp -&gt; r
+$cgmapQ :: forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; AOp -&gt; [u]
+gmapQ :: forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; AOp -&gt; [u]
+$cgmapQi :: forall u. Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; AOp -&gt; u
+gmapQi :: forall u. Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; AOp -&gt; u
+$cgmapM :: forall (m :: * -&gt; *).
+Monad m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; AOp -&gt; m AOp
+gmapM :: forall (m :: * -&gt; *).
+Monad m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; AOp -&gt; m AOp
+$cgmapMp :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; AOp -&gt; m AOp
+gmapMp :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; AOp -&gt; m AOp
+$cgmapMo :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; AOp -&gt; m AOp
+gmapMo :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; AOp -&gt; m AOp
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Data</span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Typeable</span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682374017"><span id="local-6989586621682374019"><span class="annot"><span class="annottext">(forall x. AOp -&gt; Rep AOp x)
+-&gt; (forall x. Rep AOp x -&gt; AOp) -&gt; Generic AOp
+forall x. Rep AOp x -&gt; AOp
+forall x. AOp -&gt; Rep AOp x
+forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+$cfrom :: forall x. AOp -&gt; Rep AOp x
+from :: forall x. AOp -&gt; Rep AOp x
+$cto :: forall x. Rep AOp x -&gt; AOp
+to :: forall x. Rep AOp x -&gt; AOp
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Generic</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-328"></span><span>
+</span><span id="line-329"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621682374022"><span class="annot"><a href="../../deepseq-1.5.0.0-a9b7/src/Control.DeepSeq.html#NFData"><span class="hs-identifier hs-type">NFData</span></a></span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#AOp"><span class="hs-identifier hs-type">AOp</span></a></span></span><span>
+</span><span id="line-330"></span><span>
+</span><span id="line-331"></span><span class="annot"><span class="hs-comment">-- | construct a JS variable reference</span></span><span>
+</span><span id="line-332"></span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#var"><span class="hs-identifier hs-type">var</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Data.FastString.html#FastString"><span class="hs-identifier hs-type">FastString</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.JS.JStg.Syntax.html#JStgExpr"><span class="hs-identifier hs-type">JStgExpr</span></a></span><span>
+</span><span id="line-333"></span><span id="var"><span class="annot"><span class="annottext">var :: FastString -&gt; JStgExpr
+</span><a href="GHC.JS.JStg.Syntax.html#var"><span class="hs-identifier hs-var hs-var">var</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Ident -&gt; JStgExpr
+</span><a href="GHC.JS.JStg.Syntax.html#Var"><span class="hs-identifier hs-var">Var</span></a></span><span> </span><span class="annot"><span class="annottext">(Ident -&gt; JStgExpr)
+-&gt; (FastString -&gt; Ident) -&gt; FastString -&gt; JStgExpr
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">FastString -&gt; Ident
+</span><a href="GHC.JS.Ident.html#global"><span class="hs-identifier hs-var">global</span></a></span><span>
+</span><span id="line-334"></span></pre></body></html>

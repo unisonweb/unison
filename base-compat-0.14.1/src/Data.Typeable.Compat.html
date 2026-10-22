@@ -1,0 +1,59 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE CPP, NoImplicitPrelude #-}</span><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# LANGUAGE Trustworthy #-}</span><span class="hs-cpp">
+#if MIN_VERSION_base(4,10,0) &amp;&amp; !(MIN_VERSION_base(4,19,0))
+</span><span class="hs-pragma">{-# LANGUAGE GADTs #-}</span><span>
+</span><span id="line-5"></span><span class="hs-pragma">{-# LANGUAGE PolyKinds #-}</span><span>
+</span><span id="line-6"></span><span class="hs-pragma">{-# LANGUAGE ScopedTypeVariables #-}</span><span>
+</span><span id="line-7"></span><span class="hs-pragma">{-# LANGUAGE TypeApplications #-}</span><span>
+</span><span id="line-8"></span><span class="hs-pragma">{-# LANGUAGE TypeOperators #-}</span><span class="hs-cpp">
+#endif
+</span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Data.Typeable.Compat.html"><span class="hs-identifier">Data.Typeable.Compat</span></a></span><span> </span><span class="hs-special">(</span><span>
+</span><span id="line-11"></span><span>  </span><span class="hs-keyword">module</span><span> </span><span class="annot"><span class="hs-identifier">Base</span></span><span class="hs-cpp">
+#if MIN_VERSION_base(4,10,0)
+</span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">heqT</span></span><span>
+</span><span id="line-14"></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">decT</span></span><span>
+</span><span id="line-15"></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">hdecT</span></span><span class="hs-cpp">
+#endif
+</span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-18"></span><span>
+</span><span id="line-19"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Typeable</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Base</span></span><span class="hs-cpp">
+
+#if MIN_VERSION_base(4,10,0) &amp;&amp; !(MIN_VERSION_base(4,19,0))
+</span><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">Prelude.Compat</span><span>
+</span><span id="line-23"></span><span>
+</span><span id="line-24"></span><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">Data.Void</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">Void</span><span class="hs-special">)</span><span>
+</span><span id="line-25"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-identifier">Type.Reflection.Compat</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="hs-identifier">TR</span><span class="hs-cpp">
+#endif
+</span><span class="hs-cpp">
+#if MIN_VERSION_base(4,10,0)
+</span><span class="hs-cpp"># if !(MIN_VERSION_base(4,18,0))
+</span><span class="hs-comment">-- | Extract a witness of heterogeneous equality of two types</span><span>
+</span><span id="line-31"></span><span class="hs-comment">--</span><span>
+</span><span id="line-32"></span><span class="hs-comment">-- /Since: 4.18.0.0/</span><span>
+</span><span id="line-33"></span><span class="hs-identifier">heqT</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-keyword">forall</span><span> </span><span class="hs-identifier">a</span><span> </span><span class="hs-identifier">b</span><span class="hs-operator">.</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">Typeable</span><span> </span><span class="hs-identifier">a</span><span class="hs-special">,</span><span> </span><span class="hs-identifier">Typeable</span><span> </span><span class="hs-identifier">b</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-identifier">Maybe</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">a</span><span> </span><span class="hs-operator">:~~:</span><span> </span><span class="hs-identifier">b</span><span class="hs-special">)</span><span>
+</span><span id="line-34"></span><span class="hs-identifier">heqT</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">ta</span><span> </span><span class="hs-special">`</span><span class="hs-identifier">TR.eqTypeRep</span><span class="hs-special">`</span><span> </span><span class="hs-identifier">tb</span><span>
+</span><span id="line-35"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-36"></span><span>    </span><span class="hs-identifier">ta</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">TR.typeRep</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">TR.TypeRep</span><span> </span><span class="hs-identifier">a</span><span>
+</span><span id="line-37"></span><span>    </span><span class="hs-identifier">tb</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">TR.typeRep</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">TR.TypeRep</span><span> </span><span class="hs-identifier">b</span><span class="hs-cpp">
+# endif
+</span><span class="hs-cpp">
+# if !(MIN_VERSION_base(4,19,0))
+</span><span class="hs-comment">-- | Decide an equality of two types</span><span>
+</span><span id="line-42"></span><span class="hs-comment">--</span><span>
+</span><span id="line-43"></span><span class="hs-comment">-- /Since: 4.19.0.0/</span><span>
+</span><span id="line-44"></span><span class="hs-identifier">decT</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-keyword">forall</span><span> </span><span class="hs-identifier">a</span><span> </span><span class="hs-identifier">b</span><span class="hs-operator">.</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">Typeable</span><span> </span><span class="hs-identifier">a</span><span class="hs-special">,</span><span> </span><span class="hs-identifier">Typeable</span><span> </span><span class="hs-identifier">b</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-identifier">Either</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">a</span><span> </span><span class="hs-operator">:~:</span><span> </span><span class="hs-identifier">b</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">Void</span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">a</span><span> </span><span class="hs-operator">:~:</span><span> </span><span class="hs-identifier">b</span><span class="hs-special">)</span><span>
+</span><span id="line-45"></span><span class="hs-identifier">decT</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="hs-identifier">hdecT</span><span> </span><span class="hs-glyph">@</span><span class="hs-identifier">a</span><span> </span><span class="hs-glyph">@</span><span class="hs-identifier">b</span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-46"></span><span>  </span><span class="hs-identifier">Right</span><span> </span><span class="hs-identifier">HRefl</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">Right</span><span> </span><span class="hs-identifier">Refl</span><span>
+</span><span id="line-47"></span><span>  </span><span class="hs-identifier">Left</span><span> </span><span class="hs-identifier">p</span><span>      </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">Left</span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span class="hs-identifier">Refl</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">p</span><span> </span><span class="hs-identifier">HRefl</span><span class="hs-special">)</span><span>
+</span><span id="line-48"></span><span>
+</span><span id="line-49"></span><span class="hs-comment">-- | Decide heterogeneous equality of two types.</span><span>
+</span><span id="line-50"></span><span class="hs-comment">--</span><span>
+</span><span id="line-51"></span><span class="hs-comment">-- /Since: 4.19.0.0/</span><span>
+</span><span id="line-52"></span><span class="hs-identifier">hdecT</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-keyword">forall</span><span> </span><span class="hs-identifier">a</span><span> </span><span class="hs-identifier">b</span><span class="hs-operator">.</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">Typeable</span><span> </span><span class="hs-identifier">a</span><span class="hs-special">,</span><span> </span><span class="hs-identifier">Typeable</span><span> </span><span class="hs-identifier">b</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-identifier">Either</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">a</span><span> </span><span class="hs-operator">:~~:</span><span> </span><span class="hs-identifier">b</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">Void</span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">a</span><span> </span><span class="hs-operator">:~~:</span><span> </span><span class="hs-identifier">b</span><span class="hs-special">)</span><span>
+</span><span id="line-53"></span><span class="hs-identifier">hdecT</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">ta</span><span> </span><span class="hs-special">`</span><span class="hs-identifier">TR.decTypeRep</span><span class="hs-special">`</span><span> </span><span class="hs-identifier">tb</span><span>
+</span><span id="line-54"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-55"></span><span>    </span><span class="hs-identifier">ta</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">TR.typeRep</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">TR.TypeRep</span><span> </span><span class="hs-identifier">a</span><span>
+</span><span id="line-56"></span><span>    </span><span class="hs-identifier">tb</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">TR.typeRep</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">TR.TypeRep</span><span> </span><span class="hs-identifier">b</span><span class="hs-cpp">
+# endif
+</span><span class="hs-cpp">#endif
+</span></pre></body></html>

@@ -1,0 +1,245 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE TypeFamilies, DataKinds, GADTs, FlexibleInstances #-}</span><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# LANGUAGE CPP #-}</span><span>
+</span><span id="line-3"></span><span class="hs-pragma">{-# LANGUAGE ConstraintKinds #-}</span><span>
+</span><span id="line-4"></span><span>
+</span><span id="line-5"></span><span class="hs-comment">-- This module declares some basic types used by GHC.Stg.Lift</span><span>
+</span><span id="line-6"></span><span class="hs-comment">-- We can import this module into GHC.Stg.Syntax, where the</span><span>
+</span><span id="line-7"></span><span class="hs-comment">-- type instance declarations for BinderP etc live</span><span>
+</span><span id="line-8"></span><span>
+</span><span id="line-9"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="GHC.Stg.Lift.Types.html"><span class="hs-identifier">GHC.Stg.Lift.Types</span></a></span><span class="hs-special">(</span><span>
+</span><span id="line-10"></span><span>   </span><span class="annot"><a href="GHC.Stg.Lift.Types.html#Skeleton"><span class="hs-identifier">Skeleton</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-11"></span><span>   </span><span class="annot"><a href="GHC.Stg.Lift.Types.html#bothSk"><span class="hs-identifier">bothSk</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Stg.Lift.Types.html#altSk"><span class="hs-identifier">altSk</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Stg.Lift.Types.html#rhsSk"><span class="hs-identifier">rhsSk</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-12"></span><span>
+</span><span id="line-13"></span><span>   </span><span class="annot"><a href="GHC.Stg.Lift.Types.html#BinderInfo"><span class="hs-identifier">BinderInfo</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-14"></span><span>   </span><span class="annot"><a href="GHC.Stg.Lift.Types.html#binderInfoBndr"><span class="hs-identifier">binderInfoBndr</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Stg.Lift.Types.html#binderInfoOccursAsArg"><span class="hs-identifier">binderInfoOccursAsArg</span></a></span><span>
+</span><span id="line-15"></span><span>   </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-16"></span><span>
+</span><span id="line-17"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Prelude.html"><span class="hs-identifier">GHC.Prelude</span></a></span><span>
+</span><span id="line-18"></span><span>
+</span><span id="line-19"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Types.Id.html"><span class="hs-identifier">GHC.Types.Id</span></a></span><span>
+</span><span id="line-20"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Types.Demand.html"><span class="hs-identifier">GHC.Types.Demand</span></a></span><span>
+</span><span id="line-21"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Types.Var.Set.html"><span class="hs-identifier">GHC.Types.Var.Set</span></a></span><span>
+</span><span id="line-22"></span><span>
+</span><span id="line-23"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Utils.Outputable.html"><span class="hs-identifier">GHC.Utils.Outputable</span></a></span><span>
+</span><span id="line-24"></span><span>
+</span><span id="line-25"></span><span class="hs-comment">-- | Captures details of the syntax tree relevant to the cost model, such as</span><span>
+</span><span id="line-26"></span><span class="hs-comment">-- closures, multi-shot lambdas and case expressions.</span><span>
+</span><span id="line-27"></span><span class="hs-keyword">data</span><span> </span><span id="Skeleton"><span class="annot"><a href="GHC.Stg.Lift.Types.html#Skeleton"><span class="hs-identifier hs-var">Skeleton</span></a></span></span><span>
+</span><span id="line-28"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span id="ClosureSk"><span class="annot"><a href="GHC.Stg.Lift.Types.html#ClosureSk"><span class="hs-identifier hs-var">ClosureSk</span></a></span></span><span> </span><span class="hs-glyph">!</span><span class="annot"><a href="GHC.Types.Var.html#Id"><span class="hs-identifier hs-type">Id</span></a></span><span> </span><span class="hs-glyph">!</span><span class="annot"><a href="GHC.Types.Var.Set.html#DIdSet"><span class="hs-identifier hs-type">DIdSet</span></a></span><span> </span><span class="annot"><span class="hs-comment">{- ^ free vars -}</span></span><span> </span><span class="hs-glyph">!</span><span class="annot"><a href="GHC.Stg.Lift.Types.html#Skeleton"><span class="hs-identifier hs-type">Skeleton</span></a></span><span>
+</span><span id="line-29"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="RhsSk"><span class="annot"><a href="GHC.Stg.Lift.Types.html#RhsSk"><span class="hs-identifier hs-var">RhsSk</span></a></span></span><span> </span><span class="hs-glyph">!</span><span class="annot"><a href="GHC.Types.Demand.html#Card"><span class="hs-identifier hs-type">Card</span></a></span><span> </span><span class="annot"><span class="hs-comment">{- ^ how often the RHS was entered -}</span></span><span> </span><span class="hs-glyph">!</span><span class="annot"><a href="GHC.Stg.Lift.Types.html#Skeleton"><span class="hs-identifier hs-type">Skeleton</span></a></span><span>
+</span><span id="line-30"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="AltSk"><span class="annot"><a href="GHC.Stg.Lift.Types.html#AltSk"><span class="hs-identifier hs-var">AltSk</span></a></span></span><span> </span><span class="hs-glyph">!</span><span class="annot"><a href="GHC.Stg.Lift.Types.html#Skeleton"><span class="hs-identifier hs-type">Skeleton</span></a></span><span> </span><span class="hs-glyph">!</span><span class="annot"><a href="GHC.Stg.Lift.Types.html#Skeleton"><span class="hs-identifier hs-type">Skeleton</span></a></span><span>
+</span><span id="line-31"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="BothSk"><span class="annot"><a href="GHC.Stg.Lift.Types.html#BothSk"><span class="hs-identifier hs-var">BothSk</span></a></span></span><span> </span><span class="hs-glyph">!</span><span class="annot"><a href="GHC.Stg.Lift.Types.html#Skeleton"><span class="hs-identifier hs-type">Skeleton</span></a></span><span> </span><span class="hs-glyph">!</span><span class="annot"><a href="GHC.Stg.Lift.Types.html#Skeleton"><span class="hs-identifier hs-type">Skeleton</span></a></span><span>
+</span><span id="line-32"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="NilSk"><span class="annot"><a href="GHC.Stg.Lift.Types.html#NilSk"><span class="hs-identifier hs-var">NilSk</span></a></span></span><span>
+</span><span id="line-33"></span><span>
+</span><span id="line-34"></span><span class="annot"><a href="GHC.Stg.Lift.Types.html#bothSk"><span class="hs-identifier hs-type">bothSk</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Stg.Lift.Types.html#Skeleton"><span class="hs-identifier hs-type">Skeleton</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Stg.Lift.Types.html#Skeleton"><span class="hs-identifier hs-type">Skeleton</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Stg.Lift.Types.html#Skeleton"><span class="hs-identifier hs-type">Skeleton</span></a></span><span>
+</span><span id="line-35"></span><span id="bothSk"><span class="annot"><span class="annottext">bothSk :: Skeleton -&gt; Skeleton -&gt; Skeleton
+</span><a href="GHC.Stg.Lift.Types.html#bothSk"><span class="hs-identifier hs-var hs-var">bothSk</span></a></span></span><span> </span><span class="annot"><span class="annottext">Skeleton
+</span><a href="GHC.Stg.Lift.Types.html#NilSk"><span class="hs-identifier hs-var">NilSk</span></a></span><span> </span><span id="local-6989586621682448532"><span class="annot"><span class="annottext">Skeleton
+</span><a href="#local-6989586621682448532"><span class="hs-identifier hs-var">b</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Skeleton
+</span><a href="#local-6989586621682448532"><span class="hs-identifier hs-var">b</span></a></span><span>
+</span><span id="line-36"></span><span class="annot"><a href="GHC.Stg.Lift.Types.html#bothSk"><span class="hs-identifier hs-var">bothSk</span></a></span><span> </span><span id="local-6989586621682448533"><span class="annot"><span class="annottext">Skeleton
+</span><a href="#local-6989586621682448533"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span class="annot"><span class="annottext">Skeleton
+</span><a href="GHC.Stg.Lift.Types.html#NilSk"><span class="hs-identifier hs-var">NilSk</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Skeleton
+</span><a href="#local-6989586621682448533"><span class="hs-identifier hs-var">a</span></a></span><span>
+</span><span id="line-37"></span><span class="annot"><a href="GHC.Stg.Lift.Types.html#bothSk"><span class="hs-identifier hs-var">bothSk</span></a></span><span> </span><span id="local-6989586621682448534"><span class="annot"><span class="annottext">Skeleton
+</span><a href="#local-6989586621682448534"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span id="local-6989586621682448535"><span class="annot"><span class="annottext">Skeleton
+</span><a href="#local-6989586621682448535"><span class="hs-identifier hs-var">b</span></a></span></span><span>     </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Skeleton -&gt; Skeleton -&gt; Skeleton
+</span><a href="GHC.Stg.Lift.Types.html#BothSk"><span class="hs-identifier hs-var">BothSk</span></a></span><span> </span><span class="annot"><span class="annottext">Skeleton
+</span><a href="#local-6989586621682448534"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="annot"><span class="annottext">Skeleton
+</span><a href="#local-6989586621682448535"><span class="hs-identifier hs-var">b</span></a></span><span>
+</span><span id="line-38"></span><span>
+</span><span id="line-39"></span><span class="annot"><a href="GHC.Stg.Lift.Types.html#altSk"><span class="hs-identifier hs-type">altSk</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Stg.Lift.Types.html#Skeleton"><span class="hs-identifier hs-type">Skeleton</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Stg.Lift.Types.html#Skeleton"><span class="hs-identifier hs-type">Skeleton</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Stg.Lift.Types.html#Skeleton"><span class="hs-identifier hs-type">Skeleton</span></a></span><span>
+</span><span id="line-40"></span><span id="altSk"><span class="annot"><span class="annottext">altSk :: Skeleton -&gt; Skeleton -&gt; Skeleton
+</span><a href="GHC.Stg.Lift.Types.html#altSk"><span class="hs-identifier hs-var hs-var">altSk</span></a></span></span><span> </span><span class="annot"><span class="annottext">Skeleton
+</span><a href="GHC.Stg.Lift.Types.html#NilSk"><span class="hs-identifier hs-var">NilSk</span></a></span><span> </span><span id="local-6989586621682448536"><span class="annot"><span class="annottext">Skeleton
+</span><a href="#local-6989586621682448536"><span class="hs-identifier hs-var">b</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Skeleton
+</span><a href="#local-6989586621682448536"><span class="hs-identifier hs-var">b</span></a></span><span>
+</span><span id="line-41"></span><span class="annot"><a href="GHC.Stg.Lift.Types.html#altSk"><span class="hs-identifier hs-var">altSk</span></a></span><span> </span><span id="local-6989586621682448537"><span class="annot"><span class="annottext">Skeleton
+</span><a href="#local-6989586621682448537"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span class="annot"><span class="annottext">Skeleton
+</span><a href="GHC.Stg.Lift.Types.html#NilSk"><span class="hs-identifier hs-var">NilSk</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Skeleton
+</span><a href="#local-6989586621682448537"><span class="hs-identifier hs-var">a</span></a></span><span>
+</span><span id="line-42"></span><span class="annot"><a href="GHC.Stg.Lift.Types.html#altSk"><span class="hs-identifier hs-var">altSk</span></a></span><span> </span><span id="local-6989586621682448538"><span class="annot"><span class="annottext">Skeleton
+</span><a href="#local-6989586621682448538"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span id="local-6989586621682448539"><span class="annot"><span class="annottext">Skeleton
+</span><a href="#local-6989586621682448539"><span class="hs-identifier hs-var">b</span></a></span></span><span>     </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Skeleton -&gt; Skeleton -&gt; Skeleton
+</span><a href="GHC.Stg.Lift.Types.html#AltSk"><span class="hs-identifier hs-var">AltSk</span></a></span><span> </span><span class="annot"><span class="annottext">Skeleton
+</span><a href="#local-6989586621682448538"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="annot"><span class="annottext">Skeleton
+</span><a href="#local-6989586621682448539"><span class="hs-identifier hs-var">b</span></a></span><span>
+</span><span id="line-43"></span><span>
+</span><span id="line-44"></span><span class="annot"><a href="GHC.Stg.Lift.Types.html#rhsSk"><span class="hs-identifier hs-type">rhsSk</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Types.Demand.html#Card"><span class="hs-identifier hs-type">Card</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Stg.Lift.Types.html#Skeleton"><span class="hs-identifier hs-type">Skeleton</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Stg.Lift.Types.html#Skeleton"><span class="hs-identifier hs-type">Skeleton</span></a></span><span>
+</span><span id="line-45"></span><span id="rhsSk"><span class="annot"><span class="annottext">rhsSk :: Card -&gt; Skeleton -&gt; Skeleton
+</span><a href="GHC.Stg.Lift.Types.html#rhsSk"><span class="hs-identifier hs-var hs-var">rhsSk</span></a></span></span><span> </span><span class="annot"><span class="annottext">Card
+</span><span class="hs-identifier">_</span></span><span>        </span><span class="annot"><span class="annottext">Skeleton
+</span><a href="GHC.Stg.Lift.Types.html#NilSk"><span class="hs-identifier hs-var">NilSk</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Skeleton
+</span><a href="GHC.Stg.Lift.Types.html#NilSk"><span class="hs-identifier hs-var">NilSk</span></a></span><span>
+</span><span id="line-46"></span><span class="annot"><a href="GHC.Stg.Lift.Types.html#rhsSk"><span class="hs-identifier hs-var">rhsSk</span></a></span><span> </span><span id="local-6989586621682448540"><span class="annot"><span class="annottext">Card
+</span><a href="#local-6989586621682448540"><span class="hs-identifier hs-var">body_dmd</span></a></span></span><span> </span><span id="local-6989586621682448541"><span class="annot"><span class="annottext">Skeleton
+</span><a href="#local-6989586621682448541"><span class="hs-identifier hs-var">skel</span></a></span></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Card -&gt; Skeleton -&gt; Skeleton
+</span><a href="GHC.Stg.Lift.Types.html#RhsSk"><span class="hs-identifier hs-var">RhsSk</span></a></span><span> </span><span class="annot"><span class="annottext">Card
+</span><a href="#local-6989586621682448540"><span class="hs-identifier hs-var">body_dmd</span></a></span><span> </span><span class="annot"><span class="annottext">Skeleton
+</span><a href="#local-6989586621682448541"><span class="hs-identifier hs-var">skel</span></a></span><span>
+</span><span id="line-47"></span><span>
+</span><span id="line-48"></span><span class="annot"><span class="hs-comment">-- | The type used in binder positions in 'GenStgExpr's.</span></span><span>
+</span><span id="line-49"></span><span class="hs-keyword">data</span><span> </span><span id="BinderInfo"><span class="annot"><a href="GHC.Stg.Lift.Types.html#BinderInfo"><span class="hs-identifier hs-var">BinderInfo</span></a></span></span><span>
+</span><span id="line-50"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span id="BindsClosure"><span class="annot"><a href="GHC.Stg.Lift.Types.html#BindsClosure"><span class="hs-identifier hs-var">BindsClosure</span></a></span></span><span> </span><span class="hs-glyph">!</span><span class="annot"><a href="GHC.Types.Var.html#Id"><span class="hs-identifier hs-type">Id</span></a></span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span> </span><span class="hs-comment">-- ^ Let(-no-escape)-bound thing with a flag</span><span>
+</span><span id="line-51"></span><span>                           </span><span class="hs-comment">--   indicating whether it occurs as an argument</span><span>
+</span><span id="line-52"></span><span>                           </span><span class="hs-comment">--   or in a nullary application</span><span>
+</span><span id="line-53"></span><span>                           </span><span class="hs-comment">--   (see &quot;GHC.Stg.Lift.Analysis#arg_occs&quot;).</span><span>
+</span><span id="line-54"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="BoringBinder"><span class="annot"><a href="GHC.Stg.Lift.Types.html#BoringBinder"><span class="hs-identifier hs-var">BoringBinder</span></a></span></span><span> </span><span class="hs-glyph">!</span><span class="annot"><a href="GHC.Types.Var.html#Id"><span class="hs-identifier hs-type">Id</span></a></span><span>       </span><span class="annot"><span class="hs-comment">-- ^ Every other kind of binder</span></span><span>
+</span><span id="line-55"></span><span>
+</span><span id="line-56"></span><span class="annot"><span class="hs-comment">-- | Gets the bound 'Id' out a 'BinderInfo'.</span></span><span>
+</span><span id="line-57"></span><span class="annot"><a href="GHC.Stg.Lift.Types.html#binderInfoBndr"><span class="hs-identifier hs-type">binderInfoBndr</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Stg.Lift.Types.html#BinderInfo"><span class="hs-identifier hs-type">BinderInfo</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Types.Var.html#Id"><span class="hs-identifier hs-type">Id</span></a></span><span>
+</span><span id="line-58"></span><span id="binderInfoBndr"><span class="annot"><span class="annottext">binderInfoBndr :: BinderInfo -&gt; Id
+</span><a href="GHC.Stg.Lift.Types.html#binderInfoBndr"><span class="hs-identifier hs-var hs-var">binderInfoBndr</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Stg.Lift.Types.html#BoringBinder"><span class="hs-identifier hs-type">BoringBinder</span></a></span><span> </span><span id="local-6989586621682448544"><span class="annot"><span class="annottext">Id
+</span><a href="#local-6989586621682448544"><span class="hs-identifier hs-var">bndr</span></a></span></span><span class="hs-special">)</span><span>   </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Id
+</span><a href="#local-6989586621682448544"><span class="hs-identifier hs-var">bndr</span></a></span><span>
+</span><span id="line-59"></span><span class="annot"><a href="GHC.Stg.Lift.Types.html#binderInfoBndr"><span class="hs-identifier hs-var">binderInfoBndr</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Stg.Lift.Types.html#BindsClosure"><span class="hs-identifier hs-type">BindsClosure</span></a></span><span> </span><span id="local-6989586621682448545"><span class="annot"><span class="annottext">Id
+</span><a href="#local-6989586621682448545"><span class="hs-identifier hs-var">bndr</span></a></span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Id
+</span><a href="#local-6989586621682448545"><span class="hs-identifier hs-var">bndr</span></a></span><span>
+</span><span id="line-60"></span><span>
+</span><span id="line-61"></span><span class="hs-comment">-- | Returns 'Nothing' for 'BoringBinder's and 'Just' the flag indicating</span><span>
+</span><span id="line-62"></span><span class="hs-comment">-- occurrences as argument or in a nullary applications otherwise.</span><span>
+</span><span id="line-63"></span><span class="annot"><a href="GHC.Stg.Lift.Types.html#binderInfoOccursAsArg"><span class="hs-identifier hs-type">binderInfoOccursAsArg</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Stg.Lift.Types.html#BinderInfo"><span class="hs-identifier hs-type">BinderInfo</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>
+</span><span id="line-64"></span><span id="binderInfoOccursAsArg"><span class="annot"><span class="annottext">binderInfoOccursAsArg :: BinderInfo -&gt; Maybe Bool
+</span><a href="GHC.Stg.Lift.Types.html#binderInfoOccursAsArg"><span class="hs-identifier hs-var hs-var">binderInfoOccursAsArg</span></a></span></span><span> </span><span class="annot"><a href="GHC.Stg.Lift.Types.html#BoringBinder"><span class="hs-identifier hs-type">BoringBinder</span></a></span><span class="hs-special">{</span><span class="hs-special">}</span><span>     </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Maybe Bool
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-65"></span><span class="annot"><a href="GHC.Stg.Lift.Types.html#binderInfoOccursAsArg"><span class="hs-identifier hs-var">binderInfoOccursAsArg</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Stg.Lift.Types.html#BindsClosure"><span class="hs-identifier hs-type">BindsClosure</span></a></span><span> </span><span class="annot"><span class="annottext">Id
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621682448546"><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621682448546"><span class="hs-identifier hs-var">b</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Maybe Bool
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621682448546"><span class="hs-identifier hs-var">b</span></a></span><span>
+</span><span id="line-66"></span><span>
+</span><span id="line-67"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="GHC.Utils.Outputable.html#Outputable"><span class="hs-identifier hs-type">Outputable</span></a></span><span> </span><span class="annot"><a href="GHC.Stg.Lift.Types.html#Skeleton"><span class="hs-identifier hs-type">Skeleton</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-68"></span><span>  </span><span id="local-6989586621682448577"><span class="annot"><span class="annottext">ppr :: Skeleton -&gt; SDoc
+</span><a href="#local-6989586621682448577"><span class="hs-identifier hs-var hs-var hs-var">ppr</span></a></span></span><span> </span><span class="annot"><span class="annottext">Skeleton
+</span><a href="GHC.Stg.Lift.Types.html#NilSk"><span class="hs-identifier hs-var">NilSk</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; SDoc
+forall doc. IsLine doc =&gt; String -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#text"><span class="hs-identifier hs-var">text</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;&quot;</span></span><span>
+</span><span id="line-69"></span><span>  </span><span class="annot"><a href="GHC.Utils.Outputable.html#ppr"><span class="hs-identifier hs-var">ppr</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Stg.Lift.Types.html#AltSk"><span class="hs-identifier hs-type">AltSk</span></a></span><span> </span><span id="local-6989586621682448580"><span class="annot"><span class="annottext">Skeleton
+</span><a href="#local-6989586621682448580"><span class="hs-identifier hs-var">l</span></a></span></span><span> </span><span id="local-6989586621682448581"><span class="annot"><span class="annottext">Skeleton
+</span><a href="#local-6989586621682448581"><span class="hs-identifier hs-var">r</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[SDoc] -&gt; SDoc
+forall doc. IsDoc doc =&gt; [doc] -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#vcat"><span class="hs-identifier hs-var">vcat</span></a></span><span>
+</span><span id="line-70"></span><span>    </span><span class="hs-special">[</span><span> </span><span class="annot"><span class="annottext">String -&gt; SDoc
+forall doc. IsLine doc =&gt; String -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#text"><span class="hs-identifier hs-var">text</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;{ &quot;</span></span><span> </span><span class="annot"><span class="annottext">SDoc -&gt; SDoc -&gt; SDoc
+forall doc. IsLine doc =&gt; doc -&gt; doc -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#%3C%2B%3E"><span class="hs-operator hs-var">&lt;+&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">Skeleton -&gt; SDoc
+forall a. Outputable a =&gt; a -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#ppr"><span class="hs-identifier hs-var">ppr</span></a></span><span> </span><span class="annot"><span class="annottext">Skeleton
+</span><a href="#local-6989586621682448580"><span class="hs-identifier hs-var">l</span></a></span><span>
+</span><span id="line-71"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String -&gt; SDoc
+forall doc. IsLine doc =&gt; String -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#text"><span class="hs-identifier hs-var">text</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;ALT&quot;</span></span><span>
+</span><span id="line-72"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String -&gt; SDoc
+forall doc. IsLine doc =&gt; String -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#text"><span class="hs-identifier hs-var">text</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;  &quot;</span></span><span> </span><span class="annot"><span class="annottext">SDoc -&gt; SDoc -&gt; SDoc
+forall doc. IsLine doc =&gt; doc -&gt; doc -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#%3C%2B%3E"><span class="hs-operator hs-var">&lt;+&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">Skeleton -&gt; SDoc
+forall a. Outputable a =&gt; a -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#ppr"><span class="hs-identifier hs-var">ppr</span></a></span><span> </span><span class="annot"><span class="annottext">Skeleton
+</span><a href="#local-6989586621682448581"><span class="hs-identifier hs-var">r</span></a></span><span>
+</span><span id="line-73"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">String -&gt; SDoc
+forall doc. IsLine doc =&gt; String -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#text"><span class="hs-identifier hs-var">text</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;}&quot;</span></span><span>
+</span><span id="line-74"></span><span>    </span><span class="hs-special">]</span><span>
+</span><span id="line-75"></span><span>  </span><span class="annot"><a href="GHC.Utils.Outputable.html#ppr"><span class="hs-identifier hs-var">ppr</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Stg.Lift.Types.html#BothSk"><span class="hs-identifier hs-type">BothSk</span></a></span><span> </span><span id="local-6989586621682448584"><span class="annot"><span class="annottext">Skeleton
+</span><a href="#local-6989586621682448584"><span class="hs-identifier hs-var">l</span></a></span></span><span> </span><span id="local-6989586621682448585"><span class="annot"><span class="annottext">Skeleton
+</span><a href="#local-6989586621682448585"><span class="hs-identifier hs-var">r</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Skeleton -&gt; SDoc
+forall a. Outputable a =&gt; a -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#ppr"><span class="hs-identifier hs-var">ppr</span></a></span><span> </span><span class="annot"><span class="annottext">Skeleton
+</span><a href="#local-6989586621682448584"><span class="hs-identifier hs-var">l</span></a></span><span> </span><span class="annot"><span class="annottext">SDoc -&gt; SDoc -&gt; SDoc
+forall doc. IsDoc doc =&gt; doc -&gt; doc -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#%24%24"><span class="hs-operator hs-var">$$</span></a></span><span> </span><span class="annot"><span class="annottext">Skeleton -&gt; SDoc
+forall a. Outputable a =&gt; a -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#ppr"><span class="hs-identifier hs-var">ppr</span></a></span><span> </span><span class="annot"><span class="annottext">Skeleton
+</span><a href="#local-6989586621682448585"><span class="hs-identifier hs-var">r</span></a></span><span>
+</span><span id="line-76"></span><span>  </span><span class="annot"><a href="GHC.Utils.Outputable.html#ppr"><span class="hs-identifier hs-var">ppr</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Stg.Lift.Types.html#ClosureSk"><span class="hs-identifier hs-type">ClosureSk</span></a></span><span> </span><span id="local-6989586621682448587"><span class="annot"><span class="annottext">Id
+</span><a href="#local-6989586621682448587"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span id="local-6989586621682448588"><span class="annot"><span class="annottext">DIdSet
+</span><a href="#local-6989586621682448588"><span class="hs-identifier hs-var">fvs</span></a></span></span><span> </span><span id="local-6989586621682448589"><span class="annot"><span class="annottext">Skeleton
+</span><a href="#local-6989586621682448589"><span class="hs-identifier hs-var">body</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Id -&gt; SDoc
+forall a. Outputable a =&gt; a -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#ppr"><span class="hs-identifier hs-var">ppr</span></a></span><span> </span><span class="annot"><span class="annottext">Id
+</span><a href="#local-6989586621682448587"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">SDoc -&gt; SDoc -&gt; SDoc
+forall doc. IsLine doc =&gt; doc -&gt; doc -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#%3C%2B%3E"><span class="hs-operator hs-var">&lt;+&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">DIdSet -&gt; SDoc
+forall a. Outputable a =&gt; a -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#ppr"><span class="hs-identifier hs-var">ppr</span></a></span><span> </span><span class="annot"><span class="annottext">DIdSet
+</span><a href="#local-6989586621682448588"><span class="hs-identifier hs-var">fvs</span></a></span><span> </span><span class="annot"><span class="annottext">SDoc -&gt; SDoc -&gt; SDoc
+forall doc. IsDoc doc =&gt; doc -&gt; doc -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#%24%24"><span class="hs-operator hs-var">$$</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; SDoc -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#nest"><span class="hs-identifier hs-var">nest</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">2</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Skeleton -&gt; SDoc
+forall a. Outputable a =&gt; a -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#ppr"><span class="hs-identifier hs-var">ppr</span></a></span><span> </span><span class="annot"><span class="annottext">Skeleton
+</span><a href="#local-6989586621682448589"><span class="hs-identifier hs-var">body</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-77"></span><span>  </span><span class="annot"><a href="GHC.Utils.Outputable.html#ppr"><span class="hs-identifier hs-var">ppr</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Stg.Lift.Types.html#RhsSk"><span class="hs-identifier hs-type">RhsSk</span></a></span><span> </span><span id="local-6989586621682448591"><span class="annot"><span class="annottext">Card
+</span><a href="#local-6989586621682448591"><span class="hs-identifier hs-var">card</span></a></span></span><span> </span><span id="local-6989586621682448592"><span class="annot"><span class="annottext">Skeleton
+</span><a href="#local-6989586621682448592"><span class="hs-identifier hs-var">body</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[SDoc] -&gt; SDoc
+forall doc. IsLine doc =&gt; [doc] -&gt; doc
+</span><a href="GHC.Utils.Outputable.html#hcat"><span class="hs-identifier hs-var">hcat</span></a></span><span>
+</span><span id="line-78"></span><span>    </span><span class="hs-special">[</span><span> </span><span class="annot"><span class="annottext">SDoc
+</span><a href="GHC.Utils.Outputable.html#lambda"><span class="hs-identifier hs-var">lambda</span></a></span><span>
+</span><span id="line-79"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Card -&gt; SDoc
+forall a. Outputable a =&gt; a -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#ppr"><span class="hs-identifier hs-var">ppr</span></a></span><span> </span><span class="annot"><span class="annottext">Card
+</span><a href="#local-6989586621682448591"><span class="hs-identifier hs-var">card</span></a></span><span>
+</span><span id="line-80"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">SDoc
+forall doc. IsLine doc =&gt; doc
+</span><a href="GHC.Utils.Outputable.html#dot"><span class="hs-identifier hs-var">dot</span></a></span><span>
+</span><span id="line-81"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Skeleton -&gt; SDoc
+forall a. Outputable a =&gt; a -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#ppr"><span class="hs-identifier hs-var">ppr</span></a></span><span> </span><span class="annot"><span class="annottext">Skeleton
+</span><a href="#local-6989586621682448592"><span class="hs-identifier hs-var">body</span></a></span><span>
+</span><span id="line-82"></span><span>    </span><span class="hs-special">]</span><span>
+</span><span id="line-83"></span><span>
+</span><span id="line-84"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="GHC.Utils.Outputable.html#Outputable"><span class="hs-identifier hs-type">Outputable</span></a></span><span> </span><span class="annot"><a href="GHC.Stg.Lift.Types.html#BinderInfo"><span class="hs-identifier hs-type">BinderInfo</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-85"></span><span>  </span><span id="local-6989586621682448599"><span class="annot"><span class="annottext">ppr :: BinderInfo -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#ppr"><span class="hs-identifier hs-var hs-var hs-var">ppr</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Id -&gt; SDoc
+forall a. Outputable a =&gt; a -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#ppr"><span class="hs-identifier hs-var">ppr</span></a></span><span> </span><span class="annot"><span class="annottext">(Id -&gt; SDoc) -&gt; (BinderInfo -&gt; Id) -&gt; BinderInfo -&gt; SDoc
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">BinderInfo -&gt; Id
+</span><a href="GHC.Stg.Lift.Types.html#binderInfoBndr"><span class="hs-identifier hs-var">binderInfoBndr</span></a></span><span>
+</span><span id="line-86"></span><span>
+</span><span id="line-87"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="GHC.Utils.Outputable.html#OutputableBndr"><span class="hs-identifier hs-type">OutputableBndr</span></a></span><span> </span><span class="annot"><a href="GHC.Stg.Lift.Types.html#BinderInfo"><span class="hs-identifier hs-type">BinderInfo</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-88"></span><span>  </span><span id="local-6989586621682448611"><span class="annot"><span class="annottext">pprBndr :: BindingSite -&gt; BinderInfo -&gt; SDoc
+</span><a href="#local-6989586621682448611"><span class="hs-identifier hs-var hs-var hs-var">pprBndr</span></a></span></span><span> </span><span id="local-6989586621682448613"><span class="annot"><span class="annottext">BindingSite
+</span><a href="#local-6989586621682448613"><span class="hs-identifier hs-var">b</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">BindingSite -&gt; Id -&gt; SDoc
+forall a. OutputableBndr a =&gt; BindingSite -&gt; a -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#pprBndr"><span class="hs-identifier hs-var">pprBndr</span></a></span><span> </span><span class="annot"><span class="annottext">BindingSite
+</span><a href="#local-6989586621682448613"><span class="hs-identifier hs-var">b</span></a></span><span> </span><span class="annot"><span class="annottext">(Id -&gt; SDoc) -&gt; (BinderInfo -&gt; Id) -&gt; BinderInfo -&gt; SDoc
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">BinderInfo -&gt; Id
+</span><a href="GHC.Stg.Lift.Types.html#binderInfoBndr"><span class="hs-identifier hs-var">binderInfoBndr</span></a></span><span>
+</span><span id="line-89"></span><span>  </span><span id="local-6989586621682448615"><span class="annot"><span class="annottext">pprPrefixOcc :: BinderInfo -&gt; SDoc
+</span><a href="#local-6989586621682448615"><span class="hs-identifier hs-var hs-var hs-var">pprPrefixOcc</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Id -&gt; SDoc
+forall a. OutputableBndr a =&gt; a -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#pprPrefixOcc"><span class="hs-identifier hs-var">pprPrefixOcc</span></a></span><span> </span><span class="annot"><span class="annottext">(Id -&gt; SDoc) -&gt; (BinderInfo -&gt; Id) -&gt; BinderInfo -&gt; SDoc
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">BinderInfo -&gt; Id
+</span><a href="GHC.Stg.Lift.Types.html#binderInfoBndr"><span class="hs-identifier hs-var">binderInfoBndr</span></a></span><span>
+</span><span id="line-90"></span><span>  </span><span id="local-6989586621682448618"><span class="annot"><span class="annottext">pprInfixOcc :: BinderInfo -&gt; SDoc
+</span><a href="#local-6989586621682448618"><span class="hs-identifier hs-var hs-var hs-var">pprInfixOcc</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Id -&gt; SDoc
+forall a. OutputableBndr a =&gt; a -&gt; SDoc
+</span><a href="GHC.Utils.Outputable.html#pprInfixOcc"><span class="hs-identifier hs-var">pprInfixOcc</span></a></span><span> </span><span class="annot"><span class="annottext">(Id -&gt; SDoc) -&gt; (BinderInfo -&gt; Id) -&gt; BinderInfo -&gt; SDoc
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">BinderInfo -&gt; Id
+</span><a href="GHC.Stg.Lift.Types.html#binderInfoBndr"><span class="hs-identifier hs-var">binderInfoBndr</span></a></span><span>
+</span><span id="line-91"></span><span>  </span><span id="local-6989586621682448621"><span class="annot"><span class="annottext">bndrIsJoin_maybe :: BinderInfo -&gt; JoinPointHood
+</span><a href="#local-6989586621682448621"><span class="hs-identifier hs-var hs-var hs-var">bndrIsJoin_maybe</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Id -&gt; JoinPointHood
+forall a. OutputableBndr a =&gt; a -&gt; JoinPointHood
+</span><a href="GHC.Utils.Outputable.html#bndrIsJoin_maybe"><span class="hs-identifier hs-var">bndrIsJoin_maybe</span></a></span><span> </span><span class="annot"><span class="annottext">(Id -&gt; JoinPointHood)
+-&gt; (BinderInfo -&gt; Id) -&gt; BinderInfo -&gt; JoinPointHood
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">BinderInfo -&gt; Id
+</span><a href="GHC.Stg.Lift.Types.html#binderInfoBndr"><span class="hs-identifier hs-var">binderInfoBndr</span></a></span><span>
+</span><span id="line-92"></span><span>
+</span><span id="line-93"></span></pre></body></html>

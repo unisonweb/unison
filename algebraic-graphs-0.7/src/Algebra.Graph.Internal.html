@@ -1,0 +1,516 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-comment">-----------------------------------------------------------------------------</span><span>
+</span><span id="line-2"></span><span class="hs-comment">-- |</span><span>
+</span><span id="line-3"></span><span class="hs-comment">-- Module     : Algebra.Graph.Internal</span><span>
+</span><span id="line-4"></span><span class="hs-comment">-- Copyright  : (c) Andrey Mokhov 2016-2022</span><span>
+</span><span id="line-5"></span><span class="hs-comment">-- License    : MIT (see the file LICENSE)</span><span>
+</span><span id="line-6"></span><span class="hs-comment">-- Maintainer : andrey.mokhov@gmail.com</span><span>
+</span><span id="line-7"></span><span class="hs-comment">-- Stability  : experimental</span><span>
+</span><span id="line-8"></span><span class="hs-comment">--</span><span>
+</span><span id="line-9"></span><span class="hs-comment">-- __Alga__ is a library for algebraic construction and manipulation of graphs</span><span>
+</span><span id="line-10"></span><span class="hs-comment">-- in Haskell. See &lt;https://github.com/snowleopard/alga-paper this paper&gt; for the</span><span>
+</span><span id="line-11"></span><span class="hs-comment">-- motivation behind the library, the underlying theory, and implementation details.</span><span>
+</span><span id="line-12"></span><span class="hs-comment">--</span><span>
+</span><span id="line-13"></span><span class="hs-comment">-- This module defines various internal utilities and data structures used</span><span>
+</span><span id="line-14"></span><span class="hs-comment">-- throughout the library, such as lists with fast concatenation. The API</span><span>
+</span><span id="line-15"></span><span class="hs-comment">-- is unstable and unsafe, and is exposed only for documentation.</span><span>
+</span><span id="line-16"></span><span class="hs-comment">-----------------------------------------------------------------------------</span><span>
+</span><span id="line-17"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Algebra.Graph.Internal.html"><span class="hs-identifier">Algebra.Graph.Internal</span></a></span><span> </span><span class="hs-special">(</span><span>
+</span><span id="line-18"></span><span>    </span><span class="annot"><span class="hs-comment">-- * Data structures</span></span><span>
+</span><span id="line-19"></span><span>    </span><span class="annot"><a href="Algebra.Graph.Internal.html#List"><span class="hs-identifier">List</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-20"></span><span>
+</span><span id="line-21"></span><span>    </span><span class="annot"><span class="hs-comment">-- * Graph traversal</span></span><span>
+</span><span id="line-22"></span><span>    </span><span class="annot"><a href="Algebra.Graph.Internal.html#Focus"><span class="hs-identifier">Focus</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Algebra.Graph.Internal.html#emptyFocus"><span class="hs-identifier">emptyFocus</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Algebra.Graph.Internal.html#vertexFocus"><span class="hs-identifier">vertexFocus</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Algebra.Graph.Internal.html#overlayFoci"><span class="hs-identifier">overlayFoci</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Algebra.Graph.Internal.html#connectFoci"><span class="hs-identifier">connectFoci</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Algebra.Graph.Internal.html#foldr1Safe"><span class="hs-identifier">foldr1Safe</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-23"></span><span>    </span><span class="annot"><a href="Algebra.Graph.Internal.html#maybeF"><span class="hs-identifier">maybeF</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-24"></span><span>
+</span><span id="line-25"></span><span>    </span><span class="annot"><span class="hs-comment">-- * Utilities</span></span><span>
+</span><span id="line-26"></span><span>    </span><span class="annot"><a href="Algebra.Graph.Internal.html#cartesianProductWith"><span class="hs-identifier">cartesianProductWith</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Algebra.Graph.Internal.html#coerce00"><span class="hs-identifier">coerce00</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Algebra.Graph.Internal.html#coerce10"><span class="hs-identifier">coerce10</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Algebra.Graph.Internal.html#coerce20"><span class="hs-identifier">coerce20</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Algebra.Graph.Internal.html#coerce01"><span class="hs-identifier">coerce01</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Algebra.Graph.Internal.html#coerce11"><span class="hs-identifier">coerce11</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-27"></span><span>    </span><span class="annot"><a href="Algebra.Graph.Internal.html#coerce21"><span class="hs-identifier">coerce21</span></a></span><span>
+</span><span id="line-28"></span><span>    </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-29"></span><span>
+</span><span id="line-30"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Coerce</span></span><span>
+</span><span id="line-31"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Foldable</span></span><span>
+</span><span id="line-32"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.IntSet</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">IntSet</span></span><span class="hs-special">)</span><span>
+</span><span id="line-33"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Semigroup</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Endo</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-34"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Set</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Set</span></span><span class="hs-special">)</span><span>
+</span><span id="line-35"></span><span>
+</span><span id="line-36"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.IntSet</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">IntSet</span></span><span>
+</span><span id="line-37"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Set</span></span><span>    </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Set</span></span><span>
+</span><span id="line-38"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">GHC.Exts</span></span><span>    </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Exts</span></span><span>
+</span><span id="line-39"></span><span>
+</span><span id="line-40"></span><span class="hs-comment">-- | An abstract list data type with /O(1)/ time concatenation (the current</span><span>
+</span><span id="line-41"></span><span class="hs-comment">-- implementation uses difference lists). Here @a@ is the type of list elements.</span><span>
+</span><span id="line-42"></span><span class="hs-comment">-- 'List' @a@ is a 'Monoid': 'mempty' corresponds to the empty list and two lists</span><span>
+</span><span id="line-43"></span><span class="hs-comment">-- can be concatenated with 'mappend' (or operator 'Data.Semigroup.&lt;&gt;'). Singleton</span><span>
+</span><span id="line-44"></span><span class="hs-comment">-- lists can be constructed using the function 'pure' from the 'Applicative'</span><span>
+</span><span id="line-45"></span><span class="hs-comment">-- instance. 'List' @a@ is also an instance of 'IsList', therefore you can use</span><span>
+</span><span id="line-46"></span><span class="hs-comment">-- list literals, e.g. @[1,4]@ @::@ 'List' @Int@ is the same as 'pure' @1@</span><span>
+</span><span id="line-47"></span><span class="hs-comment">-- 'Data.Semigroup.&lt;&gt;' 'pure' @4@; note that this requires the @OverloadedLists@</span><span>
+</span><span id="line-48"></span><span class="hs-comment">-- GHC extension. To extract plain Haskell lists you can use the 'toList'</span><span>
+</span><span id="line-49"></span><span class="hs-comment">-- function from the 'Foldable' instance.</span><span>
+</span><span id="line-50"></span><span class="hs-keyword">newtype</span><span> </span><span id="List"><span class="annot"><a href="Algebra.Graph.Internal.html#List"><span class="hs-identifier hs-var">List</span></a></span></span><span> </span><span id="local-6989586621679150193"><span class="annot"><a href="#local-6989586621679150193"><span class="hs-identifier hs-type">a</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="List"><span class="annot"><a href="Algebra.Graph.Internal.html#List"><span class="hs-identifier hs-var">List</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Endo</span></span><span> </span><span class="hs-special">[</span><span class="annot"><a href="#local-6989586621679150193"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">]</span><span class="hs-special">)</span><span> </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679150373"><span id="local-6989586621679150378"><span id="local-6989586621679150382"><span class="annot"><span class="annottext">Semigroup (List a)
+List a
+Semigroup (List a) =&gt;
+List a
+-&gt; (List a -&gt; List a -&gt; List a)
+-&gt; ([List a] -&gt; List a)
+-&gt; Monoid (List a)
+[List a] -&gt; List a
+List a -&gt; List a -&gt; List a
+forall a. Semigroup (List a)
+forall a. List a
+forall a.
+Semigroup a =&gt;
+a -&gt; (a -&gt; a -&gt; a) -&gt; ([a] -&gt; a) -&gt; Monoid a
+forall a. [List a] -&gt; List a
+forall a. List a -&gt; List a -&gt; List a
+$cmempty :: forall a. List a
+mempty :: List a
+$cmappend :: forall a. List a -&gt; List a -&gt; List a
+mappend :: List a -&gt; List a -&gt; List a
+$cmconcat :: forall a. [List a] -&gt; List a
+mconcat :: [List a] -&gt; List a
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Monoid</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679150388"><span id="local-6989586621679150393"><span id="local-6989586621679150399"><span class="annot"><span class="annottext">NonEmpty (List a) -&gt; List a
+List a -&gt; List a -&gt; List a
+(List a -&gt; List a -&gt; List a)
+-&gt; (NonEmpty (List a) -&gt; List a)
+-&gt; (forall b. Integral b =&gt; b -&gt; List a -&gt; List a)
+-&gt; Semigroup (List a)
+forall b. Integral b =&gt; b -&gt; List a -&gt; List a
+forall a. NonEmpty (List a) -&gt; List a
+forall a. List a -&gt; List a -&gt; List a
+forall a.
+(a -&gt; a -&gt; a)
+-&gt; (NonEmpty a -&gt; a)
+-&gt; (forall b. Integral b =&gt; b -&gt; a -&gt; a)
+-&gt; Semigroup a
+forall a b. Integral b =&gt; b -&gt; List a -&gt; List a
+$c&lt;&gt; :: forall a. List a -&gt; List a -&gt; List a
+&lt;&gt; :: List a -&gt; List a -&gt; List a
+$csconcat :: forall a. NonEmpty (List a) -&gt; List a
+sconcat :: NonEmpty (List a) -&gt; List a
+$cstimes :: forall a b. Integral b =&gt; b -&gt; List a -&gt; List a
+stimes :: forall b. Integral b =&gt; b -&gt; List a -&gt; List a
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Semigroup</span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-51"></span><span>
+</span><span id="line-52"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679150173"><span id="local-6989586621679150409"><span id="local-6989586621679150414"><span class="annot"><span class="hs-identifier hs-type">Show</span></span><span> </span><span class="annot"><a href="#local-6989586621679150173"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Show</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Algebra.Graph.Internal.html#List"><span class="hs-identifier hs-type">List</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679150173"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-53"></span><span>    </span><span id="local-6989586621679150421"><span class="annot"><span class="annottext">show :: List a -&gt; String
+</span><a href="#local-6989586621679150421"><span class="hs-identifier hs-var hs-var hs-var">show</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[a] -&gt; String
+forall a. Show a =&gt; a -&gt; String
+</span><span class="hs-identifier hs-var">show</span></span><span> </span><span class="annot"><span class="annottext">([a] -&gt; String) -&gt; (List a -&gt; [a]) -&gt; List a -&gt; String
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">List a -&gt; [a]
+forall a. List a -&gt; [a]
+forall (t :: * -&gt; *) a. Foldable t =&gt; t a -&gt; [a]
+</span><span class="hs-identifier hs-var">toList</span></span><span>
+</span><span id="line-54"></span><span>
+</span><span id="line-55"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679150182"><span id="local-6989586621679150427"><span class="annot"><span class="hs-identifier hs-type">Eq</span></span><span> </span><span class="annot"><a href="#local-6989586621679150182"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Eq</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Algebra.Graph.Internal.html#List"><span class="hs-identifier hs-type">List</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679150182"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-56"></span><span>    </span><span id="local-6989586621679150435"><span class="annot"><span class="annottext">List a
+</span><a href="#local-6989586621679150435"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span id="local-6989586621679150436"><span class="annot"><span class="annottext">== :: List a -&gt; List a -&gt; Bool
+</span><span class="hs-operator hs-var hs-var hs-var">==</span></span></span><span> </span><span id="local-6989586621679150437"><span class="annot"><span class="annottext">List a
+</span><a href="#local-6989586621679150437"><span class="hs-identifier hs-var">y</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">List a -&gt; [a]
+forall a. List a -&gt; [a]
+forall (t :: * -&gt; *) a. Foldable t =&gt; t a -&gt; [a]
+</span><span class="hs-identifier hs-var">toList</span></span><span> </span><span class="annot"><span class="annottext">List a
+</span><a href="#local-6989586621679150435"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">[a] -&gt; [a] -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">List a -&gt; [a]
+forall a. List a -&gt; [a]
+forall (t :: * -&gt; *) a. Foldable t =&gt; t a -&gt; [a]
+</span><span class="hs-identifier hs-var">toList</span></span><span> </span><span class="annot"><span class="annottext">List a
+</span><a href="#local-6989586621679150437"><span class="hs-identifier hs-var">y</span></a></span><span>
+</span><span id="line-57"></span><span>
+</span><span id="line-58"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679150186"><span id="local-6989586621679150444"><span id="local-6989586621679150448"><span id="local-6989586621679150451"><span id="local-6989586621679150454"><span id="local-6989586621679150457"><span id="local-6989586621679150460"><span class="annot"><span class="hs-identifier hs-type">Ord</span></span><span> </span><span class="annot"><a href="#local-6989586621679150186"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ord</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Algebra.Graph.Internal.html#List"><span class="hs-identifier hs-type">List</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679150186"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span></span></span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-59"></span><span>    </span><span id="local-6989586621679150468"><span class="annot"><span class="annottext">compare :: List a -&gt; List a -&gt; Ordering
+</span><a href="#local-6989586621679150468"><span class="hs-identifier hs-var hs-var hs-var">compare</span></a></span></span><span> </span><span id="local-6989586621679150470"><span class="annot"><span class="annottext">List a
+</span><a href="#local-6989586621679150470"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span id="local-6989586621679150471"><span class="annot"><span class="annottext">List a
+</span><a href="#local-6989586621679150471"><span class="hs-identifier hs-var">y</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[a] -&gt; [a] -&gt; Ordering
+forall a. Ord a =&gt; a -&gt; a -&gt; Ordering
+</span><span class="hs-identifier hs-var">compare</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">List a -&gt; [a]
+forall a. List a -&gt; [a]
+forall (t :: * -&gt; *) a. Foldable t =&gt; t a -&gt; [a]
+</span><span class="hs-identifier hs-var">toList</span></span><span> </span><span class="annot"><span class="annottext">List a
+</span><a href="#local-6989586621679150470"><span class="hs-identifier hs-var">x</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">List a -&gt; [a]
+forall a. List a -&gt; [a]
+forall (t :: * -&gt; *) a. Foldable t =&gt; t a -&gt; [a]
+</span><span class="hs-identifier hs-var">toList</span></span><span> </span><span class="annot"><span class="annottext">List a
+</span><a href="#local-6989586621679150471"><span class="hs-identifier hs-var">y</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-60"></span><span>
+</span><span id="line-61"></span><span class="hs-comment">-- TODO: Add rewrite rules? fromList . toList == toList . fromList == id</span><span>
+</span><span id="line-62"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679150191"><span id="local-6989586621679150474"><span class="annot"><span class="hs-identifier hs-type">Exts.IsList</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Algebra.Graph.Internal.html#List"><span class="hs-identifier hs-type">List</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679150191"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-63"></span><span>    </span><span class="hs-keyword">type</span><span> </span><span id="Item"><span class="annot"><span class="hs-identifier hs-var">Item</span></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Algebra.Graph.Internal.html#List"><span class="hs-identifier hs-type">List</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679150191"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="#local-6989586621679150191"><span class="hs-identifier hs-type">a</span></a></span><span>
+</span><span id="line-64"></span><span>    </span><span id="local-6989586621679150481"><span class="annot"><span class="annottext">fromList :: [Item (List a)] -&gt; List a
+</span><span class="hs-identifier hs-var hs-var hs-var">fromList</span></span></span><span>        </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Endo [a] -&gt; List a
+forall a. Endo [a] -&gt; List a
+</span><a href="Algebra.Graph.Internal.html#List"><span class="hs-identifier hs-var">List</span></a></span><span> </span><span class="annot"><span class="annottext">(Endo [a] -&gt; List a) -&gt; ([a] -&gt; Endo [a]) -&gt; [a] -&gt; List a
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">([a] -&gt; [a]) -&gt; Endo [a]
+forall a. (a -&gt; a) -&gt; Endo a
+</span><span class="hs-identifier hs-var">Endo</span></span><span> </span><span class="annot"><span class="annottext">(([a] -&gt; [a]) -&gt; Endo [a])
+-&gt; ([a] -&gt; [a] -&gt; [a]) -&gt; [a] -&gt; Endo [a]
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">[a] -&gt; [a] -&gt; [a]
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">(&lt;&gt;)</span></span><span>
+</span><span id="line-65"></span><span>    </span><span id="local-6989586621679150483"><span class="annot"><span class="annottext">toList :: List a -&gt; [Item (List a)]
+</span><span class="hs-identifier hs-var hs-var hs-var">toList</span></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Algebra.Graph.Internal.html#List"><span class="hs-identifier hs-type">List</span></a></span><span> </span><span id="local-6989586621679150484"><span class="annot"><span class="annottext">Endo [a]
+</span><a href="#local-6989586621679150484"><span class="hs-identifier hs-var">x</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Endo [a] -&gt; [a] -&gt; [a]
+forall a. Endo a -&gt; a -&gt; a
+</span><span class="hs-identifier hs-var">appEndo</span></span><span> </span><span class="annot"><span class="annottext">Endo [a]
+</span><a href="#local-6989586621679150484"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span>
+</span><span id="line-66"></span><span>
+</span><span id="line-67"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679150487"><span id="local-6989586621679150493"><span id="local-6989586621679150498"><span id="local-6989586621679150501"><span id="local-6989586621679150504"><span id="local-6989586621679150507"><span id="local-6989586621679150510"><span id="local-6989586621679150513"><span id="local-6989586621679150517"><span id="local-6989586621679150520"><span id="local-6989586621679150523"><span id="local-6989586621679150528"><span id="local-6989586621679150533"><span id="local-6989586621679150538"><span id="local-6989586621679150543"><span class="annot"><span class="hs-identifier hs-type">Foldable</span></span><span> </span><span class="annot"><a href="Algebra.Graph.Internal.html#List"><span class="hs-identifier hs-type">List</span></a></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-68"></span><span>    </span><span id="local-6989586621679150553"><span class="annot"><span class="annottext">foldMap :: forall m a. Monoid m =&gt; (a -&gt; m) -&gt; List a -&gt; m
+</span><a href="#local-6989586621679150553"><span class="hs-identifier hs-var hs-var hs-var">foldMap</span></a></span></span><span> </span><span id="local-6989586621679150555"><span class="annot"><span class="annottext">a -&gt; m
+</span><a href="#local-6989586621679150555"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(a -&gt; m) -&gt; [a] -&gt; m
+forall m a. Monoid m =&gt; (a -&gt; m) -&gt; [a] -&gt; m
+forall (t :: * -&gt; *) m a.
+(Foldable t, Monoid m) =&gt;
+(a -&gt; m) -&gt; t a -&gt; m
+</span><span class="hs-identifier hs-var">foldMap</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; m
+</span><a href="#local-6989586621679150555"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">([a] -&gt; m) -&gt; (List a -&gt; [a]) -&gt; List a -&gt; m
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">List a -&gt; [a]
+List a -&gt; [Item (List a)]
+forall l. IsList l =&gt; l -&gt; [Item l]
+</span><span class="hs-identifier hs-var">Exts.toList</span></span><span>
+</span><span id="line-69"></span><span>    </span><span id="local-6989586621679150557"><span class="annot"><span class="annottext">toList :: forall a. List a -&gt; [a]
+</span><span class="hs-identifier hs-var hs-var hs-var">toList</span></span></span><span>    </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">List a -&gt; [a]
+List a -&gt; [Item (List a)]
+forall l. IsList l =&gt; l -&gt; [Item l]
+</span><span class="hs-identifier hs-var">Exts.toList</span></span><span>
+</span><span id="line-70"></span><span>
+</span><span id="line-71"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679150560"><span class="annot"><span class="hs-identifier hs-type">Functor</span></span><span> </span><span class="annot"><a href="Algebra.Graph.Internal.html#List"><span class="hs-identifier hs-type">List</span></a></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-72"></span><span>    </span><span id="local-6989586621679150566"><span class="annot"><span class="annottext">fmap :: forall a b. (a -&gt; b) -&gt; List a -&gt; List b
+</span><span class="hs-identifier hs-var hs-var hs-var">fmap</span></span></span><span> </span><span id="local-6989586621679150567"><span class="annot"><span class="annottext">a -&gt; b
+</span><a href="#local-6989586621679150567"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[b] -&gt; List b
+[Item (List b)] -&gt; List b
+forall l. IsList l =&gt; [Item l] -&gt; l
+</span><span class="hs-identifier hs-var">Exts.fromList</span></span><span> </span><span class="annot"><span class="annottext">([b] -&gt; List b) -&gt; (List a -&gt; [b]) -&gt; List a -&gt; List b
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">(a -&gt; b) -&gt; [a] -&gt; [b]
+forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+</span><span class="hs-identifier hs-var">map</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; b
+</span><a href="#local-6989586621679150567"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">([a] -&gt; [b]) -&gt; (List a -&gt; [a]) -&gt; List a -&gt; [b]
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">List a -&gt; [a]
+forall a. List a -&gt; [a]
+forall (t :: * -&gt; *) a. Foldable t =&gt; t a -&gt; [a]
+</span><span class="hs-identifier hs-var">toList</span></span><span>
+</span><span id="line-73"></span><span>
+</span><span id="line-74"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679150573"><span id="local-6989586621679150577"><span id="local-6989586621679150580"><span class="annot"><span class="hs-identifier hs-type">Applicative</span></span><span> </span><span class="annot"><a href="Algebra.Graph.Internal.html#List"><span class="hs-identifier hs-type">List</span></a></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-75"></span><span>    </span><span id="local-6989586621679150583"><span class="annot"><span class="annottext">pure :: forall a. a -&gt; List a
+</span><span class="hs-identifier hs-var hs-var hs-var">pure</span></span></span><span>    </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Endo [a] -&gt; List a
+forall a. Endo [a] -&gt; List a
+</span><a href="Algebra.Graph.Internal.html#List"><span class="hs-identifier hs-var">List</span></a></span><span> </span><span class="annot"><span class="annottext">(Endo [a] -&gt; List a) -&gt; (a -&gt; Endo [a]) -&gt; a -&gt; List a
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">([a] -&gt; [a]) -&gt; Endo [a]
+forall a. (a -&gt; a) -&gt; Endo a
+</span><span class="hs-identifier hs-var">Endo</span></span><span> </span><span class="annot"><span class="annottext">(([a] -&gt; [a]) -&gt; Endo [a]) -&gt; (a -&gt; [a] -&gt; [a]) -&gt; a -&gt; Endo [a]
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">:</span><span class="hs-special">)</span><span>
+</span><span id="line-76"></span><span>    </span><span id="local-6989586621679150589"><span class="annot"><span class="annottext">List (a -&gt; b)
+</span><a href="#local-6989586621679150589"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span id="local-6989586621679150590"><span class="annot"><span class="annottext">&lt;*&gt; :: forall a b. List (a -&gt; b) -&gt; List a -&gt; List b
+</span><span class="hs-operator hs-var hs-var hs-var">&lt;*&gt;</span></span></span><span> </span><span id="local-6989586621679150591"><span class="annot"><span class="annottext">List a
+</span><a href="#local-6989586621679150591"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Item (List b)] -&gt; List b
+forall l. IsList l =&gt; [Item l] -&gt; l
+</span><span class="hs-identifier hs-var">Exts.fromList</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">List (a -&gt; b) -&gt; [a -&gt; b]
+forall a. List a -&gt; [a]
+forall (t :: * -&gt; *) a. Foldable t =&gt; t a -&gt; [a]
+</span><span class="hs-identifier hs-var">toList</span></span><span> </span><span class="annot"><span class="annottext">List (a -&gt; b)
+</span><a href="#local-6989586621679150589"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">[a -&gt; b] -&gt; [a] -&gt; [b]
+forall a b. [a -&gt; b] -&gt; [a] -&gt; [b]
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">List a -&gt; [a]
+forall a. List a -&gt; [a]
+forall (t :: * -&gt; *) a. Foldable t =&gt; t a -&gt; [a]
+</span><span class="hs-identifier hs-var">toList</span></span><span> </span><span class="annot"><span class="annottext">List a
+</span><a href="#local-6989586621679150591"><span class="hs-identifier hs-var">x</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-77"></span><span>
+</span><span id="line-78"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679150596"><span class="annot"><span class="hs-identifier hs-type">Monad</span></span><span> </span><span class="annot"><a href="Algebra.Graph.Internal.html#List"><span class="hs-identifier hs-type">List</span></a></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-79"></span><span>    </span><span id="local-6989586621679150602"><span class="annot"><span class="annottext">return :: forall a. a -&gt; List a
+</span><span class="hs-identifier hs-var hs-var hs-var">return</span></span></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">a -&gt; List a
+forall a. a -&gt; List a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span>
+</span><span id="line-80"></span><span>    </span><span id="local-6989586621679150608"><span class="annot"><span class="annottext">List a
+</span><a href="#local-6989586621679150608"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span id="local-6989586621679150609"><span class="annot"><span class="annottext">&gt;&gt;= :: forall a b. List a -&gt; (a -&gt; List b) -&gt; List b
+</span><span class="hs-operator hs-var hs-var hs-var">&gt;&gt;=</span></span></span><span> </span><span id="local-6989586621679150610"><span class="annot"><span class="annottext">a -&gt; List b
+</span><a href="#local-6989586621679150610"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Item (List b)] -&gt; List b
+forall l. IsList l =&gt; [Item l] -&gt; l
+</span><span class="hs-identifier hs-var">Exts.fromList</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">List a -&gt; [a]
+forall a. List a -&gt; [a]
+forall (t :: * -&gt; *) a. Foldable t =&gt; t a -&gt; [a]
+</span><span class="hs-identifier hs-var">toList</span></span><span> </span><span class="annot"><span class="annottext">List a
+</span><a href="#local-6989586621679150608"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">[a] -&gt; (a -&gt; [b]) -&gt; [b]
+forall a b. [a] -&gt; (a -&gt; [b]) -&gt; [b]
+forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; (a -&gt; m b) -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;=</span></span><span> </span><span class="annot"><span class="annottext">List b -&gt; [b]
+forall a. List a -&gt; [a]
+forall (t :: * -&gt; *) a. Foldable t =&gt; t a -&gt; [a]
+</span><span class="hs-identifier hs-var">toList</span></span><span> </span><span class="annot"><span class="annottext">(List b -&gt; [b]) -&gt; (a -&gt; List b) -&gt; a -&gt; [b]
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; List b
+</span><a href="#local-6989586621679150610"><span class="hs-identifier hs-var">f</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-81"></span><span>
+</span><span id="line-82"></span><span class="hs-comment">-- | The /focus/ of a graph expression is a flattened representation of the</span><span>
+</span><span id="line-83"></span><span class="hs-comment">-- subgraph under focus, its context, as well as the list of all encountered</span><span>
+</span><span id="line-84"></span><span class="hs-comment">-- vertices. See 'Algebra.Graph.removeEdge' for a use-case example.</span><span>
+</span><span id="line-85"></span><span class="hs-keyword">data</span><span> </span><span id="Focus"><span class="annot"><a href="Algebra.Graph.Internal.html#Focus"><span class="hs-identifier hs-var">Focus</span></a></span></span><span> </span><span id="local-6989586621679150251"><span class="annot"><a href="#local-6989586621679150251"><span class="hs-identifier hs-type">a</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="Focus"><span class="annot"><a href="Algebra.Graph.Internal.html#Focus"><span class="hs-identifier hs-var">Focus</span></a></span></span><span>
+</span><span id="line-86"></span><span>    </span><span class="hs-special">{</span><span> </span><span id="ok"><span class="annot"><span class="annottext">forall a. Focus a -&gt; Bool
+</span><a href="Algebra.Graph.Internal.html#ok"><span class="hs-identifier hs-var hs-var">ok</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>     </span><span class="annot"><span class="hs-comment">-- ^ True if focus on the specified subgraph is obtained.</span></span><span>
+</span><span id="line-87"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="is"><span class="annot"><span class="annottext">forall a. Focus a -&gt; List a
+</span><a href="Algebra.Graph.Internal.html#is"><span class="hs-identifier hs-var hs-var">is</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Algebra.Graph.Internal.html#List"><span class="hs-identifier hs-type">List</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679150251"><span class="hs-identifier hs-type">a</span></a></span><span>   </span><span class="annot"><span class="hs-comment">-- ^ Inputs into the focused subgraph.</span></span><span>
+</span><span id="line-88"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="os"><span class="annot"><span class="annottext">forall a. Focus a -&gt; List a
+</span><a href="Algebra.Graph.Internal.html#os"><span class="hs-identifier hs-var hs-var">os</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Algebra.Graph.Internal.html#List"><span class="hs-identifier hs-type">List</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679150251"><span class="hs-identifier hs-type">a</span></a></span><span>   </span><span class="annot"><span class="hs-comment">-- ^ Outputs out of the focused subgraph.</span></span><span>
+</span><span id="line-89"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="vs"><span class="annot"><span class="annottext">forall a. Focus a -&gt; List a
+</span><a href="Algebra.Graph.Internal.html#vs"><span class="hs-identifier hs-var hs-var">vs</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Algebra.Graph.Internal.html#List"><span class="hs-identifier hs-type">List</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679150251"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-special">}</span><span> </span><span class="annot"><span class="hs-comment">-- ^ All vertices (leaves) of the graph expression.</span></span><span>
+</span><span id="line-90"></span><span>
+</span><span id="line-91"></span><span class="annot"><span class="hs-comment">-- | Focus on the empty graph.</span></span><span>
+</span><span id="line-92"></span><span id="local-6989586621679150257"><span class="annot"><a href="Algebra.Graph.Internal.html#emptyFocus"><span class="hs-identifier hs-type">emptyFocus</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Algebra.Graph.Internal.html#Focus"><span class="hs-identifier hs-type">Focus</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679150257"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-93"></span><span id="emptyFocus"><span class="annot"><span class="annottext">emptyFocus :: forall a. Focus a
+</span><a href="Algebra.Graph.Internal.html#emptyFocus"><span class="hs-identifier hs-var hs-var">emptyFocus</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool -&gt; List a -&gt; List a -&gt; List a -&gt; Focus a
+forall a. Bool -&gt; List a -&gt; List a -&gt; List a -&gt; Focus a
+</span><a href="Algebra.Graph.Internal.html#Focus"><span class="hs-identifier hs-var">Focus</span></a></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span> </span><span class="annot"><span class="annottext">List a
+forall a. Monoid a =&gt; a
+</span><span class="hs-identifier hs-var">mempty</span></span><span> </span><span class="annot"><span class="annottext">List a
+forall a. Monoid a =&gt; a
+</span><span class="hs-identifier hs-var">mempty</span></span><span> </span><span class="annot"><span class="annottext">List a
+forall a. Monoid a =&gt; a
+</span><span class="hs-identifier hs-var">mempty</span></span><span>
+</span><span id="line-94"></span><span>
+</span><span id="line-95"></span><span class="hs-comment">-- | Focus on the graph with a single vertex, given a predicate indicating</span><span>
+</span><span id="line-96"></span><span class="hs-comment">-- whether the vertex is of interest.</span><span>
+</span><span id="line-97"></span><span id="local-6989586621679150259"><span class="annot"><a href="Algebra.Graph.Internal.html#vertexFocus"><span class="hs-identifier hs-type">vertexFocus</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679150259"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679150259"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Algebra.Graph.Internal.html#Focus"><span class="hs-identifier hs-type">Focus</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679150259"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-98"></span><span id="vertexFocus"><span class="annot"><span class="annottext">vertexFocus :: forall a. (a -&gt; Bool) -&gt; a -&gt; Focus a
+</span><a href="Algebra.Graph.Internal.html#vertexFocus"><span class="hs-identifier hs-var hs-var">vertexFocus</span></a></span></span><span> </span><span id="local-6989586621679150622"><span class="annot"><span class="annottext">a -&gt; Bool
+</span><a href="#local-6989586621679150622"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span id="local-6989586621679150623"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679150623"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool -&gt; List a -&gt; List a -&gt; List a -&gt; Focus a
+forall a. Bool -&gt; List a -&gt; List a -&gt; List a -&gt; Focus a
+</span><a href="Algebra.Graph.Internal.html#Focus"><span class="hs-identifier hs-var">Focus</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a -&gt; Bool
+</span><a href="#local-6989586621679150622"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679150623"><span class="hs-identifier hs-var">x</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">List a
+forall a. Monoid a =&gt; a
+</span><span class="hs-identifier hs-var">mempty</span></span><span> </span><span class="annot"><span class="annottext">List a
+forall a. Monoid a =&gt; a
+</span><span class="hs-identifier hs-var">mempty</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a -&gt; List a
+forall a. a -&gt; List a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679150623"><span class="hs-identifier hs-var">x</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-99"></span><span>
+</span><span id="line-100"></span><span class="annot"><span class="hs-comment">-- | Overlay two foci.</span></span><span>
+</span><span id="line-101"></span><span id="local-6989586621679150261"><span class="annot"><a href="Algebra.Graph.Internal.html#overlayFoci"><span class="hs-identifier hs-type">overlayFoci</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Algebra.Graph.Internal.html#Focus"><span class="hs-identifier hs-type">Focus</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679150261"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Algebra.Graph.Internal.html#Focus"><span class="hs-identifier hs-type">Focus</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679150261"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Algebra.Graph.Internal.html#Focus"><span class="hs-identifier hs-type">Focus</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679150261"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-102"></span><span id="overlayFoci"><span class="annot"><span class="annottext">overlayFoci :: forall a. Focus a -&gt; Focus a -&gt; Focus a
+</span><a href="Algebra.Graph.Internal.html#overlayFoci"><span class="hs-identifier hs-var hs-var">overlayFoci</span></a></span></span><span> </span><span id="local-6989586621679150627"><span class="annot"><span class="annottext">Focus a
+</span><a href="#local-6989586621679150627"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span id="local-6989586621679150628"><span class="annot"><span class="annottext">Focus a
+</span><a href="#local-6989586621679150628"><span class="hs-identifier hs-var">y</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool -&gt; List a -&gt; List a -&gt; List a -&gt; Focus a
+forall a. Bool -&gt; List a -&gt; List a -&gt; List a -&gt; Focus a
+</span><a href="Algebra.Graph.Internal.html#Focus"><span class="hs-identifier hs-var">Focus</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Focus a -&gt; Bool
+forall a. Focus a -&gt; Bool
+</span><a href="Algebra.Graph.Internal.html#ok"><span class="hs-identifier hs-var">ok</span></a></span><span> </span><span class="annot"><span class="annottext">Focus a
+</span><a href="#local-6989586621679150627"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">||</span></span><span> </span><span class="annot"><span class="annottext">Focus a -&gt; Bool
+forall a. Focus a -&gt; Bool
+</span><a href="Algebra.Graph.Internal.html#ok"><span class="hs-identifier hs-var">ok</span></a></span><span> </span><span class="annot"><span class="annottext">Focus a
+</span><a href="#local-6989586621679150628"><span class="hs-identifier hs-var">y</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Focus a -&gt; List a
+forall a. Focus a -&gt; List a
+</span><a href="Algebra.Graph.Internal.html#is"><span class="hs-identifier hs-var">is</span></a></span><span> </span><span class="annot"><span class="annottext">Focus a
+</span><a href="#local-6989586621679150627"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">List a -&gt; List a -&gt; List a
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Focus a -&gt; List a
+forall a. Focus a -&gt; List a
+</span><a href="Algebra.Graph.Internal.html#is"><span class="hs-identifier hs-var">is</span></a></span><span> </span><span class="annot"><span class="annottext">Focus a
+</span><a href="#local-6989586621679150628"><span class="hs-identifier hs-var">y</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Focus a -&gt; List a
+forall a. Focus a -&gt; List a
+</span><a href="Algebra.Graph.Internal.html#os"><span class="hs-identifier hs-var">os</span></a></span><span> </span><span class="annot"><span class="annottext">Focus a
+</span><a href="#local-6989586621679150627"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">List a -&gt; List a -&gt; List a
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Focus a -&gt; List a
+forall a. Focus a -&gt; List a
+</span><a href="Algebra.Graph.Internal.html#os"><span class="hs-identifier hs-var">os</span></a></span><span> </span><span class="annot"><span class="annottext">Focus a
+</span><a href="#local-6989586621679150628"><span class="hs-identifier hs-var">y</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Focus a -&gt; List a
+forall a. Focus a -&gt; List a
+</span><a href="Algebra.Graph.Internal.html#vs"><span class="hs-identifier hs-var">vs</span></a></span><span> </span><span class="annot"><span class="annottext">Focus a
+</span><a href="#local-6989586621679150627"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">List a -&gt; List a -&gt; List a
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Focus a -&gt; List a
+forall a. Focus a -&gt; List a
+</span><a href="Algebra.Graph.Internal.html#vs"><span class="hs-identifier hs-var">vs</span></a></span><span> </span><span class="annot"><span class="annottext">Focus a
+</span><a href="#local-6989586621679150628"><span class="hs-identifier hs-var">y</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-103"></span><span>
+</span><span id="line-104"></span><span class="annot"><span class="hs-comment">-- | Connect two foci.</span></span><span>
+</span><span id="line-105"></span><span id="local-6989586621679150630"><span class="annot"><a href="Algebra.Graph.Internal.html#connectFoci"><span class="hs-identifier hs-type">connectFoci</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Algebra.Graph.Internal.html#Focus"><span class="hs-identifier hs-type">Focus</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679150630"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Algebra.Graph.Internal.html#Focus"><span class="hs-identifier hs-type">Focus</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679150630"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Algebra.Graph.Internal.html#Focus"><span class="hs-identifier hs-type">Focus</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679150630"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-106"></span><span id="connectFoci"><span class="annot"><span class="annottext">connectFoci :: forall a. Focus a -&gt; Focus a -&gt; Focus a
+</span><a href="Algebra.Graph.Internal.html#connectFoci"><span class="hs-identifier hs-var hs-var">connectFoci</span></a></span></span><span> </span><span id="local-6989586621679150634"><span class="annot"><span class="annottext">Focus a
+</span><a href="#local-6989586621679150634"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span id="local-6989586621679150635"><span class="annot"><span class="annottext">Focus a
+</span><a href="#local-6989586621679150635"><span class="hs-identifier hs-var">y</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool -&gt; List a -&gt; List a -&gt; List a -&gt; Focus a
+forall a. Bool -&gt; List a -&gt; List a -&gt; List a -&gt; Focus a
+</span><a href="Algebra.Graph.Internal.html#Focus"><span class="hs-identifier hs-var">Focus</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Focus a -&gt; Bool
+forall a. Focus a -&gt; Bool
+</span><a href="Algebra.Graph.Internal.html#ok"><span class="hs-identifier hs-var">ok</span></a></span><span> </span><span class="annot"><span class="annottext">Focus a
+</span><a href="#local-6989586621679150634"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">||</span></span><span> </span><span class="annot"><span class="annottext">Focus a -&gt; Bool
+forall a. Focus a -&gt; Bool
+</span><a href="Algebra.Graph.Internal.html#ok"><span class="hs-identifier hs-var">ok</span></a></span><span> </span><span class="annot"><span class="annottext">Focus a
+</span><a href="#local-6989586621679150635"><span class="hs-identifier hs-var">y</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">List a
+</span><a href="#local-6989586621679150636"><span class="hs-identifier hs-var">xs</span></a></span><span> </span><span class="annot"><span class="annottext">List a -&gt; List a -&gt; List a
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Focus a -&gt; List a
+forall a. Focus a -&gt; List a
+</span><a href="Algebra.Graph.Internal.html#is"><span class="hs-identifier hs-var">is</span></a></span><span> </span><span class="annot"><span class="annottext">Focus a
+</span><a href="#local-6989586621679150635"><span class="hs-identifier hs-var">y</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Focus a -&gt; List a
+forall a. Focus a -&gt; List a
+</span><a href="Algebra.Graph.Internal.html#os"><span class="hs-identifier hs-var">os</span></a></span><span> </span><span class="annot"><span class="annottext">Focus a
+</span><a href="#local-6989586621679150634"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">List a -&gt; List a -&gt; List a
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">List a
+</span><a href="#local-6989586621679150637"><span class="hs-identifier hs-var">ys</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Focus a -&gt; List a
+forall a. Focus a -&gt; List a
+</span><a href="Algebra.Graph.Internal.html#vs"><span class="hs-identifier hs-var">vs</span></a></span><span> </span><span class="annot"><span class="annottext">Focus a
+</span><a href="#local-6989586621679150634"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">List a -&gt; List a -&gt; List a
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Focus a -&gt; List a
+forall a. Focus a -&gt; List a
+</span><a href="Algebra.Graph.Internal.html#vs"><span class="hs-identifier hs-var">vs</span></a></span><span> </span><span class="annot"><span class="annottext">Focus a
+</span><a href="#local-6989586621679150635"><span class="hs-identifier hs-var">y</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-107"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-108"></span><span>    </span><span id="local-6989586621679150636"><span class="annot"><span class="annottext">xs :: List a
+</span><a href="#local-6989586621679150636"><span class="hs-identifier hs-var hs-var">xs</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">Focus a -&gt; Bool
+forall a. Focus a -&gt; Bool
+</span><a href="Algebra.Graph.Internal.html#ok"><span class="hs-identifier hs-var">ok</span></a></span><span> </span><span class="annot"><span class="annottext">Focus a
+</span><a href="#local-6989586621679150635"><span class="hs-identifier hs-var">y</span></a></span><span> </span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="annottext">Focus a -&gt; List a
+forall a. Focus a -&gt; List a
+</span><a href="Algebra.Graph.Internal.html#vs"><span class="hs-identifier hs-var">vs</span></a></span><span> </span><span class="annot"><span class="annottext">Focus a
+</span><a href="#local-6989586621679150634"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="annottext">Focus a -&gt; List a
+forall a. Focus a -&gt; List a
+</span><a href="Algebra.Graph.Internal.html#is"><span class="hs-identifier hs-var">is</span></a></span><span> </span><span class="annot"><span class="annottext">Focus a
+</span><a href="#local-6989586621679150634"><span class="hs-identifier hs-var">x</span></a></span><span>
+</span><span id="line-109"></span><span>    </span><span id="local-6989586621679150637"><span class="annot"><span class="annottext">ys :: List a
+</span><a href="#local-6989586621679150637"><span class="hs-identifier hs-var hs-var">ys</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">Focus a -&gt; Bool
+forall a. Focus a -&gt; Bool
+</span><a href="Algebra.Graph.Internal.html#ok"><span class="hs-identifier hs-var">ok</span></a></span><span> </span><span class="annot"><span class="annottext">Focus a
+</span><a href="#local-6989586621679150634"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="annottext">Focus a -&gt; List a
+forall a. Focus a -&gt; List a
+</span><a href="Algebra.Graph.Internal.html#vs"><span class="hs-identifier hs-var">vs</span></a></span><span> </span><span class="annot"><span class="annottext">Focus a
+</span><a href="#local-6989586621679150635"><span class="hs-identifier hs-var">y</span></a></span><span> </span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="annottext">Focus a -&gt; List a
+forall a. Focus a -&gt; List a
+</span><a href="Algebra.Graph.Internal.html#os"><span class="hs-identifier hs-var">os</span></a></span><span> </span><span class="annot"><span class="annottext">Focus a
+</span><a href="#local-6989586621679150635"><span class="hs-identifier hs-var">y</span></a></span><span>
+</span><span id="line-110"></span><span>
+</span><span id="line-111"></span><span class="annot"><span class="hs-comment">-- | A safe version of 'foldr1'.</span></span><span>
+</span><span id="line-112"></span><span id="local-6989586621679150264"><span class="annot"><a href="Algebra.Graph.Internal.html#foldr1Safe"><span class="hs-identifier hs-type">foldr1Safe</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679150264"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679150264"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679150264"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="#local-6989586621679150264"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="#local-6989586621679150264"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-113"></span><span id="foldr1Safe"><span class="annot"><span class="annottext">foldr1Safe :: forall a. (a -&gt; a -&gt; a) -&gt; [a] -&gt; Maybe a
+</span><a href="Algebra.Graph.Internal.html#foldr1Safe"><span class="hs-identifier hs-var hs-var">foldr1Safe</span></a></span></span><span> </span><span id="local-6989586621679150640"><span class="annot"><span class="annottext">a -&gt; a -&gt; a
+</span><a href="#local-6989586621679150640"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(a -&gt; Maybe a -&gt; Maybe a) -&gt; Maybe a -&gt; [a] -&gt; Maybe a
+forall a b. (a -&gt; b -&gt; b) -&gt; b -&gt; [a] -&gt; b
+forall (t :: * -&gt; *) a b.
+Foldable t =&gt;
+(a -&gt; b -&gt; b) -&gt; b -&gt; t a -&gt; b
+</span><span class="hs-identifier hs-var">foldr</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(a -&gt; a -&gt; a) -&gt; a -&gt; Maybe a -&gt; Maybe a
+forall a b. (a -&gt; b -&gt; a) -&gt; a -&gt; Maybe b -&gt; Maybe a
+</span><a href="Algebra.Graph.Internal.html#maybeF"><span class="hs-identifier hs-var">maybeF</span></a></span><span> </span><span class="annot"><span class="annottext">a -&gt; a -&gt; a
+</span><a href="#local-6989586621679150640"><span class="hs-identifier hs-var">f</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Maybe a
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-114"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Algebra.Graph.Internal.html#foldr1Safe"><span class="hs-pragma hs-type">foldr1Safe</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-115"></span><span>
+</span><span id="line-116"></span><span class="hs-comment">-- | An auxiliary function that tries to apply a function to a base case and a</span><span>
+</span><span id="line-117"></span><span class="hs-comment">-- 'Maybe' value and returns 'Just' the result or 'Just' the base case.</span><span>
+</span><span id="line-118"></span><span id="local-6989586621679150266"><span id="local-6989586621679150267"><span class="annot"><a href="Algebra.Graph.Internal.html#maybeF"><span class="hs-identifier hs-type">maybeF</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679150266"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679150267"><span class="hs-identifier hs-type">b</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679150266"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679150266"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="#local-6989586621679150267"><span class="hs-identifier hs-type">b</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="#local-6989586621679150266"><span class="hs-identifier hs-type">a</span></a></span></span></span><span>
+</span><span id="line-119"></span><span id="maybeF"><span class="annot"><span class="annottext">maybeF :: forall a b. (a -&gt; b -&gt; a) -&gt; a -&gt; Maybe b -&gt; Maybe a
+</span><a href="Algebra.Graph.Internal.html#maybeF"><span class="hs-identifier hs-var hs-var">maybeF</span></a></span></span><span> </span><span id="local-6989586621679150642"><span class="annot"><span class="annottext">a -&gt; b -&gt; a
+</span><a href="#local-6989586621679150642"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span id="local-6989586621679150643"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679150643"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">a -&gt; Maybe a
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">(a -&gt; Maybe a) -&gt; (Maybe b -&gt; a) -&gt; Maybe b -&gt; Maybe a
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; (b -&gt; a) -&gt; Maybe b -&gt; a
+forall b a. b -&gt; (a -&gt; b) -&gt; Maybe a -&gt; b
+</span><span class="hs-identifier hs-var">maybe</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679150643"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a -&gt; b -&gt; a
+</span><a href="#local-6989586621679150642"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679150643"><span class="hs-identifier hs-var">x</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-120"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Algebra.Graph.Internal.html#maybeF"><span class="hs-pragma hs-type">maybeF</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-121"></span><span>
+</span><span id="line-122"></span><span class="hs-comment">-- TODO: Can we implement this faster via 'Set.cartesianProduct'?</span><span>
+</span><span id="line-123"></span><span class="hs-comment">-- | Compute the Cartesian product of two sets, applying a function to each</span><span>
+</span><span id="line-124"></span><span class="hs-comment">-- resulting pair.</span><span>
+</span><span id="line-125"></span><span id="local-6989586621679150272"><span id="local-6989586621679150273"><span id="local-6989586621679150274"><span class="annot"><a href="Algebra.Graph.Internal.html#cartesianProductWith"><span class="hs-identifier hs-type">cartesianProductWith</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ord</span></span><span> </span><span class="annot"><a href="#local-6989586621679150272"><span class="hs-identifier hs-type">c</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679150273"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679150274"><span class="hs-identifier hs-type">b</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679150272"><span class="hs-identifier hs-type">c</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Set</span></span><span> </span><span class="annot"><a href="#local-6989586621679150273"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Set</span></span><span> </span><span class="annot"><a href="#local-6989586621679150274"><span class="hs-identifier hs-type">b</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Set</span></span><span> </span><span class="annot"><a href="#local-6989586621679150272"><span class="hs-identifier hs-type">c</span></a></span></span></span></span><span>
+</span><span id="line-126"></span><span id="cartesianProductWith"><span class="annot"><span class="annottext">cartesianProductWith :: forall c a b. Ord c =&gt; (a -&gt; b -&gt; c) -&gt; Set a -&gt; Set b -&gt; Set c
+</span><a href="Algebra.Graph.Internal.html#cartesianProductWith"><span class="hs-identifier hs-var hs-var">cartesianProductWith</span></a></span></span><span> </span><span id="local-6989586621679150647"><span class="annot"><span class="annottext">a -&gt; b -&gt; c
+</span><a href="#local-6989586621679150647"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span id="local-6989586621679150648"><span class="annot"><span class="annottext">Set a
+</span><a href="#local-6989586621679150648"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span id="local-6989586621679150649"><span class="annot"><span class="annottext">Set b
+</span><a href="#local-6989586621679150649"><span class="hs-identifier hs-var">y</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-127"></span><span>    </span><span class="annot"><span class="annottext">[c] -&gt; Set c
+forall a. Ord a =&gt; [a] -&gt; Set a
+</span><span class="hs-identifier hs-var">Set.fromList</span></span><span> </span><span class="hs-special">[</span><span> </span><span class="annot"><span class="annottext">a -&gt; b -&gt; c
+</span><a href="#local-6989586621679150647"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679150651"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679150652"><span class="hs-identifier hs-var">b</span></a></span><span> </span><span class="hs-glyph">|</span><span> </span><span id="local-6989586621679150651"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679150651"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Set a -&gt; [a]
+forall a. Set a -&gt; [a]
+</span><span class="hs-identifier hs-var">Set.toAscList</span></span><span> </span><span class="annot"><span class="annottext">Set a
+</span><a href="#local-6989586621679150648"><span class="hs-identifier hs-var">x</span></a></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679150652"><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679150652"><span class="hs-identifier hs-var">b</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Set b -&gt; [b]
+forall a. Set a -&gt; [a]
+</span><span class="hs-identifier hs-var">Set.toAscList</span></span><span> </span><span class="annot"><span class="annottext">Set b
+</span><a href="#local-6989586621679150649"><span class="hs-identifier hs-var">y</span></a></span><span> </span><span class="hs-special">]</span><span>
+</span><span id="line-128"></span><span>
+</span><span id="line-129"></span><span class="hs-comment">-- TODO: Get rid of this boilerplate.</span><span>
+</span><span id="line-130"></span><span>
+</span><span id="line-131"></span><span class="annot"><span class="hs-comment">-- | Help GHC with type inference when direct use of 'coerce' does not compile.</span></span><span>
+</span><span id="line-132"></span><span id="local-6989586621679150281"><span id="local-6989586621679150282"><span id="local-6989586621679150283"><span class="annot"><a href="Algebra.Graph.Internal.html#coerce00"><span class="hs-identifier hs-type">coerce00</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Coercible</span></span><span> </span><span class="annot"><a href="#local-6989586621679150281"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679150282"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679150281"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679150283"><span class="hs-identifier hs-type">x</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679150282"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679150283"><span class="hs-identifier hs-type">x</span></a></span></span></span></span><span>
+</span><span id="line-133"></span><span id="coerce00"><span class="annot"><span class="annottext">coerce00 :: forall (f :: * -&gt; *) (g :: * -&gt; *) x. Coercible f g =&gt; f x -&gt; g x
+</span><a href="Algebra.Graph.Internal.html#coerce00"><span class="hs-identifier hs-var hs-var">coerce00</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">f x -&gt; g x
+forall a b. Coercible a b =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">coerce</span></span><span>
+</span><span id="line-134"></span><span>
+</span><span id="line-135"></span><span class="annot"><span class="hs-comment">-- | Help GHC with type inference when direct use of 'coerce' does not compile.</span></span><span>
+</span><span id="line-136"></span><span id="local-6989586621679150287"><span id="local-6989586621679150288"><span id="local-6989586621679150289"><span id="local-6989586621679150290"><span id="local-6989586621679150291"><span class="annot"><a href="Algebra.Graph.Internal.html#coerce10"><span class="hs-identifier hs-type">coerce10</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Coercible</span></span><span> </span><span class="annot"><a href="#local-6989586621679150287"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679150288"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Coercible</span></span><span> </span><span class="annot"><a href="#local-6989586621679150289"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679150290"><span class="hs-identifier hs-type">g</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679150287"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679150289"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679150291"><span class="hs-identifier hs-type">x</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679150288"><span class="hs-identifier hs-type">b</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679150290"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679150291"><span class="hs-identifier hs-type">x</span></a></span><span class="hs-special">)</span></span></span></span></span></span><span>
+</span><span id="line-137"></span><span id="coerce10"><span class="annot"><span class="annottext">coerce10 :: forall a b (f :: * -&gt; *) (g :: * -&gt; *) x.
+(Coercible a b, Coercible f g) =&gt;
+(a -&gt; f x) -&gt; b -&gt; g x
+</span><a href="Algebra.Graph.Internal.html#coerce10"><span class="hs-identifier hs-var hs-var">coerce10</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(a -&gt; f x) -&gt; b -&gt; g x
+forall a b. Coercible a b =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">coerce</span></span><span>
+</span><span id="line-138"></span><span>
+</span><span id="line-139"></span><span class="annot"><span class="hs-comment">-- | Help GHC with type inference when direct use of 'coerce' does not compile.</span></span><span>
+</span><span id="line-140"></span><span id="local-6989586621679150297"><span id="local-6989586621679150298"><span id="local-6989586621679150299"><span id="local-6989586621679150300"><span id="local-6989586621679150301"><span id="local-6989586621679150302"><span id="local-6989586621679150303"><span class="annot"><a href="Algebra.Graph.Internal.html#coerce20"><span class="hs-identifier hs-type">coerce20</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Coercible</span></span><span> </span><span class="annot"><a href="#local-6989586621679150297"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679150298"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Coercible</span></span><span> </span><span class="annot"><a href="#local-6989586621679150299"><span class="hs-identifier hs-type">c</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679150300"><span class="hs-identifier hs-type">d</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Coercible</span></span><span> </span><span class="annot"><a href="#local-6989586621679150301"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679150302"><span class="hs-identifier hs-type">g</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-141"></span><span>         </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679150297"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679150299"><span class="hs-identifier hs-type">c</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679150301"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679150303"><span class="hs-identifier hs-type">x</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679150298"><span class="hs-identifier hs-type">b</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679150300"><span class="hs-identifier hs-type">d</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679150302"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679150303"><span class="hs-identifier hs-type">x</span></a></span><span class="hs-special">)</span></span></span></span></span></span></span></span><span>
+</span><span id="line-142"></span><span id="coerce20"><span class="annot"><span class="annottext">coerce20 :: forall a b c d (f :: * -&gt; *) (g :: * -&gt; *) x.
+(Coercible a b, Coercible c d, Coercible f g) =&gt;
+(a -&gt; c -&gt; f x) -&gt; b -&gt; d -&gt; g x
+</span><a href="Algebra.Graph.Internal.html#coerce20"><span class="hs-identifier hs-var hs-var">coerce20</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(a -&gt; c -&gt; f x) -&gt; b -&gt; d -&gt; g x
+forall a b. Coercible a b =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">coerce</span></span><span>
+</span><span id="line-143"></span><span>
+</span><span id="line-144"></span><span class="annot"><span class="hs-comment">-- | Help GHC with type inference when direct use of 'coerce' does not compile.</span></span><span>
+</span><span id="line-145"></span><span id="local-6989586621679150311"><span id="local-6989586621679150312"><span id="local-6989586621679150313"><span id="local-6989586621679150314"><span id="local-6989586621679150315"><span class="annot"><a href="Algebra.Graph.Internal.html#coerce01"><span class="hs-identifier hs-type">coerce01</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Coercible</span></span><span> </span><span class="annot"><a href="#local-6989586621679150311"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679150312"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Coercible</span></span><span> </span><span class="annot"><a href="#local-6989586621679150313"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679150314"><span class="hs-identifier hs-type">g</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679150313"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679150315"><span class="hs-identifier hs-type">x</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679150311"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679150314"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679150315"><span class="hs-identifier hs-type">x</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679150312"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">)</span></span></span></span></span></span><span>
+</span><span id="line-146"></span><span id="coerce01"><span class="annot"><span class="annottext">coerce01 :: forall a b (f :: * -&gt; *) (g :: * -&gt; *) x.
+(Coercible a b, Coercible f g) =&gt;
+(f x -&gt; a) -&gt; g x -&gt; b
+</span><a href="Algebra.Graph.Internal.html#coerce01"><span class="hs-identifier hs-var hs-var">coerce01</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(f x -&gt; a) -&gt; g x -&gt; b
+forall a b. Coercible a b =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">coerce</span></span><span>
+</span><span id="line-147"></span><span>
+</span><span id="line-148"></span><span class="annot"><span class="hs-comment">-- | Help GHC with type inference when direct use of 'coerce' does not compile.</span></span><span>
+</span><span id="line-149"></span><span id="local-6989586621679150321"><span id="local-6989586621679150322"><span id="local-6989586621679150323"><span id="local-6989586621679150324"><span id="local-6989586621679150325"><span id="local-6989586621679150326"><span id="local-6989586621679150327"><span class="annot"><a href="Algebra.Graph.Internal.html#coerce11"><span class="hs-identifier hs-type">coerce11</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Coercible</span></span><span> </span><span class="annot"><a href="#local-6989586621679150321"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679150322"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Coercible</span></span><span> </span><span class="annot"><a href="#local-6989586621679150323"><span class="hs-identifier hs-type">c</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679150324"><span class="hs-identifier hs-type">d</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Coercible</span></span><span> </span><span class="annot"><a href="#local-6989586621679150325"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679150326"><span class="hs-identifier hs-type">g</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-150"></span><span>         </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679150321"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679150325"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679150327"><span class="hs-identifier hs-type">x</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679150323"><span class="hs-identifier hs-type">c</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679150322"><span class="hs-identifier hs-type">b</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679150326"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679150327"><span class="hs-identifier hs-type">x</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679150324"><span class="hs-identifier hs-type">d</span></a></span><span class="hs-special">)</span></span></span></span></span></span></span></span><span>
+</span><span id="line-151"></span><span id="coerce11"><span class="annot"><span class="annottext">coerce11 :: forall a b c d (f :: * -&gt; *) (g :: * -&gt; *) x.
+(Coercible a b, Coercible c d, Coercible f g) =&gt;
+(a -&gt; f x -&gt; c) -&gt; b -&gt; g x -&gt; d
+</span><a href="Algebra.Graph.Internal.html#coerce11"><span class="hs-identifier hs-var hs-var">coerce11</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(a -&gt; f x -&gt; c) -&gt; b -&gt; g x -&gt; d
+forall a b. Coercible a b =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">coerce</span></span><span>
+</span><span id="line-152"></span><span>
+</span><span id="line-153"></span><span class="annot"><span class="hs-comment">-- | Help GHC with type inference when direct use of 'coerce' does not compile.</span></span><span>
+</span><span id="line-154"></span><span id="local-6989586621679150335"><span id="local-6989586621679150336"><span id="local-6989586621679150337"><span id="local-6989586621679150338"><span id="local-6989586621679150339"><span id="local-6989586621679150340"><span id="local-6989586621679150341"><span id="local-6989586621679150342"><span id="local-6989586621679150343"><span class="annot"><a href="Algebra.Graph.Internal.html#coerce21"><span class="hs-identifier hs-type">coerce21</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Coercible</span></span><span> </span><span class="annot"><a href="#local-6989586621679150335"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679150336"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Coercible</span></span><span> </span><span class="annot"><a href="#local-6989586621679150337"><span class="hs-identifier hs-type">c</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679150338"><span class="hs-identifier hs-type">d</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Coercible</span></span><span> </span><span class="annot"><a href="#local-6989586621679150339"><span class="hs-identifier hs-type">p</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679150340"><span class="hs-identifier hs-type">q</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Coercible</span></span><span> </span><span class="annot"><a href="#local-6989586621679150341"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679150342"><span class="hs-identifier hs-type">g</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-155"></span><span>         </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679150335"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679150337"><span class="hs-identifier hs-type">c</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679150341"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679150343"><span class="hs-identifier hs-type">x</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679150339"><span class="hs-identifier hs-type">p</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679150336"><span class="hs-identifier hs-type">b</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679150338"><span class="hs-identifier hs-type">d</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679150342"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679150343"><span class="hs-identifier hs-type">x</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679150340"><span class="hs-identifier hs-type">q</span></a></span><span class="hs-special">)</span></span></span></span></span></span></span></span></span></span><span>
+</span><span id="line-156"></span><span id="coerce21"><span class="annot"><span class="annottext">coerce21 :: forall a b c d p q (f :: * -&gt; *) (g :: * -&gt; *) x.
+(Coercible a b, Coercible c d, Coercible p q, Coercible f g) =&gt;
+(a -&gt; c -&gt; f x -&gt; p) -&gt; b -&gt; d -&gt; g x -&gt; q
+</span><a href="Algebra.Graph.Internal.html#coerce21"><span class="hs-identifier hs-var hs-var">coerce21</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(a -&gt; c -&gt; f x -&gt; p) -&gt; b -&gt; d -&gt; g x -&gt; q
+forall a b. Coercible a b =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">coerce</span></span><span>
+</span><span id="line-157"></span></pre></body></html>

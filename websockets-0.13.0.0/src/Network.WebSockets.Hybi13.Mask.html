@@ -1,0 +1,161 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-comment">--------------------------------------------------------------------------------</span><span>
+</span><span id="line-2"></span><span class="annot"><span class="hs-comment">-- | Masking of fragmes using a simple XOR algorithm</span></span><span>
+</span><span id="line-3"></span><span class="hs-pragma">{-# LANGUAGE BangPatterns             #-}</span><span>
+</span><span id="line-4"></span><span class="hs-pragma">{-# LANGUAGE ForeignFunctionInterface #-}</span><span>
+</span><span id="line-5"></span><span class="hs-pragma">{-# LANGUAGE OverloadedStrings        #-}</span><span>
+</span><span id="line-6"></span><span class="hs-pragma">{-# LANGUAGE ScopedTypeVariables      #-}</span><span>
+</span><span id="line-7"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Network.WebSockets.Hybi13.Mask.html"><span class="hs-identifier">Network.WebSockets.Hybi13.Mask</span></a></span><span>
+</span><span id="line-8"></span><span>    </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="Network.WebSockets.Hybi13.Mask.html#Mask"><span class="hs-identifier">Mask</span></a></span><span>
+</span><span id="line-9"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Network.WebSockets.Hybi13.Mask.html#parseMask"><span class="hs-identifier">parseMask</span></a></span><span>
+</span><span id="line-10"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Network.WebSockets.Hybi13.Mask.html#encodeMask"><span class="hs-identifier">encodeMask</span></a></span><span>
+</span><span id="line-11"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Network.WebSockets.Hybi13.Mask.html#randomMask"><span class="hs-identifier">randomMask</span></a></span><span>
+</span><span id="line-12"></span><span>
+</span><span id="line-13"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Network.WebSockets.Hybi13.Mask.html#maskPayload"><span class="hs-identifier">maskPayload</span></a></span><span>
+</span><span id="line-14"></span><span>    </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-15"></span><span>
+</span><span id="line-16"></span><span>
+</span><span id="line-17"></span><span class="hs-comment">--------------------------------------------------------------------------------</span><span>
+</span><span id="line-18"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.ByteString.Builder</span></span><span>       </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Builder</span></span><span>
+</span><span id="line-19"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.ByteString.Builder.Extra</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Builder</span></span><span>
+</span><span id="line-20"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.Binary.Get</span></span><span>               </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Get</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">getWord32host</span></span><span class="hs-special">)</span><span>
+</span><span id="line-21"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.ByteString.Internal</span></span><span>      </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">B</span></span><span>
+</span><span id="line-22"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.ByteString.Lazy</span></span><span>          </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">BL</span></span><span>
+</span><span id="line-23"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.ByteString.Lazy.Internal</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">BL</span></span><span>
+</span><span id="line-24"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.Word</span></span><span>                     </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Word32</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">Word8</span></span><span class="hs-special">)</span><span>
+</span><span id="line-25"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Foreign.C.Types</span></span><span>               </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">CChar</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">CInt</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-26"></span><span>                                                </span><span class="annot"><span class="hs-identifier">CSize</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-27"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Foreign.ForeignPtr</span></span><span>            </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">withForeignPtr</span></span><span class="hs-special">)</span><span>
+</span><span id="line-28"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Foreign.Ptr</span></span><span>                   </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Ptr</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">plusPtr</span></span><span class="hs-special">)</span><span>
+</span><span id="line-29"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">System.Random</span></span><span>                 </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">RandomGen</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">random</span></span><span class="hs-special">)</span><span>
+</span><span id="line-30"></span><span>
+</span><span id="line-31"></span><span>
+</span><span id="line-32"></span><span class="hs-comment">--------------------------------------------------------------------------------</span><span>
+</span><span id="line-33"></span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-keyword">ccall</span></span><span> </span><span class="annot"><span class="hs-keyword">unsafe</span></span><span> </span><span class="annot"><span class="hs-string">&quot;_hs_mask_chunk&quot;</span></span><span> </span><span id="c_mask_chunk"><span class="annot"><a href="Network.WebSockets.Hybi13.Mask.html#c_mask_chunk"><span class="hs-identifier hs-var">c_mask_chunk</span></a></span></span><span>
+</span><span id="line-34"></span><span>    </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word32</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">CInt</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">CChar</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">CSize</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word8</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-35"></span><span>
+</span><span id="line-36"></span><span>
+</span><span id="line-37"></span><span class="hs-comment">--------------------------------------------------------------------------------</span><span>
+</span><span id="line-38"></span><span class="hs-comment">-- | A mask is sequence of 4 bytes.  We store this in a 'Word32' in the host's</span><span>
+</span><span id="line-39"></span><span class="hs-comment">-- native byte ordering.</span><span>
+</span><span id="line-40"></span><span class="hs-keyword">newtype</span><span> </span><span id="Mask"><span class="annot"><a href="Network.WebSockets.Hybi13.Mask.html#Mask"><span class="hs-identifier hs-var">Mask</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="Mask"><span class="annot"><a href="Network.WebSockets.Hybi13.Mask.html#Mask"><span class="hs-identifier hs-var">Mask</span></a></span></span><span> </span><span class="hs-special">{</span><span id="unMask"><span class="annot"><span class="annottext">Mask -&gt; Word32
+</span><a href="Network.WebSockets.Hybi13.Mask.html#unMask"><span class="hs-identifier hs-var hs-var">unMask</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word32</span></span><span class="hs-special">}</span><span>
+</span><span id="line-41"></span><span>
+</span><span id="line-42"></span><span>
+</span><span id="line-43"></span><span class="hs-comment">--------------------------------------------------------------------------------</span><span>
+</span><span id="line-44"></span><span class="annot"><span class="hs-comment">-- | Parse a mask.</span></span><span>
+</span><span id="line-45"></span><span class="annot"><a href="Network.WebSockets.Hybi13.Mask.html#parseMask"><span class="hs-identifier hs-type">parseMask</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Get</span></span><span> </span><span class="annot"><a href="Network.WebSockets.Hybi13.Mask.html#Mask"><span class="hs-identifier hs-type">Mask</span></a></span><span>
+</span><span id="line-46"></span><span id="parseMask"><span class="annot"><span class="annottext">parseMask :: Get Mask
+</span><a href="Network.WebSockets.Hybi13.Mask.html#parseMask"><span class="hs-identifier hs-var hs-var">parseMask</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Word32 -&gt; Mask) -&gt; Get Word32 -&gt; Get Mask
+forall a b. (a -&gt; b) -&gt; Get a -&gt; Get b
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="annot"><span class="annottext">Word32 -&gt; Mask
+</span><a href="Network.WebSockets.Hybi13.Mask.html#Mask"><span class="hs-identifier hs-var">Mask</span></a></span><span> </span><span class="annot"><span class="annottext">Get Word32
+</span><span class="hs-identifier hs-var">getWord32host</span></span><span>
+</span><span id="line-47"></span><span>
+</span><span id="line-48"></span><span>
+</span><span id="line-49"></span><span class="hs-comment">--------------------------------------------------------------------------------</span><span>
+</span><span id="line-50"></span><span class="annot"><span class="hs-comment">-- | Encode a mask</span></span><span>
+</span><span id="line-51"></span><span class="annot"><a href="Network.WebSockets.Hybi13.Mask.html#encodeMask"><span class="hs-identifier hs-type">encodeMask</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Network.WebSockets.Hybi13.Mask.html#Mask"><span class="hs-identifier hs-type">Mask</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Builder.Builder</span></span><span>
+</span><span id="line-52"></span><span id="encodeMask"><span class="annot"><span class="annottext">encodeMask :: Mask -&gt; Builder
+</span><a href="Network.WebSockets.Hybi13.Mask.html#encodeMask"><span class="hs-identifier hs-var hs-var">encodeMask</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Word32 -&gt; Builder
+</span><span class="hs-identifier hs-var">Builder.word32Host</span></span><span> </span><span class="annot"><span class="annottext">(Word32 -&gt; Builder) -&gt; (Mask -&gt; Word32) -&gt; Mask -&gt; Builder
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Mask -&gt; Word32
+</span><a href="Network.WebSockets.Hybi13.Mask.html#unMask"><span class="hs-identifier hs-var">unMask</span></a></span><span>
+</span><span id="line-53"></span><span>
+</span><span id="line-54"></span><span>
+</span><span id="line-55"></span><span class="hs-comment">--------------------------------------------------------------------------------</span><span>
+</span><span id="line-56"></span><span class="annot"><span class="hs-comment">-- | Create a random mask</span></span><span>
+</span><span id="line-57"></span><span class="annot"><a href="Network.WebSockets.Hybi13.Mask.html#randomMask"><span class="hs-identifier hs-type">randomMask</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-keyword">forall</span><span> </span><span id="local-6989586621679088819"><span class="annot"><a href="#local-6989586621679088819"><span class="hs-identifier hs-type">g</span></a></span></span><span class="hs-operator">.</span><span> </span><span class="annot"><span class="hs-identifier hs-type">RandomGen</span></span><span> </span><span class="annot"><a href="#local-6989586621679088819"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679088819"><span class="hs-identifier hs-type">g</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Network.WebSockets.Hybi13.Mask.html#Mask"><span class="hs-identifier hs-type">Mask</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679088819"><span class="hs-identifier hs-type">g</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-58"></span><span id="randomMask"><span class="annot"><span class="annottext">randomMask :: forall g. RandomGen g =&gt; g -&gt; (Mask, g)
+</span><a href="Network.WebSockets.Hybi13.Mask.html#randomMask"><span class="hs-identifier hs-var hs-var">randomMask</span></a></span></span><span> </span><span id="local-6989586621679088865"><span class="annot"><span class="annottext">g
+</span><a href="#local-6989586621679088865"><span class="hs-identifier hs-var">gen</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Word32 -&gt; Mask
+</span><a href="Network.WebSockets.Hybi13.Mask.html#Mask"><span class="hs-identifier hs-var">Mask</span></a></span><span> </span><span class="annot"><span class="annottext">Word32
+</span><a href="#local-6989586621679088866"><span class="hs-identifier hs-var">int</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">g
+</span><a href="#local-6989586621679088867"><span class="hs-identifier hs-var">gen'</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-59"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-60"></span><span>    </span><span class="hs-special">(</span><span class="hs-glyph">!</span><span id="local-6989586621679088866"><span class="annot"><span class="annottext">Word32
+</span><a href="#local-6989586621679088866"><span class="hs-identifier hs-var">int</span></a></span></span><span class="hs-special">,</span><span> </span><span class="hs-glyph">!</span><span id="local-6989586621679088867"><span class="annot"><span class="annottext">g
+</span><a href="#local-6989586621679088867"><span class="hs-identifier hs-var">gen'</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">g -&gt; (Word32, g)
+forall g. RandomGen g =&gt; g -&gt; (Word32, g)
+forall a g. (Random a, RandomGen g) =&gt; g -&gt; (a, g)
+</span><span class="hs-identifier hs-var">random</span></span><span> </span><span class="annot"><span class="annottext">g
+</span><a href="#local-6989586621679088865"><span class="hs-identifier hs-var">gen</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Word32</span></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679088819"><span class="hs-identifier hs-type">g</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-61"></span><span>
+</span><span id="line-62"></span><span>
+</span><span id="line-63"></span><span class="hs-comment">--------------------------------------------------------------------------------</span><span>
+</span><span id="line-64"></span><span class="annot"><span class="hs-comment">-- | Mask a lazy bytestring.  Uses 'c_mask_chunk' under the hood.</span></span><span>
+</span><span id="line-65"></span><span class="annot"><a href="Network.WebSockets.Hybi13.Mask.html#maskPayload"><span class="hs-identifier hs-type">maskPayload</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="Network.WebSockets.Hybi13.Mask.html#Mask"><span class="hs-identifier hs-type">Mask</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">BL.ByteString</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">BL.ByteString</span></span><span>
+</span><span id="line-66"></span><span id="maskPayload"><span class="annot"><span class="annottext">maskPayload :: Maybe Mask -&gt; ByteString -&gt; ByteString
+</span><a href="Network.WebSockets.Hybi13.Mask.html#maskPayload"><span class="hs-identifier hs-var hs-var">maskPayload</span></a></span></span><span> </span><span class="annot"><span class="annottext">Maybe Mask
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>            </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; ByteString
+forall a. a -&gt; a
+</span><span class="hs-identifier hs-var">id</span></span><span>
+</span><span id="line-67"></span><span class="annot"><a href="Network.WebSockets.Hybi13.Mask.html#maskPayload"><span class="hs-identifier hs-var">maskPayload</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Network.WebSockets.Hybi13.Mask.html#Mask"><span class="hs-identifier hs-type">Mask</span></a></span><span> </span><span class="annot"><span class="annottext">Word32
+</span><span class="hs-number">0</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span>    </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ByteString -&gt; ByteString
+forall a. a -&gt; a
+</span><span class="hs-identifier hs-var">id</span></span><span>
+</span><span id="line-68"></span><span class="annot"><a href="Network.WebSockets.Hybi13.Mask.html#maskPayload"><span class="hs-identifier hs-var">maskPayload</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Network.WebSockets.Hybi13.Mask.html#Mask"><span class="hs-identifier hs-type">Mask</span></a></span><span> </span><span id="local-6989586621679088872"><span class="annot"><span class="annottext">Word32
+</span><a href="#local-6989586621679088872"><span class="hs-identifier hs-var">mask</span></a></span></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; ByteString -&gt; ByteString
+</span><a href="#local-6989586621679088873"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span>
+</span><span id="line-69"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-70"></span><span>    </span><span id="local-6989586621679088873"><span class="annot"><span class="annottext">go :: Int -&gt; ByteString -&gt; ByteString
+</span><a href="#local-6989586621679088873"><span class="hs-identifier hs-var hs-var">go</span></a></span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-identifier">_</span></span><span>           </span><span class="annot"><span class="annottext">ByteString
+</span><span class="hs-identifier hs-var">BL.Empty</span></span><span>                               </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><span class="hs-identifier hs-var">BL.Empty</span></span><span>
+</span><span id="line-71"></span><span>    </span><span class="annot"><a href="#local-6989586621679088873"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="hs-glyph">!</span><span id="local-6989586621679088880"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679088880"><span class="hs-identifier hs-var">maskOffset</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">BL.Chunk</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">B.PS</span></span><span> </span><span id="local-6989586621679088883"><span class="annot"><span class="annottext">ForeignPtr Word8
+</span><a href="#local-6989586621679088883"><span class="hs-identifier hs-var">payload</span></a></span></span><span> </span><span id="local-6989586621679088884"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679088884"><span class="hs-identifier hs-var">off</span></a></span></span><span> </span><span id="local-6989586621679088885"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679088885"><span class="hs-identifier hs-var">len</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621679088886"><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679088886"><span class="hs-identifier hs-var">rest</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-72"></span><span>        </span><span class="annot"><span class="annottext">ByteString -&gt; ByteString -&gt; ByteString
+</span><span class="hs-identifier hs-var">BL.Chunk</span></span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679088887"><span class="hs-identifier hs-var">maskedChunk</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; ByteString -&gt; ByteString
+</span><a href="#local-6989586621679088873"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679088880"><span class="hs-identifier hs-var">maskOffset</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679088885"><span class="hs-identifier hs-var">len</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Integral a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">`rem`</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">4</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">ByteString
+</span><a href="#local-6989586621679088886"><span class="hs-identifier hs-var">rest</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-73"></span><span>      </span><span class="hs-keyword">where</span><span>
+</span><span id="line-74"></span><span>        </span><span id="local-6989586621679088887"><span class="annot"><span class="annottext">maskedChunk :: ByteString
+</span><a href="#local-6989586621679088887"><span class="hs-identifier hs-var hs-var">maskedChunk</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-75"></span><span>            </span><span class="annot"><span class="annottext">Int -&gt; (Ptr Word8 -&gt; IO ()) -&gt; ByteString
+</span><span class="hs-identifier hs-var">B.unsafeCreate</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679088885"><span class="hs-identifier hs-var">len</span></a></span><span> </span><span class="annot"><span class="annottext">((Ptr Word8 -&gt; IO ()) -&gt; ByteString)
+-&gt; (Ptr Word8 -&gt; IO ()) -&gt; ByteString
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679088906"><span class="annot"><span class="annottext">Ptr Word8
+</span><a href="#local-6989586621679088906"><span class="hs-identifier hs-var">dst</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-76"></span><span>            </span><span class="annot"><span class="annottext">ForeignPtr Word8 -&gt; (Ptr Word8 -&gt; IO ()) -&gt; IO ()
+forall a b. ForeignPtr a -&gt; (Ptr a -&gt; IO b) -&gt; IO b
+</span><span class="hs-identifier hs-var">withForeignPtr</span></span><span> </span><span class="annot"><span class="annottext">ForeignPtr Word8
+</span><a href="#local-6989586621679088883"><span class="hs-identifier hs-var">payload</span></a></span><span> </span><span class="annot"><span class="annottext">((Ptr Word8 -&gt; IO ()) -&gt; IO ()) -&gt; (Ptr Word8 -&gt; IO ()) -&gt; IO ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679088907"><span class="annot"><span class="annottext">Ptr Word8
+</span><a href="#local-6989586621679088907"><span class="hs-identifier hs-var">src</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-77"></span><span>                </span><span class="annot"><span class="annottext">Word32 -&gt; CInt -&gt; Ptr CChar -&gt; CSize -&gt; Ptr Word8 -&gt; IO ()
+</span><a href="Network.WebSockets.Hybi13.Mask.html#c_mask_chunk"><span class="hs-identifier hs-var">c_mask_chunk</span></a></span><span> </span><span class="annot"><span class="annottext">Word32
+</span><a href="#local-6989586621679088872"><span class="hs-identifier hs-var">mask</span></a></span><span>
+</span><span id="line-78"></span><span>                    </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; CInt
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679088880"><span class="hs-identifier hs-var">maskOffset</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-79"></span><span>                    </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Ptr Word8
+</span><a href="#local-6989586621679088907"><span class="hs-identifier hs-var">src</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr Word8 -&gt; Int -&gt; Ptr CChar
+forall a b. Ptr a -&gt; Int -&gt; Ptr b
+</span><span class="hs-operator hs-var">`plusPtr`</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679088884"><span class="hs-identifier hs-var">off</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-80"></span><span>                    </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; CSize
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679088885"><span class="hs-identifier hs-var">len</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-81"></span><span>                    </span><span class="annot"><span class="annottext">Ptr Word8
+</span><a href="#local-6989586621679088906"><span class="hs-identifier hs-var">dst</span></a></span><span>
+</span><span id="line-82"></span></pre></body></html>

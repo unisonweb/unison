@@ -1,0 +1,640 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE GADTs               #-}</span><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# LANGUAGE OverloadedLists     #-}</span><span>
+</span><span id="line-3"></span><span class="hs-pragma">{-# LANGUAGE ScopedTypeVariables #-}</span><span>
+</span><span id="line-4"></span><span>
+</span><span id="line-5"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Data.OpenApi.Schema.Generator.html"><span class="hs-identifier">Data.OpenApi.Schema.Generator</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-6"></span><span>
+</span><span id="line-7"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Prelude</span></span><span>                                 </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-8"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Prelude.Compat</span></span><span>
+</span><span id="line-9"></span><span>
+</span><span id="line-10"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Control.Lens.Operators</span></span><span>
+</span><span id="line-11"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Control.Monad</span></span><span>                           </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">filterM</span></span><span class="hs-special">)</span><span>
+</span><span id="line-12"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.Aeson</span></span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.Aeson.Types</span></span><span>
+</span><span id="line-14"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.HashMap.Strict.InsOrd</span></span><span>              </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">M</span></span><span>
+</span><span id="line-15"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.Maybe</span></span><span>
+</span><span id="line-16"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.Proxy</span></span><span>
+</span><span id="line-17"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.Scientific</span></span><span>
+</span><span id="line-18"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Set</span></span><span>                                </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">S</span></span><span>
+</span><span id="line-19"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><a href="Data.OpenApi.html"><span class="hs-identifier">Data.OpenApi</span></a></span><span>
+</span><span id="line-20"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><a href="Data.OpenApi.Declare.html"><span class="hs-identifier">Data.OpenApi.Declare</span></a></span><span>
+</span><span id="line-21"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><a href="Data.OpenApi.Internal.Schema.Validation.html"><span class="hs-identifier">Data.OpenApi.Internal.Schema.Validation</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.OpenApi.Internal.Schema.Validation.html#inferSchemaTypes"><span class="hs-identifier">inferSchemaTypes</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-22"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Text</span></span><span>                               </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">T</span></span><span>
+</span><span id="line-23"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Vector</span></span><span>                             </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">V</span></span><span>
+</span><span id="line-24"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Test.QuickCheck</span></span><span>                         </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">arbitrary</span></span><span class="hs-special">)</span><span>
+</span><span id="line-25"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Test.QuickCheck.Gen</span></span><span>
+</span><span id="line-26"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Test.QuickCheck.Property</span></span><span>
+</span><span id="line-27"></span><span>
+</span><span id="line-28"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Data.OpenApi.Aeson.Compat.html"><span class="hs-identifier">Data.OpenApi.Aeson.Compat</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.OpenApi.Aeson.Compat.html#fromInsOrdHashMap"><span class="hs-identifier">fromInsOrdHashMap</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-29"></span><span>
+</span><span id="line-30"></span><span class="hs-comment">-- | Note: 'schemaGen' may 'error', if schema type is not specified,</span><span>
+</span><span id="line-31"></span><span class="hs-comment">-- and cannot be inferred.</span><span>
+</span><span id="line-32"></span><span class="annot"><a href="Data.OpenApi.Schema.Generator.html#schemaGen"><span class="hs-identifier hs-type">schemaGen</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Data.OpenApi.Internal.html#Definitions"><span class="hs-identifier hs-type">Definitions</span></a></span><span> </span><span class="annot"><a href="Data.OpenApi.Internal.html#Schema"><span class="hs-identifier hs-type">Schema</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Data.OpenApi.Internal.html#Schema"><span class="hs-identifier hs-type">Schema</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Gen</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Value</span></span><span>
+</span><span id="line-33"></span><span id="schemaGen"><span class="annot"><span class="annottext">schemaGen :: Definitions Schema -&gt; Schema -&gt; Gen Value
+</span><a href="Data.OpenApi.Schema.Generator.html#schemaGen"><span class="hs-identifier hs-var hs-var">schemaGen</span></a></span></span><span> </span><span class="annot"><span class="annottext">Definitions Schema
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621680014517"><span class="annot"><span class="annottext">Schema
+</span><a href="#local-6989586621680014517"><span class="hs-identifier hs-var">schema</span></a></span></span><span>
+</span><span id="line-34"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621680014518"><span class="annot"><span class="annottext">[Value]
+</span><a href="#local-6989586621680014518"><span class="hs-identifier hs-var">cases</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Schema
+</span><a href="#local-6989586621680014517"><span class="hs-identifier hs-var">schema</span></a></span><span>  </span><span class="annot"><span class="annottext">Schema
+-&gt; Getting (Maybe [Value]) Schema (Maybe [Value]) -&gt; Maybe [Value]
+forall s a. s -&gt; Getting a s a -&gt; a
+</span><span class="hs-operator hs-var">^.</span></span><span> </span><span class="annot"><span class="annottext">Getting (Maybe [Value]) Schema (Maybe [Value])
+forall s a. HasEnum s a =&gt; Lens' s a
+Lens' Schema (Maybe [Value])
+</span><a href="Data.OpenApi.Lens.html#enum_"><span class="hs-identifier hs-var">enum_</span></a></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Value] -&gt; Gen Value
+forall a. HasCallStack =&gt; [a] -&gt; Gen a
+</span><span class="hs-identifier hs-var">elements</span></span><span> </span><span class="annot"><span class="annottext">[Value]
+</span><a href="#local-6989586621680014518"><span class="hs-identifier hs-var">cases</span></a></span><span>
+</span><span id="line-35"></span><span class="annot"><a href="Data.OpenApi.Schema.Generator.html#schemaGen"><span class="hs-identifier hs-var">schemaGen</span></a></span><span> </span><span id="local-6989586621680014522"><span class="annot"><span class="annottext">Definitions Schema
+</span><a href="#local-6989586621680014522"><span class="hs-identifier hs-var">defns</span></a></span></span><span> </span><span id="local-6989586621680014523"><span class="annot"><span class="annottext">Schema
+</span><a href="#local-6989586621680014523"><span class="hs-identifier hs-var">schema</span></a></span></span><span>
+</span><span id="line-36"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621680014524"><span class="annot"><span class="annottext">[Referenced Schema]
+</span><a href="#local-6989586621680014524"><span class="hs-identifier hs-var">variants</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Schema
+</span><a href="#local-6989586621680014523"><span class="hs-identifier hs-var">schema</span></a></span><span> </span><span class="annot"><span class="annottext">Schema
+-&gt; Getting
+     (Maybe [Referenced Schema]) Schema (Maybe [Referenced Schema])
+-&gt; Maybe [Referenced Schema]
+forall s a. s -&gt; Getting a s a -&gt; a
+</span><span class="hs-operator hs-var">^.</span></span><span> </span><span class="annot"><span class="annottext">Getting
+  (Maybe [Referenced Schema]) Schema (Maybe [Referenced Schema])
+forall s a. HasOneOf s a =&gt; Lens' s a
+Lens' Schema (Maybe [Referenced Schema])
+</span><a href="Data.OpenApi.Lens.html#oneOf"><span class="hs-identifier hs-var">oneOf</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Definitions Schema -&gt; Schema -&gt; Gen Value
+</span><a href="Data.OpenApi.Schema.Generator.html#schemaGen"><span class="hs-identifier hs-var">schemaGen</span></a></span><span> </span><span class="annot"><span class="annottext">Definitions Schema
+</span><a href="#local-6989586621680014522"><span class="hs-identifier hs-var">defns</span></a></span><span> </span><span class="annot"><span class="annottext">(Schema -&gt; Gen Value) -&gt; Gen Schema -&gt; Gen Value
+forall (m :: * -&gt; *) a b. Monad m =&gt; (a -&gt; m b) -&gt; m a -&gt; m b
+</span><span class="hs-operator hs-var">=&lt;&lt;</span></span><span> </span><span class="annot"><span class="annottext">[Schema] -&gt; Gen Schema
+forall a. HasCallStack =&gt; [a] -&gt; Gen a
+</span><span class="hs-identifier hs-var">elements</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Definitions Schema -&gt; Referenced Schema -&gt; Schema
+forall a. Definitions a -&gt; Referenced a -&gt; a
+</span><a href="Data.OpenApi.Schema.Generator.html#dereference"><span class="hs-identifier hs-var">dereference</span></a></span><span> </span><span class="annot"><span class="annottext">Definitions Schema
+</span><a href="#local-6989586621680014522"><span class="hs-identifier hs-var">defns</span></a></span><span> </span><span class="annot"><span class="annottext">(Referenced Schema -&gt; Schema) -&gt; [Referenced Schema] -&gt; [Schema]
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">[Referenced Schema]
+</span><a href="#local-6989586621680014524"><span class="hs-identifier hs-var">variants</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-37"></span><span class="annot"><a href="Data.OpenApi.Schema.Generator.html#schemaGen"><span class="hs-identifier hs-var">schemaGen</span></a></span><span> </span><span id="local-6989586621680014529"><span class="annot"><span class="annottext">Definitions Schema
+</span><a href="#local-6989586621680014529"><span class="hs-identifier hs-var">defns</span></a></span></span><span> </span><span id="local-6989586621680014530"><span class="annot"><span class="annottext">Schema
+</span><a href="#local-6989586621680014530"><span class="hs-identifier hs-var">schema</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-38"></span><span>    </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Schema
+</span><a href="#local-6989586621680014530"><span class="hs-identifier hs-var">schema</span></a></span><span> </span><span class="annot"><span class="annottext">Schema
+-&gt; Getting (Maybe OpenApiType) Schema (Maybe OpenApiType)
+-&gt; Maybe OpenApiType
+forall s a. s -&gt; Getting a s a -&gt; a
+</span><span class="hs-operator hs-var">^.</span></span><span> </span><span class="annot"><span class="annottext">Getting (Maybe OpenApiType) Schema (Maybe OpenApiType)
+forall s a. HasType s a =&gt; Lens' s a
+Lens' Schema (Maybe OpenApiType)
+</span><a href="Data.OpenApi.Lens.html#type_"><span class="hs-identifier hs-var">type_</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-39"></span><span>      </span><span class="annot"><span class="annottext">Maybe OpenApiType
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-40"></span><span>        </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Schema -&gt; [OpenApiType]
+</span><a href="Data.OpenApi.Internal.Schema.Validation.html#inferSchemaTypes"><span class="hs-identifier hs-var">inferSchemaTypes</span></a></span><span> </span><span class="annot"><span class="annottext">Schema
+</span><a href="#local-6989586621680014530"><span class="hs-identifier hs-var">schema</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-41"></span><span>          </span><span class="hs-special">[</span><span> </span><span id="local-6989586621680014532"><span class="annot"><span class="annottext">Item [OpenApiType]
+</span><a href="#local-6989586621680014532"><span class="hs-identifier hs-var">inferredType</span></a></span></span><span> </span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Definitions Schema -&gt; Schema -&gt; Gen Value
+</span><a href="Data.OpenApi.Schema.Generator.html#schemaGen"><span class="hs-identifier hs-var">schemaGen</span></a></span><span> </span><span class="annot"><span class="annottext">Definitions Schema
+</span><a href="#local-6989586621680014529"><span class="hs-identifier hs-var">defns</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Schema
+</span><a href="#local-6989586621680014530"><span class="hs-identifier hs-var">schema</span></a></span><span> </span><span class="annot"><span class="annottext">Schema -&gt; (Schema -&gt; Schema) -&gt; Schema
+forall a b. a -&gt; (a -&gt; b) -&gt; b
+</span><span class="hs-operator hs-var">&amp;</span></span><span> </span><span class="annot"><span class="annottext">(Maybe OpenApiType -&gt; Identity (Maybe OpenApiType))
+-&gt; Schema -&gt; Identity Schema
+forall s a. HasType s a =&gt; Lens' s a
+Lens' Schema (Maybe OpenApiType)
+</span><a href="Data.OpenApi.Lens.html#type_"><span class="hs-identifier hs-var">type_</span></a></span><span> </span><span class="annot"><span class="annottext">((Maybe OpenApiType -&gt; Identity (Maybe OpenApiType))
+ -&gt; Schema -&gt; Identity Schema)
+-&gt; OpenApiType -&gt; Schema -&gt; Schema
+forall s t a b. ASetter s t a (Maybe b) -&gt; b -&gt; s -&gt; t
+</span><span class="hs-operator hs-var">?~</span></span><span> </span><span class="annot"><span class="annottext">Item [OpenApiType]
+OpenApiType
+</span><a href="#local-6989586621680014532"><span class="hs-identifier hs-var">inferredType</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-42"></span><span>          </span><span class="hs-comment">-- Gen is not MonadFail</span><span>
+</span><span id="line-43"></span><span>          </span><span class="annot"><span class="annottext">[OpenApiType]
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">String -&gt; Gen Value
+forall a. HasCallStack =&gt; String -&gt; a
+</span><span class="hs-identifier hs-var">error</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;unable to infer schema type&quot;</span></span><span>
+</span><span id="line-44"></span><span>      </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span class="annot"><span class="annottext">OpenApiType
+</span><a href="Data.OpenApi.Internal.html#OpenApiBoolean"><span class="hs-identifier hs-var">OpenApiBoolean</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Value
+</span><span class="hs-identifier hs-var">Bool</span></span><span> </span><span class="annot"><span class="annottext">(Bool -&gt; Value) -&gt; Gen Bool -&gt; Gen Value
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">[Bool] -&gt; Gen Bool
+forall a. HasCallStack =&gt; [a] -&gt; Gen a
+</span><span class="hs-identifier hs-var">elements</span></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Bool
+Item [Bool]
+</span><span class="hs-identifier hs-var">True</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Bool
+Item [Bool]
+</span><span class="hs-identifier hs-var">False</span></span><span class="hs-special">]</span><span>
+</span><span id="line-45"></span><span>      </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span class="annot"><span class="annottext">OpenApiType
+</span><a href="Data.OpenApi.Internal.html#OpenApiNull"><span class="hs-identifier hs-var">OpenApiNull</span></a></span><span>    </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Value -&gt; Gen Value
+forall a. a -&gt; Gen a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">Value
+</span><span class="hs-identifier hs-var">Null</span></span><span>
+</span><span id="line-46"></span><span>      </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span class="annot"><span class="annottext">OpenApiType
+</span><a href="Data.OpenApi.Internal.html#OpenApiNumber"><span class="hs-identifier hs-var">OpenApiNumber</span></a></span><span>
+</span><span id="line-47"></span><span>        </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621680014540"><span class="annot"><span class="annottext">Scientific
+</span><a href="#local-6989586621680014540"><span class="hs-identifier hs-var">min</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Schema
+</span><a href="#local-6989586621680014530"><span class="hs-identifier hs-var">schema</span></a></span><span> </span><span class="annot"><span class="annottext">Schema
+-&gt; Getting (Maybe Scientific) Schema (Maybe Scientific)
+-&gt; Maybe Scientific
+forall s a. s -&gt; Getting a s a -&gt; a
+</span><span class="hs-operator hs-var">^.</span></span><span> </span><span class="annot"><span class="annottext">Getting (Maybe Scientific) Schema (Maybe Scientific)
+forall s a. HasMinimum s a =&gt; Lens' s a
+Lens' Schema (Maybe Scientific)
+</span><a href="Data.OpenApi.Lens.html#minimum_"><span class="hs-identifier hs-var">minimum_</span></a></span><span>
+</span><span id="line-48"></span><span>        </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621680014542"><span class="annot"><span class="annottext">Scientific
+</span><a href="#local-6989586621680014542"><span class="hs-identifier hs-var">max</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Schema
+</span><a href="#local-6989586621680014530"><span class="hs-identifier hs-var">schema</span></a></span><span> </span><span class="annot"><span class="annottext">Schema
+-&gt; Getting (Maybe Scientific) Schema (Maybe Scientific)
+-&gt; Maybe Scientific
+forall s a. s -&gt; Getting a s a -&gt; a
+</span><span class="hs-operator hs-var">^.</span></span><span> </span><span class="annot"><span class="annottext">Getting (Maybe Scientific) Schema (Maybe Scientific)
+forall s a. HasMaximum s a =&gt; Lens' s a
+Lens' Schema (Maybe Scientific)
+</span><a href="Data.OpenApi.Lens.html#maximum_"><span class="hs-identifier hs-var">maximum_</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-49"></span><span>            </span><span class="annot"><span class="annottext">Scientific -&gt; Value
+</span><span class="hs-identifier hs-var">Number</span></span><span> </span><span class="annot"><span class="annottext">(Scientific -&gt; Value) -&gt; (Double -&gt; Scientific) -&gt; Double -&gt; Value
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Double -&gt; Scientific
+forall a. RealFloat a =&gt; a -&gt; Scientific
+</span><span class="hs-identifier hs-var">fromFloatDigits</span></span><span> </span><span class="annot"><span class="annottext">(Double -&gt; Value) -&gt; Gen Double -&gt; Gen Value
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span>
+</span><span id="line-50"></span><span>                   </span><span class="annot"><span class="annottext">(Double, Double) -&gt; Gen Double
+forall a. Random a =&gt; (a, a) -&gt; Gen a
+</span><span class="hs-identifier hs-var">choose</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Scientific -&gt; Double
+forall a. RealFloat a =&gt; Scientific -&gt; a
+</span><span class="hs-identifier hs-var">toRealFloat</span></span><span> </span><span class="annot"><span class="annottext">Scientific
+</span><a href="#local-6989586621680014540"><span class="hs-identifier hs-var">min</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Scientific -&gt; Double
+forall a. RealFloat a =&gt; Scientific -&gt; a
+</span><span class="hs-identifier hs-var">toRealFloat</span></span><span> </span><span class="annot"><span class="annottext">Scientific
+</span><a href="#local-6989586621680014542"><span class="hs-identifier hs-var">max</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Double</span></span><span class="hs-special">)</span><span>
+</span><span id="line-51"></span><span>        </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Scientific -&gt; Value
+</span><span class="hs-identifier hs-var">Number</span></span><span> </span><span class="annot"><span class="annottext">(Scientific -&gt; Value) -&gt; (Double -&gt; Scientific) -&gt; Double -&gt; Value
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span class="annot"><span class="annottext">Double -&gt; Scientific
+forall a. RealFloat a =&gt; a -&gt; Scientific
+</span><span class="hs-identifier hs-var">fromFloatDigits</span></span><span> </span><span class="annot"><span class="annottext">(Double -&gt; Value) -&gt; Gen Double -&gt; Gen Value
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Gen Double
+forall a. Arbitrary a =&gt; Gen a
+</span><span class="hs-identifier hs-var">arbitrary</span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Gen</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Double</span></span><span class="hs-special">)</span><span>
+</span><span id="line-52"></span><span>      </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span class="annot"><span class="annottext">OpenApiType
+</span><a href="Data.OpenApi.Internal.html#OpenApiInteger"><span class="hs-identifier hs-var">OpenApiInteger</span></a></span><span>
+</span><span id="line-53"></span><span>        </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621680014550"><span class="annot"><span class="annottext">Scientific
+</span><a href="#local-6989586621680014550"><span class="hs-identifier hs-var">min</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Schema
+</span><a href="#local-6989586621680014530"><span class="hs-identifier hs-var">schema</span></a></span><span> </span><span class="annot"><span class="annottext">Schema
+-&gt; Getting (Maybe Scientific) Schema (Maybe Scientific)
+-&gt; Maybe Scientific
+forall s a. s -&gt; Getting a s a -&gt; a
+</span><span class="hs-operator hs-var">^.</span></span><span> </span><span class="annot"><span class="annottext">Getting (Maybe Scientific) Schema (Maybe Scientific)
+forall s a. HasMinimum s a =&gt; Lens' s a
+Lens' Schema (Maybe Scientific)
+</span><a href="Data.OpenApi.Lens.html#minimum_"><span class="hs-identifier hs-var">minimum_</span></a></span><span>
+</span><span id="line-54"></span><span>        </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621680014551"><span class="annot"><span class="annottext">Scientific
+</span><a href="#local-6989586621680014551"><span class="hs-identifier hs-var">max</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Schema
+</span><a href="#local-6989586621680014530"><span class="hs-identifier hs-var">schema</span></a></span><span> </span><span class="annot"><span class="annottext">Schema
+-&gt; Getting (Maybe Scientific) Schema (Maybe Scientific)
+-&gt; Maybe Scientific
+forall s a. s -&gt; Getting a s a -&gt; a
+</span><span class="hs-operator hs-var">^.</span></span><span> </span><span class="annot"><span class="annottext">Getting (Maybe Scientific) Schema (Maybe Scientific)
+forall s a. HasMaximum s a =&gt; Lens' s a
+Lens' Schema (Maybe Scientific)
+</span><a href="Data.OpenApi.Lens.html#maximum_"><span class="hs-identifier hs-var">maximum_</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-55"></span><span>            </span><span class="annot"><span class="annottext">Scientific -&gt; Value
+</span><span class="hs-identifier hs-var">Number</span></span><span> </span><span class="annot"><span class="annottext">(Scientific -&gt; Value)
+-&gt; (Integer -&gt; Scientific) -&gt; Integer -&gt; Value
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Integer -&gt; Scientific
+forall a. Num a =&gt; Integer -&gt; a
+</span><span class="hs-identifier hs-var">fromInteger</span></span><span> </span><span class="annot"><span class="annottext">(Integer -&gt; Value) -&gt; Gen Integer -&gt; Gen Value
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span>
+</span><span id="line-56"></span><span>                   </span><span class="annot"><span class="annottext">(Integer, Integer) -&gt; Gen Integer
+forall a. Random a =&gt; (a, a) -&gt; Gen a
+</span><span class="hs-identifier hs-var">choose</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Scientific -&gt; Integer
+forall b. Integral b =&gt; Scientific -&gt; b
+forall a b. (RealFrac a, Integral b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">truncate</span></span><span> </span><span class="annot"><span class="annottext">Scientific
+</span><a href="#local-6989586621680014550"><span class="hs-identifier hs-var">min</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Scientific -&gt; Integer
+forall b. Integral b =&gt; Scientific -&gt; b
+forall a b. (RealFrac a, Integral b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">truncate</span></span><span> </span><span class="annot"><span class="annottext">Scientific
+</span><a href="#local-6989586621680014551"><span class="hs-identifier hs-var">max</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-57"></span><span>        </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Scientific -&gt; Value
+</span><span class="hs-identifier hs-var">Number</span></span><span> </span><span class="annot"><span class="annottext">(Scientific -&gt; Value)
+-&gt; (Integer -&gt; Scientific) -&gt; Integer -&gt; Value
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Integer -&gt; Scientific
+forall a. Num a =&gt; Integer -&gt; a
+</span><span class="hs-identifier hs-var">fromInteger</span></span><span> </span><span class="annot"><span class="annottext">(Integer -&gt; Value) -&gt; Gen Integer -&gt; Gen Value
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">Gen Integer
+forall a. Arbitrary a =&gt; Gen a
+</span><span class="hs-identifier hs-var">arbitrary</span></span><span>
+</span><span id="line-58"></span><span>      </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span class="annot"><span class="annottext">OpenApiType
+</span><a href="Data.OpenApi.Internal.html#OpenApiArray"><span class="hs-identifier hs-var">OpenApiArray</span></a></span><span>
+</span><span id="line-59"></span><span>        </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><span class="hs-number">0</span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Schema
+</span><a href="#local-6989586621680014530"><span class="hs-identifier hs-var">schema</span></a></span><span> </span><span class="annot"><span class="annottext">Schema
+-&gt; Getting (Maybe Integer) Schema (Maybe Integer) -&gt; Maybe Integer
+forall s a. s -&gt; Getting a s a -&gt; a
+</span><span class="hs-operator hs-var">^.</span></span><span> </span><span class="annot"><span class="annottext">Getting (Maybe Integer) Schema (Maybe Integer)
+forall s a. HasMaxLength s a =&gt; Lens' s a
+Lens' Schema (Maybe Integer)
+</span><a href="Data.OpenApi.Lens.html#maxLength"><span class="hs-identifier hs-var">maxLength</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Value -&gt; Gen Value
+forall a. a -&gt; Gen a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">(Value -&gt; Gen Value) -&gt; Value -&gt; Gen Value
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Array -&gt; Value
+</span><span class="hs-identifier hs-var">Array</span></span><span> </span><span class="annot"><span class="annottext">Array
+forall a. Vector a
+</span><span class="hs-identifier hs-var">V.empty</span></span><span>
+</span><span id="line-60"></span><span>        </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621680014557"><span class="annot"><span class="annottext">OpenApiItems
+</span><a href="#local-6989586621680014557"><span class="hs-identifier hs-var">items</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Schema
+</span><a href="#local-6989586621680014530"><span class="hs-identifier hs-var">schema</span></a></span><span> </span><span class="annot"><span class="annottext">Schema
+-&gt; Getting (Maybe OpenApiItems) Schema (Maybe OpenApiItems)
+-&gt; Maybe OpenApiItems
+forall s a. s -&gt; Getting a s a -&gt; a
+</span><span class="hs-operator hs-var">^.</span></span><span> </span><span class="annot"><span class="annottext">Getting (Maybe OpenApiItems) Schema (Maybe OpenApiItems)
+forall s a. HasItems s a =&gt; Lens' s a
+Lens' Schema (Maybe OpenApiItems)
+</span><a href="Data.OpenApi.Lens.html#items"><span class="hs-identifier hs-var">items</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-61"></span><span>            </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">OpenApiItems
+</span><a href="#local-6989586621680014557"><span class="hs-identifier hs-var">items</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-62"></span><span>              </span><span class="annot"><a href="Data.OpenApi.Internal.html#OpenApiItemsObject"><span class="hs-identifier hs-type">OpenApiItemsObject</span></a></span><span> </span><span id="local-6989586621680014560"><span class="annot"><span class="annottext">Referenced Schema
+</span><a href="#local-6989586621680014560"><span class="hs-identifier hs-var">ref</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-63"></span><span>                  </span><span id="local-6989586621680014561"><span class="annot"><a href="#local-6989586621680014561"><span class="hs-identifier hs-var">size</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Gen Int
+</span><span class="hs-identifier hs-var">getSize</span></span><span>
+</span><span id="line-64"></span><span>                  </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621680014563"><span class="annot"><a href="#local-6989586621680014563"><span class="hs-identifier hs-var hs-var">itemSchema</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Definitions Schema -&gt; Referenced Schema -&gt; Schema
+forall a. Definitions a -&gt; Referenced a -&gt; a
+</span><a href="Data.OpenApi.Schema.Generator.html#dereference"><span class="hs-identifier hs-var">dereference</span></a></span><span> </span><span class="annot"><span class="annottext">Definitions Schema
+</span><a href="#local-6989586621680014529"><span class="hs-identifier hs-var">defns</span></a></span><span> </span><span class="annot"><span class="annottext">Referenced Schema
+</span><a href="#local-6989586621680014560"><span class="hs-identifier hs-var">ref</span></a></span><span>
+</span><span id="line-65"></span><span>                      </span><span id="local-6989586621680014564"><span class="annot"><a href="#local-6989586621680014564"><span class="hs-identifier hs-var hs-var">minLength'</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Maybe Int -&gt; Int
+forall a. a -&gt; Maybe a -&gt; a
+</span><span class="hs-identifier hs-var">fromMaybe</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span> </span><span class="annot"><span class="annottext">(Maybe Int -&gt; Int) -&gt; Maybe Int -&gt; Int
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Integer -&gt; Int
+forall a. Num a =&gt; Integer -&gt; a
+</span><span class="hs-identifier hs-var">fromInteger</span></span><span> </span><span class="annot"><span class="annottext">(Integer -&gt; Int) -&gt; Maybe Integer -&gt; Maybe Int
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">Schema
+</span><a href="#local-6989586621680014530"><span class="hs-identifier hs-var">schema</span></a></span><span> </span><span class="annot"><span class="annottext">Schema
+-&gt; Getting (Maybe Integer) Schema (Maybe Integer) -&gt; Maybe Integer
+forall s a. s -&gt; Getting a s a -&gt; a
+</span><span class="hs-operator hs-var">^.</span></span><span> </span><span class="annot"><span class="annottext">Getting (Maybe Integer) Schema (Maybe Integer)
+forall s a. HasMinItems s a =&gt; Lens' s a
+Lens' Schema (Maybe Integer)
+</span><a href="Data.OpenApi.Lens.html#minItems"><span class="hs-identifier hs-var">minItems</span></a></span><span>
+</span><span id="line-66"></span><span>                      </span><span id="local-6989586621680014567"><span class="annot"><a href="#local-6989586621680014567"><span class="hs-identifier hs-var hs-var">maxLength'</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Maybe Int -&gt; Int
+forall a. a -&gt; Maybe a -&gt; a
+</span><span class="hs-identifier hs-var">fromMaybe</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621680014561"><span class="hs-identifier hs-var">size</span></a></span><span> </span><span class="annot"><span class="annottext">(Maybe Int -&gt; Int) -&gt; Maybe Int -&gt; Int
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Integer -&gt; Int
+forall a. Num a =&gt; Integer -&gt; a
+</span><span class="hs-identifier hs-var">fromInteger</span></span><span> </span><span class="annot"><span class="annottext">(Integer -&gt; Int) -&gt; Maybe Integer -&gt; Maybe Int
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">Schema
+</span><a href="#local-6989586621680014530"><span class="hs-identifier hs-var">schema</span></a></span><span> </span><span class="annot"><span class="annottext">Schema
+-&gt; Getting (Maybe Integer) Schema (Maybe Integer) -&gt; Maybe Integer
+forall s a. s -&gt; Getting a s a -&gt; a
+</span><span class="hs-operator hs-var">^.</span></span><span> </span><span class="annot"><span class="annottext">Getting (Maybe Integer) Schema (Maybe Integer)
+forall s a. HasMaxItems s a =&gt; Lens' s a
+Lens' Schema (Maybe Integer)
+</span><a href="Data.OpenApi.Lens.html#maxItems"><span class="hs-identifier hs-var">maxItems</span></a></span><span>
+</span><span id="line-67"></span><span>                  </span><span id="local-6989586621680014569"><span class="annot"><a href="#local-6989586621680014569"><span class="hs-identifier hs-var">arrayLength</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="hs-identifier hs-type">choose</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621680014564"><span class="hs-identifier hs-type">minLength'</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">max</span></span><span> </span><span class="annot"><a href="#local-6989586621680014564"><span class="hs-identifier hs-type">minLength'</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680014567"><span class="hs-identifier hs-type">maxLength'</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-68"></span><span>                  </span><span id="local-6989586621680014571"><span class="annot"><a href="#local-6989586621680014571"><span class="hs-identifier hs-var">generatedArray</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="hs-identifier hs-type">vectorOf</span></span><span> </span><span class="annot"><a href="#local-6989586621680014569"><span class="hs-identifier hs-type">arrayLength</span></a></span><span> </span><span class="annot"><span class="hs-operator hs-type">$</span></span><span> </span><span class="annot"><a href="Data.OpenApi.Schema.Generator.html#schemaGen"><span class="hs-identifier hs-type">schemaGen</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680014529"><span class="hs-identifier hs-type">defns</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680014563"><span class="hs-identifier hs-type">itemSchema</span></a></span><span>
+</span><span id="line-69"></span><span>                  </span><span class="annot"><span class="hs-identifier hs-type">return</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">.</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Array</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">$</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">V.fromList</span></span><span> </span><span class="annot"><a href="#local-6989586621680014571"><span class="hs-identifier hs-type">generatedArray</span></a></span><span>
+</span><span id="line-70"></span><span>              </span><span class="annot"><a href="Data.OpenApi.Internal.html#OpenApiItemsArray"><span class="hs-identifier hs-type">OpenApiItemsArray</span></a></span><span> </span><span id="local-6989586621680014575"><span class="annot"><span class="annottext">[Referenced Schema]
+</span><a href="#local-6989586621680014575"><span class="hs-identifier hs-var">refs</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-71"></span><span>                  </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621680014576"><span class="annot"><span class="annottext">itemGens :: [Gen Value]
+</span><a href="#local-6989586621680014576"><span class="hs-identifier hs-var hs-var">itemGens</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Definitions Schema -&gt; Schema -&gt; Gen Value
+</span><a href="Data.OpenApi.Schema.Generator.html#schemaGen"><span class="hs-identifier hs-var">schemaGen</span></a></span><span> </span><span class="annot"><span class="annottext">Definitions Schema
+</span><a href="#local-6989586621680014529"><span class="hs-identifier hs-var">defns</span></a></span><span> </span><span class="annot"><span class="annottext">(Schema -&gt; Gen Value)
+-&gt; (Referenced Schema -&gt; Schema) -&gt; Referenced Schema -&gt; Gen Value
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Definitions Schema -&gt; Referenced Schema -&gt; Schema
+forall a. Definitions a -&gt; Referenced a -&gt; a
+</span><a href="Data.OpenApi.Schema.Generator.html#dereference"><span class="hs-identifier hs-var">dereference</span></a></span><span> </span><span class="annot"><span class="annottext">Definitions Schema
+</span><a href="#local-6989586621680014529"><span class="hs-identifier hs-var">defns</span></a></span><span> </span><span class="annot"><span class="annottext">(Referenced Schema -&gt; Gen Value)
+-&gt; [Referenced Schema] -&gt; [Gen Value]
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">[Referenced Schema]
+</span><a href="#local-6989586621680014575"><span class="hs-identifier hs-var">refs</span></a></span><span>
+</span><span id="line-72"></span><span>                  </span><span class="hs-keyword">in</span><span> </span><span class="annot"><span class="annottext">([Value] -&gt; Value) -&gt; Gen [Value] -&gt; Gen Value
+forall a b. (a -&gt; b) -&gt; Gen a -&gt; Gen b
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Array -&gt; Value
+</span><span class="hs-identifier hs-var">Array</span></span><span> </span><span class="annot"><span class="annottext">(Array -&gt; Value) -&gt; ([Value] -&gt; Array) -&gt; [Value] -&gt; Value
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">[Value] -&gt; Array
+forall a. [a] -&gt; Vector a
+</span><span class="hs-identifier hs-var">V.fromList</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(Gen [Value] -&gt; Gen Value) -&gt; Gen [Value] -&gt; Gen Value
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">[Gen Value] -&gt; Gen [Value]
+forall (t :: * -&gt; *) (m :: * -&gt; *) a.
+(Traversable t, Monad m) =&gt;
+t (m a) -&gt; m (t a)
+forall (m :: * -&gt; *) a. Monad m =&gt; [m a] -&gt; m [a]
+</span><span class="hs-identifier hs-var">sequence</span></span><span> </span><span class="annot"><span class="annottext">[Gen Value]
+</span><a href="#local-6989586621680014576"><span class="hs-identifier hs-var">itemGens</span></a></span><span>
+</span><span id="line-73"></span><span>      </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span class="annot"><span class="annottext">OpenApiType
+</span><a href="Data.OpenApi.Internal.html#OpenApiString"><span class="hs-identifier hs-var">OpenApiString</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-74"></span><span>        </span><span id="local-6989586621680014579"><span class="annot"><a href="#local-6989586621680014579"><span class="hs-identifier hs-var">size</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Gen Int
+</span><span class="hs-identifier hs-var">getSize</span></span><span>
+</span><span id="line-75"></span><span>        </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621680014580"><span class="annot"><a href="#local-6989586621680014580"><span class="hs-identifier hs-var hs-var">minLength'</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Maybe Int -&gt; Int
+forall a. a -&gt; Maybe a -&gt; a
+</span><span class="hs-identifier hs-var">fromMaybe</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span> </span><span class="annot"><span class="annottext">(Maybe Int -&gt; Int) -&gt; Maybe Int -&gt; Int
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Integer -&gt; Int
+forall a. Num a =&gt; Integer -&gt; a
+</span><span class="hs-identifier hs-var">fromInteger</span></span><span> </span><span class="annot"><span class="annottext">(Integer -&gt; Int) -&gt; Maybe Integer -&gt; Maybe Int
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">Schema
+</span><a href="#local-6989586621680014530"><span class="hs-identifier hs-var">schema</span></a></span><span> </span><span class="annot"><span class="annottext">Schema
+-&gt; Getting (Maybe Integer) Schema (Maybe Integer) -&gt; Maybe Integer
+forall s a. s -&gt; Getting a s a -&gt; a
+</span><span class="hs-operator hs-var">^.</span></span><span> </span><span class="annot"><span class="annottext">Getting (Maybe Integer) Schema (Maybe Integer)
+forall s a. HasMinLength s a =&gt; Lens' s a
+Lens' Schema (Maybe Integer)
+</span><a href="Data.OpenApi.Lens.html#minLength"><span class="hs-identifier hs-var">minLength</span></a></span><span>
+</span><span id="line-76"></span><span>        </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621680014582"><span class="annot"><a href="#local-6989586621680014582"><span class="hs-identifier hs-var hs-var">maxLength'</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Maybe Int -&gt; Int
+forall a. a -&gt; Maybe a -&gt; a
+</span><span class="hs-identifier hs-var">fromMaybe</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621680014579"><span class="hs-identifier hs-var">size</span></a></span><span> </span><span class="annot"><span class="annottext">(Maybe Int -&gt; Int) -&gt; Maybe Int -&gt; Int
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Integer -&gt; Int
+forall a. Num a =&gt; Integer -&gt; a
+</span><span class="hs-identifier hs-var">fromInteger</span></span><span> </span><span class="annot"><span class="annottext">(Integer -&gt; Int) -&gt; Maybe Integer -&gt; Maybe Int
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">Schema
+</span><a href="#local-6989586621680014530"><span class="hs-identifier hs-var">schema</span></a></span><span> </span><span class="annot"><span class="annottext">Schema
+-&gt; Getting (Maybe Integer) Schema (Maybe Integer) -&gt; Maybe Integer
+forall s a. s -&gt; Getting a s a -&gt; a
+</span><span class="hs-operator hs-var">^.</span></span><span> </span><span class="annot"><span class="annottext">Getting (Maybe Integer) Schema (Maybe Integer)
+forall s a. HasMaxLength s a =&gt; Lens' s a
+Lens' Schema (Maybe Integer)
+</span><a href="Data.OpenApi.Lens.html#maxLength"><span class="hs-identifier hs-var">maxLength</span></a></span><span>
+</span><span id="line-77"></span><span>        </span><span id="local-6989586621680014583"><span class="annot"><a href="#local-6989586621680014583"><span class="hs-identifier hs-var">length</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="hs-identifier hs-type">choose</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621680014580"><span class="hs-identifier hs-type">minLength'</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">max</span></span><span> </span><span class="annot"><a href="#local-6989586621680014580"><span class="hs-identifier hs-type">minLength'</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680014582"><span class="hs-identifier hs-type">maxLength'</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-78"></span><span>        </span><span id="local-6989586621680014584"><span class="annot"><a href="#local-6989586621680014584"><span class="hs-identifier hs-var">str</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="hs-identifier hs-type">vectorOf</span></span><span> </span><span class="annot"><a href="#local-6989586621680014583"><span class="hs-identifier hs-type">length</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">arbitrary</span></span><span>
+</span><span id="line-79"></span><span>        </span><span class="annot"><span class="hs-identifier hs-type">return</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">.</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">$</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">T.pack</span></span><span> </span><span class="annot"><a href="#local-6989586621680014584"><span class="hs-identifier hs-type">str</span></a></span><span>
+</span><span id="line-80"></span><span>      </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span class="annot"><span class="annottext">OpenApiType
+</span><a href="Data.OpenApi.Internal.html#OpenApiObject"><span class="hs-identifier hs-var">OpenApiObject</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-81"></span><span>          </span><span id="local-6989586621680014588"><span class="annot"><a href="#local-6989586621680014588"><span class="hs-identifier hs-var">size</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Gen Int
+</span><span class="hs-identifier hs-var">getSize</span></span><span>
+</span><span id="line-82"></span><span>          </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621680014589"><span class="annot"><a href="#local-6989586621680014589"><span class="hs-identifier hs-var hs-var">props</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Definitions Schema -&gt; Referenced Schema -&gt; Schema
+forall a. Definitions a -&gt; Referenced a -&gt; a
+</span><a href="Data.OpenApi.Schema.Generator.html#dereference"><span class="hs-identifier hs-var">dereference</span></a></span><span> </span><span class="annot"><span class="annottext">Definitions Schema
+</span><a href="#local-6989586621680014529"><span class="hs-identifier hs-var">defns</span></a></span><span> </span><span class="annot"><span class="annottext">(Referenced Schema -&gt; Schema)
+-&gt; InsOrdHashMap Text (Referenced Schema) -&gt; Definitions Schema
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">Schema
+</span><a href="#local-6989586621680014530"><span class="hs-identifier hs-var">schema</span></a></span><span> </span><span class="annot"><span class="annottext">Schema
+-&gt; Getting
+     (InsOrdHashMap Text (Referenced Schema))
+     Schema
+     (InsOrdHashMap Text (Referenced Schema))
+-&gt; InsOrdHashMap Text (Referenced Schema)
+forall s a. s -&gt; Getting a s a -&gt; a
+</span><span class="hs-operator hs-var">^.</span></span><span> </span><span class="annot"><span class="annottext">Getting
+  (InsOrdHashMap Text (Referenced Schema))
+  Schema
+  (InsOrdHashMap Text (Referenced Schema))
+forall s a. HasProperties s a =&gt; Lens' s a
+Lens' Schema (InsOrdHashMap Text (Referenced Schema))
+</span><a href="Data.OpenApi.Lens.html#properties"><span class="hs-identifier hs-var">properties</span></a></span><span>
+</span><span id="line-83"></span><span>              </span><span id="local-6989586621680014591"><span class="annot"><a href="#local-6989586621680014591"><span class="hs-identifier hs-var hs-var">reqKeys</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Text] -&gt; Set Text
+forall a. Ord a =&gt; [a] -&gt; Set a
+</span><span class="hs-identifier hs-var">S.fromList</span></span><span> </span><span class="annot"><span class="annottext">([Text] -&gt; Set Text) -&gt; [Text] -&gt; Set Text
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Schema
+</span><a href="#local-6989586621680014530"><span class="hs-identifier hs-var">schema</span></a></span><span> </span><span class="annot"><span class="annottext">Schema -&gt; Getting [Text] Schema [Text] -&gt; [Text]
+forall s a. s -&gt; Getting a s a -&gt; a
+</span><span class="hs-operator hs-var">^.</span></span><span> </span><span class="annot"><span class="annottext">Getting [Text] Schema [Text]
+forall s a. HasRequired s a =&gt; Lens' s a
+Lens' Schema [Text]
+</span><a href="Data.OpenApi.Lens.html#required"><span class="hs-identifier hs-var">required</span></a></span><span>
+</span><span id="line-84"></span><span>              </span><span id="local-6989586621680014594"><span class="annot"><a href="#local-6989586621680014594"><span class="hs-identifier hs-var hs-var">allKeys</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Text] -&gt; Set Text
+forall a. Ord a =&gt; [a] -&gt; Set a
+</span><span class="hs-identifier hs-var">S.fromList</span></span><span> </span><span class="annot"><span class="annottext">([Text] -&gt; Set Text)
+-&gt; (InsOrdHashMap Text (Referenced Schema) -&gt; [Text])
+-&gt; InsOrdHashMap Text (Referenced Schema)
+-&gt; Set Text
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">InsOrdHashMap Text (Referenced Schema) -&gt; [Text]
+forall k v. InsOrdHashMap k v -&gt; [k]
+</span><span class="hs-identifier hs-var">M.keys</span></span><span> </span><span class="annot"><span class="annottext">(InsOrdHashMap Text (Referenced Schema) -&gt; Set Text)
+-&gt; InsOrdHashMap Text (Referenced Schema) -&gt; Set Text
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Schema
+</span><a href="#local-6989586621680014530"><span class="hs-identifier hs-var">schema</span></a></span><span> </span><span class="annot"><span class="annottext">Schema
+-&gt; Getting
+     (InsOrdHashMap Text (Referenced Schema))
+     Schema
+     (InsOrdHashMap Text (Referenced Schema))
+-&gt; InsOrdHashMap Text (Referenced Schema)
+forall s a. s -&gt; Getting a s a -&gt; a
+</span><span class="hs-operator hs-var">^.</span></span><span> </span><span class="annot"><span class="annottext">Getting
+  (InsOrdHashMap Text (Referenced Schema))
+  Schema
+  (InsOrdHashMap Text (Referenced Schema))
+forall s a. HasProperties s a =&gt; Lens' s a
+Lens' Schema (InsOrdHashMap Text (Referenced Schema))
+</span><a href="Data.OpenApi.Lens.html#properties"><span class="hs-identifier hs-var">properties</span></a></span><span>
+</span><span id="line-85"></span><span>              </span><span id="local-6989586621680014596"><span class="annot"><a href="#local-6989586621680014596"><span class="hs-identifier hs-var hs-var">optionalKeys</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Set Text
+</span><a href="#local-6989586621680014594"><span class="hs-identifier hs-var">allKeys</span></a></span><span> </span><span class="annot"><span class="annottext">Set Text -&gt; Set Text -&gt; Set Text
+forall a. Ord a =&gt; Set a -&gt; Set a -&gt; Set a
+</span><span class="hs-operator hs-var">S.\\</span></span><span> </span><span class="annot"><span class="annottext">Set Text
+</span><a href="#local-6989586621680014591"><span class="hs-identifier hs-var">reqKeys</span></a></span><span>
+</span><span id="line-86"></span><span>              </span><span id="local-6989586621680014598"><span class="annot"><a href="#local-6989586621680014598"><span class="hs-identifier hs-var hs-var">minProps'</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Maybe Int -&gt; Int
+forall a. a -&gt; Maybe a -&gt; a
+</span><span class="hs-identifier hs-var">fromMaybe</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Set Text -&gt; Int
+forall a. Set a -&gt; Int
+forall (t :: * -&gt; *) a. Foldable t =&gt; t a -&gt; Int
+</span><span class="hs-identifier hs-var">length</span></span><span> </span><span class="annot"><span class="annottext">Set Text
+</span><a href="#local-6989586621680014591"><span class="hs-identifier hs-var">reqKeys</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(Maybe Int -&gt; Int) -&gt; Maybe Int -&gt; Int
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-87"></span><span>                            </span><span class="annot"><span class="annottext">Integer -&gt; Int
+forall a. Num a =&gt; Integer -&gt; a
+</span><span class="hs-identifier hs-var">fromInteger</span></span><span> </span><span class="annot"><span class="annottext">(Integer -&gt; Int) -&gt; Maybe Integer -&gt; Maybe Int
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">Schema
+</span><a href="#local-6989586621680014530"><span class="hs-identifier hs-var">schema</span></a></span><span> </span><span class="annot"><span class="annottext">Schema
+-&gt; Getting (Maybe Integer) Schema (Maybe Integer) -&gt; Maybe Integer
+forall s a. s -&gt; Getting a s a -&gt; a
+</span><span class="hs-operator hs-var">^.</span></span><span> </span><span class="annot"><span class="annottext">Getting (Maybe Integer) Schema (Maybe Integer)
+forall s a. HasMinProperties s a =&gt; Lens' s a
+Lens' Schema (Maybe Integer)
+</span><a href="Data.OpenApi.Lens.html#minProperties"><span class="hs-identifier hs-var">minProperties</span></a></span><span>
+</span><span id="line-88"></span><span>              </span><span id="local-6989586621680014601"><span class="annot"><a href="#local-6989586621680014601"><span class="hs-identifier hs-var hs-var">maxProps'</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Maybe Int -&gt; Int
+forall a. a -&gt; Maybe a -&gt; a
+</span><span class="hs-identifier hs-var">fromMaybe</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621680014588"><span class="hs-identifier hs-var">size</span></a></span><span> </span><span class="annot"><span class="annottext">(Maybe Int -&gt; Int) -&gt; Maybe Int -&gt; Int
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Integer -&gt; Int
+forall a. Num a =&gt; Integer -&gt; a
+</span><span class="hs-identifier hs-var">fromInteger</span></span><span> </span><span class="annot"><span class="annottext">(Integer -&gt; Int) -&gt; Maybe Integer -&gt; Maybe Int
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">Schema
+</span><a href="#local-6989586621680014530"><span class="hs-identifier hs-var">schema</span></a></span><span> </span><span class="annot"><span class="annottext">Schema
+-&gt; Getting (Maybe Integer) Schema (Maybe Integer) -&gt; Maybe Integer
+forall s a. s -&gt; Getting a s a -&gt; a
+</span><span class="hs-operator hs-var">^.</span></span><span> </span><span class="annot"><span class="annottext">Getting (Maybe Integer) Schema (Maybe Integer)
+forall s a. HasMaxProperties s a =&gt; Lens' s a
+Lens' Schema (Maybe Integer)
+</span><a href="Data.OpenApi.Lens.html#maxProperties"><span class="hs-identifier hs-var">maxProperties</span></a></span><span>
+</span><span id="line-89"></span><span>          </span><span id="local-6989586621680014603"><span class="annot"><a href="#local-6989586621680014603"><span class="hs-identifier hs-var">shuffledOptional</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="hs-identifier hs-type">shuffle</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">$</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">S.toList</span></span><span> </span><span class="annot"><a href="#local-6989586621680014596"><span class="hs-identifier hs-type">optionalKeys</span></a></span><span>
+</span><span id="line-90"></span><span>          </span><span id="local-6989586621680014606"><span class="annot"><a href="#local-6989586621680014606"><span class="hs-identifier hs-var">numProps</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="hs-identifier hs-type">choose</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621680014598"><span class="hs-identifier hs-type">minProps'</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">max</span></span><span> </span><span class="annot"><a href="#local-6989586621680014598"><span class="hs-identifier hs-type">minProps'</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680014601"><span class="hs-identifier hs-type">maxProps'</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-91"></span><span>          </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621680014607"><span class="annot"><a href="#local-6989586621680014607"><span class="hs-identifier hs-var hs-var">presentKeys</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; [Text] -&gt; [Text]
+forall a. Int -&gt; [a] -&gt; [a]
+</span><span class="hs-identifier hs-var">take</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621680014606"><span class="hs-identifier hs-var">numProps</span></a></span><span> </span><span class="annot"><span class="annottext">([Text] -&gt; [Text]) -&gt; [Text] -&gt; [Text]
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Set Text -&gt; [Text]
+forall a. Set a -&gt; [a]
+</span><span class="hs-identifier hs-var">S.toList</span></span><span> </span><span class="annot"><span class="annottext">Set Text
+</span><a href="#local-6989586621680014591"><span class="hs-identifier hs-var">reqKeys</span></a></span><span> </span><span class="annot"><span class="annottext">[Text] -&gt; [Text] -&gt; [Text]
+forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">[Text]
+</span><a href="#local-6989586621680014603"><span class="hs-identifier hs-var">shuffledOptional</span></a></span><span>
+</span><span id="line-92"></span><span>          </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621680014609"><span class="annot"><a href="#local-6989586621680014609"><span class="hs-identifier hs-var hs-var">presentProps</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Text -&gt; Schema -&gt; Bool)
+-&gt; Definitions Schema -&gt; Definitions Schema
+forall k v.
+(k -&gt; v -&gt; Bool) -&gt; InsOrdHashMap k v -&gt; InsOrdHashMap k v
+</span><span class="hs-identifier hs-var">M.filterWithKey</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span id="local-6989586621680014611"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621680014611"><span class="hs-identifier hs-var">k</span></a></span></span><span> </span><span class="annot"><span class="annottext">Schema
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621680014611"><span class="hs-identifier hs-var">k</span></a></span><span> </span><span class="annot"><span class="annottext">Text -&gt; [Text] -&gt; Bool
+forall a. Eq a =&gt; a -&gt; [a] -&gt; Bool
+forall (t :: * -&gt; *) a. (Foldable t, Eq a) =&gt; a -&gt; t a -&gt; Bool
+</span><span class="hs-operator hs-var">`elem`</span></span><span> </span><span class="annot"><span class="annottext">[Text]
+</span><a href="#local-6989586621680014607"><span class="hs-identifier hs-var">presentKeys</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Definitions Schema
+</span><a href="#local-6989586621680014589"><span class="hs-identifier hs-var">props</span></a></span><span>
+</span><span id="line-93"></span><span>          </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621680014613"><span class="annot"><a href="#local-6989586621680014613"><span class="hs-identifier hs-var hs-var">gens</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Definitions Schema -&gt; Schema -&gt; Gen Value
+</span><a href="Data.OpenApi.Schema.Generator.html#schemaGen"><span class="hs-identifier hs-var">schemaGen</span></a></span><span> </span><span class="annot"><span class="annottext">Definitions Schema
+</span><a href="#local-6989586621680014529"><span class="hs-identifier hs-var">defns</span></a></span><span> </span><span class="annot"><span class="annottext">(Schema -&gt; Gen Value)
+-&gt; Definitions Schema -&gt; InsOrdHashMap Text (Gen Value)
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">Definitions Schema
+</span><a href="#local-6989586621680014609"><span class="hs-identifier hs-var">presentProps</span></a></span><span>
+</span><span id="line-94"></span><span>          </span><span id="local-6989586621680014614"><span class="annot"><a href="#local-6989586621680014614"><span class="hs-identifier hs-var">additionalGens</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><a href="#local-6989586621680014530"><span class="hs-identifier hs-type">schema</span></a></span><span> </span><span class="annot"><span class="hs-operator hs-type">^.</span></span><span> </span><span class="annot"><a href="Data.OpenApi.Lens.html#additionalProperties"><span class="hs-identifier hs-type">additionalProperties</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-95"></span><span>            </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.OpenApi.Internal.html#AdditionalPropertiesSchema"><span class="hs-identifier hs-type">AdditionalPropertiesSchema</span></a></span><span> </span><span id="local-6989586621680014617"><span class="annot"><span class="annottext">Referenced Schema
+</span><a href="#local-6989586621680014617"><span class="hs-identifier hs-var">addlSchema</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-96"></span><span>              </span><span id="local-6989586621680014618"><span class="annot"><a href="#local-6989586621680014618"><span class="hs-identifier hs-var">additionalKeys</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">[Gen Text] -&gt; Gen [Text]
+forall (t :: * -&gt; *) (m :: * -&gt; *) a.
+(Traversable t, Monad m) =&gt;
+t (m a) -&gt; m (t a)
+forall (m :: * -&gt; *) a. Monad m =&gt; [m a] -&gt; m [a]
+</span><span class="hs-identifier hs-var">sequence</span></span><span> </span><span class="annot"><span class="annottext">([Gen Text] -&gt; Gen [Text])
+-&gt; (Gen Text -&gt; [Gen Text]) -&gt; Gen Text -&gt; Gen [Text]
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; [Gen Text] -&gt; [Gen Text]
+forall a. Int -&gt; [a] -&gt; [a]
+</span><span class="hs-identifier hs-var">take</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621680014606"><span class="hs-identifier hs-var">numProps</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">Definitions Schema -&gt; Int
+forall a. InsOrdHashMap Text a -&gt; Int
+forall (t :: * -&gt; *) a. Foldable t =&gt; t a -&gt; Int
+</span><span class="hs-identifier hs-var">length</span></span><span> </span><span class="annot"><span class="annottext">Definitions Schema
+</span><a href="#local-6989586621680014609"><span class="hs-identifier hs-var">presentProps</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">([Gen Text] -&gt; [Gen Text])
+-&gt; (Gen Text -&gt; [Gen Text]) -&gt; Gen Text -&gt; [Gen Text]
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Gen Text -&gt; [Gen Text]
+forall a. a -&gt; [a]
+</span><span class="hs-identifier hs-var">repeat</span></span><span> </span><span class="annot"><span class="annottext">(Gen Text -&gt; Gen [Text]) -&gt; Gen Text -&gt; Gen [Text]
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; Text
+</span><span class="hs-identifier hs-var">T.pack</span></span><span> </span><span class="annot"><span class="annottext">(String -&gt; Text) -&gt; Gen String -&gt; Gen Text
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">Gen String
+forall a. Arbitrary a =&gt; Gen a
+</span><span class="hs-identifier hs-var">arbitrary</span></span><span>
+</span><span id="line-97"></span><span>              </span><span class="annot"><span class="hs-identifier hs-type">return</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">.</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">M.fromList</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">$</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">zip</span></span><span> </span><span class="annot"><a href="#local-6989586621680014618"><span class="hs-identifier hs-type">additionalKeys</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">repeat</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">.</span></span><span> </span><span class="annot"><a href="Data.OpenApi.Schema.Generator.html#schemaGen"><span class="hs-identifier hs-type">schemaGen</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680014529"><span class="hs-identifier hs-type">defns</span></a></span><span> </span><span class="annot"><span class="hs-operator hs-type">$</span></span><span> </span><span class="annot"><a href="Data.OpenApi.Schema.Generator.html#dereference"><span class="hs-identifier hs-type">dereference</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680014529"><span class="hs-identifier hs-type">defns</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680014617"><span class="hs-identifier hs-type">addlSchema</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-98"></span><span>            </span><span class="annot"><span class="annottext">Maybe AdditionalProperties
+</span><span class="hs-identifier">_</span></span><span>                                      </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">InsOrdHashMap Text (Gen Value)
+-&gt; Gen (InsOrdHashMap Text (Gen Value))
+forall a. a -&gt; Gen a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span>
+</span><span id="line-99"></span><span>          </span><span id="local-6989586621680014621"><span class="annot"><a href="#local-6989586621680014621"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="hs-identifier hs-type">sequence</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">$</span></span><span> </span><span class="annot"><a href="#local-6989586621680014613"><span class="hs-identifier hs-type">gens</span></a></span><span> </span><span class="annot"><span class="hs-operator hs-type">&lt;&gt;</span></span><span> </span><span class="annot"><a href="#local-6989586621680014614"><span class="hs-identifier hs-type">additionalGens</span></a></span><span>
+</span><span id="line-100"></span><span>          </span><span class="annot"><span class="hs-identifier hs-type">return</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">.</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Object</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">$</span></span><span> </span><span class="annot"><a href="Data.OpenApi.Aeson.Compat.html#fromInsOrdHashMap"><span class="hs-identifier hs-type">fromInsOrdHashMap</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680014621"><span class="hs-identifier hs-type">x</span></a></span><span>
+</span><span id="line-101"></span><span>
+</span><span id="line-102"></span><span id="local-6989586621680014201"><span class="annot"><a href="Data.OpenApi.Schema.Generator.html#dereference"><span class="hs-identifier hs-type">dereference</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Data.OpenApi.Internal.html#Definitions"><span class="hs-identifier hs-type">Definitions</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680014201"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Data.OpenApi.Internal.html#Referenced"><span class="hs-identifier hs-type">Referenced</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680014201"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621680014201"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-103"></span><span id="dereference"><span class="annot"><span class="annottext">dereference :: forall a. Definitions a -&gt; Referenced a -&gt; a
+</span><a href="Data.OpenApi.Schema.Generator.html#dereference"><span class="hs-identifier hs-var hs-var">dereference</span></a></span></span><span> </span><span class="annot"><span class="annottext">Definitions a
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.OpenApi.Internal.html#Inline"><span class="hs-identifier hs-type">Inline</span></a></span><span> </span><span id="local-6989586621680014628"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621680014628"><span class="hs-identifier hs-var">a</span></a></span></span><span class="hs-special">)</span><span>               </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621680014628"><span class="hs-identifier hs-var">a</span></a></span><span>
+</span><span id="line-104"></span><span class="annot"><a href="Data.OpenApi.Schema.Generator.html#dereference"><span class="hs-identifier hs-var">dereference</span></a></span><span> </span><span id="local-6989586621680014629"><span class="annot"><span class="annottext">Definitions a
+</span><a href="#local-6989586621680014629"><span class="hs-identifier hs-var">defs</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.OpenApi.Internal.html#Ref"><span class="hs-identifier hs-type">Ref</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.OpenApi.Internal.html#Reference"><span class="hs-identifier hs-type">Reference</span></a></span><span> </span><span id="local-6989586621680014632"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621680014632"><span class="hs-identifier hs-var">ref</span></a></span></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Maybe a -&gt; a
+forall a. HasCallStack =&gt; Maybe a -&gt; a
+</span><span class="hs-identifier hs-var">fromJust</span></span><span> </span><span class="annot"><span class="annottext">(Maybe a -&gt; a) -&gt; Maybe a -&gt; a
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Text -&gt; Definitions a -&gt; Maybe a
+forall k v. (Eq k, Hashable k) =&gt; k -&gt; InsOrdHashMap k v -&gt; Maybe v
+</span><span class="hs-identifier hs-var">M.lookup</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621680014632"><span class="hs-identifier hs-var">ref</span></a></span><span> </span><span class="annot"><span class="annottext">Definitions a
+</span><a href="#local-6989586621680014629"><span class="hs-identifier hs-var">defs</span></a></span><span>
+</span><span id="line-105"></span><span>
+</span><span id="line-106"></span><span id="local-6989586621680014302"><span class="annot"><a href="Data.OpenApi.Schema.Generator.html#genValue"><span class="hs-identifier hs-type">genValue</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.OpenApi.Internal.Schema.html#ToSchema"><span class="hs-identifier hs-type">ToSchema</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680014302"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Proxy</span></span><span> </span><span class="annot"><a href="#local-6989586621680014302"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Gen</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Value</span></span></span><span>
+</span><span id="line-107"></span><span id="genValue"><span class="annot"><span class="annottext">genValue :: forall a. ToSchema a =&gt; Proxy a -&gt; Gen Value
+</span><a href="Data.OpenApi.Schema.Generator.html#genValue"><span class="hs-identifier hs-var hs-var">genValue</span></a></span></span><span> </span><span id="local-6989586621680014638"><span class="annot"><span class="annottext">Proxy a
+</span><a href="#local-6989586621680014638"><span class="hs-identifier hs-var">p</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-108"></span><span> </span><span class="hs-keyword">let</span><span> </span><span class="hs-special">(</span><span id="local-6989586621680014639"><span class="annot"><span class="annottext">Definitions Schema
+</span><a href="#local-6989586621680014639"><span class="hs-identifier hs-var">defs</span></a></span></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.OpenApi.Internal.html#NamedSchema"><span class="hs-identifier hs-type">NamedSchema</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe Text
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621680014641"><span class="annot"><span class="annottext">Schema
+</span><a href="#local-6989586621680014641"><span class="hs-identifier hs-var">schema</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Declare (Definitions Schema) NamedSchema
+-&gt; Definitions Schema -&gt; (Definitions Schema, NamedSchema)
+forall d a. Declare d a -&gt; d -&gt; (d, a)
+</span><a href="Data.OpenApi.Declare.html#runDeclare"><span class="hs-identifier hs-var">runDeclare</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Proxy a -&gt; Declare (Definitions Schema) NamedSchema
+forall a.
+ToSchema a =&gt;
+Proxy a -&gt; Declare (Definitions Schema) NamedSchema
+</span><a href="Data.OpenApi.Internal.Schema.html#declareNamedSchema"><span class="hs-identifier hs-var">declareNamedSchema</span></a></span><span> </span><span class="annot"><span class="annottext">Proxy a
+</span><a href="#local-6989586621680014638"><span class="hs-identifier hs-var">p</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Definitions Schema
+forall k v. InsOrdHashMap k v
+</span><span class="hs-identifier hs-var">M.empty</span></span><span>
+</span><span id="line-109"></span><span> </span><span class="hs-keyword">in</span><span> </span><span class="annot"><span class="annottext">Definitions Schema -&gt; Schema -&gt; Gen Value
+</span><a href="Data.OpenApi.Schema.Generator.html#schemaGen"><span class="hs-identifier hs-var">schemaGen</span></a></span><span> </span><span class="annot"><span class="annottext">Definitions Schema
+</span><a href="#local-6989586621680014639"><span class="hs-identifier hs-var">defs</span></a></span><span> </span><span class="annot"><span class="annottext">Schema
+</span><a href="#local-6989586621680014641"><span class="hs-identifier hs-var">schema</span></a></span><span>
+</span><span id="line-110"></span><span>
+</span><span id="line-111"></span><span class="annot"><a href="Data.OpenApi.Schema.Generator.html#validateFromJSON"><span class="hs-identifier hs-type">validateFromJSON</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-keyword">forall</span><span> </span><span id="local-6989586621680014313"><span class="annot"><a href="#local-6989586621680014313"><span class="hs-identifier hs-type">a</span></a></span></span><span> </span><span class="hs-operator">.</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.OpenApi.Internal.Schema.html#ToSchema"><span class="hs-identifier hs-type">ToSchema</span></a></span><span> </span><span class="annot"><a href="#local-6989586621680014313"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">FromJSON</span></span><span> </span><span class="annot"><a href="#local-6989586621680014313"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Proxy</span></span><span> </span><span class="annot"><a href="#local-6989586621680014313"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Property</span></span><span>
+</span><span id="line-112"></span><span id="validateFromJSON"><span class="annot"><span class="annottext">validateFromJSON :: forall a. (ToSchema a, FromJSON a) =&gt; Proxy a -&gt; Property
+</span><a href="Data.OpenApi.Schema.Generator.html#validateFromJSON"><span class="hs-identifier hs-var hs-var">validateFromJSON</span></a></span></span><span> </span><span id="local-6989586621680014654"><span class="annot"><span class="annottext">Proxy a
+</span><a href="#local-6989586621680014654"><span class="hs-identifier hs-var">p</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Gen Value -&gt; (Value -&gt; Result) -&gt; Property
+forall a prop.
+(Show a, Testable prop) =&gt;
+Gen a -&gt; (a -&gt; prop) -&gt; Property
+</span><span class="hs-identifier hs-var">forAll</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Proxy a -&gt; Gen Value
+forall a. ToSchema a =&gt; Proxy a -&gt; Gen Value
+</span><a href="Data.OpenApi.Schema.Generator.html#genValue"><span class="hs-identifier hs-var">genValue</span></a></span><span> </span><span class="annot"><span class="annottext">Proxy a
+</span><a href="#local-6989586621680014654"><span class="hs-identifier hs-var">p</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">((Value -&gt; Result) -&gt; Property) -&gt; (Value -&gt; Result) -&gt; Property
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span>
+</span><span id="line-113"></span><span>                       </span><span class="hs-glyph">\</span><span id="local-6989586621680014656"><span class="annot"><span class="annottext">Value
+</span><a href="#local-6989586621680014656"><span class="hs-identifier hs-var">val</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">(Value -&gt; Parser a) -&gt; Value -&gt; Either String a
+forall a b. (a -&gt; Parser b) -&gt; a -&gt; Either String b
+</span><span class="hs-identifier hs-var">parseEither</span></span><span> </span><span class="annot"><span class="annottext">Value -&gt; Parser a
+forall a. FromJSON a =&gt; Value -&gt; Parser a
+</span><span class="hs-identifier hs-var">parseJSON</span></span><span> </span><span class="annot"><span class="annottext">Value
+</span><a href="#local-6989586621680014656"><span class="hs-identifier hs-var">val</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-114"></span><span>                                 </span><span class="annot"><span class="hs-identifier hs-type">Right</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="#local-6989586621680014313"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Result
+</span><span class="hs-identifier hs-var">succeeded</span></span><span>
+</span><span id="line-115"></span><span>                                 </span><span class="annot"><span class="hs-identifier hs-type">Left</span></span><span> </span><span id="local-6989586621680014660"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621680014660"><span class="hs-identifier hs-var">err</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Result
+</span><span class="hs-identifier hs-var">failed</span></span><span>
+</span><span id="line-116"></span><span>                                               </span><span class="hs-special">{</span><span> </span><span class="annot"><span class="hs-identifier hs-var">reason</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="#local-6989586621680014660"><span class="hs-identifier hs-type">err</span></a></span><span>
+</span><span id="line-117"></span><span>                                               </span><span class="hs-special">}</span><span>
+</span><span id="line-118"></span></pre></body></html>

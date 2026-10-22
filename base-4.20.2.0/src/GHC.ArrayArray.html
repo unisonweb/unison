@@ -1,0 +1,45 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE Safe #-}</span><span>
+</span><span id="line-2"></span><span>
+</span><span id="line-3"></span><span class="hs-pragma">{-# LANGUAGE MagicHash #-}</span><span>
+</span><span id="line-4"></span><span>
+</span><span id="line-5"></span><span class="hs-comment">-- |</span><span>
+</span><span id="line-6"></span><span class="hs-comment">--</span><span>
+</span><span id="line-7"></span><span class="hs-comment">-- Module      :  GHC.ArrayArray</span><span>
+</span><span id="line-8"></span><span class="hs-comment">-- License     :  see libraries/base/LICENSE</span><span>
+</span><span id="line-9"></span><span class="hs-comment">--</span><span>
+</span><span id="line-10"></span><span class="hs-comment">-- Maintainer  :  ghc-devs@haskell.org</span><span>
+</span><span id="line-11"></span><span class="hs-comment">-- Stability   :  internal</span><span>
+</span><span id="line-12"></span><span class="hs-comment">-- Portability :  non-portable (GHC Extensions)</span><span>
+</span><span id="line-13"></span><span class="hs-comment">--</span><span>
+</span><span id="line-14"></span><span class="hs-comment">-- Legacy interface for arrays of arrays.</span><span>
+</span><span id="line-15"></span><span class="hs-comment">-- Deprecated, because the 'Array#' type can now store arrays directly.</span><span>
+</span><span id="line-16"></span><span class="hs-comment">-- Consider simply using 'Array#' instead of 'ArrayArray#'.</span><span>
+</span><span id="line-17"></span><span class="hs-comment">--</span><span>
+</span><span id="line-18"></span><span class="hs-comment">-- Use GHC.Exts instead of importing this module directly.</span><span>
+</span><span id="line-19"></span><span class="hs-comment">--</span><span>
+</span><span id="line-20"></span><span>
+</span><span id="line-21"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="GHC.ArrayArray.html"><span class="hs-identifier">GHC.ArrayArray</span></a></span><span>
+</span><span id="line-22"></span><span>    </span><span class="hs-special">(</span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.ArrayArray.html#ArrayArray%23"><span class="hs-identifier">ArrayArray#</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-23"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.ArrayArray.html#MutableArrayArray%23"><span class="hs-identifier">MutableArrayArray#</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-24"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.ArrayArray.html#newArrayArray%23"><span class="hs-identifier">newArrayArray#</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-25"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.ArrayArray.html#unsafeFreezeArrayArray%23"><span class="hs-identifier">unsafeFreezeArrayArray#</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-26"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.ArrayArray.html#sizeofArrayArray%23"><span class="hs-identifier">sizeofArrayArray#</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-27"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.ArrayArray.html#sizeofMutableArrayArray%23"><span class="hs-identifier">sizeofMutableArrayArray#</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-28"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.ArrayArray.html#indexByteArrayArray%23"><span class="hs-identifier">indexByteArrayArray#</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-29"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.ArrayArray.html#indexArrayArrayArray%23"><span class="hs-identifier">indexArrayArrayArray#</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-30"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.ArrayArray.html#readByteArrayArray%23"><span class="hs-identifier">readByteArrayArray#</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-31"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.ArrayArray.html#readMutableByteArrayArray%23"><span class="hs-identifier">readMutableByteArrayArray#</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-32"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.ArrayArray.html#readArrayArrayArray%23"><span class="hs-identifier">readArrayArrayArray#</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-33"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.ArrayArray.html#readMutableArrayArrayArray%23"><span class="hs-identifier">readMutableArrayArrayArray#</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-34"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.ArrayArray.html#writeByteArrayArray%23"><span class="hs-identifier">writeByteArrayArray#</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-35"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.ArrayArray.html#writeMutableByteArrayArray%23"><span class="hs-identifier">writeMutableByteArrayArray#</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-36"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.ArrayArray.html#writeArrayArrayArray%23"><span class="hs-identifier">writeArrayArrayArray#</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-37"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.ArrayArray.html#writeMutableArrayArrayArray%23"><span class="hs-identifier">writeMutableArrayArrayArray#</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-38"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.ArrayArray.html#copyArrayArray%23"><span class="hs-identifier">copyArrayArray#</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-39"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.ArrayArray.html#copyMutableArrayArray%23"><span class="hs-identifier">copyMutableArrayArray#</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-40"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.ArrayArray.html#sameArrayArray%23"><span class="hs-identifier">sameArrayArray#</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-41"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.ArrayArray.html#sameMutableArrayArray%23"><span class="hs-identifier">sameMutableArrayArray#</span></a></span><span>
+</span><span id="line-42"></span><span>     </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-43"></span><span>
+</span><span id="line-44"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.ArrayArray.html"><span class="hs-identifier">GHC.Internal.ArrayArray</span></a></span><span>
+</span><span id="line-45"></span></pre></body></html>
