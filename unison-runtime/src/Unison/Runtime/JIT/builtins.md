@@ -47,7 +47,7 @@ when reading it:
   `Ptr`'s wrapper, with the conventions' sign and zero extension and truncation. Allocation,
   freeing, `cast`, `null`, the `ForeignPtr`s and the calls themselves (`getDLLSym`,
   `FFI.base`) stay call-outs. See [design.md, "The representations"](design.md#the-representations).
-  So do the callbacks of 2026-10-22 (`FFI.mkCallback`, `FFI.funcType`, `FFI.freeCallback`,
+  So do the callbacks of 2026-10-22 (`FFI.newCallback`, `FFI.functionPtr`, `FFI.freeCallback`,
   from unisonweb/unison#6306): `MkCallback` is an instruction the generator classifies but
   doesn't compile, and a callback's Unison function runs through the interpreter's `apply`,
   which enters native code when the function is compiled, with no native frame below it
@@ -763,6 +763,6 @@ To regenerate after adding native versions: the lists this reads are `prim1Suppo
 - [ ] `FFI.ForeignPtr.Float32.allocate` (foreign FFI_ForeignPtr_Float32_allocate)
 - [ ] `FFI.ForeignPtr.Float.allocate` (foreign FFI_ForeignPtr_Float_allocate)
 - [ ] `FFI.ForeignPtr.Ptr.allocate` (no runtime implementation found)
-- [ ] `FFI.mkCallback` (MKCB, 2026-10-22)
-- [ ] `FFI.funcType` (foreign FFI_funcType, 2026-10-22)
+- [ ] `FFI.newCallback` (MKCB, 2026-10-22)
+- [ ] `FFI.functionPtr` (foreign FFI_funcType, 2026-10-22)
 - [ ] `FFI.freeCallback` (foreign FFI_freeCallback, 2026-10-22)

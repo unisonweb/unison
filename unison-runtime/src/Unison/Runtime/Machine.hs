@@ -558,7 +558,7 @@ exec env henv !activeThreads !stk !k _ (AddFinalizer i j)
       pure (False, henv, stk, k)
 exec env henv !activeThreads !stk !k _ (MkCallback i j)
   | sandboxed env =
-      die [] "attempted to use sandboxed operation: FFI.mkCallback"
+      die [] "attempted to use sandboxed operation: FFI.newCallback"
   | otherwise = do
       spec <- peekOffBi stk i
       fn <- peekOff stk j

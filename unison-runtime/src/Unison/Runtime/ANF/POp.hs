@@ -175,7 +175,7 @@ data POp
   | KEEP -- keepAlive
   | FGNN -- foreign pointer new
   | FGNF -- foreign pointer add finalizer
-  | MKCB -- FFI.mkCallback
+  | MKCB -- FFI.newCallback
   deriving (Show, Eq, Ord, Enum, Bounded)
 
 pOpCode :: POp -> Word16
