@@ -481,7 +481,7 @@ add'final =
   where
     (fp, fin, unit, lz) = fresh
 
--- FFI.mkCallback : FFI.Spec a -> a ->{IO} FFI.Func a
+-- FFI.newCallback : FFI.Spec a -> a ->{IO} FFI.FunctionPtr a
 -- The Unison function is passed straight through to the primitive, which
 -- builds a C-callable closure that applies it to the C-provided arguments.
 mk'callback :: SuperNormal Reference Symbol
@@ -927,7 +927,7 @@ builtinLookup =
         ("IO.keepAlive", (Tracked, keep'alive)),
         ("FFI.ForeignPtr.new", (Tracked, new'fptr)),
         ("FFI.ForeignPtr.addFinalizer", (Tracked, add'final)),
-        ("FFI.mkCallback", (Tracked, mk'callback))
+        ("FFI.newCallback", (Tracked, mk'callback))
       ]
       ++ foreignWrappers
 

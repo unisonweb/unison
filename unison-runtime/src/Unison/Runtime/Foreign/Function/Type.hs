@@ -868,7 +868,7 @@ foreignFuncBuiltinName = \case
   FFI_baseIO -> "FFI.baseIO"
   FFI_arr -> "FFI.arr"
   FFI_Spec_variadic -> "FFI.Spec.variadic"
-  FFI_funcType -> "FFI.funcType"
+  FFI_funcType -> "FFI.functionPtr"
   FFI_freeCallback -> "FFI.freeCallback"
   FFI_getDLLSym -> "FFI.getDLLSym"
   FFI_getDLLSymPtr -> "FFI.getDLLSymPtr"

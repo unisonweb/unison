@@ -1246,7 +1246,7 @@ foreignCallHelper = \case
   FFI_arr -> mkForeign $ \(t, FFSpec ts r fixed) ->
     evaluate $ FFSpec (t : ts) r (fmap (\n -> if n == maxBound then n else n + 1) fixed)
   FFI_Spec_variadic -> mkForeign $ \(n, spec) -> evaluate $ spec {ffFixedArgs = Just n}
-  -- The spec only fixes the phantom type of the resulting @FFI.Func a@;
+  -- The spec only fixes the phantom type of the resulting @FFI.FunctionPtr a@;
   -- marshalling a function-pointer argument needs just the pointer.
   FFI_funcType -> mkForeign $ \(_ :: FFSpec) -> pure Fun
   FFI_freeCallback -> mkForeign $ \(cf :: CDynFunc) -> freeCallback cf

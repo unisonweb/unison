@@ -29,7 +29,7 @@ data FFType
   | Ptr
   | -- A C function pointer argument. At the libffi level this is just a
     -- pointer; the Unison-level call signature it stands for is tracked by
-    -- the phantom parameter of @FFI.Func@, not needed for marshalling.
+    -- the phantom parameter of @FFI.FunctionPtr@, not needed for marshalling.
     Fun
   deriving (Eq, Ord, Show)
 
