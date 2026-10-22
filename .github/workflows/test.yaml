@@ -17,10 +17,6 @@ on:
         description: JSON array of OSes for interpreter tests
         type: string
         default: '["ubuntu-24.04","ubuntu-24.04-arm","macos-15-intel","macos-15"]'
-      skip-attested-transcripts:
-        description: Skip transcripts if proof attestation is valid
-        type: boolean
-        default: false
   workflow_call:
     inputs:
       ref:
@@ -38,10 +34,6 @@ on:
         description: JSON array of OSes for interpreter tests (excludes windows by default)
         type: string
         default: '["ubuntu-24.04","ubuntu-24.04-arm","macos-15-intel","macos-15"]'
-      skip-attested-transcripts:
-        description: Skip transcripts if proof attestation is valid
-        type: boolean
-        default: false
 
 defaults:
   run:
@@ -51,31 +43,6 @@ env:
   ucm_local_bin: ucm-local-bin
 
 jobs:
-  check-proofs:
-    name: check proofs
-    if: inputs.skip-attested-transcripts
-    runs-on: ubuntu-24.04
-    outputs:
-      transcripts-attested: ${{ steps.check.outputs.attested }}
-    steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
-        with:
-          ref: ${{ inputs.ref || github.ref }}
-      - name: check transcript proof
-        id: check
-        run: |
-          read -r RESULT HASH <<< "$(./scripts/proofs/transcripts.sh --check)"
-          if [[ "$RESULT" == "pass" ]]; then
-            echo "Transcript proof: pass ($HASH)"
-            echo "attested=true" >> "$GITHUB_OUTPUT"
-          elif [[ "$RESULT" == "fail" ]]; then
-            echo "::error::Transcripts previously FAILED for hash $HASH"
-            exit 1
-          else
-            echo "Transcript proof: $RESULT ($HASH)"
-            echo "attested=false" >> "$GITHUB_OUTPUT"
-          fi
-
   build-ucm:
     name: build ucm (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
@@ -205,11 +172,10 @@ jobs:
 
   transcripts:
     name: transcripts (${{ matrix.os }})
-    needs: [build-ucm, check-proofs]
+    needs: [build-ucm]
     if: |
       !cancelled()
         && needs.build-ucm.result == 'success'
-        && needs.check-proofs.outputs.transcripts-attested != 'true'
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
