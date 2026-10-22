@@ -268,7 +268,7 @@ builtinTypesSrc =
     B' "Int16" CT.Data,
     B' "Int32" CT.Data,
     B' "Float32" CT.Data,
-    B' "FFI.Func" CT.Data,
+    B' "FFI.FunctionPtr" CT.Data,
     B' "FFI.ForeignPtr" CT.Data,
     B' "IO.signal.Signal" CT.Data,
     B' "IO.signal.Subscription" CT.Data
@@ -844,7 +844,7 @@ builtinsSrc =
     B "FFI.void" $ ffiType unit,
     B "FFI.ptr" $ forall1 "a" \a -> ffiType (ptr a),
     B "FFI.pinnedByteArray" $ ffiType (pinnedByteArrayt iot),
-    B "FFI.funcType" . forall1 "a" $ \a ->
+    B "FFI.functionPtr" . forall1 "a" $ \a ->
       ffiSpec a --> ffiType (funptr a),
     B "FFI.base" . forall2 "a" "b" $ \a b ->
       ffiType a --> ffiType b --> ffiSpec (a --> Type.effect () [] b),
@@ -858,7 +858,7 @@ builtinsSrc =
       dll --> text --> ffiSpec a --> ioexn a,
     B "FFI.getDLLSymPtr" . forall1 "a" $ \a ->
       dll --> text --> ffiSpec a --> ioexn (funptr a),
-    B "FFI.mkCallback" . forall1 "a" $ \a ->
+    B "FFI.newCallback" . forall1 "a" $ \a ->
       ffiSpec a --> a --> io (funptr a),
     B "FFI.freeCallback" . forall1 "a" $ \a ->
       funptr a --> io unit,

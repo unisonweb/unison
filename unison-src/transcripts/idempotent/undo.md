@@ -38,7 +38,7 @@ scratch/main> history
   Note: The most recent namespace hash is immediately below this
         message.
 
-  ⊙ 1. #lphqprkr7d
+  ⊙ 1. #auhs9ffe3p
 
     + Adds / updates:
     
@@ -49,13 +49,13 @@ scratch/main> history
       Original name New name(s)
       x             y
 
-  ⊙ 2. #qqejieqp7k
+  ⊙ 2. #ehi629ttp6
 
     + Adds / updates:
     
       x
 
-  □ 3. #6craa9rvss (start of history)
+  □ 3. #nvv8j656nn (start of history)
 
 scratch/main> undo
 
@@ -76,13 +76,13 @@ scratch/main> history
   Note: The most recent namespace hash is immediately below this
         message.
 
-  ⊙ 1. #qqejieqp7k
+  ⊙ 1. #ehi629ttp6
 
     + Adds / updates:
     
       x
 
-  □ 2. #6craa9rvss (start of history)
+  □ 2. #nvv8j656nn (start of history)
 ```
 
 -----
@@ -125,7 +125,7 @@ scratch/branch1> history
   Note: The most recent namespace hash is immediately below this
         message.
 
-  ⊙ 1. #lphqprkr7d
+  ⊙ 1. #auhs9ffe3p
 
     + Adds / updates:
     
@@ -136,13 +136,13 @@ scratch/branch1> history
       Original name New name(s)
       x             y
 
-  ⊙ 2. #qqejieqp7k
+  ⊙ 2. #ehi629ttp6
 
     + Adds / updates:
     
       x
 
-  □ 3. #6craa9rvss (start of history)
+  □ 3. #nvv8j656nn (start of history)
 
 -- Make some changes on an unrelated branch
 
@@ -173,13 +173,13 @@ scratch/branch1> history
   Note: The most recent namespace hash is immediately below this
         message.
 
-  ⊙ 1. #qqejieqp7k
+  ⊙ 1. #ehi629ttp6
 
     + Adds / updates:
     
       x
 
-  □ 2. #6craa9rvss (start of history)
+  □ 2. #nvv8j656nn (start of history)
 ```
 
 -----

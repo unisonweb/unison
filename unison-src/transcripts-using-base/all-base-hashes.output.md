@@ -1338,7 +1338,7 @@ This transcript is intended to make visible accidental changes to the hashing al
         
   361.  -- ##FFI.ForeignPtr.addCFinalizer
         builtin.FFI.ForeignPtr.addCFinalizer : ForeignPtr a
-        -> Func (Ptr a ->{IO} ())
+        -> FunctionPtr (Ptr a ->{IO} ())
         ->{IO} ()
         
   362.  -- ##FFI.ForeignPtr.addFinalizer
@@ -1392,7 +1392,7 @@ This transcript is intended to make visible accidental changes to the hashing al
         ->{IO} ForeignPtr a
         
   374.  -- ##FFI.ForeignPtr.new.foreign
-        builtin.FFI.ForeignPtr.new.foreign : Func
+        builtin.FFI.ForeignPtr.new.foreign : FunctionPtr
           (Ptr a ->{IO} ())
         -> Ptr a
         ->{IO} ForeignPtr a
@@ -1406,13 +1406,14 @@ This transcript is intended to make visible accidental changes to the hashing al
         -> Ptr a
         
   377.  -- ##FFI.freeCallback
-        builtin.FFI.freeCallback : Func a ->{IO} ()
+        builtin.FFI.freeCallback : FunctionPtr a ->{IO} ()
         
-  378.  -- ##FFI.Func
-        builtin type builtin.FFI.Func
+  378.  -- ##FFI.FunctionPtr
+        builtin type builtin.FFI.FunctionPtr
         
-  379.  -- ##FFI.funcType
-        builtin.FFI.funcType : Spec a -> FFI.Type (Func a)
+  379.  -- ##FFI.functionPtr
+        builtin.FFI.functionPtr : Spec a
+        -> FFI.Type (FunctionPtr a)
         
   380.  -- ##FFI.getDLLSym
         builtin.FFI.getDLLSym : DLL
@@ -1424,7 +1425,7 @@ This transcript is intended to make visible accidental changes to the hashing al
         builtin.FFI.getDLLSymPtr : DLL
         -> Text
         -> Spec a
-        ->{IO, Exception} Func a
+        ->{IO, Exception} FunctionPtr a
         
   382.  -- ##FFI.int16
         builtin.FFI.int16 : FFI.Type Int
@@ -1438,8 +1439,10 @@ This transcript is intended to make visible accidental changes to the hashing al
   385.  -- ##FFI.int8
         builtin.FFI.int8 : FFI.Type Int
         
-  386.  -- ##FFI.mkCallback
-        builtin.FFI.mkCallback : Spec a -> a ->{IO} Func a
+  386.  -- ##FFI.newCallback
+        builtin.FFI.newCallback : Spec a
+        -> a
+        ->{IO} FunctionPtr a
         
   387.  -- ##FFI.openDLL
         builtin.FFI.openDLL : Text ->{IO, Exception} DLL

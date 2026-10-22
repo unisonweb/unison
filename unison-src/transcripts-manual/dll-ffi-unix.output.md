@@ -123,7 +123,7 @@ another C function.
 
 ``` unison
 incSpec = baseIO uint32 uint32
-applySpec = arr (funcType incSpec) (baseIO uint32 uint32)
+applySpec = arr (functionPtr incSpec) (baseIO uint32 uint32)
 
 doFunArgTest = do
   dll = libtest()
@@ -131,14 +131,14 @@ doFunArgTest = do
   apply = getDLLSym dll "apply_fn" applySpec
   apply incp 41
 
--- A Unison function, turned into a C function pointer with mkCallback, can be
+-- A Unison function, turned into a C function pointer with newCallback, can be
 -- passed where C expects a callback; C then calls back into Unison.
 doCallbackTest = do
   dll = libtest()
   apply = getDLLSym dll "apply_fn" applySpec
   inc : Nat ->{IO} Nat
   inc x = Nat.increment x
-  cb = mkCallback incSpec inc
+  cb = newCallback incSpec inc
   r = apply cb 41
   freeCallback cb
   r
@@ -152,7 +152,7 @@ doCallbackTest = do
 doReentrantCallbackTest = do
   dll = libtest()
   apply = getDLLSym dll "apply_fn" applySpec
-  slot : Ref {IO} (Optional (FFI.Func (Nat ->{IO} Nat)))
+  slot : Ref {IO} (Optional (FFI.FunctionPtr (Nat ->{IO} Nat)))
   slot = IO.ref None
   count : Nat ->{IO} Nat
   count n =
@@ -160,7 +160,7 @@ doReentrantCallbackTest = do
     else match Ref.read slot with
       Some cb -> 1 + apply cb (drop n 1)
       None -> 0
-  cb = mkCallback incSpec count
+  cb = newCallback incSpec count
   Ref.write slot (Some cb)
   r = apply cb 5
   freeCallback cb
@@ -171,7 +171,7 @@ doReentrantCallbackTest = do
   Loading changes detected in scratch.u.
 
   + applySpec               : Spec
-                                (Func (Nat ->{IO} Nat)
+                                (FunctionPtr (Nat ->{IO} Nat)
                                  -> Nat
                                  ->{IO} Nat)
   + doCallbackTest          : '{IO, Exception} Nat

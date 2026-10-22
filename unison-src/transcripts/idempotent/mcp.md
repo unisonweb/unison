@@ -878,7 +878,7 @@ RESPONSE:
       "result": {
           "content": [
               {
-                  "text": "{\"entries\":[{\"branch\":\"reflog-test\",\"fromHash\":\"#6craa9rvss\",\"project\":\"scratch\",\"reason\":\"update\",\"toHash\":\"#eejs4dtis7\"},{\"branch\":\"reflog-test\",\"fromHash\":\"#sg60bvjo91\",\"project\":\"scratch\",\"reason\":\"builtins.merge scratch/reflog-test:lib.builtins\",\"toHash\":\"#6craa9rvss\"},{\"branch\":\"reflog-test\",\"fromHash\":null,\"project\":\"scratch\",\"reason\":\"Branch Created\",\"toHash\":\"#sg60bvjo91\"}],\"hasMore\":false}",
+                  "text": "{\"entries\":[{\"branch\":\"reflog-test\",\"fromHash\":\"#nvv8j656nn\",\"project\":\"scratch\",\"reason\":\"update\",\"toHash\":\"#0v8ve6aqdp\"},{\"branch\":\"reflog-test\",\"fromHash\":\"#sg60bvjo91\",\"project\":\"scratch\",\"reason\":\"builtins.merge scratch/reflog-test:lib.builtins\",\"toHash\":\"#nvv8j656nn\"},{\"branch\":\"reflog-test\",\"fromHash\":null,\"project\":\"scratch\",\"reason\":\"Branch Created\",\"toHash\":\"#sg60bvjo91\"}],\"hasMore\":false}",
                   "type": "text"
               }
           ],
@@ -916,7 +916,7 @@ RESPONSE:
       "result": {
           "content": [
               {
-                  "text": "{\"errorMessages\":[],\"outputMessages\":[\"Note: The most recent namespace hash is immediately below this message.\\n\\nâ 1. #eejs4dtis7\\n\\n  + Adds / updates:\\n  \\n    reflogTestTerm\\n\\nâ¡ 2. #6craa9rvss (start of history)\"],\"sourceCodeUpdates\":[],\"stderr\":\"\",\"stdout\":\"\"}",
+                  "text": "{\"errorMessages\":[],\"outputMessages\":[\"Note: The most recent namespace hash is immediately below this message.\\n\\nâ 1. #0v8ve6aqdp\\n\\n  + Adds / updates:\\n  \\n    reflogTestTerm\\n\\nâ¡ 2. #nvv8j656nn (start of history)\"],\"sourceCodeUpdates\":[],\"stderr\":\"\",\"stdout\":\"\"}",
                   "type": "text"
               }
           ],
