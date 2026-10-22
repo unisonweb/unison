@@ -103,6 +103,21 @@ uint32_t accessarr(uint64_t i) {
 #ifdef WINDOWS_BUILD
 __declspec(dllexport)
 #endif
+uint32_t inc(uint32_t x) {
+  return x + 1;
+}
+
+// Takes a function pointer argument and invokes it.
+#ifdef WINDOWS_BUILD
+__declspec(dllexport)
+#endif
+uint32_t apply_fn(uint32_t (*f)(uint32_t), uint32_t x) {
+  return f(x);
+}
+
+#ifdef WINDOWS_BUILD
+__declspec(dllexport)
+#endif
 void testptr2(uint64_t sz, uint32_t *ptr) {
   uint64_t i = 0;
   uint32_t j = 10;

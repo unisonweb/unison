@@ -67,6 +67,61 @@ scratch/dll-ffi> run doArrTest
 scratch/dll-ffi> run doPTest
 ```
 
+A C function pointer, obtained from a symbol, can be passed as an argument to
+another C function.
+
+``` unison
+incSpec = baseIO uint32 uint32
+applySpec = arr (funcType incSpec) (baseIO uint32 uint32)
+
+doFunArgTest = do
+  dll = libtest()
+  incp = getDLLSymPtr dll "inc" incSpec
+  apply = getDLLSym dll "apply_fn" applySpec
+  apply incp 41
+
+-- A Unison function, turned into a C function pointer with mkCallback, can be
+-- passed where C expects a callback; C then calls back into Unison.
+doCallbackTest = do
+  dll = libtest()
+  apply = getDLLSym dll "apply_fn" applySpec
+  inc : Nat ->{IO} Nat
+  inc x = Nat.increment x
+  cb = mkCallback incSpec inc
+  r = apply cb 41
+  freeCallback cb
+  r
+
+-- A callback invoked reentrantly: C apply_fn calls `count`, whose body calls
+-- apply_fn again on the same thread, re-entering the *same* callback before
+-- the outer invocation returns. The callback reuses one stack behind an
+-- in-use flag; a reentrant call must get its own stack, otherwise it would
+-- clobber the outer frame. A correct result (5) shows each invocation got a
+-- distinct stack.
+doReentrantCallbackTest = do
+  dll = libtest()
+  apply = getDLLSym dll "apply_fn" applySpec
+  slot : Ref {IO} (Optional (FFI.Func (Nat ->{IO} Nat)))
+  slot = IO.ref None
+  count : Nat ->{IO} Nat
+  count n =
+    if n == 0 then 0
+    else match Ref.read slot with
+      Some cb -> 1 + apply cb (drop n 1)
+      None -> 0
+  cb = mkCallback incSpec count
+  Ref.write slot (Some cb)
+  r = apply cb 5
+  freeCallback cb
+  r
+```
+
+``` ucm
+scratch/dll-ffi> run doFunArgTest
+scratch/dll-ffi> run doCallbackTest
+scratch/dll-ffi> run doReentrantCallbackTest
+```
+
 ``` unison
 allocPSpec = baseIO void ptr
 freePSpec = baseIO ptr void
