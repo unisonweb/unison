@@ -19,8 +19,6 @@ jobs:
     name: ${{ github.event_name == 'merge_group' && 'full (merge queue)' || 'full' }}
     if: github.event_name == 'merge_group'
     uses: ./.github/workflows/test.yaml
-    with:
-      skip-attested-transcripts: true
   ci-result:
     if: ${{ !cancelled() }}
     needs: [quick, full]
