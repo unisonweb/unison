@@ -337,7 +337,7 @@ scratch/main> ls
   6.  getAddress   ({address: t} -> t)
   7.  getX         (Point -> Nat)
   8.  getY         (Point -> Nat)
-  9.  lib.         (775 terms, 120 types)
+  9.  lib.         (778 terms, 120 types)
   10. mkPoint      (Nat -> Nat -> Point)
   11. p            (Point)
   12. unpackPoint  (Point -> (Nat, Nat))

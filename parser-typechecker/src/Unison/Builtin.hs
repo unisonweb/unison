@@ -844,6 +844,8 @@ builtinsSrc =
     B "FFI.void" $ ffiType unit,
     B "FFI.ptr" $ forall1 "a" \a -> ffiType (ptr a),
     B "FFI.pinnedByteArray" $ ffiType (pinnedByteArrayt iot),
+    B "FFI.funcType" . forall1 "a" $ \a ->
+      ffiSpec a --> ffiType (funptr a),
     B "FFI.base" . forall2 "a" "b" $ \a b ->
       ffiType a --> ffiType b --> ffiSpec (a --> Type.effect () [] b),
     B "FFI.baseIO" . forall2 "a" "b" $ \a b ->
@@ -856,6 +858,10 @@ builtinsSrc =
       dll --> text --> ffiSpec a --> ioexn a,
     B "FFI.getDLLSymPtr" . forall1 "a" $ \a ->
       dll --> text --> ffiSpec a --> ioexn (funptr a),
+    B "FFI.mkCallback" . forall1 "a" $ \a ->
+      ffiSpec a --> a --> io (funptr a),
+    B "FFI.freeCallback" . forall1 "a" $ \a ->
+      funptr a --> io unit,
     B "FFI.Ptr.Int8.allocate" $ nat --> io (ptr int8),
     B "FFI.Ptr.Int16.allocate" $ nat --> io (ptr int16),
     B "FFI.Ptr.Int32.allocate" $ nat --> io (ptr int32),

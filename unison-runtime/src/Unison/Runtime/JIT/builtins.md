@@ -47,6 +47,11 @@ when reading it:
   `Ptr`'s wrapper, with the conventions' sign and zero extension and truncation. Allocation,
   freeing, `cast`, `null`, the `ForeignPtr`s and the calls themselves (`getDLLSym`,
   `FFI.base`) stay call-outs. See [design.md, "The representations"](design.md#the-representations).
+  So do the callbacks of 2026-10-22 (`FFI.mkCallback`, `FFI.funcType`, `FFI.freeCallback`,
+  from unisonweb/unison#6306): `MkCallback` is an instruction the generator classifies but
+  doesn't compile, and a callback's Unison function runs through the interpreter's `apply`,
+  which enters native code when the function is compiled, with no native frame below it
+  since the `DLLCall` that led to the callback was itself a call-out.
 - The five bare names `==`, `<`, `<=`, `>`, `>=` in `Unison.Builtin` are a rename list
   (`Int.==` is also `Int.eq`, and so on), not builtins, and are left out.
 - The Haskell replacements of base definitions (`Map`, `Set`, `List.sort`, the JSON parser,
@@ -85,8 +90,8 @@ To regenerate after adding native versions: the lists this reads are `prim1Suppo
 | Clock | 0 | 7 |
 | Sandboxing | 0 | 2 |
 | Integer and Natural | 0 | 55 |
-| FFI | 45 | 93 |
-| **All** | **282** | **602** |
+| FFI | 45 | 96 |
+| **All** | **282** | **605** |
 
 ## Int (31 of 31)
 
@@ -663,7 +668,7 @@ To regenerate after adding native versions: the lists this reads are `prim1Suppo
 - [ ] `Natural.isEven` (foreign Natural_isEven)
 - [ ] `Natural.isOdd` (foreign Natural_isOdd)
 
-## FFI (45 of 93)
+## FFI (45 of 96)
 
 - [ ] `FFI.openDLL` (foreign FFI_openDLL)
 - [ ] `FFI.int8` (foreign FFI_int8)
@@ -758,3 +763,6 @@ To regenerate after adding native versions: the lists this reads are `prim1Suppo
 - [ ] `FFI.ForeignPtr.Float32.allocate` (foreign FFI_ForeignPtr_Float32_allocate)
 - [ ] `FFI.ForeignPtr.Float.allocate` (foreign FFI_ForeignPtr_Float_allocate)
 - [ ] `FFI.ForeignPtr.Ptr.allocate` (no runtime implementation found)
+- [ ] `FFI.mkCallback` (MKCB, 2026-10-22)
+- [ ] `FFI.funcType` (foreign FFI_funcType, 2026-10-22)
+- [ ] `FFI.freeCallback` (foreign FFI_freeCallback, 2026-10-22)

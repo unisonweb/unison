@@ -17,7 +17,9 @@ module Unison.Runtime.Machine
     cacheAdd0,
     eval0,
     expandSandbox,
+    mCombVal,
     preEvalTopLevelConstants,
+    rCombSection,
     refLookup,
     refNumTm,
     refNumsTm,
@@ -93,6 +95,7 @@ import Data.Vector qualified as V
 import Unison.Runtime.Array as PA
 import Unison.Runtime.Builtin hiding (unitValue)
 import Unison.Runtime.Exception (RuntimeExn (BU, PE), die, exn)
+import Unison.Runtime.Foreign.Callback qualified as Callback
 import Unison.Runtime.Foreign.Dynamic qualified as DLL
 import Unison.Runtime.Foreign.Function
   ( decodeVal,
@@ -553,6 +556,20 @@ exec env henv !activeThreads !stk !k _ (AddFinalizer i j)
       CFPtr.addForeignPtrFinalizer fp $
         nestEval env activeThreads (const $ pure ()) fin
       pure (False, henv, stk, k)
+exec env henv !activeThreads !stk !k _ (MkCallback i j)
+  | sandboxed env =
+      die [] "attempted to use sandboxed operation: FFI.mkCallback"
+  | otherwise = do
+      spec <- peekOffBi stk i
+      fn <- peekOff stk j
+      -- The C side calls this later with its own arguments (decoded directly
+      -- onto a stack); running the Unison function needs the live code
+      -- environment, which only exists here.
+      let run = applyToStackArgs env activeThreads fn
+      cb <- Callback.mkCallback spec run
+      stk <- bump stk
+      pokeBi stk cb
+      pure (False, henv, stk, k)
 exec _ henv !_activeThreads !stk !k _ DLLCall = do
   cf <- peekBi stk
   let n = DLL.numArgs $ DLL.cSpec cf
@@ -580,6 +597,8 @@ exec _ henv !_activeThreads !stk !k _ DLLCall = do
               Store.peek (castPtr cRet) >>= writeBack @(Ptr ()) stk
             DLL.MBArr ->
               die [] $ "unexpected array result from DLL function"
+            DLL.Fun ->
+              die [] $ "unexpected function-pointer result from DLL function"
   pure (False, henv, stk, k)
 exec _ henv !_activeThreads !stk !k _ (KeepAlive i) = do
   x <- bpeekOff stk i
@@ -668,6 +687,11 @@ copyArgs !stk tys p0 h0 next = go 2 tys p0 h0
         Store.poke (castPtr p) ptr >> nx
     store DLL.Ptr i p nx = do
       peekOffBi @(Ptr ()) stk i >>= Store.poke (castPtr p) >> nx
+    store DLL.Fun i p nx = do
+      cf <- peekOffBi @DLL.CDynFunc stk i
+      case cf of
+        DLL.CDynFunc _ _ f _ ->
+          Store.poke (castPtr p) (castFunPtr f :: FunPtr ()) >> nx
     store _ i p nx =
       upeekOff stk i >>= Store.poke p >> nx
     {-# INLINE store #-}
@@ -912,6 +936,37 @@ nestEval env activeThreads write val = apply1 readBack env activeThreads val
   where
     readBack stk = peek stk >>= write
 {-# INLINE nestEval #-}
+
+-- | Apply a function value to the arguments already pushed on the given stack
+-- (the count taken from the stack's frame size), running to a result that is
+-- handed, on the stack, to the continuation (result on top).
+--
+-- This is the re-entrant entry point used to run a Unison function from a C
+-- callback, which decodes its arguments directly onto the stack rather than
+-- through an intermediate list.
+applyToStackArgs ::
+  (RuntimeProfiler prof) =>
+  CCache prof ->
+  ActiveThreads ->
+  Val ->
+  Stack ->
+  (Stack -> IO ()) ->
+  IO ()
+applyToStackArgs env activeThreads clo stk k = do
+  (tick, cancelTicks) <- startTicker $ profiler env
+  apply tick env mempty activeThreads stk k0 True args clo
+    `finally` cancelTicks
+  where
+    k0 = CB $ Hook (\res -> k (packXStack res))
+    -- The callback pushed arguments left-to-right, so the k-th argument sits
+    -- at offset @n - 1 - k@ from the top. Name those offsets in parameter
+    -- order, mirroring 'demuxArgs'.
+    args = case reverse [0 .. fsize stk - 1] of
+      [] -> ZArgs
+      [i] -> VArg1 i
+      [i, j] -> VArg2 i j
+      is -> VArgN $ PA.primArrayFromList is
+{-# INLINE applyToStackArgs #-}
 
 atomicEval ::
   (RuntimeProfiler prof) =>

@@ -833,6 +833,7 @@ instrReads base d = \case
   KeepAlive i -> slotAt d i
   NewForeignPtr i j -> slotAt d i <+> slotAt d j
   AddFinalizer i j -> slotAt d i <+> slotAt d j
+  MkCallback i j -> slotAt d i <+> slotAt d j
 
 -- | The slots an argument list reads, as 'argSources' resolves them.
 argReads :: Int -> Int -> Args -> Maybe IS.IntSet
@@ -3975,6 +3976,7 @@ pushCount = \case
   KeepAlive _ -> Just 0
   NewForeignPtr _ _ -> Just 1
   AddFinalizer _ _ -> Just 0
+  MkCallback _ _ -> Just 1
 
 -- | The slots a @Pack@'s arguments come from, in field order, when the
 -- code generator can build the constructor (one or two fields so far).

@@ -779,6 +779,10 @@ data GInstr comb
     AddFinalizer
       !Int -- foreign pointer index
       !Int -- finalizer index
+  | -- build a C-callable function pointer from a Unison function
+    MkCallback
+      !Int -- FFI spec index
+      !Int -- Unison function index
   deriving stock (Show, Eq, Ord, Functor, Foldable, Traversable)
 
 type Section = GSection CombIx
@@ -1992,6 +1996,9 @@ emitPOp ANF.FGNN = \case
 emitPOp ANF.FGNF = \case
   VArg2 i j -> AddFinalizer i j
   _ -> internalBug [] "addFinalizer takes exactly two boxed arguments"
+emitPOp ANF.MKCB = \case
+  VArg2 i j -> MkCallback i j
+  _ -> internalBug [] "mkCallback takes exactly two boxed arguments"
 
 -- handled in emitSection because Die is not an instruction
 
