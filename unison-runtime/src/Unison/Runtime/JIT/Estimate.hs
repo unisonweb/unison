@@ -159,7 +159,7 @@ walk cx = \case
     | otherwise -> pure (Just exit)
   Match _ br -> branch br
   NMatch _ _ br -> branch br
-  DMatch _ _ br -> branch br
+  DMatch _ _ _ br -> branch br
   Call _ _ comb args
     | constant comb args -> pure (Just (plus simple simple))
     | otherwise -> tailCall comb
@@ -170,7 +170,7 @@ walk cx = \case
   -- a request: a call of the handler, a function value found at run time
   App _ (Dyn _) _ | swRequests (cxSwitches cx) -> pure (Just call)
   -- a request match: the pure arm and every ability's arms
-  RMatch _ pu br
+  RMatch _ pu _ br
     | swRequests (cxSwitches cx), Just arms <- traverse armsOf (map snd (EC.mapToList br)) -> weigh (pu : concat arms)
   Let b _ _ body _ ->
     binding b >>= \case

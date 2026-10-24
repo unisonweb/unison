@@ -168,9 +168,9 @@ genSection = do
       Match <$> genSmallInt <*> genBranch,
       Ins <$> genInstr <*> genSection,
       Let <$> genSection <*> genCombIx <*> genSmallInt <*> genSection <*> pure noNativeCell,
-      DMatch <$> Gen.maybe genReference <*> genSmallInt <*> genBranch,
+      DMatch <$> Gen.maybe genReference <*> genSmallInt <*> genEnumMap genSmallWord64 genSmallInt <*> genBranch,
       NMatch <$> Gen.maybe genReference <*> genSmallInt <*> genBranch,
-      RMatch <$> genSmallInt <*> genSection <*> genEnumMap genSmallWord64 genBranch
+      RMatch <$> genSmallInt <*> genSection <*> genEnumMap genSmallWord64 (genEnumMap genSmallWord64 genSmallInt) <*> genEnumMap genSmallWord64 genBranch
     ]
 
 genCombInfo :: Gen (GCombInfo CombIx)

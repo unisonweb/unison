@@ -175,7 +175,7 @@ walk env here frame expected base = go
           then err FrameTooSmall ("a call that skips the stack check, to a frame of " ++ show fsize ++ " at depth " ++ show d)
           else Right ()
         pure d
-      DMatch mr i br -> do
+      DMatch mr i _ br -> do
         slot d i
         case mr of
           -- a match on an undeclared type pushes however many fields the
@@ -188,7 +188,7 @@ walk env here frame expected base = go
               Nothing -> err MatchArm ("constructor " ++ show ctor ++ " of " ++ show r)
       NMatch _ i br -> slot d i >> arms d br (const (Right 0))
       Match i br -> slot d i >> arms d br (const (Right 0))
-      RMatch i pureCase cases -> do
+      RMatch i pureCase _ cases -> do
         slot d i
         -- the pure case sees the value
         m1 <- go (d + 1) pureCase

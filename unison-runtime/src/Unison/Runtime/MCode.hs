@@ -814,6 +814,7 @@ data GSection comb
     DMatch
       !(Maybe Reference) -- expected data type
       !Int -- index of data item on boxed stack
+      !(EnumMap Word64 Int) -- how many fields each constructor's arm binds (see 'armCount')
       !(GBranch comb) -- branches
   | -- Sequence two sections. The second is pushed as a return
     -- point for the results of the first. Stack modifications in
@@ -862,6 +863,7 @@ data GSection comb
     RMatch
       !Int -- index of request item on the boxed stack
       !(GSection comb) -- pure case
+      !(EnumMap Word64 (EnumMap Word64 Int)) -- how many fields each arm binds, by ability then constructor
       !(EnumMap Word64 (GBranch comb)) -- effect cases
   deriving stock (Show, Eq, Ord, Functor, Foldable, Traversable)
 
@@ -1101,9 +1103,9 @@ attachNativeCells base groups = (n, fmap attachLets groups')
           Let b cix@(CIx _ _ w) f bd _ -> Let (setLets True b) cix f (setLets inB bd) (cellOf inB w)
           Ins i nx -> Ins i (setLets inB nx)
           Match i bs -> Match i (setLetsB inB bs)
-          DMatch i j bs -> DMatch i j (setLetsB inB bs)
+          DMatch i j ns bs -> DMatch i j ns (setLetsB inB bs)
           NMatch i j bs -> NMatch i j (setLetsB inB bs)
-          RMatch i s bs -> RMatch i (setLets inB s) (fmap (setLetsB inB) bs)
+          RMatch i s ns bs -> RMatch i (setLets inB s) ns (fmap (setLetsB inB) bs)
           App {} -> section
           Call {} -> section
           Jump {} -> section
@@ -1555,7 +1557,7 @@ emitSection _ _ _ _ ctx (TBLit l) =
 emitSection rns grpr grpn rec ctx (TMatch v bs)
   | Just (i, BX) <- ctxResolve ctx v,
     MatchData r cs df <- bs =
-      DMatch (Just r) i
+      uncurry (DMatch (Just r) i)
         <$> emitDataMatching r rns grpr grpn rec ctx cs df
   | Just (i, BX) <- ctxResolve ctx v,
     MatchRec (ANF.RecordSchema fields) (TAbss vs bd) <- bs = do
@@ -1566,7 +1568,7 @@ emitSection rns grpr grpn rec ctx (TMatch v bs)
   | Just (i, BX) <- ctxResolve ctx v,
     MatchRequest hs0 df <- bs,
     hs <- mapFromList $ first (dnum rns) <$> hs0 =
-      uncurry (RMatch i)
+      (\(pu, ns, bs) -> RMatch i pu ns bs)
         <$> emitRequestMatching rns grpr grpn rec ctx hs df
   | Just (i, UN) <- ctxResolve ctx v,
     MatchIntegral cs df <- bs =
@@ -2054,10 +2056,11 @@ emitDataMatching ::
   Ctx v ->
   EnumMap CTag ([Mem], RNormal v) ->
   Maybe (RNormal v) ->
-  Emit Branch
+  Emit (EnumMap Word64 Int, Branch)
 emitDataMatching r rns grpr grpn rec ctx cs df =
-  mkBranch <$> edf <*> traverse (emitCase rns grpr grpn rec ctx) (coerce cs)
+  (\d bs -> (fmap armCount cs', mkBranch d bs)) <$> edf <*> traverse (emitCase rns grpr grpn rec ctx) cs'
   where
+    cs' = coerce cs
     -- Note: this is not really accurate. A default data case needs
     -- stack space corresponding to the actual data that shows up there.
     -- However, we currently don't use default cases for data.
@@ -2095,11 +2098,12 @@ emitRequestMatching ::
   Ctx v ->
   EnumMap Word64 (EnumMap CTag ([Mem], RNormal v)) ->
   RNormal v ->
-  Emit (Section, EnumMap Word64 Branch)
-emitRequestMatching rns grpr grpn rec ctx hs df = (,) <$> pur <*> tops
+  Emit (Section, EnumMap Word64 (EnumMap Word64 Int), EnumMap Word64 Branch)
+emitRequestMatching rns grpr grpn rec ctx hs df = (,,) <$> pur <*> pure (fmap (fmap armCount) hs') <*> tops
   where
+    hs' = coerce hs
     pur = emitCase rns grpr grpn rec ctx ([BX], df)
-    tops = traverse f (coerce hs)
+    tops = traverse f hs'
     f cs = mkBranch edf <$> traverse (emitCase rns grpr grpn rec ctx) cs
     edf = Die "unhandled ability"
 
@@ -2135,6 +2139,16 @@ emitCase ::
   Emit Section
 emitCase rns grpr grpn rec ctx (ccs, TAbss vs bo) =
   emitSection rns grpr grpn rec (pushCtx (zip vs ccs) ctx) bo
+
+-- | How many fields a match arm binds: the number of slots 'emitCase' lays
+-- the arm's context out with. A data or request match records this count
+-- for each arm ('DMatch', 'RMatch'), because it is the one thing about an
+-- arm that the object being matched cannot say: the interpreter pushes
+-- the object's own fields, and native code reads the object's count (its
+-- pointer tag, or the lengths of a wide constructor's arrays) and takes
+-- the arm only when the two agree.
+armCount :: (Var v) => ([Mem], RNormal v) -> Int
+armCount (ccs, TAbss vs _) = length (zip vs ccs)
 
 emitSumCase ::
   (Var v) =>
@@ -2222,8 +2236,8 @@ sectionDeps :: GSection comb -> [Word64]
 sectionDeps (App _ (Env (CIx _ w _) _) _) = [w]
 sectionDeps (Call _ (CIx _ w _) _ _) = [w]
 sectionDeps (Match _ br) = branchDeps br
-sectionDeps (DMatch _ _ br) = branchDeps br
-sectionDeps (RMatch _ pu br) =
+sectionDeps (DMatch _ _ _ br) = branchDeps br
+sectionDeps (RMatch _ pu _ br) =
   sectionDeps pu ++ foldMap branchDeps br
 sectionDeps (NMatch _ _ br) = branchDeps br
 sectionDeps (Ins i s)
@@ -2237,9 +2251,9 @@ sectionTypes :: GSection comb -> [Word64]
 sectionTypes (Ins i s) = instrTypes i ++ sectionTypes s
 sectionTypes (Let s _ _ b _) = sectionTypes s ++ sectionTypes b
 sectionTypes (Match _ br) = branchTypes br
-sectionTypes (DMatch _ _ br) = branchTypes br
+sectionTypes (DMatch _ _ _ br) = branchTypes br
 sectionTypes (NMatch _ _ br) = branchTypes br
-sectionTypes (RMatch _ pu br) =
+sectionTypes (RMatch _ pu _ br) =
   sectionTypes pu ++ foldMap branchTypes br
 sectionTypes _ = []
 
@@ -2330,9 +2344,11 @@ prettySection ind sec =
         . prettySection ind b
     Die s -> showString $ "Die " ++ s
     Exit -> showString "Exit"
-    DMatch _ i bs ->
+    DMatch _ i ns bs ->
       showString "DMatch "
         . shows i
+        . showString " "
+        . shows (mapToList ns)
         . showString "\n"
         . prettyBranches (ind + 1) bs
     NMatch _ i bs ->
@@ -2340,9 +2356,11 @@ prettySection ind sec =
         . shows i
         . showString "\n"
         . prettyBranches (ind + 1) bs
-    RMatch i pu bs ->
+    RMatch i pu ns bs ->
       showString "RMatch "
         . shows i
+        . showString " "
+        . shows (fmap mapToList ns)
         . showString "\nPUR ->\n"
         . prettySection (ind + 1) pu
         . foldr (\p r -> rqc p . r) id (mapToList bs)
@@ -2440,9 +2458,9 @@ sanitizeSection sandboxedForeigns section = case section of
   Let s i f b c -> Let (sanitizeSection sandboxedForeigns s) i f (sanitizeSection sandboxedForeigns b) c
   Die {} -> section
   Exit -> section
-  DMatch i j bs -> DMatch i j (sanitizeBranches sandboxedForeigns bs)
+  DMatch i j ns bs -> DMatch i j ns (sanitizeBranches sandboxedForeigns bs)
   NMatch i j bs -> NMatch i j (sanitizeBranches sandboxedForeigns bs)
-  RMatch i s bs -> RMatch i (sanitizeSection sandboxedForeigns s) (fmap (sanitizeBranches sandboxedForeigns) bs)
+  RMatch i s ns bs -> RMatch i (sanitizeSection sandboxedForeigns s) ns (fmap (sanitizeBranches sandboxedForeigns) bs)
 
 sanitizeBranches :: Set ForeignFunc -> GBranch CombIx -> GBranch CombIx
 sanitizeBranches sandboxedForeigns = \case

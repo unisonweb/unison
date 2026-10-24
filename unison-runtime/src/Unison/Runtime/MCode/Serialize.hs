@@ -123,12 +123,13 @@ putSection = \case
       <> putSection bd
   Die s -> putTag DieT <> putString s
   Exit -> putTag ExitT
-  DMatch mr i b -> putTag DMatchT <> putMaybe mr putReference <> pInt i <> putBranch b
+  DMatch mr i ns b -> putTag DMatchT <> putMaybe mr putReference <> pInt i <> putEnumMap pWord pInt ns <> putBranch b
   NMatch mr i b -> putTag NMatchT <> putMaybe mr putReference <> pInt i <> putBranch b
-  RMatch i pu bs ->
+  RMatch i pu ns bs ->
     putTag RMatchT
       <> pInt i
       <> putSection pu
+      <> putEnumMap pWord (putEnumMap pWord pInt) ns
       <> putEnumMap pWord putBranch bs
 
 getSection :: (PrimBase m) => Get m Section
@@ -148,10 +149,10 @@ getSection =
       Let <$> getSection <*> getCombIx <*> gInt <*> getSection <*> pure noNativeCell
     DieT -> Die <$> getString
     ExitT -> pure Exit
-    DMatchT -> DMatch <$> getMaybe getReference <*> gInt <*> getBranch
+    DMatchT -> DMatch <$> getMaybe getReference <*> gInt <*> getEnumMap gWord gInt <*> getBranch
     NMatchT -> NMatch <$> getMaybe getReference <*> gInt <*> getBranch
     RMatchT ->
-      RMatch <$> gInt <*> getSection <*> getEnumMap gWord getBranch
+      RMatch <$> gInt <*> getSection <*> getEnumMap gWord (getEnumMap gWord gInt) <*> getEnumMap gWord getBranch
 
 data InstrT
   = Prim1T

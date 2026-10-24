@@ -86,7 +86,7 @@ mapFirstInstr f = fst . go
       Let bnd cix fs body cell ->
         let (bnd', done) = go bnd
          in if done then (Let bnd' cix fs body cell, True) else let (body', d2) = go body in (Let bnd cix fs body' cell, d2)
-      DMatch r i br -> let (br', done) = goB br in (DMatch r i br', done)
+      DMatch r i ns br -> let (br', done) = goB br in (DMatch r i ns br', done)
       NMatch r i br -> let (br', done) = goB br in (NMatch r i br', done)
       Match i br -> let (br', done) = goB br in (Match i br', done)
       s -> (s, False)
@@ -162,7 +162,7 @@ test =
           Let bnd cix fs body cell ->
             let (bnd', done) = go bnd
              in if done then (Let bnd' cix fs body cell, True) else let (body', d2) = go body in (Let bnd cix fs body' cell, d2)
-          DMatch r i br -> let (br', done) = goB br in (DMatch r i br', done)
+          DMatch r i ns br -> let (br', done) = goB br in (DMatch r i ns br', done)
           NMatch r i br -> let (br', done) = goB br in (NMatch r i br', done)
           Match i br -> let (br', done) = goB br in (Match i br', done)
           s -> (s, False)

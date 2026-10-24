@@ -782,13 +782,13 @@ eval' !yld env henv !activeThreads !stk !k r (Match i (TestY df cs)) = do
 eval' !yld env henv !activeThreads !stk !k r (Match i br) = do
   n <- peekOffN stk i
   eval yld env henv activeThreads stk k r $ selectBranch n br
-eval' !yld env henv !activeThreads !stk !k r (DMatch mr i br) = do
+eval' !yld env henv !activeThreads !stk !k r (DMatch mr i _ br) = do
   (nx, stk) <- dataBranch mr stk br =<< bpeekOff stk i
   eval yld env henv activeThreads stk k r nx
 eval' !yld env henv !activeThreads !stk !k r (NMatch _mr i br) = do
   n <- peekOffN stk i
   eval yld env henv activeThreads stk k r $ selectBranch n br
-eval' !yld env henv !activeThreads !stk !k r (RMatch i pu br) = do
+eval' !yld env henv !activeThreads !stk !k r (RMatch i pu _ br) = do
   (t, stk) <- dumpDataValNoTag stk =<< peekOff stk i
   if t == TT.pureEffectTag
     then eval yld env henv activeThreads stk k r pu

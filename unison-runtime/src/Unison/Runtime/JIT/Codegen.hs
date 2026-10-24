@@ -773,10 +773,10 @@ liveAt env base = go
       Jump i args -> slotAt d i <+> argReads base d args
       Match i br -> slotAt d i <+> arms d br
       NMatch _ i br -> slotAt d i <+> arms d br
-      DMatch mr i br -> slotAt d i <+> dataArms d (mr >>= \r -> Map.lookup r (envTypes env)) br
+      DMatch mr i _ br -> slotAt d i <+> dataArms d (mr >>= \r -> Map.lookup r (envTypes env)) br
       -- the pure request has one field, the value; a request arm pushes
       -- its constructor's fields
-      RMatch i pu br ->
+      RMatch i pu _ br ->
         slotAt d i
           <+> go (d + 1) pu
           <+> foldr (\(e, gb) acc -> dataArms d (EC.lookup e (envAbilities env)) gb <+> acc) (Just IS.empty) (EC.mapToList br)
@@ -1280,7 +1280,7 @@ makesCalls = \case
   Let {} -> True
   Ins _ rest -> makesCalls rest
   Match _ br -> anyArm makesCalls br
-  DMatch _ _ br -> anyArm makesCalls br
+  DMatch _ _ _ br -> anyArm makesCalls br
   NMatch _ _ br -> anyArm makesCalls br
   _ -> False
 
@@ -1293,7 +1293,7 @@ makesTailCalls = \case
   Let b _ _ body _ -> makesTailCalls b || makesTailCalls body
   Ins _ rest -> makesTailCalls rest
   Match _ br -> anyArm makesTailCalls br
-  DMatch _ _ br -> anyArm makesTailCalls br
+  DMatch _ _ _ br -> anyArm makesTailCalls br
   NMatch _ _ br -> anyArm makesTailCalls br
   _ -> False
 
@@ -1304,7 +1304,7 @@ anyInstr p = go
       Ins i rest -> p i || go rest
       Let b _ _ body _ -> go b || go body
       Match _ br -> anyArm go br
-      DMatch _ _ br -> anyArm go br
+      DMatch _ _ _ br -> anyArm go br
       NMatch _ _ br -> anyArm go br
       _ -> False
 
@@ -1330,7 +1330,7 @@ workerShape = \case
     _ -> False
   Ins _ rest -> workerShape rest
   Match _ br -> branches br
-  DMatch _ _ br -> branches br
+  DMatch _ _ _ br -> branches br
   NMatch _ _ br -> branches br
   Let _ _ _ body _ -> workerShape body
   -- calls, and whatever exits
@@ -1460,7 +1460,7 @@ freePath = \case
   Ins i rest -> exitFree i && freePath rest
   Match _ br -> plainBranch br && anyArm freePath br
   NMatch _ _ br -> plainBranch br && anyArm freePath br
-  DMatch _ _ br -> plainBranch br && anyArm freePath br
+  DMatch _ _ _ br -> plainBranch br && anyArm freePath br
   _ -> False
 
 -- | Instructions whose native code has no exit.
@@ -1510,7 +1510,7 @@ checkFree d = \case
   Match _ br -> pure (plainBranch br)
   NMatch _ _ br -> pure (plainBranch br)
   -- a boolean still in a register: one branch, no closure to look at
-  DMatch _ i br -> do
+  DMatch _ i _ br -> do
     kind <- slotKind (d - i)
     pure (kind /= Nothing && plainBranch br)
   _ -> pure False
@@ -1924,12 +1924,12 @@ genSectionFull fe d sect = case sect of
   Match i br -> do
     x <- loadU (d - i)
     genBranch fe d x br sect
-  DMatch mr i br -> genDMatch fe d i mr br sect
+  DMatch mr i _ br -> genDMatch fe d i mr br sect
   NMatch _ i br -> do
     x <- loadU (d - i)
     genBranch fe d x br sect
   Let binding bcix f body cell -> genLet fe d binding bcix f body cell sect
-  RMatch i pu br | on "requests" -> genRMatch fe d i pu br sect
+  RMatch i pu _ br | on "requests" -> genRMatch fe d i pu br sect
   -- the interpreter takes these: a request match with requests disabled,
   -- the slow call path with it disabled, a jump to a continuation, and the
   -- two ways a function stops
