@@ -51,3 +51,45 @@ in both runs, which is at the edge of their day-to-day variation.
 | 4.216646ms | 4.187468ms | 4.206884ms | 1.00× | handle installed per iteration, 10000 iterations |
 | 8.646934ms | 7.903912ms | 7.917331ms | 0.92× | Store whose put requests an outer Counter, 100000 iterations |
 | 450.714µs | 470.624µs | 470.031µs | 1.04× | Bytes: decodeNat64be walk over 80000 bytes |
+
+## Phase 2: the MCode verifier
+
+The verifier runs once per group at load time, so the suite's timings can't see it; the one
+generated-code change is the packed-tag compare in a lone wide-constructor arm, which the suite's
+types (the tree's `Node` has four fields, a `GData4`) never take. Same build settings, two runs
+against phase 1's run 2. Every row is within noise.
+
+| phase 1 | run 1 | run 2 | run 2 / phase 1 | Benchmark |
+| --- | --- | --- | --- | --- |
+| 318.455µs | 318.502µs | 318.5µs | 1.00× | Sum 0 to 1 million |
+| 35.402µs | 35.316µs | 35.303µs | 1.00× | fib 20 |
+| 13.714µs | 13.544µs | 13.508µs | 0.98× | Cons list: map with a lambda (1000 elements) |
+| 4.818µs | 4.823µs | 4.836µs | 1.00× | Cons list: foldLeft with a lambda (1000 elements) |
+| 89.338µs | 88.461µs | 88.689µs | 0.99× | Binary tree: 1000 inserts |
+| 16.332µs | 16.366µs | 16.244µs | 0.99× | Binary tree: 1000 lookups |
+| 57.628µs | 57.642µs | 58.192µs | 1.01× | Apply a function argument 10000 times |
+| 34.297µs | 34.238µs | 34.629µs | 1.01× | Mutate a Ref 10000 times |
+| 66.31µs | 66.317µs | 66.943µs | 1.01× | Calls across definitions: Collatz steps for 1 to 1000 |
+| 118.132µs | 117.898µs | 117.966µs | 1.00× | Calls across definitions: callee first reached once the caller is hot, 100000 iterations |
+| 201.855µs | 206.674µs | 202.882µs | 1.01× | Text: append "hi" 10000 times |
+| 1.908903ms | 1.898728ms | 1.909619ms | 1.00× | Text: drop 1, 100000 times |
+| 197.649µs | 198.209µs | 199.169µs | 1.01× | Bytes: append 2 bytes 10000 times |
+| 1.81765ms | 1.856779ms | 1.78908ms | 0.98× | Bytes: drop 1, 100000 times |
+| 2.136546ms | 2.102471ms | 2.108839ms | 0.99× | Bytes: at, 100000 times |
+| 3.303775ms | 3.301078ms | 3.316181ms | 1.00× | Text: uncons walk over 100000 characters |
+| 289.559µs | 288.177µs | 293.611µs | 1.01× | List: cons 10000 elements, then a pattern walk |
+| 146.926µs | 144.161µs | 144.216µs | 0.98× | List: at, 10000 times |
+| 704.134µs | 704.141µs | 708.681µs | 1.01× | Nat.toText and Nat.fromText, 10000 times |
+| 1.001483ms | 1.002066ms | 1.002995ms | 1.00× | Float: sqrt, sin, cos, arithmetic and conversions, 100000 times |
+| 485.914µs | 485.734µs | 485.973µs | 1.00× | MutableByteArray: 4 writes and 6 reads, both byte orders, 100000 times |
+| 538.041µs | 538.305µs | 539.336µs | 1.00× | FFI.Ptr: 4 writes and 6 reads, 100000 times |
+| 45.129µs | 44.006µs | 43.922µs | 0.97× | MutableArray: fill, freeze and sum 10000 elements |
+| 127.28µs | 127.102µs | 128.059µs | 1.01× | Ref.cas loop, 10000 times |
+| 275.517µs | 277.97µs | 280.085µs | 1.02× | murmurHashUntyped of Some (i, "x"), 10000 times |
+| 7.609693ms | 7.508187ms | 7.503515ms | 0.99× | Records: a literal, an update, a pattern and two getters, 100000 times |
+| 5.002528ms | 4.975328ms | 4.988037ms | 1.00× | Records: a 16-field literal and four getters, 100000 times |
+| 2.550305ms | 2.58206ms | 2.5714ms | 1.01× | Counter: 100000 requests |
+| 4.902871ms | 4.922131ms | 4.924062ms | 1.00× | Store: get and put, 100000 iterations |
+| 4.206884ms | 4.203215ms | 4.206575ms | 1.00× | handle installed per iteration, 10000 iterations |
+| 7.917331ms | 7.930878ms | 7.989378ms | 1.01× | Store whose put requests an outer Counter, 100000 iterations |
+| 470.031µs | 452.025µs | 454.728µs | 0.97× | Bytes: decodeNat64be walk over 80000 bytes |
