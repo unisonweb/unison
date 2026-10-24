@@ -52,8 +52,9 @@ import Unison.Runtime.ANF.Optimize (OptInfos)
 import Unison.Runtime.Builtin
 import Unison.Runtime.Exception qualified as Exception
 import Unison.Runtime.InternalError (CompileExn (CE), internalBug)
-import Unison.Runtime.JIT (JIT, initialNativeCount)
+import Unison.Runtime.JIT (JIT, initialNativeCount, registerDataTypes, registerTypeNumbers)
 import Unison.Runtime.MCode
+import Unison.Runtime.Pattern (builtinDataSpec)
 import Unison.Runtime.Profiling
 import Unison.Runtime.Referenced
 import Unison.Runtime.Stack
@@ -218,6 +219,11 @@ initialNativeCells = 16384
 
 baseCCache :: JIT -> Bool -> IO (CCache ())
 baseCCache jit sandboxed = do
+  -- Every cache knows the builtin types: the code verifier (MCode.Verify)
+  -- checks constructor arities against what the JIT has registered, and
+  -- the interface registers the rest as it loads them.
+  registerDataTypes jit (fmap (either id id) builtinDataSpec)
+  registerTypeNumbers jit (EC.mapFromList [(n, r) | (r, n) <- M.toList builtinTypeNumbering])
   -- The builtin combinators get native code cells like any loaded code, so
   -- that the JIT can compile the ones that are worth it and native code
   -- can call them (docs/jit/m6.md, step 4).

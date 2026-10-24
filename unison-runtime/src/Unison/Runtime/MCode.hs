@@ -77,6 +77,7 @@ module Unison.Runtime.MCode
     argsToLists,
     argsToArgs',
     countArgs,
+    pushCount,
     combRef,
     combDeps,
     combTypes,
@@ -2439,3 +2440,41 @@ sanitizeBranches sandboxedForeigns = \case
   TestW d m -> TestW (sanitizeSection sandboxedForeigns d) (fmap (sanitizeSection sandboxedForeigns) m)
   TestT d m -> TestT (sanitizeSection sandboxedForeigns d) (fmap (sanitizeSection sandboxedForeigns) m)
   TestY d m -> TestY (sanitizeSection sandboxedForeigns d) (fmap (sanitizeSection sandboxedForeigns) m)
+
+-- | How many slots an instruction pushes onto the frame, or Nothing where
+-- the interpreter takes over from here (a capture, a sandboxing failure).
+-- The one account of an instruction's effect on the frame: the JIT's code
+-- generator lays frames out by it and the verifier (MCode.Verify) checks
+-- frame sizes and slot indices by it, so the two cannot disagree.
+pushCount :: GInstr comb -> Maybe Int
+pushCount = \case
+  Prim1 LOAD _ -> Just 2 -- a tag and the value
+  Prim1 _ _ -> Just 1
+  Prim2 TRCE _ _ -> Just 0
+  Prim2 THRO _ _ -> Just 0 -- never returns
+  Prim2 _ _ _ -> Just 1
+  RefCAS {} -> Just 1
+  ForeignCall {} -> Just 1
+  DLLCall -> Just 1
+  SetAff {} -> Just 0
+  Capture _ -> Nothing
+  Discard _ -> Nothing
+  Name _ _ -> Just 1
+  Info _ -> Just 0
+  Pack {} -> Just 1
+  RecPack {} -> Just 1
+  RecUnpack fields _ -> Just (V.length fields)
+  RecSet {} -> Just 1
+  Lit _ -> Just 1
+  Print _ -> Just 0
+  Reset {} -> Just 0
+  InLocal _ -> Just 0
+  Fork _ -> Just 1
+  Atomically _ -> Just 1
+  Seq _ -> Just 1
+  TryForce _ -> Just 1
+  SandboxingFailure _ -> Nothing
+  KeepAlive _ -> Just 0
+  NewForeignPtr _ _ -> Just 1
+  AddFinalizer _ _ -> Just 0
+  MkCallback _ _ -> Just 1

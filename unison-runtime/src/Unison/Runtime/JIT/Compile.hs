@@ -375,8 +375,8 @@ deferredUnit parent d =
 -- again: a cell's count reaches zero once. When @lazy@, the re-entry
 -- functions that are only needed when something exits are not generated:
 -- they become pending units (see 'pending').
-compileUnits :: Compiler -> JITState -> Map.Map Reference [Int] -> EC.EnumMap Word64 [Int] -> String -> Bool -> [Unit] -> IO ()
-compileUnits c st types abilities modName lazy candidates = do
+compileUnits :: Compiler -> JITState -> Map.Map Reference [Int] -> EC.EnumMap Word64 [Int] -> EC.EnumMap Word64 Reference -> String -> Bool -> [Unit] -> IO ()
+compileUnits c st types abilities numbers modName lazy candidates = do
   let config = cConfig c
   t0 <- getMonotonicTimeNSec
   judged <- forM candidates $ \u -> (,) u <$> judge config (uCell u) (uSection u)
@@ -396,11 +396,12 @@ compileUnits c st types abilities modName lazy candidates = do
   let gen u e = uGen u (uName u) e
       typeArities = Map.map D.fromList types
       abilityArities = fmap D.fromList abilities
+      typeNumbers = Map.fromList [(r, n) | (n, r) <- EC.mapToList numbers]
       disabledD = D.fromList (map UT.pack (disabled config))
       -- a private copy gets internal linkage, so that LLVM drops it once it
       -- is inlined at every call
       env local workers u (base, fbase, cells) =
-        CG.Env (jsLayouts st) (jsCtx st) base fbase (stressPoll config > 0) (stressCallee config > 0) (exitCall config) (uCombs u) poolIxs (jsRts st) typeArities abilityArities cells disabledD lazy (Map.findWithDefault Map.empty (uRoot u) memos) local workers (uSandboxed u) (uCopy u) (CG.switches config) (poolStableSize (cPool c))
+        CG.Env (jsLayouts st) (jsCtx st) base fbase (stressPoll config > 0) (stressCallee config > 0) (exitCall config) (uCombs u) poolIxs (jsRts st) typeArities abilityArities typeNumbers cells disabledD lazy (Map.findWithDefault Map.empty (uRoot u) memos) local workers (uSandboxed u) (uCopy u) (CG.switches config) (poolStableSize (cPool c))
       -- The functions that get a worker: calls to them from this module
       -- pass arguments and results in registers (design.md, "Workers").
       workersOf us

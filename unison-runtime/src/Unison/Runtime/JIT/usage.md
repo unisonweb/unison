@@ -64,7 +64,7 @@ The rest are tuning and debugging knobs. They are documented in [`Config.hs`](Co
 - *Compilation policy:* `UNISON_JIT_BATCH` (definitions per module, 32), `UNISON_JIT_BATCH_GATE` and `UNISON_JIT_SIZE_UNIT` (which neighbours join a batch), `UNISON_JIT_COPY` (inlining compiled callees), `UNISON_JIT_REENTRY_WAIT` (ms), `UNISON_JIT_REENTRY_ADHOC` (re-entry functions a definition may get because of the poll or stack growth rather than its code, 3), `UNISON_JIT_EXIT_COST` and `UNISON_JIT_ENTRY_COST` (the estimate that leaves exit-heavy or tiny functions interpreted; `0` compiles everything).
 - *LLVM:* `UNISON_JIT_PASSES` (the optimization pipeline), `UNISON_JIT_CODEGEN_LEVEL` (0 to 3), `UNISON_JIT_INLINE_THRESHOLD`, `UNISON_JIT_SCHED` (keep LLVM's machine schedulers on), `UNISON_JIT_LLVM_OPTS` (any further LLVM options).
 - *Alternative mechanisms, for comparison:* `UNISON_JIT_EXITS=blocks`, `UNISON_JIT_BUMP=0`.
-- *Debugging:* `UNISON_JIT_DUMP_MCODE=1`, `UNISON_JIT_TRACE=1`, `UNISON_JIT_TRACE_YIELD=1`, `UNISON_JIT_TRACE_TEST=1`, `UNISON_JIT_STATS_EVERY=N`, `UNISON_JIT_STRESS=...` (force the rare paths, for tests) and `UNISON_JIT_DISABLE=...` (turn features off one at a time, for bisecting).
+- *Debugging:* `UNISON_JIT_DUMP_MCODE=1`, `UNISON_JIT_TRACE=1`, `UNISON_JIT_TRACE_YIELD=1`, `UNISON_JIT_TRACE_TEST=1`, `UNISON_JIT_STATS_EVERY=N`, `UNISON_JIT_STRESS=...` (force the rare paths, for tests), `UNISON_JIT_DISABLE=...` (turn features off one at a time, for bisecting) and `UNISON_MCODE_VERIFY=warn|off` (report instead of refusing, or skip, the check every loaded definition and decoded value gets against the type declarations; it runs with the JIT off too).
 
 ## What to expect
 

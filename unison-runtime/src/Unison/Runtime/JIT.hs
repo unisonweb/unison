@@ -3,6 +3,8 @@
 module Unison.Runtime.JIT
   ( JIT,
     newJIT,
+    declaredTypes,
+    typeNumbers,
     readConfig,
     jitConfig,
     jitExits,
@@ -151,19 +153,28 @@ stackSlots = fromMaybe defaultStackSlots . stressStack . jitConfig
 
 -- | Records the constructor arities of some data types. Called by the
 -- interface whenever it learns about types, before their code is loaded.
+-- Kept in every mode: the code verifier (MCode.Verify) reads it whether
+-- or not anything is compiled.
 registerDataTypes :: JIT -> Map.Map Reference [Int] -> IO ()
-registerDataTypes jit m = case mode (jitConfig jit) of
-  Off -> pure ()
-  _ -> atomicModifyIORef' (jitDataTypes jit) (\old -> (Map.union m old, ()))
+registerDataTypes jit m = atomicModifyIORef' (jitDataTypes jit) (\old -> (Map.union m old, ()))
 
 -- | Records the type numbering of the code cache. Called when types are
 -- numbered: for the builtins at startup, and whenever code is loaded.
 registerTypeNumbers :: JIT -> EC.EnumMap Word64 Reference -> IO ()
-registerTypeNumbers jit m = case mode (jitConfig jit) of
-  Off -> pure ()
-  _ -> atomicModifyIORef' (jitTypeNumbers jit) (\old -> (m <> old, ()))
+registerTypeNumbers jit m = atomicModifyIORef' (jitTypeNumbers jit) (\old -> (m <> old, ()))
 
 -- | The constructor arities of the types known so far, by type number.
+-- | The constructor arities of every data type and ability declared to
+-- the runtime so far (the data specs the loader registers), for the code
+-- verifier (MCode.Verify) and the generator.
+declaredTypes :: JIT -> IO (Map.Map Reference [Int])
+declaredTypes = readIORef . jitDataTypes
+
+-- | The type reference each type number stands for, as the cache numbers
+-- them.
+typeNumbers :: JIT -> IO (EC.EnumMap Word64 Reference)
+typeNumbers = readIORef . jitTypeNumbers
+
 abilityArities :: JIT -> Map.Map Reference [Int] -> IO (EC.EnumMap Word64 [Int])
 abilityArities jit types = do
   nums <- readIORef (jitTypeNumbers jit)
@@ -315,8 +326,9 @@ jitCompileGroup jit sandbox ref grp cmbs = case mode (jitConfig jit) of
       Just st -> do
         types <- readIORef (jitDataTypes jit)
         abilities <- abilityArities jit types
+        numbers <- readIORef (jitTypeNumbers jit)
         (now, _) <- groupUnits (jitCompiler jit) sandbox False ref grp cmbs
-        guarded (jitConfig jit) ("unison_" ++ show grp) (compileUnits (jitCompiler jit) st types abilities ("unison_" ++ show grp) False now)
+        guarded (jitConfig jit) ("unison_" ++ show grp) (compileUnits (jitCompiler jit) st types abilities numbers ("unison_" ++ show grp) False now)
   _ -> pure ()
 
 -- ---------------------------------------------------------------------------
@@ -499,9 +511,9 @@ compileThread jit = do
       flush held = do
         r <-
           try
-            ( withState initialized $ \st types abilities -> do
+            ( withState initialized $ \st types abilities numbers -> do
                 let name = "unison_" ++ unitName (last held) ++ "_x" ++ show (length held)
-                guarded config name (compileUnits c st types abilities name True (reverse held))
+                guarded config name (compileUnits c st types abilities numbers name True (reverse held))
                 forM_ held (dropPending c)
             )
         case r of
@@ -519,9 +531,10 @@ compileThread jit = do
         Just st -> do
           types <- readIORef (jitDataTypes jit)
           abilities <- abilityArities jit types
-          k st types abilities
+          numbers <- readIORef (jitTypeNumbers jit)
+          k st types abilities numbers
     serve initialized callersRef req =
-      withState initialized $ \st types abilities -> do
+      withState initialized $ \st types abilities numbers -> do
         case req of
           ReqGroup grp sandbox t0 find -> do
             when (logging config) $ do
@@ -545,9 +558,9 @@ compileThread jit = do
               -- pending before the groups' code can exit to them
               forM_ (concat later) (addPending c)
               copies <- copyCandidates sandbox cache refs members
-              guarded config ("unison_" ++ show grp) (compileUnits c st types abilities ("unison_" ++ show grp) True (concat now ++ copies))
+              guarded config ("unison_" ++ show grp) (compileUnits c st types abilities numbers ("unison_" ++ show grp) True (concat now ++ copies))
           ReqUnit u -> do
-            guarded config (unitName u) (compileUnits c st types abilities ("unison_" ++ unitName u) True [u])
+            guarded config (unitName u) (compileUnits c st types abilities numbers ("unison_" ++ unitName u) True [u])
             dropPending c u
     -- The definitions to compile together with one that got hot, so that
     -- calls between them are direct and LLVM can inline across them. The

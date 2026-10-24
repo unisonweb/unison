@@ -25,6 +25,8 @@ module Unison.Runtime.Machine
     refNumsTm,
     refNumsTy,
     reifyValue,
+    verifyEnvFrom,
+    combInfoOf,
     resolveSection,
   )
 where
@@ -79,7 +81,7 @@ import Unison.Runtime.ANF as ANF
   )
 import Unison.Runtime.ANF qualified as ANF
 import Unison.Runtime.ANF.Optimize qualified as ANF
-import Unison.Runtime.JIT (initialNativeCount, jitCompileGroup, jitConfig, jitExits, jitFrames, jitPool, jitRequestCell, jitRequestGroup, jitStats, jitTracing, noteAdHocExit, noteOutput, printJITStats, registerTypeNumbers, stackSlots)
+import Unison.Runtime.JIT (declaredTypes, initialNativeCount, jitCompileGroup, jitConfig, jitExits, jitFrames, jitPool, jitRequestCell, jitRequestGroup, jitStats, jitTracing, noteAdHocExit, noteOutput, printJITStats, registerTypeNumbers, stackSlots)
 import Unison.Runtime.JIT.Config qualified as JIT
 import Unison.Runtime.JIT.Exits
 import Unison.Runtime.JIT.Frames
@@ -92,6 +94,9 @@ import Unison.Runtime.ANF.Serialize (serializeCode, deserializeCode)
 #endif
 import Data.Text qualified as Text
 import Data.Vector qualified as V
+import System.Environment (lookupEnv)
+import System.IO (hPutStrLn, stderr)
+import System.IO.Unsafe (unsafePerformIO)
 import Unison.Runtime.Array as PA
 import Unison.Runtime.Builtin hiding (unitValue)
 import Unison.Runtime.Exception (RuntimeExn (BU, PE), die, exn)
@@ -107,6 +112,7 @@ import Unison.Runtime.Foreign.Function
     writeBack,
   )
 import Unison.Runtime.MCode
+import Unison.Runtime.MCode.Verify
 import Unison.Runtime.Machine.Primops
 import Unison.Runtime.Machine.Types
 import Unison.Runtime.Profiling
@@ -125,7 +131,6 @@ import UnliftIO.Concurrent qualified as UnliftIO
 
 #ifdef STACK_CHECK
 import Unison.Debug qualified as Debug
-import System.IO.Unsafe (unsafePerformIO)
 #endif
 
 #ifdef OPT_CHECK
@@ -1915,14 +1920,21 @@ cacheAdd0 ntys0 (normalizeCodes -> termSuperGroups) sands cc = go
     -- many cells it needs; the pool is grown outside the transaction and
     -- the whole thing is tried again.
     go = do
-      result <- atomically transaction
+      types <- declaredTypes (jit cc)
+      result <- atomically (transaction types)
       case result of
-        Left needed -> do
+        -- the code says something about itself the declarations contradict
+        -- (MCode.Verify); nothing of it was installed
+        Left (Left e) -> die [] (renderVerifyError e)
+        Left (Right needed) -> do
           pool <- readTVarIO (nativeCells cc)
           pool' <- growNativeCellPool (initialNativeCount (jit cc)) needed pool
           atomically $ writeTVar (nativeCells cc) pool'
           go
-        Right (unresolvedCacheableCombs, unresolvedNonCacheableCombs, newCombs, newCombRefs) -> do
+        Right (unresolvedCacheableCombs, unresolvedNonCacheableCombs, newCombs, newCombRefs, verified) -> do
+          -- under UNISON_MCODE_VERIFY=warn a failure is reported here, the
+          -- code having been loaded anyway
+          for_ (either Just (const Nothing) verified) $ \e -> hPutStrLn stderr ("[verify] " ++ renderVerifyError e)
           readTVarIO (tagRefs cc) >>= registerTypeNumbers (jit cc)
           when (JIT.dumpMCode (jitConfig (jit cc))) $
             for_ (EC.mapToList (unresolvedCacheableCombs <> unresolvedNonCacheableCombs)) \(w, cmbs) ->
@@ -1931,7 +1943,7 @@ cacheAdd0 ntys0 (normalizeCodes -> termSuperGroups) sands cc = go
             for_ (EC.lookup w newCombRefs) \r -> jitCompileGroup (jit cc) (sandboxed cc) r w cmbs
           preEvalTopLevelConstants unresolvedCacheableCombs unresolvedNonCacheableCombs cc
 
-    transaction = do
+    transaction types = do
       have <- readTVar (intermed cc)
       haveRecSchemas <- readTVar (recordRefs cc)
       let new = M.difference toAdd have
@@ -1982,10 +1994,30 @@ cacheAdd0 ntys0 (normalizeCodes -> termSuperGroups) sands cc = go
             sanitizeCombsOfForeignFuncs (sandboxed cc) sandboxedForeignFuncs $
               mapFromList emittedCombs
           (cellCount, _) = attachNativeCells nullPtr uncelled
+      -- Before anything is installed, the new code is checked against the
+      -- declarations: constructor arities, slot indices, frame sizes, call
+      -- arities (MCode.Verify). Code from a typechecked codebase passes;
+      -- this is for code that came some other way.
+      oldCombs <- readTVar (combs cc)
+      trs <- readTVar (tagRefs cc)
+      let venv =
+            verifyEnvFrom
+              types
+              (flip M.lookup rty)
+              (flip M.lookup rtm)
+              (flip EC.lookup trs)
+              ( \(CIx _ g i) -> case EC.lookup g uncelled >>= EC.lookup i of
+                  Just c -> combInfoOf c
+                  Nothing -> EC.lookup g oldCombs >>= EC.lookup i >>= combInfoOf
+              )
+          verified
+            | verifyMode == "off" = Right ()
+            | otherwise = mapM_ (\(g, cmbs) -> maybe (Right ()) (\r -> verifyGroup venv r g cmbs) (EC.lookup g combRefUpdates)) (EC.mapToList uncelled)
       pool <- readTVar (nativeCells cc)
-      case takeNativeCells cellCount pool of
-        Nothing -> pure (Left cellCount)
-        Just (cells, pool') -> do
+      case (verified, takeNativeCells cellCount pool) of
+        (Left e, _) | verifyMode == "fail" -> pure (Left (Left e))
+        (_, Nothing) -> pure (Left (Right cellCount))
+        (_, Just (cells, pool')) -> do
           -- Everything is in hand. From here on the transaction only writes.
           writeTVar (nativeCells cc) pool'
           int' <- updateMap new (intermed cc)
@@ -2011,7 +2043,7 @@ cacheAdd0 ntys0 (normalizeCodes -> termSuperGroups) sands cc = go
           writeTVar (recordFieldMappings cc) newRFMs
           -- Now that the code cache is primed with everything we need,
           -- we can pre-evaluate the top-level constants.
-          pure $ int' `seq` rtm' `seq` rrs `seq` newCombRefs `seq` updatedCombs `seq` nsn `seq` ncc `seq` nsc `seq` Right (unresolvedCacheableCombs, unresolvedNonCacheableCombs, newCombs, newCombRefs)
+          pure $ int' `seq` rtm' `seq` rrs `seq` newCombRefs `seq` updatedCombs `seq` nsn `seq` ncc `seq` nsc `seq` Right (unresolvedCacheableCombs, unresolvedNonCacheableCombs, newCombs, newCombRefs, verified)
 
 preEvalTopLevelConstants ::
   (RuntimeProfiler p) =>
@@ -2344,7 +2376,68 @@ reifyValue cc val = do
           newTy <- addRefs (freshTy cc) (refTy cc) (tagRefs cc) tyLinks
           pure . Right $ (combs, newTy, rtm, recRefLookup, rfms)
         l -> pure (Left l)
-  traverse (\rfs -> reifyValue1 rfs val) erc
+  case erc of
+    Left l -> pure (Left l)
+    Right rfs@(cmbs, rty, rtm, _, _) -> do
+      -- the value's constructor arities, partial application sizes and
+      -- record sizes against the declarations (MCode.Verify), before any
+      -- closure is built from it
+      types <- declaredTypes (jit cc)
+      trs <- readTVarIO (tagRefs cc)
+      let venv =
+            verifyEnvFrom
+              types
+              (flip M.lookup rty)
+              (flip M.lookup rtm)
+              (flip EC.lookup trs)
+              (\(CIx _ g i) -> EC.lookup g cmbs >>= EC.lookup i >>= combInfoOf)
+          plain = case val of
+            Plain v -> Just v
+            -- a value with indexed references: the indices are resolved
+            -- by reifyValue0Canon as it goes, which checks them
+            WithRefs _ _ _ -> Nothing
+      for_ plain $ \v -> either rejectValue pure (verifyValue venv v)
+      Right <$> reifyValue1 rfs val
+  where
+    rejectValue e = case verifyMode of
+      "off" -> pure ()
+      "warn" -> hPutStrLn stderr ("[verify] " ++ renderVerifyError e)
+      _ -> die [] (renderVerifyError e)
+
+-- | What a failed verification does: @fail@ (the default) refuses the code
+-- or value, @warn@ reports it on stderr and goes on, @off@ skips the check.
+-- The two relaxations are for finding a false rejection (UNISON_MCODE_VERIFY).
+verifyMode :: String
+verifyMode = unsafePerformIO (maybe "fail" id <$> lookupEnv "UNISON_MCODE_VERIFY")
+{-# NOINLINE verifyMode #-}
+
+-- | The verifier's view of a cache: the declared arities, the numberings
+-- and the loaded combinators.
+verifyEnvFrom ::
+  M.Map Reference [Int] ->
+  (Reference -> Maybe Word64) ->
+  (Reference -> Maybe Word64) ->
+  (Word64 -> Maybe Reference) ->
+  (CombIx -> Maybe (Int, Int)) ->
+  VerifyEnv
+verifyEnvFrom types typeNum termNum tagRef combInfo =
+  VerifyEnv
+    { veCtorArity = \r c -> M.lookup r types >>= \as -> if c < fromIntegral (length as) then Just (as !! fromIntegral c) else Nothing,
+      veDeclared = \r -> M.member r types,
+      veAbilityArity = \a c -> tagRef a >>= \r -> M.lookup r types >>= \as -> if c < fromIntegral (length as) then Just (as !! fromIntegral c) else Nothing,
+      veAbilityDeclared = \a -> maybe False (`M.member` types) (tagRef a),
+      veTypeNumber = typeNum,
+      veTermNumber = termNum,
+      veCombInfo = combInfo,
+      veSchemaSize = \(ANF.RecordSchema fs) -> Just (Set.size fs)
+    }
+
+-- | A combinator's arity and frame size; a cached value takes no
+-- arguments and no frame.
+combInfoOf :: GComb val comb -> Maybe (Int, Int)
+combInfoOf = \case
+  Comb (LamI a f _ _) -> Just (a, f)
+  CachedVal _ _ -> Just (0, 0)
 
 reifyValue1 ::
   (EnumMap Word64 MCombs, M.Map Reference Word64, M.Map Reference Word64, BM.BiMap ANF.RecordSchema ANF.RecordRef, RecordFieldMappings) ->

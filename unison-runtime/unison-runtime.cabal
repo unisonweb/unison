@@ -99,6 +99,7 @@ library
       Unison.Runtime.Machine.Types
       Unison.Runtime.MCode
       Unison.Runtime.MCode.Serialize
+      Unison.Runtime.MCode.Verify
       Unison.Runtime.Pattern
       Unison.Runtime.Profiling
       Unison.Runtime.Referenced
@@ -244,6 +245,7 @@ test-suite runtime-tests
       Unison.Test.Runtime.Foreign.Dynamic
       Unison.Test.Runtime.MCode
       Unison.Test.Runtime.MCode.Serialization
+      Unison.Test.Runtime.MCode.Verify
       Unison.Test.Runtime.Process
       Unison.Test.Runtime.Signal
       Unison.Test.UnisonSources

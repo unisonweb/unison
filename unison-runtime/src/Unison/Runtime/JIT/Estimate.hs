@@ -28,7 +28,7 @@ import Data.Map.Strict qualified as Map
 import Data.Maybe (catMaybes)
 import Data.Set qualified as Set
 import Foreign.Ptr (Ptr)
-import Unison.Runtime.JIT.Codegen (Switches (..), callOutWorthwhile, instrNativeIn, pushCount, startsSupported, switches)
+import Unison.Runtime.JIT.Codegen (Switches (..), callOutWorthwhile, instrNativeIn, startsSupported, switches)
 import Unison.Runtime.JIT.Config (Config, entryCost, exitCost)
 import Unison.Runtime.MCode hiding (Env)
 import Unison.Runtime.MCode qualified as MCode (GRef (Env))

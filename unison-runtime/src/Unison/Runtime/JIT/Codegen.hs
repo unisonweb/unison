@@ -119,6 +119,9 @@ data Env = Env
     -- | the same by type number, for request matches, which name the
     -- ability by its number
     envAbilities :: !(EC.EnumMap Word64 (Deque Int)),
+    -- | the number each type reference has in the cache (the type part of
+    -- a packed tag), for the one match arm that compares a whole tag
+    envTypeNumbers :: !(Map.Map Reference Word64),
     -- | cells for the auxiliary functions (re-entry points), taken in order
     envCells :: !Cells,
     -- | features turned off for debugging (see Config)
@@ -2360,6 +2363,38 @@ genDMatchClosure fe d i mr br sect = do
               -- a shape's block: the arm itself for one constructor; for
               -- several, a load of the packed tag at the shape's offset
               -- and a switch among them
+              -- A lone wide constructor (DataG) still compares the packed
+              -- tag: the info pointer only says "some type's wide
+              -- constructor", and a value of another type with fewer
+              -- fields would be read with this one's count (the verifier,
+              -- MCode.Verify, guarantees every value of a declared type
+              -- has its declared arity; this is the guard against a value
+              -- of a different type). Shapes 0 to 6 need none: the pointer
+              -- tag fixes their layout, so a wrong type's value is at
+              -- worst matched wrongly, as the interpreter would without
+              -- the tag check it does make, never read past.
+              shapeBlock (Pair 7 [c@(u, _)]) | Just r <- mr = do
+                al <- armFor c
+                l <- freshLabel "wide"
+                sideBlockNamed l $ do
+                  let layout = lDataG ls
+                  addr <- fresh "tag.a"
+                  emit (addr <> " = add i64 " <> base <> ", " <> tshow (lFieldOffset layout (lPtrs layout)))
+                  ptr <- fresh "tag.p"
+                  emit (ptr <> " = inttoptr i64 " <> addr <> " to ptr")
+                  packed <- fresh "packed"
+                  emit (packed <> " = load i64, ptr " <> ptr)
+                  ok <- fresh "sametag"
+                  case Map.lookup r (envTypeNumbers env) of
+                    Just rt -> do
+                      let PackedTag want = TT.packTags (TT.RTag rt) (TT.CTag (fromIntegral u))
+                      emit (ok <> " = icmp eq i64 " <> packed <> ", " <> tshow want)
+                    Nothing -> do
+                      ctor <- fresh "ctor"
+                      emit (ctor <> " = and i64 " <> packed <> ", 65535") -- maskTags
+                      emit (ok <> " = icmp eq i64 " <> ctor <> ", " <> tshow u)
+                  emit ("br i1 " <> ok <> ", label %" <> al <> ", label %" <> other)
+                pure l
               shapeBlock (Pair _ [c]) = armFor c
               shapeBlock (Pair s cs) = do
                 arms <- forM cs $ \c -> Pair (fst c) <$> armFor c
@@ -3968,39 +4003,6 @@ callOutExit slowPath fe d instr sect = case (pushCount instr, sect) of
 -- the stack pointer against it before re-entering native code; a wrong
 -- entry here costs a resume, not correctness. Every constructor is
 -- listed so that a new instruction fails to compile until it is added.
-pushCount :: GInstr comb -> Maybe Int
-pushCount = \case
-  Prim1 LOAD _ -> Just 2 -- a tag and the value
-  Prim1 _ _ -> Just 1
-  Prim2 TRCE _ _ -> Just 0
-  Prim2 THRO _ _ -> Just 0 -- never returns
-  Prim2 _ _ _ -> Just 1
-  RefCAS {} -> Just 1
-  ForeignCall {} -> Just 1
-  DLLCall -> Just 1
-  SetAff {} -> Just 0
-  Capture _ -> Nothing
-  Discard _ -> Nothing
-  Name _ _ -> Just 1
-  Info _ -> Just 0
-  Pack {} -> Just 1
-  RecPack {} -> Just 1
-  RecUnpack fields _ -> Just (V.length fields)
-  RecSet {} -> Just 1
-  Lit _ -> Just 1
-  Print _ -> Just 0
-  Reset {} -> Just 0
-  InLocal _ -> Just 0
-  Fork _ -> Just 1
-  Atomically _ -> Just 1
-  Seq _ -> Just 1
-  TryForce _ -> Just 1
-  SandboxingFailure _ -> Nothing
-  KeepAlive _ -> Just 0
-  NewForeignPtr _ _ -> Just 1
-  AddFinalizer _ _ -> Just 0
-  MkCallback _ _ -> Just 1
-
 -- | The slots a @Pack@'s arguments come from, in field order, when the
 -- code generator can build the constructor (one or two fields so far).
 packFields :: FnEnv -> Int -> Args -> Maybe (Deque Int)
