@@ -93,3 +93,48 @@ against phase 1's run 2. Every row is within noise.
 | 4.206884ms | 4.203215ms | 4.206575ms | 1.00× | handle installed per iteration, 10000 iterations |
 | 7.917331ms | 7.930878ms | 7.989378ms | 1.01× | Store whose put requests an outer Counter, 100000 iterations |
 | 470.031µs | 452.025µs | 454.728µs | 0.97× | Bytes: decodeNat64be walk over 80000 bytes |
+
+## Phase 3: the fences
+
+The cell's code pointer is published with an atomic release store and read with atomic loads
+(`readNativeCode`, `readNativeEntry`; generated code's cell loads are `load atomic ... acquire`).
+On arm64 that is an `ldar` where a plain `ldr` was, on every interpreter entry into native code and
+every native call through a cell. Same build settings, two runs against phase 2's run 2. Every
+row is within noise: the two that move most, the function-argument row at 0.91× and Collatz at
+1.04×, are call-heavy rows that swing both ways between runs of the same binary (the first was
+57.6 and 58.2 µs in the two phase 2 runs, Collatz 66.3 and 66.9).
+
+| phase 2 | run 1 | run 2 | run 2 / phase 2 | Benchmark |
+| --- | --- | --- | --- | --- |
+| 318.5µs | 317.289µs | 318.856µs | 1.00× | Sum 0 to 1 million |
+| 35.303µs | 35.348µs | 35.409µs | 1.00× | fib 20 |
+| 13.508µs | 13.728µs | 13.492µs | 1.00× | Cons list: map with a lambda (1000 elements) |
+| 4.836µs | 4.847µs | 4.835µs | 1.00× | Cons list: foldLeft with a lambda (1000 elements) |
+| 88.689µs | 90.046µs | 90.885µs | 1.02× | Binary tree: 1000 inserts |
+| 16.244µs | 15.567µs | 16.678µs | 1.03× | Binary tree: 1000 lookups |
+| 58.192µs | 52.571µs | 52.788µs | 0.91× | Apply a function argument 10000 times |
+| 34.629µs | 34.741µs | 35.057µs | 1.01× | Mutate a Ref 10000 times |
+| 66.943µs | 70.184µs | 69.465µs | 1.04× | Calls across definitions: Collatz steps for 1 to 1000 |
+| 117.966µs | 117.957µs | 117.925µs | 1.00× | Calls across definitions: callee first reached once the caller is hot, 100000 iterations |
+| 202.882µs | 202.872µs | 204.624µs | 1.01× | Text: append "hi" 10000 times |
+| 1.909619ms | 1.900563ms | 1.903635ms | 1.00× | Text: drop 1, 100000 times |
+| 199.169µs | 198.327µs | 199.673µs | 1.00× | Bytes: append 2 bytes 10000 times |
+| 1.78908ms | 1.805201ms | 1.811546ms | 1.01× | Bytes: drop 1, 100000 times |
+| 2.108839ms | 2.107582ms | 2.11376ms | 1.00× | Bytes: at, 100000 times |
+| 3.316181ms | 3.272406ms | 3.295259ms | 0.99× | Text: uncons walk over 100000 characters |
+| 293.611µs | 286.992µs | 289.085µs | 0.98× | List: cons 10000 elements, then a pattern walk |
+| 144.216µs | 144.686µs | 143.874µs | 1.00× | List: at, 10000 times |
+| 708.681µs | 706.449µs | 728.512µs | 1.03× | Nat.toText and Nat.fromText, 10000 times |
+| 1.002995ms | 1.002153ms | 1.000859ms | 1.00× | Float: sqrt, sin, cos, arithmetic and conversions, 100000 times |
+| 485.973µs | 486.267µs | 486.316µs | 1.00× | MutableByteArray: 4 writes and 6 reads, both byte orders, 100000 times |
+| 539.336µs | 539.302µs | 540.428µs | 1.00× | FFI.Ptr: 4 writes and 6 reads, 100000 times |
+| 43.922µs | 43.999µs | 44.25µs | 1.01× | MutableArray: fill, freeze and sum 10000 elements |
+| 128.059µs | 126.958µs | 128.04µs | 1.00× | Ref.cas loop, 10000 times |
+| 280.085µs | 276.719µs | 279.239µs | 1.00× | murmurHashUntyped of Some (i, "x"), 10000 times |
+| 7.503515ms | 7.411846ms | 7.453081ms | 0.99× | Records: a literal, an update, a pattern and two getters, 100000 times |
+| 4.988037ms | 4.985656ms | 5.005653ms | 1.00× | Records: a 16-field literal and four getters, 100000 times |
+| 2.5714ms | 2.627453ms | 2.576553ms | 1.00× | Counter: 100000 requests |
+| 4.924062ms | 4.998143ms | 4.930631ms | 1.00× | Store: get and put, 100000 iterations |
+| 4.206575ms | 4.222028ms | 4.222853ms | 1.00× | handle installed per iteration, 10000 iterations |
+| 7.989378ms | 8.07319ms | 8.032331ms | 1.01× | Store whose put requests an outer Counter, 100000 iterations |
+| 454.728µs | 453.055µs | 455.901µs | 1.00× | Bytes: decodeNat64be walk over 80000 bytes |
