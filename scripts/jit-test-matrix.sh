@@ -102,7 +102,7 @@ for row in "${matrix[@]}"; do
   log="$dir/log"
   start=$(date +%s)
   # shellcheck disable=SC2086
-  env $env UNISON_JIT_LOG=1 "${ucm_cmd[@]}" -C "$codebase" transcript.fork "$dir/t.md" $rts >"$log" 2>&1
+  env UNISON_JIT_DEBUG=1 $env UNISON_JIT_LOG=1 "${ucm_cmd[@]}" -C "$codebase" transcript.fork "$dir/t.md" $rts >"$log" 2>&1
   code=$?
   secs=$(( $(date +%s) - start ))
   note=""

@@ -119,9 +119,12 @@ jobs:
             --copy-bins
 
       - name: the JIT's embedded IR is in step with its C
-        # clang and the GHC headers are both here on macOS; the check
-        # regenerates cbits/jit_helpers.ll and jit_exit.ll and diffs them
-        if: steps.cache-ucm-binaries.outputs.cache-hit != 'true' && runner.os == 'macOS'
+        # clang and the GHC headers are both here on macOS and Linux; the
+        # check regenerates cbits/jit_helpers.ll and jit_exit.ll and diffs
+        # them, and compares the headers' source hashes. Always, cache hit
+        # or not: the committed IR is what runs natively in every JIT'd
+        # process, so nothing but this regeneration vouches for it.
+        if: runner.os != 'Windows'
         run: unison-runtime/cbits/gen-helpers.sh --check
 
       - name: set git user info

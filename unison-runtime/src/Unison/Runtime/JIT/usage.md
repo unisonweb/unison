@@ -59,7 +59,9 @@ Every setting is an environment variable, read once when `unison` starts ([`Conf
 | `UNISON_REPLACEMENTS=on\|off` | See [the `Map` caveat](#what-to-expect). |
 | `--jit-dump-ir DIR` / `UNISON_JIT_DUMP_IR=DIR` | Write the LLVM IR of every compiled module into `DIR`, one `.ll` file per module before and after optimization, with each function's MCode as a comment; `-` prints to stderr. |
 
-The rest are tuning and debugging knobs. They are documented in [`Config.hs`](Config.hs#:~:text=data%20Config) and their use in [development.md](development.md#looking-inside); the names, so that a stray setting can be recognized:
+`UNISON_LLVM_LIB` names a library `unison` loads and runs code from, like `LD_LIBRARY_PATH` does; set it only to a library you trust.
+
+The rest are tuning and debugging knobs. They are documented in [`Config.hs`](Config.hs#:~:text=data%20Config) and their use in [development.md](development.md#looking-inside). The ones that change what code is generated or make the runtime weaker (the stress modes, the disabled features, the pass pipeline and LLVM options, the exit form and allocation mode, the dumps and traces, and `UNISON_MCODE_VERIFY`) are read only when `UNISON_JIT_DEBUG` is also set, so that a stray variable in a program's environment does nothing (`--jit-dump-ir` sets it); the tuning numbers are read as they are. The names, so that a stray setting can be recognized:
 
 - *Compilation policy:* `UNISON_JIT_BATCH` (definitions per module, 32), `UNISON_JIT_BATCH_GATE` and `UNISON_JIT_SIZE_UNIT` (which neighbours join a batch), `UNISON_JIT_COPY` (inlining compiled callees), `UNISON_JIT_REENTRY_WAIT` (ms), `UNISON_JIT_REENTRY_ADHOC` (re-entry functions a definition may get because of the poll or stack growth rather than its code, 3), `UNISON_JIT_EXIT_COST` and `UNISON_JIT_ENTRY_COST` (the estimate that leaves exit-heavy or tiny functions interpreted; `0` compiles everything).
 - *LLVM:* `UNISON_JIT_PASSES` (the optimization pipeline), `UNISON_JIT_CODEGEN_LEVEL` (0 to 3), `UNISON_JIT_INLINE_THRESHOLD`, `UNISON_JIT_SCHED` (keep LLVM's machine schedulers on), `UNISON_JIT_LLVM_OPTS` (any further LLVM options).

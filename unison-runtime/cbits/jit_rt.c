@@ -40,6 +40,17 @@
 #include <math.h>
 #include <stdint.h>
 
+
+// The settings that change code generation or weaken the runtime are read
+// only when UNISON_JIT_DEBUG is set, like JIT.Config's (security review,
+// 2026-10-24).
+static int jit_debug(void) {
+  static int v = -1;
+  if (v < 0) v = getenv("UNISON_JIT_DEBUG") != NULL;
+  return v;
+}
+static const char *debug_getenv(const char *name) { return jit_debug() ? getenv(name) : NULL; }
+
 // Field offsets, so the Haskell side can check that its picture of Ctx matches this one.
 // The order matches the fields of UnisonJitCtx.
 int64_t unison_jit_ctx_layout(int64_t *out, int64_t n) {
@@ -249,7 +260,7 @@ void unison_jit_configure(int64_t poll_every, int64_t callee_every, int64_t csta
   if (cstack > 0) cstack_budget = cstack;
   if (alloc > 0) alloc_budget = alloc;
   jit_trace = trace_on;
-  const char *bump = getenv("UNISON_JIT_BUMP");
+  const char *bump = debug_getenv("UNISON_JIT_BUMP");
   bump_alloc = !(bump != NULL && strcmp(bump, "0") == 0);
 }
 
@@ -610,7 +621,7 @@ int64_t unison_jit_enter(UnisonNativeFn fn, int64_t *ustk, void **bstk, void **p
     }
   }
   static int trace_yield = -1;
-  if (trace_yield < 0) trace_yield = getenv("UNISON_JIT_TRACE_YIELD") != NULL;
+  if (trace_yield < 0) trace_yield = debug_getenv("UNISON_JIT_TRACE_YIELD") != NULL;
   if (__builtin_expect(trace_yield, 0) && status == 0 && ctx->sp >= 0 && ctx->sp < stack_size) {
     // the yielded value: its boxed pointer's tag and closure type
     StgClosure *b = (StgClosure *)bstk[ctx->sp];

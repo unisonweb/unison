@@ -163,7 +163,8 @@ main version = do
       let GlobalOptions {codebasePathOption = mCodePathOption, exitOption, lspFormattingConfig, jitOption, jitDumpIROption} = globalOptions
       -- The runtime reads its JIT settings from the environment, once, at startup.
       for_ jitOption (setEnv "UNISON_JIT")
-      for_ jitDumpIROption (setEnv "UNISON_JIT_DUMP_IR")
+      -- the dump is one of the settings behind UNISON_JIT_DEBUG (JIT.Config)
+      for_ jitDumpIROption (\dir -> setEnv "UNISON_JIT_DEBUG" "1" >> setEnv "UNISON_JIT_DUMP_IR" dir)
       jit <- JIT.newJIT =<< JIT.readConfig
       announceJIT jit
       currentDir <- getCurrentDirectory

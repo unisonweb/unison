@@ -68,7 +68,16 @@ forShapes ns f =
 test :: Test ()
 test =
   tests
-    [ scope "empty" do
+    [ scope "fromListN takes exactly n" do
+        expectEqual [1 .. 25] (D.toList (D.fromListN 25 [1 .. 100 :: Int]))
+        expectEqual (Right ()) (D.valid (D.fromListN 25 [1 .. 100 :: Int]))
+        expectEqual [1, 2, 3] (D.toList (D.fromListN 3 [1 .. 10 :: Int]))
+        -- the appends that once walked an oversized suffix
+        expectEqual (Right ()) (D.valid (D.fromListN 20 [1 .. 1000 :: Int] D.>< D.fromList [1, 2 :: Int]))
+        expectEqual 22 (D.size (D.fromListN 20 [1 .. 1000 :: Int] D.>< D.fromList [1, 2 :: Int]))
+        short <- io (try (evaluate (D.size (D.fromListN 5 [1, 2 :: Int]))))
+        expect (either (const True) (const False) (short :: Either ErrorCall Int)),
+      scope "empty" do
         same D.empty Seq.empty
         expect' (D.size (D.empty :: Deque Int) == 0)
         expect' (null (D.empty :: Deque Int))

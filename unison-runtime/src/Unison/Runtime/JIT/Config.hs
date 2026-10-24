@@ -8,6 +8,7 @@ module Unison.Runtime.JIT.Config
     ReplacementUse (..),
     Config (..),
     replacements,
+    setReplacements,
     replacementActive,
     readConfig,
     jitLog,
@@ -15,9 +16,11 @@ module Unison.Runtime.JIT.Config
   )
 where
 
+import Control.Exception (throwIO)
 import Data.Char (toLower)
+import Data.IORef
 import Data.List (stripPrefix)
-import Data.Maybe (fromMaybe, mapMaybe)
+import Data.Maybe (fromMaybe, isJust, mapMaybe)
 import System.Environment (lookupEnv)
 import System.IO (hFlush, hPutStrLn, stderr)
 import System.IO.Unsafe (unsafePerformIO)
@@ -50,15 +53,27 @@ data Replacements
 data ReplacementUse = Always | InterpreterOnly
   deriving (Show, Eq)
 
--- | Which replacements apply, read from the environment once. This is the
--- one setting that is not carried in the JIT handle: it decides how a
--- @Map@ value is represented, which the value decoder (Stack.hs) and the
--- foreign function table (Foreign.Function) have to agree on, and neither
--- has a handle in reach. It is a property of the process, so a single
--- read is right; @UNISON_REPLACEMENTS@ overrides it, otherwise it follows
+-- | Which replacements apply, decided once. This is the one setting that
+-- is not carried in the JIT handle: it decides how a @Map@ value is
+-- represented, which the value decoder (Stack.hs) and the foreign function
+-- table (Foreign.Function) have to agree on, and neither has a handle in
+-- reach. It is a property of the process, so a single decision is right.
+-- A compiled program chooses it before any code loads, from the mode it
+-- was compiled under ('setReplacements'; the file carries it, since its
+-- MCode has the replacements of that mode baked in); otherwise the
+-- environment decides: @UNISON_REPLACEMENTS@ if set, else it follows
 -- @UNISON_JIT@.
 replacements :: Replacements
 replacements = unsafePerformIO $ do
+  chosen <- readIORef replacementsRef
+  r <- maybe replacementsFromEnvironment pure chosen
+  writeIORef replacementsRef (Just r)
+  writeIORef replacementsUsed True
+  pure r
+{-# NOINLINE replacements #-}
+
+replacementsFromEnvironment :: IO Replacements
+replacementsFromEnvironment = do
   mode <- lookupEnv "UNISON_JIT"
   repl <- lookupEnv "UNISON_REPLACEMENTS"
   pure $ case (map toLower <$> repl, map toLower (fromMaybe "off" mode)) of
@@ -67,7 +82,26 @@ replacements = unsafePerformIO $ do
     (_, "on") -> TaggedReplacements
     (_, "eager") -> TaggedReplacements
     _ -> AllReplacements
-{-# NOINLINE replacements #-}
+
+replacementsRef :: IORef (Maybe Replacements)
+replacementsRef = unsafePerformIO (newIORef Nothing)
+{-# NOINLINE replacementsRef #-}
+
+replacementsUsed :: IORef Bool
+replacementsUsed = unsafePerformIO (newIORef False)
+{-# NOINLINE replacementsUsed #-}
+
+-- | Chooses the setting, for a compiled program from the mode stored in
+-- its file. It has to happen before any code has used the setting (before
+-- the cache is restored): code already loaded under another mode can't be
+-- redone, so a late choice that differs is an error.
+setReplacements :: Replacements -> IO ()
+setReplacements r = do
+  used <- readIORef replacementsUsed
+  chosen <- readIORef replacementsRef
+  case chosen of
+    Just r' | used && r' /= r -> throwIO (userError ("the replacement setting is " ++ show r' ++ " and already in use; it cannot be changed to " ++ show r))
+    _ -> writeIORef replacementsRef (Just r)
 
 -- | Whether an entry with this tag is applied under the current settings.
 replacementActive :: ReplacementUse -> Bool
@@ -191,26 +225,34 @@ data Config = Config
 -- startup, after the @--jit@ options have been put in the environment.
 readConfig :: IO Config
 readConfig = do
+  -- The settings that change what code is generated or make the runtime
+  -- weaker (the stress modes, the disabled features, the pass pipeline, the
+  -- dumps and traces) are read only when UNISON_JIT_DEBUG is also set, so
+  -- that a stray variable in the environment of a program's user does
+  -- nothing (security review, 2026-10-24). jit_llvm.c and jit_rt.c read the
+  -- same gate for theirs; --jit-dump-ir sets it.
+  debug <- isJust <$> lookupEnv "UNISON_JIT_DEBUG"
+  let gated name = if debug then lookupEnv name else pure Nothing
   mode <- lookupEnv "UNISON_JIT"
   logging <- lookupEnv "UNISON_JIT_LOG"
-  dump <- lookupEnv "UNISON_JIT_DUMP_IR"
+  dump <- gated "UNISON_JIT_DUMP_IR"
   stats <- lookupEnv "UNISON_JIT_STATS"
   every <- lookupEnv "UNISON_JIT_STATS_EVERY"
   thresh <- lookupEnv "UNISON_JIT_THRESHOLD"
   batchSize <- lookupEnv "UNISON_JIT_BATCH"
   gate <- lookupEnv "UNISON_JIT_BATCH_GATE"
   sizeU <- lookupEnv "UNISON_JIT_SIZE_UNIT"
-  pipeline <- lookupEnv "UNISON_JIT_PASSES"
-  exits <- lookupEnv "UNISON_JIT_EXITS"
+  pipeline <- gated "UNISON_JIT_PASSES"
+  exits <- gated "UNISON_JIT_EXITS"
   copyB <- lookupEnv "UNISON_JIT_COPY"
   reWait <- lookupEnv "UNISON_JIT_REENTRY_WAIT"
   reAdHoc <- lookupEnv "UNISON_JIT_REENTRY_ADHOC"
   cost <- lookupEnv "UNISON_JIT_EXIT_COST"
   entry <- lookupEnv "UNISON_JIT_ENTRY_COST"
-  mcode <- lookupEnv "UNISON_JIT_DUMP_MCODE"
-  tr <- lookupEnv "UNISON_JIT_TRACE"
-  stress <- maybe [] (splitOn ',') <$> lookupEnv "UNISON_JIT_STRESS"
-  disabledFeatures <- maybe [] (splitOn ',') <$> lookupEnv "UNISON_JIT_DISABLE"
+  mcode <- gated "UNISON_JIT_DUMP_MCODE"
+  tr <- gated "UNISON_JIT_TRACE"
+  stress <- maybe [] (splitOn ',') <$> gated "UNISON_JIT_STRESS"
+  disabledFeatures <- maybe [] (splitOn ',') <$> gated "UNISON_JIT_DISABLE"
   let setting key = listToMaybe' (mapMaybe (stripPrefix (key ++ "=")) stress) >>= readMaybe
   pure
     Config

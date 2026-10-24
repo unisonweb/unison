@@ -938,7 +938,10 @@ tryM =
     . fmap (const Nothing)
 
 runStandalone :: JIT -> Bool -> StoredCache -> CombIx -> IO (Either Error ())
-runStandalone jit sandboxed sc@(SCache _ _ _ _ _ _ _ _ _ _ _ _ _ _ dspec) init = do
+runStandalone jit sandboxed sc@(SCache _ _ _ _ _ _ _ _ _ _ _ _ _ _ dspec repl) init = do
+  -- The file's replacement mode, before anything decodes a value or
+  -- consults the foreign function table
+  JIT.setReplacements repl
   -- What startRuntime and the loader (cacheAdd) do for the JIT on the
   -- codebase path, for a compiled program. The file carries the data specs
   -- that a codebase run registers as it loads types.
@@ -980,10 +983,15 @@ data StoredCache
       -- needs to compile a match (registered at startup from a codebase,
       -- carried in the file for a compiled program)
       DataSpec
+      -- which of base's Haskell replacements the code was compiled with
+      -- (JIT.Config): its MCode has them baked in, so the process that runs
+      -- it has to decode values the same way, whatever its own environment
+      -- says (security review, 2026-10-24)
+      JIT.Replacements
   deriving (Show, Eq)
 
 putStoredCache :: StoredCache -> Builder
-putStoredCache (SCache cs crs cacheableCombs oinfo trs ftm fty frs int rtm rty rsLookup sbs rfm dspec) =
+putStoredCache (SCache cs crs cacheableCombs oinfo trs ftm fty frs int rtm rty rsLookup sbs rfm dspec repl) =
   putEnumMap putNat (putEnumMap putNat (putComb absurd)) cs
     <> putEnumMap putNat putReference crs
     <> putEnumSet putNat cacheableCombs
@@ -999,6 +1007,7 @@ putStoredCache (SCache cs crs cacheableCombs oinfo trs ftm fty frs int rtm rty r
     <> putMap putReference (putFoldable putReference) sbs
     <> putRecordFieldMappings rfm
     <> putMap putReference putCons dspec
+    <> BU.word8 (case repl of JIT.AllReplacements -> 0; JIT.TaggedReplacements -> 1; JIT.NoReplacements -> 2)
   where
     -- the Either marks an effect's constructors as Right, as 'DataSpec' does
     putCons cons = putBool (isRight cons) <> putFoldable (putInt . fromIntegral) (either id id cons)
@@ -1034,7 +1043,14 @@ getStoredCache =
     <*> getMap getReference (fromList <$> getList getReference)
     <*> getRecordFieldMappings
     <*> getMap getReference getCons
+    <*> getReplacements
   where
+    getReplacements =
+      getWord8 >>= \case
+        0 -> pure JIT.AllReplacements
+        1 -> pure JIT.TaggedReplacements
+        2 -> pure JIT.NoReplacements
+        n -> fail ("getStoredCache: unknown replacement mode " ++ show n)
     getCons = do
       effect <- getBool
       cons <- getList (fromIntegral <$> getInt)
@@ -1047,7 +1063,7 @@ debugTextFormat fancy =
     render = if fancy then toANSI else toPlain
 
 restoreCache :: JIT -> Bool -> StoredCache -> IO (CCache ())
-restoreCache jit sandboxed (SCache cs crs cacheableCombs opt trs ftm fty frs int rtm rty recSchemas sbs rfm dspec) = do
+restoreCache jit sandboxed (SCache cs crs cacheableCombs opt trs ftm fty frs int rtm rty recSchemas sbs rfm dspec _) = do
   -- The file's code is checked against the file's declarations before any
   -- of it runs (MCode.Verify): a compiled program is MCode read straight
   -- from disk, the one input that never went through emitCombs.
@@ -1167,8 +1183,9 @@ buildSCache ::
   Map Reference (Set Reference) ->
   RecordFieldMappings ->
   DataSpec ->
+  JIT.Replacements ->
   StoredCache
-buildSCache crsrc cssrc cacheableCombs optsrc trsrc ftm fty frs int rtmsrc rtysrc rsLookup sndbx rfm dspec =
+buildSCache crsrc cssrc cacheableCombs optsrc trsrc ftm fty frs int rtmsrc rtysrc rsLookup sndbx rfm dspec repl =
   SCache
     cs
     crs
@@ -1185,6 +1202,7 @@ buildSCache crsrc cssrc cacheableCombs optsrc trsrc ftm fty frs int rtmsrc rtysr
     (restrictTmR sndbx)
     rfm
     (restrictTyR dspec)
+    repl
   where
     termRefs = Map.keysSet int
 
@@ -1236,6 +1254,7 @@ standalone cc dspec init =
           <*> readTVarIO (sandbox cc)
           <*> readTVarIO (recordFieldMappings cc)
           <*> pure dspec
+          <*> pure JIT.replacements
       Nothing ->
         die [] $ "standalone: unknown combinator: " ++ show init
 

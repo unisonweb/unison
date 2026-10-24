@@ -17,6 +17,16 @@ test :: Test ()
 test =
   scope "util.text" . tests $
     [ scope "empty ==" $ expectEqual Text.empty Text.empty,
+      -- a case mapping that changes the character count: the size follows
+      -- the result, not the input
+      scope "toUppercase changes the size" $ do
+        let up = Text.toUppercase (Text.pack "straße")
+        expectEqual 7 (Text.size up)
+        expectEqual "STRASSE" (Text.unpack up)
+        expectEqual (Just 'E') (Text.at 6 up),
+      scope "toLowercase changes the size" $ do
+        let down = Text.toLowercase (Text.pack "İ")
+        expectEqual (T.length (T.toLower (T.pack "İ"))) (Text.size down),
       scope "empty `compare`" . expectEqual EQ $ Text.empty `compare` Text.empty,
       scope "==" . expect $
         let a = join (replicate 100 ['a' .. 'z'])

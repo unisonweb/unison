@@ -113,9 +113,9 @@ import Data.Vector qualified as V
 import Data.Void (Void, absurd)
 import Data.Word (Word16, Word64)
 import Foreign.Marshal.Alloc (callocBytes)
-import Foreign.Ptr (nullPtr, plusPtr)
+import Foreign.Ptr (WordPtr (..), nullPtr, plusPtr, ptrToWordPtr, wordPtrToPtr)
 import Foreign.Storable (peekByteOff, pokeByteOff)
-import GHC.Exts (Word#, atomicCasWordAddr#, eqWord#, isTrue#, plusAddr#)
+import GHC.Exts (Word (W#), Word#, atomicCasWordAddr#, atomicReadWordAddr#, atomicWriteWordAddr#, eqWord#, isTrue#, plusAddr#)
 import GHC.IO (IO (..))
 import GHC.Ptr (Ptr (..))
 import GHC.Stack (HasCallStack)
@@ -932,8 +932,15 @@ nativeCellSize :: Int
 nativeCellSize = 32
 
 -- | Reads the compiled code pointer of a cell. Null means "interpret".
+-- An atomic (acquire) load: the compile thread writes a module's pool
+-- entries and exit and frame tables before it publishes the code pointer,
+-- and an interpreter thread that sees the pointer must then see those too,
+-- which on a weakly ordered machine (arm64) a plain load does not promise
+-- (security review, 2026-10-24; an @ldar@, a few cycles on an entry that
+-- costs tens of nanoseconds).
 readNativeCode :: Ptr NativeCell -> IO (Ptr ())
-readNativeCode cell = peekByteOff cell 0
+readNativeCode (Ptr a) = IO $ \s -> case atomicReadWordAddr# a s of
+  (# s', w #) -> (# s', wordPtrToPtr (WordPtr (W# w)) #)
 {-# INLINE readNativeCode #-}
 
 -- | The compiled code the interpreter should enter, if any. Null means
@@ -942,7 +949,7 @@ readNativeCode cell = peekByteOff cell 0
 -- native callers still call it directly).
 readNativeEntry :: Ptr NativeCell -> IO (Ptr ())
 readNativeEntry cell = do
-  code <- peekByteOff cell 0
+  code <- readNativeCode cell
   if code == nullPtr
     then pure code
     else do
@@ -950,10 +957,14 @@ readNativeEntry cell = do
       pure (if verdict .&. 3 == 3 then nullPtr else code)
 {-# INLINE readNativeEntry #-}
 
--- | Installs compiled code. A single pointer write; readers on other
--- threads see either the old value or the new one.
+-- | Installs compiled code. A single atomic (release) pointer write:
+-- readers on other threads see either the old value or the new one, and a
+-- reader that sees the new one sees everything the compile thread wrote
+-- before it (see 'readNativeCode').
 writeNativeCode :: Ptr NativeCell -> Ptr () -> IO ()
-writeNativeCode cell code = pokeByteOff cell 0 code
+writeNativeCode (Ptr a) code = IO $ \s -> case atomicWriteWordAddr# a w s of s' -> (# s', () #)
+  where
+    !(WordPtr (W# w)) = ptrToWordPtr code
 
 -- | Counts a call made while the cell had no compiled code, and says
 -- whether that made it hot (the count reached zero). Not atomic; a lost

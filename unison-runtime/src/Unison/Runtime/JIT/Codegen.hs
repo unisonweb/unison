@@ -2900,7 +2900,9 @@ closureCalleeFrom fe from p n = do
   cellP <- fresh "cell.p"
   emit (cellP <> " = inttoptr i64 " <> cellA <> " to ptr")
   fnp0 <- fresh "fn"
-  emit (fnp0 <> " = load ptr, ptr " <> cellP)
+  -- acquire: a module's pool entries are written before its cells (see
+  -- MCode.readNativeCode)
+  emit (fnp0 <> " = load atomic ptr, ptr " <> cellP <> " acquire, align 8")
   isNull <- fresh "isnull"
   emit (isNull <> " = icmp eq ptr " <> fnp0 <> ", null")
   -- the segment's arrays are the closure's own fields

@@ -10,7 +10,7 @@
 
 void unison_jit_rec_fail(const char *what, StgClosure *c) {
   static int trace_test = -1;
-  if (trace_test < 0) trace_test = getenv("UNISON_JIT_TRACE_TEST") != NULL;
+  if (trace_test < 0) trace_test = debug_getenv("UNISON_JIT_TRACE_TEST") != NULL;
   if (trace_test) {
     const StgInfoTable *it = c != NULL && LTAG(c) ? get_itbl(LUN(c)) : NULL;
     fprintf(stderr, "[test] record: not handled: %s, closure %p tag %d type %d\n", what, (void *)c, c ? (int)LTAG(c) : -1,

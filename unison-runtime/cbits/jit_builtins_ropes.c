@@ -767,7 +767,7 @@ int64_t unison_jit_bytes_init(void **raw, int64_t *info) {
 static int64_t rope_test(const RopeKind *K, void **elems, int64_t op, int64_t arg, int64_t arg2, int64_t arg3) {
   UnisonJitCtx tmp = {0}, *ctx = &tmp;
   static int trace_test = -1;
-  if (trace_test < 0) trace_test = getenv("UNISON_JIT_TRACE_TEST") != NULL;
+  if (trace_test < 0) trace_test = debug_getenv("UNISON_JIT_TRACE_TEST") != NULL;
   if (trace_test) fprintf(stderr, "[test] %s op %lld arg %lld %lld %lld\n", K == &TK ? "text" : "bytes", (long long)op, (long long)arg, (long long)arg2, (long long)arg3);
   ctx->cap = rts_unsafeGetMyCapability();
   void *res = NULL;

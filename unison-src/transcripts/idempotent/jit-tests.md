@@ -4465,3 +4465,31 @@ nested n =
            ⧩
            2400
 ```
+
+A case mapping that changes the character count: "ß" uppercases to "SS", so the text's size is
+recomputed rather than carried over (the native helper takes only ASCII; this one is the
+interpreter's).
+
+``` unison
+> Text.size (Text.toUppercase "straße")
+> Text.toUppercase "straße"
+> Text.toLowercase "İ"
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  No changes found.
+
+    1 | > Text.size (Text.toUppercase "straße")
+          ⧩
+          7
+
+    2 | > Text.toUppercase "straße"
+          ⧩
+          "STRASSE"
+
+    3 | > Text.toLowercase "İ"
+          ⧩
+          "i̇"
+```

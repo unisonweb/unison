@@ -49,6 +49,17 @@ static void lib_close(void *lib) { dlclose(lib); }
 static const char *lib_error(void) { return dlerror(); }
 #endif
 
+
+// The settings that change code generation or weaken the runtime are read
+// only when UNISON_JIT_DEBUG is set, like JIT.Config's (security review,
+// 2026-10-24).
+static int jit_debug(void) {
+  static int v = -1;
+  if (v < 0) v = getenv("UNISON_JIT_DEBUG") != NULL;
+  return v;
+}
+static const char *debug_getenv(const char *name) { return jit_debug() ? getenv(name) : NULL; }
+
 // ---- Declarations copied from llvm-c (Types.h, Error.h, Orc.h, TargetMachine.h)
 
 typedef int LLVMBool;
@@ -415,12 +426,12 @@ int unison_jit_init(void) {
   {
     const char *argv[4] = {"unison"};
     int argc = 1;
-    if (!getenv("UNISON_JIT_SCHED")) {
+    if (!debug_getenv("UNISON_JIT_SCHED")) {
       argv[argc++] = "-enable-misched=false";
       argv[argc++] = "-enable-post-misched=false";
     }
     static char inl[64];
-    const char *t = getenv("UNISON_JIT_INLINE_THRESHOLD");
+    const char *t = debug_getenv("UNISON_JIT_INLINE_THRESHOLD");
     if (t && *t) {
       snprintf(inl, sizeof inl, "-inline-threshold=%d", atoi(t));
       argv[argc++] = inl;
@@ -428,7 +439,7 @@ int unison_jit_init(void) {
     if (argc > 1) LLVMParseCommandLineOptions(argc, argv, NULL);
     // UNISON_JIT_LLVM_OPTS: further LLVM command line options, space
     // separated (-time-passes, -debug-pass-manager, ...), for measurement.
-    const char *extra = getenv("UNISON_JIT_LLVM_OPTS");
+    const char *extra = debug_getenv("UNISON_JIT_LLVM_OPTS");
     if (extra && *extra) {
       static char buf[1024];
       snprintf(buf, sizeof buf, "%s", extra);
@@ -457,7 +468,7 @@ int unison_jit_init(void) {
                                     LLVMCodeGenLevelDefault, LLVMRelocDefault,
                                     LLVMCodeModelJITDefault);
   LLVMOrcLLJITBuilderRef builder = NULL;
-  const char *level = getenv("UNISON_JIT_CODEGEN_LEVEL");
+  const char *level = debug_getenv("UNISON_JIT_CODEGEN_LEVEL");
   if (level && level[0] >= '0' && level[0] <= '3') {
     LLVMTargetMachineRef jtm = LLVMCreateTargetMachine(target, triple, cpu, features,
                                                        level[0] - '0', LLVMRelocDefault,

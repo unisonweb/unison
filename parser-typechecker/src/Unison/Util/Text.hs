@@ -111,15 +111,18 @@ size (Text t) = R.size t
 reverse :: Text -> Text
 reverse (Text t) = Text (R.reverse t)
 
+-- A case mapping can change the character count ("ß" uppercases to "SS"),
+-- so the chunk's count is recomputed rather than carried over: a chunk that
+-- claims fewer characters than it has puts `size` and indexing off.
 toUppercase :: Text -> Text
 toUppercase (Text t) = Text (R.map up t)
   where
-    up (Chunk n _ t) = Chunk n 0 (T.toUpper t)
+    up (Chunk _ _ t) = let t' = T.toUpper t in Chunk (T.length t') 0 t'
 
 toLowercase :: Text -> Text
 toLowercase (Text t) = Text (R.map down t)
   where
-    down (Chunk n _ t) = Chunk n 0 (T.toLower t)
+    down (Chunk _ _ t) = let t' = T.toLower t in Chunk (T.length t') 0 t'
 
 fromUtf8 :: B.Bytes -> Either String Text
 fromUtf8 bs =

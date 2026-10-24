@@ -11,7 +11,7 @@
 // why a value was left to the interpreter, under UNISON_JIT_TRACE_TEST
 void unison_jit_murmur_fail(const char *what, StgClosure *c) {
   static int trace_test = -1;
-  if (trace_test < 0) trace_test = getenv("UNISON_JIT_TRACE_TEST") != NULL;
+  if (trace_test < 0) trace_test = debug_getenv("UNISON_JIT_TRACE_TEST") != NULL;
   if (trace_test) {
     const StgInfoTable *it = c != NULL ? get_itbl(LUN(c)) : NULL;
     fprintf(stderr, "[test] murmur: not handled: %s, closure %p tag %d type %d\n", what, (void *)c, c ? (int)LTAG(c) : -1,
@@ -39,7 +39,7 @@ int64_t unison_jit_murmur_init(void **elems, int64_t *info) {
 int64_t unison_jit_murmur_test_ffi(void **elems, int64_t u, int64_t unboxed, int64_t *out) {
   StgClosure *b = unison_jit_settle(elems[0]);
   static int trace_test = -1;
-  if (trace_test < 0) trace_test = getenv("UNISON_JIT_TRACE_TEST") != NULL;
+  if (trace_test < 0) trace_test = debug_getenv("UNISON_JIT_TRACE_TEST") != NULL;
   if (trace_test) {
     const StgInfoTable *it = LTAG(b) ? get_itbl(LUN(b)) : NULL;
     fprintf(stderr, "[test] murmur: closure %p tag %d type %d ptrs %d nptrs %d info %p unboxed %lld u %lld\n", (void *)b, (int)LTAG(b),
@@ -58,7 +58,7 @@ int64_t unison_jit_murmur_test_ffi(void **elems, int64_t u, int64_t unboxed, int
 
 void unison_jit_cmp_fail(const char *what, StgClosure *c) {
   static int trace_test = -1;
-  if (trace_test < 0) trace_test = getenv("UNISON_JIT_TRACE_TEST") != NULL;
+  if (trace_test < 0) trace_test = debug_getenv("UNISON_JIT_TRACE_TEST") != NULL;
   if (trace_test) {
     const StgInfoTable *it = c != NULL && LTAG(c) ? get_itbl(LUN(c)) : NULL;
     fprintf(stderr, "[test] compare: not handled: %s, closure %p tag %d type %d\n", what, (void *)c, c ? (int)LTAG(c) : -1,

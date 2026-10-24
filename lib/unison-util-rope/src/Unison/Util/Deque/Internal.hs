@@ -43,6 +43,7 @@ module Unison.Util.Deque.Internal
     (><),
     fromList,
     fromListN,
+    unsafeFromListN,
     fromFunction,
 
     -- * Queries
@@ -950,11 +951,25 @@ fromList :: [a] -> Deque a
 fromList = L.foldl' snoc Nil
 {-# INLINE fromList #-}
 
--- | 'fromList' for a list whose length is known.  O(n).  Builds the levels
--- directly: each gets a prefix of two to nine items and a suffix of five, and
--- what is between them goes, in nodes of eight, to the level below.
+-- | 'fromList' for a list whose length is known.  O(n).  Exactly @n@
+-- elements are taken; a shorter list is an error.  ('unsafeFromListN' is
+-- the same without the check, for a caller that built the list to length.)
 fromListN :: Int -> [a] -> Deque a
 fromListN n xs
+  | n <= 0 = Nil
+  | L.length front < n = error ("Deque.fromListN: " ++ show n ++ " elements asked for, " ++ show (L.length front) ++ " given")
+  | otherwise = unsafeFromListN n front
+  where
+    front = L.take n xs
+
+-- | 'fromListN' for a list known to have exactly @n@ elements.  O(n).  Builds
+-- the levels directly: each gets a prefix of two to nine items and a suffix
+-- of five, and what is between them goes, in nodes of eight, to the level
+-- below.  The count is trusted: with more elements than @n@ the suffix
+-- holds them all while the packed count says five, and a later append
+-- writes outside an array (security review, 2026-10-24).
+unsafeFromListN :: Int -> [a] -> Deque a
+unsafeFromListN n xs
   | n <= 0 = Nil
   | n <= maxD =
       let !p = (n + 1) `div` 2
@@ -1010,7 +1025,7 @@ innerNodes _ _ _ _ = error "Deque.fromList: short list of nodes"
 fromFunction :: Int -> (Int -> a) -> Deque a
 fromFunction n f
   | n < 0 = error "Deque.fromFunction called with negative len"
-  | otherwise = fromListN n (L.map f [0 .. n - 1])
+  | otherwise = unsafeFromListN n (L.map f [0 .. n - 1])
 
 ------------------------------------------------------------------------
 -- Folds.  Each walks the prefix, then the middle, then the suffix.  Below
@@ -1210,7 +1225,7 @@ sort :: (Ord a) => Deque a -> Deque a
 sort = sortBy compare
 
 sortBy :: (a -> a -> Ordering) -> Deque a -> Deque a
-sortBy cmp d = fromListN (size d) (L.sortBy cmp (toList d))
+sortBy cmp d = unsafeFromListN (size d) (L.sortBy cmp (toList d))
 
 -- | The same as 'sort' here; Data.Sequence has both.
 unstableSort :: (Ord a) => Deque a -> Deque a

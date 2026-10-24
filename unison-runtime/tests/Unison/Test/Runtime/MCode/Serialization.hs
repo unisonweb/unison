@@ -17,6 +17,7 @@ import Unison.Prelude
 import Unison.Runtime.ANF qualified as ANF
 import Unison.Runtime.Foreign.Function.Type (ForeignFunc)
 import Unison.Runtime.Interface
+import Unison.Runtime.JIT.Config qualified as JIT
 import Unison.Runtime.MCode (Args (..), Branch, Comb, CombIx (..), FieldRef (..), GBranch (..), GComb (..), GCombInfo (..), GInstr (..), GRef (..), GSection (..), Instr, MLit (..), Prim1, Prim2, RecordFieldMappings (..), RecordShape (..), Ref, Section, mkRecordShape, noNativeCell)
 import Unison.Runtime.MCode.Serialize (getRecordShape, putRecordShape)
 import Unison.Runtime.Machine (Combs)
@@ -231,6 +232,7 @@ genStoredCache =
     <*> (Gen.map (Range.linear 0 10) ((,) <$> genReference <*> (Gen.set (Range.linear 0 10) genReference)))
     <*> genRecordFieldMappings
     <*> (Gen.map (Range.linear 0 10) ((,) <$> genReference <*> genCons))
+    <*> Gen.element [JIT.AllReplacements, JIT.TaggedReplacements, JIT.NoReplacements]
   where
     -- a data type's constructor arities, or an ability's (Right)
     genCons = do

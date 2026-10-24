@@ -21,6 +21,7 @@ module Unison.Util.Deque
     (><),
     fromList,
     fromListN,
+    unsafeFromListN,
     fromFunction,
 
     -- * Queries

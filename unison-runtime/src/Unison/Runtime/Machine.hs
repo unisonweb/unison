@@ -2408,7 +2408,12 @@ reifyValue cc val = do
 -- or value, @warn@ reports it on stderr and goes on, @off@ skips the check.
 -- The two relaxations are for finding a false rejection (UNISON_MCODE_VERIFY).
 verifyMode :: String
-verifyMode = unsafePerformIO (maybe "fail" id <$> lookupEnv "UNISON_MCODE_VERIFY")
+verifyMode = unsafePerformIO $ do
+  -- behind the same gate as the JIT's debugging settings (JIT.Config)
+  debug <- lookupEnv "UNISON_JIT_DEBUG"
+  case debug of
+    Nothing -> pure "fail"
+    Just _ -> maybe "fail" id <$> lookupEnv "UNISON_MCODE_VERIFY"
 {-# NOINLINE verifyMode #-}
 
 -- | The verifier's view of a cache: the declared arities, the numberings
