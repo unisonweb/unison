@@ -74,7 +74,7 @@ if [ "$list" = 1 ]; then
   exit 0
 fi
 
-tmp=$(mktemp -d "${TMPDIR:-/tmp}/jit-matrix.XXXXXX")
+tmp=$(mktemp -d "${TMPDIR:-/tmp}/jit-matrix.XXXXXX") || exit 1
 if [ -z "${JIT_CODEBASE:-}" ] && [ ! -d "$codebase" ]; then
   codebase="$tmp/codebase"
 fi

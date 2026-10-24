@@ -35,6 +35,7 @@ import Data.Text.IO qualified as TIO
 import Data.Word (Word64)
 import Foreign.Ptr (Ptr, castFunPtrToPtr)
 import GHC.Clock (getMonotonicTimeNSec)
+import System.Directory (createDirectoryIfMissing)
 import System.FilePath ((</>))
 import System.IO (hPutStrLn, stderr)
 import Unison.Builtin.Decls qualified as Ty (eitherRef, optionalRef, pairRef, seqViewRef, unitRef)
@@ -456,9 +457,11 @@ compileUnits c st types abilities modName lazy candidates = do
                 )
                 ++ [modulePrelude]
                 ++ concat [[UT.pack (uDescribe u), fnIR f] | (u, f) <- compiled]
-      if dir == "-"
+      if dumpToStderr dir
         then jitDump (UT.unpack annotated)
-        else TIO.writeFile (dir </> modName ++ ".ll") (UT.toText annotated)
+        else do
+          createDirectoryIfMissing True dir
+          TIO.writeFile (dir </> modName ++ ".ll") (UT.toText annotated)
     tGen <- getMonotonicTimeNSec
     r <- addModule (isJust (dumpIR config)) (passes config) (UT.toText ir)
     tOpt <- getMonotonicTimeNSec
@@ -468,7 +471,7 @@ compileUnits c st types abilities modName lazy candidates = do
       Right optimized -> do
         -- the module after the passes: what actually runs
         forM_ ((,) <$> dumpIR config <*> optimized) $ \(dir, txt) ->
-          if dir == "-"
+          if dumpToStderr dir
             then jitDump ("; module " ++ modName ++ " after the passes\n" ++ txt)
             else writeFile (dir </> modName ++ ".opt.ll") txt
         -- The re-entry functions left for later become pending before any
@@ -544,3 +547,6 @@ compileUnits c st types abilities modName lazy candidates = do
           )
   where
     ms ns = show (fromIntegral ns / 1e6 :: Double)
+    -- "-" prints the dump; so does an empty directory name, rather than
+    -- writing into the current directory
+    dumpToStderr dir = dir == "-" || null dir

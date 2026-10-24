@@ -38,8 +38,13 @@ static void *wrap_word(UnisonJitCtx *ctx, const WrapInfo *w, StgWord field) {
   return (void *)((StgWord)(p + 2) | 7);
 }
 
-// checkBoundsPrim: fails when off + esz > size or off > size, in Word64
-static inline int bytes_ok(StgWord size, StgWord off, StgWord esz) { return !(off + esz > size || off > size); }
+// checkRange: the len elements from off lie within size, tested without
+// adding the two: off + len wraps for an offset near 2^64, and a check of the
+// wrapped sum alone let such an offset reach memmove as a negative int64_t
+// (security review, 2026-10-24)
+static inline int range_ok(StgWord size, int64_t off, int64_t len) {
+  return (StgWord)off <= size && (StgWord)len <= size - (StgWord)off;
+}
 
 // --- byte arrays ---
 
@@ -55,7 +60,7 @@ int64_t unison_jit_barray_copy(void *dst, int64_t doff, void *src, int64_t soff,
   StgArrBytes *d = barray_of(dst, 0), *s = barray_of(src, kind);
   if (d == NULL || s == NULL) return 0;
   if (l == 0) return 1;
-  if (!bytes_ok(d->bytes, (StgWord)doff + (StgWord)l, 0) || !bytes_ok(s->bytes, (StgWord)soff + (StgWord)l, 0)) return 0;
+  if (!range_ok(d->bytes, doff, l) || !range_ok(s->bytes, soff, l)) return 0;
   memmove((unsigned char *)d->payload + doff, (const unsigned char *)s->payload + soff, (size_t)l);
   return 1;
 }
@@ -66,7 +71,7 @@ void *unison_jit_barray_freeze(UnisonJitCtx *ctx, void *x, int64_t off, int64_t 
   StgArrBytes *a = barray_of(x, 0);
   if (a == NULL) return NULL;
   if (in_place) return wrap_word(ctx, &AK.barray, (StgWord)a);
-  if (len != 0 && !bytes_ok(a->bytes, (StgWord)off + (StgWord)len, 0)) return NULL;
+  if (len != 0 && !range_ok(a->bytes, off, len)) return NULL;
   StgArrBytes *b = new_arr(ctx, len == 0 ? 0 : (StgWord)len);
   if (len != 0) memcpy(b->payload, (const unsigned char *)a->payload + off, (size_t)len);
   return wrap_word(ctx, &AK.barray, (StgWord)b);
@@ -78,7 +83,7 @@ void *unison_jit_barray_to_bytes(UnisonJitCtx *ctx, void *x, int64_t off, int64_
   StgArrBytes *a = barray_of(x, 1);
   if (a == NULL) return NULL;
   if (len == 0) return wrap_rope(ctx, &BK, BK.empty, NULL);
-  if (!bytes_ok(a->bytes, (StgWord)off + (StgWord)len, 0)) return NULL;
+  if (!range_ok(a->bytes, off, len)) return NULL;
   StgClosure *c = new_chunk(ctx, &BK, a, len, off, len);
   return wrap_rope(ctx, &BK, rope_snoc(ctx, &BK, BK.empty, len, c), NULL);
 }
@@ -96,6 +101,7 @@ void *unison_jit_barray_from_bytes(UnisonJitCtx *ctx, void *bytes) {
   StgInt n;
   unsigned char *heap;
   const unsigned char *p = rope_flat(&BK, r, &n, &heap);
+  if (p == NULL) return NULL;
   StgArrBytes *b = new_arr(ctx, (StgWord)n);
   memcpy(b->payload, p, (size_t)n);
   free(heap);
@@ -120,10 +126,14 @@ void *unison_jit_barray_new(UnisonJitCtx *ctx, int64_t n, int64_t fill, int64_t 
     } else {
       a = (StgArrBytes *)allocatePinned((Capability *)ctx->cap, words, 16, sizeofW(StgArrBytes) * sizeof(W_));
     }
+    // NULL when the request can't be met (allocateMightFail inside): the
+    // interpreter's newPinnedByteArray# raises HeapOverflow then
+    if (a == NULL) return NULL;
     SET_INFO((StgClosure *)a, &stg_ARR_WORDS_info);
     a->bytes = (StgWord)n;
   } else {
-    a = new_arr(ctx, (StgWord)n);
+    a = new_arr_mayfail(ctx, (StgWord)n);
+    if (a == NULL) return NULL;
   }
   if (fill >= 0 && n > 0) memset(a->payload, (int)fill, (size_t)n);
   return wrap_word(ctx, &AK.mbarray, (StgWord)a);
@@ -133,6 +143,10 @@ void *unison_jit_barray_new(UnisonJitCtx *ctx, int64_t n, int64_t fill, int64_t 
 void *unison_jit_barray_contents(UnisonJitCtx *ctx, void *x) {
   StgArrBytes *a = barray_of(x, 0);
   if (a == NULL) return NULL;
+  // an unpinned array (ill-typed code can pass one) is the interpreter's,
+  // which raises; BF_PINNED alone, as isMutableByteArrayPinned# tests it
+  // (allocatePinned marks a large pinned array with it too)
+  if (!(Bdescr((StgPtr)a)->flags & BF_PINNED)) return NULL;
   return wrap_word(ctx, &AK.ptr, (StgWord)a->payload);
 }
 
@@ -172,20 +186,28 @@ static inline void parray_dirty(StgMutArrPtrs *a, StgWord from, StgWord to) {
 void *unison_jit_parray_new(UnisonJitCtx *ctx, int64_t n, int64_t has_init, int64_t u, void *b) {
   if (!AK.ok || n < 0) return NULL;
   StgClosure *init = has_init ? mk_val(ctx, b, u) : AK.empty_val;
-  StgMutArrPtrs *a = parray_new(ctx, (StgWord)n, init, &stg_MUT_ARR_PTRS_DIRTY_info);
+  // the size is the program's: a size no heap can hold is the
+  // interpreter's to refuse (parray_new is for sizes bounded by existing data)
+  StgWord cards = mutArrPtrsCardTableSize((StgWord)n);
+  StgMutArrPtrs *a = (StgMutArrPtrs *)nat_alloc_mayfail(ctx, (int64_t)(sizeofW(StgMutArrPtrs) + (StgWord)n + cards));
+  if (a == NULL) return NULL;
+  SET_INFO((StgClosure *)a, &stg_MUT_ARR_PTRS_DIRTY_info);
+  a->ptrs = (StgWord)n;
+  a->size = (StgWord)n + cards;
+  for (StgWord i = 0; i < (StgWord)n; i++) a->payload[i] = init;
+  memset(&a->payload[n], 0, cards * sizeof(W_));
   return wrap_word(ctx, &AK.marray, (StgWord)a);
 }
 
 // copyTo!: dst a MutableArray, src mutable (kind 0) or immutable (1);
-// checkBounds on doff + l - 1 and soff + l - 1
+// checkRange on (doff, l) and (soff, l)
 int64_t unison_jit_parray_copy(void *dst, int64_t doff, void *src, int64_t soff, int64_t l, int64_t kind) {
   StgMutArrPtrs *d = parray_of(dst, 0), *s = parray_of(src, kind);
   if (d == NULL || s == NULL) return 0;
   if (l == 0) return 1;
-  StgWord dl = (StgWord)doff + (StgWord)l - 1, sl = (StgWord)soff + (StgWord)l - 1;
-  if (!(dl < d->ptrs) || !(sl < s->ptrs)) return 0;
+  if (!range_ok(d->ptrs, doff, l) || !range_ok(s->ptrs, soff, l)) return 0;
   memmove(&d->payload[doff], &s->payload[soff], (size_t)l * sizeof(W_));
-  parray_dirty(d, (StgWord)doff, dl);
+  parray_dirty(d, (StgWord)doff, (StgWord)doff + (StgWord)l - 1);
   return 1;
 }
 
@@ -198,8 +220,7 @@ void *unison_jit_parray_freeze(UnisonJitCtx *ctx, void *x, int64_t off, int64_t 
     return wrap_word(ctx, &AK.array, (StgWord)a);
   }
   if (len == 0) return wrap_word(ctx, &AK.array, (StgWord)parray_new(ctx, 0, AK.empty_val, &stg_MUT_ARR_PTRS_FROZEN_DIRTY_info));
-  StgWord last = (StgWord)off + (StgWord)len - 1;
-  if (!(last < a->ptrs)) return NULL;
+  if (!range_ok(a->ptrs, off, len)) return NULL;
   StgMutArrPtrs *b = parray_new(ctx, (StgWord)len, AK.empty_val, &stg_MUT_ARR_PTRS_FROZEN_DIRTY_info);
   memcpy(b->payload, &a->payload[off], (size_t)len * sizeof(W_));
   return wrap_word(ctx, &AK.array, (StgWord)b);

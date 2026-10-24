@@ -322,6 +322,26 @@ void *unison_jit_alloc_words(UnisonJitCtx *ctx, int64_t n) {
 }
 
 
+// The slow path for an object whose size a program chose (a new array, a
+// repeated text): allocateMightFail instead of allocate(), so that a size
+// no heap can hold comes back as NULL for the caller to hand to the
+// interpreter, which raises HeapOverflow as newByteArray# would, where
+// allocate() exits the process (security review, 2026-10-24). The budget
+// is charged only for what was handed out.
+void *unison_jit_alloc_words_mayfail(UnisonJitCtx *ctx, int64_t n) {
+  if (!ctx->bump) {
+    void *p = allocateMightFail((Capability *)ctx->cap, n);
+    if (p != NULL) ctx->hp = (void *)((uintptr_t)ctx->hp + (uintptr_t)n * sizeof(StgWord));
+    return p;
+  }
+  int64_t left = budget_left(ctx);
+  alloc_sync(ctx);
+  void *p = allocateMightFail((Capability *)ctx->cap, n);
+  if (p != NULL) ctx->slow_words += n, left -= n;
+  alloc_refresh(ctx, left);
+  return p;
+}
+
 // Writes a MutVar# (an IORef) the way compiled Haskell does: the store,
 // then the runtime's barrier, which moves a clean variable onto the
 // mutable list. Cold code in C.
@@ -332,7 +352,9 @@ void unison_jit_write_mutvar(UnisonJitCtx *ctx, StgMutVar *mv, StgClosure *v) {
   // the register table follows the function table at the start of a Capability
   // (see unison_jit_hplim_address)
   StgRegTable *reg = (StgRegTable *)((char *)ctx->cap + sizeof(StgFunTable));
-  dirty_MUT_VAR(reg, mv, old);
+  // only a clean variable needs the barrier, as compiled code tests before
+  // the call (the barrier tests again; this keeps the cold call off a dirty var)
+  if (GET_INFO((StgClosure *)mv) == &stg_MUT_VAR_CLEAN_info) dirty_MUT_VAR(reg, mv, old);
 }
 
 // Addresses and sizes from the runtime that generated code needs: the
@@ -612,6 +634,10 @@ int64_t unison_jit_enter(UnisonNativeFn fn, int64_t *ustk, void **bstk, void **p
       memcpy(out + 4, ctx->frames, bytes);
     } else {
       int64_t *copy = malloc(bytes);
+      if (copy == NULL) {
+        fprintf(stderr, "[jit] out of memory copying %lld frame records\n", (long long)n);
+        abort();
+      }
       memcpy(copy, ctx->frames, bytes);
       out[4] = (int64_t)copy;
     }
@@ -740,7 +766,10 @@ void *unison_jit_local_env(UnisonJitCtx *ctx, void *aff) {
 // field count, non-pointer field count, constructor tag, then for each
 // payload word its raw value, then for each pointer field the index in elems
 // of the object it points to (or -1). Returns the payload word count.
-int64_t unison_jit_probe(StgClosure **elems, int64_t n, int64_t *out) {
+// Writes at most `cap` words of out; the return value says how many a
+// complete answer takes (6 + 2 * payload words at most), so a caller with a
+// small buffer can tell it was cut short.
+int64_t unison_jit_probe(StgClosure **elems, int64_t n, int64_t *out, int64_t cap) {
   StgClosure *tagged = elems[0];
   StgClosure *c = UNTAG_CLOSURE(tagged);
   const StgInfoTable *itbl = get_itbl(c);
@@ -753,6 +782,7 @@ int64_t unison_jit_probe(StgClosure **elems, int64_t n, int64_t *out) {
   out[4] = nptrs;
   out[5] = itbl->srt;
   int64_t total = ptrs + nptrs;
+  if (6 + total + ptrs > cap) return total;
   for (int64_t i = 0; i < total; i++) out[6 + i] = (int64_t)c->payload[i];
   for (int64_t i = 0; i < ptrs; i++) {
     StgClosure *field = UNTAG_CLOSURE(c->payload[i]);
@@ -774,7 +804,7 @@ int64_t unison_jit_hplim_value(void) { return (int64_t)*unison_jit_hplim_address
 // convention, which only clang would give a C copy. This is what it calls
 // when an exit needs more Local frame records than the out-area holds.
 void unison_jit_exit_fail(void) {
-  fprintf(stderr, "[jit] more Local frame records than the out-area holds\n");
+  fprintf(stderr, "[jit] an exit needs more frame records than the context holds (Local records past the out-area, or more records than the C stack budget allows)\n");
   abort();
 }
 

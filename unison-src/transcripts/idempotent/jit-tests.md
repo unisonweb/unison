@@ -4293,3 +4293,175 @@ cmpB x y = (x Universal.== y, x Universal.< y, x Universal.<= y, x Universal.> y
            ⧩
            0xs68c3a96c6c6f
 ```
+
+## Bounds and limits
+
+Cases from the security review of 2026-10-24. The offsets here wrap around when a length is added to
+them, so a check of the sum alone would pass and the copy would run with a negative offset; native
+code and the interpreter both check the offset and the length against the size separately and raise.
+
+``` unison
+catchL : '{IO, Exception} a ->{IO} Either Text a
+catchL c = handle c() with cases
+  { a } -> Right a
+  { Exception.raise f -> _ } -> match f with Failure _ msg _ -> Left msg
+
+wrapped : '{IO} (Either Text (), Either Text Nat, Either Text Nat, Either Text (), Either Text (), Either Text Bytes, Either Text ())
+wrapped = do
+  b = IO.bytearrayOf 7 16
+  m = IO.arrayOf 1 8
+  frozen = MutableByteArray.freeze! (IO.bytearrayOf 3 16)
+  (catchL '(MutableByteArray.copyTo! b 18446744073709551615 b 0 1),
+   catchL '(ImmutableByteArray.size (MutableByteArray.freeze b 18446744073709551552 64)),
+   catchL '(ImmutableArray.size (MutableArray.freeze m 18446744073709551611 6)),
+   catchL '(MutableArray.copyTo! m 18446744073709551611 m 0 6),
+   catchL '(MutableByteArray.copyTo! b 1 b 0 18446744073709551615),
+   catchL '(ImmutableByteArray.toBytes frozen 18446744073709551552 64),
+   catchL '(ImmutableArray.copyTo! m 18446744073709551611 (MutableArray.freeze! (IO.arrayOf 2 8)) 0 6))
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  + catchL  : '{IO, Exception} a ->{IO} Either Text a
+  + wrapped : '{IO} ( Either Text (),
+                Either Text Nat,
+                Either Text Nat,
+                Either Text (),
+                Either Text (),
+                Either Text Bytes,
+                Either Text ())
+
+  Run `update` to apply these changes to your codebase.
+```
+
+``` ucm
+scratch/main> run wrapped
+
+  ( Left "MutableByteArray.copyTo!: array index out of bounds"
+  , Left "MutableByteArray.freeze: array index out of bounds"
+  , Left "MutableArray.freeze: array index out of bounds"
+  , Left "MutableArray.copyTo!: array index out of bounds"
+  , Left "MutableByteArray.copyTo!: array index out of bounds"
+  , Left "ImmutableByteArray_toBytes: array index out of bounds"
+  , Left "ImmutableArray.copyTo!: array index out of bounds"
+  )
+```
+
+A closure that captured many variables, called in `Let` position from a deep frame while the stack
+is growing (the matrix runs this under `ustack=4`): the check that the captured arguments fit has to
+measure from the call's own frame base, not the function's.
+
+``` unison
+use Nat + - * / == < > <= >=
+
+wide : Nat -> (Nat -> Nat)
+wide k =
+  a1 = k + 1
+  a2 = k + 2
+  a3 = k + 3
+  a4 = k + 4
+  a5 = k + 5
+  a6 = k + 6
+  a7 = k + 7
+  a8 = k + 8
+  a9 = k + 9
+  a10 = k + 10
+  a11 = k + 11
+  a12 = k + 12
+  a13 = k + 13
+  a14 = k + 14
+  a15 = k + 15
+  a16 = k + 16
+  a17 = k + 17
+  a18 = k + 18
+  a19 = k + 19
+  a20 = k + 20
+  x -> x + a1 + a2 + a3 + a4 + a5 + a6 + a7 + a8 + a9 + a10 + a11 + a12 + a13 + a14 + a15 + a16 + a17 + a18 + a19 + a20
+
+deepCalls : Nat -> (Nat -> Nat) -> Nat
+deepCalls n f =
+  if n == 0 then 0
+  else
+    b1 = n * 2
+    b2 = b1 + 1
+    b3 = b2 + 1
+    b4 = b3 + 1
+    b5 = b4 + 1
+    b6 = b5 + 1
+    rest = deepCalls (n - 1) f
+    here = f n
+    rest + here + b6 - b1
+
+> deepCalls 300 (wide 3)
+> deepCalls 7 (wide 100)
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  + deepCalls : Nat -> (Nat ->{g} Nat) ->{g} Nat
+  + wide      : Nat -> Nat -> Nat
+
+  Run `update` to apply these changes to your codebase.
+
+    41 | > deepCalls 300 (wide 3)
+           ⧩
+           127650
+
+    42 | > deepCalls 7 (wide 100)
+           ⧩
+           15533
+```
+
+A non-tail call nested in many inline bindings, recursing deeply: each native frame that unwinds
+through an exit writes one frame record per enclosing binding, and the record buffer's bound is
+checked before the records are written (the matrix runs this under `cstack=2048` and `cstack=4096`,
+small budgets that make the recursion exit and re-enter many times).
+
+``` unison
+use Nat + - * / == < > <= >=
+
+nested : Nat -> Nat
+nested n =
+  if n == 0 then 0
+  else
+    a =
+      b =
+        c =
+          d =
+            e =
+              f =
+                g =
+                  h =
+                    i =
+                      j =
+                        k =
+                          l = nested (n - 1)
+                          l + 1
+                        k + 1
+                      j + 1
+                    i + 1
+                  h + 1
+                g + 1
+              f + 1
+            e + 1
+          d + 1
+        c + 1
+      b + 1
+    a + 1
+
+> nested 200
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  + nested : Nat -> Nat
+
+  Run `update` to apply these changes to your codebase.
+
+    32 | > nested 200
+           ⧩
+           2400
+```

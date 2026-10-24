@@ -45,6 +45,7 @@ module Unison.Runtime.JIT.Native.Probes
   )
 where
 
+import Control.Monad (when)
 import Control.Monad.Primitive (PrimState)
 import Data.Int (Int64)
 import Data.Primitive.Array (MutableArray (..), sizeofMutableArray)
@@ -60,17 +61,24 @@ withInts xs k = allocaBytes (8 * max 1 (length xs)) $ \p -> do
   mapM_ (\(i, v) -> pokeElemOff p i (fromIntegral v)) (zip [0 ..] xs)
   k p
 
-foreign import ccall unsafe "unison_jit_probe" c_probe :: MutableArray# (PrimState IO) Any -> Int64 -> Ptr Int64 -> IO Int64
+foreign import ccall unsafe "unison_jit_probe" c_probe :: MutableArray# (PrimState IO) Any -> Int64 -> Ptr Int64 -> Int64 -> IO Int64
 
 -- | Inspects a closure. Element 0 of the array is the sample, the rest are
 -- the objects in its pointer fields. Returns the raw probe output: info
 -- pointer, pointer tag, closure type, pointer count, non-pointer count,
 -- constructor tag, the payload words, then a match index per pointer field.
 probeClosure :: MutableArray (PrimState IO) Any -> IO [Int]
-probeClosure arr@(MutableArray arr#) = allocaBytes (8 * 64) $ \out -> do
-  total <- c_probe arr# (fromIntegral (sizeofMutableArray arr)) out
+probeClosure arr@(MutableArray arr#) = allocaBytes (8 * probeWords) $ \out -> do
+  total <- c_probe arr# (fromIntegral (sizeofMutableArray arr)) out (fromIntegral probeWords)
+  -- C writes nothing past the capacity it was given, and nothing at all
+  -- when the answer would not fit; the samples are the runtime's own
+  -- closures, none anywhere near this size
+  when (6 + 2 * fromIntegral total > probeWords) $
+    error ("probeClosure: a sample closure with " ++ show total ++ " payload words does not fit the probe buffer")
   vals <- mapM (peekElemOff out) [0 .. 5 + 2 * fromIntegral total]
   pure (map fromIntegral vals)
+  where
+    probeWords = 64 :: Int
 
 foreign import ccall unsafe "unison_jit_list_init" c_listInit :: MutableArray# (PrimState IO) Any -> Ptr Int64 -> IO Int64
 

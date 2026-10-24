@@ -593,16 +593,16 @@ void *unison_jit_list_view(UnisonJitCtx *ctx, void *list, void *empty, int64_t e
   StgClosure *nearend = LP(dq, left ? 0 : 2);
   if (IS_CONS(nearend) && IS_CONS(TAIL(nearend))) {
     // the end's digit keeps an item: one allocation for everything
-    StgWord *p = list_alloc(ctx, DEEP_WORDS + 4 + 7);
+    StgWord *p = list_alloc(ctx, DEEP_WORDS + 2 + 7);
     StgInt t = LW(dq, 3) - (left ? 0x101 : 0x110);
     StgClosure *rest = TAIL(nearend);
     StgClosure *nd = left ? deep_at(p, t, rest, LP(dq, 1), LP(dq, 2)) : deep_at(p, t, LP(dq, 0), LP(dq, 1), rest);
-    return view_at(p + DEEP_WORDS + 4, empty, elem_tag, left, HEAD(nearend), wrap_at(p + DEEP_WORDS, nd));
+    return view_at(p + DEEP_WORDS + 2, empty, elem_tag, left, HEAD(nearend), wrap_at(p + DEEP_WORDS, nd));
   }
   StgClosure *x;
   StgClosure *nd = left ? lv_uncons(ctx, 1, dq, &x) : lv_unsnoc(ctx, 1, dq, &x);
-  StgWord *p = list_alloc(ctx, 4 + 7);
-  return view_at(p + 4, empty, elem_tag, left, x, wrap_at(p, nd));
+  StgWord *p = list_alloc(ctx, 2 + 7);
+  return view_at(p + 2, empty, elem_tag, left, x, wrap_at(p, nd));
 }
 
 // cons (front) or snoc of the value (u, b).
@@ -615,7 +615,7 @@ void *unison_jit_list_push(UnisonJitCtx *ctx, void *list, int64_t u, void *b, in
     StgInt t = LW(dq, 3);
     if ((front ? TPC(t) : TSC(t)) < MAXD) {
       // room in the end's digit: one allocation for everything
-      StgWord *p = list_alloc(ctx, 3 + 3 + DEEP_WORDS + 4);
+      StgWord *p = list_alloc(ctx, 3 + 3 + DEEP_WORDS + 2);
       p[0] = LF.val_info; // the element: Val u b (pointer first)
       p[1] = (StgWord)b;
       p[2] = (StgWord)u;

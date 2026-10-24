@@ -222,6 +222,20 @@ static inline StgWord *nat_alloc(UnisonJitCtx *ctx, int64_t n) {
 // heap must have no gaps.
 static inline StgWord *list_alloc(UnisonJitCtx *ctx, int64_t words) { return nat_alloc(ctx, words); }
 
+// nat_alloc for an object whose size the program chose: NULL instead of
+// exiting the process when no heap can hold it (see jit_rt.c). The fast
+// path is the same; only a size past the block or the large-object
+// threshold reaches the slow path, where the difference is.
+void *unison_jit_alloc_words_mayfail(UnisonJitCtx *ctx, int64_t n);
+static inline StgWord *nat_alloc_mayfail(UnisonJitCtx *ctx, int64_t n) {
+  uintptr_t hp = (uintptr_t)ctx->hp, nhp = hp + (uintptr_t)n * sizeof(StgWord);
+  if (__builtin_expect(n >= 0 && nhp <= (uintptr_t)ctx->hp_lim && n < (int64_t)(LARGE_OBJECT_THRESHOLD / sizeof(W_)), 1)) {
+    ctx->hp = (void *)nhp;
+    return (StgWord *)hp;
+  }
+  return (StgWord *)unison_jit_alloc_words_mayfail(ctx, n);
+}
+
 static inline StgInt node_arity(StgClosure *nd) {
   return LTAG(nd) == 1 ? 8 : (StgInt)((StgSmallMutArrPtrs *)LP(nd, 0))->ptrs;
 }
@@ -308,6 +322,17 @@ static inline StgClosure *kids_rev(UnisonJitCtx *ctx, StgClosure *nd, StgInt k) 
 // a fresh byte array of n bytes
 static inline StgArrBytes *new_arr(UnisonJitCtx *ctx, StgWord n) {
   StgArrBytes *arr = (StgArrBytes *)list_alloc(ctx, sizeofW(StgArrBytes) + ROUNDUP_BYTES_TO_WDS(n));
+  SET_INFO((StgClosure *)arr, &stg_ARR_WORDS_info);
+  arr->bytes = n;
+  return arr;
+}
+
+// new_arr for a size the program chose: NULL when it can't be had (the
+// caller returns "not handled"; n is at most 2^63 - 1, so the word count
+// can't wrap)
+static inline StgArrBytes *new_arr_mayfail(UnisonJitCtx *ctx, StgWord n) {
+  StgArrBytes *arr = (StgArrBytes *)nat_alloc_mayfail(ctx, (int64_t)(sizeofW(StgArrBytes) + ROUNDUP_BYTES_TO_WDS(n)));
+  if (arr == NULL) return NULL;
   SET_INFO((StgClosure *)arr, &stg_ARR_WORDS_info);
   arr->bytes = n;
   return arr;

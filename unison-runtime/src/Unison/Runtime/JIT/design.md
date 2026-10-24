@@ -295,7 +295,7 @@ The interpreter adds a `Push` frame to the current continuation before every non
 
 Native code can't construct a `Push` frame itself. A `Push` is a Haskell heap object that points to a `CombIx`, an `RSection` and the rest of `K`, and we'd rather native code know nothing about how `K` is represented. So the work is split:
 
-- Native code writes down a *frame record*, three integers, for each frame that needs to exist ([`writeRecord`](Codegen.hs#:~:text=writeRecord%20%3A%3A); on the exit path itself, the [write-back](#write-back) routine appends them).
+- Native code writes down a *frame record*, three integers, for each frame that needs to exist ([`writeRecord`](Codegen.hs#:~:text=writeRecord%20%3A%3A); on the exit path itself, the [write-back](#write-back) routine appends them). The records go in a per-thread buffer sized from the C stack budget (`max_frames` in [`jit_rt.c`](../../../../cbits/jit_rt.c#:~:text=max_frames)): every native frame that can write records holds C stack, so the budget bounds them. Both writers check the bound before storing and stop the process with a message if it is ever reached (2026-10-24), rather than trusting the sizing.
 - After native code returns, the interpreter turns the frame records into real `Push` frames ([`frameRecords`](Native.hs#:~:text=frameRecords%20%3A%3A) reads them from the stack's out-area; [`runNative`](../Machine.hs#:~:text=runNative%20%3A%3A) builds the frames).
 
 A frame record contains:

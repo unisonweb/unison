@@ -316,7 +316,7 @@ jitCompileGroup jit sandbox ref grp cmbs = case mode (jitConfig jit) of
         types <- readIORef (jitDataTypes jit)
         abilities <- abilityArities jit types
         (now, _) <- groupUnits (jitCompiler jit) sandbox False ref grp cmbs
-        compileUnits (jitCompiler jit) st types abilities ("unison_" ++ show grp) False now
+        guarded (jitConfig jit) ("unison_" ++ show grp) (compileUnits (jitCompiler jit) st types abilities ("unison_" ++ show grp) False now)
   _ -> pure ()
 
 -- ---------------------------------------------------------------------------
@@ -501,7 +501,7 @@ compileThread jit = do
           try
             ( withState initialized $ \st types abilities -> do
                 let name = "unison_" ++ unitName (last held) ++ "_x" ++ show (length held)
-                guarded name (compileUnits c st types abilities name True (reverse held))
+                guarded config name (compileUnits c st types abilities name True (reverse held))
                 forM_ held (dropPending c)
             )
         case r of
@@ -545,9 +545,9 @@ compileThread jit = do
               -- pending before the groups' code can exit to them
               forM_ (concat later) (addPending c)
               copies <- copyCandidates sandbox cache refs members
-              guarded ("unison_" ++ show grp) (compileUnits c st types abilities ("unison_" ++ show grp) True (concat now ++ copies))
+              guarded config ("unison_" ++ show grp) (compileUnits c st types abilities ("unison_" ++ show grp) True (concat now ++ copies))
           ReqUnit u -> do
-            guarded (unitName u) (compileUnits c st types abilities ("unison_" ++ unitName u) True [u])
+            guarded config (unitName u) (compileUnits c st types abilities ("unison_" ++ unitName u) True [u])
             dropPending c u
     -- The definitions to compile together with one that got hot, so that
     -- calls between them are direct and LLVM can inline across them. The
@@ -637,10 +637,15 @@ compileThread jit = do
           let units = take (batch config) (concat picked)
           unless (null units) (jitLog config ("private copies: " ++ unwords (map unitName units)))
           pure units
-    guarded what act =
-      try (act >>= evaluate) >>= \case
-        Left (e :: SomeException) -> jitLog config (what ++ ": " ++ show e)
-        Right () -> pure ()
+
+-- | Runs a compile step, logging an exception instead of letting it escape:
+-- a failure to compile (or to write a dump file) must never take the
+-- program down, since the interpreter can run anything.
+guarded :: Config -> String -> IO () -> IO ()
+guarded config what act =
+  try (act >>= evaluate) >>= \case
+    Left (e :: SomeException) -> jitLog config (what ++ ": " ++ show e)
+    Right () -> pure ()
 
 -- | Prints how often each exit was taken, when UNISON_JIT_STATS is set.
 -- Called after each evaluation.

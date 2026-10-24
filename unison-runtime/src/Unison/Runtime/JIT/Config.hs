@@ -236,7 +236,7 @@ readConfig = do
         stats = maybe False (not . null) stats,
         statsEach = stats == Just "each",
         stressPoll = fromMaybe 0 (setting "poll"),
-        stressStack = setting "ustack",
+        stressStack = max 1 <$> setting "ustack",
         stressCallee = fromMaybe 0 (setting "callee"),
         stressCStack = fromMaybe 0 (setting "cstack"),
         stressAlloc = fromMaybe 0 (setting "alloc"),

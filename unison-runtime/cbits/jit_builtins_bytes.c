@@ -80,8 +80,10 @@ void *unison_jit_bytes_to_base(UnisonJitCtx *ctx, void *bytes, int64_t base) {
   StgInt len;
   unsigned char *heap;
   const unsigned char *p = rope_flat(&BK, r, &len, &heap);
+  if (p == NULL) return NULL;
   StgInt out_len = base == 32 ? (len + 4) / 5 * 8 : base == 64 ? (len + 2) / 3 * 4 : (len * 4 + 2) / 3;
   unsigned char *out = malloc(out_len > 0 ? out_len : 1), *o = out;
+  if (out == NULL) return free(heap), NULL;
   if (base == 32) {
     for (StgInt i = 0; i < len; i += 5) {
       uint64_t v = 0;
@@ -123,7 +125,9 @@ void *unison_jit_bytes_from_base(UnisonJitCtx *ctx, void *bytes, int64_t base, v
   StgInt len;
   unsigned char *heap;
   const unsigned char *p = rope_flat(&BK, r, &len, &heap);
+  if (p == NULL) return NULL;
   unsigned char *out = malloc(len > 0 ? len : 1), *o = out;
+  if (out == NULL) return free(heap), NULL;
   int ok = 1;
   if (base == 16) {
     if (len % 2) ok = 0;

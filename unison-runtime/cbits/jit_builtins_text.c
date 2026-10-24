@@ -135,6 +135,7 @@ static const unsigned char *rope_flat(const RopeKind *K, StgClosure *r, StgInt *
     total += chunk_len(K, c), i += chunk_size(K, c);
   }
   unsigned char *buf = malloc(total > 0 ? total : 1);
+  if (buf == NULL) return *len = 0, NULL; // the caller returns "not handled"
   StgInt at = 0;
   for (StgInt i = 0; i < n;) {
     StgClosure *c = unison_jit_rope_chunk_at(K, r, i, &off);
@@ -377,7 +378,9 @@ typedef struct {
 static void pack_measure(StgClosure *x, void *env) {
   PackEnv *e = env;
   StgInt u = LW(x, 1);
-  if (LP(x, 0) != e->tag || u < 0 || u > e->limit) e->bad = 1;
+  // a surrogate code point is not a character: Data.Text.pack replaces it,
+  // so the interpreter does that (security review, 2026-10-24)
+  if (LP(x, 0) != e->tag || u < 0 || u > e->limit || (e->limit != 255 && u >= 0xD800 && u <= 0xDFFF)) e->bad = 1;
   else e->count++, e->bytes += e->limit == 255 ? 1 : utf8_cp_len(u);
 }
 
@@ -457,6 +460,7 @@ static void *rope_index_of(UnisonJitCtx *ctx, const RopeKind *K, void *needle, v
   StgInt la, lb;
   unsigned char *ha, *hb;
   const unsigned char *pa = rope_flat(K, a, &la, &ha), *pb = rope_flat(K, b, &lb, &hb);
+  if (pa == NULL || pb == NULL) return free(ha), free(hb), NULL;
   const unsigned char *at = la <= lb ? mem_find(pb, lb, pa, la) : NULL;
   void *res = none;
   if (at != NULL) {
@@ -533,13 +537,19 @@ static StgClosure *text_rep(UnisonJitCtx *ctx, StgInt n, StgClosure *t, StgInt s
     StgInt len;
     unsigned char *heap;
     const unsigned char *p = rope_flat(K, t, &len, &heap);
-    StgArrBytes *arr = new_arr(ctx, len * n);
+    if (p == NULL) return NULL;
+    StgArrBytes *arr = new_arr_mayfail(ctx, len * n);
+    if (arr == NULL) return free(heap), NULL;
     for (StgInt i = 0; i < n; i++) memcpy((char *)arr->payload + i * len, p, len);
     free(heap);
     return rope_one(ctx, K, new_chunk(ctx, K, arr, size * n, 0, len * n));
   }
   if (n == 1) return t;
-  return rope_append(ctx, K, text_rep(ctx, n / 2, t, size), text_rep(ctx, n - n / 2, t, size));
+  StgClosure *lo = text_rep(ctx, n / 2, t, size);
+  if (lo == NULL) return NULL;
+  StgClosure *hi = text_rep(ctx, n - n / 2, t, size);
+  if (hi == NULL) return NULL;
+  return rope_append(ctx, K, lo, hi);
 }
 
 void *unison_jit_text_repeat(UnisonJitCtx *ctx, int64_t n, void *text) {
@@ -549,7 +559,9 @@ void *unison_jit_text_repeat(UnisonJitCtx *ctx, int64_t n, void *text) {
   if (n < 0 || (size > 0 && n > ((StgInt)1 << 40) / size)) return NULL; // a size that can't be built
   if (size == 0 || n == 0) return wrap_rope(ctx, &TK, TK.empty, NULL);
   if (n == 1) return text;
-  return wrap_rope(ctx, &TK, text_rep(ctx, n, r, size), NULL);
+  StgClosure *rep = text_rep(ctx, n, r, size);
+  if (rep == NULL) return NULL;
+  return wrap_rope(ctx, &TK, rep, NULL);
 }
 
 // a chunk's characters in reverse order, in a fresh array
@@ -607,7 +619,14 @@ void *unison_jit_text_case(UnisonJitCtx *ctx, void *text, int64_t upper) {
     const unsigned char *p = chunk_bytes(K, c);
     StgArrBytes *arr = new_arr(ctx, len);
     unsigned char *o = (unsigned char *)arr->payload;
-    for (StgInt j = 0; j < len; j++) o[j] = upper ? toupper(p[j]) : tolower(p[j]);
+    // ASCII only (checked above), by arithmetic: toupper/tolower follow the
+    // process locale, and a single-byte non-ASCII locale maps some letters to
+    // bytes >= 0x80, which would not be UTF-8 (security review, 2026-10-24)
+    for (StgInt j = 0; j < len; j++) {
+      unsigned char ch = p[j];
+      if (upper) o[j] = (ch >= 'a' && ch <= 'z') ? ch - 32 : ch;
+      else o[j] = (ch >= 'A' && ch <= 'Z') ? ch + 32 : ch;
+    }
     acc = rope_snoc(ctx, K, acc, len, new_chunk(ctx, K, arr, len, 0, len));
     i += len;
   }
@@ -638,6 +657,7 @@ void *unison_jit_text_from_utf8(UnisonJitCtx *ctx, void *bytes, void *either, in
   StgInt len;
   unsigned char *heap;
   const unsigned char *p = rope_flat(&BK, r, &len, &heap);
+  if (p == NULL) return NULL;
   StgInt count = utf8_count_valid(p, len);
   void *res = NULL;
   if (count >= 0) res = mk_data1(ctx, LP(either, 0), right_tag, text_copy(ctx, p, len), -1);

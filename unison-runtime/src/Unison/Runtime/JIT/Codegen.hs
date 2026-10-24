@@ -263,6 +263,7 @@ modulePrelude =
       "declare ptr @unison_jit_alloc_words(ptr, i64)",
       "declare preserve_mostcc void @unison_jit_exit_frame(ptr, ptr, i64, i64, ptr)",
       "declare void @unison_jit_write_mutvar(ptr, ptr, ptr)",
+      "declare void @unison_jit_exit_fail()",
       "declare i64 @unison_jit_list_size(ptr)",
       "declare ptr @unison_jit_list_view(ptr, ptr, ptr, i64, i64)",
       "declare ptr @unison_jit_list_push(ptr, ptr, i64, ptr, i64)",
@@ -900,6 +901,20 @@ writeRecord env ix fsz masz = do
   nfa <- ctxField env oNFrames
   nf <- fresh "nf"
   emit (nf <> " = load i64, ptr " <> nfa)
+  -- the buffer's capacity is a bound the C stack budget implies; check it
+  -- rather than trust it (jit_exit.c does the same for the call path)
+  mfa <- ctxField env oMaxFrames
+  mf <- fresh "maxf"
+  emit (mf <> " = load i64, ptr " <> mfa)
+  full <- fresh "full"
+  emit (full <> " = icmp sge i64 " <> nf <> ", " <> mf)
+  fullL <- freshLabel "frames.full"
+  okL <- freshLabel "frames.ok"
+  emit ("br i1 " <> full <> ", label %" <> fullL <> ", label %" <> okL <> unlikely)
+  startBlock fullL
+  emit "call void @unison_jit_exit_fail()"
+  emit "unreachable"
+  startBlock okL
   off <- fresh "off"
   emit (off <> " = mul i64 " <> nf <> ", 3")
   rec0 <- fresh "rec"
@@ -2699,7 +2714,7 @@ genApp fe d r args sect = case r of
     | e :<| _ <- feEnclosing fe ->
         genClosureCall fe d (enBase e) (d - i) srcs (enResults e) sect Nothing $
           emit ("br label %" <> enBody e)
-    | otherwise -> genTailClosureCall fe d (closureCallee fe d (d - i) n) srcs sect
+    | otherwise -> genTailClosureCall fe d (closureCallee fe (feBase fe + n) (d - i) n) srcs sect
   -- An ability request: the handler is the closure the environment maps
   -- the ability's number to (see "Ability requests" in design.md), and
   -- it is called like any other function value, with the request as its
@@ -2708,9 +2723,9 @@ genApp fe d r args sect = case r of
   Dyn key
     | enabled fe "requests",
       e :<| _ <- feEnclosing fe ->
-        genNonTailCallWith fe d (enBase e) (dynCallee fe key n) (copyCaptured fe (enBase e + n)) srcs (enResults e) sect Nothing $
+        genNonTailCallWith fe d (enBase e) (dynCallee fe (enBase e + n) key n) (copyCaptured fe (enBase e + n)) srcs (enResults e) sect Nothing $
           emit ("br label %" <> enBody e)
-    | enabled fe "requests" -> genTailClosureCall fe d (dynCallee fe key n) srcs sect
+    | enabled fe "requests" -> genTailClosureCall fe d (dynCallee fe (feBase fe + n) key n) srcs sect
   _ -> exitResume fe d sect
   where
     srcs = argSources fe d args
@@ -2745,14 +2760,14 @@ genTailClosureCall fe d getCallee srcs sect = do
 -- | The callee of an ability request: the handler the environment in the
 -- context maps the ability number to, examined like a closure in a slot
 -- (null when it isn't an affine handler's, which fails the closure check).
-dynCallee :: FnEnv -> Word64 -> Int -> Gen (Pair Text Text)
-dynCallee fe key n = do
+dynCallee :: FnEnv -> Int -> Word64 -> Int -> Gen (Pair Text Text)
+dynCallee fe from key n = do
   ha <- ctxField (feEnv fe) oHenv
   henv <- fresh "henv"
   emit (henv <> " = load ptr, ptr " <> ha)
   h <- fresh "handler"
   emit (h <> " = call ptr @unison_jit_resolve_dyn(ptr " <> henv <> ", i64 " <> tshow key <> ")")
-  closureCalleeFrom fe h n
+  closureCalleeFrom fe from h n
 
 -- | A top-level value that was evaluated when it was loaded: its unboxed
 -- word and the pool index of its boxed part.
@@ -2786,20 +2801,22 @@ combConstant fe = \case
 -- slots; the callee's frame starts at @base@. See 'genNonTailCall'.
 genClosureCall :: FnEnv -> Int -> Int -> Int -> Deque Int -> Int -> MSection -> Maybe (Pair Int Int) -> Gen () -> Gen ()
 genClosureCall fe d base k srcs m sect ownFrame continue =
-  genNonTailCallWith fe d base (closureCallee fe d k (D.size srcs)) (copyCaptured fe (base + D.size srcs)) srcs m sect ownFrame continue
+  genNonTailCallWith fe d base (closureCallee fe (base + D.size srcs) k (D.size srcs)) (copyCaptured fe (base + D.size srcs)) srcs m sect ownFrame continue
 
 -- | Examines the closure in slot @k@ for a call with @n@ supplied
 -- arguments: it must be a @PAp@ whose arity is @n@ plus its captured
--- arguments, with compiled code. Gives the code pointer and an i1 that is
--- true when the call can't be made natively. Leaves the captured count in
--- @%cap.n@ and the segment arrays in @%cap.u@ and @%cap.b@ for
--- 'copyCaptured' (registers named per call site through the suffix).
+-- arguments, with compiled code, and the captured arguments must fit on
+-- the stack above frame offset @from@, where 'copyCaptured' will put them.
+-- Gives the code pointer and an i1 that is true when the call can't be
+-- made natively. Leaves the captured count in @%cap.n@ and the segment
+-- arrays in @%cap.u@ and @%cap.b@ for 'copyCaptured' (registers named per
+-- call site through the suffix).
 closureCallee :: FnEnv -> Int -> Int -> Int -> Gen (Pair Text Text)
-closureCallee fe _d k n = loadB k >>= \p -> closureCalleeFrom fe p n
+closureCallee fe from k n = loadB k >>= \p -> closureCalleeFrom fe from p n
 
 -- | 'closureCallee' for the closure pointer in register @p@.
-closureCalleeFrom :: FnEnv -> Text -> Int -> Gen (Pair Text Text)
-closureCalleeFrom fe p n = do
+closureCalleeFrom :: FnEnv -> Int -> Text -> Int -> Gen (Pair Text Text)
+closureCalleeFrom fe from p n = do
   let env = feEnv fe
       ls = envLayouts env
       layout = lPAp ls
@@ -2859,11 +2876,17 @@ closureCalleeFrom fe p n = do
   emit (need <> " = add i64 " <> count <> ", " <> tshow n)
   wrong <- fresh "wrong"
   emit (wrong <> " = icmp ne i64 " <> arity <> ", " <> need)
-  -- the captured arguments must fit on the stack (the callee checks its own frame)
+  -- The captured arguments go to slots fp + from + 1 .. fp + from + count
+  -- ('copyCaptured'), so those must exist: fp + from + count + 1 < stack
+  -- size, the interpreter's slack. The static part (from) is covered by the
+  -- entry check through 'fpPlus'; the count is only known here. Measured
+  -- from %fp and the copy's own base, not from %fpb, the function's: a call
+  -- in a deep frame writes that much higher (security review, 2026-10-24).
+  -- The callee checks its own frame.
   top <- fresh "top"
-  emit (top <> " = add i64 %fpb, " <> need)
+  emit (top <> " = add i64 %fp, " <> tshow (from + 1))
   limit <- fresh "limit"
-  emit (limit <> " = add i64 " <> top <> ", 1")
+  emit (limit <> " = add i64 " <> top <> ", " <> count)
   noRoom <- fresh "noroom"
   emit (noRoom <> " = icmp sge i64 " <> limit <> ", %stack.size")
   bad0 <- fresh "bad"

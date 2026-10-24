@@ -65,6 +65,10 @@ __attribute__((preserve_most)) void unison_jit_exit_frame(UnisonJitCtx *ctx, con
     ctx->sp = fp + depth;
     if (fp + depth > ctx->max_sp) ctx->max_sp = fp + depth;
   }
+  // the buffer is sized from the C stack budget (jit_rt.c), which bounds
+  // the records a chain of native frames can write; the check makes the
+  // bound explicit rather than trusting it (security review, 2026-10-24)
+  if (__builtin_expect(ctx->n_frames + nrecs > ctx->max_frames, 0)) unison_jit_exit_fail();
   int64_t *fr = ctx->frames + 3 * ctx->n_frames;
   for (int64_t i = 0; i < nrecs; i++, recs += 3, fr += 3) {
     if (recs[0] < 0) {

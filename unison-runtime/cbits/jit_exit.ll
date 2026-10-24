@@ -18,8 +18,8 @@ entry:
   %6 = load ptr, ptr %ctx, align 8
   %bstk8 = getelementptr inbounds i8, ptr %ctx, i64 8
   %7 = load ptr, ptr %bstk8, align 8
-  %cmp131 = icmp sgt i64 %4, 0
-  br i1 %cmp131, label %for.body, label %for.cond.cleanup
+  %cmp145 = icmp sgt i64 %4, 0
+  br i1 %cmp145, label %for.body, label %for.cond.cleanup
 
 for.cond.cleanup:                                 ; preds = %for.body, %entry
   %add.ptr17.idx = shl nsw i64 %4, 4
@@ -29,11 +29,11 @@ for.cond.cleanup:                                 ; preds = %for.body, %entry
   br i1 %tobool.not, label %if.end30, label %if.then
 
 for.body:                                         ; preds = %entry, %for.body
-  %i.0132 = phi i64 [ %inc, %for.body ], [ 0, %entry ]
-  %arrayidx9 = getelementptr inbounds i64, ptr %add.ptr, i64 %i.0132
+  %i.0146 = phi i64 [ %inc, %for.body ], [ 0, %entry ]
+  %arrayidx9 = getelementptr inbounds i64, ptr %add.ptr, i64 %i.0146
   %8 = load i64, ptr %arrayidx9, align 8
   %add = add nsw i64 %8, %fp
-  %mul = shl nuw nsw i64 %i.0132, 1
+  %mul = shl nuw nsw i64 %i.0146, 1
   %arrayidx10 = getelementptr inbounds i64, ptr %args, i64 %mul
   %9 = load i64, ptr %arrayidx10, align 8
   %arrayidx11 = getelementptr inbounds i64, ptr %6, i64 %add
@@ -44,7 +44,7 @@ for.body:                                         ; preds = %entry, %for.body
   %11 = inttoptr i64 %10 to ptr
   %arrayidx15 = getelementptr inbounds ptr, ptr %7, i64 %add
   store ptr %11, ptr %arrayidx15, align 8
-  %inc = add nuw nsw i64 %i.0132, 1
+  %inc = add nuw nsw i64 %i.0146, 1
   %exitcond.not = icmp eq i64 %inc, %4
   br i1 %exitcond.not, label %for.cond.cleanup, label %for.body
 
@@ -71,82 +71,94 @@ if.then27:                                        ; preds = %if.then
 
 if.end30:                                         ; preds = %if.then, %if.then27, %for.cond.cleanup
   %n_frames = getelementptr inbounds i8, ptr %ctx, i64 112
-  %invariant.gep = getelementptr i8, ptr %7, i64 8
-  %cmp35133 = icmp sgt i64 %5, 0
-  br i1 %cmp35133, label %for.body37.lr.ph, label %for.cond.cleanup36
+  %13 = load i64, ptr %n_frames, align 8
+  %add31 = add nsw i64 %13, %5
+  %max_frames = getelementptr inbounds i8, ptr %ctx, i64 120
+  %14 = load i64, ptr %max_frames, align 8
+  %cmp32 = icmp sgt i64 %add31, %14
+  br i1 %cmp32, label %if.then35, label %if.end36
 
-for.body37.lr.ph:                                 ; preds = %if.end30
+if.then35:                                        ; preds = %if.end30
+  tail call void @unison_jit_exit_fail() #2
+  br label %if.end36
+
+if.end36:                                         ; preds = %if.then35, %if.end30
+  %invariant.gep = getelementptr i8, ptr %7, i64 8
+  %cmp42147 = icmp sgt i64 %5, 0
+  br i1 %cmp42147, label %for.body45.lr.ph, label %for.cond.cleanup44
+
+for.body45.lr.ph:                                 ; preds = %if.end36
   %frames = getelementptr inbounds i8, ptr %ctx, i64 104
-  %13 = load ptr, ptr %frames, align 8
-  %14 = load i64, ptr %n_frames, align 8
-  %add.ptr32.idx = mul i64 %14, 24
-  %add.ptr32 = getelementptr inbounds i8, ptr %13, i64 %add.ptr32.idx
+  %15 = load ptr, ptr %frames, align 8
+  %16 = load i64, ptr %n_frames, align 8
+  %add.ptr39.idx = mul i64 %16, 24
+  %add.ptr39 = getelementptr inbounds i8, ptr %15, i64 %add.ptr39.idx
   %n_local_ptrs = getelementptr inbounds i8, ptr %ctx, i64 208
   %stack_size = getelementptr inbounds i8, ptr %ctx, i64 24
-  %add61 = sub i64 %fp, %ap
-  %sub62 = add i64 %add61, %2
-  br label %for.body37
+  %add72 = sub i64 %fp, %ap
+  %sub73 = add i64 %add72, %2
+  br label %for.body45
 
-for.cond.cleanup36:                               ; preds = %if.end56, %if.end30
-  %15 = load i64, ptr %n_frames, align 8
-  %add74 = add nsw i64 %15, %5
-  store i64 %add74, ptr %n_frames, align 8
+for.cond.cleanup44:                               ; preds = %if.end67, %if.end36
+  %17 = load i64, ptr %n_frames, align 8
+  %add85 = add nsw i64 %17, %5
+  store i64 %add85, ptr %n_frames, align 8
   ret void
 
-for.body37:                                       ; preds = %for.body37.lr.ph, %if.end56
-  %recs.0137 = phi ptr [ %add.ptr6, %for.body37.lr.ph ], [ %add.ptr70, %if.end56 ]
-  %i33.0136 = phi i64 [ 0, %for.body37.lr.ph ], [ %inc69, %if.end56 ]
-  %fr.0135 = phi ptr [ %add.ptr32, %for.body37.lr.ph ], [ %add.ptr71, %if.end56 ]
-  %extra.0134 = phi ptr [ %add.ptr17, %for.body37.lr.ph ], [ %extra.1, %if.end56 ]
-  %16 = load i64, ptr %recs.0137, align 8
-  %cmp39 = icmp slt i64 %16, 0
-  br i1 %cmp39, label %if.then40, label %if.else
+for.body45:                                       ; preds = %for.body45.lr.ph, %if.end67
+  %recs.0151 = phi ptr [ %add.ptr6, %for.body45.lr.ph ], [ %add.ptr81, %if.end67 ]
+  %i40.0150 = phi i64 [ 0, %for.body45.lr.ph ], [ %inc80, %if.end67 ]
+  %fr.0149 = phi ptr [ %add.ptr39, %for.body45.lr.ph ], [ %add.ptr82, %if.end67 ]
+  %extra.0148 = phi ptr [ %add.ptr17, %for.body45.lr.ph ], [ %extra.1, %if.end67 ]
+  %18 = load i64, ptr %recs.0151, align 8
+  %cmp47 = icmp slt i64 %18, 0
+  br i1 %cmp47, label %if.then49, label %if.else
 
-if.then40:                                        ; preds = %for.body37
-  %17 = load i64, ptr %n_local_ptrs, align 8
-  %inc41 = add nsw i64 %17, 1
-  store i64 %inc41, ptr %n_local_ptrs, align 8
-  %cmp42 = icmp sgt i64 %17, 31
-  br i1 %cmp42, label %if.then45, label %if.end46
+if.then49:                                        ; preds = %for.body45
+  %19 = load i64, ptr %n_local_ptrs, align 8
+  %inc50 = add nsw i64 %19, 1
+  store i64 %inc50, ptr %n_local_ptrs, align 8
+  %cmp51 = icmp sgt i64 %19, 31
+  br i1 %cmp51, label %if.then56, label %if.end57
 
-if.then45:                                        ; preds = %if.then40
+if.then56:                                        ; preds = %if.then49
   tail call void @unison_jit_exit_fail() #2
-  br label %if.end46
+  br label %if.end57
 
-if.end46:                                         ; preds = %if.then45, %if.then40
-  %incdec.ptr = getelementptr inbounds i8, ptr %extra.0134, i64 8
-  %18 = load i64, ptr %extra.0134, align 8
-  %19 = inttoptr i64 %18 to ptr
-  %20 = load i64, ptr %stack_size, align 8
-  %gep = getelementptr ptr, ptr %invariant.gep, i64 %20
-  %arrayidx49 = getelementptr ptr, ptr %gep, i64 %17
-  store ptr %19, ptr %arrayidx49, align 8
-  %sub = xor i64 %17, -1
-  store i64 %sub, ptr %fr.0135, align 8
-  br label %if.end56
+if.end57:                                         ; preds = %if.then56, %if.then49
+  %incdec.ptr = getelementptr inbounds i8, ptr %extra.0148, i64 8
+  %20 = load i64, ptr %extra.0148, align 8
+  %21 = inttoptr i64 %20 to ptr
+  %22 = load i64, ptr %stack_size, align 8
+  %gep = getelementptr ptr, ptr %invariant.gep, i64 %22
+  %arrayidx60 = getelementptr ptr, ptr %gep, i64 %19
+  store ptr %21, ptr %arrayidx60, align 8
+  %sub = xor i64 %19, -1
+  store i64 %sub, ptr %fr.0149, align 8
+  br label %if.end67
 
-if.else:                                          ; preds = %for.body37
-  store i64 %16, ptr %fr.0135, align 8
-  %arrayidx54 = getelementptr inbounds i8, ptr %recs.0137, i64 8
-  %21 = load i64, ptr %arrayidx54, align 8
-  br label %if.end56
+if.else:                                          ; preds = %for.body45
+  store i64 %18, ptr %fr.0149, align 8
+  %arrayidx65 = getelementptr inbounds i8, ptr %recs.0151, i64 8
+  %23 = load i64, ptr %arrayidx65, align 8
+  br label %if.end67
 
-if.end56:                                         ; preds = %if.else, %if.end46
-  %.sink = phi i64 [ %21, %if.else ], [ 0, %if.end46 ]
-  %extra.1 = phi ptr [ %extra.0134, %if.else ], [ %incdec.ptr, %if.end46 ]
-  %arrayidx55 = getelementptr inbounds i8, ptr %fr.0135, i64 8
-  store i64 %.sink, ptr %arrayidx55, align 8
-  %arrayidx57 = getelementptr inbounds i8, ptr %recs.0137, i64 16
-  %22 = load i64, ptr %arrayidx57, align 8
-  %cmp58 = icmp slt i64 %22, 0
-  %cond66 = select i1 %cmp58, i64 %sub62, i64 %22
-  %arrayidx67 = getelementptr inbounds i8, ptr %fr.0135, i64 16
-  store i64 %cond66, ptr %arrayidx67, align 8
-  %inc69 = add nuw nsw i64 %i33.0136, 1
-  %add.ptr70 = getelementptr inbounds i8, ptr %recs.0137, i64 24
-  %add.ptr71 = getelementptr inbounds i8, ptr %fr.0135, i64 24
-  %exitcond138.not = icmp eq i64 %inc69, %5
-  br i1 %exitcond138.not, label %for.cond.cleanup36, label %for.body37
+if.end67:                                         ; preds = %if.else, %if.end57
+  %.sink = phi i64 [ %23, %if.else ], [ 0, %if.end57 ]
+  %extra.1 = phi ptr [ %extra.0148, %if.else ], [ %incdec.ptr, %if.end57 ]
+  %arrayidx66 = getelementptr inbounds i8, ptr %fr.0149, i64 8
+  store i64 %.sink, ptr %arrayidx66, align 8
+  %arrayidx68 = getelementptr inbounds i8, ptr %recs.0151, i64 16
+  %24 = load i64, ptr %arrayidx68, align 8
+  %cmp69 = icmp slt i64 %24, 0
+  %cond77 = select i1 %cmp69, i64 %sub73, i64 %24
+  %arrayidx78 = getelementptr inbounds i8, ptr %fr.0149, i64 16
+  store i64 %cond77, ptr %arrayidx78, align 8
+  %inc80 = add nuw nsw i64 %i40.0150, 1
+  %add.ptr81 = getelementptr inbounds i8, ptr %recs.0151, i64 24
+  %add.ptr82 = getelementptr inbounds i8, ptr %fr.0149, i64 24
+  %exitcond152.not = icmp eq i64 %inc80, %5
+  br i1 %exitcond152.not, label %for.cond.cleanup44, label %for.body45
 }
 
 declare void @unison_jit_exit_fail()

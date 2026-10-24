@@ -774,8 +774,8 @@ foreignCallHelper = \case
        in if l == 0
             then pure (Right ())
             else
-              checkBounds name (PA.sizeofMutableArray dst) (doff + l - 1) $
-                checkBounds name (PA.sizeofMutableArray src) (soff + l - 1) $
+              checkRange name (PA.sizeofMutableArray dst) doff l $
+                checkRange name (PA.sizeofMutableArray src) soff l $
                   Right
                     <$> PA.copyMutableArray @IO @Val
                       dst
@@ -791,8 +791,8 @@ foreignCallHelper = \case
             else do
               sizeofDst <- PA.getSizeofMutableByteArray dst
               sizeofSrc <- PA.getSizeofMutableByteArray src
-              checkBoundsPrim name sizeofDst (doff + l) 0 $
-                checkBoundsPrim name sizeofSrc (soff + l) 0 $
+              checkRange name sizeofDst doff l $
+                checkRange name sizeofSrc soff l $
                   Right
                     <$> PA.copyMutableByteArray @IO
                       dst
@@ -806,8 +806,8 @@ foreignCallHelper = \case
        in if l == 0
             then pure (Right ())
             else
-              checkBounds name (PA.sizeofMutableArray dst) (doff + l - 1) $
-                checkBounds name (PA.sizeofArray src) (soff + l - 1) $
+              checkRange name (PA.sizeofMutableArray dst) doff l $
+                checkRange name (PA.sizeofArray src) soff l $
                   Right
                     <$> PA.copyArray @IO @Val
                       dst
@@ -834,8 +834,8 @@ foreignCallHelper = \case
             then pure (Right ())
             else do
               sizeofDst <- PA.getSizeofMutableByteArray dst
-              checkBoundsPrim name sizeofDst (doff + l) 0 $
-                checkBoundsPrim name (PA.sizeofByteArray src) (soff + l) 0 $
+              checkRange name sizeofDst doff l $
+                checkRange name (PA.sizeofByteArray src) soff l $
                   Right
                     <$> PA.copyByteArray @IO
                       dst
@@ -950,18 +950,15 @@ foreignCallHelper = \case
         then fmap Right . PA.unsafeFreezeByteArray =<< PA.newByteArray 0
         else do
           sizeof <- PA.getSizeofMutableByteArray src
-          checkBoundsPrim "MutableByteArray.freeze" sizeof (off + len) 0 $
+          checkRange "MutableByteArray.freeze" sizeof off len $
             Right <$> PA.freezeByteArray src (fromIntegral off) (fromIntegral len)
   MutableArray_freeze -> mkForeignExn $
     \(src :: PA.MutableArray PA.RealWorld Val, off, len) ->
       if len == 0
         then fmap Right . PA.unsafeFreezeArray =<< PA.newArray 0 emptyVal
         else
-          checkBounds
-            "MutableArray.freeze"
-            (PA.sizeofMutableArray src)
-            (off + len - 1)
-            $ Right <$> PA.freezeArray src (fromIntegral off) (fromIntegral len)
+          checkRange "MutableArray.freeze" (PA.sizeofMutableArray src) off len $
+            Right <$> PA.freezeArray src (fromIntegral off) (fromIntegral len)
   MutableByteArray_length ->
     mkForeign $
       PA.getSizeofMutableByteArray
@@ -972,14 +969,10 @@ foreignCallHelper = \case
     if len == 0
       then pure (Right Bytes.empty)
       else
-        checkBoundsPrim
-          "ImmutableByteArray_toBytes"
-          (PA.sizeofByteArray ba)
-          (off + len)
-          0
-          $ pure
-          $ Right
-          $ Bytes.fromByteArray (fromIntegral off) (fromIntegral len) ba
+        checkRange "ImmutableByteArray_toBytes" (PA.sizeofByteArray ba) off len $
+          pure $
+            Right $
+              Bytes.fromByteArray (fromIntegral off) (fromIntegral len) ba
   ImmutableByteArray_fromBytes -> mkForeign $ \(ba :: Bytes.Bytes) ->
     evaluate $ Bytes.toByteArray ba
   PinnedByteArray_cast -> mkForeign $ \(ba :: PA.MutableByteArray PA.RealWorld) -> pure ba
@@ -1335,8 +1328,16 @@ foreignCallHelper = \case
   FFI_Ptr_Ptr_setAt -> mkForeign $ pokeAt @(Ptr ())
   FFI_Ptr_free -> mkForeign $ Mem.free @()
   FFI_Ptr_null -> mkForeign $ \() -> pure (nullPtr @())
-  PinnedByteArray_contents ->
-    mkForeign $ evaluate . PA.mutableByteArrayContents @PA.RealWorld
+  PinnedByteArray_contents -> mkForeignExn $ \(ba :: PA.MutableByteArray PA.RealWorld) ->
+    -- The type says pinned, but at run time a PinnedByteArray and a
+    -- MutableByteArray are the same object, so code that bypassed the
+    -- typechecker can pass an unpinned one, whose address the collector
+    -- would move out from under the Ptr (security review, 2026-10-24).
+    -- (strictly: GHC 9.10's primop, like the JIT's C copy in
+    -- jit_builtins_arrays.c, counts only arrays made pinned, not merely large)
+    if PA.isMutableByteArrayPinned ba
+      then Right <$> evaluate (PA.mutableByteArrayContents ba)
+      else pure . Left $ F.Failure Ty.arrayFailureRef "PinnedByteArray.contents: the array is not pinned" unitValue
   FFI_ForeignPtr_new_foreign -> mkForeign \(fin0, ptr) ->
     let fin | CDynFunc _ _ f _ <- fin0 = castFunPtr f
      in FgnPtr.newForeignPtr @() fin ptr
@@ -1777,6 +1778,19 @@ checkBounds name l w act
   where
     msg = name <> ": array index out of bounds"
     err = F.Failure Ty.arrayFailureRef msg (natValue w)
+
+-- Checks that the `len` elements (or bytes) from `off` lie within an array of
+-- `l` elements, without adding the two: `off + len` is a Word64 sum that wraps
+-- for an offset near 2^64, and a check of the wrapped sum alone let such an
+-- offset through, to be used as a negative Int by the copy (2026-10-24).
+checkRange :: Text -> Int -> Word64 -> Word64 -> IO (Either Failure b) -> IO (Either Failure b)
+checkRange name l off len act
+  | off <= size && len <= size - off = act
+  | otherwise = pure $ Left err
+  where
+    size = fromIntegral l :: Word64
+    msg = name <> ": array index out of bounds"
+    err = F.Failure Ty.arrayFailureRef msg (natValue off)
 
 -- Performs a bounds check on a byte array. Strategy is as follows:
 --
