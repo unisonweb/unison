@@ -110,6 +110,7 @@ import Data.Functor.Compose (Compose (..))
 import Data.List hiding (and, or, unsnoc, unzip)
 import Data.Map qualified as Map
 import Data.Ord (comparing)
+import Data.Sequence qualified as Seq
 import Data.Set qualified as Set
 import Data.Text qualified as Data.Text
 import Data.Text qualified as Text
@@ -1539,13 +1540,18 @@ type ANormal ref = ABTN.Term (ANormalF ref)
 
 type Cte v = CTE v (ANormal Reference v)
 
-type Ctx v = Directed () [Cte v]
+-- A block's bindings so far, in order. A Seq, because a left-nested
+-- application appends the left operand's whole context at each level
+-- (`anfArg`, `anfArgs`), which with a list copied it each time: quadratic
+-- in the nesting, and the live heap of a wide expression's normalization
+-- was almost all list cells.
+type Ctx v = Directed () (Seq (Cte v))
 
 data Direction a = Indirect a | Direct
   deriving (Eq, Ord, Show, Functor, Foldable, Traversable)
 
-directed :: (Foldable f) => f (Cte v) -> Directed () (f (Cte v))
-directed x = (foldMap f x, x)
+directed :: (Foldable f) => f (Cte v) -> Ctx v
+directed x = (foldMap f x, Seq.fromList (toList x))
   where
     f (ST d _ _ _) = () <$ d
     f _ = Direct
@@ -1733,7 +1739,7 @@ contextualize :: (Var v) => DNormal v -> ANFM v (Ctx v, v)
 contextualize (_, TVar cv) = do
   gvs <- groupVars
   if cv `Set.notMember` gvs
-    then pure (pure [], cv)
+    then pure (mempty, cv)
     else do
       bv <- fresh
       d <- Indirect <$> binder
@@ -1741,7 +1747,7 @@ contextualize (_, TVar cv) = do
 contextualize (d0, tm) = do
   fv <- fresh
   d <- bindDirection d0
-  pure ((d0, [ST1 d fv BX tm]), fv)
+  pure ((d0, Seq.singleton (ST1 d fv BX tm)), fv)
 
 binder :: ANFM v Word16
 binder = state $ \(fr, bnd, cs) -> (bnd, (fr, bnd + 1, cs))
@@ -1783,8 +1789,8 @@ anfTerm :: (Var v) => Term v a -> ANFM v (DNormal v)
 anfTerm tm = f <$> anfBlock tm
   where
     -- f = uncurry (liftA2 TBinds)
-    f ((_, []), dtm) = dtm
-    f ((_, cx), (_, tm)) = (Indirect (), TBinds cx tm)
+    f ((_, Seq.Empty), dtm) = dtm
+    f ((_, cx), (_, tm)) = (Indirect (), TBinds (toList cx) tm)
 
 floatableCtx :: (Var v) => Ctx v -> Bool
 floatableCtx = all p . snd
@@ -1801,10 +1807,10 @@ anfHandled body =
   anfBlock body >>= \case
     (ctx, (_, t@TCon {})) ->
       fresh <&> \v ->
-        (ctx <> pure [ST1 Direct v BX t], pure $ TVar v)
+        (ctx <> pure (Seq.singleton (ST1 Direct v BX t)), pure $ TVar v)
     (ctx, (_, t@(TLit l))) ->
       fresh <&> \v ->
-        (ctx <> pure [ST1 Direct v cc t], pure $ TVar v)
+        (ctx <> pure (Seq.singleton (ST1 Direct v cc t)), pure $ TVar v)
       where
         cc = case l of T {} -> BX; LM {} -> BX; LY {} -> BX; _ -> UN
     p -> pure p
@@ -1827,7 +1833,7 @@ pattern UTrue <- TCon ((== Ty.booleanRef) -> True) 1 []
 -- entries, as no effort is made to rename them to avoid capturing
 -- `u`.
 renameCtx :: (Var v) => v -> v -> Ctx v -> (Ctx v, Bool)
-renameCtx v u (d, ctx) | (ctx, b) <- renameCtes v u ctx = ((d, ctx), b)
+renameCtx v u (d, ctx) | (ctx, b) <- renameCtes v u (toList ctx) = ((d, Seq.fromList ctx), b)
 
 -- As above, but without the Direction.
 renameCtes :: (Var v) => v -> v -> [Cte v] -> ([Cte v], Bool)
@@ -1867,7 +1873,7 @@ renamesCtes rn = map f
 -- consists of the free variables in the expressions being bound,
 -- but with previously bound variables subtracted.
 freeVarsCtx :: (Ord v) => Ctx v -> Set v
-freeVarsCtx = freeVarsCte . snd
+freeVarsCtx = freeVarsCte . toList . snd
 
 freeVarsCte :: (Ord v) => [Cte v] -> Set v
 freeVarsCte = foldr m Set.empty
@@ -1906,8 +1912,8 @@ freshens p avoid0 vs =
 -- context, since it is presumably already correctly formed.
 freshenCtx :: (Var v) => Set v -> Ctx v -> (Map v v, Ctx v)
 freshenCtx avoid0 (d, ctx) =
-  case go lavoid Map.empty [] $ reverse ctx of
-    (rn, ctx) -> (rn, (d, ctx))
+  case go lavoid Map.empty [] $ reverse (toList ctx) of
+    (rn, ctx) -> (rn, (d, Seq.fromList ctx))
   where
     -- precalculate all variable occurrences in the context to just
     -- completely avoid those as well.
@@ -1973,13 +1979,13 @@ anfBlock (Handle' h body) =
       (ctx, (_, TCom f as)) | floatableCtx ctx -> do
         v <- fresh
         pure
-          ( hctx <> ctx <> pure [LZ v (Left f) as],
+          ( hctx <> ctx <> pure (Seq.singleton (LZ v (Left f) as)),
             (Indirect (), TApp (FVar vh) [v])
           )
       (ctx, (_, TApv f as)) | floatableCtx ctx -> do
         v <- fresh
         pure
-          ( hctx <> ctx <> pure [LZ v (Right f) as],
+          ( hctx <> ctx <> pure (Seq.singleton (LZ v (Right f) as)),
             (Indirect (), TApp (FVar vh) [v])
           )
       (ctx, (_, TVar v)) | floatableCtx ctx -> do
@@ -1999,11 +2005,11 @@ anfBlock (Match' scrut cas) = do
       | [u] <- us,
         TBinds (directed -> bx) bd <- bd ->
           case cx of
-            (_, []) -> do
+            (_, Seq.Empty) -> do
               d0 <- Indirect <$> binder
-              pure (sctx <> pure [ST1 d0 u BX (TFrc v)] <> bx, pure bd)
-            (d0, [ST1 d1 _ BX tm]) ->
-              pure (sctx <> (d0, [ST1 d1 u BX tm]) <> bx, pure bd)
+              pure (sctx <> pure (Seq.singleton (ST1 d0 u BX (TFrc v))) <> bx, pure bd)
+            (d0, ST1 d1 _ BX tm Seq.:<| Seq.Empty) ->
+              pure (sctx <> (d0, Seq.singleton (ST1 d1 u BX tm)) <> bx, pure bd)
             _ -> internalBug [] "anfBlock|AccumPure: impossible"
       | otherwise -> internalBug [] "pure handler with too many variables"
     AccumRequest abr (Just df) -> do
@@ -2015,12 +2021,12 @@ anfBlock (Match' scrut cas) = do
         pure (r, hfvs)
       hv <- fresh
       let (d, msc)
-            | (d, [ST1 _ _ BX tm]) <- cx = (d, tm)
-            | (_, [ST _ _ _ _]) <- cx =
+            | (d, ST1 _ _ BX tm Seq.:<| Seq.Empty) <- cx = (d, tm)
+            | (_, ST _ _ _ _ Seq.:<| Seq.Empty) <- cx =
                 internalBug [] "anfBlock: impossible"
             | otherwise = (Indirect (), TFrc v)
       pure
-        ( sctx <> pure [LZ hv (Right r) vs],
+        ( sctx <> pure (Seq.singleton (LZ hv (Right r) vs)),
           (d, THnd (Map.keys abr) hv Nothing msc)
         )
     AccumText df cs ->
@@ -2044,7 +2050,7 @@ anfBlock (Match' scrut cas) = do
       pure
         ( sctx
             <> cx
-            <> (Indirect (), [ST1 (Indirect b) r BX (TCom op [v])]),
+            <> (Indirect (), Seq.singleton (ST1 (Indirect b) r BX (TCom op [v]))),
           pure . TMatch r $
             MatchDataCover
               Ty.seqViewRef
@@ -2108,7 +2114,7 @@ anfBlock (Apps' (Blank' b) args) = do
   nm <- fresh
   (actx, cas) <- anfArgs args
   pure
-    ( actx <> pure [ST1 Direct nm BX (TLit (T msg))],
+    ( actx <> pure (Seq.singleton (ST1 Direct nm BX (TLit (T msg)))),
       pure $ TPrm EROR (nm : cas)
     )
   where
@@ -2132,10 +2138,11 @@ anfBlock (Blank' b) = do
   nm <- fresh
   ev <- fresh
   pure
-    ( pure
-        [ ST1 Direct nm BX (TLit (T name)),
-          ST1 Direct ev BX (TLit (T $ Util.Text.pack msg))
-        ],
+    ( pure $
+        Seq.fromList
+          [ ST1 Direct nm BX (TLit (T name)),
+            ST1 Direct ev BX (TLit (T $ Util.Text.pack msg))
+          ],
       pure $ TPrm EROR [nm, ev]
     )
   where
