@@ -101,10 +101,10 @@ import Data.Bifunctor (Bifunctor, bimap, first)
 import Data.Bitraversable (Bitraversable (..), bifoldMapDefault, bimapDefault)
 import Data.Bits (shiftL, shiftR, (.&.), (.|.))
 import Data.Coerce
+import Data.Containers.ListUtils (nubOrd)
 import Data.Foldable (toList)
 import Data.Function ((&))
 import Data.Functor ((<&>))
-import Data.List (nub)
 import Data.Map.Strict qualified as M
 import Data.Maybe (mapMaybe)
 import Data.Primitive.PrimArray
@@ -1532,7 +1532,7 @@ resultCount = \case
   TFOp p args -> primCount (emitFOp p) args
   TDiscard _ -> Just 0
   TUpdate {} -> Just 0
-  tm@(TMatch _ bs) -> case nub (mapMaybe armCount (toList bs)) of
+  tm@(TMatch _ bs) -> case nubOrd (mapMaybe armCount (toList bs)) of
     [] -> Nothing
     [n] -> Just n
     ns ->
