@@ -114,13 +114,10 @@ data Env = Env
     -- | pool index of every constant this group uses
     envPool :: !(Map.Map PoolKey Int),
     envRts :: !RtsFacts,
-    -- | constructor arities of the data types loaded so far
-    envTypes :: !(Map.Map Reference (Deque Int)),
-    -- | the same by type number, for request matches, which name the
-    -- ability by its number
-    envAbilities :: !(EC.EnumMap Word64 (Deque Int)),
     -- | the number each type reference has in the cache (the type part of
-    -- a packed tag), for the one match arm that compares a whole tag
+    -- a packed tag), for the one match arm that compares a whole tag (a
+    -- lone wide constructor's; no other declaration of a type is needed:
+    -- field counts come from the arms and the objects, 'genDMatchClosure')
     envTypeNumbers :: !(Map.Map Reference Word64),
     -- | cells for the auxiliary functions (re-entry points), taken in order
     envCells :: !Cells,
@@ -773,13 +770,13 @@ liveAt env base = go
       Jump i args -> slotAt d i <+> argReads base d args
       Match i br -> slotAt d i <+> arms d br
       NMatch _ i br -> slotAt d i <+> arms d br
-      DMatch mr i _ br -> slotAt d i <+> dataArms d (mr >>= \r -> Map.lookup r (envTypes env)) br
+      DMatch _ i ns br -> slotAt d i <+> dataArms d ns br
       -- the pure request has one field, the value; a request arm pushes
       -- its constructor's fields
-      RMatch i pu _ br ->
+      RMatch i pu ns br ->
         slotAt d i
           <+> go (d + 1) pu
-          <+> foldr (\(e, gb) acc -> dataArms d (EC.lookup e (envAbilities env)) gb <+> acc) (Just IS.empty) (EC.mapToList br)
+          <+> foldr (\(e, gb) acc -> dataArms d (maybe (EC.mapFromList []) id (EC.lookup e ns)) gb <+> acc) (Just IS.empty) (EC.mapToList br)
       Yield args -> argReads base d args
       Ins i rest -> instrReads base d i <+> (pushCount i >>= \n -> go (d + n) rest)
       Let b (CIx _ _ w) _ body _ -> case EC.lookup w (envCombs env) of
@@ -797,16 +794,17 @@ liveAt env base = go
       TestW df m -> foldr (\(_, a) acc -> go d a <+> acc) (go d df) (EC.mapToList m)
       TestT df m -> foldr (\a acc -> go d a <+> acc) (go d df) (Map.elems m)
       TestY df m -> foldr (\a acc -> go d a <+> acc) (go d df) (Map.elems m)
-    -- the arms of a data match: constructor u's arm runs with u's fields
-    -- pushed, the default arm with nothing pushed
-    dataArms d arities = \case
-      Test1 u a df -> ctor d arities u a <+> go d df
-      Test2 u a v b df -> ctor d arities u a <+> ctor d arities v b <+> go d df
-      TestW df m -> foldr (\(u, a) acc -> ctor d arities u a <+> acc) (go d df) (EC.mapToList m)
+    -- the arms of a data match: constructor u's arm runs with the fields
+    -- it binds pushed (the count the match carries), the default arm with
+    -- nothing pushed
+    dataArms d counts = \case
+      Test1 u a df -> ctor d counts u a <+> go d df
+      Test2 u a v b df -> ctor d counts u a <+> ctor d counts v b <+> go d df
+      TestW df m -> foldr (\(u, a) acc -> ctor d counts u a <+> acc) (go d df) (EC.mapToList m)
       _ -> Nothing
-    ctor d arities u a = case arities of
-      Just as | Just n <- D.lookup (fromIntegral u) as -> go (d + n) a
-      _ -> Nothing
+    ctor d counts u a = case EC.lookup u counts of
+      Just n -> go (d + n) a
+      Nothing -> Nothing
 
 -- | The slots an instruction reads (see 'liveAt').
 instrReads :: Int -> Int -> GInstr comb -> Maybe IS.IntSet
@@ -1924,12 +1922,12 @@ genSectionFull fe d sect = case sect of
   Match i br -> do
     x <- loadU (d - i)
     genBranch fe d x br sect
-  DMatch mr i _ br -> genDMatch fe d i mr br sect
+  DMatch mr i ns br -> genDMatch fe d i mr ns br sect
   NMatch _ i br -> do
     x <- loadU (d - i)
     genBranch fe d x br sect
   Let binding bcix f body cell -> genLet fe d binding bcix f body cell sect
-  RMatch i pu _ br | on "requests" -> genRMatch fe d i pu br sect
+  RMatch i pu ns br | on "requests" -> genRMatch fe d i pu ns br sect
   -- the interpreter takes these: a request match with requests disabled,
   -- the slow call path with it disabled, a jump to a continuation, and the
   -- two ways a function stops
@@ -2271,13 +2269,13 @@ genBranchWith fe d x br sect armCode = case br of
 signed :: Word64 -> Text
 signed w = tshow (fromIntegral w :: Int64)
 
--- | Branch on the constructor of a data value. Only enumerations (no
--- fields) are handled natively so far; anything else exits.
-genDMatch :: FnEnv -> Int -> Int -> Maybe Reference -> GBranch (RComb Val) -> MSection -> Gen ()
-genDMatch fe d i mr br sect =
+-- | Branch on the constructor of a data value: a boolean still in a
+-- register is one branch, anything else a dispatch on the closure.
+genDMatch :: FnEnv -> Int -> Int -> Maybe Reference -> EC.EnumMap Word64 Int -> GBranch (RComb Val) -> MSection -> Gen ()
+genDMatch fe d i mr ns br sect =
   slotKind (d - i) >>= \case
     Just c -> genBoolBranch fe d c br sect
-    Nothing -> genDMatchClosure fe d i mr br sect
+    Nothing -> genDMatchClosure fe d i mr ns br sect
 
 -- | A match on a boolean that is still an i1: one branch. False is
 -- constructor 0, true is 1.
@@ -2303,130 +2301,160 @@ genBoolBranch fe d c br sect = case br of
       unless ok $ sideBlockNamed label (exitResume fe d sect)
       pure label
 
--- | A match on a data closure. The type's constructor arities
--- ('envTypes', from its declaration) fix each constructor's shape: no
--- fields is @GEnum@, 1 to 6 are @GData1@ to @GData6@, more is @GDataG@.
--- The shape is what the pointer tag gives, from bits already in a
--- register (tag 7, which @GData3@, @GData4@, @GData6@ and @GDataG@
--- share, with a load of the info pointer). So the dispatch is over the
--- shapes the type has a constructor of: a shape with one constructor
--- branches straight to its arm, and only a shape two or more
--- constructors share loads the packed tag, switching among those. Any
--- other shape or tag is a runtime bug and exits. Each arm pushes the
--- fields as @dataBranch@ does, the first field on top. A type whose
--- arities aren't known (Boolean and the other builtin references) can
--- still be matched when the value is an enumeration, which the pointer
--- tag says; that path loads the packed tag.
-genDMatchClosure :: FnEnv -> Int -> Int -> Maybe Reference -> GBranch (RComb Val) -> MSection -> Gen ()
-genDMatchClosure fe d i mr br sect = do
+-- | A match on a data closure. Each arm's field count ('DMatch' carries
+-- it, from the ANF case the arm was emitted for) fixes the shape of the
+-- object the arm is for: no fields is @GEnum@, 1 to 6 are @GData1@ to
+-- @GData6@, more is @GDataG@. The shape is what the pointer tag gives,
+-- from bits already in a register (tag 7, which @GData3@, @GData4@,
+-- @GData6@ and @GDataG@ share, with a load of the info pointer). So the
+-- dispatch is over the shapes the arms have: a shape with one arm, in a
+-- match with no default of its own (so one in which every constructor has
+-- an arm), branches straight to it; otherwise the shape's block loads the
+-- packed tag and switches on the constructor number, as the interpreter's
+-- @dataBranch@ does. A data value of a shape no arm has runs the default
+-- arm (at depth d, nothing pushed, as @dataBranch@ does for a constructor
+-- without an arm) when the match has one, and anything else exits to the
+-- interpreter, which raises its own error.
+--
+-- The field count native code reads is always the object's: for shapes 0
+-- to 6 the pointer tag that selected the arm is the count; a wide
+-- constructor's arm first checks the object's two arrays hold exactly
+-- its count ('requireWide'), and also compares the whole packed tag,
+-- type number included, since the info pointer only says "some type's
+-- wide constructor" (design.md, "What native code trusts about MCode").
+-- No declaration of the type is consulted, so code whose types the
+-- runtime never saw declared (code sent over the network) compiles like
+-- any other.
+genDMatchClosure :: FnEnv -> Int -> Int -> Maybe Reference -> EC.EnumMap Word64 Int -> GBranch (RComb Val) -> MSection -> Gen ()
+genDMatchClosure fe d i mr ns br sect = do
   let env = feEnv fe
       ls = envLayouts env
   p <- loadB (d - i)
   raw <- fresh "raw"
   emit (raw <> " = ptrtoint ptr " <> p <> " to i64")
   other <- exitBlock fe d (Resume (feCix fe) sect)
-  case mr >>= \r -> Map.lookup r (envTypes env) of
-    Nothing -> do
-      Pair _ packed <- loadPackedTag raw other [lData ls V.! 0]
-      tag <- fresh "tag"
-      emit (tag <> " = and i64 " <> packed <> ", 65535") -- maskTags
-      genBranchWith fe d tag br sect (\_ -> genSection fe d)
-    Just as
-      | TestT {} <- br -> exitResume fe d sect
-      | TestY {} <- br -> exitResume fe d sect
-      | otherwise -> do
-          tagBits <- fresh "ptrtag"
-          emit (tagBits <> " = and i64 " <> raw <> ", 7")
-          base <- fresh "base"
-          emit (base <> " = sub i64 " <> raw <> ", " <> tagBits)
-          let ctors = zip [0 :: Word64 ..] (D.toList as)
-              shapeOf n = min n 7 -- 7 is DataG
-              layoutOf s = if s <= 6 then lData ls V.! s else lDataG ls
-              shapes = [Pair s cs | s <- [0 .. 7], let cs = [c | c@(_, n) <- ctors, shapeOf n == s], not (null cs)]
-              -- an arm off to the side; one that can't be generated exits at the match
-              armBlock name code = do
-                label <- freshLabel name
-                ok <- attempt (withKinds (sideBlockNamed label code))
-                unless ok $ sideBlockNamed label (exitResume fe d sect)
-                pure label
-          -- the default arm runs at depth d with nothing pushed (the
-          -- interpreter's dataBranch does the same); once, if needed
-          defaultL <-
-            if all (isJust . branchArmOf br . fst) ctors
-              then pure Nothing
-              else Just <$> armBlock "default" (genSection fe d (branchDefaultOf br))
-          let armFor (u, n) = case branchArmOf br u of
-                Nothing -> pure (maybe other id defaultL)
-                Just body -> armBlock "case" $ do
-                  when (n > 0) (pushFields fe d base n other)
-                  genSection fe (d + n) body
-              -- a shape's block: the arm itself for one constructor; for
-              -- several, a load of the packed tag at the shape's offset
-              -- and a switch among them
-              -- A lone wide constructor (DataG) still compares the packed
-              -- tag: the info pointer only says "some type's wide
-              -- constructor", and a value of another type with fewer
-              -- fields would be read with this one's count (the verifier,
-              -- MCode.Verify, guarantees every value of a declared type
-              -- has its declared arity; this is the guard against a value
-              -- of a different type). Shapes 0 to 6 need none: the pointer
-              -- tag fixes their layout, so a wrong type's value is at
-              -- worst matched wrongly, as the interpreter would without
-              -- the tag check it does make, never read past.
-              shapeBlock (Pair 7 [c@(u, _)]) | Just r <- mr = do
-                al <- armFor c
-                l <- freshLabel "wide"
-                sideBlockNamed l $ do
-                  let layout = lDataG ls
-                  addr <- fresh "tag.a"
-                  emit (addr <> " = add i64 " <> base <> ", " <> tshow (lFieldOffset layout (lPtrs layout)))
-                  ptr <- fresh "tag.p"
-                  emit (ptr <> " = inttoptr i64 " <> addr <> " to ptr")
-                  packed <- fresh "packed"
-                  emit (packed <> " = load i64, ptr " <> ptr)
-                  ok <- fresh "sametag"
-                  case Map.lookup r (envTypeNumbers env) of
-                    Just rt -> do
-                      let PackedTag want = TT.packTags (TT.RTag rt) (TT.CTag (fromIntegral u))
-                      emit (ok <> " = icmp eq i64 " <> packed <> ", " <> tshow want)
-                    Nothing -> do
-                      ctor <- fresh "ctor"
-                      emit (ctor <> " = and i64 " <> packed <> ", 65535") -- maskTags
-                      emit (ok <> " = icmp eq i64 " <> ctor <> ", " <> tshow u)
-                  emit ("br i1 " <> ok <> ", label %" <> al <> ", label %" <> other)
-                pure l
-              shapeBlock (Pair _ [c]) = armFor c
-              shapeBlock (Pair s cs) = do
-                arms <- forM cs $ \c -> Pair (fst c) <$> armFor c
-                l <- freshLabel "shape"
-                sideBlockNamed l $ do
-                  let layout = layoutOf s
-                  addr <- fresh "tag.a"
-                  emit (addr <> " = add i64 " <> base <> ", " <> tshow (lFieldOffset layout (lPtrs layout)))
-                  ptr <- fresh "tag.p"
-                  emit (ptr <> " = inttoptr i64 " <> addr <> " to ptr")
-                  packed <- fresh "packed"
-                  emit (packed <> " = load i64, ptr " <> ptr)
-                  tag <- fresh "tag"
-                  emit (tag <> " = and i64 " <> packed <> ", 65535") -- maskTags
-                  emit ("switch i64 " <> tag <> ", label %" <> other <> " [ " <> intercalateT " " (D.fromList (map (\(Pair u al) -> "i64 " <> tshow u <> ", label %" <> al) arms)) <> " ]")
-                pure l
-          entries <- forM shapes $ \sh@(Pair s _) -> Pair (layoutOf s) <$> shapeBlock sh
-          let owns = [Pair (lPtrTag layout) l | Pair layout l <- entries, lPtrTag layout /= 7]
-              shared = [Pair (lInfo layout) l | Pair layout l <- entries, lPtrTag layout == 7]
-          sevenL <-
-            if null shared
-              then pure other
-              else do
-                l <- freshLabel "shape7"
-                sideBlockNamed l $ do
-                  bp <- fresh "base.p"
-                  emit (bp <> " = inttoptr i64 " <> base <> " to ptr")
-                  info <- fresh "info"
-                  emit (info <> " = load i64, ptr " <> bp)
-                  emit ("switch i64 " <> info <> ", label %" <> other <> " [ " <> intercalateT " " (D.fromList (map (\(Pair inf al) -> "i64 " <> tshow inf <> ", label %" <> al) shared)) <> " ]")
-                pure l
-          emit ("switch i64 " <> tagBits <> ", label %" <> other <> " [ " <> intercalateT " " (D.fromList (map (\(Pair t l) -> "i64 " <> tshow t <> ", label %" <> l) owns ++ ["i64 7, label %" <> sevenL | not (null shared)])) <> " ]")
+  case br of
+    TestT {} -> exitResume fe d sect
+    TestY {} -> exitResume fe d sect
+    _ -> do
+      tagBits <- fresh "ptrtag"
+      emit (tagBits <> " = and i64 " <> raw <> ", 7")
+      base <- fresh "base"
+      emit (base <> " = sub i64 " <> raw <> ", " <> tagBits)
+      let -- the constructors with an arm and a count: those native code can take apart
+          ctors = [(u, n) | (u, n) <- EC.mapToList ns, isJust (branchArmOf br u)]
+          shapeOf n = min n 7 -- 7 is DataG
+          layoutOf s = if s <= 6 then lData ls V.! s else lDataG ls
+          armsOfShape s = [c | c@(_, n) <- ctors, shapeOf n == s]
+          -- a default arm of the match's own, as opposed to the "missing
+          -- case" the emitter puts where the source had none
+          hasDefault = case branchDefaultOf br of
+            Die _ -> False
+            _ -> True
+          -- an arm off to the side; one that can't be generated exits at the match
+          armBlock name code = do
+            label <- freshLabel name
+            ok <- attempt (withKinds (sideBlockNamed label code))
+            unless ok $ sideBlockNamed label (exitResume fe d sect)
+            pure label
+      defaultL <-
+        if hasDefault
+          then Just <$> armBlock "default" (genSection fe d (branchDefaultOf br))
+          else pure Nothing
+      let -- where a data value of a constructor without an arm goes
+          noArm = maybe other id defaultL
+          armFor (u, n) = case branchArmOf br u of
+            Nothing -> pure noArm
+            Just body -> armBlock "case" $ do
+              when (n >= 7) (requireWide fe base n other)
+              when (n > 0) (pushFields fe d base n other)
+              genSection fe (d + n) body
+          -- the block for a shape: the arm itself when it is the only one
+          -- and no constructor is without an arm; otherwise a load of the
+          -- packed tag at the shape's offset and a switch on the
+          -- constructor number, or for a lone wide constructor a compare
+          -- of the whole tag
+          shapeBlock s = case armsOfShape s of
+            [] -> pure noArm
+            cs -> do
+              arms <- forM cs $ \c -> Pair (fst c) <$> armFor c
+              case arms of
+                [Pair _ al] | not hasDefault, s /= 7 -> pure al
+                _ -> do
+                  l <- freshLabel (if s == 7 then "wide" else "shape")
+                  sideBlockNamed l $ do
+                    let layout = layoutOf s
+                    addr <- fresh "tag.a"
+                    emit (addr <> " = add i64 " <> base <> ", " <> tshow (lFieldOffset layout (lPtrs layout)))
+                    ptr <- fresh "tag.p"
+                    emit (ptr <> " = inttoptr i64 " <> addr <> " to ptr")
+                    packed <- fresh "packed"
+                    emit (packed <> " = load i64, ptr " <> ptr)
+                    case arms of
+                      [Pair u al]
+                        | s == 7,
+                          Just rt <- mr >>= \r -> Map.lookup r (envTypeNumbers env) -> do
+                            let PackedTag want = TT.packTags (TT.RTag rt) (TT.CTag (fromIntegral u))
+                            ok <- fresh "sametag"
+                            emit (ok <> " = icmp eq i64 " <> packed <> ", " <> tshow want)
+                            emit ("br i1 " <> ok <> ", label %" <> al <> ", label %" <> noArm)
+                      _ -> do
+                        tag <- fresh "tag"
+                        emit (tag <> " = and i64 " <> packed <> ", 65535") -- maskTags
+                        emit ("switch i64 " <> tag <> ", label %" <> noArm <> " [ " <> intercalateT " " (D.fromList (map (\(Pair u al) -> "i64 " <> tshow u <> ", label %" <> al) arms)) <> " ]")
+                  pure l
+      -- every data shape gets a block: a shape with no arm goes to the
+      -- default arm (or exits, without one)
+      entries <- forM [0 .. 7] $ \s -> Pair (layoutOf s) <$> shapeBlock s
+      let owns = [Pair (lPtrTag layout) l | Pair layout l <- entries, lPtrTag layout /= 7, l /= other]
+          shared = [Pair (lInfo layout) l | Pair layout l <- entries, lPtrTag layout == 7, l /= other]
+      sevenL <-
+        if null shared
+          then pure other
+          else do
+            l <- freshLabel "shape7"
+            sideBlockNamed l $ do
+              bp <- fresh "base.p"
+              emit (bp <> " = inttoptr i64 " <> base <> " to ptr")
+              info <- fresh "info"
+              emit (info <> " = load i64, ptr " <> bp)
+              emit ("switch i64 " <> info <> ", label %" <> other <> " [ " <> intercalateT " " (D.fromList (map (\(Pair inf al) -> "i64 " <> tshow inf <> ", label %" <> al) shared)) <> " ]")
+            pure l
+      emit ("switch i64 " <> tagBits <> ", label %" <> other <> " [ " <> intercalateT " " (D.fromList (map (\(Pair t l) -> "i64 " <> tshow t <> ", label %" <> l) owns ++ ["i64 7, label %" <> sevenL | sevenL /= other])) <> " ]")
+
+-- | Branches to @bad@ unless the wide constructor (@GDataG@) at untagged
+-- address @base@ holds exactly @n@ fields: its boxed array has @n@
+-- elements and its unboxed array @8n@ bytes. The two arrays are built from
+-- one field list everywhere ('Unison.Runtime.Stack.segFromList', the
+-- value decoder, 'genPack'), so a well-formed object passes; the check is
+-- what lets an arm read @n@ fields of an object it knows nothing else
+-- about. The interpreter's @dumpSeg@ reads the same two lengths.
+requireWide :: FnEnv -> Text -> Int -> Text -> Gen ()
+requireWide fe base n bad = do
+  let ls = envLayouts (feEnv fe)
+      rts = envRts (feEnv fe)
+      layout = lDataG ls
+      loadFrom from what off = do
+        a <- fresh (what <> ".a")
+        emit (a <> " = add i64 " <> from <> ", " <> tshow off)
+        pp <- fresh (what <> ".p")
+        emit (pp <> " = inttoptr i64 " <> a <> " to ptr")
+        v <- fresh what
+        emit (v <> " = load i64, ptr " <> pp)
+        pure v
+  useg <- loadFrom base "useg" (lFieldOffset layout 0)
+  bseg <- loadFrom base "bseg" (lFieldOffset layout 1)
+  bytes <- loadFrom useg "ubytes" (8 * rBytesCount rts)
+  ptrs <- loadFrom bseg "bptrs" (8 * rPtrsCount rts)
+  okU <- fresh "wide.u"
+  emit (okU <> " = icmp eq i64 " <> bytes <> ", " <> tshow (8 * n))
+  okB <- fresh "wide.b"
+  emit (okB <> " = icmp eq i64 " <> ptrs <> ", " <> tshow n)
+  ok <- fresh "wide"
+  emit (ok <> " = and i1 " <> okU <> ", " <> okB)
+  narrow <- fresh "narrow"
+  emit (narrow <> " = xor i1 " <> ok <> ", true")
+  branchIf "wide" narrow bad
 
 -- | The arm of a branch for a constructor number, if it has one.
 branchArmOf :: GBranch c -> Word64 -> Maybe (GSection c)
@@ -2450,7 +2478,11 @@ branchDefaultOf = \case
 -- for the shapes that have their own, then, for pointer tag 7, a switch
 -- on the info pointer for the shapes that share it. Anything else
 -- branches to @other@. Gives the untagged address and the tag word.
-loadPackedTag :: Text -> Text -> [Layout] -> Gen (Pair Text Text)
+-- | Loads the packed tag of the data closure whose tagged address is
+-- @raw@, whatever its shape among @kinds@ (anything else branches to
+-- @other@). Gives the untagged address, the packed tag and the shape found,
+-- as an index into @kinds@.
+loadPackedTag :: Text -> Text -> [Layout] -> Gen (Triple Text Text Text)
 loadPackedTag raw other kinds = do
   tagBits <- fresh "ptrtag"
   emit (tagBits <> " = and i64 " <> raw <> ", 7")
@@ -2489,19 +2521,25 @@ loadPackedTag raw other kinds = do
   startBlock dispatch
   packed <- fresh "packed"
   emit (packed <> " = phi i64 " <> intercalateT ", " (D.fromList (map (\(Triple _ l v) -> "[ " <> v <> ", %" <> l <> " ]") (owns ++ shareds))))
-  pure (Pair base packed)
+  shape <- fresh "shape"
+  let indexOf layout = maybe 0 id (lookup (lInfo layout) (zip (map lInfo kinds) [0 :: Int ..]))
+  emit (shape <> " = phi i64 " <> intercalateT ", " (D.fromList (map (\(Triple layout l _) -> "[ " <> tshow (indexOf layout) <> ", %" <> l <> " ]") (owns ++ shareds))))
+  pure (Triple base packed shape)
 
 -- | A match on a request closure (an affine handler's @RMatch@). The
 -- closure is a data constructor like any other; its packed tag is
 -- @ability << 16 | constructor@, and zero for the pure request, @Data1
 -- effectRef 0 v@, whose one field is the handled computation's value. The
 -- branches are keyed by ability number, then constructor, and an arm
--- pushes its constructor's fields as a data match does; their counts come
--- from the ability's declaration ('envAbilities'). An ability or
--- constructor without an arm, or a closure of another kind, is the
--- interpreter's (it dies with "unhandled ability").
-genRMatch :: FnEnv -> Int -> Int -> MSection -> EC.EnumMap Word64 (GBranch (RComb Val)) -> MSection -> Gen ()
-genRMatch fe d i pu br sect = do
+-- pushes its constructor's fields as a data match does, its count from
+-- the arm itself ('RMatch' carries it) once the object is seen to have
+-- that shape: the pointer tag's (and for tag 7 the info pointer's) shape
+-- must be the count's, and a wide constructor's arrays must hold exactly
+-- the count ('requireWide'). An ability or constructor without an arm, or
+-- a closure of another kind or shape, is the interpreter's (it dies with
+-- "unhandled ability").
+genRMatch :: FnEnv -> Int -> Int -> MSection -> EC.EnumMap Word64 (EC.EnumMap Word64 Int) -> EC.EnumMap Word64 (GBranch (RComb Val)) -> MSection -> Gen ()
+genRMatch fe d i pu ns br sect = do
   let env = feEnv fe
       ls = envLayouts env
       kinds = V.toList (lData ls) ++ [lDataG ls]
@@ -2509,14 +2547,21 @@ genRMatch fe d i pu br sect = do
   raw <- fresh "raw"
   emit (raw <> " = ptrtoint ptr " <> p <> " to i64")
   other <- exitBlock fe d (Resume (feCix fe) sect)
-  Pair base packed <- loadPackedTag raw other kinds
+  Triple base packed shape <- loadPackedTag raw other kinds
   let PackedTag pureTag = TT.pureEffectTag
+      -- the object must have the shape of an arm's count before the arm
+      -- reads that many fields
+      requireShape n = do
+        wrong <- fresh "shape.ne"
+        emit (wrong <> " = icmp ne i64 " <> shape <> ", " <> tshow (min n 7 :: Int))
+        branchIf "shape" wrong other
+        when (n >= 7) (requireWide fe base n other)
   isPure <- fresh "pure"
   emit (isPure <> " = icmp eq i64 " <> packed <> ", " <> tshow pureTag)
   pureL <- freshLabel "pure"
   reqL <- freshLabel "request"
   emit ("br i1 " <> isPure <> ", label %" <> pureL <> ", label %" <> reqL)
-  okPure <- attempt (withKinds (sideBlockNamed pureL (pushFields fe d base 1 other >> genSection fe (d + 1) pu)))
+  okPure <- attempt (withKinds (sideBlockNamed pureL (requireShape 1 >> pushFields fe d base 1 other >> genSection fe (d + 1) pu)))
   unless okPure $ sideBlockNamed pureL (exitResume fe d sect)
   startBlock reqL
   ability <- fresh "ability"
@@ -2525,11 +2570,11 @@ genRMatch fe d i pu br sect = do
   emit (ctor <> " = and i64 " <> packed <> ", 65535") -- maskTags
   arms <- forM (EC.mapToList br) $ \(e, gb) -> do
     l <- freshLabel "ability"
-    let arities = EC.lookup e (envAbilities env)
-        arm u body = case arities >>= D.lookup (fromIntegral u) of
+    let counts = maybe (EC.mapFromList []) id (EC.lookup e ns)
+        arm u body = case EC.lookup u counts of
           Nothing -> exitResume fe d sect
-          Just 0 -> genSection fe d body
-          Just n -> pushFields fe d base n other >> genSection fe (d + n) body
+          Just 0 -> requireShape 0 >> genSection fe d body
+          Just n -> requireShape n >> pushFields fe d base n other >> genSection fe (d + n) body
     sideBlockNamed l (genBranchWith fe d ctor gb sect arm)
     pure (Pair e l)
   emit ("switch i64 " <> ability <> ", label %" <> other <> " [ " <> intercalateT " " (D.fromList (map (\(Pair e l) -> "i64 " <> tshow e <> ", label %" <> l) arms)) <> " ]")

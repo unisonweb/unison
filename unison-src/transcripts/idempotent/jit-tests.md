@@ -4493,3 +4493,66 @@ interpreter's).
           ⧩
           "i̇"
 ```
+
+## Field counts come from the object
+
+A match arm reads the fields its constructor has, and the count it reads comes from the value
+being matched, not from any declaration of the type: the pointer tag for constructors of up to
+six fields, the lengths of the two field arrays for wider ones. A value that reaches a match
+with another type's shape (which only `Any.unsafeExtract` can arrange) is matched the way the
+interpreter matches it: a wide value with fewer fields than the arm binds is read as far as it
+goes, never past, and one of another type with the same shape is taken apart as if it were
+this one. (A wide value with *more* fields than the arm binds is left out: the interpreter
+pushes every field it has, which is the interpreter's own concern with ill-typed code and not
+something the two modes agree on.)
+
+``` unison
+use Nat +
+
+structural type Seven = Seven Nat Nat Nat Nat Nat Nat Nat
+structural type Eight = Eight Nat Nat Nat Nat Nat Nat Nat Nat
+unique type Other7 = Other7 Nat Nat Nat Nat Nat Nat Nat
+
+sumSeven : Seven -> Nat
+sumSeven = cases Seven a b c d e f g -> a + b + c + d + e + f + g
+
+firstEight : Eight -> Nat
+firstEight = cases Eight a _ _ _ _ _ _ _ -> a
+
+asSeven : a -> Seven
+asSeven x = Any.unsafeExtract (Any x)
+
+asEight : a -> Eight
+asEight x = Any.unsafeExtract (Any x)
+
+> sumSeven (Seven 1 2 3 4 5 6 7)
+> firstEight (asEight (Seven 10 2 3 4 5 6 7))
+> sumSeven (asSeven (Other7 1 1 1 1 1 1 1))
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  + structural type Eight
+  + type Other7
+  + structural type Seven
+
+  + asEight    : a -> Eight
+  + asSeven    : a -> Seven
+  + firstEight : Eight -> Nat
+  + sumSeven   : Seven -> Nat
+
+  Run `update` to apply these changes to your codebase.
+
+    19 | > sumSeven (Seven 1 2 3 4 5 6 7)
+           ⧩
+           28
+
+    20 | > firstEight (asEight (Seven 10 2 3 4 5 6 7))
+           ⧩
+           10
+
+    21 | > sumSeven (asSeven (Other7 1 1 1 1 1 1 1))
+           ⧩
+           7
+```

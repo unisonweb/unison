@@ -3,7 +3,6 @@
 module Unison.Runtime.JIT
   ( JIT,
     newJIT,
-    declaredTypes,
     typeNumbers,
     readConfig,
     jitConfig,
@@ -20,7 +19,6 @@ module Unison.Runtime.JIT
     jitRequestGroup,
     jitRequestCell,
     noteAdHocExit,
-    registerDataTypes,
     registerTypeNumbers,
     printJITStats,
     noteOutput,
@@ -71,13 +69,11 @@ import Unison.Util.EnumContainers qualified as EC
 -- interpreter reaches it.
 data JIT = JIT
   { jitCompiler :: !Compiler,
-    -- | the constructor arities of every data type loaded so far, which
-    -- the code generator needs to take apart constructors with three or
-    -- more fields (their field count isn't in the closure's pointer tag)
-    jitDataTypes :: !(IORef (Map.Map Reference [Int])),
     -- | the numbers the code cache gives types (abilities among them),
-    -- with their references: a request match names its ability by number,
-    -- so the generator needs the arities by number too ('abilityArities')
+    -- with their references: the type part of a packed tag, which the one
+    -- match arm that compares a whole tag needs (Codegen's
+    -- 'envTypeNumbers'). No other declaration of a type reaches the
+    -- generator: field counts come from the match arms and the objects.
     jitTypeNumbers :: !(IORef (EC.EnumMap Word64 Reference)),
     -- | set once by 'initJIT' when everything checks out; Nothing means off
     jitState :: !(IORef (Maybe JITState)),
@@ -110,7 +106,6 @@ newJIT :: Config -> IO JIT
 newJIT config =
   JIT
     <$> newCompiler config
-    <*> newIORef Map.empty
     <*> newIORef (EC.mapFromList [])
     <*> newIORef Nothing
     <*> newIORef Nothing
@@ -151,34 +146,15 @@ initialNativeCount jit = case mode (jitConfig jit) of
 stackSlots :: JIT -> Int
 stackSlots = fromMaybe defaultStackSlots . stressStack . jitConfig
 
--- | Records the constructor arities of some data types. Called by the
--- interface whenever it learns about types, before their code is loaded.
--- Kept in every mode: the code verifier (MCode.Verify) reads it whether
--- or not anything is compiled.
-registerDataTypes :: JIT -> Map.Map Reference [Int] -> IO ()
-registerDataTypes jit m = atomicModifyIORef' (jitDataTypes jit) (\old -> (Map.union m old, ()))
-
 -- | Records the type numbering of the code cache. Called when types are
 -- numbered: for the builtins at startup, and whenever code is loaded.
 registerTypeNumbers :: JIT -> EC.EnumMap Word64 Reference -> IO ()
 registerTypeNumbers jit m = atomicModifyIORef' (jitTypeNumbers jit) (\old -> (m <> old, ()))
 
--- | The constructor arities of the types known so far, by type number.
--- | The constructor arities of every data type and ability declared to
--- the runtime so far (the data specs the loader registers), for the code
--- verifier (MCode.Verify) and the generator.
-declaredTypes :: JIT -> IO (Map.Map Reference [Int])
-declaredTypes = readIORef . jitDataTypes
-
 -- | The type reference each type number stands for, as the cache numbers
 -- them.
 typeNumbers :: JIT -> IO (EC.EnumMap Word64 Reference)
 typeNumbers = readIORef . jitTypeNumbers
-
-abilityArities :: JIT -> Map.Map Reference [Int] -> IO (EC.EnumMap Word64 [Int])
-abilityArities jit types = do
-  nums <- readIORef (jitTypeNumbers jit)
-  pure (EC.mapFromList [(n, as) | (n, r) <- EC.mapToList nums, Just as <- [Map.lookup r types]])
 
 -- | Gets the JIT going if it is enabled. Called by each runtime as it
 -- starts. LLVM is normally loaded already, by 'loadJIT' at ucm's startup;
@@ -324,11 +300,9 @@ jitCompileGroup jit sandbox ref grp cmbs = case mode (jitConfig jit) of
     readIORef (jitState jit) >>= \case
       Nothing -> pure ()
       Just st -> do
-        types <- readIORef (jitDataTypes jit)
-        abilities <- abilityArities jit types
         numbers <- readIORef (jitTypeNumbers jit)
         (now, _) <- groupUnits (jitCompiler jit) sandbox False ref grp cmbs
-        guarded (jitConfig jit) ("unison_" ++ show grp) (compileUnits (jitCompiler jit) st types abilities numbers ("unison_" ++ show grp) False now)
+        guarded (jitConfig jit) ("unison_" ++ show grp) (compileUnits (jitCompiler jit) st numbers ("unison_" ++ show grp) False now)
   _ -> pure ()
 
 -- ---------------------------------------------------------------------------
@@ -511,9 +485,9 @@ compileThread jit = do
       flush held = do
         r <-
           try
-            ( withState initialized $ \st types abilities numbers -> do
+            ( withState initialized $ \st numbers -> do
                 let name = "unison_" ++ unitName (last held) ++ "_x" ++ show (length held)
-                guarded config name (compileUnits c st types abilities numbers name True (reverse held))
+                guarded config name (compileUnits c st numbers name True (reverse held))
                 forM_ held (dropPending c)
             )
         case r of
@@ -529,12 +503,10 @@ compileThread jit = do
       readIORef (jitState jit) >>= \case
         Nothing -> pure ()
         Just st -> do
-          types <- readIORef (jitDataTypes jit)
-          abilities <- abilityArities jit types
           numbers <- readIORef (jitTypeNumbers jit)
-          k st types abilities numbers
+          k st numbers
     serve initialized callersRef req =
-      withState initialized $ \st types abilities numbers -> do
+      withState initialized $ \st numbers -> do
         case req of
           ReqGroup grp sandbox t0 find -> do
             when (logging config) $ do
@@ -558,9 +530,9 @@ compileThread jit = do
               -- pending before the groups' code can exit to them
               forM_ (concat later) (addPending c)
               copies <- copyCandidates sandbox cache refs members
-              guarded config ("unison_" ++ show grp) (compileUnits c st types abilities numbers ("unison_" ++ show grp) True (concat now ++ copies))
+              guarded config ("unison_" ++ show grp) (compileUnits c st numbers ("unison_" ++ show grp) True (concat now ++ copies))
           ReqUnit u -> do
-            guarded config (unitName u) (compileUnits c st types abilities numbers ("unison_" ++ unitName u) True [u])
+            guarded config (unitName u) (compileUnits c st numbers ("unison_" ++ unitName u) True [u])
             dropPending c u
     -- The definitions to compile together with one that got hot, so that
     -- calls between them are direct and LLVM can inline across them. The

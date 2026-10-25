@@ -231,13 +231,7 @@ genStoredCache =
     <*> genBiMap genRecordSchema genRecordRef
     <*> (Gen.map (Range.linear 0 10) ((,) <$> genReference <*> (Gen.set (Range.linear 0 10) genReference)))
     <*> genRecordFieldMappings
-    <*> (Gen.map (Range.linear 0 10) ((,) <$> genReference <*> genCons))
     <*> Gen.element [JIT.AllReplacements, JIT.TaggedReplacements, JIT.NoReplacements]
-  where
-    -- a data type's constructor arities, or an ability's (Right)
-    genCons = do
-      arities <- Gen.list (Range.linear 0 5) (Gen.int (Range.linear 0 8))
-      Gen.element [Left arities, Right arities]
 
 sCacheRoundtrip :: Property
 sCacheRoundtrip =

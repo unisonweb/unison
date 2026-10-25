@@ -81,7 +81,7 @@ import Unison.Runtime.ANF as ANF
   )
 import Unison.Runtime.ANF qualified as ANF
 import Unison.Runtime.ANF.Optimize qualified as ANF
-import Unison.Runtime.JIT (declaredTypes, initialNativeCount, jitCompileGroup, jitConfig, jitExits, jitFrames, jitPool, jitRequestCell, jitRequestGroup, jitStats, jitTracing, noteAdHocExit, noteOutput, printJITStats, registerTypeNumbers, stackSlots)
+import Unison.Runtime.JIT (initialNativeCount, jitCompileGroup, jitConfig, jitExits, jitFrames, jitPool, jitRequestCell, jitRequestGroup, jitStats, jitTracing, noteAdHocExit, noteOutput, printJITStats, registerTypeNumbers, stackSlots)
 import Unison.Runtime.JIT.Config qualified as JIT
 import Unison.Runtime.JIT.Exits
 import Unison.Runtime.JIT.Frames
@@ -1632,7 +1632,13 @@ dataBranch mrf stk br = \case
   clo@(Data4 _ t _ _ _ _) -> pick t (dumpDataWide stk clo)
   clo@(Data5 _ t _ _ _ _ _) -> pick t (dumpDataWide stk clo)
   clo@(Data6 _ t _ _ _ _ _ _) -> pick t (dumpDataWide stk clo)
-  DataG _ t seg -> pick t (dumpSeg stk seg S)
+  -- The frame was sized for the arm's field count; the object may hold
+  -- more (only ill-typed code arranges that: Any.unsafeExtract, a value
+  -- built elsewhere), and for a wide constructor the excess is unbounded,
+  -- so make room for what is actually pushed. The fixed shapes above push
+  -- at most six slots past the frame, within the out-area every stack is
+  -- allocated with (security review, finding 14).
+  DataG _ t seg@(_, bseg) -> pick t (ensure stk (sizeofArray bseg) >>= \stk -> dumpSeg stk seg S)
   Foreign (WrapMap m) -> case m of
     M.Bin sz k e l r
       | Just ca <- branchArm br Rf.mapBin -> (ca,) <$> dumpBin sz k e l r stk
@@ -1920,10 +1926,9 @@ cacheAdd0 ntys0 (normalizeCodes -> termSuperGroups) sands cc = go
     -- many cells it needs; the pool is grown outside the transaction and
     -- the whole thing is tried again.
     go = do
-      types <- declaredTypes (jit cc)
-      result <- atomically (transaction types)
+      result <- atomically transaction
       case result of
-        -- the code says something about itself the declarations contradict
+        -- the code says something about itself that does not hold up
         -- (MCode.Verify); nothing of it was installed
         Left (Left e) -> die [] (renderVerifyError e)
         Left (Right needed) -> do
@@ -1943,7 +1948,7 @@ cacheAdd0 ntys0 (normalizeCodes -> termSuperGroups) sands cc = go
             for_ (EC.lookup w newCombRefs) \r -> jitCompileGroup (jit cc) (sandboxed cc) r w cmbs
           preEvalTopLevelConstants unresolvedCacheableCombs unresolvedNonCacheableCombs cc
 
-    transaction types = do
+    transaction = do
       have <- readTVar (intermed cc)
       haveRecSchemas <- readTVar (recordRefs cc)
       let new = M.difference toAdd have
@@ -1994,18 +1999,15 @@ cacheAdd0 ntys0 (normalizeCodes -> termSuperGroups) sands cc = go
             sanitizeCombsOfForeignFuncs (sandboxed cc) sandboxedForeignFuncs $
               mapFromList emittedCombs
           (cellCount, _) = attachNativeCells nullPtr uncelled
-      -- Before anything is installed, the new code is checked against the
-      -- declarations: constructor arities, slot indices, frame sizes, call
-      -- arities (MCode.Verify). Code from a typechecked codebase passes;
-      -- this is for code that came some other way.
+      -- Before anything is installed, the new code is checked: slot
+      -- indices, frame sizes, call arities, match arm counts (MCode.Verify).
+      -- Code from a typechecked codebase passes; this is for code that came
+      -- some other way.
       oldCombs <- readTVar (combs cc)
-      trs <- readTVar (tagRefs cc)
       let venv =
             verifyEnvFrom
-              types
               (flip M.lookup rty)
               (flip M.lookup rtm)
-              (flip EC.lookup trs)
               ( \(CIx _ g i) -> case EC.lookup g uncelled >>= EC.lookup i of
                   Just c -> combInfoOf c
                   Nothing -> EC.lookup g oldCombs >>= EC.lookup i >>= combInfoOf
@@ -2379,17 +2381,12 @@ reifyValue cc val = do
   case erc of
     Left l -> pure (Left l)
     Right rfs@(cmbs, rty, rtm, _, _) -> do
-      -- the value's constructor arities, partial application sizes and
-      -- record sizes against the declarations (MCode.Verify), before any
-      -- closure is built from it
-      types <- declaredTypes (jit cc)
-      trs <- readTVarIO (tagRefs cc)
+      -- the value's partial application sizes and record sizes
+      -- (MCode.Verify), before any closure is built from it
       let venv =
             verifyEnvFrom
-              types
               (flip M.lookup rty)
               (flip M.lookup rtm)
-              (flip EC.lookup trs)
               (\(CIx _ g i) -> EC.lookup g cmbs >>= EC.lookup i >>= combInfoOf)
           plain = case val of
             Plain v -> Just v
@@ -2416,22 +2413,16 @@ verifyMode = unsafePerformIO $ do
     Just _ -> maybe "fail" id <$> lookupEnv "UNISON_MCODE_VERIFY"
 {-# NOINLINE verifyMode #-}
 
--- | The verifier's view of a cache: the declared arities, the numberings
--- and the loaded combinators.
+-- | The verifier's view of a cache: the numberings and the loaded
+-- combinators.
 verifyEnvFrom ::
-  M.Map Reference [Int] ->
   (Reference -> Maybe Word64) ->
   (Reference -> Maybe Word64) ->
-  (Word64 -> Maybe Reference) ->
   (CombIx -> Maybe (Int, Int)) ->
   VerifyEnv
-verifyEnvFrom types typeNum termNum tagRef combInfo =
+verifyEnvFrom typeNum termNum combInfo =
   VerifyEnv
-    { veCtorArity = \r c -> M.lookup r types >>= \as -> if c < fromIntegral (length as) then Just (as !! fromIntegral c) else Nothing,
-      veDeclared = \r -> M.member r types,
-      veAbilityArity = \a c -> tagRef a >>= \r -> M.lookup r types >>= \as -> if c < fromIntegral (length as) then Just (as !! fromIntegral c) else Nothing,
-      veAbilityDeclared = \a -> maybe False (`M.member` types) (tagRef a),
-      veTypeNumber = typeNum,
+    { veTypeNumber = typeNum,
       veTermNumber = termNum,
       veCombInfo = combInfo,
       veSchemaSize = \(ANF.RecordSchema fs) -> Just (Set.size fs)

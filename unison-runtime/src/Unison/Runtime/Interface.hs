@@ -82,7 +82,7 @@ import Unison.Runtime.Decompile qualified as Decomp
 import Unison.Runtime.Exception (RuntimeExn (BU, PE), die)
 import Unison.Runtime.Foreign.Function (functionUnreplacements)
 import Unison.Runtime.InternalError (CompileExn (CE))
-import Unison.Runtime.JIT (JIT, initialNativeCount, jitCompileGroup, jitConfig, printJITStats, registerDataTypes, registerTypeNumbers, startJIT)
+import Unison.Runtime.JIT (JIT, initialNativeCount, jitCompileGroup, jitConfig, printJITStats, registerTypeNumbers, startJIT)
 import Unison.Runtime.JIT.Config qualified as JIT
 import Unison.Runtime.MCode
   ( Args (..),
@@ -218,8 +218,7 @@ allocType ::
   IO EvalCtx
 allocType _ b@(RF.Builtin _) _ =
   die [] $ "Unknown builtin type reference: " ++ show b
-allocType ctx r cons = do
-  registerDataTypes (jit (ccache ctx)) (Map.singleton r (either id id cons))
+allocType ctx r cons =
   pure $ ctx {dspec = Map.insert r cons $ dspec ctx}
 
 recursiveDeclDeps ::
@@ -637,7 +636,7 @@ interpCompile version ctxVar _copts cl ppe rf path = tryM $ do
       lk m = flip Map.lookup m =<< baseToIntermed ctx rf
   Just w <- lk <$> readTVarIO (refTm cc)
   let combIx = CIx rf w 0
-  sto <- standalone cc (dspec ctx) w
+  sto <- standalone cc w
   BU.writeFile path $
     putTextBig version
       <> putTextBig (RF.showShort 8 rf)
@@ -895,9 +894,6 @@ data RuntimeHost
 startRuntime :: JIT -> Bool -> RuntimeHost -> Text -> IO (Runtime Symbol)
 startRuntime jit sandboxed runtimeHost version = do
   startJIT jit
-  registerDataTypes jit (fmap (either id id) builtinDataSpec)
-  -- Any is a builtin type, not a declaration: one constructor, one field
-  registerDataTypes jit (Map.singleton Type.anyRef [1])
   registerTypeNumbers jit (EC.mapFromList [(n, r) | (r, n) <- Map.toList builtinTypeNumbering])
   ctx <- baseContext jit sandboxed
   -- in the JIT's eager mode the builtin combinators are compiled now, like
@@ -938,16 +934,13 @@ tryM =
     . fmap (const Nothing)
 
 runStandalone :: JIT -> Bool -> StoredCache -> CombIx -> IO (Either Error ())
-runStandalone jit sandboxed sc@(SCache _ _ _ _ _ _ _ _ _ _ _ _ _ _ dspec repl) init = do
+runStandalone jit sandboxed sc@(SCache _ _ _ _ _ _ _ _ _ _ _ _ _ _ repl) init = do
   -- The file's replacement mode, before anything decodes a value or
   -- consults the foreign function table
   JIT.setReplacements repl
   -- What startRuntime and the loader (cacheAdd) do for the JIT on the
-  -- codebase path, for a compiled program. The file carries the data specs
-  -- that a codebase run registers as it loads types.
+  -- codebase path, for a compiled program
   startJIT jit
-  registerDataTypes jit (fmap (either id id) (builtinDataSpec <> dspec))
-  registerDataTypes jit (Map.singleton Type.anyRef [1])
   cc <- restoreCache jit sandboxed sc
   readTVarIO (tagRefs cc) >>= registerTypeNumbers jit
   combRefs' <- readTVarIO (combRefs cc)
@@ -979,10 +972,6 @@ data StoredCache
       (BM.BiMap ANF.RecordSchema ANF.RecordRef)
       (Map Reference (Set Reference))
       RecordFieldMappings
-      -- constructor arities of the data types the code uses, which the JIT
-      -- needs to compile a match (registered at startup from a codebase,
-      -- carried in the file for a compiled program)
-      DataSpec
       -- which of base's Haskell replacements the code was compiled with
       -- (JIT.Config): its MCode has them baked in, so the process that runs
       -- it has to decode values the same way, whatever its own environment
@@ -991,7 +980,7 @@ data StoredCache
   deriving (Show, Eq)
 
 putStoredCache :: StoredCache -> Builder
-putStoredCache (SCache cs crs cacheableCombs oinfo trs ftm fty frs int rtm rty rsLookup sbs rfm dspec repl) =
+putStoredCache (SCache cs crs cacheableCombs oinfo trs ftm fty frs int rtm rty rsLookup sbs rfm repl) =
   putEnumMap putNat (putEnumMap putNat (putComb absurd)) cs
     <> putEnumMap putNat putReference crs
     <> putEnumSet putNat cacheableCombs
@@ -1006,11 +995,7 @@ putStoredCache (SCache cs crs cacheableCombs oinfo trs ftm fty frs int rtm rty r
     <> putMap putRecordSchema putRecordRef (BM.forward rsLookup)
     <> putMap putReference (putFoldable putReference) sbs
     <> putRecordFieldMappings rfm
-    <> putMap putReference putCons dspec
     <> BU.word8 (case repl of JIT.AllReplacements -> 0; JIT.TaggedReplacements -> 1; JIT.NoReplacements -> 2)
-  where
-    -- the Either marks an effect's constructors as Right, as 'DataSpec' does
-    putCons cons = putBool (isRight cons) <> putFoldable (putInt . fromIntegral) (either id id cons)
 
 putRecordFieldMappings :: RecordFieldMappings -> Builder
 putRecordFieldMappings (RecordFieldMappings next rfm) =
@@ -1042,7 +1027,6 @@ getStoredCache =
     <*> (BM.fromMap <$> getMap getRecordSchema getRecordRef)
     <*> getMap getReference (fromList <$> getList getReference)
     <*> getRecordFieldMappings
-    <*> getMap getReference getCons
     <*> getReplacements
   where
     getReplacements =
@@ -1051,10 +1035,6 @@ getStoredCache =
         1 -> pure JIT.TaggedReplacements
         2 -> pure JIT.NoReplacements
         n -> fail ("getStoredCache: unknown replacement mode " ++ show n)
-    getCons = do
-      effect <- getBool
-      cons <- getList (fromIntegral <$> getInt)
-      pure $ if effect then Right cons else Left cons
 
 debugTextFormat :: Bool -> Pretty ColorText -> String
 debugTextFormat fancy =
@@ -1063,16 +1043,14 @@ debugTextFormat fancy =
     render = if fancy then toANSI else toPlain
 
 restoreCache :: JIT -> Bool -> StoredCache -> IO (CCache ())
-restoreCache jit sandboxed (SCache cs crs cacheableCombs opt trs ftm fty frs int rtm rty recSchemas sbs rfm dspec _) = do
-  -- The file's code is checked against the file's declarations before any
-  -- of it runs (MCode.Verify): a compiled program is MCode read straight
-  -- from disk, the one input that never went through emitCombs.
+restoreCache jit sandboxed (SCache cs crs cacheableCombs opt trs ftm fty frs int rtm rty recSchemas sbs rfm _) = do
+  -- The file's code is checked before any of it runs (MCode.Verify): a
+  -- compiled program is MCode read straight from disk, the one input that
+  -- never went through emitCombs.
   let venv =
         verifyEnvFrom
-          (fmap (either id id) (builtinDataSpec <> dspec))
           (flip Map.lookup (rty <> builtinTypeNumbering))
           (flip Map.lookup (rtm <> builtinTermNumbering))
-          (flip EC.lookup (trs <> builtinTypeBackref))
           (\(CIx _ g i) -> EC.lookup g srcCombs >>= EC.lookup i >>= combInfoOf)
   for_ (EC.mapToList cs) $ \(g, cmbs) ->
     for_ (EC.lookup g crs) $ \r -> either (die [] . renderVerifyError) pure (verifyGroup venv r g cmbs)
@@ -1182,10 +1160,9 @@ buildSCache ::
   BM.BiMap ANF.RecordSchema ANF.RecordRef ->
   Map Reference (Set Reference) ->
   RecordFieldMappings ->
-  DataSpec ->
   JIT.Replacements ->
   StoredCache
-buildSCache crsrc cssrc cacheableCombs optsrc trsrc ftm fty frs int rtmsrc rtysrc rsLookup sndbx rfm dspec repl =
+buildSCache crsrc cssrc cacheableCombs optsrc trsrc ftm fty frs int rtmsrc rtysrc rsLookup sndbx rfm repl =
   SCache
     cs
     crs
@@ -1201,7 +1178,6 @@ buildSCache crsrc cssrc cacheableCombs optsrc trsrc ftm fty frs int rtmsrc rtysr
     rsLookup
     (restrictTmR sndbx)
     rfm
-    (restrictTyR dspec)
     repl
   where
     termRefs = Map.keysSet int
@@ -1234,8 +1210,8 @@ buildSCache crsrc cssrc cacheableCombs optsrc trsrc ftm fty frs int rtmsrc rtysr
     restrictTyR :: Map Reference a -> Map Reference a
     restrictTyR m = Map.restrictKeys m typeRefs
 
-standalone :: CCache () -> DataSpec -> Word64 -> IO StoredCache
-standalone cc dspec init =
+standalone :: CCache () -> Word64 -> IO StoredCache
+standalone cc init =
   readTVarIO (combRefs cc) >>= \crs ->
     case EC.lookup init crs of
       Just rinit ->
@@ -1253,7 +1229,6 @@ standalone cc dspec init =
           <*> readTVarIO (recordRefs cc)
           <*> readTVarIO (sandbox cc)
           <*> readTVarIO (recordFieldMappings cc)
-          <*> pure dspec
           <*> pure JIT.replacements
       Nothing ->
         die [] $ "standalone: unknown combinator: " ++ show init
