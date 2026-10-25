@@ -12,6 +12,7 @@ module Unison.Runtime.Decompile
 where
 
 import Data.Map qualified as Map
+import Data.Sequence qualified as Seq
 import Data.Set (singleton)
 import Data.Text qualified as DT
 import Data.Vector qualified as V
@@ -34,8 +35,11 @@ import Unison.Runtime.Stack
     UnboxedTypeTag (..),
     Val (..),
     foreignRef,
+    pattern BytesC,
     pattern DataC,
+    pattern ListC,
     pattern PApV,
+    pattern TextC,
   )
 import Unison.Term
   ( Term,
@@ -135,6 +139,10 @@ decompile backref topTerms = \case
     BlackHole -> err Exn $ bug "<Exception>"
     (Captured {}) -> err Cont $ bug "<Continuation>"
     (Affine {}) -> err Aff $ bug "<Affine>"
+    (TextC t) -> pure $ text () (Text.toText t)
+    (BytesC b) -> pure $ decompileBytes b
+    (ListC s) ->
+      list' () . Seq.fromList <$> traverse (decompile backref topTerms) (toList s)
     (Foreign f) ->
       decompileForeign backref topTerms f
 
@@ -158,8 +166,6 @@ decompileForeign ::
   Foreign ->
   DecompResult v
 decompileForeign backref topTerms = \case
-  WrapText t -> pure $ text () (Text.toText t)
-  WrapBytes b -> pure $ decompileBytes b
   WrapHashAlgorithm h -> pure $ decompileHashAlgorithm h
   WrapReferent l ->
     pure . termLink () $ case l of
@@ -175,8 +181,6 @@ decompileForeign backref topTerms = \case
         ()
         (ref () ibarrayFromBytesRef)
         (decompileBytes . By.fromWord8s $ byteArrayToList a)
-  WrapSeq s ->
-    list' () <$> traverse (decompile backref topTerms) s
   WrapMap m -> do
     let decompileEntry k v = pair <$> decompile backref topTerms k <*> decompile backref topTerms v
     kvs <- traverse (uncurry decompileEntry) (Map.toList m)

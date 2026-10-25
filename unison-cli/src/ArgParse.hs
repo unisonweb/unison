@@ -130,7 +130,12 @@ data Command
 data GlobalOptions = GlobalOptions
   { codebasePathOption :: Maybe CodebasePathOption,
     exitOption :: ShouldExit,
-    lspFormattingConfig :: LspFormattingConfig
+    lspFormattingConfig :: LspFormattingConfig,
+    -- | JIT mode: "off", "on" or "eager". Overrides the UNISON_JIT environment variable.
+    jitOption :: Maybe String,
+    -- | Where to write the JIT's generated LLVM IR: a directory, or "-" for stderr.
+    -- Overrides the UNISON_JIT_DUMP_IR environment variable.
+    jitDumpIROption :: Maybe String
   }
   deriving (Show, Eq)
 
@@ -290,9 +295,11 @@ globalOptionsParser = do
   codebasePathOption <- codebasePathParser <|> codebaseCreateParser
   exitOption <- exitParser
   lspFormattingConfig <- lspFormattingParser
+  jitOption <- jitParser
+  jitDumpIROption <- jitDumpIRParser
 
   pure
-    GlobalOptions {codebasePathOption, exitOption, lspFormattingConfig}
+    GlobalOptions {codebasePathOption, exitOption, lspFormattingConfig, jitOption, jitDumpIROption}
 
 codebasePathParser :: Parser (Maybe CodebasePathOption)
 codebasePathParser = do
@@ -318,6 +325,20 @@ exitParser :: Parser ShouldExit
 exitParser = flag DoNotExit Exit (long "exit" <> help exitHelp)
   where
     exitHelp = "Exit repl after the command."
+
+jitParser :: Parser (Maybe String)
+jitParser =
+  optional . strOption $
+    long "jit"
+      <> metavar "MODE"
+      <> help "[Experimental] JIT compilation mode: off, on, or eager. Needs LLVM 20 or newer installed (UNISON_LLVM_LIB can point at the library). Same as the UNISON_JIT environment variable."
+
+jitDumpIRParser :: Parser (Maybe String)
+jitDumpIRParser =
+  optional . strOption $
+    long "jit-dump-ir"
+      <> metavar "DIR"
+      <> help "[Experimental] Write the LLVM IR the JIT generates, with the MCode of each function as a comment, to one .ll file per definition in DIR, or to stderr if DIR is '-'. Same as the UNISON_JIT_DUMP_IR environment variable."
 
 lspFormattingParser :: Parser LspFormattingConfig
 lspFormattingParser = flag LspFormatDisabled LspFormatEnabled (long "lsp-format" <> help lspFormatHelp)

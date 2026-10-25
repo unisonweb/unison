@@ -1,6 +1,18 @@
 {-# LANGUAGE CPP #-}
 
-module Unison.Runtime.Machine.Types where
+-- The code synonyms (MCombs, MSection, ...) are defined in Stack.hs and
+-- re-exported here, so that the JIT modules can use them without
+-- importing this module, which carries the JIT handle in the code cache.
+module Unison.Runtime.Machine.Types
+  ( module Unison.Runtime.Machine.Types,
+    MCombs,
+    MSection,
+    MBranch,
+    MInstr,
+    MComb,
+    MRef,
+  )
+where
 
 import Control.Concurrent (ThreadId)
 import Control.Concurrent.STM as STM
@@ -16,6 +28,7 @@ import Data.Kind (Type)
 import Data.Map.Strict qualified as M
 import Data.Set qualified as S
 import Data.Word
+import Foreign.Ptr (nullPtr)
 #if !defined(mingw32_HOST_OS)
 import GHC.Event (getSystemTimerManager, registerTimeout)
 #else
@@ -39,6 +52,7 @@ import Unison.Runtime.ANF.Optimize (OptInfos)
 import Unison.Runtime.Builtin
 import Unison.Runtime.Exception qualified as Exception
 import Unison.Runtime.InternalError (CompileExn (CE), internalBug)
+import Unison.Runtime.JIT (JIT, initialNativeCount, registerTypeNumbers)
 import Unison.Runtime.MCode
 import Unison.Runtime.Profiling
 import Unison.Runtime.Referenced
@@ -60,19 +74,7 @@ type ActiveThreads = Maybe (IORef (Set ThreadId))
 
 type Tag = Word64
 
-type MCombs = RCombs Val
-
 type Combs = GCombs Void CombIx
-
-type MSection = RSection Val
-
-type MBranch = RBranch Val
-
-type MInstr = RInstr Val
-
-type MComb = RComb Val
-
-type MRef = RRef Val
 
 data Tracer
   = NoTrace
@@ -189,7 +191,13 @@ data CCache prof = CCache
     refTy :: TVar (M.Map Reference Word64),
     recordRefs :: TVar (BiMap ANF.RecordSchema ANF.RecordRef),
     sandbox :: TVar (M.Map Reference (Set Reference)),
-    recordFieldMappings :: TVar RecordFieldMappings
+    recordFieldMappings :: TVar RecordFieldMappings,
+    -- native code cells for combinators loaded through this cache (see unison-runtime/src/Unison/Runtime/JIT/design.md)
+    nativeCells :: TVar NativeCellPool,
+    -- the JIT, one for the whole process and shared by every cache in it
+    -- (see JIT.hs); this is how the interpreter reaches it. Not unpacked,
+    -- so that handing it on doesn't rebuild it.
+    jit :: {-# NOUNPACK #-} !JIT
   }
 
 refNumsTm :: CCache prof -> IO (M.Map Reference Word64)
@@ -204,8 +212,29 @@ refNumTm cc r =
     (M.lookup r -> Just w) -> pure w
     _ -> Exception.die [] $ "refNumTm: unknown reference: " ++ show r
 
-baseCCache :: Bool -> IO (CCache ())
-baseCCache sandboxed = do
+-- | How many native code cells a fresh cache starts with. Each is 16 bytes.
+initialNativeCells :: Int
+initialNativeCells = 16384
+
+baseCCache :: JIT -> Bool -> IO (CCache ())
+baseCCache jit sandboxed = do
+  -- Every cache knows the builtin types' numbers (the type part of a
+  -- packed tag, which one match arm of the generated code compares); the
+  -- rest are registered as code is loaded.
+  registerTypeNumbers jit (EC.mapFromList [(n, r) | (r, n) <- M.toList builtinTypeNumbering])
+  -- The builtin combinators get native code cells like any loaded code, so
+  -- that the JIT can compile the ones that are worth it and native code
+  -- can call them (docs/jit/m6.md, step 4).
+  let uncelled =
+        srcCombs
+          & sanitizeCombsOfForeignFuncs sandboxed sandboxedForeignFuncs
+      (cellCount, _) = attachNativeCells nullPtr uncelled
+  NativeCellPool cells _ _ <- newNativeCellPool (initialNativeCount jit) cellCount
+  let combs :: EnumMap Word64 MCombs
+      combs =
+        snd (attachNativeCells cells uncelled)
+          & absurdCombs
+          & resolveCombs Nothing
   CCache sandboxed noTrace ()
     <$> newTVarIO srcCombs
     <*> newTVarIO combs
@@ -222,6 +251,8 @@ baseCCache sandboxed = do
     <*> newTVarIO builtinFieldNumbering
     <*> newTVarIO baseSandboxInfo
     <*> newTVarIO rfm
+    <*> (newTVarIO =<< newNativeCellPool (initialNativeCount jit) initialNativeCells)
+    <*> pure jit
   where
     builtinFieldNumbering = mempty
     cacheableCombs = mempty
@@ -244,12 +275,6 @@ baseCCache sandboxed = do
                   emitComb @Symbol rns r k mempty (0, v)
               )
         )
-    combs :: EnumMap Word64 MCombs
-    combs =
-      srcCombs
-        & sanitizeCombsOfForeignFuncs sandboxed sandboxedForeignFuncs
-        & absurdCombs
-        & resolveCombs Nothing
 
 lookupCode :: CCache prof -> Referent -> IO (Maybe (Referenced Code))
 lookupCode env (Ref link) =

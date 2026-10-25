@@ -17,6 +17,10 @@ on:
         description: JSON array of OSes for interpreter tests
         type: string
         default: '["ubuntu-24.04","ubuntu-24.04-arm","macos-15-intel","macos-15"]'
+      jit-os:
+        description: JSON array of OSes for the JIT smoke test (needs an LLVM package)
+        type: string
+        default: '["ubuntu-24.04","ubuntu-24.04-arm","macos-15-intel","macos-15","windows-2025"]'
   workflow_call:
     inputs:
       ref:
@@ -34,6 +38,10 @@ on:
         description: JSON array of OSes for interpreter tests (excludes windows by default)
         type: string
         default: '["ubuntu-24.04","ubuntu-24.04-arm","macos-15-intel","macos-15"]'
+      jit-os:
+        description: JSON array of OSes for the JIT smoke test (needs an LLVM package)
+        type: string
+        default: '["ubuntu-24.04","ubuntu-24.04-arm","macos-15-intel","macos-15","windows-2025"]'
 
 defaults:
   run:
@@ -72,7 +80,7 @@ jobs:
         uses: actions/cache@d4323d4df104b026a6aa633fdb11d772146be0bf # v4
         with:
           path: ${{env.ucm_local_bin}}
-          key: ucm-${{ matrix.os }}-${{ hashFiles('**/ci.yaml', '**/test.yaml', '**/stack.yaml', '**/package.yaml', '**/*.hs', '**/unison-cli-integration/integration-tests/IntegrationTests/*')}}
+          key: ucm-${{ matrix.os }}-${{ hashFiles('**/ci.yaml', '**/test.yaml', '**/stack.yaml', '**/package.yaml', '**/*.hs', '**/*.c', '**/*.h', '**/*.ll', '**/unison-cli-integration/integration-tests/IntegrationTests/*')}}
 
       - name: restore stack caches
         if: steps.cache-ucm-binaries.outputs.cache-hit != 'true'
@@ -110,6 +118,17 @@ jobs:
             --local-bin-path ${{env.ucm_local_bin}} \
             --copy-bins
 
+      - name: the JIT's embedded IR is in step with its C
+        # clang and the GHC headers are both here on macOS and Linux; the
+        # check compares the headers' source hashes and, where the runner's
+        # clang is the one that generated the files (the IR's text differs
+        # between clang versions), regenerates cbits/jit_helpers.ll and
+        # jit_exit.ll and diffs them. Always, cache hit or not: the
+        # committed IR is what runs natively in every JIT'd process, so
+        # nothing but this regeneration vouches for it.
+        if: runner.os != 'Windows'
+        run: unison-runtime/cbits/gen-helpers.sh --check
+
       - name: set git user info
         if: steps.cache-ucm-binaries.outputs.cache-hit != 'true'
         run: |
@@ -143,6 +162,10 @@ jobs:
       - name: unison-util-cache tests
         if: steps.cache-ucm-binaries.outputs.cache-hit != 'true'
         run: stack build --fast --test unison-util-cache
+
+      - name: unison-util-rope tests
+        if: steps.cache-ucm-binaries.outputs.cache-hit != 'true'
+        run: stack build --fast --test unison-util-rope
 
       - name: unison-util-relation tests
         if: steps.cache-ucm-binaries.outputs.cache-hit != 'true'
@@ -268,6 +291,83 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: ./scripts/migration-test.sh --ucm "${{env.ucm}}"
+
+  jit:
+    # The JIT smoke test (unison-runtime/src/Unison/Runtime/JIT/development.md):
+    # installs an LLVM, runs the JIT's test transcript on a fresh codebase with
+    # the JIT forced on and checks the log says it was, then a few rows of the
+    # test matrix. The transcript already runs in the transcripts job, with the
+    # JIT off; this is the only job that runs native code.
+    name: jit (${{ matrix.os }})
+    needs: build-ucm
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: ${{ fromJSON(inputs.jit-os) }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+        with:
+          ref: ${{ inputs.ref || github.ref }}
+
+      - name: tweak environment
+        run: |
+          ucm_local_bin="${RUNNER_TEMP//\\//}/${ucm_local_bin}"
+          echo "ucm_local_bin=$ucm_local_bin" >> $GITHUB_ENV
+          if [[ ${{runner.os}} = "Windows" ]]; then
+            echo "ucm=$ucm_local_bin/unison.exe" >> $GITHUB_ENV
+          else
+            echo "ucm=$ucm_local_bin/unison" >> $GITHUB_ENV
+          fi
+
+      - name: restore binaries
+        uses: actions/download-artifact@cc203385981b70ca67e1cc392babf9cc229d5806 # v4
+        with:
+          path: ${{env.ucm_local_bin}}
+          name: local-bin-${{ matrix.os }}
+
+      - name: set built binaries permissions
+        run: chmod +x ${{env.ucm_local_bin}}/*
+
+      - name: install LLVM
+        # the oldest version the JIT accepts (usage.md), so that the floor
+        # stays tested; the lookup finds each of these without UNISON_LLVM_LIB
+        run: |
+          case "${{runner.os}}" in
+            macOS)
+              brew install llvm@20 ;;
+            Linux)
+              curl -fsSL https://apt.llvm.org/llvm.sh -o "$RUNNER_TEMP/llvm.sh"
+              sudo bash "$RUNNER_TEMP/llvm.sh" 20
+              sudo apt-get install -y llvm-20-dev ;;
+            Windows)
+              choco install llvm --version=20.1.8 -y
+              echo 'UNISON_LLVM_LIB=C:\Program Files\LLVM\bin\LLVM-C.dll' >> "$GITHUB_ENV" ;;
+          esac
+
+      - name: the JIT's test transcript, with the JIT on
+        run: |
+          cp unison-src/transcripts/idempotent/jit-tests.md "$RUNNER_TEMP/jit-tests.md"
+          UNISON_JIT=eager UNISON_JIT_LOG=1 ${{env.ucm}} -C "$RUNNER_TEMP/jit-codebase" transcript.fork "$RUNNER_TEMP/jit-tests.md" 2>&1 | tee "$RUNNER_TEMP/jit.log"
+          if ! grep -q 'JIT compilation activated' "$RUNNER_TEMP/jit.log" || grep -q 'the JIT is off' "$RUNNER_TEMP/jit.log"; then
+            echo "::error::the JIT did not activate; see the log above"
+            exit 1
+          fi
+          grep -q ': compiling ' "$RUNNER_TEMP/jit.log" || { echo "::error::nothing was compiled"; exit 1; }
+          diff --strip-trailing-cr "$RUNNER_TEMP/jit-tests.md" "$RUNNER_TEMP/jit-tests.output.md"
+
+      - name: a few rows of the test matrix
+        run: |
+          UCM=${{env.ucm}} JIT_CODEBASE="$RUNNER_TEMP/jit-codebase" scripts/jit-test-matrix.sh on-t1 stress-all install-all no-irhelpers
+
+      - name: a compiled program (run.compiled) goes through the JIT
+        working-directory: ${{ runner.temp }}
+        run: |
+          cp "$GITHUB_WORKSPACE/unison-src/tests/jit-compiled.md" .
+          ${{env.ucm}} transcript jit-compiled.md
+          UNISON_JIT=eager UNISON_JIT_LOG=1 ${{env.ucm}} run.compiled jit-compiled.uc 2>&1 | tee compiled.log
+          grep -q ': compiling ' compiled.log || { echo "::error::nothing was compiled"; exit 1; }
+          grep -q '^666668416667500000' compiled.log || { echo "::error::wrong answer; see the log above"; exit 1; }
 
   dll-ffi:
     name: dll-ffi (${{ matrix.os }})

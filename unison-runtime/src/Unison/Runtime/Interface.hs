@@ -51,6 +51,7 @@ import Data.Set qualified as Set
 import Data.Text (isPrefixOf)
 import Data.Text as Text (unpack)
 import Data.Void (absurd)
+import Foreign.Ptr (nullPtr)
 import System.FilePath
 import Unison.ABT qualified as ABT
 import Unison.Builtin.Decls qualified as RF
@@ -81,21 +82,28 @@ import Unison.Runtime.Decompile qualified as Decomp
 import Unison.Runtime.Exception (RuntimeExn (BU, PE), die)
 import Unison.Runtime.Foreign.Function (functionUnreplacements)
 import Unison.Runtime.InternalError (CompileExn (CE))
+import Unison.Runtime.JIT (JIT, initialNativeCount, jitCompileGroup, jitConfig, printJITStats, registerTypeNumbers, startJIT)
+import Unison.Runtime.JIT.Config qualified as JIT
 import Unison.Runtime.MCode
   ( Args (..),
     CombIx (..),
     FieldRef (..),
+    GCombs,
     GInstr (..),
     GSection (..),
     RCombs,
     RecordFieldMappings (..),
     RefNums (..),
     absurdCombs,
+    attachNativeCells,
     combTypes,
     emitComb,
     emptyRNs,
+    newNativeCellPool,
+    prettyComb,
     resolveCombs,
     sanitizeCombsOfForeignFuncs,
+    takeNativeCells,
   )
 import Unison.Runtime.MCode.Serialize
 import Unison.Runtime.Machine
@@ -109,6 +117,7 @@ import Unison.Runtime.Machine
     cacheAdd0,
     eval0,
     expandSandbox,
+    initialNativeCells,
     preEvalTopLevelConstants,
     refLookup,
     refNumTm,
@@ -185,8 +194,8 @@ cacheContext =
     $ Map.keys builtinTermNumbering
       <&> \r -> (r, Map.singleton 0 (Tm.ref () r))
 
-baseContext :: Bool -> IO EvalCtx
-baseContext sandboxed = cacheContext <$> baseCCache sandboxed
+baseContext :: JIT -> Bool -> IO EvalCtx
+baseContext jit sandboxed = cacheContext <$> baseCCache jit sandboxed
 
 resolveTermRef ::
   CodeLookup Symbol IO () ->
@@ -579,11 +588,16 @@ interpEval ::
   ProfileSpec ->
   Term Symbol ->
   IO (Either Error (Response DecompError, Term Symbol))
-interpEval actThr cleanThr ctxVar cl ppe = \case
-  NoProf ->
-    interpEvalDirect actThr cleanThr ctxVar Nothing cl ppe
-  MiniProf -> profileEval actThr cleanThr ctxVar cl ppe Nothing
-  FullProf file -> profileEval actThr cleanThr ctxVar cl ppe $ Just file
+interpEval actThr cleanThr ctxVar cl ppe spec tm = do
+  r <- case spec of
+    NoProf ->
+      interpEvalDirect actThr cleanThr ctxVar Nothing cl ppe tm
+    MiniProf -> profileEval actThr cleanThr ctxVar cl ppe Nothing tm
+    FullProf file -> profileEval actThr cleanThr ctxVar cl ppe (Just file) tm
+  -- nothing calls the runtime's `terminate`, so JIT statistics are printed here
+  ctx <- readIORef ctxVar
+  printJITStats (jit (ccache ctx))
+  pure r
 
 -- Slightly inefficient method of encoding text. Matches the old way of
 -- encoding e.g. the compiled version below. Compiled code is not
@@ -873,9 +887,18 @@ data RuntimeHost
   = OneOff
   | Persistent
 
-startRuntime :: Bool -> RuntimeHost -> Text -> IO (Runtime Symbol)
-startRuntime sandboxed runtimeHost version = do
-  ctxVar <- newIORef =<< baseContext sandboxed
+-- The JIT is ucm's, one for every runtime it starts (see JIT.hs).
+startRuntime :: JIT -> Bool -> RuntimeHost -> Text -> IO (Runtime Symbol)
+startRuntime jit sandboxed runtimeHost version = do
+  startJIT jit
+  registerTypeNumbers jit (EC.mapFromList [(n, r) | (r, n) <- Map.toList builtinTypeNumbering])
+  ctx <- baseContext jit sandboxed
+  -- in the JIT's eager mode the builtin combinators are compiled now, like
+  -- everything else is when it is loaded
+  builtinCombs <- readTVarIO (combs (ccache ctx))
+  for_ (EC.mapToList builtinCombs) \(w, cmbs) ->
+    for_ (EC.lookup w builtinTermBackref) \r -> jitCompileGroup jit sandboxed r w cmbs
+  ctxVar <- newIORef ctx
   (activeThreads, cleanupThreads) <- case runtimeHost of
     -- Don't bother tracking open threads when running standalone, they'll all be cleaned up
     -- when the process itself exits.
@@ -897,9 +920,9 @@ startRuntime sandboxed runtimeHost version = do
         ioTestTypes = builtinIOTestTypes External
       }
 
-withRuntime :: (MonadUnliftIO m) => Bool -> RuntimeHost -> Text -> (Runtime Symbol -> m a) -> m a
-withRuntime sandboxed runtimeHost version action =
-  UnliftIO.bracket (liftIO $ startRuntime sandboxed runtimeHost version) (liftIO . terminate) action
+withRuntime :: (MonadUnliftIO m) => JIT -> Bool -> RuntimeHost -> Text -> (Runtime Symbol -> m a) -> m a
+withRuntime jit sandboxed runtimeHost version action =
+  UnliftIO.bracket (liftIO $ startRuntime jit sandboxed runtimeHost version) (liftIO . terminate) action
 
 tryM :: IO () -> IO (Maybe Error)
 tryM =
@@ -907,9 +930,26 @@ tryM =
     . flip UnliftIO.catch (pure . pure . CompileExn)
     . fmap (const Nothing)
 
-runStandalone :: Bool -> StoredCache -> CombIx -> IO (Either Error ())
-runStandalone sandboxed sc init =
-  restoreCache sandboxed sc >>= executeMainComb init
+runStandalone :: JIT -> Bool -> StoredCache -> CombIx -> IO (Either Error ())
+runStandalone jit sandboxed sc@(SCache _ _ _ _ _ _ _ _ _ _ _ _ _ _ repl) init = do
+  -- The file's replacement mode, before anything decodes a value or
+  -- consults the foreign function table
+  JIT.setReplacements repl
+  -- What startRuntime and the loader (cacheAdd) do for the JIT on the
+  -- codebase path, for a compiled program
+  startJIT jit
+  cc <- restoreCache jit sandboxed sc
+  readTVarIO (tagRefs cc) >>= registerTypeNumbers jit
+  combRefs' <- readTVarIO (combRefs cc)
+  combs' <- readTVarIO (combs cc)
+  when (JIT.dumpMCode (jitConfig jit)) $
+    for_ (EC.mapToList combs') \(w, cmbs) ->
+      for_ (EC.mapToList cmbs) \(i, c) -> JIT.jitDump (prettyComb w i c "")
+  for_ (EC.mapToList combs') \(w, cmbs) ->
+    for_ (EC.lookup w combRefs') \r -> jitCompileGroup jit sandboxed r w cmbs
+  r <- executeMainComb init cc
+  printJITStats jit
+  pure r
 
 -- | A version of the Code Cache designed to be serialized to disk as
 -- standalone bytecode.
@@ -929,10 +969,15 @@ data StoredCache
       (BM.BiMap ANF.RecordSchema ANF.RecordRef)
       (Map Reference (Set Reference))
       RecordFieldMappings
+      -- which of base's Haskell replacements the code was compiled with
+      -- (JIT.Config): its MCode has them baked in, so the process that runs
+      -- it has to decode values the same way, whatever its own environment
+      -- says
+      JIT.Replacements
   deriving (Show, Eq)
 
 putStoredCache :: StoredCache -> Builder
-putStoredCache (SCache cs crs cacheableCombs oinfo trs ftm fty frs int rtm rty rsLookup sbs rfm) =
+putStoredCache (SCache cs crs cacheableCombs oinfo trs ftm fty frs int rtm rty rsLookup sbs rfm repl) =
   putEnumMap putNat (putEnumMap putNat (putComb absurd)) cs
     <> putEnumMap putNat putReference crs
     <> putEnumSet putNat cacheableCombs
@@ -947,6 +992,7 @@ putStoredCache (SCache cs crs cacheableCombs oinfo trs ftm fty frs int rtm rty r
     <> putMap putRecordSchema putRecordRef (BM.forward rsLookup)
     <> putMap putReference (putFoldable putReference) sbs
     <> putRecordFieldMappings rfm
+    <> BU.word8 (case repl of JIT.AllReplacements -> 0; JIT.TaggedReplacements -> 1; JIT.NoReplacements -> 2)
 
 putRecordFieldMappings :: RecordFieldMappings -> Builder
 putRecordFieldMappings (RecordFieldMappings next rfm) =
@@ -978,6 +1024,14 @@ getStoredCache =
     <*> (BM.fromMap <$> getMap getRecordSchema getRecordRef)
     <*> getMap getReference (fromList <$> getList getReference)
     <*> getRecordFieldMappings
+    <*> getReplacements
+  where
+    getReplacements =
+      getWord8 >>= \case
+        0 -> pure JIT.AllReplacements
+        1 -> pure JIT.TaggedReplacements
+        2 -> pure JIT.NoReplacements
+        n -> fail ("getStoredCache: unknown replacement mode " ++ show n)
 
 debugTextFormat :: Bool -> Pretty ColorText -> String
 debugTextFormat fancy =
@@ -985,8 +1039,24 @@ debugTextFormat fancy =
   where
     render = if fancy then toANSI else toPlain
 
-restoreCache :: Bool -> StoredCache -> IO (CCache ())
-restoreCache sandboxed (SCache cs crs cacheableCombs opt trs ftm fty frs int rtm rty recSchemas sbs rfm) = do
+restoreCache :: JIT -> Bool -> StoredCache -> IO (CCache ())
+restoreCache jit sandboxed (SCache cs crs cacheableCombs opt trs ftm fty frs int rtm rty recSchemas sbs rfm _) = do
+  -- Every combinator gets a native code cell, as it would loading from a
+  -- codebase (see JIT/design.md, "Where cells live"); without one the JIT
+  -- never compiles it. The cells come from the cache's pool, which keeps
+  -- enough spare for code the program loads later (Code.load).
+  let uncelled =
+        srcCombs
+          & sanitizeCombsOfForeignFuncs sandboxed sandboxedForeignFuncs
+      (cellCount, _) = attachNativeCells nullPtr uncelled
+  pool0 <- newNativeCellPool (initialNativeCount jit) (cellCount + initialNativeCells)
+  (cells, pool) <- case takeNativeCells cellCount pool0 of
+    Just taken -> pure taken
+    Nothing -> die [] "restoreCache: the native cell pool is too small"
+  let unresolvedCombs :: EnumMap Word64 (GCombs Val CombIx)
+      unresolvedCombs = absurdCombs (snd (attachNativeCells cells uncelled))
+      combs :: EnumMap Word64 (RCombs Val)
+      combs = resolveCombs Nothing unresolvedCombs
   cc <-
     CCache sandboxed debugText ()
       <$> newTVarIO srcCombs
@@ -1004,10 +1074,10 @@ restoreCache sandboxed (SCache cs crs cacheableCombs opt trs ftm fty frs int rtm
       <*> newTVarIO recSchemas
       <*> newTVarIO (sbs <> baseSandboxInfo)
       <*> newTVarIO newRFM
+      <*> newTVarIO pool
+      <*> pure jit
   let (unresolvedCacheableCombs, unresolvedNonCacheableCombs) =
-        srcCombs
-          & sanitizeCombsOfForeignFuncs sandboxed sandboxedForeignFuncs
-          & absurdCombs
+        unresolvedCombs
           & EC.mapToList
           & foldMap
             ( \(k, v) ->
@@ -1047,12 +1117,6 @@ restoreCache sandboxed (SCache cs crs cacheableCombs opt trs ftm fty frs int rtm
         )
     srcCombs :: EnumMap Word64 Combs
     srcCombs = builtinCombs <> cs
-    combs :: EnumMap Word64 (RCombs Val)
-    combs =
-      srcCombs
-        & sanitizeCombsOfForeignFuncs sandboxed sandboxedForeignFuncs
-        & absurdCombs
-        & resolveCombs Nothing
 
 traceNeeded ::
   Reference ->
@@ -1083,8 +1147,9 @@ buildSCache ::
   BM.BiMap ANF.RecordSchema ANF.RecordRef ->
   Map Reference (Set Reference) ->
   RecordFieldMappings ->
+  JIT.Replacements ->
   StoredCache
-buildSCache crsrc cssrc cacheableCombs optsrc trsrc ftm fty frs int rtmsrc rtysrc rsLookup sndbx rfm =
+buildSCache crsrc cssrc cacheableCombs optsrc trsrc ftm fty frs int rtmsrc rtysrc rsLookup sndbx rfm repl =
   SCache
     cs
     crs
@@ -1100,6 +1165,7 @@ buildSCache crsrc cssrc cacheableCombs optsrc trsrc ftm fty frs int rtmsrc rtysr
     rsLookup
     (restrictTmR sndbx)
     rfm
+    repl
   where
     termRefs = Map.keysSet int
 
@@ -1128,6 +1194,7 @@ buildSCache crsrc cssrc cacheableCombs optsrc trsrc ftm fty frs int rtmsrc rtysr
     restrictTmR m = Map.restrictKeys m termRefs
 
     restrictTyW m = restrictKeys m typeKeys
+    restrictTyR :: Map Reference a -> Map Reference a
     restrictTyR m = Map.restrictKeys m typeRefs
 
 standalone :: CCache () -> Word64 -> IO StoredCache
@@ -1149,6 +1216,7 @@ standalone cc init =
           <*> readTVarIO (recordRefs cc)
           <*> readTVarIO (sandbox cc)
           <*> readTVarIO (recordFieldMappings cc)
+          <*> pure JIT.replacements
       Nothing ->
         die [] $ "standalone: unknown combinator: " ++ show init
 

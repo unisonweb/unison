@@ -7,11 +7,15 @@ module Unison.Runtime.MCode.Serialize
     getComb,
     putCombIx,
     getCombIx,
+    putRecordShape,
+    getRecordShape,
   )
 where
 
 import Data.ByteString.Builder (Builder)
 import Data.ByteString.Builder qualified as BU
+import Data.List (sortOn)
+import Data.Primitive.PrimArray (primArrayToList)
 import Data.Void (Void)
 import Data.Word (Word64)
 import GHC.Exts (IsList (..))
@@ -111,7 +115,7 @@ putSection = \case
   Match i b -> putTag MatchT <> pInt i <> putBranch b
   Yield a -> putTag YieldT <> putArgs a
   Ins i s -> putTag InsT <> putInstr i <> putSection s
-  Let s ci f bd ->
+  Let s ci f bd _ ->
     putTag LetT
       <> putSection s
       <> putCombIx ci
@@ -141,7 +145,7 @@ getSection =
     YieldT -> Yield <$> getArgs
     InsT -> Ins <$> getInstr <*> getSection
     LetT ->
-      Let <$> getSection <*> getCombIx <*> gInt <*> getSection
+      Let <$> getSection <*> getCombIx <*> gInt <*> getSection <*> pure noNativeCell
     DieT -> Die <$> getString
     ExitT -> pure Exit
     DMatchT -> DMatch <$> getMaybe getReference <*> gInt <*> getBranch
@@ -272,17 +276,20 @@ putInstr = \case
     error "putInstr: Unexpected serialized DLLCall"
 
 putRecordShape :: RecordShape -> Builder
-putRecordShape (RecordShape ref fields positions) =
-  putRecordRef ref
-    <> putFoldable putText fields
-    <> putEnumMap putFieldRef pInt positions
+putRecordShape shape =
+  putRecordRef (shapeRef shape)
+    <> putFoldable putText (shapeFields shape)
+    -- the field numbers in slot order; the arrays are rebuilt on the way in
+    <> putFoldable putFieldRef (slotRefs shape)
+  where
+    slotRefs s = map snd . sortOn fst $ zip (primArrayToList (shapeSlots s)) (map FieldRef (primArrayToList (shapeKeys s)))
 
 getRecordShape :: (PrimBase m) => Get m RecordShape
 getRecordShape =
-  RecordShape
+  mkRecordShape
     <$> getRecordRef
     <*> getVector getText
-    <*> getEnumMap getFieldRef gInt
+    <*> getList getFieldRef
 
 getInstr :: (PrimBase m) => Get m Instr
 getInstr =
@@ -452,33 +459,40 @@ instance Tag BranchT where
 
 putBranch :: GBranch cix -> Builder
 putBranch (Test1 w s d) =
-  putTag Test1T <> pWord w <> putSection s <> putSection d
+  putTag Test1T <> pWord w <> putArm s <> putSection d
 putBranch (Test2 a sa b sb d) =
   putTag Test2T
     <> pWord a
-    <> putSection sa
+    <> putArm sa
     <> pWord b
-    <> putSection sb
+    <> putArm sb
     <> putSection d
 putBranch (TestW d m) =
-  putTag TestWT <> putSection d <> putEnumMap pWord putSection m
+  putTag TestWT <> putSection d <> putEnumMap pWord putArm m
 putBranch (TestT d m) =
   putTag TestTT <> putSection d <> putMap (putText . Util.Text.toText) putSection m
 putBranch (TestY d m) =
   putTag TestYT <> putSection d <> putMap putBytes putSection m
 
+-- | An arm: the field count it binds, then its code.
+putArm :: Arm cix -> Builder
+putArm (Arm n s) = pInt n <> putSection s
+
+getArm :: (PrimBase m) => Get m (Arm CombIx)
+getArm = Arm <$> gInt <*> getSection
+
 getBranch :: (PrimBase m) => Get m Branch
 getBranch =
   getTag >>= \case
-    Test1T -> Test1 <$> gWord <*> getSection <*> getSection
+    Test1T -> Test1 <$> gWord <*> getArm <*> getSection
     Test2T ->
       Test2
         <$> gWord
-        <*> getSection
+        <*> getArm
         <*> gWord
+        <*> getArm
         <*> getSection
-        <*> getSection
-    TestWT -> TestW <$> getSection <*> getEnumMap gWord getSection
+    TestWT -> TestW <$> getSection <*> getEnumMap gWord getArm
     TestTT -> TestT <$> getSection <*> getMap (Util.Text.fromText <$> getText) getSection
     TestYT -> TestY <$> getSection <*> getMap getBytes getSection
 

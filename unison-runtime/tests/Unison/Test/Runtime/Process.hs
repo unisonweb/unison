@@ -19,7 +19,7 @@ import System.Process (readCreateProcessWithExitCode, shell)
 import Unison.Runtime.Foreign.Function (ForeignConvention (decodeVal, encodeVal), foreignCall)
 import Unison.Runtime.Foreign.Function.Type (ForeignFunc (IO_process_start))
 import Unison.Runtime.MCode (Args (VArg2))
-import Unison.Runtime.Stack (alloc, bumpn, exStackIOToIO, peek, pokeOff, unpackXStack)
+import Unison.Runtime.Stack (alloc, bumpn, defaultStackSlots, exStackIOToIO, peek, pokeOff, unpackXStack)
 import Unison.Util.Text qualified as Util.Text
 
 test :: Test ()
@@ -41,7 +41,7 @@ test =
 
 startInteractiveProcessViaForeignCall :: (FilePath, [String]) -> IO (Handle, Handle, Handle, ProcessHandle)
 startInteractiveProcessViaForeignCall (exe, args) = do
-  stk0 <- alloc >>= \stk -> bumpn stk 2
+  stk0 <- alloc defaultStackSlots >>= \stk -> bumpn stk 2
   pokeOff stk0 1 (encodeVal exe)
   pokeOff stk0 0 (encodeVal (Util.Text.pack <$> args))
   (_, stk1) <- exStackIOToIO $ foreignCall IO_process_start (VArg2 1 0) (unpackXStack stk0)

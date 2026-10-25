@@ -65,6 +65,7 @@ import Unison.Prelude
 import Unison.PrettyTerminal
 import Unison.Project (ProjectAndBranch (..), ProjectAndBranchNames (ProjectAndBranchNames'Unambiguous))
 import Unison.Runtime.Interface qualified as RTI
+import Unison.Runtime.JIT (JIT)
 import Unison.Server.Backend qualified as Backend
 import Unison.Server.CodebaseServer qualified as Server
 import Unison.Sqlite qualified as Sqlite
@@ -121,13 +122,15 @@ type Runner =
 withRunner ::
   forall m r.
   (UnliftIO.MonadUnliftIO m) =>
+  -- | The JIT, shared by both runtimes (see Unison.Runtime.JIT)
+  JIT ->
   -- | Whether to treat this transcript run as a transcript test, which will try to make output deterministic
   Config ->
   Verbosity ->
   UCMVersion ->
   (Runner -> m r) ->
   m r
-withRunner config verbosity ucmVersion action = do
+withRunner jit config verbosity ucmVersion action = do
   credMan <- liftIO . AuthN.newCredentialManager $ credentialsFile config
   authenticatedHTTPClient <- initTranscriptAuthenticatedHTTPClient credMan
 
@@ -173,8 +176,8 @@ withRunner config verbosity ucmVersion action = do
         Right r -> pure r
     withRuntimes :: (RTI.Runtime Symbol -> RTI.Runtime Symbol -> m a) -> m a
     withRuntimes action =
-      RTI.withRuntime False RTI.Persistent ucmVersion \runtime ->
-        RTI.withRuntime True RTI.Persistent ucmVersion \sbRuntime ->
+      RTI.withRuntime jit False RTI.Persistent ucmVersion \runtime ->
+        RTI.withRuntime jit True RTI.Persistent ucmVersion \sbRuntime ->
           action runtime sbRuntime
     initTranscriptAuthenticatedHTTPClient :: AuthN.CredentialManager -> m AuthN.AuthenticatedHttpClient
     initTranscriptAuthenticatedHTTPClient credMan = liftIO $ do

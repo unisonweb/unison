@@ -187,16 +187,13 @@ compile (Many correct p) !_ !success = case p of
           Nothing -> success acc c t
           Just (Text.chunkToText -> txt, t) -> case DT.span ok txt of
             (prefix, rem) -> case DT.unsnoc prefix of
-              -- moving the remainder to the root of the tree is much more efficient
-              -- since the next uncons will be O(1) rather than O(log n)
-              -- this can't unbalance the tree too badly since these promoted chunks
-              -- are being consumed and will get removed by a subsequent uncons
+              -- the remainder goes back on the front, where the next uncons finds it
               Just (_, c)
                 | DT.null rem -> go acc (Just c) t
-                | otherwise -> success acc (Just c) (Text.appendUnbalanced (Text.fromText rem) t)
+                | otherwise -> success acc (Just c) (Text.fromText rem <> t)
               Nothing
                 | DT.null rem -> go acc c t
-                | otherwise -> success acc c (Text.appendUnbalanced (Text.fromText rem) t)
+                | otherwise -> success acc c (Text.fromText rem <> t)
     {-# INLINE walker #-}
 compile (Replicate m n p) !err !success = case p of
   Char Any -> \acc oc t ->

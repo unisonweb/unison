@@ -29,6 +29,7 @@ import Unison.Codebase.Transcript.Parser qualified as Transcript
 import Unison.Codebase.Transcript.Runner qualified as Transcript
 import Unison.Codebase.Verbosity qualified as Verbosity
 import Unison.Prelude
+import Unison.Runtime.JIT qualified as JIT
 import Unison.Util.Timing
 import UnliftIO qualified
 import UnliftIO.STM qualified as STM
@@ -63,8 +64,9 @@ testBuilder expectFailure replaceOriginal recordFailure inputDir outputDir prelu
     let debugName = "transcript"
     outputs <-
       io $ UnliftIO.withSystemTempDirectory debugName \tempDir ->
-        withNewUcmCodebaseOrExit SC.init Verbosity.Silent debugName tempDir SC.DoLock \codebase ->
-          Transcript.withRunner (Transcript.testConfig (tempDir </> "credentials.json")) Verbosity.Silent "TODO: pass version here" \runTranscript ->
+        withNewUcmCodebaseOrExit SC.init Verbosity.Silent debugName tempDir SC.DoLock \codebase -> do
+          jit <- JIT.newJIT =<< JIT.readConfig
+          Transcript.withRunner jit (Transcript.testConfig (tempDir </> "credentials.json")) Verbosity.Silent "TODO: pass version here" \runTranscript ->
             for files \filePath -> do
               transcriptSrc <- BS.readFile $ inputDir </> filePath
               out <- silence $ runTranscript filePath transcriptSrc codebase

@@ -4,15 +4,54 @@ copyright: Copyright (C) 2013-2022 Unison Computing, PBC and contributors
 
 ghc-options: -Wall
 
-dependencies:
-  - base
-  - deepseq
-
 library:
   source-dirs: src
   when:
     - condition: false
       other-modules: Paths_unison_util_rope
+  dependencies:
+    - base
+    - deepseq
+    - primitive
+
+tests:
+  util-rope-tests:
+    when:
+      - condition: false
+        other-modules: Paths_unison_util_rope
+    dependencies:
+      - base
+      - containers
+      - deepseq
+      - easytest
+      - unison-util-rope
+    main: Main.hs
+    source-dirs: test
+
+benchmarks:
+  deque:
+    when:
+      - condition: false
+        other-modules: Paths_unison_util_rope
+    source-dirs: benchmarks/deque
+    main: Main.hs
+    dependencies:
+      - base
+      - containers
+      - tasty-bench
+      - unison-util-rope
+
+  rope:
+    when:
+      - condition: false
+        other-modules: Paths_unison_util_rope
+    source-dirs: benchmarks/rope
+    main: Main.hs
+    dependencies:
+      - base
+      - tasty-bench
+      - text
+      - unison-util-rope
 
 default-extensions:
   - ApplicativeDo

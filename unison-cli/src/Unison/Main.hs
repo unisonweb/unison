@@ -41,12 +41,12 @@ import Network.HTTP.Client.TLS qualified as HTTP
 import Network.Socket qualified as Socket
 import Stats (recordRtsStats)
 import System.Directory (canonicalizePath, getCurrentDirectory, removeDirectoryRecursive)
-import System.Environment (getProgName, lookupEnv, withArgs)
+import System.Environment (getProgName, lookupEnv, setEnv, withArgs)
 import System.Exit (ExitCode (..))
 import System.Exit qualified as Exit
 import System.Exit qualified as System
 import System.FilePath (replaceExtension, takeExtension, (</>))
-import System.IO (stderr)
+import System.IO (hFlush, hIsTerminalDevice, stderr, stdout)
 import System.IO.CodePage (withCP65001)
 import System.IO.Temp qualified as Temp
 import System.Path qualified as Path
@@ -88,6 +88,8 @@ import Unison.Prelude
 import Unison.PrettyTerminal qualified as PT
 import Unison.Project (defaultBranchName)
 import Unison.Runtime.Interface qualified as RTI
+import Unison.Runtime.JIT qualified as JIT
+import Unison.Runtime.JIT.Config qualified as JITConfig
 import Unison.Server.Backend qualified as Backend
 import Unison.Server.CodebaseServer qualified as Server
 import Unison.Symbol (Symbol)
@@ -159,7 +161,13 @@ main version = do
       progName <- getProgName
       -- hSetBuffering stdout NoBuffering -- cool
       (renderUsageInfo, globalOptions, command) <- parseCLIArgs progName (Text.unpack (Version.gitDescribeWithDate version))
-      let GlobalOptions {codebasePathOption = mCodePathOption, exitOption, lspFormattingConfig} = globalOptions
+      let GlobalOptions {codebasePathOption = mCodePathOption, exitOption, lspFormattingConfig, jitOption, jitDumpIROption} = globalOptions
+      -- The runtime reads its JIT settings from the environment, once, at startup.
+      for_ jitOption (setEnv "UNISON_JIT")
+      -- the dump is one of the settings behind UNISON_JIT_DEBUG (JIT.Config)
+      for_ jitDumpIROption (\dir -> setEnv "UNISON_JIT_DEBUG" "1" >> setEnv "UNISON_JIT_DUMP_IR" dir)
+      jit <- JIT.newJIT =<< JIT.readConfig
+      announceJIT jit
       currentDir <- getCurrentDirectory
       case command of
         PrintVersion ->
@@ -169,7 +177,7 @@ main version = do
           let credMan = AuthN.globalCredentialManager
           authenticatedHTTPClient <- initTranscriptAuthenticatedHTTPClient ucmVersion credMan
           getCodebaseOrExit mCodePathOption SC.DontLock (SC.MigrateAfterPrompt SC.Backup SC.Vacuum) \(_initRes, _, theCodebase) -> do
-            withRuntimes RTI.Persistent \(runtime, sbRuntime) -> do
+            withRuntimes jit RTI.Persistent \(runtime, sbRuntime) -> do
               MCP.runOnStdIO theCodebase runtime sbRuntime currentDir ucmVersion authenticatedHTTPClient
         Init -> do
           exitError
@@ -185,7 +193,7 @@ main version = do
             )
         Run (RunFromSymbol mainName) args -> do
           getCodebaseOrExit mCodePathOption SC.DontLock SC.DontMigrate \(_, _, theCodebase) -> do
-            RTI.withRuntime False RTI.OneOff (Version.gitDescribeWithDate version) \runtime -> do
+            RTI.withRuntime jit False RTI.OneOff (Version.gitDescribeWithDate version) \runtime -> do
               withArgs args (execute theCodebase runtime mainName) >>= \case
                 Left err -> exitError =<< RTI.prettyError fetchIssueFromGitHub err
                 Right () -> pure ()
@@ -197,7 +205,7 @@ main version = do
                 Left _ -> exitError "I couldn't find that file or it is for some reason unreadable."
                 Right contents -> do
                   getCodebaseOrExit mCodePathOption SC.DontLock SC.DontMigrate \(initRes, _, theCodebase) -> do
-                    withRuntimes RTI.OneOff \(rt, sbrt) -> do
+                    withRuntimes jit RTI.OneOff \(rt, sbrt) -> do
                       let fileEvent = Input.UnisonFileChanged (Text.pack file) contents
                       let noOpCheckForChanges _ = pure ()
                       let serverUrl = Nothing
@@ -225,7 +233,7 @@ main version = do
             Left _ -> exitError "I had trouble reading this input."
             Right contents -> do
               getCodebaseOrExit mCodePathOption SC.DontLock SC.DontMigrate \(initRes, _, theCodebase) -> do
-                withRuntimes RTI.OneOff \(rt, sbrt) -> do
+                withRuntimes jit RTI.OneOff \(rt, sbrt) -> do
                   let fileEvent = Input.UnisonFileChanged (Text.pack "<standard input>") contents
                   let noOpCheckForChanges _ = pure ()
                   let serverUrl = Nothing
@@ -270,7 +278,7 @@ main version = do
               Right (Right (v, rf, combIx, sto))
                 | not vmatch -> mismatchMsg
                 | otherwise ->
-                    withArgs args (RTI.runStandalone False sto combIx) >>= \case
+                    withArgs args (RTI.runStandalone jit False sto combIx) >>= \case
                       Left err -> exitError =<< RTI.prettyError fetchIssueFromGitHub err
                       Right () -> pure ()
                 where
@@ -309,14 +317,14 @@ main version = do
                           \that matches your version of Unison."
                       ]
         Transcript codebaseSetup mrtsStatsFp transcriptFiles -> do
-          let action = runTranscripts version Verbosity.Verbose renderUsageInfo codebaseSetup mCodePathOption transcriptFiles
+          let action = runTranscripts jit version Verbosity.Verbose renderUsageInfo codebaseSetup mCodePathOption transcriptFiles
           case mrtsStatsFp of
             Nothing -> action
             Just fp -> recordRtsStats fp action
         Launch isHeadless codebaseServerOpts mayStartingProject shouldWatchFiles -> do
           lockOption <- getCodebaseLockOption
           getCodebaseOrExit mCodePathOption lockOption (SC.MigrateAfterPrompt SC.Backup SC.Vacuum) \(initRes, _, theCodebase) -> do
-            withRuntimes RTI.Persistent \(runtime, sbRuntime) -> do
+            withRuntimes jit RTI.Persistent \(runtime, sbRuntime) -> do
               startingProjectPath <- do
                 -- If the user didn't provide a starting path on the command line, put them in the most recent
                 -- path they cd'd to
@@ -408,10 +416,10 @@ main version = do
                   Exit -> Exit.exitSuccess
   where
     -- (runtime, sandboxed runtime)
-    withRuntimes :: RTI.RuntimeHost -> (Runtimes -> IO a) -> IO a
-    withRuntimes mode action =
-      RTI.withRuntime False mode (Version.gitDescribeWithDate version) \runtime -> do
-        RTI.withRuntime True mode (Version.gitDescribeWithDate version) \sbRuntime ->
+    withRuntimes :: JIT.JIT -> RTI.RuntimeHost -> (Runtimes -> IO a) -> IO a
+    withRuntimes jit mode action =
+      RTI.withRuntime jit False mode (Version.gitDescribeWithDate version) \runtime -> do
+        RTI.withRuntime jit True mode (Version.gitDescribeWithDate version) \sbRuntime ->
           action (runtime, sbRuntime)
     initTranscriptAuthenticatedHTTPClient :: UCMVersion -> AuthN.CredentialManager -> IO AuthN.AuthenticatedHttpClient
     initTranscriptAuthenticatedHTTPClient ucmVersion credMan = do
@@ -525,12 +533,13 @@ withTranscriptDir verbosity progName codebaseSetup mCodePathOption action = do
       cleanupAction
 
 runTranscripts' ::
+  JIT.JIT ->
   Version ->
   String ->
   FilePath ->
   NonEmpty MarkdownFile ->
   IO Bool
-runTranscripts' version progName transcriptDir markdownFiles = do
+runTranscripts' jit version progName transcriptDir markdownFiles = do
   currentDir <- getCurrentDirectory
   -- We don't need to create a codebase through `getCodebaseOrExit` as we've already done so previously.
   and
@@ -540,6 +549,7 @@ runTranscripts' version progName transcriptDir markdownFiles = do
       (SC.MigrateAutomatically SC.Backup SC.Vacuum)
       \(_, codebasePath, theCodebase) -> do
         Transcript.withRunner
+          jit
           Transcript.defaultConfig
           Verbosity.Verbose
           (Version.gitDescribeWithDate version)
@@ -593,6 +603,7 @@ runTranscripts' version progName transcriptDir markdownFiles = do
               pure $ isRight result
 
 runTranscripts ::
+  JIT.JIT ->
   Version ->
   Verbosity.Verbosity ->
   UsageRenderer ->
@@ -600,7 +611,7 @@ runTranscripts ::
   Maybe CodebasePathOption ->
   NonEmpty String ->
   IO ()
-runTranscripts version verbosity renderUsageInfo codebaseSetup mCodePathOption args = do
+runTranscripts jit version verbosity renderUsageInfo codebaseSetup mCodePathOption args = do
   markdownFiles <- case traverse (first (pure @[]) . markdownFile) args of
     Failure invalidArgs -> do
       PT.putPrettyLn $
@@ -618,7 +629,7 @@ runTranscripts version verbosity renderUsageInfo codebaseSetup mCodePathOption a
   progName <- getProgName
   completed <-
     fromMaybe False <$> withTranscriptDir verbosity progName codebaseSetup mCodePathOption \transcriptDir -> do
-      runTranscripts' version progName transcriptDir markdownFiles
+      runTranscripts' jit version progName transcriptDir markdownFiles
   when (not completed) $ Exit.exitWith (Exit.ExitFailure 1)
 
 launch ::
@@ -754,3 +765,23 @@ codebasePathOptionToPath codebasePathOption =
   case codebasePathOption of
     CreateCodebaseWhenMissing p -> p
     DontCreateCodebaseWhenMissing p -> p
+
+-- | With the JIT turned on (--jit or UNISON_JIT), loads LLVM now and says
+-- how it went, in the two-space margin the rest of ucm's output has. When
+-- it can't be loaded the program runs interpreted, as it would with the
+-- JIT off. With the JIT off nothing is printed.
+announceJIT :: JIT.JIT -> IO ()
+announceJIT jit = case JITConfig.mode (JIT.jitConfig jit) of
+  JITConfig.Off -> pure ()
+  _ -> do
+    tty <- hIsTerminalDevice stdout
+    -- a progress line while LLVM loads, erased once the outcome is known
+    let loading = "  JIT compilation requested, loading LLVM library..."
+    when tty $ putStr loading >> hFlush stdout
+    r <- JIT.loadJIT jit
+    -- back to the start of the line, and clear it
+    when tty $ putStr ("\r" ++ replicate (length loading) ' ' ++ "\r")
+    case r of
+      Nothing -> pure ()
+      Just (Right _) -> putStrLn "  JIT compilation activated \x26a1\x1f680" >> hFlush stdout
+      Just (Left msgs) -> mapM_ (putStrLn . ("  " ++)) msgs >> hFlush stdout

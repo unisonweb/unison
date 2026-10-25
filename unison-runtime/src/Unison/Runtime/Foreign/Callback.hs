@@ -47,6 +47,7 @@ import Unison.Runtime.Stack
   ( Stack,
     alloc,
     bump,
+    defaultStackSlots,
     peekOffBi,
     peekOffD,
     peekOffI,
@@ -117,7 +118,7 @@ callbackEntry :: CallbackEntry
 callbackEntry _cif ret argv userData = do
   CallbackCtx spec run inUse reusable <- deRefStablePtr (castPtrToStablePtr userData)
   won <- not <$> atomicModifyIORef' inUse (\used -> (True, used))
-  stk <- if won then pure reusable else alloc
+  stk <- if won then pure reusable else alloc defaultStackSlots
   let invoke = do
         stk <- pushArgs (ffArgs spec) argv stk
         run stk \result -> writeResult (ffResult spec) ret result
@@ -144,7 +145,11 @@ mkCallback spec0 run = do
   mapM_ checkArgType (ffArgs spec)
   checkResultType (ffResult spec)
   inUse <- newIORef False
-  reusable <- alloc
+  -- The stack takes its size here since this module is off the evaluator,
+  -- which is where the JIT's settings live; the `ustack` stress mode's tiny
+  -- stack doesn't apply to callbacks, so growth is exercised on the main
+  -- stacks only.
+  reusable <- alloc defaultStackSlots
   alloca \codeRef -> do
     writable <- ffi_closure_alloc closureSize codeRef
     code <- peek codeRef
