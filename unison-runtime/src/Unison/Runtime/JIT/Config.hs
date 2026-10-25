@@ -229,7 +229,7 @@ readConfig = do
   -- weaker (the stress modes, the disabled features, the pass pipeline, the
   -- dumps and traces) are read only when UNISON_JIT_DEBUG is also set, so
   -- that a stray variable in the environment of a program's user does
-  -- nothing (security review, 2026-10-24). jit_llvm.c and jit_rt.c read the
+  -- nothing. jit_llvm.c and jit_rt.c read the
   -- same gate for theirs; --jit-dump-ir sets it.
   debug <- isJust <$> lookupEnv "UNISON_JIT_DEBUG"
   let gated name = if debug then lookupEnv name else pure Nothing

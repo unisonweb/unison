@@ -2969,7 +2969,7 @@ closureCalleeFrom fe from p n = do
   -- size, the interpreter's slack. The static part (from) is covered by the
   -- entry check through 'fpPlus'; the count is only known here. Measured
   -- from %fp and the copy's own base, not from %fpb, the function's: a call
-  -- in a deep frame writes that much higher (security review, 2026-10-24).
+  -- in a deep frame writes that much higher.
   -- The callee checks its own frame.
   top <- fresh "top"
   emit (top <> " = add i64 %fp, " <> tshow (from + 1))

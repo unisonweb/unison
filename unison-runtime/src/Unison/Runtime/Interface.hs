@@ -975,7 +975,7 @@ data StoredCache
       -- which of base's Haskell replacements the code was compiled with
       -- (JIT.Config): its MCode has them baked in, so the process that runs
       -- it has to decode values the same way, whatever its own environment
-      -- says (security review, 2026-10-24)
+      -- says
       JIT.Replacements
   deriving (Show, Eq)
 

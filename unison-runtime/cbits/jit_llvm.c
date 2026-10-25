@@ -51,8 +51,8 @@ static const char *lib_error(void) { return dlerror(); }
 
 
 // The settings that change code generation or weaken the runtime are read
-// only when UNISON_JIT_DEBUG is set, like JIT.Config's (security review,
-// 2026-10-24).
+// only when UNISON_JIT_DEBUG is set, like JIT.Config's, so that a stray
+// variable in the environment of a program's user does nothing.
 static int jit_debug(void) {
   static int v = -1;
   if (v < 0) v = getenv("UNISON_JIT_DEBUG") != NULL;

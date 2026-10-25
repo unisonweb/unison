@@ -42,8 +42,8 @@
 
 
 // The settings that change code generation or weaken the runtime are read
-// only when UNISON_JIT_DEBUG is set, like JIT.Config's (security review,
-// 2026-10-24).
+// only when UNISON_JIT_DEBUG is set, like JIT.Config's, so that a stray
+// variable in the environment of a program's user does nothing.
 static int jit_debug(void) {
   static int v = -1;
   if (v < 0) v = getenv("UNISON_JIT_DEBUG") != NULL;
@@ -337,7 +337,7 @@ void *unison_jit_alloc_words(UnisonJitCtx *ctx, int64_t n) {
 // repeated text): allocateMightFail instead of allocate(), so that a size
 // no heap can hold comes back as NULL for the caller to hand to the
 // interpreter, which raises HeapOverflow as newByteArray# would, where
-// allocate() exits the process (security review, 2026-10-24). The budget
+// allocate() exits the process. The budget
 // is charged only for what was handed out.
 void *unison_jit_alloc_words_mayfail(UnisonJitCtx *ctx, int64_t n) {
   if (!ctx->bump) {

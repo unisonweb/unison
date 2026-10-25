@@ -939,8 +939,7 @@ nativeCellSize = 32
 -- entries and exit and frame tables before it publishes the code pointer,
 -- and an interpreter thread that sees the pointer must then see those too,
 -- which on a weakly ordered machine (arm64) a plain load does not promise
--- (security review, 2026-10-24; an @ldar@, a few cycles on an entry that
--- costs tens of nanoseconds).
+-- (an @ldar@, a few cycles on an entry that costs tens of nanoseconds).
 readNativeCode :: Ptr NativeCell -> IO (Ptr ())
 readNativeCode (Ptr a) = IO $ \s -> case atomicReadWordAddr# a s of
   (# s', w #) -> (# s', wordPtrToPtr (WordPtr (W# w)) #)

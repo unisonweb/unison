@@ -4,7 +4,7 @@
 -- | The array builtins' checks that only ill-typed code can reach, which no
 -- transcript can exercise: the typechecker keeps a PinnedByteArray and a
 -- ByteArray apart, but at run time they are the same object, so the builtin
--- has to check pinnedness itself (security review, 2026-10-24).
+-- has to check pinnedness itself.
 module Unison.Test.Runtime.Foreign.Arrays (test) where
 
 import Control.Monad.Primitive (RealWorld)

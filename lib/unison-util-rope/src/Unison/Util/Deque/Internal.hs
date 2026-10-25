@@ -967,7 +967,7 @@ fromListN n xs
 -- of five, and what is between them goes, in nodes of eight, to the level
 -- below.  The count is trusted: with more elements than @n@ the suffix
 -- holds them all while the packed count says five, and a later append
--- writes outside an array (security review, 2026-10-24).
+-- writes outside an array.
 unsafeFromListN :: Int -> [a] -> Deque a
 unsafeFromListN n xs
   | n <= 0 = Nil

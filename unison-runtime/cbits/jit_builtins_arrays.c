@@ -41,7 +41,6 @@ static void *wrap_word(UnisonJitCtx *ctx, const WrapInfo *w, StgWord field) {
 // checkRange: the len elements from off lie within size, tested without
 // adding the two: off + len wraps for an offset near 2^64, and a check of the
 // wrapped sum alone let such an offset reach memmove as a negative int64_t
-// (security review, 2026-10-24)
 static inline int range_ok(StgWord size, int64_t off, int64_t len) {
   return (StgWord)off <= size && (StgWord)len <= size - (StgWord)off;
 }

@@ -379,7 +379,7 @@ static void pack_measure(StgClosure *x, void *env) {
   PackEnv *e = env;
   StgInt u = LW(x, 1);
   // a surrogate code point is not a character: Data.Text.pack replaces it,
-  // so the interpreter does that (security review, 2026-10-24)
+  // so such a list is left to the interpreter, which does the same
   if (LP(x, 0) != e->tag || u < 0 || u > e->limit || (e->limit != 255 && u >= 0xD800 && u <= 0xDFFF)) e->bad = 1;
   else e->count++, e->bytes += e->limit == 255 ? 1 : utf8_cp_len(u);
 }
@@ -621,7 +621,7 @@ void *unison_jit_text_case(UnisonJitCtx *ctx, void *text, int64_t upper) {
     unsigned char *o = (unsigned char *)arr->payload;
     // ASCII only (checked above), by arithmetic: toupper/tolower follow the
     // process locale, and a single-byte non-ASCII locale maps some letters to
-    // bytes >= 0x80, which would not be UTF-8 (security review, 2026-10-24)
+    // bytes >= 0x80, which would not be UTF-8
     for (StgInt j = 0; j < len; j++) {
       unsigned char ch = p[j];
       if (upper) o[j] = (ch >= 'a' && ch <= 'z') ? ch - 32 : ch;

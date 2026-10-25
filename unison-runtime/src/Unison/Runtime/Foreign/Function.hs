@@ -1332,7 +1332,7 @@ foreignCallHelper = \case
     -- The type says pinned, but at run time a PinnedByteArray and a
     -- MutableByteArray are the same object, so code that bypassed the
     -- typechecker can pass an unpinned one, whose address the collector
-    -- would move out from under the Ptr (security review, 2026-10-24).
+    -- would move out from under the Ptr.
     -- (strictly: GHC 9.10's primop, like the JIT's C copy in
     -- jit_builtins_arrays.c, counts only arrays made pinned, not merely large)
     if PA.isMutableByteArrayPinned ba
