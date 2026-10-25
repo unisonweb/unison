@@ -1542,10 +1542,14 @@ resultCount = \case
   where
     armCount (TAbss _ bo) = resultCount bo
     -- the instruction the primitive emits, given arguments of the right
-    -- count (which slots they are in does not matter for the count)
+    -- count (which slots they are in does not matter for the count); every
+    -- instruction a primitive emits has a count (the ones without one, a
+    -- capture, a discard and a sandboxing failure, come from elsewhere)
     primCount emit args = case emit (dummyArgs (length args)) of
       Prim2 THRO _ _ -> Nothing
-      instr -> pushCount instr
+      instr -> case pushCount instr of
+        Just n -> Just n
+        Nothing -> internalBug [] $ "resultCount: a primitive emitting an instruction without a push count: " ++ show instr
     dummyArgs = \case
       0 -> ZArgs
       1 -> VArg1 0
