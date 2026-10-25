@@ -120,10 +120,12 @@ jobs:
 
       - name: the JIT's embedded IR is in step with its C
         # clang and the GHC headers are both here on macOS and Linux; the
-        # check regenerates cbits/jit_helpers.ll and jit_exit.ll and diffs
-        # them, and compares the headers' source hashes. Always, cache hit
-        # or not: the committed IR is what runs natively in every JIT'd
-        # process, so nothing but this regeneration vouches for it.
+        # check compares the headers' source hashes and, where the runner's
+        # clang is the one that generated the files (the IR's text differs
+        # between clang versions), regenerates cbits/jit_helpers.ll and
+        # jit_exit.ll and diffs them. Always, cache hit or not: the
+        # committed IR is what runs natively in every JIT'd process, so
+        # nothing but this regeneration vouches for it.
         if: runner.os != 'Windows'
         run: unison-runtime/cbits/gen-helpers.sh --check
 
