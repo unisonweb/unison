@@ -106,7 +106,6 @@ import Unison.Runtime.MCode
     takeNativeCells,
   )
 import Unison.Runtime.MCode.Serialize
-import Unison.Runtime.MCode.Verify (renderVerifyError, verifyGroup)
 import Unison.Runtime.Machine
   ( ActiveThreads,
     CCache (..),
@@ -116,7 +115,6 @@ import Unison.Runtime.Machine
     baseCCache,
     cacheAdd,
     cacheAdd0,
-    combInfoOf,
     eval0,
     expandSandbox,
     initialNativeCells,
@@ -126,7 +124,6 @@ import Unison.Runtime.Machine
     refNumsTm,
     refNumsTy,
     resolveSection,
-    verifyEnvFrom,
   )
 import Unison.Runtime.Pattern
 import Unison.Runtime.Profiling
@@ -1044,16 +1041,6 @@ debugTextFormat fancy =
 
 restoreCache :: JIT -> Bool -> StoredCache -> IO (CCache ())
 restoreCache jit sandboxed (SCache cs crs cacheableCombs opt trs ftm fty frs int rtm rty recSchemas sbs rfm _) = do
-  -- The file's code is checked before any of it runs (MCode.Verify): a
-  -- compiled program is MCode read straight from disk, the one input that
-  -- never went through emitCombs.
-  let venv =
-        verifyEnvFrom
-          (flip Map.lookup (rty <> builtinTypeNumbering))
-          (flip Map.lookup (rtm <> builtinTermNumbering))
-          (\(CIx _ g i) -> EC.lookup g srcCombs >>= EC.lookup i >>= combInfoOf)
-  for_ (EC.mapToList cs) $ \(g, cmbs) ->
-    for_ (EC.lookup g crs) $ \r -> either (die [] . renderVerifyError) pure (verifyGroup venv r g cmbs)
   -- Every combinator gets a native code cell, as it would loading from a
   -- codebase (see JIT/design.md, "Where cells live"); without one the JIT
   -- never compiles it. The cells come from the cache's pool, which keeps

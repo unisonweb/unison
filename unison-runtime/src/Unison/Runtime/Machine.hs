@@ -25,8 +25,6 @@ module Unison.Runtime.Machine
     refNumsTm,
     refNumsTy,
     reifyValue,
-    verifyEnvFrom,
-    combInfoOf,
     resolveSection,
   )
 where
@@ -94,9 +92,6 @@ import Unison.Runtime.ANF.Serialize (serializeCode, deserializeCode)
 #endif
 import Data.Text qualified as Text
 import Data.Vector qualified as V
-import System.Environment (lookupEnv)
-import System.IO (hPutStrLn, stderr)
-import System.IO.Unsafe (unsafePerformIO)
 import Unison.Runtime.Array as PA
 import Unison.Runtime.Builtin hiding (unitValue)
 import Unison.Runtime.Exception (RuntimeExn (BU, PE), die, exn)
@@ -112,7 +107,6 @@ import Unison.Runtime.Foreign.Function
     writeBack,
   )
 import Unison.Runtime.MCode
-import Unison.Runtime.MCode.Verify
 import Unison.Runtime.Machine.Primops
 import Unison.Runtime.Machine.Types
 import Unison.Runtime.Profiling
@@ -1948,18 +1942,12 @@ cacheAdd0 ntys0 (normalizeCodes -> termSuperGroups) sands cc = go
     go = do
       result <- atomically transaction
       case result of
-        -- the code says something about itself that does not hold up
-        -- (MCode.Verify); nothing of it was installed
-        Left (Left e) -> die [] (renderVerifyError e)
-        Left (Right needed) -> do
+        Left needed -> do
           pool <- readTVarIO (nativeCells cc)
           pool' <- growNativeCellPool (initialNativeCount (jit cc)) needed pool
           atomically $ writeTVar (nativeCells cc) pool'
           go
-        Right (unresolvedCacheableCombs, unresolvedNonCacheableCombs, newCombs, newCombRefs, verified) -> do
-          -- under UNISON_MCODE_VERIFY=warn a failure is reported here, the
-          -- code having been loaded anyway
-          for_ (either Just (const Nothing) verified) $ \e -> hPutStrLn stderr ("[verify] " ++ renderVerifyError e)
+        Right (unresolvedCacheableCombs, unresolvedNonCacheableCombs, newCombs, newCombRefs) -> do
           readTVarIO (tagRefs cc) >>= registerTypeNumbers (jit cc)
           when (JIT.dumpMCode (jitConfig (jit cc))) $
             for_ (EC.mapToList (unresolvedCacheableCombs <> unresolvedNonCacheableCombs)) \(w, cmbs) ->
@@ -2019,27 +2007,10 @@ cacheAdd0 ntys0 (normalizeCodes -> termSuperGroups) sands cc = go
             sanitizeCombsOfForeignFuncs (sandboxed cc) sandboxedForeignFuncs $
               mapFromList emittedCombs
           (cellCount, _) = attachNativeCells nullPtr uncelled
-      -- Before anything is installed, the new code is checked: slot
-      -- indices, frame sizes, call arities, match arm counts (MCode.Verify).
-      -- Code from a typechecked codebase passes; this is for code that came
-      -- some other way.
-      oldCombs <- readTVar (combs cc)
-      let venv =
-            verifyEnvFrom
-              (flip M.lookup rty)
-              (flip M.lookup rtm)
-              ( \(CIx _ g i) -> case EC.lookup g uncelled >>= EC.lookup i of
-                  Just c -> combInfoOf c
-                  Nothing -> EC.lookup g oldCombs >>= EC.lookup i >>= combInfoOf
-              )
-          verified
-            | verifyMode == "off" = Right ()
-            | otherwise = mapM_ (\(g, cmbs) -> maybe (Right ()) (\r -> verifyGroup venv r g cmbs) (EC.lookup g combRefUpdates)) (EC.mapToList uncelled)
       pool <- readTVar (nativeCells cc)
-      case (verified, takeNativeCells cellCount pool) of
-        (Left e, _) | verifyMode == "fail" -> pure (Left (Left e))
-        (_, Nothing) -> pure (Left (Right cellCount))
-        (_, Just (cells, pool')) -> do
+      case takeNativeCells cellCount pool of
+        Nothing -> pure (Left cellCount)
+        Just (cells, pool') -> do
           -- Everything is in hand. From here on the transaction only writes.
           writeTVar (nativeCells cc) pool'
           int' <- updateMap new (intermed cc)
@@ -2065,7 +2036,7 @@ cacheAdd0 ntys0 (normalizeCodes -> termSuperGroups) sands cc = go
           writeTVar (recordFieldMappings cc) newRFMs
           -- Now that the code cache is primed with everything we need,
           -- we can pre-evaluate the top-level constants.
-          pure $ int' `seq` rtm' `seq` rrs `seq` newCombRefs `seq` updatedCombs `seq` nsn `seq` ncc `seq` nsc `seq` Right (unresolvedCacheableCombs, unresolvedNonCacheableCombs, newCombs, newCombRefs, verified)
+          pure $ int' `seq` rtm' `seq` rrs `seq` newCombRefs `seq` updatedCombs `seq` nsn `seq` ncc `seq` nsc `seq` Right (unresolvedCacheableCombs, unresolvedNonCacheableCombs, newCombs, newCombRefs)
 
 preEvalTopLevelConstants ::
   (RuntimeProfiler p) =>
@@ -2400,60 +2371,7 @@ reifyValue cc val = do
         l -> pure (Left l)
   case erc of
     Left l -> pure (Left l)
-    Right rfs@(cmbs, rty, rtm, _, _) -> do
-      -- the value's partial application sizes and record sizes
-      -- (MCode.Verify), before any closure is built from it
-      let venv =
-            verifyEnvFrom
-              (flip M.lookup rty)
-              (flip M.lookup rtm)
-              (\(CIx _ g i) -> EC.lookup g cmbs >>= EC.lookup i >>= combInfoOf)
-          plain = case val of
-            Plain v -> Just v
-            -- a value with indexed references: the indices are resolved
-            -- by reifyValue0Canon as it goes, which checks them
-            WithRefs _ _ _ -> Nothing
-      for_ plain $ \v -> either rejectValue pure (verifyValue venv v)
-      Right <$> reifyValue1 rfs val
-  where
-    rejectValue e = case verifyMode of
-      "off" -> pure ()
-      "warn" -> hPutStrLn stderr ("[verify] " ++ renderVerifyError e)
-      _ -> die [] (renderVerifyError e)
-
--- | What a failed verification does: @fail@ (the default) refuses the code
--- or value, @warn@ reports it on stderr and goes on, @off@ skips the check.
--- The two relaxations are for finding a false rejection (UNISON_MCODE_VERIFY).
-verifyMode :: String
-verifyMode = unsafePerformIO $ do
-  -- behind the same gate as the JIT's debugging settings (JIT.Config)
-  debug <- lookupEnv "UNISON_JIT_DEBUG"
-  case debug of
-    Nothing -> pure "fail"
-    Just _ -> maybe "fail" id <$> lookupEnv "UNISON_MCODE_VERIFY"
-{-# NOINLINE verifyMode #-}
-
--- | The verifier's view of a cache: the numberings and the loaded
--- combinators.
-verifyEnvFrom ::
-  (Reference -> Maybe Word64) ->
-  (Reference -> Maybe Word64) ->
-  (CombIx -> Maybe (Int, Int)) ->
-  VerifyEnv
-verifyEnvFrom typeNum termNum combInfo =
-  VerifyEnv
-    { veTypeNumber = typeNum,
-      veTermNumber = termNum,
-      veCombInfo = combInfo,
-      veSchemaSize = \(ANF.RecordSchema fs) -> Just (Set.size fs)
-    }
-
--- | A combinator's arity and frame size; a cached value takes no
--- arguments and no frame.
-combInfoOf :: GComb val comb -> Maybe (Int, Int)
-combInfoOf = \case
-  Comb (LamI a f _ _) -> Just (a, f)
-  CachedVal _ _ -> Just (0, 0)
+    Right rfs -> Right <$> reifyValue1 rfs val
 
 reifyValue1 ::
   (EnumMap Word64 MCombs, M.Map Reference Word64, M.Map Reference Word64, BM.BiMap ANF.RecordSchema ANF.RecordRef, RecordFieldMappings) ->
@@ -2526,8 +2444,13 @@ reifyValue0Canon combs tys tms rty rtm rrLookup rfms = goV
     goV :: ANF.Value RefNum -> IO Val
     goV (ANF.Partial gr vs) =
       goIx gr >>= \case
-        (cix, RComb (Comb rcomb)) ->
-          boxedVal . PAp cix rcomb <$> goVs vs
+        -- A partial application holds fewer arguments than its function
+        -- takes: the interpreter computes how many are still missing as the
+        -- difference, and a difference of zero or less is a closure it never
+        -- builds itself and has no case for.
+        (cix, RComb (Comb rcomb@(LamI arity _ _ _)))
+          | length vs < arity -> boxedVal . PAp cix rcomb <$> goVs vs
+          | otherwise -> die [] . err $ "a partial application of " ++ show (length vs) ++ " arguments to a function of " ++ show arity
         (_, RComb (CachedVal _ val))
           | [] <- vs -> pure val
           | otherwise -> die [] . err $ msg
@@ -2545,7 +2468,13 @@ reifyValue0Canon combs tys tms rty rtm rrLookup rfms = goV
         Just shape -> pure shape
         Nothing -> die [] . err $ "record schema with un-interned fields: " ++ show rs
       -- `putValue` writes the values in ascending field-name order, which is
-      -- the shape's slot order, so no reordering is needed.
+      -- the shape's slot order, so no reordering is needed. There has to be
+      -- one per field: a record's values are read by slot, with the slot
+      -- taken from the shape and no bound taken from the array (native
+      -- code's record read), so a short array would be read past its end.
+      when (length vals /= V.length (shapeFields shape)) $
+        die [] . err $
+          "a record of " ++ show (length vals) ++ " values for a schema of " ++ show (V.length (shapeFields shape)) ++ " fields"
       vals' <- goVs vals
       pure . boxedVal . RecordG shape $ recordVals vals'
     goV (ANF.Cont vs k) = do
@@ -2636,8 +2565,13 @@ reifyValue0 (combs, rty, rtm, rrLookup, rfms) = goV
     goV :: ANF.Value Reference -> IO Val
     goV (ANF.Partial gr vs) =
       goIx gr >>= \case
-        (cix, RComb (Comb rcomb)) ->
-          boxedVal . PAp cix rcomb <$> goVs vs
+        -- A partial application holds fewer arguments than its function
+        -- takes: the interpreter computes how many are still missing as the
+        -- difference, and a difference of zero or less is a closure it never
+        -- builds itself and has no case for.
+        (cix, RComb (Comb rcomb@(LamI arity _ _ _)))
+          | length vs < arity -> boxedVal . PAp cix rcomb <$> goVs vs
+          | otherwise -> die [] . err $ "a partial application of " ++ show (length vs) ++ " arguments to a function of " ++ show arity
         (_, RComb (CachedVal _ val))
           | [] <- vs -> pure val
           | otherwise -> die [] . err $ msg
@@ -2654,7 +2588,13 @@ reifyValue0 (combs, rty, rtm, rrLookup, rfms) = goV
         Just shape -> pure shape
         Nothing -> die [] . err $ "record schema with un-interned fields: " ++ show rs
       -- `putValue` writes the values in ascending field-name order, which is
-      -- the shape's slot order, so no reordering is needed.
+      -- the shape's slot order, so no reordering is needed. There has to be
+      -- one per field: a record's values are read by slot, with the slot
+      -- taken from the shape and no bound taken from the array (native
+      -- code's record read), so a short array would be read past its end.
+      when (length vals /= V.length (shapeFields shape)) $
+        die [] . err $
+          "a record of " ++ show (length vals) ++ " values for a schema of " ++ show (V.length (shapeFields shape)) ++ " fields"
       vals' <- goVs vals
       pure . boxedVal . RecordG shape $ recordVals vals'
     goV (ANF.Cont vs k) = do

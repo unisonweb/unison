@@ -101,9 +101,12 @@ import Data.Bifunctor (Bifunctor, bimap, first)
 import Data.Bitraversable (Bitraversable (..), bifoldMapDefault, bimapDefault)
 import Data.Bits (shiftL, shiftR, (.&.), (.|.))
 import Data.Coerce
+import Data.Foldable (toList)
 import Data.Function ((&))
 import Data.Functor ((<&>))
+import Data.List (nub)
 import Data.Map.Strict qualified as M
+import Data.Maybe (mapMaybe)
 import Data.Primitive.PrimArray
 import Data.Primitive.PrimArray qualified as PA
 import Data.Semigroup (Max (..))
@@ -1484,10 +1487,83 @@ emitComb ::
   RCtx v ->
   (Word64, SuperNormal Reference v) ->
   State RecordFieldMappings (EC.EnumMap Word64 Comb)
-emitComb rns grpr grpn rec (n, Lambda ccs (TAbss vs bd)) =
-  runEmit n
-    . recordTop vs 0
-    $ emitSection rns grpr grpn rec (ctx vs ccs) bd
+emitComb rns grpr grpn rec (n, Lambda ccs (TAbss vs bd))
+  | Just k <- resultCount bd,
+    k /= 1 =
+      internalBug [] $
+        "emitComb: a function body that yields " ++ show k ++ " values: " ++ show bd
+  | otherwise =
+      runEmit n
+        . recordTop vs 0
+        $ emitSection rns grpr grpn rec (ctx vs ccs) bd
+
+-- | How many values a term yields when it is in tail position, or Nothing
+-- for a term that never returns (an error call). Every term yields one
+-- value, except a primitive, which yields whatever its instruction pushes
+-- ('pushCount': two for a @LOAD@, none for a trace), a term that ends in
+-- one, and a discard or an update, which push nothing.
+--
+-- The emitter lays a let's body out for as many slots as the let binds and
+-- a function's caller for one, and nothing at run time counts what a yield
+-- delivers: a body laid out for more values than arrive reads the slots
+-- below its frame. So 'emitSection' refuses a let whose binding yields
+-- other than the number of names it binds, 'emitComb' refuses a function
+-- body that yields other than one value (which is what lets a call count
+-- as one here, with no signature of the callee), and a handled block has
+-- to yield one too, since a continuation captured inside it delivers the
+-- block's result wherever it is resumed. Typechecked code satisfies all
+-- three by construction (a let names one value, or none over a trace or a
+-- discard; the two unboxed sums are matched in place, see 'sumFields');
+-- code decoded from bytes is held to them here, before any machine code
+-- exists for it.
+resultCount :: (Var v) => RNormal v -> Maybe Int
+resultCount = \case
+  TLets _ _ _ _ bo -> resultCount bo
+  TName _ _ _ bo -> resultCount bo
+  TLocal _ bo -> resultCount bo
+  TShift _ _ e -> resultCount e
+  THnd _ _ _ b -> case resultCount b of
+    Just n
+      | n /= 1 ->
+          internalBug [] $
+            "emitSection: a handled block that yields " ++ show n ++ " values: " ++ show b
+    _ -> Just 1
+  TPrm p args -> primCount (emitPOp p) args
+  TFOp p args -> primCount (emitFOp p) args
+  TDiscard _ -> Just 0
+  TUpdate {} -> Just 0
+  tm@(TMatch _ bs) -> case nub (mapMaybe armCount (toList bs)) of
+    [] -> Nothing
+    [n] -> Just n
+    ns ->
+      internalBug [] $
+        "emitSection: the arms of a match yield " ++ show ns ++ " values: " ++ show tm
+  _ -> Just 1
+  where
+    armCount (TAbss _ bo) = resultCount bo
+    -- the instruction the primitive emits, given arguments of the right
+    -- count (which slots they are in does not matter for the count)
+    primCount emit args = case emit (dummyArgs (length args)) of
+      Prim2 THRO _ _ -> Nothing
+      instr -> pushCount instr
+    dummyArgs = \case
+      0 -> ZArgs
+      1 -> VArg1 0
+      2 -> VArg2 0 0
+      n -> VArgN (PA.primArrayFromList (replicate n 0))
+
+-- | A record literal has to supply a value for every field of its shape:
+-- a record's values are read by slot, with the slot taken from the shape
+-- and no bound taken from the array (native code's record read; the
+-- interpreter's indexing is checked and dies), so a short array would be
+-- read past its end. Typechecked code never writes one; code decoded from
+-- bytes is refused here.
+recordArity :: RecordShape -> Int -> a -> a
+recordArity shape n a
+  | n == V.length (shapeFields shape) = a
+  | otherwise =
+      internalBug [] $
+        "emitSection: a record literal of " ++ show n ++ " values for a shape of " ++ show (V.length (shapeFields shape)) ++ " fields: " ++ show (shapeFields shape)
 
 addCount :: Int -> Emit a -> Emit a
 addCount i (EM m) = EM $ do
@@ -1505,9 +1581,33 @@ emitSection ::
   Ctx v ->
   RNormal v ->
   Emit Section
-emitSection rns grpr grpn rec ctx (TLets d us ms bu bo) =
-  emitLet rns grpr grpn rec d (zip us ms) ctx bu $
-    emitSection rns grpr grpn rec ectx bo
+emitSection rns grpr grpn rec ctx (TLets d us ms bu bo)
+  -- An unboxed sum: the primitive pushes a tag over the fields of the case
+  -- it took, the let names only the tag, and each arm binds the fields of
+  -- its tag in place, below the tag ('sumCtx'). So the match has to be the
+  -- body of a direct let of the one tag over a primitive that yields a
+  -- sum, and an arm has to bind exactly the fields the primitive leaves
+  -- for its tag ('sumFields'), or it would read slots the primitive never
+  -- wrote. Only two primitives yield a sum, and both are matched this way
+  -- in the builtins; a sum match anywhere else is refused.
+  | TMatch v (MatchSum cs) <- bo =
+      case (d, us, bu) of
+        (Direct, [u], TPrm p _)
+          | u == v,
+            Just (i, UN) <- ctxResolve ectx v,
+            all (\(t, (ccs, TAbss vs _)) -> Just (length (zip vs ccs)) == sumFields p t) (EC.mapToList cs) ->
+              emitLet rns grpr grpn rec d (zip us ms) ctx bu $
+                emitSumMatching rns grpr grpn rec ectx v i cs
+        _ ->
+          internalBug [] $
+            "emitSection: an unboxed sum match that is not the body of a direct let of its tag over a primitive yielding that sum, with each arm binding the primitive's fields for its tag: " ++ show (TLets d us ms bu bo)
+  | Just n <- resultCount bu,
+    n /= length us =
+      internalBug [] $
+        "emitSection: a let of " ++ show (length us) ++ " names whose binding yields " ++ show n ++ " values: " ++ show bu
+  | otherwise =
+      emitLet rns grpr grpn rec d (zip us ms) ctx bu $
+        emitSection rns grpr grpn rec ectx bo
   where
     ectx = pushCtx (zip us ms) ctx
 emitSection rns grpr grpn rec ctx (TName u (Left f) args bo) =
@@ -1641,9 +1741,10 @@ emitSection rns grpr grpn rec ctx (TMatch v bs)
         i
         cs
         df
-  | Just (i, UN) <- ctxResolve ctx v,
-    MatchSum cs <- bs =
-      emitSumMatching rns grpr grpn rec ctx v i cs
+  | MatchSum _ <- bs =
+      -- accepted only as the body of the let that binds its tag, above
+      internalBug [] $
+        "emitSection: an unboxed sum match away from the let that binds its tag: " ++ show (TMatch v bs)
   | Just (_, cc) <- ctxResolve ctx v =
       internalBug [] $
         "emitSection: mismatched calling convention for match: "
@@ -1726,7 +1827,8 @@ emitFunction rns _mshape _grpr _ _ _ (FCon r t) as =
   where
     rt = toEnum . fromIntegral $ dnum rns r
 emitFunction _ (Just (RecEmitShape shape)) _grpr _ _ _ (FRec _rs) as =
-  Ins (RecPack shape as)
+  recordArity shape (countArgs as)
+    . Ins (RecPack shape as)
     . Yield
     $ VArg1 0
 emitFunction _ (Just (RecEmitSet field)) _grpr _ _ _ (FRecSet _field) as =
@@ -1817,7 +1919,8 @@ emitLet rns _ grpn _ _ _ ctx (TApp (FCon r n) args) =
     rt = toEnum . fromIntegral $ dnum rns r
 emitLet rns _ grpn _ _ _ ctx (TApp (FRec rs) args) = \es -> do
   shape <- recordShape (recNum rns rs) rs
-  fmap (Ins . RecPack shape $ emitArgs grpn ctx args) es
+  recordArity shape (length args) $
+    fmap (Ins . RecPack shape $ emitArgs grpn ctx args) es
 -- A record update needs its field's reference interned, the same way a record literal
 -- needs its shape interned. `emitSection` resolves it for a call position; a let needs
 -- its own case because a chain of updates (`r@f1.set ..)@f2.set ..`) puts every update
@@ -2495,8 +2598,8 @@ sanitizeBranches sandboxedForeigns = \case
 -- | How many slots an instruction pushes onto the frame, or Nothing where
 -- the interpreter takes over from here (a capture, a sandboxing failure).
 -- The one account of an instruction's effect on the frame: the JIT's code
--- generator lays frames out by it and the verifier (MCode.Verify) checks
--- frame sizes and slot indices by it, so the two cannot disagree.
+-- generator lays frames out by it and 'resultCount' counts a primitive's
+-- results by it, so the two cannot disagree.
 pushCount :: GInstr comb -> Maybe Int
 pushCount = \case
   Prim1 LOAD _ -> Just 2 -- a tag and the value
@@ -2529,3 +2632,16 @@ pushCount = \case
   NewForeignPtr _ _ -> Just 1
   AddFinalizer _ _ -> Just 0
   MkCallback _ _ -> Just 1
+
+-- | For the two primitives whose result is an unboxed sum, the fields the
+-- interpreter leaves under the tag it pushes, by tag (its LOAD and
+-- TryForce cases; 'pushCount' counts LOAD's as two, the tag and the one
+-- field, and TryForce's as the one slot it reserves before the sum is
+-- known). A match on the tag binds these in place, so an arm has to bind
+-- exactly this many; the emitter holds it to that.
+sumFields :: ANF.POp -> Word64 -> Maybe Int
+sumFields ANF.LOAD 0 = Just 1 -- the references that could not be resolved
+sumFields ANF.LOAD 1 = Just 1 -- the value
+sumFields ANF.TFRC 0 = Just 3 -- the exception's type link, message and payload
+sumFields ANF.TFRC 1 = Just 1 -- the value
+sumFields _ _ = Nothing

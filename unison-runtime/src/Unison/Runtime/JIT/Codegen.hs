@@ -2311,9 +2311,7 @@ genBoolBranch fe d c br sect = case br of
 -- its count ('requireWide'). No declaration of the type is consulted, so
 -- code whose types the runtime never saw declared (code sent over the
 -- network) compiles like any other, and a value with an unusual field
--- count is read as far as it goes and never past (the code verifier,
--- Unison.Runtime.MCode.Verify, checks the arms' slots against their
--- counts and leaves the objects' counts to the objects).
+-- count is read as far as it goes and never past.
 --
 -- What that leaves is type confusion: a match on type T applied to a
 -- value of type U with the same shape, which only ill-typed code can
