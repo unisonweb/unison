@@ -28,8 +28,9 @@
 --    @Let@ body yields as many values as the body takes.
 -- 4. A @Pack@'s tag names the type the instruction says (a forged tag
 --    would have the value matched as another type's).
--- 5. Every data and request match arm carries its field count, which is
---    what its slots are checked against (rule 1).
+-- 5. A match arm runs with the fields it binds pushed, the count it
+--    carries ('Arm'), which is what its slots are checked against (rule
+--    1); the arms of a match on an unboxed value bind none.
 -- 6. A @RecPack@ has as many arguments as its shape has fields.
 -- 7. Every combinator referred to exists.
 -- 8. For values: a partial application has fewer arguments than its
@@ -171,26 +172,15 @@ walk env here frame expected base = go
           then err FrameTooSmall ("a call that skips the stack check, to a frame of " ++ show fsize ++ " at depth " ++ show d)
           else Right ()
         pure d
-      -- rule 5: an arm runs with the fields it binds pushed, and the match
-      -- says how many for each constructor it has an arm for
-      DMatch mr i ns br -> do
-        slot d i
-        arms d br $ \ctor -> case EC.lookup ctor ns of
-          Just n | n >= 0 -> Right n
-          _ -> err MatchArm ("the arm for constructor " ++ show ctor ++ " of " ++ maybe "an unnamed type" show mr ++ " has no field count")
-      NMatch _ i br -> slot d i >> arms d br (const (Right 0))
-      Match i br -> slot d i >> arms d br (const (Right 0))
-      RMatch i pureCase ns cases -> do
+      -- rule 5: an arm runs with the fields it binds pushed
+      DMatch _ i br -> slot d i >> arms d True br
+      NMatch _ i br -> slot d i >> arms d False br
+      Match i br -> slot d i >> arms d False br
+      RMatch i pureCase cases -> do
         slot d i
         -- the pure case sees the value
         m1 <- go (d + 1) pureCase
-        ms <-
-          mapM
-            ( \(ability, br) -> arms d br $ \ctor -> case EC.lookup ability ns >>= EC.lookup ctor of
-                Just n | n >= 0 -> Right n
-                _ -> err MatchArm ("the arm for request " ++ show ctor ++ " of ability " ++ show ability ++ " has no field count")
-            )
-            (EC.mapToList cases)
+        ms <- mapM (arms d True . snd) (EC.mapToList cases)
         pure (maximum (m1 : ms))
       Let bnd cix _ body _ -> do
         -- the body is a combinator that takes the whole frame as its
@@ -218,16 +208,19 @@ walk env here frame expected base = go
       Die _ -> pure d
       Exit -> pure d
 
-    -- the arms of a branch: a constructor arm runs with that constructor's
-    -- fields pushed, the default arm with nothing
-    arms d br fields = case br of
-      Test1 v cv df -> maximum <$> sequence [arm v cv, go d df]
-      Test2 v cv w cw df -> maximum <$> sequence [arm v cv, arm w cw, go d df]
-      TestW df cs -> maximum <$> sequence (go d df : map (uncurry arm) (EC.mapToList cs))
+    -- the arms of a branch: an arm runs with the fields it binds pushed
+    -- (none, for a match on an unboxed value), the default arm with nothing
+    arms d binds br = case br of
+      Test1 _ cv df -> maximum <$> sequence [arm cv, go d df]
+      Test2 _ cv _ cw df -> maximum <$> sequence [arm cv, arm cw, go d df]
+      TestW df cs -> maximum <$> sequence (go d df : map (arm . snd) (EC.mapToList cs))
       TestT df cs -> maximum <$> sequence (go d df : map (go d) (M.elems cs))
       TestY df cs -> maximum <$> sequence (go d df : map (go d) (M.elems cs))
       where
-        arm ctor body = fields ctor >>= \n -> go (d + n) body
+        arm (Arm n body)
+          | n < 0 = err MatchArm ("an arm binding " ++ show n ++ " fields")
+          | not binds && n /= 0 = err MatchArm ("an arm of a match on an unboxed value binding " ++ show n ++ " fields")
+          | otherwise = go (d + n) body
 
     refOk d = \case
       Stk i -> slot d i

@@ -70,6 +70,14 @@ compiled s = do
 mapEntries :: (GSection CombIx -> GSection CombIx) -> Combs -> Combs
 mapEntries f = fmap \(Comb (LamI a fs s c)) -> Comb (LamI a fs (f s) c)
 
+-- | Changes every arm of a branch.
+mapArms :: (Arm CombIx -> Arm CombIx) -> GBranch CombIx -> GBranch CombIx
+mapArms f = \case
+  Test1 v a df -> Test1 v (f a) df
+  Test2 v a w b df -> Test2 v (f a) w (f b) df
+  TestW df m -> TestW df (fmap f m)
+  br -> br
+
 -- | Replaces the first match section a function accepts, anywhere in the
 -- section, keeping the rest.
 mapFirstMatch :: (GSection CombIx -> Maybe (GSection CombIx)) -> GSection CombIx -> GSection CombIx
@@ -82,13 +90,13 @@ mapFirstMatch f = fst . go
         Let bnd cix fs body cell ->
           let (bnd', done) = go bnd
            in if done then (Let bnd' cix fs body cell, True) else let (body', d2) = go body in (Let bnd cix fs body' cell, d2)
-        DMatch r i ns br -> let (br', done) = goB br in (DMatch r i ns br', done)
+        DMatch r i br -> let (br', done) = goB br in (DMatch r i br', done)
         NMatch r i br -> let (br', done) = goB br in (NMatch r i br', done)
         Match i br -> let (br', done) = goB br in (Match i br', done)
         _ -> (s, False)
     goB = \case
-      Test1 v cv df -> let (cv', d1) = go cv in if d1 then (Test1 v cv' df, True) else let (df', d2) = go df in (Test1 v cv df', d2)
-      Test2 v cv w cw df -> let (cv', d1) = go cv in if d1 then (Test2 v cv' w cw df, True) else let (cw', d2) = go cw in if d2 then (Test2 v cv w cw' df, True) else let (df', d3) = go df in (Test2 v cv w cw df', d3)
+      Test1 v (Arm n cv) df -> let (cv', d1) = go cv in if d1 then (Test1 v (Arm n cv') df, True) else let (df', d2) = go df in (Test1 v (Arm n cv) df', d2)
+      Test2 v (Arm n cv) w (Arm k cw) df -> let (cv', d1) = go cv in if d1 then (Test2 v (Arm n cv') w (Arm k cw) df, True) else let (cw', d2) = go cw in if d2 then (Test2 v (Arm n cv) w (Arm k cw') df, True) else let (df', d3) = go df in (Test2 v (Arm n cv) w (Arm k cw) df', d3)
       TestW df cs -> let (df', d1) = go df in (TestW df' cs, d1)
       br -> (br, False)
 
@@ -104,13 +112,13 @@ mapFirstInstr f = fst . go
       Let bnd cix fs body cell ->
         let (bnd', done) = go bnd
          in if done then (Let bnd' cix fs body cell, True) else let (body', d2) = go body in (Let bnd cix fs body' cell, d2)
-      DMatch r i ns br -> let (br', done) = goB br in (DMatch r i ns br', done)
+      DMatch r i br -> let (br', done) = goB br in (DMatch r i br', done)
       NMatch r i br -> let (br', done) = goB br in (NMatch r i br', done)
       Match i br -> let (br', done) = goB br in (Match i br', done)
       s -> (s, False)
     goB = \case
-      Test1 v cv df -> let (cv', d1) = go cv in if d1 then (Test1 v cv' df, True) else let (df', d2) = go df in (Test1 v cv df', d2)
-      Test2 v cv w cw df -> let (cv', d1) = go cv in if d1 then (Test2 v cv' w cw df, True) else let (cw', d2) = go cw in if d2 then (Test2 v cv w cw' df, True) else let (df', d3) = go df in (Test2 v cv w cw df', d3)
+      Test1 v (Arm n cv) df -> let (cv', d1) = go cv in if d1 then (Test1 v (Arm n cv') df, True) else let (df', d2) = go df in (Test1 v (Arm n cv) df', d2)
+      Test2 v (Arm n cv) w (Arm k cw) df -> let (cv', d1) = go cv in if d1 then (Test2 v (Arm n cv') w (Arm k cw) df, True) else let (cw', d2) = go cw in if d2 then (Test2 v (Arm n cv) w (Arm k cw') df, True) else let (df', d3) = go df in (Test2 v (Arm n cv) w (Arm k cw) df', d3)
       TestW df cs -> let (df', d1) = go df in (TestW df' cs, d1)
       br -> (br, False)
 
@@ -121,7 +129,8 @@ expectRule rule = \case
   Right () -> crash ("accepted; expected a rejection for " ++ show rule)
 
 -- a program with a Pack of a builtin type, a Let-bound call, a prim op, a
--- data match that binds fields (h) and one that binds none (the if)
+-- data match that binds fields (h), one that binds none (the if) and a
+-- match on an unboxed value in main's own frame (r)
 program :: String
 program =
   "let\n\
@@ -131,7 +140,10 @@ program =
   \    _ -> f y\n\
   \  h p = match p with (a, b) -> ##Nat.+ a b\n\
   \  q = h (f 1, g 2)\n\
-  \  if (##Nat.== (f 2) q) then () else ##bug ()"
+  \  r = match q with\n\
+  \    0 -> 1\n\
+  \    _ -> q\n\
+  \  if (##Nat.== (f 2) r) then () else ##bug ()"
 
 test :: Test ()
 test =
@@ -147,18 +159,16 @@ test =
         (env, grp, combs) <- io (compiled program)
         let broken = mapEntries (mapFirstInstr \case Pack r (PackedTag t) as -> Just (Pack r (PackedTag (t + 65536)) as); _ -> Nothing) combs
         expectRule PackTag (verifyGroup env mainRef grp broken),
-      scope "a match arm without a field count is caught" do
-        (env, grp, combs) <- io (compiled program)
-        -- the match on the pair's constructor loses its arm's count: the
-        -- arm's slots can no longer be checked
-        let broken = mapEntries (mapFirstMatch \case DMatch r i _ br -> Just (DMatch r i (EC.mapFromList []) br); _ -> Nothing) combs
-        expectRule MatchArm (verifyGroup env mainRef grp broken),
       scope "a match arm binding more fields than the frame holds is caught" do
         (env, grp, combs) <- io (compiled program)
         -- an arm's count is what its arm runs at: one past the frame is
         -- a frame the combinator never declared
-        let broken = mapEntries (mapFirstMatch \case DMatch r i ns br -> Just (DMatch r i (fmap (+ 1000) ns) br); _ -> Nothing) combs
+        let broken = mapEntries (mapFirstMatch \case DMatch r i br -> Just (DMatch r i (mapArms (\(Arm n s) -> Arm (n + 1000) s) br)); _ -> Nothing) combs
         expectRule FrameTooSmall (verifyGroup env mainRef grp broken),
+      scope "an arm of a match on an unboxed value binding fields is caught" do
+        (env, grp, combs) <- io (compiled program)
+        let broken = mapEntries (mapFirstMatch \case Match i br -> Just (Match i (mapArms (\(Arm n s) -> Arm (n + 1) s) br)); NMatch r i br -> Just (NMatch r i (mapArms (\(Arm n s) -> Arm (n + 1) s) br)); _ -> Nothing) combs
+        expectRule MatchArm (verifyGroup env mainRef grp broken),
       scope "a call with the wrong argument count is caught" do
         (env, grp, combs) <- io (compiled program)
         let broken = mapEntries (mapCalls \case Call sk cix c args -> Call sk cix c (VArgN (primArrayFromList (replicate (countArgs args + 1) 0))); s -> s) combs
@@ -193,12 +203,12 @@ test =
           Let bnd cix fs body cell ->
             let (bnd', done) = go bnd
              in if done then (Let bnd' cix fs body cell, True) else let (body', d2) = go body in (Let bnd cix fs body' cell, d2)
-          DMatch r i ns br -> let (br', done) = goB br in (DMatch r i ns br', done)
+          DMatch r i br -> let (br', done) = goB br in (DMatch r i br', done)
           NMatch r i br -> let (br', done) = goB br in (NMatch r i br', done)
           Match i br -> let (br', done) = goB br in (Match i br', done)
           s -> (s, False)
         goB = \case
-          Test1 v cv df -> let (cv', d1) = go cv in if d1 then (Test1 v cv' df, True) else let (df', d2) = go df in (Test1 v cv df', d2)
-          Test2 v cv w cw df -> let (cv', d1) = go cv in if d1 then (Test2 v cv' w cw df, True) else let (cw', d2) = go cw in if d2 then (Test2 v cv w cw' df, True) else let (df', d3) = go df in (Test2 v cv w cw df', d3)
+          Test1 v (Arm n cv) df -> let (cv', d1) = go cv in if d1 then (Test1 v (Arm n cv') df, True) else let (df', d2) = go df in (Test1 v (Arm n cv) df', d2)
+          Test2 v (Arm n cv) w (Arm k cw) df -> let (cv', d1) = go cv in if d1 then (Test2 v (Arm n cv') w (Arm k cw) df, True) else let (cw', d2) = go cw in if d2 then (Test2 v (Arm n cv) w (Arm k cw') df, True) else let (df', d3) = go df in (Test2 v (Arm n cv) w (Arm k cw) df', d3)
           TestW df cs -> let (df', d1) = go df in (TestW df' cs, d1)
           br -> (br, False)

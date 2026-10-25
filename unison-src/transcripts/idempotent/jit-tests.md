@@ -4499,12 +4499,10 @@ interpreter's).
 A match arm reads the fields its constructor has, and the count it reads comes from the value
 being matched, not from any declaration of the type: the pointer tag for constructors of up to
 six fields, the lengths of the two field arrays for wider ones. A value that reaches a match
-with another type's shape (which only `Any.unsafeExtract` can arrange) is matched the way the
-interpreter matches it: a wide value with fewer fields than the arm binds is read as far as it
-goes, never past, and one of another type with the same shape is taken apart as if it were
-this one. (A wide value with *more* fields than the arm binds is left out: the interpreter
-pushes every field it has, which is the interpreter's own concern with ill-typed code and not
-something the two modes agree on.)
+with another type's shape (which only `Any.unsafeExtract` can arrange) is handled the same way
+in both modes: one of another type with the same number of fields is taken apart as if it were
+this one, and one with a different number of fields is a runtime error, raised by the
+interpreter before any field is pushed (native code exits to it at the match).
 
 ``` unison
 use Nat +
@@ -4526,7 +4524,6 @@ asEight : a -> Eight
 asEight x = Any.unsafeExtract (Any x)
 
 > sumSeven (Seven 1 2 3 4 5 6 7)
-> firstEight (asEight (Seven 10 2 3 4 5 6 7))
 > sumSeven (asSeven (Other7 1 1 1 1 1 1 1))
 ```
 
@@ -4548,11 +4545,57 @@ asEight x = Any.unsafeExtract (Any x)
            ⧩
            28
 
-    20 | > firstEight (asEight (Seven 10 2 3 4 5 6 7))
-           ⧩
-           10
-
-    21 | > sumSeven (asSeven (Other7 1 1 1 1 1 1 1))
+    20 | > sumSeven (asSeven (Other7 1 1 1 1 1 1 1))
            ⧩
            7
+```
+
+``` ucm :hide
+scratch/main> add
+```
+
+A value with fewer fields than the arm binds, and one with more:
+
+``` unison :error
+> firstEight (asEight (Seven 10 2 3 4 5 6 7))
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  No changes found.
+
+  ❗️
+
+  Sorry – I’ve encountered a Unison runtime error.
+
+    dataBranch: a value with the wrong number of fields
+        type: #apdap1h2t8
+        data tag: 0
+        the arm binds 8 fields, the value has 7
+
+  Please report it at
+  https://github.com/unisonweb/unison/issues/new/choose.
+```
+
+``` unison :error
+> sumSeven (asSeven (Eight 1 2 3 4 5 6 7 800))
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  No changes found.
+
+  ❗️
+
+  Sorry – I’ve encountered a Unison runtime error.
+
+    dataBranch: a value with the wrong number of fields
+        type: #2r0v3aeaif
+        data tag: 0
+        the arm binds 7 fields, the value has 8
+
+  Please report it at
+  https://github.com/unisonweb/unison/issues/new/choose.
 ```

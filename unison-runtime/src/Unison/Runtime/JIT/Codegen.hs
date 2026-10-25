@@ -770,13 +770,13 @@ liveAt env base = go
       Jump i args -> slotAt d i <+> argReads base d args
       Match i br -> slotAt d i <+> arms d br
       NMatch _ i br -> slotAt d i <+> arms d br
-      DMatch _ i ns br -> slotAt d i <+> dataArms d ns br
+      DMatch _ i br -> slotAt d i <+> arms d br
       -- the pure request has one field, the value; a request arm pushes
       -- its constructor's fields
-      RMatch i pu ns br ->
+      RMatch i pu br ->
         slotAt d i
           <+> go (d + 1) pu
-          <+> foldr (\(e, gb) acc -> dataArms d (maybe (EC.mapFromList []) id (EC.lookup e ns)) gb <+> acc) (Just IS.empty) (EC.mapToList br)
+          <+> foldr (\(_, gb) acc -> arms d gb <+> acc) (Just IS.empty) (EC.mapToList br)
       Yield args -> argReads base d args
       Ins i rest -> instrReads base d i <+> (pushCount i >>= \n -> go (d + n) rest)
       Let b (CIx _ _ w) _ body _ -> case EC.lookup w (envCombs env) of
@@ -787,24 +787,16 @@ liveAt env base = go
     refReads d = \case
       Stk i -> slotAt d i
       _ -> Just IS.empty
-    -- the arms of a match that pushes nothing
+    -- the arms of a match: each runs with the fields it binds pushed
+    -- (none, for a match on an unboxed value), the default arm with
+    -- nothing pushed
     arms d = \case
-      Test1 _ a b -> go d a <+> go d b
-      Test2 _ a _ b c -> go d a <+> go d b <+> go d c
-      TestW df m -> foldr (\(_, a) acc -> go d a <+> acc) (go d df) (EC.mapToList m)
+      Test1 _ a b -> arm d a <+> go d b
+      Test2 _ a _ b c -> arm d a <+> arm d b <+> go d c
+      TestW df m -> foldr (\(_, a) acc -> arm d a <+> acc) (go d df) (EC.mapToList m)
       TestT df m -> foldr (\a acc -> go d a <+> acc) (go d df) (Map.elems m)
       TestY df m -> foldr (\a acc -> go d a <+> acc) (go d df) (Map.elems m)
-    -- the arms of a data match: constructor u's arm runs with the fields
-    -- it binds pushed (the count the match carries), the default arm with
-    -- nothing pushed
-    dataArms d counts = \case
-      Test1 u a df -> ctor d counts u a <+> go d df
-      Test2 u a v b df -> ctor d counts u a <+> ctor d counts v b <+> go d df
-      TestW df m -> foldr (\(u, a) acc -> ctor d counts u a <+> acc) (go d df) (EC.mapToList m)
-      _ -> Nothing
-    ctor d counts u a = case EC.lookup u counts of
-      Just n -> go (d + n) a
-      Nothing -> Nothing
+    arm d (Arm n a) = go (d + n) a
 
 -- | The slots an instruction reads (see 'liveAt').
 instrReads :: Int -> Int -> GInstr comb -> Maybe IS.IntSet
@@ -1278,7 +1270,7 @@ makesCalls = \case
   Let {} -> True
   Ins _ rest -> makesCalls rest
   Match _ br -> anyArm makesCalls br
-  DMatch _ _ _ br -> anyArm makesCalls br
+  DMatch _ _ br -> anyArm makesCalls br
   NMatch _ _ br -> anyArm makesCalls br
   _ -> False
 
@@ -1291,7 +1283,7 @@ makesTailCalls = \case
   Let b _ _ body _ -> makesTailCalls b || makesTailCalls body
   Ins _ rest -> makesTailCalls rest
   Match _ br -> anyArm makesTailCalls br
-  DMatch _ _ _ br -> anyArm makesTailCalls br
+  DMatch _ _ br -> anyArm makesTailCalls br
   NMatch _ _ br -> anyArm makesTailCalls br
   _ -> False
 
@@ -1302,15 +1294,15 @@ anyInstr p = go
       Ins i rest -> p i || go rest
       Let b _ _ body _ -> go b || go body
       Match _ br -> anyArm go br
-      DMatch _ _ _ br -> anyArm go br
+      DMatch _ _ br -> anyArm go br
       NMatch _ _ br -> anyArm go br
       _ -> False
 
 anyArm :: (MSection -> Bool) -> GBranch (RComb Val) -> Bool
 anyArm p = \case
-  Test1 _ a d -> p a || p d
-  Test2 _ a _ b d -> p a || p b || p d
-  TestW d m -> p d || any (p . snd) (EC.mapToList m)
+  Test1 _ (Arm _ a) d -> p a || p d
+  Test2 _ (Arm _ a) _ (Arm _ b) d -> p a || p b || p d
+  TestW d m -> p d || any (p . armSection . snd) (EC.mapToList m)
   TestT d m -> p d || any p (Map.elems m)
   TestY d m -> p d || any p (Map.elems m)
 
@@ -1328,16 +1320,16 @@ workerShape = \case
     _ -> False
   Ins _ rest -> workerShape rest
   Match _ br -> branches br
-  DMatch _ _ _ br -> branches br
+  DMatch _ _ br -> branches br
   NMatch _ _ br -> branches br
   Let _ _ _ body _ -> workerShape body
   -- calls, and whatever exits
   _ -> True
   where
     branches = \case
-      Test1 _ a d -> workerShape a && workerShape d
-      Test2 _ a _ b d -> workerShape a && workerShape b && workerShape d
-      TestW d m -> workerShape d && all (workerShape . snd) (EC.mapToList m)
+      Test1 _ (Arm _ a) d -> workerShape a && workerShape d
+      Test2 _ (Arm _ a) _ (Arm _ b) d -> workerShape a && workerShape b && workerShape d
+      TestW d m -> workerShape d && all (workerShape . armSection . snd) (EC.mapToList m)
       TestT d m -> workerShape d && all workerShape (Map.elems m)
       TestY d m -> workerShape d && all workerShape (Map.elems m)
 
@@ -1458,7 +1450,7 @@ freePath = \case
   Ins i rest -> exitFree i && freePath rest
   Match _ br -> plainBranch br && anyArm freePath br
   NMatch _ _ br -> plainBranch br && anyArm freePath br
-  DMatch _ _ _ br -> plainBranch br && anyArm freePath br
+  DMatch _ _ br -> plainBranch br && anyArm freePath br
   _ -> False
 
 -- | Instructions whose native code has no exit.
@@ -1508,7 +1500,7 @@ checkFree d = \case
   Match _ br -> pure (plainBranch br)
   NMatch _ _ br -> pure (plainBranch br)
   -- a boolean still in a register: one branch, no closure to look at
-  DMatch _ i _ br -> do
+  DMatch _ i br -> do
     kind <- slotKind (d - i)
     pure (kind /= Nothing && plainBranch br)
   _ -> pure False
@@ -1922,12 +1914,12 @@ genSectionFull fe d sect = case sect of
   Match i br -> do
     x <- loadU (d - i)
     genBranch fe d x br sect
-  DMatch mr i ns br -> genDMatch fe d i mr ns br sect
+  DMatch mr i br -> genDMatch fe d i mr br sect
   NMatch _ i br -> do
     x <- loadU (d - i)
     genBranch fe d x br sect
   Let binding bcix f body cell -> genLet fe d binding bcix f body cell sect
-  RMatch i pu ns br | on "requests" -> genRMatch fe d i pu ns br sect
+  RMatch i pu br | on "requests" -> genRMatch fe d i pu br sect
   -- the interpreter takes these: a request match with requests disabled,
   -- the slow call path with it disabled, a jump to a continuation, and the
   -- two ways a function stops
@@ -2230,38 +2222,35 @@ attempt g = do
 -- can't (a data match arm that needs fields the native path doesn't
 -- push), that arm exits at the whole section instead.
 genBranch :: FnEnv -> Int -> Text -> GBranch (RComb Val) -> MSection -> Gen ()
-genBranch fe d x br sect = genBranchWith fe d x br sect (\_ -> genSection fe d)
+genBranch fe d x br sect = genBranchWith fe d x br sect (\_ (Arm _ s) -> genSection fe d s)
 
 -- | 'genBranch' with the code for an arm supplied: it gets the case's
--- constructor tag (or word) and the arm's section.
-genBranchWith :: FnEnv -> Int -> Text -> GBranch (RComb Val) -> MSection -> (Word64 -> MSection -> Gen ()) -> Gen ()
+-- constructor tag (or word) and the arm, with the field count it binds.
+genBranchWith :: FnEnv -> Int -> Text -> GBranch (RComb Val) -> MSection -> (Word64 -> Arm (RComb Val) -> Gen ()) -> Gen ()
 genBranchWith fe d x br sect armCode = case br of
   Test1 u y n -> do
     c <- fresh "is"
     emit (c <> " = icmp eq i64 " <> x <> ", " <> signed u)
-    ly <- arm "yes" (Just u) y
-    ln <- arm "no" Nothing n
+    ly <- block "yes" (armCode u y)
+    ln <- block "no" (genSection fe d n)
     emit ("br i1 " <> c <> ", label %" <> ly <> ", label %" <> ln)
   Test2 u cu v cv e -> do
-    lu <- arm "case" (Just u) cu
-    lv <- arm "case" (Just v) cv
-    le <- arm "default" Nothing e
+    lu <- block "case" (armCode u cu)
+    lv <- block "case" (armCode v cv)
+    le <- block "default" (genSection fe d e)
     emit ("switch i64 " <> x <> ", label %" <> le <> " [ i64 " <> signed u <> ", label %" <> lu <> "  i64 " <> signed v <> ", label %" <> lv <> " ]")
   TestW df cs -> do
-    ldf <- arm "default" Nothing df
-    arms <- foldM (\acc (w, s) -> (\l -> acc |> ("i64 " <> signed w <> ", label %" <> l)) <$> arm "case" (Just w) s) D.empty (EC.mapToList cs)
+    ldf <- block "default" (genSection fe d df)
+    arms <- foldM (\acc (w, a) -> (\l -> acc |> ("i64 " <> signed w <> ", label %" <> l)) <$> block "case" (armCode w a)) D.empty (EC.mapToList cs)
     emit ("switch i64 " <> x <> ", label %" <> ldf <> " [ " <> intercalateT " " arms <> " ]")
   -- matches on text and on big numbers are the interpreter's
   TestT {} -> exitResume fe d sect
   TestY {} -> exitResume fe d sect
   where
-    -- the default arm has no known constructor, so it runs at depth d
-    -- with nothing pushed (the interpreter's dataBranch does the same)
-    arm base mu s = do
+    -- an arm off to the side (the default arm has no constructor and runs
+    -- at depth d); one that can't be generated exits at the match
+    block base code = do
       label <- freshLabel base
-      let code = case mu of
-            Just u -> armCode u s
-            Nothing -> genSection fe d s
       ok <- attempt (withKinds (sideBlockNamed label code))
       unless ok $ sideBlockNamed label (exitResume fe d sect)
       pure label
@@ -2271,19 +2260,19 @@ signed w = tshow (fromIntegral w :: Int64)
 
 -- | Branch on the constructor of a data value: a boolean still in a
 -- register is one branch, anything else a dispatch on the closure.
-genDMatch :: FnEnv -> Int -> Int -> Maybe Reference -> EC.EnumMap Word64 Int -> GBranch (RComb Val) -> MSection -> Gen ()
-genDMatch fe d i mr ns br sect =
+genDMatch :: FnEnv -> Int -> Int -> Maybe Reference -> GBranch (RComb Val) -> MSection -> Gen ()
+genDMatch fe d i mr br sect =
   slotKind (d - i) >>= \case
     Just c -> genBoolBranch fe d c br sect
-    Nothing -> genDMatchClosure fe d i mr ns br sect
+    Nothing -> genDMatchClosure fe d i mr br sect
 
 -- | A match on a boolean that is still an i1: one branch. False is
 -- constructor 0, true is 1.
 genBoolBranch :: FnEnv -> Int -> Text -> GBranch (RComb Val) -> MSection -> Gen ()
 genBoolBranch fe d c br sect = case br of
-  Test1 u y n -> two (if u == 1 then Pair y n else Pair n y)
-  Test2 u cu v cv e -> two (Pair (pick 1 u cu v cv e) (pick 0 u cu v cv e))
-  TestW df cs -> two (Pair (maybe df id (EC.lookup 1 cs)) (maybe df id (EC.lookup 0 cs)))
+  Test1 u (Arm _ y) n -> two (if u == 1 then Pair y n else Pair n y)
+  Test2 u (Arm _ cu) v (Arm _ cv) e -> two (Pair (pick 1 u cu v cv e) (pick 0 u cu v cv e))
+  TestW df cs -> two (Pair (maybe df armSection (EC.lookup 1 cs)) (maybe df armSection (EC.lookup 0 cs)))
   TestT {} -> exitResume fe d sect
   TestY {} -> exitResume fe d sect
   where
@@ -2301,8 +2290,8 @@ genBoolBranch fe d c br sect = case br of
       unless ok $ sideBlockNamed label (exitResume fe d sect)
       pure label
 
--- | A match on a data closure. Each arm's field count ('DMatch' carries
--- it, from the ANF case the arm was emitted for) fixes the shape of the
+-- | A match on a data closure. Each arm's field count ('Arm', from the
+-- ANF case the arm was emitted for) fixes the shape of the
 -- object the arm is for: no fields is @GEnum@, 1 to 6 are @GData1@ to
 -- @GData6@, more is @GDataG@. The shape is what the pointer tag gives,
 -- from bits already in a register (tag 7, which @GData3@, @GData4@,
@@ -2335,8 +2324,8 @@ genBoolBranch fe d c br sect = case br of
 -- shared tag 7 the info pointer only says "some type's wide
 -- constructor", so a lone wide arm compares the whole packed tag, type
 -- number included, before reading.
-genDMatchClosure :: FnEnv -> Int -> Int -> Maybe Reference -> EC.EnumMap Word64 Int -> GBranch (RComb Val) -> MSection -> Gen ()
-genDMatchClosure fe d i mr ns br sect = do
+genDMatchClosure :: FnEnv -> Int -> Int -> Maybe Reference -> GBranch (RComb Val) -> MSection -> Gen ()
+genDMatchClosure fe d i mr br sect = do
   let env = feEnv fe
       ls = envLayouts env
   p <- loadB (d - i)
@@ -2351,8 +2340,8 @@ genDMatchClosure fe d i mr ns br sect = do
       emit (tagBits <> " = and i64 " <> raw <> ", 7")
       base <- fresh "base"
       emit (base <> " = sub i64 " <> raw <> ", " <> tagBits)
-      let -- the constructors with an arm and a count: those native code can take apart
-          ctors = [(u, n) | (u, n) <- EC.mapToList ns, isJust (branchArmOf br u)]
+      let -- the constructors with an arm, with the field count each binds
+          ctors = [(u, n) | (u, Arm n _) <- branchArms br]
           shapeOf n = min n 7 -- 7 is DataG
           layoutOf s = if s <= 6 then lData ls V.! s else lDataG ls
           armsOfShape s = [c | c@(_, n) <- ctors, shapeOf n == s]
@@ -2375,7 +2364,7 @@ genDMatchClosure fe d i mr ns br sect = do
           noArm = maybe other id defaultL
           armFor (u, n) = case branchArmOf br u of
             Nothing -> pure noArm
-            Just body -> armBlock "case" $ do
+            Just (Arm _ body) -> armBlock "case" $ do
               when (n >= 7) (requireWide fe base n other)
               when (n > 0) (pushFields fe d base n other)
               genSection fe (d + n) body
@@ -2466,8 +2455,17 @@ requireWide fe base n bad = do
   emit (narrow <> " = xor i1 " <> ok <> ", true")
   branchIf "wide" narrow bad
 
+-- | The arms of a branch with their constructor numbers (none for a text
+-- or bytes match).
+branchArms :: GBranch c -> [(Word64, Arm c)]
+branchArms = \case
+  Test1 v cv _ -> [(v, cv)]
+  Test2 v cv w cw _ -> [(v, cv), (w, cw)]
+  TestW _ cs -> EC.mapToList cs
+  _ -> []
+
 -- | The arm of a branch for a constructor number, if it has one.
-branchArmOf :: GBranch c -> Word64 -> Maybe (GSection c)
+branchArmOf :: GBranch c -> Word64 -> Maybe (Arm c)
 branchArmOf br u = case br of
   Test1 v cv _ -> if u == v then Just cv else Nothing
   Test2 v cv w cw _ -> if u == v then Just cv else if u == w then Just cw else Nothing
@@ -2542,14 +2540,14 @@ loadPackedTag raw other kinds = do
 -- effectRef 0 v@, whose one field is the handled computation's value. The
 -- branches are keyed by ability number, then constructor, and an arm
 -- pushes its constructor's fields as a data match does, its count from
--- the arm itself ('RMatch' carries it) once the object is seen to have
+-- the arm itself ('Arm') once the object is seen to have
 -- that shape: the pointer tag's (and for tag 7 the info pointer's) shape
 -- must be the count's, and a wide constructor's arrays must hold exactly
 -- the count ('requireWide'). An ability or constructor without an arm, or
 -- a closure of another kind or shape, is the interpreter's (it dies with
 -- "unhandled ability").
-genRMatch :: FnEnv -> Int -> Int -> MSection -> EC.EnumMap Word64 (EC.EnumMap Word64 Int) -> EC.EnumMap Word64 (GBranch (RComb Val)) -> MSection -> Gen ()
-genRMatch fe d i pu ns br sect = do
+genRMatch :: FnEnv -> Int -> Int -> MSection -> EC.EnumMap Word64 (GBranch (RComb Val)) -> MSection -> Gen ()
+genRMatch fe d i pu br sect = do
   let env = feEnv fe
       ls = envLayouts env
       kinds = V.toList (lData ls) ++ [lDataG ls]
@@ -2580,11 +2578,9 @@ genRMatch fe d i pu ns br sect = do
   emit (ctor <> " = and i64 " <> packed <> ", 65535") -- maskTags
   arms <- forM (EC.mapToList br) $ \(e, gb) -> do
     l <- freshLabel "ability"
-    let counts = maybe (EC.mapFromList []) id (EC.lookup e ns)
-        arm u body = case EC.lookup u counts of
-          Nothing -> exitResume fe d sect
-          Just 0 -> requireShape 0 >> genSection fe d body
-          Just n -> requireShape n >> pushFields fe d base n other >> genSection fe (d + n) body
+    let arm _ (Arm n body)
+          | n == 0 = requireShape 0 >> genSection fe d body
+          | otherwise = requireShape n >> pushFields fe d base n other >> genSection fe (d + n) body
     sideBlockNamed l (genBranchWith fe d ctor gb sect arm)
     pure (Pair e l)
   emit ("switch i64 " <> ability <> ", label %" <> other <> " [ " <> intercalateT " " (D.fromList (map (\(Pair e l) -> "i64 " <> tshow e <> ", label %" <> l) arms)) <> " ]")

@@ -782,13 +782,13 @@ eval' !yld env henv !activeThreads !stk !k r (Match i (TestY df cs)) = do
 eval' !yld env henv !activeThreads !stk !k r (Match i br) = do
   n <- peekOffN stk i
   eval yld env henv activeThreads stk k r $ selectBranch n br
-eval' !yld env henv !activeThreads !stk !k r (DMatch mr i _ br) = do
+eval' !yld env henv !activeThreads !stk !k r (DMatch mr i br) = do
   (nx, stk) <- dataBranch mr stk br =<< bpeekOff stk i
   eval yld env henv activeThreads stk k r nx
 eval' !yld env henv !activeThreads !stk !k r (NMatch _mr i br) = do
   n <- peekOffN stk i
   eval yld env henv activeThreads stk k r $ selectBranch n br
-eval' !yld env henv !activeThreads !stk !k r (RMatch i pu _ br) = do
+eval' !yld env henv !activeThreads !stk !k r (RMatch i pu br) = do
   (t, stk) <- dumpDataValNoTag stk =<< peekOff stk i
   if t == TT.pureEffectTag
     then eval yld env henv activeThreads stk k r pu
@@ -1598,13 +1598,15 @@ selectBytesBranch b df cs = M.findWithDefault df b cs
 
 selectBranch :: Tag -> MBranch -> MSection
 selectBranch t (Test1 u y n)
-  | t == u = y
+  | t == u = armSection y
   | otherwise = n
 selectBranch t (Test2 u cu v cv e)
-  | t == u = cu
-  | t == v = cv
+  | t == u = armSection cu
+  | t == v = armSection cv
   | otherwise = e
-selectBranch t (TestW df cs) = lookupWithDefault df t cs
+selectBranch t (TestW df cs) = case EC.lookup t cs of
+  Just a -> armSection a
+  Nothing -> df
 selectBranch _ (TestT {}) = error "impossible"
 selectBranch _ (TestY {}) = error "impossible"
 {-# INLINE selectBranch #-}
@@ -1620,43 +1622,45 @@ dataBranch mrf stk br = \case
   -- one case on the closure: each shape looks its arm up and pushes its
   -- fields in the same alternative (a second dispatch to push them cost a
   -- few nanoseconds per match, 2026-10-15)
-  Enum _ t -> pick t (pure stk)
-  Data1 _ t a -> pick t do
+  Enum _ t -> pick t 0 (pure stk)
+  Data1 _ t a -> pick t 1 do
     stk <- bump stk
     stk <$ poke stk a
-  Data2 _ t a b -> pick t do
+  Data2 _ t a b -> pick t 2 do
     stk <- bumpn stk 2
     pokeOff stk 1 b
     stk <$ poke stk a
-  clo@(Data3 _ t _ _ _) -> pick t (dumpDataWide stk clo)
-  clo@(Data4 _ t _ _ _ _) -> pick t (dumpDataWide stk clo)
-  clo@(Data5 _ t _ _ _ _ _) -> pick t (dumpDataWide stk clo)
-  clo@(Data6 _ t _ _ _ _ _ _) -> pick t (dumpDataWide stk clo)
-  -- The frame was sized for the arm's field count; the object may hold
-  -- more (only ill-typed code arranges that: Any.unsafeExtract, a value
-  -- built elsewhere), and for a wide constructor the excess is unbounded,
-  -- so make room for what is actually pushed. The fixed shapes above push
-  -- at most six slots past the frame, within the out-area every stack is
-  -- allocated with (security review, finding 14).
-  DataG _ t seg@(_, bseg) -> pick t (ensure stk (sizeofArray bseg) >>= \stk -> dumpSeg stk seg S)
+  clo@(Data3 _ t _ _ _) -> pick t 3 (dumpDataWide stk clo)
+  clo@(Data4 _ t _ _ _ _) -> pick t 4 (dumpDataWide stk clo)
+  clo@(Data5 _ t _ _ _ _ _) -> pick t 5 (dumpDataWide stk clo)
+  clo@(Data6 _ t _ _ _ _ _ _) -> pick t 6 (dumpDataWide stk clo)
+  DataG _ t seg@(_, bseg) -> pick t (sizeofArray bseg) (dumpSeg stk seg S)
   Foreign (WrapMap m) -> case m of
     M.Bin sz k e l r
-      | Just ca <- branchArm br Rf.mapBin -> (ca,) <$> dumpBin sz k e l r stk
+      | Just (Arm _ ca) <- branchArm br Rf.mapBin -> (ca,) <$> dumpBin sz k e l r stk
     M.Tip
-      | Just ca <- branchArm br Rf.mapTip -> pure (ca, stk)
+      | Just (Arm _ ca) <- branchArm br Rf.mapTip -> pure (ca, stk)
     _ -> pure (branchDefault br, stk)
   clo -> (branchDefault br, stk) <$ dataBranchClosureError mrf clo
   where
-    pick :: PackedTag -> IO Stack -> IO (MSection, Stack)
-    pick t push = case branchArm br (maskTags t) of
-      Just ca -> (ca,) <$> push
+    -- The arm runs only when the object has the field count the arm was
+    -- laid out for: the arm's code and the frame it was given room for
+    -- assume that count, and an object with more fields would push past
+    -- both. Only ill-typed code arranges a mismatch (Any.unsafeExtract, a
+    -- value built elsewhere); native code exits to here on the same
+    -- mismatch, so both modes end in this error.
+    pick :: PackedTag -> Int -> IO Stack -> IO (MSection, Stack)
+    pick t n push = case branchArm br (maskTags t) of
+      Just (Arm m ca)
+        | m == n -> (ca,) <$> push
+        | otherwise -> dataBranchArityError mrf t m n
       Nothing -> pure (branchDefault br, stk)
     {-# INLINE pick #-}
 {-# INLINE dataBranch #-}
 
 -- | The section of a data branch for a constructor number, if it has one.
 -- Inlined into a case, so the Maybe costs nothing.
-branchArm :: MBranch -> Word64 -> Maybe MSection
+branchArm :: MBranch -> Word64 -> Maybe (Arm (RComb Val))
 branchArm br ct = case br of
   Test1 u cu _ -> if ct == u then Just cu else Nothing
   Test2 u cu v cv _ -> if ct == u then Just cu else if ct == v then Just cv else Nothing
@@ -1686,6 +1690,22 @@ dumpBin sz k e l r stk = do
 
 prettyRef :: Reference -> String
 prettyRef = Text.unpack . showShort 10
+
+-- | A data match on a value whose constructor has a different number of
+-- fields than the arm binds: ill-typed code, which the arm cannot run on
+-- (its slot layout is for its own count).
+dataBranchArityError :: Maybe Reference -> PackedTag -> Int -> Int -> IO a
+dataBranchArityError mrf t m n =
+  die [] $
+    "dataBranch: a value with the wrong number of fields\n"
+      <> "    type: "
+      <> maybe "unknown" prettyRef mrf
+      <> "\n    data tag: "
+      <> show (maskTags t)
+      <> "\n    the arm binds "
+      <> show m
+      <> " fields, the value has "
+      <> show n
 
 dataBranchClosureError ::
   Maybe Reference -> Closure -> IO ()

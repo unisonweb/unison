@@ -67,9 +67,9 @@ sectionsOf s = s : rest
       Let b _ _ bd _ -> sectionsOf b ++ sectionsOf bd
       Ins _ nx -> sectionsOf nx
       Match _ bs -> goB bs
-      DMatch _ _ _ bs -> goB bs
+      DMatch _ _ bs -> goB bs
       NMatch _ _ bs -> goB bs
-      RMatch _ p _ bs -> sectionsOf p ++ concatMap goB (map snd (EC.mapToList bs))
+      RMatch _ p bs -> sectionsOf p ++ concatMap goB (map snd (EC.mapToList bs))
       -- no sections inside these
       Call {} -> []
       App {} -> []
@@ -78,9 +78,9 @@ sectionsOf s = s : rest
       Die {} -> []
       Exit -> []
     goB = \case
-      Test1 _ a d -> sectionsOf a ++ sectionsOf d
-      Test2 _ a _ b d -> sectionsOf a ++ sectionsOf b ++ sectionsOf d
-      TestW d m -> sectionsOf d ++ concatMap sectionsOf (map snd (EC.mapToList m))
+      Test1 _ (Arm _ a) d -> sectionsOf a ++ sectionsOf d
+      Test2 _ (Arm _ a) _ (Arm _ b) d -> sectionsOf a ++ sectionsOf b ++ sectionsOf d
+      TestW d m -> sectionsOf d ++ concatMap (sectionsOf . armSection . snd) (EC.mapToList m)
       TestT d m -> sectionsOf d ++ concatMap sectionsOf (Map.elems m)
       TestY d m -> sectionsOf d ++ concatMap sectionsOf (Map.elems m)
 

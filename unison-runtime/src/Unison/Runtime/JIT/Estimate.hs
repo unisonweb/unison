@@ -159,7 +159,7 @@ walk cx = \case
     | otherwise -> pure (Just exit)
   Match _ br -> branch br
   NMatch _ _ br -> branch br
-  DMatch _ _ _ br -> branch br
+  DMatch _ _ br -> branch br
   Call _ _ comb args
     | constant comb args -> pure (Just (plus simple simple))
     | otherwise -> tailCall comb
@@ -170,7 +170,7 @@ walk cx = \case
   -- a request: a call of the handler, a function value found at run time
   App _ (Dyn _) _ | swRequests (cxSwitches cx) -> pure (Just call)
   -- a request match: the pure arm and every ability's arms
-  RMatch _ pu _ br
+  RMatch _ pu br
     | swRequests (cxSwitches cx), Just arms <- traverse armsOf (map snd (EC.mapToList br)) -> weigh (pu : concat arms)
   Let b _ _ body _ ->
     binding b >>= \case
@@ -236,9 +236,9 @@ walk cx = \case
               x = sum [weight e * esExits e | e <- arms] / total
            in Just (plus simple (Estimate s x (any esRec arms)))
     armsOf = \case
-      Test1 _ a d -> Just [a, d]
-      Test2 _ a _ b d -> Just [a, b, d]
-      TestW d m -> Just (d : map snd (EC.mapToList m))
+      Test1 _ (Arm _ a) d -> Just [a, d]
+      Test2 _ (Arm _ a) _ (Arm _ b) d -> Just [a, b, d]
+      TestW d m -> Just (d : map (armSection . snd) (EC.mapToList m))
       -- matches on text and other boxed values are the interpreter's
       TestT _ _ -> Nothing
       TestY _ _ -> Nothing

@@ -18,7 +18,7 @@ import Unison.Runtime.ANF qualified as ANF
 import Unison.Runtime.Foreign.Function.Type (ForeignFunc)
 import Unison.Runtime.Interface
 import Unison.Runtime.JIT.Config qualified as JIT
-import Unison.Runtime.MCode (Args (..), Branch, Comb, CombIx (..), FieldRef (..), GBranch (..), GComb (..), GCombInfo (..), GInstr (..), GRef (..), GSection (..), Instr, MLit (..), Prim1, Prim2, RecordFieldMappings (..), RecordShape (..), Ref, Section, mkRecordShape, noNativeCell)
+import Unison.Runtime.MCode (Args (..), Arm (..), Branch, Comb, CombIx (..), FieldRef (..), GBranch (..), GComb (..), GCombInfo (..), GInstr (..), GRef (..), GSection (..), Instr, MLit (..), Prim1, Prim2, RecordFieldMappings (..), RecordShape (..), Ref, Section, mkRecordShape, noNativeCell)
 import Unison.Runtime.MCode.Serialize (getRecordShape, putRecordShape)
 import Unison.Runtime.Machine (Combs)
 import Unison.Runtime.Serialize.Get
@@ -87,12 +87,15 @@ genGRef =
       Dyn <$> genSmallWord64
     ]
 
+genArm :: Gen (Arm CombIx)
+genArm = Arm <$> genSmallInt <*> genSection
+
 genBranch :: Gen Branch
 genBranch =
   Gen.choice
-    [ Test1 <$> genSmallWord64 <*> genSection <*> genSection,
-      Test2 <$> genSmallWord64 <*> genSection <*> genSmallWord64 <*> genSection <*> genSection,
-      TestW <$> genSection <*> genEnumMap genSmallWord64 genSection,
+    [ Test1 <$> genSmallWord64 <*> genArm <*> genSection,
+      Test2 <$> genSmallWord64 <*> genArm <*> genSmallWord64 <*> genArm <*> genSection,
+      TestW <$> genSection <*> genEnumMap genSmallWord64 genArm,
       TestT <$> genSection <*> Gen.map (Range.linear 0 10) ((,) <$> genUText <*> genSection)
     ]
 
@@ -168,9 +171,9 @@ genSection = do
       Match <$> genSmallInt <*> genBranch,
       Ins <$> genInstr <*> genSection,
       Let <$> genSection <*> genCombIx <*> genSmallInt <*> genSection <*> pure noNativeCell,
-      DMatch <$> Gen.maybe genReference <*> genSmallInt <*> genEnumMap genSmallWord64 genSmallInt <*> genBranch,
+      DMatch <$> Gen.maybe genReference <*> genSmallInt <*> genBranch,
       NMatch <$> Gen.maybe genReference <*> genSmallInt <*> genBranch,
-      RMatch <$> genSmallInt <*> genSection <*> genEnumMap genSmallWord64 (genEnumMap genSmallWord64 genSmallInt) <*> genEnumMap genSmallWord64 genBranch
+      RMatch <$> genSmallInt <*> genSection <*> genEnumMap genSmallWord64 genBranch
     ]
 
 genCombInfo :: Gen (GCombInfo CombIx)

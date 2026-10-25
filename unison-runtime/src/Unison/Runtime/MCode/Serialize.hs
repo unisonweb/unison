@@ -123,13 +123,12 @@ putSection = \case
       <> putSection bd
   Die s -> putTag DieT <> putString s
   Exit -> putTag ExitT
-  DMatch mr i ns b -> putTag DMatchT <> putMaybe mr putReference <> pInt i <> putEnumMap pWord pInt ns <> putBranch b
+  DMatch mr i b -> putTag DMatchT <> putMaybe mr putReference <> pInt i <> putBranch b
   NMatch mr i b -> putTag NMatchT <> putMaybe mr putReference <> pInt i <> putBranch b
-  RMatch i pu ns bs ->
+  RMatch i pu bs ->
     putTag RMatchT
       <> pInt i
       <> putSection pu
-      <> putEnumMap pWord (putEnumMap pWord pInt) ns
       <> putEnumMap pWord putBranch bs
 
 getSection :: (PrimBase m) => Get m Section
@@ -149,10 +148,10 @@ getSection =
       Let <$> getSection <*> getCombIx <*> gInt <*> getSection <*> pure noNativeCell
     DieT -> Die <$> getString
     ExitT -> pure Exit
-    DMatchT -> DMatch <$> getMaybe getReference <*> gInt <*> getEnumMap gWord gInt <*> getBranch
+    DMatchT -> DMatch <$> getMaybe getReference <*> gInt <*> getBranch
     NMatchT -> NMatch <$> getMaybe getReference <*> gInt <*> getBranch
     RMatchT ->
-      RMatch <$> gInt <*> getSection <*> getEnumMap gWord (getEnumMap gWord gInt) <*> getEnumMap gWord getBranch
+      RMatch <$> gInt <*> getSection <*> getEnumMap gWord getBranch
 
 data InstrT
   = Prim1T
@@ -460,33 +459,40 @@ instance Tag BranchT where
 
 putBranch :: GBranch cix -> Builder
 putBranch (Test1 w s d) =
-  putTag Test1T <> pWord w <> putSection s <> putSection d
+  putTag Test1T <> pWord w <> putArm s <> putSection d
 putBranch (Test2 a sa b sb d) =
   putTag Test2T
     <> pWord a
-    <> putSection sa
+    <> putArm sa
     <> pWord b
-    <> putSection sb
+    <> putArm sb
     <> putSection d
 putBranch (TestW d m) =
-  putTag TestWT <> putSection d <> putEnumMap pWord putSection m
+  putTag TestWT <> putSection d <> putEnumMap pWord putArm m
 putBranch (TestT d m) =
   putTag TestTT <> putSection d <> putMap (putText . Util.Text.toText) putSection m
 putBranch (TestY d m) =
   putTag TestYT <> putSection d <> putMap putBytes putSection m
 
+-- | An arm: the field count it binds, then its code.
+putArm :: Arm cix -> Builder
+putArm (Arm n s) = pInt n <> putSection s
+
+getArm :: (PrimBase m) => Get m (Arm CombIx)
+getArm = Arm <$> gInt <*> getSection
+
 getBranch :: (PrimBase m) => Get m Branch
 getBranch =
   getTag >>= \case
-    Test1T -> Test1 <$> gWord <*> getSection <*> getSection
+    Test1T -> Test1 <$> gWord <*> getArm <*> getSection
     Test2T ->
       Test2
         <$> gWord
-        <*> getSection
+        <*> getArm
         <*> gWord
+        <*> getArm
         <*> getSection
-        <*> getSection
-    TestWT -> TestW <$> getSection <*> getEnumMap gWord getSection
+    TestWT -> TestW <$> getSection <*> getEnumMap gWord getArm
     TestTT -> TestT <$> getSection <*> getMap (Util.Text.fromText <$> getText) getSection
     TestYT -> TestY <$> getSection <*> getMap getBytes getSection
 

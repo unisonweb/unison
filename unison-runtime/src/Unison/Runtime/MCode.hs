@@ -63,6 +63,9 @@ module Unison.Runtime.MCode
     Prim1 (..),
     Prim2 (..),
     GBranch (..),
+    Arm (..),
+    ConstructorArity,
+    armSection,
     Branch,
     RBranch,
     RecordFieldMappings (..),
@@ -814,8 +817,7 @@ data GSection comb
     DMatch
       !(Maybe Reference) -- expected data type
       !Int -- index of data item on boxed stack
-      !(EnumMap Word64 Int) -- how many fields each constructor's arm binds (see 'armCount')
-      !(GBranch comb) -- branches
+      !(GBranch comb) -- branches, each arm with the field count it binds
   | -- Sequence two sections. The second is pushed as a return
     -- point for the results of the first. Stack modifications in
     -- the first are lost on return to the second.
@@ -863,8 +865,7 @@ data GSection comb
     RMatch
       !Int -- index of request item on the boxed stack
       !(GSection comb) -- pure case
-      !(EnumMap Word64 (EnumMap Word64 Int)) -- how many fields each arm binds, by ability then constructor
-      !(EnumMap Word64 (GBranch comb)) -- effect cases
+      !(EnumMap Word64 (GBranch comb)) -- effect cases, by ability number
   deriving stock (Show, Eq, Ord, Functor, Foldable, Traversable)
 
 data CombIx
@@ -1103,19 +1104,20 @@ attachNativeCells base groups = (n, fmap attachLets groups')
           Let b cix@(CIx _ _ w) f bd _ -> Let (setLets True b) cix f (setLets inB bd) (cellOf inB w)
           Ins i nx -> Ins i (setLets inB nx)
           Match i bs -> Match i (setLetsB inB bs)
-          DMatch i j ns bs -> DMatch i j ns (setLetsB inB bs)
+          DMatch i j bs -> DMatch i j (setLetsB inB bs)
           NMatch i j bs -> NMatch i j (setLetsB inB bs)
-          RMatch i s ns bs -> RMatch i (setLets inB s) ns (fmap (setLetsB inB) bs)
+          RMatch i s bs -> RMatch i (setLets inB s) (fmap (setLetsB inB) bs)
           App {} -> section
           Call {} -> section
           Jump {} -> section
           Yield {} -> section
           Die {} -> section
           Exit -> section
+        setLetsA inB (Arm n s) = Arm n (setLets inB s)
         setLetsB inB = \case
-          Test1 i s d -> Test1 i (setLets inB s) (setLets inB d)
-          Test2 i s j t d -> Test2 i (setLets inB s) j (setLets inB t) (setLets inB d)
-          TestW d m -> TestW (setLets inB d) (fmap (setLets inB) m)
+          Test1 i s d -> Test1 i (setLetsA inB s) (setLets inB d)
+          Test2 i s j t d -> Test2 i (setLetsA inB s) j (setLetsA inB t) (setLets inB d)
+          TestW d m -> TestW (setLets inB d) (fmap (setLetsA inB) m)
           TestT d m -> TestT (setLets inB d) (fmap (setLets inB) m)
           TestY d m -> TestY (setLets inB d) (fmap (setLets inB) m)
 
@@ -1187,21 +1189,39 @@ type Branch = GBranch CombIx
 
 type RBranch val = GBranch (RComb val)
 
+-- | How many fields a match arm binds: the number of slots 'emitCase' lays
+-- the arm's context out with. A data or request match's arm carries it
+-- ('Arm'), because it is the one thing about an arm that the object being
+-- matched cannot say: the interpreter pushes the object's own fields and
+-- runs the arm only when their count is the arm's ('dataBranch'), and
+-- native code reads the object's count (its pointer tag, or the lengths
+-- of a wide constructor's arrays) and takes the arm only when the two
+-- agree. The arms of a match on an unboxed value bind no fields (0).
+type ConstructorArity = Int
+
+-- | A case of a branch: the fields it binds and its code.
+data Arm comb = Arm !ConstructorArity !(GSection comb)
+  deriving stock (Show, Eq, Ord, Functor, Foldable, Traversable)
+
+armSection :: Arm comb -> GSection comb
+armSection (Arm _ s) = s
+{-# INLINE armSection #-}
+
 data GBranch comb
   = -- if tag == n then t else f
     Test1
       !Word64
-      !(GSection comb)
+      {-# UNPACK #-} !(Arm comb)
       !(GSection comb)
   | Test2
       !Word64
-      !(GSection comb) -- if tag == m then ...
+      {-# UNPACK #-} !(Arm comb) -- if tag == m then ...
       !Word64
-      !(GSection comb) -- else if tag == n then ...
+      {-# UNPACK #-} !(Arm comb) -- else if tag == n then ...
       !(GSection comb) -- else ...
   | TestW
       !(GSection comb)
-      !(EnumMap Word64 (GSection comb))
+      !(EnumMap Word64 (Arm comb))
   | TestT
       !(GSection comb)
       !(M.Map Text (GSection comb))
@@ -1210,7 +1230,7 @@ data GBranch comb
       !(M.Map Bytes (GSection comb))
   deriving stock (Show, Eq, Ord, Functor, Foldable, Traversable)
 
-branchToEnumMap :: GBranch comb -> Maybe ((GSection comb), EnumMap Word64 (GSection comb))
+branchToEnumMap :: GBranch comb -> Maybe ((GSection comb), EnumMap Word64 (Arm comb))
 branchToEnumMap = \case
   (Test1 k t d) -> Just (d, EC.mapSingleton k t)
   (Test2 k1 s1 k2 s2 d) -> Just (d, EC.mapFromList [(k1, s1), (k2, s2)])
@@ -1219,9 +1239,9 @@ branchToEnumMap = \case
 
 -- Convenience patterns for matches used in the algorithms below.
 pattern MatchW :: Int -> (GSection comb) -> EnumMap Word64 (GSection comb) -> (GSection comb)
-pattern MatchW i d cs <- Match i (branchToEnumMap -> Just (d, cs))
+pattern MatchW i d cs <- Match i (branchToEnumMap -> Just (d, fmap armSection -> cs))
   where
-    MatchW i d cs = Match i (mkBranch d cs)
+    MatchW i d cs = Match i (mkBranch d (fmap (Arm 0) cs))
 
 pattern MatchT :: Int -> (GSection comb) -> M.Map Text (GSection comb) -> (GSection comb)
 pattern MatchT i d cs = Match i (TestT d cs)
@@ -1231,11 +1251,11 @@ pattern MatchY i d cs = Match i (TestY d cs)
 
 pattern NMatchW ::
   Maybe Reference -> Int -> (GSection comb) -> EnumMap Word64 (GSection comb) -> (GSection comb)
-pattern NMatchW r i d cs <- NMatch r i (branchToEnumMap -> Just (d, cs))
+pattern NMatchW r i d cs <- NMatch r i (branchToEnumMap -> Just (d, fmap armSection -> cs))
   where
-    NMatchW r i d cs = NMatch r i $ mkBranch d cs
+    NMatchW r i d cs = NMatch r i $ mkBranch d (fmap (Arm 0) cs)
 
-mkBranch :: (GSection comb) -> (EnumMap Word64 (GSection comb)) -> GBranch comb
+mkBranch :: (GSection comb) -> (EnumMap Word64 (Arm comb)) -> GBranch comb
 mkBranch d m = case EC.mapToList m of
   [(k, v)] -> Test1 k v d
   [(k1, v1), (k2, v2)] -> Test2 k1 v1 k2 v2 d
@@ -1557,7 +1577,7 @@ emitSection _ _ _ _ ctx (TBLit l) =
 emitSection rns grpr grpn rec ctx (TMatch v bs)
   | Just (i, BX) <- ctxResolve ctx v,
     MatchData r cs df <- bs =
-      uncurry (DMatch (Just r) i)
+      DMatch (Just r) i
         <$> emitDataMatching r rns grpr grpn rec ctx cs df
   | Just (i, BX) <- ctxResolve ctx v,
     MatchRec (ANF.RecordSchema fields) (TAbss vs bd) <- bs = do
@@ -1568,7 +1588,7 @@ emitSection rns grpr grpn rec ctx (TMatch v bs)
   | Just (i, BX) <- ctxResolve ctx v,
     MatchRequest hs0 df <- bs,
     hs <- mapFromList $ first (dnum rns) <$> hs0 =
-      (\(pu, ns, bs) -> RMatch i pu ns bs)
+      uncurry (RMatch i)
         <$> emitRequestMatching rns grpr grpn rec ctx hs df
   | Just (i, UN) <- ctxResolve ctx v,
     MatchIntegral cs df <- bs =
@@ -2056,11 +2076,10 @@ emitDataMatching ::
   Ctx v ->
   EnumMap CTag ([Mem], RNormal v) ->
   Maybe (RNormal v) ->
-  Emit (EnumMap Word64 Int, Branch)
+  Emit Branch
 emitDataMatching r rns grpr grpn rec ctx cs df =
-  (\d bs -> (fmap armCount cs', mkBranch d bs)) <$> edf <*> traverse (emitCase rns grpr grpn rec ctx) cs'
+  mkBranch <$> edf <*> traverse (emitArm rns grpr grpn rec ctx) (coerce cs)
   where
-    cs' = coerce cs
     -- Note: this is not really accurate. A default data case needs
     -- stack space corresponding to the actual data that shows up there.
     -- However, we currently don't use default cases for data.
@@ -2098,13 +2117,12 @@ emitRequestMatching ::
   Ctx v ->
   EnumMap Word64 (EnumMap CTag ([Mem], RNormal v)) ->
   RNormal v ->
-  Emit (Section, EnumMap Word64 (EnumMap Word64 Int), EnumMap Word64 Branch)
-emitRequestMatching rns grpr grpn rec ctx hs df = (,,) <$> pur <*> pure (fmap (fmap armCount) hs') <*> tops
+  Emit (Section, EnumMap Word64 Branch)
+emitRequestMatching rns grpr grpn rec ctx hs df = (,) <$> pur <*> tops
   where
-    hs' = coerce hs
     pur = emitCase rns grpr grpn rec ctx ([BX], df)
-    tops = traverse f hs'
-    f cs = mkBranch edf <$> traverse (emitCase rns grpr grpn rec ctx) cs
+    tops = traverse f (coerce hs)
+    f cs = mkBranch edf <$> traverse (emitArm rns grpr grpn rec ctx) cs
     edf = Die "unhandled ability"
 
 emitLitMatching ::
@@ -2140,15 +2158,21 @@ emitCase ::
 emitCase rns grpr grpn rec ctx (ccs, TAbss vs bo) =
   emitSection rns grpr grpn rec (pushCtx (zip vs ccs) ctx) bo
 
--- | How many fields a match arm binds: the number of slots 'emitCase' lays
--- the arm's context out with. A data or request match records this count
--- for each arm ('DMatch', 'RMatch'), because it is the one thing about an
--- arm that the object being matched cannot say: the interpreter pushes
--- the object's own fields, and native code reads the object's count (its
--- pointer tag, or the lengths of a wide constructor's arrays) and takes
--- the arm only when the two agree.
-armCount :: (Var v) => ([Mem], RNormal v) -> Int
-armCount (ccs, TAbss vs _) = length (zip vs ccs)
+-- | A data or request match arm: its code with the number of fields it
+-- binds, the slots 'emitCase' lays its context out with (see 'Arm').
+emitArm ::
+  (Var v) =>
+  RefNums ->
+  Reference ->
+  Word64 ->
+  RCtx v ->
+  Ctx v ->
+  ([Mem], RNormal v) ->
+  Emit Branch'
+emitArm rns grpr grpn rec ctx c@(ccs, TAbss vs _) =
+  Arm (length (zip vs ccs)) <$> emitCase rns grpr grpn rec ctx c
+
+type Branch' = Arm CombIx
 
 emitSumCase ::
   (Var v) =>
@@ -2236,8 +2260,8 @@ sectionDeps :: GSection comb -> [Word64]
 sectionDeps (App _ (Env (CIx _ w _) _) _) = [w]
 sectionDeps (Call _ (CIx _ w _) _ _) = [w]
 sectionDeps (Match _ br) = branchDeps br
-sectionDeps (DMatch _ _ _ br) = branchDeps br
-sectionDeps (RMatch _ pu _ br) =
+sectionDeps (DMatch _ _ br) = branchDeps br
+sectionDeps (RMatch _ pu br) =
   sectionDeps pu ++ foldMap branchDeps br
 sectionDeps (NMatch _ _ br) = branchDeps br
 sectionDeps (Ins i s)
@@ -2251,9 +2275,9 @@ sectionTypes :: GSection comb -> [Word64]
 sectionTypes (Ins i s) = instrTypes i ++ sectionTypes s
 sectionTypes (Let s _ _ b _) = sectionTypes s ++ sectionTypes b
 sectionTypes (Match _ br) = branchTypes br
-sectionTypes (DMatch _ _ _ br) = branchTypes br
+sectionTypes (DMatch _ _ br) = branchTypes br
 sectionTypes (NMatch _ _ br) = branchTypes br
-sectionTypes (RMatch _ pu _ br) =
+sectionTypes (RMatch _ pu br) =
   sectionTypes pu ++ foldMap branchTypes br
 sectionTypes _ = []
 
@@ -2264,22 +2288,22 @@ instrTypes (Capture w) = [w]
 instrTypes _ = []
 
 branchDeps :: GBranch comb -> [Word64]
-branchDeps (Test1 _ s1 d) = sectionDeps s1 ++ sectionDeps d
-branchDeps (Test2 _ s1 _ s2 d) =
+branchDeps (Test1 _ (Arm _ s1) d) = sectionDeps s1 ++ sectionDeps d
+branchDeps (Test2 _ (Arm _ s1) _ (Arm _ s2) d) =
   sectionDeps s1 ++ sectionDeps s2 ++ sectionDeps d
 branchDeps (TestW d m) =
-  sectionDeps d ++ foldMap sectionDeps m
+  sectionDeps d ++ foldMap (sectionDeps . armSection) m
 branchDeps (TestT d m) =
   sectionDeps d ++ foldMap sectionDeps m
 branchDeps (TestY d m) =
   sectionDeps d ++ foldMap sectionDeps m
 
 branchTypes :: GBranch comb -> [Word64]
-branchTypes (Test1 _ s1 d) = sectionTypes s1 ++ sectionTypes d
-branchTypes (Test2 _ s1 _ s2 d) =
+branchTypes (Test1 _ (Arm _ s1) d) = sectionTypes s1 ++ sectionTypes d
+branchTypes (Test2 _ (Arm _ s1) _ (Arm _ s2) d) =
   sectionTypes s1 ++ sectionTypes s2 ++ sectionTypes d
 branchTypes (TestW d m) =
-  sectionTypes d ++ foldMap sectionTypes m
+  sectionTypes d ++ foldMap (sectionTypes . armSection) m
 branchTypes (TestT d m) =
   sectionTypes d ++ foldMap sectionTypes m
 branchTypes (TestY d m) =
@@ -2344,11 +2368,9 @@ prettySection ind sec =
         . prettySection ind b
     Die s -> showString $ "Die " ++ s
     Exit -> showString "Exit"
-    DMatch _ i ns bs ->
+    DMatch _ i bs ->
       showString "DMatch "
         . shows i
-        . showString " "
-        . shows (mapToList ns)
         . showString "\n"
         . prettyBranches (ind + 1) bs
     NMatch _ i bs ->
@@ -2356,11 +2378,9 @@ prettySection ind sec =
         . shows i
         . showString "\n"
         . prettyBranches (ind + 1) bs
-    RMatch i pu ns bs ->
+    RMatch i pu bs ->
       showString "RMatch "
         . shows i
-        . showString " "
-        . shows (fmap mapToList ns)
         . showString "\nPUR ->\n"
         . prettySection (ind + 1) pu
         . foldr (\p r -> rqc p . r) id (mapToList bs)
@@ -2388,27 +2408,28 @@ prettyGRef p r =
 prettyBranches :: forall comb. (Show comb) => Int -> GBranch comb -> ShowS
 prettyBranches ind bs =
   case bs of
-    Test1 i e df -> pdf df . picase i e
-    Test2 i ei j ej df -> pdf df . picase i ei . picase j ej
+    Test1 i e df -> pdf df . parm i e
+    Test2 i ei j ej df -> pdf df . parm i ei . parm j ej
     TestW df m ->
-      pdf df . foldr (\(i, e) r -> picase i e . r) id (mapToList m)
+      pdf df . foldr (\(i, e) r -> parm i e . r) id (mapToList m)
     TestT df m ->
       pdf df . foldr (\(i, e) r -> pscase i e . r) id (M.toList m)
     TestY df m ->
       pdf df . foldr (\(i, e) r -> pscase i e . r) id (M.toList m)
   where
+    -- a data or request arm with the field count it binds
+    parm i (Arm n e) =
+      showString "\n"
+        . indent ind
+        . shows i
+        . showString (" [" ++ show n ++ "] ->\n")
+        . prettySection (ind + 1) e
     pdf e = indent ind . showString "DFLT ->\n" . prettySection (ind + 1) e
     pscase :: (Show a) => a -> GSection comb -> ShowS
     pscase t e =
       showString "\n"
         . indent ind
         . shows t
-        . showString " ->\n"
-        . prettySection (ind + 1) e
-    picase i e =
-      showString "\n"
-        . indent ind
-        . shows i
         . showString " ->\n"
         . prettySection (ind + 1) e
 
@@ -2458,17 +2479,19 @@ sanitizeSection sandboxedForeigns section = case section of
   Let s i f b c -> Let (sanitizeSection sandboxedForeigns s) i f (sanitizeSection sandboxedForeigns b) c
   Die {} -> section
   Exit -> section
-  DMatch i j ns bs -> DMatch i j ns (sanitizeBranches sandboxedForeigns bs)
+  DMatch i j bs -> DMatch i j (sanitizeBranches sandboxedForeigns bs)
   NMatch i j bs -> NMatch i j (sanitizeBranches sandboxedForeigns bs)
-  RMatch i s ns bs -> RMatch i (sanitizeSection sandboxedForeigns s) ns (fmap (sanitizeBranches sandboxedForeigns) bs)
+  RMatch i s bs -> RMatch i (sanitizeSection sandboxedForeigns s) (fmap (sanitizeBranches sandboxedForeigns) bs)
 
 sanitizeBranches :: Set ForeignFunc -> GBranch CombIx -> GBranch CombIx
 sanitizeBranches sandboxedForeigns = \case
-  Test1 i s d -> Test1 i (sanitizeSection sandboxedForeigns s) (sanitizeSection sandboxedForeigns d)
-  Test2 i s j t d -> Test2 i (sanitizeSection sandboxedForeigns s) j (sanitizeSection sandboxedForeigns t) (sanitizeSection sandboxedForeigns d)
-  TestW d m -> TestW (sanitizeSection sandboxedForeigns d) (fmap (sanitizeSection sandboxedForeigns) m)
+  Test1 i s d -> Test1 i (sanitizeArm s) (sanitizeSection sandboxedForeigns d)
+  Test2 i s j t d -> Test2 i (sanitizeArm s) j (sanitizeArm t) (sanitizeSection sandboxedForeigns d)
+  TestW d m -> TestW (sanitizeSection sandboxedForeigns d) (fmap sanitizeArm m)
   TestT d m -> TestT (sanitizeSection sandboxedForeigns d) (fmap (sanitizeSection sandboxedForeigns) m)
   TestY d m -> TestY (sanitizeSection sandboxedForeigns d) (fmap (sanitizeSection sandboxedForeigns) m)
+  where
+    sanitizeArm (Arm n s) = Arm n (sanitizeSection sandboxedForeigns s)
 
 -- | How many slots an instruction pushes onto the frame, or Nothing where
 -- the interpreter takes over from here (a capture, a sandboxing failure).
