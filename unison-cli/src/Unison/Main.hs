@@ -89,6 +89,7 @@ import Unison.PrettyTerminal qualified as PT
 import Unison.Project (defaultBranchName)
 import Unison.Runtime.Interface qualified as RTI
 import Unison.Runtime.JIT qualified as JIT
+import Unison.Runtime.JIT.Config qualified as JITConfig
 import Unison.Server.Backend qualified as Backend
 import Unison.Server.CodebaseServer qualified as Server
 import Unison.Symbol (Symbol)
@@ -766,17 +767,21 @@ codebasePathOptionToPath codebasePathOption =
     DontCreateCodebaseWhenMissing p -> p
 
 -- | With the JIT turned on (--jit or UNISON_JIT), loads LLVM now and says
--- how it went. When it can't be loaded the program runs interpreted, as
--- it would with the JIT off.
+-- how it went, in the two-space margin the rest of ucm's output has. When
+-- it can't be loaded the program runs interpreted, as it would with the
+-- JIT off. With the JIT off nothing is printed.
 announceJIT :: JIT.JIT -> IO ()
-announceJIT jit = do
-  tty <- hIsTerminalDevice stdout
-  let loading = "JIT compilation requested, loading LLVM library..."
-  when tty $ putStr loading >> hFlush stdout
-  r <- JIT.loadJIT jit
-  -- back to the start of the line, and clear it
-  when tty $ putStr ("\r" ++ replicate (length loading) ' ' ++ "\r")
-  case r of
-    Nothing -> pure ()
-    Just (Right _) -> putStrLn "JIT compilation activated \x26a1\x1f680" >> hFlush stdout
-    Just (Left msgs) -> mapM_ putStrLn msgs >> hFlush stdout
+announceJIT jit = case JITConfig.mode (JIT.jitConfig jit) of
+  JITConfig.Off -> pure ()
+  _ -> do
+    tty <- hIsTerminalDevice stdout
+    -- a progress line while LLVM loads, erased once the outcome is known
+    let loading = "  JIT compilation requested, loading LLVM library..."
+    when tty $ putStr loading >> hFlush stdout
+    r <- JIT.loadJIT jit
+    -- back to the start of the line, and clear it
+    when tty $ putStr ("\r" ++ replicate (length loading) ' ' ++ "\r")
+    case r of
+      Nothing -> pure ()
+      Just (Right _) -> putStrLn "  JIT compilation activated \x26a1\x1f680" >> hFlush stdout
+      Just (Left msgs) -> mapM_ (putStrLn . ("  " ++)) msgs >> hFlush stdout

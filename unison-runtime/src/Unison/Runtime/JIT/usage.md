@@ -18,10 +18,10 @@ or, equivalently, `UNISON_JIT=on unison`. The flag overrides the variable. The s
 | `on` | Compile what gets hot, on a background thread. A definition runs interpreted until it has been called 100 times, is then compiled together with the definitions it calls and is called by, and runs natively from the moment its code is installed. This is the mode meant for use. |
 | `eager` | Compile every definition as it is loaded, synchronously, before it runs. Deterministic, and it compiles code that never gets hot in a short run, so it is the mode for testing; loading is slower. |
 
-At startup, with `on` or `eager`, ucm loads LLVM and runs its checks, then prints one line:
+At startup, with `on` or `eager`, ucm loads LLVM and runs its checks, then prints one line, in the margin the rest of its output has:
 
 ```
-JIT compilation activated ⚡🚀
+  JIT compilation activated ⚡🚀
 ```
 
 or, if it can't, the reason, for example `no LLVM 20 or newer found; the JIT is off`, followed by the places it looked. The program runs either way.
