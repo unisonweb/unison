@@ -138,3 +138,54 @@ row is within noise: the two that move most, the function-argument row at 0.91×
 | 4.206575ms | 4.222028ms | 4.222853ms | 1.00× | handle installed per iteration, 10000 iterations |
 | 7.989378ms | 8.07319ms | 8.032331ms | 1.01× | Store whose put requests an outer Counter, 100000 iterations |
 | 454.728µs | 453.055µs | 455.901µs | 1.00× | Bytes: decodeNat64be walk over 80000 bytes |
+
+## Phase 4: field counts from the object
+
+The generator no longer reads constructor arities from type declarations: each match arm carries
+the number of fields it binds, the dispatch is over the arms' shapes, and a wide constructor's arm
+checks the object's two array lengths (`requireWide`) before reading. For a type whose constructors
+all have arms and whose match has no default the generated dispatch is the same as before: the
+pointer tag selects the shape and a shape with one arm branches straight to it. A match with a
+default arm now loads the packed tag for a shape with one arm (a constructor without an arm could
+share the shape), where before the declaration said whether one did; and a wide arm adds two loads
+and a compare. The interpreter's `dataBranch` makes room for a wide object's fields before pushing
+them (finding 14), one compare on its `DataG` path. Same build settings, two runs against phase 3's
+run 2. Every row is within noise: the list map at 1.05× moved in run 2 only (13.7 µs in run 1,
+against 13.5), and the function-argument and Collatz rows are the call-heavy ones that swing both
+ways between runs of one binary (phase 3 saw 0.91× and 1.04× on them). The tree rows, whose `Node`
+match has four fields and no default, are unchanged at 0.98× and 0.99×.
+
+| phase 3 | run 1 | run 2 | run 2 / phase 3 | Benchmark |
+| --- | --- | --- | --- | --- |
+| 318.856µs | 319.505µs | 318.734µs | 1.00× | Sum 0 to 1 million |
+| 35.409µs | 35.357µs | 35.328µs | 1.00× | fib 20 |
+| 13.492µs | 13.733µs | 14.158µs | 1.05× | Cons list: map with a lambda (1000 elements) |
+| 4.835µs | 4.842µs | 4.837µs | 1.00× | Cons list: foldLeft with a lambda (1000 elements) |
+| 90.885µs | 88.842µs | 88.789µs | 0.98× | Binary tree: 1000 inserts |
+| 16.678µs | 16.29µs | 16.568µs | 0.99× | Binary tree: 1000 lookups |
+| 52.788µs | 52.629µs | 54.553µs | 1.03× | Apply a function argument 10000 times |
+| 35.057µs | 34.462µs | 35.104µs | 1.00× | Mutate a Ref 10000 times |
+| 69.465µs | 67.052µs | 67.215µs | 0.97× | Calls across definitions: Collatz steps for 1 to 1000 |
+| 117.925µs | 117.862µs | 118.011µs | 1.00× | Calls across definitions: callee first reached once the caller is hot, 100000 iterations |
+| 204.624µs | 201.167µs | 202.327µs | 0.99× | Text: append "hi" 10000 times |
+| 1.903635ms | 1.884282ms | 1.90237ms | 1.00× | Text: drop 1, 100000 times |
+| 199.673µs | 197.478µs | 196.884µs | 0.99× | Bytes: append 2 bytes 10000 times |
+| 1.811546ms | 1.819499ms | 1.798735ms | 0.99× | Bytes: drop 1, 100000 times |
+| 2.11376ms | 2.107529ms | 2.110619ms | 1.00× | Bytes: at, 100000 times |
+| 3.295259ms | 3.247696ms | 3.277156ms | 0.99× | Text: uncons walk over 100000 characters |
+| 289.085µs | 287.432µs | 286.606µs | 0.99× | List: cons 10000 elements, then a pattern walk |
+| 143.874µs | 144.202µs | 144.664µs | 1.01× | List: at, 10000 times |
+| 728.512µs | 705.574µs | 707.832µs | 0.97× | Nat.toText and Nat.fromText, 10000 times |
+| 1.000859ms | 1.002855ms | 1.004889ms | 1.00× | Float: sqrt, sin, cos, arithmetic and conversions, 100000 times |
+| 486.316µs | 488.388µs | 486.917µs | 1.00× | MutableByteArray: 4 writes and 6 reads, both byte orders, 100000 times |
+| 540.428µs | 539.133µs | 537.82µs | 1.00× | FFI.Ptr: 4 writes and 6 reads, 100000 times |
+| 44.25µs | 44.637µs | 44.109µs | 1.00× | MutableArray: fill, freeze and sum 10000 elements |
+| 128.04µs | 126.657µs | 126.747µs | 0.99× | Ref.cas loop, 10000 times |
+| 279.239µs | 276.003µs | 277.608µs | 0.99× | murmurHashUntyped of Some (i, "x"), 10000 times |
+| 7.453081ms | 7.432746ms | 7.474281ms | 1.00× | Records: a literal, an update, a pattern and two getters, 100000 times |
+| 5.005653ms | 5.017143ms | 4.975712ms | 0.99× | Records: a 16-field literal and four getters, 100000 times |
+| 2.576553ms | 2.618291ms | 2.575792ms | 1.00× | Counter: 100000 requests |
+| 4.930631ms | 4.939056ms | 4.91015ms | 1.00× | Store: get and put, 100000 iterations |
+| 4.222853ms | 4.218581ms | 4.213684ms | 1.00× | handle installed per iteration, 10000 iterations |
+| 8.032331ms | 7.960668ms | 7.951003ms | 0.99× | Store whose put requests an outer Counter, 100000 iterations |
+| 455.901µs | 451.187µs | 452.838µs | 0.99× | Bytes: decodeNat64be walk over 80000 bytes |
