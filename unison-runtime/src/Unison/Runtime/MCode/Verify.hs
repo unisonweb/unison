@@ -14,10 +14,11 @@
 -- closure holds; native code reads the pointer tag, or a wide
 -- constructor's array lengths, and takes an arm only when the object has
 -- the arm's count), so a @Pack@ or a decoded value with an unusual count
--- builds an unusual object and nothing reads past it (design.md, "What
--- native code trusts about MCode"). This is also what lets code whose
+-- builds an unusual object and nothing reads past it. This is also what lets code whose
 -- types the runtime never saw declared (code sent over the network) be
--- verified and compiled.
+-- verified and compiled. Type confusion (a value of another type with the
+-- same shape) is not a memory question either, and the generator's
+-- 'genDMatchClosure' says what native code does about it.
 --
 -- The rules:
 --

@@ -2319,12 +2319,22 @@ genBoolBranch fe d c br sect = case br of
 -- The field count native code reads is always the object's: for shapes 0
 -- to 6 the pointer tag that selected the arm is the count; a wide
 -- constructor's arm first checks the object's two arrays hold exactly
--- its count ('requireWide'), and also compares the whole packed tag,
--- type number included, since the info pointer only says "some type's
--- wide constructor" (design.md, "What native code trusts about MCode").
--- No declaration of the type is consulted, so code whose types the
--- runtime never saw declared (code sent over the network) compiles like
--- any other.
+-- its count ('requireWide'). No declaration of the type is consulted, so
+-- code whose types the runtime never saw declared (code sent over the
+-- network) compiles like any other, and a value with an unusual field
+-- count is read as far as it goes and never past (the code verifier,
+-- Unison.Runtime.MCode.Verify, checks the arms' slots against their
+-- counts and leaves the objects' counts to the objects).
+--
+-- What that leaves is type confusion: a match on type T applied to a
+-- value of type U with the same shape, which only ill-typed code can
+-- arrange (Any.unsafeExtract, a value built elsewhere) and which the
+-- interpreter does not check either (its dataBranch picks the arm by
+-- constructor number alone). For shapes 0 to 6 the layout is fixed by
+-- the pointer tag, so such a value is at worst matched wrongly. For the
+-- shared tag 7 the info pointer only says "some type's wide
+-- constructor", so a lone wide arm compares the whole packed tag, type
+-- number included, before reading.
 genDMatchClosure :: FnEnv -> Int -> Int -> Maybe Reference -> EC.EnumMap Word64 Int -> GBranch (RComb Val) -> MSection -> Gen ()
 genDMatchClosure fe d i mr ns br sect = do
   let env = feEnv fe
