@@ -134,7 +134,7 @@ jobs:
           path: ${{env.staging_dir}}
           file: ucm
           content: |
-            #!/bin/bash
+            #!/usr/bin/env bash
             unison_root="$(dirname "$(readlink -f "$0")")"
             export UCM_WEB_UI="${unison_root}/ui"
             "${unison_root}/unison/unison" "$@"
