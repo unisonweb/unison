@@ -715,13 +715,13 @@ allReserved ::
   (Var v) => CtxSegment v loc -> M v loc (Maybe (Element v loc))
 allReserved seg = do
   env <- get
-  let unreserved e = maybe False (not . (`isReservedIn` env)) (Ctx.binds e)
+  let unreserved e = maybe False (not . (`isReservedIn` env)) (Ctx.declares e)
   pure (find unreserved seg)
 
 -- | Whether the variable is bound in the context as an existential, solved or
 -- not.
-boundExistential :: (Ord v) => Context v loc -> v -> Bool
-boundExistential ctx v = Ctx.existentialIn Ctx.AtEnd v ctx
+isExistentialIn :: (Ord v) => Context v loc -> v -> Bool
+isExistentialIn ctx v = Ctx.existentialIn Ctx.AtEnd v ctx
 
 -- | "Reserves" the given variables in this typechecking environment,
 -- i.e. ensures that they won't be returned from `freshenVar` as fresh.
@@ -752,8 +752,8 @@ freshenTypeVar v =
 wellformedType :: (Var v) => Context v loc -> Type v loc -> Bool
 wellformedType = wellformedTypeIn Ctx.AtEnd
 
--- | 'wellformedType' at a place in the context: only variables bound before
--- that place count as bound.
+-- | 'wellformedType' at a place in the context: only variables declared before
+-- that place count as declared.
 wellformedTypeIn :: (Var v) => Ctx.Scope -> Context v loc -> Type v loc -> Bool
 wellformedTypeIn sc c = go Set.empty
   where
@@ -957,10 +957,10 @@ explainExtErr ctx e = IllegalContextExtension ctx e . msg
 
     tmsg t = "type " <> show t <> " is not well-formed in the context"
 
-    msg Shadowing =
+    msg DuplicateVariable =
       edesc <> show v <> " already defined in the context"
-    msg NotRebound =
-      "the replacement for " <> edesc <> show v <> " does not bind it again"
+    msg NotRedeclared =
+      "the replacement for " <> edesc <> show v <> " does not declare it again"
     msg _
       | Ann _ _ t <- e = tmsg t
       | Solved _ _ (Type.getPolytype -> t) <- e = tmsg t
@@ -3131,7 +3131,7 @@ substAndDefaultWanted want ctx
     keep (Var v) = v `Set.member` keeps
     keep _ = False
 
-    outScope = Ctx.boundExistentials ctx
+    outScope = Ctx.existentialVars ctx
 
     q (_, Type.Var' u) = TypeVar.underlying u `Set.notMember` outScope
     q _ = True
@@ -3560,11 +3560,11 @@ subtype tx ty = scope (InSubtype tx ty) $ do
       subtype es (Type.effects (loc es) [])
       subtype a a2
     go ctx (Type.Var' (TypeVar.Existential b v)) t -- `InstantiateL`
-      | boundExistential ctx v
+      | isExistentialIn ctx v
           && notMember v (Type.freeVars t) = do
           instantiateL b v t
     go ctx t (Type.Var' (TypeVar.Existential b v)) -- `InstantiateR`
-      | boundExistential ctx v
+      | isExistentialIn ctx v
           && notMember v (Type.freeVars t) = do
           vars <- getVariances
           t <- relax' vars False (extendExistential Var.inferAbility) t
@@ -3597,7 +3597,7 @@ subtype tx ty = scope (InSubtype tx ty) $ do
       -- include everything r2 asks for, so it terminates.
       | not (Map.null missing),
         Type.HasExtraFields (Type.Var' (TypeVar.Existential b v)) <- fb1,
-        boundExistential ctx v,
+        isExistentialIn ctx v,
         -- An opened row can't gain fields the opened row didn't
         -- mention; it falls through to the missing-field error below.
         not (isOpenedRow v) = do

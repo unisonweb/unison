@@ -98,7 +98,7 @@ queries trace ctx ref = do
     case Ctx.scopeOf v ctx of
       Nothing -> check trace ("scopeOf " ++ show v) (boundIn ref v) Nothing
       Just sc -> for_ pool \w -> do
-        let before = takeWhile ((/= Just v) . Ctx.binds) ref
+        let before = takeWhile ((/= Just v) . Ctx.declares) ref
         check trace ("existentialIn (before " ++ show v ++ ") " ++ show w) (Ctx.existentialIn sc w ctx) (refExistential before w)
         check trace ("universalIn (before " ++ show v ++ ") " ++ show w) (Ctx.universalIn sc w ctx) (refUniversal before w)
   check trace "annotations" (List.sort (Ctx.annotations ctx)) (List.sort [(v, l, t) | Ann v l t <- ref])
@@ -142,7 +142,7 @@ refStep (Mark vs) ref = Right (map (refMark vs) ref, [])
 -- The reference implementation ------------------------------------------------
 
 boundIn :: Ref -> V -> Maybe El
-boundIn ref v = List.find ((== Just v) . Ctx.binds) ref
+boundIn ref v = List.find ((== Just v) . Ctx.declares) ref
 
 refExistential :: Ref -> V -> Bool
 refExistential ref v = maybe False isExistential (boundIn ref v)
@@ -165,31 +165,31 @@ refOrdered ref v w = case (index v, index w) of
   (Just i, Just j) -> i < j && refExistential ref v
   _ -> False
   where
-    index x = List.findIndex ((== Just x) . Ctx.binds) ref
+    index x = List.findIndex ((== Just x) . Ctx.declares) ref
 
 -- Checks an element placed after `scope`, in a context whose other elements
 -- are `whole`.
 refCheck :: Ref -> Ref -> El -> Maybe BadContext
 refCheck whole scope e
-  | Just v <- Ctx.binds e, any ((== Just v) . Ctx.binds) whole = Just Shadowing
-  | Refined v _ <- e, not (refUniversal scope v) = Just UnboundUn
+  | Just v <- Ctx.declares e, any ((== Just v) . Ctx.declares) whole = Just DuplicateVariable
+  | Refined v _ <- e, not (refUniversal scope v) = Just UndeclaredUniversal
   | otherwise = listToMaybe (mapMaybe unbound (Set.toList (freeVarsOf e)))
   where
     unbound (TypeVar.Existential _ v)
       | refExistential scope v = Nothing
-      | otherwise = Just UnboundEx
+      | otherwise = Just UndeclaredExistential
     unbound (TypeVar.Universal v)
       | refUniversal scope v = Nothing
-      | otherwise = Just UnboundUn
+      | otherwise = Just UndeclaredUniversal
 
 refExtend :: El -> Ref -> Either BadContext Ref
 refExtend e ref = maybe (Right (ref ++ [e])) Left (refCheck ref ref e)
 
 refReplace :: V -> [El] -> Ref -> Either BadContext Ref
-refReplace v es ref = case break ((== Just v) . Ctx.binds) ref of
+refReplace v es ref = case break ((== Just v) . Ctx.declares) ref of
   (_, []) -> Right ref
   (pre, _ : post)
-    | not (any ((== Just v) . Ctx.binds) es) -> Left NotRebound
+    | not (any ((== Just v) . Ctx.declares) es) -> Left NotRedeclared
     | otherwise -> go pre es
     where
       go acc [] = Right (acc ++ post)
@@ -198,7 +198,7 @@ refReplace v es ref = case break ((== Just v) . Ctx.binds) ref of
         Nothing -> go (acc ++ [e]) rest
 
 refRetract :: V -> Ref -> Maybe (Ref, [El])
-refRetract v ref = case break ((== Just v) . Ctx.binds) ref of
+refRetract v ref = case break ((== Just v) . Ctx.declares) ref of
   (_, []) -> Nothing
   (pre, _ : post) -> Just (pre, post)
 
@@ -257,7 +257,7 @@ unVar v = Type.var () (TypeVar.Universal v)
 mono :: Ty -> Type.Monotype TV ()
 mono = Type.Monotype
 
--- A variable, usually one that is not bound, so that most operations are
+-- A variable, usually one that is not declared, so that most operations are
 -- accepted and the context grows.
 freshish :: Ref -> Test V
 freshish ref = do
@@ -268,7 +268,7 @@ freshish ref = do
 randomBlank :: Test (B.Blank ())
 randomBlank = pick [B.Blank, B.Blank, B.Recorded (B.Placeholder () "p"), B.Retain]
 
--- A type over the variables bound in `ref`, now and then over an unbound one.
+-- A type over the variables declared in `ref`, now and then over an unbound one.
 randomType :: Ref -> Int -> Test Ty
 randomType ref depth = do
   k <- int' 0 (if depth == 0 then 2 else 5)
@@ -336,7 +336,7 @@ randomOp ref = do
     6 -> instantiate
     7 -> instantiate
     8 -> solve
-    9 -> case mapMaybe Ctx.binds ref of
+    9 -> case mapMaybe Ctx.declares ref of
       [] -> Extend <$> randomElement ref
       vs -> Retract <$> pick vs
     10 -> do
@@ -365,7 +365,7 @@ randomOp ref = do
       [] -> Extend <$> randomElement ref
       vs -> do
         v <- pick vs
-        -- a type over everything bound, which may well mention something after v
+        -- a type over everything declared, which may well mention something after v
         t <- randomMono ref
         b <- randomBlank
         pure (Replace v [Solved b v t])

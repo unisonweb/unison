@@ -1,41 +1,10 @@
--- | The typechecker's ordered context, indexed so that the operations the
--- algorithm performs cost logarithmic time in the size of the context.
---
--- The context is a sequence of 'Element's. The algorithm appends to it,
--- retracts a suffix of it (everything after a marker), replaces one element
--- with a few (an existential solved to an arrow, with the arrow's fresh
--- existentials inserted before it), and asks scoping questions: is this
--- variable bound, as what, and before which position?
---
--- An earlier version answered the scoping questions from a finger-tree
--- measure that summarized every subtree with sets of its bound and free
--- variables. Every split and concatenation then recomputed those set unions
--- for every node it touched, on the order of a hundred per solve, and a
--- profile of a definition with 500 overloaded operators put two thirds of the
--- typechecking time in those unions and the variable comparisons under them.
---
--- Here the facts live in maps keyed by variable, and the sequence only orders
--- them. Each element carries a 'Label' giving its position; the tree's measure
--- is the maximum label of a subtree (so a position is found by searching for
--- its label) and a count of 'Inconsistent' markers, both O(1) to combine. The
--- map from a variable to its binding element, with that element's label,
--- answers "bound before position L" by one lookup and one label comparison,
--- and a solution or annotation is read from the same map. Replacing or
--- retracting elements deletes their entries, so the map always describes
--- exactly the elements in the sequence, and scoping is the sequence's.
---
--- A retraction walks the elements it discards, so the typechecker can report
--- on them, and deletes their entries. Every element is appended once and
--- discarded at most once, so that walk is amortized against the appends.
---
--- Segments of a context that have been retracted are plain lists
--- ('CtxSegment'); the typechecker reads them whole (to generalize over their
--- unsolved existentials, apply their solutions, or push some of them back).
+-- | This module defines the ordered context type and related types used by
+-- the typechecking algorithm.
 module Unison.Typechecker.Context.Structure
   ( -- * Elements
     Element (..),
     variable,
-    binds,
+    declares,
 
     -- * Contexts
     Context,
@@ -59,7 +28,7 @@ module Unison.Typechecker.Context.Structure
     apply,
     applySegment,
     unsolvedExistentials,
-    boundExistentials,
+    existentialVars,
     recorded,
 
     -- * Updates
@@ -99,18 +68,78 @@ type TypeVar v loc = TypeVar.TypeVar (B.Blank loc) v
 
 type Type v loc = Type.Type (TypeVar v loc) loc
 
+-- | The ordered context of the typechecking algorithm.
+--
+-- The context is a sequence of 'Element's. The typechecking algorithm appends
+-- to it, retracts a suffix of it (everything after a marker), replaces one
+-- element with a few (e.g. an existential solved to an arrow, with the arrow's
+-- fresh existentials inserted before it), and asks scoping questions: is this
+-- variable declared, as an existential or a universal, and at what position?
+-- Is it solved, and to what?
+--
+-- The sequence only orders the elements. What is known about each variable
+-- is kept in indexes keyed by variable name, beside the sequence, and each of
+-- those maps a variable to a position in the sequence ('CtxPosition'): every
+-- element in the sequence has one, and 'vars' maps each variable to
+-- its element together with that position.
+--
+-- So for instance, a solution proposed for an existential @β@ may only
+-- mention variables declared before @β@ in the context, existentials and
+-- universals alike (the universals are the rigid type variables of enclosing
+-- quantifiers). `solve` therefore looks up each free variable of the solution
+-- in 'vars', checks that it is declared as the kind of variable it occurs
+-- as, and compares its position with @β@'s. Once @β@ is solved, its solution
+-- is read from the same entry. 'anns' and 'refinements' are the same idea for
+-- term variable annotations and for the branch-local refinements of a
+-- universal.
+--
+-- The sequence is a finger tree whose measure includes the greatest position in a
+-- subtree (so that the element at a position can be found in logarithmic time),
+-- and a count of 'Inconsistent' elements (so that 'inconsistent' can tell in
+-- constant time whether the pattern-match branch being checked has been
+-- marked unreachable by contradictory GADT refinements, in which case its
+-- body is skipped).
+--
+-- Every change keeps the indexes describing exactly the elements in the
+-- sequence: an append or replacement records the new elements, and a
+-- retraction walks the elements it discards and forgets them. Each element
+-- is appended once and discarded at most once, so a retraction costs no more
+-- than the appends it undoes.
+--
+-- Segments of a context that have been retracted are plain lists
+-- ('CtxSegment'); the typechecker reads them whole (to generalize over their
+-- unsolved existentials, apply their solutions, or push some of them back).
+data Context v loc = Context
+  { entries :: !(FingerTree Measure (Entry v loc)),
+    -- | Source of position components; only ever increases.
+    counter :: !Word64,
+    -- | The element that declares each variable, with its position. Term and
+    -- type variables share this one namespace, and a valid context declares a
+    -- variable once ('check' refuses a second declaration of any kind, an
+    -- 'Ann' after a 'Var' included, as 'DuplicateVariable'), so one entry per
+    -- variable is exact; the one kind of element that may recur for a
+    -- variable, 'Refined', declares nothing and is kept in 'refinements'.
+    vars :: !(Map v (Entry v loc)),
+    -- | The 'Ann' elements again, so that a walk of the annotations (which
+    -- the ability checks make per existential) costs the annotations, not
+    -- the context.
+    anns :: !(Map v (loc, Type v loc)),
+    -- | The 'Refined' elements per universal, latest first.
+    refinements :: !(Map v [(CtxPosition, Type v loc)])
+  }
+
 -- | Elements of an ordered algorithmic context. Every element but 'Refined'
--- binds its variable; a context is valid when no variable is bound twice and
--- every type in it mentions only variables bound before it.
+-- declares its variable; a context is valid when no variable is declared twice and
+-- every type in it mentions only variables declared before it.
 data Element v loc
   = -- | A variable declaration
     Var (TypeVar v loc)
   | -- | `v` is solved to some monotype
     Solved (B.Blank loc) v (Monotype v loc)
   | -- | `v` has type `a`, maybe quantified
-    -- loc contains the span of the name of the bound 'v'
+    -- loc contains the span of the name of the annotated 'v'
     Ann v loc (Type v loc)
-  | -- | The (already-bound) universal variable `v` is locally known to
+  | -- | The (already-declared) universal variable `v` is locally known to
     -- equal the given type. This is how GADT pattern matching refines a
     -- rigid type index inside a branch: matching e.g. @NatLit : Expr Nat@
     -- against a scrutinee of type @Expr a@ records @a ~ Nat@ for the
@@ -134,91 +163,48 @@ variable (Refined v _) = v
 variable (Inconsistent v) = v
 variable (Marker v) = v
 
--- | The variable an element binds, if it binds one. A 'Refined' element
--- constrains a universal bound earlier rather than binding it.
-binds :: Element v loc -> Maybe v
-binds (Refined _ _) = Nothing
-binds e = Just (variable e)
+-- | The variable an element declares, if it declares one. A 'Refined' element
+-- constrains a universal declared earlier rather than declaring it.
+declares :: Element v loc -> Maybe v
+declares (Refined _ _) = Nothing
+declares e = Just (variable e)
 
-instance (Var v) => Eq (Element v loc) where
-  Var v == Var v2 = v == v2
-  Solved _ v t == Solved _ v2 t2 = v == v2 && t == t2
-  Ann v _loc t == Ann v2 _loc2 t2 = v == v2 && t == t2
-  Refined v t == Refined v2 t2 = v == v2 && t == t2
-  Inconsistent v == Inconsistent v2 = v == v2
-  Marker v == Marker v2 = v == v2
-  _ == _ = False
-
-isExistential :: Element v loc -> Bool
-isExistential (Var (TypeVar.Existential _ _)) = True
-isExistential (Solved {}) = True
-isExistential _ = False
-
-isUniversal :: Element v loc -> Bool
-isUniversal (Var (TypeVar.Universal _)) = True
-isUniversal _ = False
-
--- | The variables occurring in an element's type, which must all be bound
--- before the element.
-freeVarsOf :: (Ord v) => Element v loc -> Set (TypeVar v loc)
-freeVarsOf (Solved _ _ t) = Type.freeVars (Type.getPolytype t)
-freeVarsOf (Ann _ _ t) = Type.freeVars t
-freeVarsOf (Refined _ t) = Type.freeVars t
-freeVarsOf _ = Set.empty
-
--- | The position of an element: a path of counter values ending in
--- 'maxBound', compared lexicographically.
+-- | The position of an element: a path of values of the context's own
+-- 'counter', ending in 'maxBound', compared lexicographically.
 --
 -- An appended element gets @[n, maxBound]@ for the next counter value @n@,
--- which sorts after every label already in the context. An element inserted
--- before the element labelled @p ++ [maxBound]@ gets @p ++ [c, maxBound]@ for
+-- which sorts after every position already in the context. An element inserted
+-- before the element at position @p ++ [maxBound]@ gets @p ++ [c, maxBound]@ for
 -- the next counter value @c@: that sorts before @p ++ [maxBound]@ (as
 -- @c < maxBound@), after anything inserted before the same element earlier
--- (a smaller @c@), and otherwise exactly where @p@ sorts. Counter values are
--- never reused, so a label names one element for the life of the context.
-newtype Label = Label [Word64] deriving (Eq, Ord, Show)
+-- (a smaller @c@), and otherwise exactly where @p@ sorts.
+--
+-- The counter is a field of the 'Context' value and every append or insertion
+-- takes the next value from it, so within one context value no two elements
+-- share a position, which is all the indexes need. The typechecker never sees
+-- positions: it asks its questions by variable, and keeps its own counter
+-- ('freshId') for naming variables. When the typechecker restores an earlier
+-- context value (to retry something), that value's counter comes back with
+-- it, and the positions it hands out again belong to that value's elements,
+-- not to the elements of the abandoned one.
+newtype CtxPosition = CtxPosition [Word64] deriving (Eq, Ord, Show)
 
-appended :: Word64 -> Label
-appended n = Label [n, maxBound]
+appended :: Word64 -> CtxPosition
+appended n = CtxPosition [n, maxBound]
 
-insertedBefore :: Label -> Word64 -> Label
-insertedBefore (Label ws) c = Label (List.init ws ++ [c, maxBound])
+insertedBefore :: CtxPosition -> Word64 -> CtxPosition
+insertedBefore (CtxPosition ws) c = CtxPosition (List.init ws ++ [c, maxBound])
 
--- | What the sequence summarizes about a subtree: enough to find a position
--- by its label, and whether an 'Inconsistent' element is present.
+-- | What the sequence summarizes about a subtree: enough to find an element
+-- by its position, and whether an 'Inconsistent' element is present.
 data Measure = Measure
-  { maxLabel :: !Label,
+  { maxPosition :: !CtxPosition,
     inconsistentCount :: !Int
   }
 
-instance Semigroup Measure where
-  Measure l i <> Measure l' i' = Measure (max l l') (i + i')
-
-instance Monoid Measure where
-  mempty = Measure (Label []) 0
-
 data Entry v loc = Entry
-  { entryLabel :: !Label,
+  { entryPosition :: !CtxPosition,
     entryElement :: Element v loc
-  }
-
-instance Measured Measure (Entry v loc) where
-  measure (Entry l e) = Measure l (case e of Inconsistent _ -> 1; _ -> 0)
-
--- | An ordered context. The sequence orders the elements; 'bound' holds the
--- binding element of every bound variable together with its position, and
--- 'refinements' the 'Refined' elements per universal, latest first. The maps
--- describe exactly the elements in the sequence.
-data Context v loc = Context
-  { entries :: !(FingerTree Measure (Entry v loc)),
-    -- | Source of label components; only ever increases.
-    counter :: !Word64,
-    bound :: !(Map v (Entry v loc)),
-    -- | The 'Ann' elements again, so that a walk of the annotations (which
-    -- the ability checks make per existential) costs the annotations, not
-    -- the context.
-    anns :: !(Map v (loc, Type v loc)),
-    refinements :: !(Map v [(Label, Type v loc)])
   }
 
 -- | The empty context
@@ -234,39 +220,35 @@ type CtxSegment v loc = [Element v loc]
 
 -- | A place in the context at which scoping questions are asked: at the end,
 -- or just before a given element.
-data Scope = AtEnd | Before !Label
-
-inScope :: Scope -> Label -> Bool
-inScope AtEnd _ = True
-inScope (Before l) l' = l' < l
+data Scope = AtEnd | Before !CtxPosition
 
 -- | The scope just before the given variable's element.
 scopeOf :: (Ord v) => v -> Context v loc -> Maybe Scope
-scopeOf v ctx = Before . entryLabel <$> Map.lookup v (bound ctx)
+scopeOf v ctx = Before . entryPosition <$> Map.lookup v (vars ctx)
 
--- | Whether the variable is bound as an existential, solved or not, within
+-- | Whether the variable is declared as an existential, solved or not, within
 -- the scope.
 existentialIn :: (Ord v) => Scope -> v -> Context v loc -> Bool
-existentialIn sc v ctx = case Map.lookup v (bound ctx) of
+existentialIn sc v ctx = case Map.lookup v (vars ctx) of
   Just (Entry l e) | isExistential e -> inScope sc l
   _ -> False
 
--- | Whether the variable is bound as a universal within the scope.
+-- | Whether the variable is declared as a universal within the scope.
 universalIn :: (Ord v) => Scope -> v -> Context v loc -> Bool
-universalIn sc v ctx = case Map.lookup v (bound ctx) of
+universalIn sc v ctx = case Map.lookup v (vars ctx) of
   Just (Entry l e) | isUniversal e -> inScope sc l
   _ -> False
 
--- | @ordered ctx v v2@ holds when @v@ is an existential bound before @v2@'s
+-- | @ordered ctx v v2@ holds when @v@ is an existential declared before @v2@'s
 -- element: Γ[v^][v2^] in the paper's notation.
 ordered :: (Ord v) => Context v loc -> v -> v -> Bool
-ordered ctx v v2 = case Map.lookup v2 (bound ctx) of
+ordered ctx v v2 = case Map.lookup v2 (vars ctx) of
   Just (Entry l _) -> existentialIn (Before l) v ctx
   Nothing -> False
 
--- | The element binding the variable, if any.
+-- | The element declaring the variable, if any.
 lookupElement :: (Ord v) => v -> Context v loc -> Maybe (Element v loc)
-lookupElement v ctx = entryElement <$> Map.lookup v (bound ctx)
+lookupElement v ctx = entryElement <$> Map.lookup v (vars ctx)
 
 lookupSolved :: (Ord v) => Context v loc -> v -> Maybe (Monotype v loc)
 lookupSolved ctx v = case lookupElement v ctx of
@@ -341,9 +323,9 @@ unsolvedExistentials es =
   Set.fromList [v | Var (TypeVar.Existential _ v) <- es]
     `Set.difference` Set.fromList [v | Solved _ v _ <- es]
 
--- | The existentials a segment binds, solved or not.
-boundExistentials :: (Ord v) => CtxSegment v loc -> Set v
-boundExistentials es = Set.fromList [variable e | e <- es, isExistential e]
+-- | The existentials a segment declares, solved or not.
+existentialVars :: (Ord v) => CtxSegment v loc -> Set v
+existentialVars es = Set.fromList [variable e | e <- es, isExistential e]
 
 -- | The existentials of a segment that carry a 'B.Recorded' blank, with the
 -- type each stands for: its solution, or itself when unsolved.
@@ -357,15 +339,15 @@ recorded = Map.fromList . mapMaybe f
 
 -- | Why an element cannot go where it was put.
 data BadContext
-  = -- | Its variable is already bound.
-    Shadowing
-  | -- | Its type mentions an existential not bound before it.
-    UnboundEx
-  | -- | Its type mentions a universal not bound before it.
-    UnboundUn
+  = -- | Its variable is already declared by an element of the context.
+    DuplicateVariable
+  | -- | Its type mentions an existential not declared before it.
+    UndeclaredExistential
+  | -- | Its type mentions a universal not declared before it.
+    UndeclaredUniversal
   | -- | A replacement for a variable's element does not bind the variable
-    -- again, which would unbind every later element that mentions it.
-    NotRebound
+    -- again, which would make every later element that mentions it ill-formed.
+    NotRedeclared
   deriving (Eq, Show)
 
 -- | A refused update: the context as it stood (for 'replace', the elements
@@ -374,40 +356,40 @@ data BadContext
 data Rejected v loc = Rejected (Context v loc) (Element v loc) BadContext
 
 -- Checks an element against the context at the given scope: its variable must
--- not already be bound, and its type's variables must be bound within the
+-- not already be declared, and its type's variables must be declared within the
 -- scope, each as the kind of variable it occurs as.
 check :: (Ord v) => Scope -> Element v loc -> Context v loc -> Maybe BadContext
 check sc e ctx
-  | Just v <- binds e, Map.member v (bound ctx) = Just Shadowing
-  | Refined v _ <- e, not (universalIn sc v ctx) = Just UnboundUn
-  | otherwise = listToMaybe (mapMaybe unbound (Set.toList (freeVarsOf e)))
+  | Just v <- declares e, Map.member v (vars ctx) = Just DuplicateVariable
+  | Refined v _ <- e, not (universalIn sc v ctx) = Just UndeclaredUniversal
+  | otherwise = listToMaybe (mapMaybe undeclared (Set.toList (freeVarsOf e)))
   where
-    unbound (TypeVar.Existential _ v)
+    undeclared (TypeVar.Existential _ v)
       | existentialIn sc v ctx = Nothing
-      | otherwise = Just UnboundEx
-    unbound (TypeVar.Universal v)
+      | otherwise = Just UndeclaredExistential
+    undeclared (TypeVar.Universal v)
       | universalIn sc v ctx = Nothing
-      | otherwise = Just UnboundUn
+      | otherwise = Just UndeclaredUniversal
 
 -- Enters an element that is in the sequence into the maps.
 record :: (Ord v) => Entry v loc -> Context v loc -> Context v loc
 record en@(Entry l e) ctx = case e of
   Refined v t -> ctx {refinements = Map.insertWith (++) v [(l, t)] (refinements ctx)}
-  Ann v loc t -> ctx {bound = Map.insert v en (bound ctx), anns = Map.insert v (loc, t) (anns ctx)}
-  _ -> ctx {bound = Map.insert (variable e) en (bound ctx)}
+  Ann v loc t -> ctx {vars = Map.insert v en (vars ctx), anns = Map.insert v (loc, t) (anns ctx)}
+  _ -> ctx {vars = Map.insert (variable e) en (vars ctx)}
 
 -- Removes an element that has left the sequence from the maps. Only the entry
--- made for this element (by label) is removed, so an element that has already
+-- made for this element (by position) is removed, so an element that has already
 -- been superseded in the maps is left alone.
 forget :: (Ord v) => Entry v loc -> Context v loc -> Context v loc
 forget (Entry l e) ctx = case e of
   Refined v _ ->
     ctx {refinements = Map.update (nonEmpty . List.filter ((/= l) . fst)) v (refinements ctx)}
   _
-    | Just en <- Map.lookup v (bound ctx),
-      entryLabel en == l ->
+    | Just en <- Map.lookup v (vars ctx),
+      entryPosition en == l ->
         ctx
-          { bound = Map.delete v (bound ctx),
+          { vars = Map.delete v (vars ctx),
             anns = case e of
               Ann {} -> Map.delete v (anns ctx)
               _ -> anns ctx
@@ -418,8 +400,8 @@ forget (Entry l e) ctx = case e of
     nonEmpty [] = Nothing
     nonEmpty xs = Just xs
 
--- Appends an element with a fresh label, without checking it.
-append :: (Ord v) => Label -> Element v loc -> Context v loc -> Context v loc
+-- Appends an element with a fresh position, without checking it.
+append :: (Ord v) => CtxPosition -> Element v loc -> Context v loc -> Context v loc
 append l e ctx = record en ctx {entries = entries ctx |> en, counter = counter ctx + 1}
   where
     en = Entry l e
@@ -439,59 +421,102 @@ extends es ctx0 = go ctx0 es
       Left bad -> Left (Rejected ctx e bad)
       Right ctx' -> go ctx' rest
 
--- The position of the element with the given label: the first element at
--- which the running maximum label reaches it.
-atLabel :: Label -> Measure -> Measure -> Bool
-atLabel l pre _ = maxLabel pre >= l
+-- The position of the element with the given position: the first element at
+-- which the running maximum position reaches it.
+atPosition :: CtxPosition -> Measure -> Measure -> Bool
+atPosition l pre _ = maxPosition pre >= l
 
--- | Replaces the element binding a variable with a run of elements, which
+-- | Replaces the element declaring a variable with a run of elements, which
 -- must bind the variable again (typically last, after fresh existentials its
 -- solution mentions). Each replacement is checked in the scope of the
--- replaced element. A variable that is not bound leaves the context as it is.
+-- replaced element. A variable that is not declared leaves the context as it is.
 replace :: (Ord v) => v -> CtxSegment v loc -> Context v loc -> Either (Rejected v loc) (Context v loc)
-replace v es ctx0 = case Map.lookup v (bound ctx0) of
+replace v es ctx0 = case Map.lookup v (vars ctx0) of
   Nothing -> Right ctx0
   Just old@(Entry l oldE)
-    | not (any ((== Just v) . binds) es) -> Left (Rejected ctx0 oldE NotRebound)
-    | Position left _ right <- search (atLabel l) (entries ctx0) ->
+    | not (any ((== Just v) . declares) es) -> Left (Rejected ctx0 oldE NotRedeclared)
+    | Position left _ right <- search (atPosition l) (entries ctx0) ->
         let go ctx [] = Right ctx {entries = entries ctx >< right}
             go ctx (e : rest) = case check (Before l) e ctx of
               Just bad -> Left (Rejected ctx e bad)
               Nothing -> go (append (insertedBefore l (counter ctx)) e ctx) rest
          in go (forget old ctx0) {entries = left} es
-    | otherwise -> error "Context.Structure.replace: a bound variable's label is not in the sequence"
+    | otherwise -> error "Context.Structure.replace: a declared variable's position is not in the sequence"
 
--- | Removes the element binding the variable and everything after it. Returns
--- the context that remains and the removed elements after the binding one.
+-- | Removes the element declaring the variable and everything after it. Returns
+-- the context that remains and the removed elements after the declaring one.
 retract :: (Ord v) => v -> Context v loc -> Maybe (Context v loc, CtxSegment v loc)
-retract v ctx = case Map.lookup v (bound ctx) of
+retract v ctx = case Map.lookup v (vars ctx) of
   Nothing -> Nothing
-  Just (Entry l _) -> case search (atLabel l) (entries ctx) of
+  Just (Entry l _) -> case search (atPosition l) (entries ctx) of
     Position left en right ->
       let gone = en : FO.toList right
           ctx' = List.foldl' (flip forget) ctx gone
        in Just (ctx' {entries = left}, map entryElement (FO.toList right))
-    _ -> error "Context.Structure.retract: a bound variable's label is not in the sequence"
+    _ -> error "Context.Structure.retract: a declared variable's position is not in the sequence"
 
--- | Marks the given existentials, where they are bound with a plain blank, as
+-- | Marks the given existentials, where they are declared with a plain blank, as
 -- retained ('B.Retain'), so that later generalization leaves them in place.
 markRetained :: (Ord v) => Set v -> Context v loc -> Context v loc
 markRetained keep ctx0 = FO.foldl' mark ctx0 keep
   where
-    mark ctx v = case Map.lookup v (bound ctx) of
+    mark ctx v = case Map.lookup v (vars ctx) of
       Just (Entry l e) | Just e' <- retain e -> replaceAt l e' ctx
       _ -> ctx
     retain (Var (TypeVar.Existential B.Blank v)) = Just (Var (TypeVar.Existential B.Retain v))
     retain (Solved B.Blank v t) = Just (Solved B.Retain v t)
     retain _ = Nothing
 
--- Replaces the element at a label with another binding the same variable.
-replaceAt :: (Ord v) => Label -> Element v loc -> Context v loc -> Context v loc
-replaceAt l e ctx = case search (atLabel l) (entries ctx) of
+-- Replaces the element at a position with another declaring the same variable.
+replaceAt :: (Ord v) => CtxPosition -> Element v loc -> Context v loc -> Context v loc
+replaceAt l e ctx = case search (atPosition l) (entries ctx) of
   Position left _ right -> record en ctx {entries = left >< (en <| right)}
   _ -> ctx
   where
     en = Entry l e
+
+-- Helpers ---------------------------------------------------------------------
+
+isExistential :: Element v loc -> Bool
+isExistential (Var (TypeVar.Existential _ _)) = True
+isExistential (Solved {}) = True
+isExistential _ = False
+
+isUniversal :: Element v loc -> Bool
+isUniversal (Var (TypeVar.Universal _)) = True
+isUniversal _ = False
+
+-- The variables occurring in an element's type, which must all be declared
+-- before the element.
+freeVarsOf :: (Ord v) => Element v loc -> Set (TypeVar v loc)
+freeVarsOf (Solved _ _ t) = Type.freeVars (Type.getPolytype t)
+freeVarsOf (Ann _ _ t) = Type.freeVars t
+freeVarsOf (Refined _ t) = Type.freeVars t
+freeVarsOf _ = Set.empty
+
+inScope :: Scope -> CtxPosition -> Bool
+inScope AtEnd _ = True
+inScope (Before l) l' = l' < l
+
+-- Instances -------------------------------------------------------------------
+
+instance Semigroup Measure where
+  Measure l i <> Measure l' i' = Measure (max l l') (i + i')
+
+instance Monoid Measure where
+  mempty = Measure (CtxPosition []) 0
+
+instance Measured Measure (Entry v loc) where
+  measure (Entry l e) = Measure l (case e of Inconsistent _ -> 1; _ -> 0)
+
+instance (Var v) => Eq (Element v loc) where
+  Var v == Var v2 = v == v2
+  Solved _ v t == Solved _ v2 t2 = v == v2 && t == t2
+  Ann v _loc t == Ann v2 _loc2 t2 = v == v2 && t == t2
+  Refined v t == Refined v2 t2 = v == v2 && t == t2
+  Inconsistent v == Inconsistent v2 = v == v2
+  Marker v == Marker v2 = v == v2
+  _ == _ = False
 
 instance (Var v) => Show (Element v loc) where
   show (Var v) = case v of
