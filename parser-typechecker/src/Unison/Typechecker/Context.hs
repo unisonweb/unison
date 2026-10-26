@@ -15,7 +15,8 @@ module Unison.Typechecker.Context
     CompilerBug (..),
     InfoNote (..),
     Cause (..),
-    Context (..),
+    Context,
+    Ctx.elements,
     Warn (..),
     ActualArgCount,
     ExpectedArgCount,
@@ -111,11 +112,7 @@ import Unison.Syntax.TypePrinter qualified as TP
 import Unison.Term qualified as Term
 import Unison.Type qualified as Type
 import Unison.Typechecker.Components (minimize')
-import Unison.Typechecker.Context.Structure hiding
-  ( filter,
-    mapMaybe,
-    partition,
-  )
+import Unison.Typechecker.Context.Structure (BadContext (..), Context, CtxSegment, Element (..), apply, context0, lookupAnn, lookupSolved, variable)
 import Unison.Typechecker.Context.Structure qualified as Ctx
 import Unison.Typechecker.TypeLookup qualified as TL
 import Unison.Typechecker.TypeVar qualified as TypeVar
@@ -430,9 +427,13 @@ substituteSolved ::
   InfoNote v loc ->
   InfoNote v loc
 substituteSolved ctx = \case
-  (SolvedBlank b v t) -> SolvedBlank b v (apply ctx t)
-  VarBinding v loc t -> VarBinding v loc (apply ctx t)
+  (SolvedBlank b v t) -> SolvedBlank b v (subst t)
+  VarBinding v loc t -> VarBinding v loc (subst t)
   i -> i
+  where
+    -- Bound once per segment, so the segment's solutions are collected once
+    -- however many notes are substituted.
+    subst = Ctx.applySegment ctx
 
 -- The typechecker generates synthetic type variables as part of type inference.
 -- This function converts these synthetic type variables to regular named type
@@ -549,16 +550,14 @@ scope p (MT m) = MT \ppe pmcSwitch vars datas effects defs env ->
   mapErrors (scope' p) (m ppe pmcSwitch vars datas effects defs env)
 
 occursAnn :: (Var v) => (Ord loc) => TypeVar v loc -> Context v loc -> Bool
-occursAnn v ctx = any (p . snd) . termVarAnnotations $ info ctx
+occursAnn v ctx = any p (Ctx.annotations ctx)
   where
-    p ty = v `Set.member` ABT.freeVars (apply ctx ty)
+    p (_, _, ty) = v `Set.member` ABT.freeVars (apply ctx ty)
 
 -- | Delete from the end of this context up to and including
 -- the given `Element`. Returns `Nothing` if the element is not found.
 retract0 :: (Var v, Ord loc) => Element v loc -> Context v loc -> Maybe (Context v loc, CtxSegment v loc)
-retract0 e ctx = proj <$> split (Ctx.variable e) ctx
-  where
-    proj (remaining, _, discarded) = (remaining, discarded)
+retract0 e = Ctx.retract (variable e)
 
 -- | Adds a marker to the end of the context, runs the `body` and then discards
 -- from the end of the context up to and including the marker. Returns the result
@@ -597,7 +596,7 @@ markThenCallWithRetract hint k = do
         Just (t, discarded) -> do
           let go (v, (b, sa)) = solveBlank b v (inst sa)
               inst = apply ctx
-          Foldable.traverse_ go (Map.toList . recorded $ info discarded)
+          Foldable.traverse_ go (Map.toList (Ctx.recorded discarded))
           setContext t
           pure discarded
 
@@ -610,19 +609,12 @@ replace ::
   CtxSegment v loc ->
   Context v loc ->
   M v loc (Context v loc)
-replace e es ctx = case split (Ctx.variable e) ctx of
-  Just (l, _, r) -> extends (es <> r) l
-  Nothing -> pure ctx
+replace e es ctx =
+  either (compilerCrash . explainRejected) pure (Ctx.replace (variable e) es ctx)
 
 -- | ordered Γ α β = True <=> Γ[α^][β^]
 ordered :: (Var v, Ord loc) => Context v loc -> v -> v -> Bool
-ordered ctx v v2 = Set.member v (existentials (retract' (existential v2) ctx))
-  where
-    -- Like `retract`, but returns the empty context if retracting would remove
-    -- all elements.
-    retract' ::
-      (Var v, Ord loc) => Element v loc -> Context v loc -> Context v loc
-    retract' e ctx = maybe context0 fst $ retract0 e ctx
+ordered = Ctx.ordered
 
 -- env0 :: Env v loc
 -- env0 = Env 0 context0
@@ -660,9 +652,6 @@ _logContext msg = when debugEnabled $ do
   let !_ = trace ("\n" ++ msg ++ ": " ++ show ctx) ()
   setContext ctx
 
-usedVars :: (Ord v) => Context v loc -> Set v
-usedVars = allBoundVars . info
-
 getContext :: M v loc (Context v loc)
 getContext = gets ctx
 
@@ -693,20 +682,13 @@ modifyContextChecked act seg =
               <> "variable, which would be wrong."
 
 markRetained :: (Var v, Ord loc) => Set v -> M v loc ()
-markRetained keep = setContext . marks =<< getContext
-  where
-    marks (Context eis) = Context (fmap' mark eis)
-    mark (Existential B.Blank v)
-      | v `Set.member` keep = Var (TypeVar.Existential B.Retain v)
-    mark (Solved B.Blank v t)
-      | v `Set.member` keep = Solved B.Retain v t
-    mark p = p
+markRetained keep = setContext . Ctx.markRetained keep =<< getContext
 
 appendContext :: (Var v) => [Element v loc] -> M v loc ()
-appendContext = extendsContext . fromList
+appendContext = extendsContext
 
 extendContext :: (Var v) => Element v loc -> M v loc ()
-extendContext e = extendsContext (single e)
+extendContext e = extendsContext [e]
 
 -- | Mark the current context inconsistent (the DK indexed-types paper's `⊥`):
 -- the branch-local equalities are contradictory, so the enclosing pattern-match
@@ -724,9 +706,7 @@ extendsContext seg = modifyContextChecked extends seg
 -- context.
 replaceContext ::
   (Var v) => Element v loc -> [Element v loc] -> M v loc ()
-replaceContext e es = modifyContextChecked (replace e) seg
-  where
-    seg = fromList es
+replaceContext e es = modifyContextChecked (replace e) es
 
 isReservedIn :: (Var v) => v -> Env v loc -> Bool
 isReservedIn v e = freshId e > Var.freshId v
@@ -735,22 +715,13 @@ allReserved ::
   (Var v) => CtxSegment v loc -> M v loc (Maybe (Element v loc))
 allReserved seg = do
   env <- get
-  let p = all (`isReservedIn` env) . allBoundVars
-  if p (info seg)
-    then pure Nothing
-    else case focusProblem (not . p) seg of
-      Position _ e _ -> pure $ Just e
-      _ ->
-        compilerCrash . OtherBug $
-          "I found an unreserved context extension, but couldn't "
-            <> "narrow it down to a specific example"
-  where
+  let unreserved e = maybe False (not . (`isReservedIn` env)) (Ctx.binds e)
+  pure (find unreserved seg)
 
-universals :: (Ord v) => Context v loc -> Set v
-universals = boundUniversalVars . info
-
-existentials :: (Ord v) => Context v loc -> Set v
-existentials = boundExistentialVars . info
+-- | Whether the variable is bound in the context as an existential, solved or
+-- not.
+boundExistential :: (Ord v) => Context v loc -> v -> Bool
+boundExistential ctx v = Ctx.existentialIn Ctx.AtEnd v ctx
 
 -- | "Reserves" the given variables in this typechecking environment,
 -- i.e. ensures that they won't be returned from `freshenVar` as fresh.
@@ -779,28 +750,30 @@ freshenTypeVar v =
 
 -- | Check that the type is well formed wrt the given `Context`, see Figure 7 of paper
 wellformedType :: (Var v) => Context v loc -> Type v loc -> Bool
-wellformedType c t = case t of
-  Type.Var' (TypeVar.Existential _ v) -> Set.member v (existentials c)
-  Type.Var' (TypeVar.Universal v) -> Set.member v (universals c)
-  Type.Ref' _ -> True
-  Type.Arrow' i o -> wellformedType c i && wellformedType c o
-  Type.Ann' t' _ -> wellformedType c t'
-  Type.App' x y -> wellformedType c x && wellformedType c y
-  Type.Effect1' e a -> wellformedType c e && wellformedType c a
-  Type.Effects' es -> all (wellformedType c) es
-  Type.IntroOuterNamed' _ t -> wellformedType c t
-  Type.Forall' t' ->
-    let (v, ctx2) = extendUniversal c
-     in wellformedType ctx2 (ABT.bind t' (universal' (ABT.annotation t) v))
-  Type.Record' fb fields ->
-    all (wellformedType c) fields && all (wellformedType c) fb
-  _ -> error $ "Match failure in wellformedType: " ++ show t
+wellformedType = wellformedTypeIn Ctx.AtEnd
+
+-- | 'wellformedType' at a place in the context: only variables bound before
+-- that place count as bound.
+wellformedTypeIn :: (Var v) => Ctx.Scope -> Context v loc -> Type v loc -> Bool
+wellformedTypeIn sc c = go Set.empty
   where
-    -- Extend this `Context` with a single variable, guaranteed fresh
-    extendUniversal ctx =
-      let v = Var.freshIn (usedVars ctx) (Var.named "var")
-          ctx' = fromRight (error "wellformedType: Expected Right") $ extend' (Universal v) ctx
-       in (v, ctx')
+    -- `bnd` holds the variables bound by the quantifiers passed on the way
+    -- down, which are well scoped without being in the context.
+    go bnd t = case t of
+      Type.Var' tv | Set.member tv bnd -> True
+      Type.Var' (TypeVar.Existential _ v) -> Ctx.existentialIn sc v c
+      Type.Var' (TypeVar.Universal v) -> Ctx.universalIn sc v c
+      Type.Ref' _ -> True
+      Type.Arrow' i o -> go bnd i && go bnd o
+      Type.Ann' t' _ -> go bnd t'
+      Type.App' x y -> go bnd x && go bnd y
+      Type.Effect1' e a -> go bnd e && go bnd a
+      Type.Effects' es -> all (go bnd) es
+      Type.IntroOuterNamed' _ t' -> go bnd t'
+      Type.ForallNamed' tv t' -> go (Set.insert tv bnd) t'
+      Type.Record' fb fields ->
+        all (go bnd) fields && all (go bnd) fb
+      _ -> error $ "Match failure in wellformedType: " ++ show t
 
 -- | Open closed record types in negative position to a named row variable,
 -- reusing the same variable for records of the same shape. A record type in
@@ -966,8 +939,7 @@ addNotes :: (Var v) => CtxSegment v loc -> M v loc ()
 addNotes seg =
   getAp
     . Map.foldMapWithKey (\v (l, t) -> Ap $ noteVarBinding v l t)
-    . termVarAnnotations
-    $ info seg
+    $ Map.fromList [(v, (l, t)) | Ann v l t <- seg]
 
 explainExtErr ::
   (Var v) =>
@@ -987,53 +959,24 @@ explainExtErr ctx e = IllegalContextExtension ctx e . msg
 
     msg Shadowing =
       edesc <> show v <> " already defined in the context"
+    msg NotRebound =
+      "the replacement for " <> edesc <> show v <> " does not bind it again"
     msg _
       | Ann _ _ t <- e = tmsg t
       | Solved _ _ (Type.getPolytype -> t) <- e = tmsg t
       | otherwise = "a variable occurrence is not well-scoped"
 
-explainExtErrs ::
-  (Var v) =>
-  CtxSegment v loc ->
-  BadContext ->
-  CompilerBug v loc
-explainExtErrs whole err
-  | (pre, e) <- Ctx.culprit whole err =
-      explainExtErr (Context pre) e err
-
--- Adds an element to the context. This takes logarithmic time to
--- aggregate the context information.
-extend' ::
-  (Var v) =>
-  Element v loc ->
-  Context v loc ->
-  Either (CompilerBug v loc) (Context v loc)
-extend' e ctx@(Context c) =
-  first (explainExtErr ctx e) . Ctx.validateSegment $ c |> e
+explainRejected :: (Var v) => Ctx.Rejected v loc -> CompilerBug v loc
+explainRejected (Ctx.Rejected ctx e err) = explainExtErr ctx e err
 
 extends ::
   (Var v) =>
   CtxSegment v loc ->
   Context v loc ->
   M v loc (Context v loc)
-extends r (Context l) = do
+extends r l = do
   addNotes r
-  either (compilerCrash . explainExtErrs whole) pure $
-    Ctx.validateSegment whole
-  where
-    whole = l <> r
-
-extendsAround ::
-  (Var v) =>
-  Context v loc ->
-  Element v loc ->
-  CtxSegment v loc ->
-  M v loc (Context v loc)
-extendsAround ctx@(Context l) e r = do
-  addNotes (single e)
-  either (compilerCrash . explainExtErr ctx e) pure
-    . Ctx.validateSegment
-    $ surround l e r
+  either (compilerCrash . explainRejected) pure (Ctx.extends r l)
 
 -- | doesn't combine notes
 orElse :: M v loc a -> M v loc a -> M v loc a
@@ -1345,8 +1288,8 @@ synthesizeTop ::
   M v loc (Type v loc)
 synthesizeTop tm = do
   (ty, want) <- synthesize tm
-  ctx@(Context out) <- getContext
-  want <- substAndDefaultWanted want out
+  ctx <- getContext
+  want <- substAndDefaultWanted want (Ctx.elements ctx)
   when (not $ null want) . failWith $ do
     AbilityCheckFailure
       []
@@ -1739,7 +1682,7 @@ synthesizeBinding top binding = do
                 k s (Solved b _ (Type.getPolytype -> sa))
                   | retain b = Set.union vs s
                   where
-                    vs = freeExistentials (apply ctx sa)
+                    vs = freeExistentials (Ctx.applySegment ctx sa)
                 k s _ = s
 
                 freeExistentials =
@@ -1752,11 +1695,11 @@ synthesizeBinding top binding = do
                   | v `Set.member` keep =
                       Left . Var $ TypeVar.Existential B.Retain v
                 p e = Right e
-                (repush, discard) = Ctx.partition p ctx
+                (repush, discard) = partitionEithers (map p ctx)
             extendsContext repush
             markRetained keep
             vars <- getVariances
-            let tf = generalizeExistentials discard vars (apply ctx tb)
+            let tf = generalizeExistentials discard vars (Ctx.applySegment ctx tb)
             pure ((tf, []), substituteSolved ctx)
 
 getDataConstructorsAtType :: forall v loc. (Ord loc, Var v) => Type v loc -> M v loc (EnumeratedConstructors (TypeVar v loc) v loc)
@@ -2025,7 +1968,7 @@ checkCase scrutineeType outputType (Term.MatchCase pat guard rhs) = do
     -- unreachable (its index equalities are contradictory). Per the DK
     -- indexed-types paper (`⊥`) it is vacuously well-typed, so we don't check the
     -- guard or body and it demands no abilities.
-    dead <- inconsistent . info <$> getContext
+    dead <- Ctx.inconsistent <$> getContext
     if dead
       then pure []
       else do
@@ -2550,12 +2493,6 @@ hasUnsolvedExistentials t = any isExistential (Set.toList (Type.freeVars t))
 applyM :: (Var v, Ord loc) => Type v loc -> M v loc (Type v loc)
 applyM t = (`apply` t) <$> getContext
 
-lookupAnn :: (Ord v) => Context v loc -> v -> Maybe (Type v loc)
-lookupAnn ctx v = snd <$> Map.lookup v (termVarAnnotations . info $ ctx)
-
-lookupSolved :: (Ord v) => Context v loc -> v -> Maybe (Monotype v loc)
-lookupSolved ctx v = Map.lookup v (solvedExistentials . info $ ctx)
-
 resetContextAfter :: a -> M v loc a -> M v loc a
 resetContextAfter x a = do
   ctx <- getContext
@@ -2983,9 +2920,9 @@ generalizeExistentials ::
   Type v loc
 generalizeExistentials ctx vars ty0 = generalizeP pred ctx ty
   where
-    gens = unsolvedExistentials $ info ctx
+    gens = Ctx.unsolvedExistentials ctx
 
-    ty = discardCovariant vars gens $ apply ctx ty0
+    ty = discardCovariant vars gens $ Ctx.applySegment ctx ty0
     fvs = Type.freeVars ty
 
     pred e
@@ -3001,9 +2938,9 @@ generalizeP ::
   CtxSegment v loc ->
   Type v loc ->
   Type v loc
-generalizeP p ctx0 ty = foldr gen (apply ctx0 ty) ctx
+generalizeP p ctx0 ty = foldr gen (Ctx.applySegment ctx0 ty) ctx
   where
-    ctx = Ctx.mapMaybe p ctx0
+    ctx = mapMaybe p ctx0
 
     gen (tv, v) t
       | tv `ABT.isFreeIn` t =
@@ -3178,9 +3115,9 @@ substAndDefaultWanted ::
   CtxSegment v loc ->
   M v loc (Wanted v loc)
 substAndDefaultWanted want ctx
-  | want <- (fmap . fmap) (Ctx.apply ctx) want,
+  | want <- (fmap . fmap) (Ctx.applySegment ctx) want,
     want <- filter q want,
-    repush <- Ctx.filter keep ctx =
+    repush <- filter keep ctx =
       extendsContext repush *> coalesceWanted want []
   where
     isExistential TypeVar.Existential {} = True
@@ -3194,7 +3131,7 @@ substAndDefaultWanted want ctx
     keep (Var v) = v `Set.member` keeps
     keep _ = False
 
-    outScope = boundExistentialVars $ info ctx
+    outScope = Ctx.boundExistentials ctx
 
     q (_, Type.Var' u) = TypeVar.underlying u `Set.notMember` outScope
     q _ = True
@@ -3623,11 +3560,11 @@ subtype tx ty = scope (InSubtype tx ty) $ do
       subtype es (Type.effects (loc es) [])
       subtype a a2
     go ctx (Type.Var' (TypeVar.Existential b v)) t -- `InstantiateL`
-      | Set.member v (existentials ctx)
+      | boundExistential ctx v
           && notMember v (Type.freeVars t) = do
           instantiateL b v t
     go ctx t (Type.Var' (TypeVar.Existential b v)) -- `InstantiateR`
-      | Set.member v (existentials ctx)
+      | boundExistential ctx v
           && notMember v (Type.freeVars t) = do
           vars <- getVariances
           t <- relax' vars False (extendExistential Var.inferAbility) t
@@ -3660,7 +3597,7 @@ subtype tx ty = scope (InSubtype tx ty) $ do
       -- include everything r2 asks for, so it terminates.
       | not (Map.null missing),
         Type.HasExtraFields (Type.Var' (TypeVar.Existential b v)) <- fb1,
-        Set.member v (existentials ctx),
+        boundExistential ctx v,
         -- An opened row can't gain fields the opened row didn't
         -- mention; it falls through to the missing-field error below.
         not (isOpenedRow v) = do
@@ -4101,11 +4038,11 @@ solve ctx v t = case lookupSolved ctx v of
       else failWith $ TypeMismatch ctx
     where
       same t1 t2 = apply ctx (Type.getPolytype t1) == apply ctx (Type.getPolytype t2)
-  Nothing -> case Ctx.split v ctx of
-    Just (ctxL, Existential blank v, ctxR) ->
-      if wellformedType ctxL (Type.getPolytype t)
-        then Just <$> extendsAround ctxL (Solved blank v t) ctxR
-        else pure Nothing
+  Nothing -> case (Ctx.lookupElement v ctx, Ctx.scopeOf v ctx) of
+    (Just (Existential blank _), Just sc)
+      | wellformedTypeIn sc ctx (Type.getPolytype t) ->
+          either (compilerCrash . explainRejected) (pure . Just) (Ctx.replace v [Solved blank v t] ctx)
+      | otherwise -> pure Nothing
     _ -> compilerCrash $ UnknownExistentialVariable v ctx
 
 expandAbilities ::
