@@ -244,10 +244,11 @@ freshInBoth t1 t2 = freshIn $ Set.union (freeVars t1) (freeVars t2)
 -- replacement rebuilt the path to each occurrence (and its free-variable
 -- sets) thousands of times over.
 --
--- The one-at-a-time result is reproduced exactly, except for the name a
--- binder gets when it must be renamed to keep from capturing a variable free
--- in a replacement: that name is fresh with respect to the same variables,
--- so the two results are alpha-equivalent.
+-- The one-at-a-time result is reproduced up to the names of binders: a
+-- binder is renamed when it could capture a variable free in any
+-- replacement, where the one-at-a-time form renames it only for the
+-- replacements that reach its body, and the fresh name need not be the
+-- same. The two results are alpha-equivalent.
 substsInheritAnnotation ::
   (Foldable f, Functor f, Var v) =>
   [(v, Term f v b)] ->
@@ -262,8 +263,10 @@ substsInheritAnnotation replacements body =
 
 -- | Substitutes every variable in the map at once, avoiding capture; the
 -- annotation of each replacement is inherited from the variable it replaces.
--- The free-variable sets prune the traversal to the paths that reach a
--- replaced variable, as `subst'` does for one variable.
+-- This is `subst'` with a map of variables in place of its one variable: the
+-- key set in place of `v`, and the free variables of all the replacements in
+-- place of `r`. The key set travels with the map because every node tests
+-- its free variables against it, and `Map.keysSet` is linear.
 substsMapInheritAnnotation ::
   forall f v a b.
   (Foldable f, Functor f, Var v) =>
@@ -272,37 +275,25 @@ substsMapInheritAnnotation ::
   Term f v a
 substsMapInheritAnnotation m0 = go m0 (Map.keysSet m0)
   where
-    -- The variables free in any replacement: only a binder among them can
-    -- capture, so any other binder skips the capture check.
-    captures = foldMap freeVars m0
-    -- The term's free variables are the first argument of each
-    -- disjointness check: a term with none decides it without forcing the
-    -- keys, so composing a closed replacement into a map of thousands costs
-    -- nothing.
+    -- the variables a replacement can bring in, which a binder must not capture
+    r = foldMap freeVars m0
     go :: Map v (Term f v b) -> Set v -> Term f v a -> Term f v a
     go m keys t@(Term fvs ann body)
+      -- subtrees containing none of the vars can be skipped. The term's
+      -- free variables come first: a term with none decides this without
+      -- forcing the keys, so composing a closed replacement into a map of
+      -- thousands costs nothing.
       | Set.disjoint fvs keys = t
       | otherwise = case body of
-          Var v -> maybe t (fmap (const ann)) (Map.lookup v m)
+          Var v -> maybe t (fmap (const ann)) (Map.lookup v m) -- var match; perform replacement
           Cycle e -> cycle ann (go m keys e)
           Abs x e
-            -- x shadows the variables it is bound as; what is left may
-            -- not reach into the body at all
-            | Set.disjoint (freeVars e) keys' -> t
-            | Set.member x captures,
-              x' <- freshIn (fvs `Set.union` activeFreeVars) x,
-              x /= x' ->
-                -- rename x to something no replacement reaching the body
-                -- can capture
-                abs ann x' (go m' keys' (rename x x' e))
+            | Set.disjoint (freeVars e) keys' -> t -- x shadows every var reaching here; ignore subtree
+            | Set.member x r -> abs ann x' (go m' keys' (rename x x' e)) -- x would capture; rename it
             | otherwise -> abs ann x (go m' keys' e)
             where
-              (m', keys')
-                | Set.member x keys = (Map.delete x m, Set.delete x keys)
-                | otherwise = (m, keys)
-              -- the variables free in the replacements the body receives
-              activeFreeVars =
-                foldMap (\v -> maybe Set.empty freeVars (Map.lookup v m')) (Set.intersection keys' (freeVars e))
+              (m', keys') = (Map.delete x m, Set.delete x keys) -- x shadows x, if it was a key
+              x' = freshIn (fvs `Set.union` r) x
           Tm body -> tm ann (fmap (go m keys) body)
 
 -- Like `subst`, but the annotation of the replacement is inherited from
