@@ -214,12 +214,16 @@ data Context v loc = Context
     -- | Source of label components; only ever increases.
     counter :: !Word64,
     bound :: !(Map v (Entry v loc)),
+    -- | The 'Ann' elements again, so that a walk of the annotations (which
+    -- the ability checks make per existential) costs the annotations, not
+    -- the context.
+    anns :: !(Map v (loc, Type v loc)),
     refinements :: !(Map v [(Label, Type v loc)])
   }
 
 -- | The empty context
 context0 :: Context v loc
-context0 = Context FT.empty 0 Map.empty Map.empty
+context0 = Context FT.empty 0 Map.empty Map.empty Map.empty
 
 -- | The elements, in order.
 elements :: Context v loc -> [Element v loc]
@@ -270,13 +274,11 @@ lookupSolved ctx v = case lookupElement v ctx of
   _ -> Nothing
 
 lookupAnn :: (Ord v) => Context v loc -> v -> Maybe (Type v loc)
-lookupAnn ctx v = case lookupElement v ctx of
-  Just (Ann _ _ t) -> Just t
-  _ -> Nothing
+lookupAnn ctx v = snd <$> Map.lookup v (anns ctx)
 
 -- | Every term variable annotation in the context.
 annotations :: Context v loc -> [(v, loc, Type v loc)]
-annotations ctx = [(v, l, t) | Entry _ (Ann v l t) <- Map.elems (bound ctx)]
+annotations ctx = [(v, l, t) | (v, (l, t)) <- Map.toList (anns ctx)]
 
 -- | Whether the context holds an 'Inconsistent' element.
 inconsistent :: Context v loc -> Bool
@@ -391,6 +393,7 @@ check sc e ctx
 record :: (Ord v) => Entry v loc -> Context v loc -> Context v loc
 record en@(Entry l e) ctx = case e of
   Refined v t -> ctx {refinements = Map.insertWith (++) v [(l, t)] (refinements ctx)}
+  Ann v loc t -> ctx {bound = Map.insert v en (bound ctx), anns = Map.insert v (loc, t) (anns ctx)}
   _ -> ctx {bound = Map.insert (variable e) en (bound ctx)}
 
 -- Removes an element that has left the sequence from the maps. Only the entry
@@ -400,9 +403,18 @@ forget :: (Ord v) => Entry v loc -> Context v loc -> Context v loc
 forget (Entry l e) ctx = case e of
   Refined v _ ->
     ctx {refinements = Map.update (nonEmpty . List.filter ((/= l) . fst)) v (refinements ctx)}
-  _ ->
-    ctx {bound = Map.update (\en -> if entryLabel en == l then Nothing else Just en) (variable e) (bound ctx)}
+  _
+    | Just en <- Map.lookup v (bound ctx),
+      entryLabel en == l ->
+        ctx
+          { bound = Map.delete v (bound ctx),
+            anns = case e of
+              Ann {} -> Map.delete v (anns ctx)
+              _ -> anns ctx
+          }
+    | otherwise -> ctx
   where
+    v = variable e
     nonEmpty [] = Nothing
     nonEmpty xs = Just xs
 
