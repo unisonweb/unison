@@ -5,6 +5,7 @@ module U.Core.ABT where
 import Control.Lens (Lens', use, (.=))
 import Control.Monad.State
 import Data.Foldable qualified as Foldable
+import Data.Map qualified as Map
 import Data.Set qualified as Set
 import Debug.RecoverRTTI qualified as RTTI
 import U.Core.ABT.Var (Var (freshIn))
@@ -232,13 +233,68 @@ unabs t = ([], t)
 freshInBoth :: (Var v) => Term f v a -> Term f v a -> v -> v
 freshInBoth t1 t2 = freshIn $ Set.union (freeVars t1) (freeVars t2)
 
+-- | Substitutes the replacements in order, with `substInheritAnnotation`'s
+-- semantics for each: the result is what substituting them one at a time,
+-- first to last, gives. So a variable free in a replacement is replaced by
+-- the substitutions after it in the list, and of two replacements for the
+-- same variable the first takes the term's occurrences and the second
+-- reaches only the occurrences inside the first's replacement. The term is
+-- traversed once, not once per replacement: with thousands of replacements,
+-- as when the names of a wide expression are bound, one traversal per
+-- replacement rebuilt the path to each occurrence (and its free-variable
+-- sets) thousands of times over.
+--
+-- The one-at-a-time result is reproduced up to the names of binders: a
+-- binder is renamed when it could capture a variable free in any
+-- replacement, where the one-at-a-time form renames it only for the
+-- replacements that reach its body, and the fresh name need not be the
+-- same. The two results are alpha-equivalent.
 substsInheritAnnotation ::
   (Foldable f, Functor f, Var v) =>
   [(v, Term f v b)] ->
   Term f v a ->
   Term f v a
 substsInheritAnnotation replacements body =
-  foldr (uncurry substInheritAnnotation) body (reverse replacements)
+  substsMapInheritAnnotation (foldr compose Map.empty replacements) body
+  where
+    -- The simultaneous substitution that equals substituting `(v, r)` and
+    -- then the (already composed) substitutions after it.
+    compose (v, r) later = Map.insert v (substsMapInheritAnnotation later r) later
+
+-- | Substitutes every variable in the map at once, avoiding capture; the
+-- annotation of each replacement is inherited from the variable it replaces.
+-- This is `subst'` with a map of variables in place of its one variable: the
+-- key set in place of `v`, and the free variables of all the replacements in
+-- place of `r`. The key set travels with the map because every node tests
+-- its free variables against it, and `Map.keysSet` is linear.
+substsMapInheritAnnotation ::
+  forall f v a b.
+  (Foldable f, Functor f, Var v) =>
+  Map v (Term f v b) ->
+  Term f v a ->
+  Term f v a
+substsMapInheritAnnotation m0 = go m0 (Map.keysSet m0)
+  where
+    -- the variables a replacement can bring in, which a binder must not capture
+    r = foldMap freeVars m0
+    go :: Map v (Term f v b) -> Set v -> Term f v a -> Term f v a
+    go m keys t@(Term fvs ann body)
+      -- subtrees containing none of the vars can be skipped. The term's
+      -- free variables come first: a term with none decides this without
+      -- forcing the keys, so composing a closed replacement into a map of
+      -- thousands costs nothing.
+      | Set.disjoint fvs keys = t
+      | otherwise = case body of
+          Var v -> maybe t (fmap (const ann)) (Map.lookup v m) -- var match; perform replacement
+          Cycle e -> cycle ann (go m keys e)
+          Abs x e
+            | Set.disjoint (freeVars e) keys' -> t -- x shadows every var reaching here; ignore subtree
+            | Set.member x r -> abs ann x' (go m' keys' (rename x x' e)) -- x would capture; rename it
+            | otherwise -> abs ann x (go m' keys' e)
+            where
+              (m', keys') = (Map.delete x m, Set.delete x keys) -- x shadows x, if it was a key
+              x' = freshIn (fvs `Set.union` r) x
+          Tm body -> tm ann (fmap (go m keys) body)
 
 -- Like `subst`, but the annotation of the replacement is inherited from
 -- the previous annotation at each replacement point.

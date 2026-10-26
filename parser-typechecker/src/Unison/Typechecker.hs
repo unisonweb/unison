@@ -277,13 +277,17 @@ typeDirectedNameResolution ppe oldNotes oldType env = do
   case catMaybes resolutions of
     [] -> pure oldType
     resolutions -> do
-      substituted <- traverse substSuggestion resolutions
-      case or substituted of
-        True -> synthesizeAndResolve ppe tdnrEnv
-        False -> do
+      let solved = mapMaybe substitution resolutions
+      case solved of
+        [] -> do
           -- The type hasn't changed
           liftResult $ suggest resolutions
           pure oldType
+        _ -> do
+          modify (substBlanks [(loc, name, r) | (Resolution name _ loc _ _, r) <- solved])
+          for_ solved \(Resolution name _ loc v _, r) ->
+            lift . btw $ Context.Decision (suggestedVar v name) loc r
+          synthesizeAndResolve ppe tdnrEnv
   where
     addTypedComponent :: Context.InfoNote v loc -> State (Env v loc) ()
     addTypedComponent (Context.TopLevelComponent vtts) =
@@ -300,8 +304,6 @@ typeDirectedNameResolution ppe oldNotes oldType env = do
             { cause = Context.UnknownTerm loc (suggestedVar v name) (dedupe suggestions) inferredType,
               path = Seq.empty
             }
-
-    guard x a = if x then Just a else Nothing
 
     suggestedVar :: (Var v) => v -> Text -> v
     suggestedVar v name =
@@ -334,26 +336,41 @@ typeDirectedNameResolution ppe oldNotes oldType env = do
             [x] -> Just x
             _ -> Nothing
 
-    substSuggestion :: Resolution v loc -> TDNR f v loc Bool
-    substSuggestion (Resolution name _ loc v (extractSubstitution -> Just replacement)) = do
-      modify (substBlank name loc solved)
-      lift . btw $ Context.Decision (suggestedVar v name) loc solved
-      pure True
-      where
-        solved =
-          case replacement of
-            Context.ReplacementRef ref -> Term.fromReferent loc ref
-            Context.ReplacementVar var -> Term.var loc var
-    substSuggestion _ = pure False
+    -- The term a resolution substitutes, when its suggestions single one out
+    substitution :: Resolution v loc -> Maybe (Resolution v loc, Term v loc)
+    substitution res@(Resolution _ _ loc _ (extractSubstitution -> Just replacement)) =
+      Just . (res,) $ case replacement of
+        Context.ReplacementRef ref -> Term.fromReferent loc ref
+        Context.ReplacementVar var -> Term.var loc var
+    substitution _ = Nothing
 
-    -- Resolve a `Blank` to a term
-    substBlank :: Text -> loc -> Term v loc -> Term v loc -> Term v loc
-    substBlank s a r = ABT.visitPure go
+    -- Resolves the blanks of a round in one pass over the term. An entry
+    -- `(a, s, r)` resolves the blanks named `s` beneath every node whose
+    -- annotation is `a` to `r`; the pass carries the entries of the enclosing
+    -- nodes down and resolves a blank by the first entry (in list order) for
+    -- its name, so it gives what one pass per entry, in order, would, and a
+    -- round of thousands of resolutions (a wide expression's operators) costs
+    -- one traversal rather than thousands.
+    substBlanks :: [(loc, Text, Term v loc)] -> Term v loc -> Term v loc
+    substBlanks entries = go Map.empty
       where
-        go t = guard (ABT.annotation t == a) $ ABT.visitPure resolve t
-        resolve (Term.Blank' (B.Recorded (B.Resolve loc name)))
-          | name == Text.unpack s = Just (loc <$ r)
-        resolve _ = Nothing
+        byAnnotation :: Map loc [(Int, Text, Term v loc)]
+        byAnnotation =
+          Map.fromListWith (flip (++)) [(a, [(i, s, r)]) | (i, (a, s, r)) <- zip [0 :: Int ..] entries]
+        go active t = case t of
+          Term.Blank' (B.Recorded (B.Resolve loc name))
+            | Just (_, r) <- Map.lookup (Text.pack name) active' -> loc <$ r
+          _ -> case ABT.out t of
+            ABT.Var _ -> t
+            ABT.Cycle e -> ABT.cycle' a (go active' e)
+            ABT.Abs x e -> ABT.abs' a x (go active' e)
+            ABT.Tm f -> ABT.tm' a (go active' <$> f)
+          where
+            a = ABT.annotation t
+            active' = case Map.lookup a byAnnotation of
+              Nothing -> active
+              Just es -> foldl' (\m (i, s, r) -> Map.insertWith earlier s (i, r) m) active es
+            earlier new old = if fst new < fst old then new else old
 
     -- Returns Nothing for irrelevant notes
     resolveNote ::
