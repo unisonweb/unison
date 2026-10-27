@@ -741,9 +741,10 @@ data GInstr comb
       !PackedTag
       -- fields, at most 'wideK'
       !Args
-  | -- Push the boxed form of a wide variable: its value slot when that
-    -- holds an ordinary value, or the heap object built from the witness
-    -- and the field slots. Emitted where a wide variable escapes.
+  | -- Box a wide variable in place: when its value slot holds a witness,
+    -- the heap object built from it and the field slots replaces it, so
+    -- the slot holds an ordinary value from here on and the frame keeps
+    -- its layout. Emitted where a wide variable escapes.
     Box
       -- the variable's value slot
       !Int
@@ -1298,8 +1299,10 @@ data Ctx v
   | Tag (Ctx v)
   | Var v Mem (Ctx v)
   | -- | A wide variable (Unison.Runtime.Wide): 'wideWidth' slots, the
-    -- value slot on top, resolved to that slot.
-    Wide v Mem (Ctx v)
+    -- value slot on top, resolved to that slot. The flag says whether the
+    -- value slot may hold an unboxed constructor: False once the variable
+    -- has been boxed in place on this path ('boxEscapes').
+    Wide v Mem Bool (Ctx v)
   deriving (Show)
 
 -- Represents the context formed by the top-level let rec around a
@@ -1325,11 +1328,12 @@ ctxResolve ctx v = walk 0 ctx
     walk i (Var x m ctx)
       | v == x = Just (i, m)
       | otherwise = walk (i + 1) ctx
-    walk i (Wide x m ctx)
+    walk i (Wide x m _ ctx)
       | v == x = Just (i, m)
       | otherwise = walk (i + wideWidth) ctx
 
--- | Whether a variable is wide in the context (its nearest binding).
+-- | Whether a variable is wide in the context (its nearest binding) and
+-- may hold an unboxed constructor, so an escape has to box it.
 ctxIsWide :: (Var v) => Ctx v -> v -> Bool
 ctxIsWide ctx v = walk ctx
   where
@@ -1339,9 +1343,23 @@ ctxIsWide ctx v = walk ctx
     walk (Var x _ ctx)
       | v == x = False
       | otherwise = walk ctx
-    walk (Wide x _ ctx)
-      | v == x = True
+    walk (Wide x _ unboxed ctx)
+      | v == x = unboxed
       | otherwise = walk ctx
+
+-- | The context after a wide variable has been boxed in place: its value
+-- slot holds an ordinary value from here on.
+markBoxed :: (Var v) => Ctx v -> v -> Ctx v
+markBoxed ctx v = case ctx of
+  ECtx -> ECtx
+  Block ctx -> Block (markBoxed ctx v)
+  Tag ctx -> Tag (markBoxed ctx v)
+  Var x m ctx
+    | v == x -> Var x m ctx
+    | otherwise -> Var x m (markBoxed ctx v)
+  Wide x m unboxed ctx
+    | v == x -> Wide x m False ctx
+    | otherwise -> Wide x m unboxed (markBoxed ctx v)
 
 -- | Whether a variable escapes in a term: is passed as an argument to a
 -- call, a constructor, a record, a primitive, a closure or a reference
@@ -1364,14 +1382,15 @@ escapes v = go
     arm (TAbss _ bo) = go bo
 
 -- | Boxes the wide variables among some argument variables, in order: each
--- one gets a 'Box' and is shadowed by the boxed slot for the rest of the
--- section, so a variable that escapes twice on one path is boxed once.
+-- one gets a 'Box', which boxes it in place, and is marked boxed for the
+-- rest of the section, so a variable that escapes twice on one path is
+-- boxed once. The frame's layout does not change.
 boxEscapes :: (Var v) => Ctx v -> [v] -> (Ctx v -> Emit Section) -> Emit Section
 boxEscapes ctx [] k = k ctx
 boxEscapes ctx (a : as) k
   | Just (i, _) <- ctxResolve ctx a,
     ctxIsWide ctx a =
-      Ins (Box i) <$> boxEscapes (Var a BX ctx) as k
+      Ins (Box i) <$> boxEscapes (markBoxed ctx a) as k
   | otherwise = boxEscapes ctx as k
 
 -- | The argument variables of a let binding that 'emitLet' emits as an
@@ -1393,7 +1412,7 @@ catCtx ECtx r = r
 catCtx (Tag l) r = Tag $ catCtx l r
 catCtx (Block l) r = Block $ catCtx l r
 catCtx (Var v m l) r = Var v m $ catCtx l r
-catCtx (Wide v m l) r = Wide v m $ catCtx l r
+catCtx (Wide v m u l) r = Wide v m u $ catCtx l r
 
 -- Split the context after a particular variable
 breakAfter :: (Eq v) => (v -> Bool) -> Ctx v -> (Ctx v, Ctx v)
@@ -1405,7 +1424,7 @@ breakAfter p (Var v m vs) = (Var v m lvs, rvs)
     (lvs, rvs)
       | p v = (ECtx, vs)
       | otherwise = breakAfter p vs
-breakAfter p (Wide v m vs) = (Wide v m lvs, rvs)
+breakAfter p (Wide v m u vs) = (Wide v m u lvs, rvs)
   where
     (lvs, rvs)
       | p v = (ECtx, vs)
@@ -1426,7 +1445,7 @@ letCtx _ _ vcs ctx = pushCtx vcs ctx
 -- | The context over the values a 'Let' section's binding yields: wide for
 -- one variable.
 yieldCtx :: [(v, Mem)] -> Ctx v -> Ctx v
-yieldCtx [(v, m)] ctx = Wide v m ctx
+yieldCtx [(v, m)] ctx = Wide v m True ctx
 yieldCtx vcs ctx = pushCtx vcs ctx
 
 -- | Whether 'emitLet' emits the binding as a 'Let' section, whose value
@@ -1457,7 +1476,7 @@ wideSlots = go 0
     go i (Block ctx) = go i ctx
     go i (Tag ctx) = go (i + 1) ctx
     go i (Var _ _ ctx) = go (i + 1) ctx
-    go i (Wide _ _ ctx) = (i, wideWidth) : go (i + wideWidth) ctx
+    go i (Wide _ _ _ ctx) = (i, wideWidth) : go (i + wideWidth) ctx
 
 -- | The wide variables of a frame, each as (the index of its value slot
 -- from the top of the frame, its width in slots), in increasing order.
@@ -1624,7 +1643,7 @@ countCtx ctx = counted . C i
 
 countCtx0 :: Int -> Ctx v -> Int
 countCtx0 !i (Var _ _ ctx) = countCtx0 (i + 1) ctx
-countCtx0 !i (Wide _ _ ctx) = countCtx0 (i + wideWidth) ctx
+countCtx0 !i (Wide _ _ _ ctx) = countCtx0 (i + wideWidth) ctx
 countCtx0 i (Tag ctx) = countCtx0 (i + 1) ctx
 countCtx0 i (Block ctx) = countCtx0 i ctx
 countCtx0 i ECtx = i
@@ -1769,7 +1788,7 @@ emitSection rns grpr grpn rec ctx (TLets d us ms bu bo)
         let rt = toEnum . fromIntegral $ dnum rns r
          in addCount wideWidth
               . fmap (Ins (PackWide r (packTags rt n) (emitArgs grpn ctx args)))
-              $ emitSection rns grpr grpn rec (Wide u BX ctx) bo
+              $ emitSection rns grpr grpn rec (Wide u BX True ctx) bo
   | letYields bu =
       emitLet rns grpr grpn rec d (zip us ms) ctx bu $
         emitSection rns grpr grpn rec (ectx ctx) bo
@@ -2040,7 +2059,7 @@ countBlock :: Ctx v -> Int
 countBlock = go 0
   where
     go !i (Var _ _ ctx) = go (i + 1) ctx
-    go !i (Wide _ _ ctx) = go (i + wideWidth) ctx
+    go !i (Wide _ _ _ ctx) = go (i + wideWidth) ctx
     go i (Tag ctx) = go (i + 1) ctx
     go i _ = i
 
@@ -2506,7 +2525,7 @@ emitClosures grpr grpn rec ctx args k =
     allocate ctx (a : as) k
       | Just (i, _) <- ctxResolve ctx a,
         ctxIsWide ctx a =
-          Ins (Box i) <$> allocate (Var a BX ctx) as k
+          Ins (Box i) <$> allocate (markBoxed ctx a) as k
       | Just _ <- ctxResolve ctx a = allocate ctx as k
       | Just n <- rctxResolve rec a =
           let cix = (CIx grpr grpn n)
@@ -2810,7 +2829,7 @@ pushCount = \case
   Info _ -> Just 0
   Pack {} -> Just 1
   PackWide {} -> Just wideWidth
-  Box _ -> Just 1
+  Box _ -> Just 0
   RecPack {} -> Just 1
   RecUnpack fields _ -> Just (V.length fields)
   RecSet {} -> Just 1

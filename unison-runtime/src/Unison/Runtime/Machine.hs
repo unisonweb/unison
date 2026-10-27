@@ -449,9 +449,13 @@ exec _ henv !_activeThreads !stk !k _ (PackWide _ (PackedTag t) args) = do
   zipWithM_ (pokeOff stk) [1 ..] fields
   pure (False, henv, stk, k)
 exec env henv !_activeThreads !stk !k _ (Box i) = do
-  v <- boxSlot env stk i
-  stk <- bump stk
-  poke stk v
+  peekOff stk i >>= \case
+    Val t (UnboxedTypeTag (WitnessTag n)) -> do
+      rty <- readTVarIO (tagRefs env)
+      let pt = PackedTag (fromIntegral t)
+      clo <- buildDataAt stk (rty EC.! TT.typeTag pt) pt n (i + 1 +)
+      pokeOff stk i (BoxedVal clo)
+    _ -> pure ()
   pure (False, henv, stk, k)
 exec _ henv !_activeThreads !stk !k _ (RecPack shape args) = do
   clo <- buildRec stk shape args
