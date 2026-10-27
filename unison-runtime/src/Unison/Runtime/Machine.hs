@@ -11,6 +11,7 @@ module Unison.Runtime.Machine
     Combs,
     Tracer (..),
     apply0,
+    boxSlot,
     baseCCache,
     initialNativeCells,
     cacheAdd,
@@ -58,7 +59,7 @@ import GHC.Stack
 import Unison.Builtin.Decls (exceptionRef)
 import Unison.Builtin.Decls qualified as Rf
 import Unison.Prelude hiding (Text)
-import Unison.Runtime.Wide (widePad, wideOn)
+import Unison.Runtime.Wide (widePad, wideOn, wideWidth)
 import Unison.Reference
   ( Reference,
     Reference' (Builtin),
@@ -441,6 +442,17 @@ exec _ henv !_activeThreads !stk !k _ (Pack r t args) = do
   stk <- bump stk
   bpoke stk clo
   pure (False, henv, stk, k)
+exec _ henv !_activeThreads !stk !k _ (PackWide _ (PackedTag t) args) = do
+  fields <- closureArgs stk args
+  stk <- bumpn stk wideWidth
+  upokeT stk (fromIntegral t) (witnessTag (length fields))
+  zipWithM_ (pokeOff stk) [1 ..] fields
+  pure (False, henv, stk, k)
+exec env henv !_activeThreads !stk !k _ (Box i) = do
+  v <- boxSlot env stk i
+  stk <- bump stk
+  poke stk v
+  pure (False, henv, stk, k)
 exec _ henv !_activeThreads !stk !k _ (RecPack shape args) = do
   clo <- buildRec stk shape args
   stk <- bump stk
@@ -778,7 +790,7 @@ eval' !yld env henv !activeThreads !stk !k r (Match i br) = do
   n <- peekOffN stk i
   eval yld env henv activeThreads stk k r $ selectBranch n br
 eval' !yld env henv !activeThreads !stk !k r (DMatch mr i br) = do
-  (nx, stk) <- dataBranch mr stk br =<< bpeekOff stk i
+  (nx, stk) <- dataBranch mr stk i br =<< bpeekOff stk i
   eval yld env henv activeThreads stk k r nx
 eval' !yld env henv !activeThreads !stk !k r (NMatch _mr i br) = do
   n <- peekOffN stk i
@@ -794,7 +806,7 @@ eval' !yld env henv !activeThreads !stk !k r (RMatch i pu br) = do
         | otherwise -> unhandledAbilityRequest
 eval' !yld env henv !activeThreads !stk !k here (Yield args)
   | asize stk > 0,
-    VArg1 i <- args = do
+    Just i <- yieldedFunction args = do
       checkTicker yld here k
       peekOff stk i >>= apply yld env henv activeThreads stk k False ZArgs
   | otherwise = do
@@ -1553,6 +1565,17 @@ padYield !n !stk
   | otherwise = pure stk
 {-# INLINE padYield #-}
 
+-- | The slot of the one value a yield delivers, when there are pending
+-- arguments to apply it to: a single slot, or the value slot of a wide
+-- variable yielded as its slots (which holds a function then, never a
+-- witness).
+yieldedFunction :: Args -> Maybe Int
+yieldedFunction = \case
+  VArg1 i -> Just i
+  VArgR i l | l == wideWidth -> Just i
+  _ -> Nothing
+{-# INLINE yieldedFunction #-}
+
 -- | How many values a yield delivers, before they are moved.
 yieldedCount :: Stack -> Args -> Int
 yieldedCount stk = \case
@@ -1578,14 +1601,14 @@ yield !yld env henv0 !activeThreads !stk = leap
     leap (Mark a ps cs k) | HEnv aenv0 denv0 <- henv0 = do
       denv <- evaluate $ cs <> EC.withoutKeys denv0 ps
       let h = denv0 EC.! EC.findMin ps
-      v <- peek stk
+      v <- boxSlot env stk 0
       stk <- bump stk
       bpoke stk $ Data1 Rf.effectRef (PackedTag 0) v
       stk <- adjustArgs stk a
       henv <- evaluate $ HEnv aenv0 denv
       apply yld env henv activeThreads stk k False (VArg1 0) h
     leap (AMark a aenv (ARef r) k) = do
-      v <- peek stk
+      v <- boxSlot env stk 0
       h <- BoxedVal <$> readIORef r
       stk <- bump stk
       bpoke stk $ Data1 Rf.effectRef (PackedTag 0) v
@@ -1643,8 +1666,17 @@ selectBranch _ (TestY {}) = error "impossible"
 -- in a variable number of values being put on the stack. Default cases
 -- uniformly expect _no_ values to be added to the stack.
 dataBranch ::
-  Maybe Reference -> Stack -> MBranch -> Closure -> IO (MSection, Stack)
-dataBranch mrf stk br = \case
+  Maybe Reference -> Stack -> Int -> MBranch -> Closure -> IO (MSection, Stack)
+dataBranch mrf stk i br = \case
+  -- an unboxed constructor in a wide variable's value slot (slot i): the
+  -- tag is the slot's word and the fields are copied up from the slots
+  -- below it, in the order a heap object's fields are pushed
+  UnboxedTypeTag (WitnessTag n) -> do
+    t <- upeekOff stk i
+    pick (PackedTag (fromIntegral t)) n do
+      fields <- for [1 .. n] \j -> peekOff stk (i + j)
+      stk <- bumpn stk n
+      stk <$ zipWithM_ (pokeOff stk) [0 ..] fields
   -- one case on the closure: each shape looks its arm up and pushes its
   -- fields in the same alternative (a second dispatch to push them cost a
   -- few nanoseconds per match, 2026-10-15)
@@ -1772,6 +1804,7 @@ dataBranchClosureError mrf clo =
       UnboxedTypeTag FloatTag -> "a floating point number"
       UnboxedTypeTag IntTag -> "an integer"
       UnboxedTypeTag NatTag -> "a natural number"
+      UnboxedTypeTag (WitnessTag _) -> "an unboxed constructor"
       TextC {} -> "a builtin value of type `" <> prettyRef Rf.textRef <> "`"
       ListC {} -> "a builtin value of type `" <> prettyRef Rf.listRef <> "`"
       BytesC {} -> "a builtin value of type `" <> prettyRef Rf.bytesRef <> "`"
@@ -2334,7 +2367,7 @@ reflectValue0 cmbs rty rtm = goV0
           -- there), which is what a process without wide frames writes
           Captured k a segs -> do
             slots <- traverseAccumSegToList pure segs
-            ANF.Cont <$> traverse goV (narrowCont layout k a slots) <*> goK k
+            ANF.Cont <$> traverse goV (narrowCont layout (boxVal rty) k a slots) <*> goK k
           TextC t -> pure (ANF.BLit (ANF.Text t))
           ListC s -> ANF.BLit . ANF.List . Seq.fromList <$> traverse goV (toList s)
           BytesC b -> pure (ANF.BLit (ANF.Bytes b))
@@ -2694,6 +2727,26 @@ reifyValue0 (combs, rty, rtm, rrLookup, rfms) = goV
     goL (ANF.BigInt i) = pure $ encodeVal i
     goL (ANF.BigNat n) = pure $ encodeVal n
 
+-- | The boxed form of a wide variable's value slot, given its field
+-- slots: the heap object of an unboxed constructor, or the value itself.
+boxVal :: EnumMap Word64 Reference -> Val -> [Val] -> Val
+boxVal rty v fields = case v of
+  Val t (UnboxedTypeTag (WitnessTag n)) ->
+    let pt = PackedTag (fromIntegral t)
+     in BoxedVal (DataC (rty EC.! TT.typeTag pt) pt (take n fields))
+  _ -> v
+
+-- | The boxed form of the wide variable whose value slot is slot i
+-- ('boxVal' on the stack).
+boxSlot :: CCache p -> Stack -> Int -> IO Val
+boxSlot env stk i =
+  peekOff stk i >>= \case
+    Val t (UnboxedTypeTag (WitnessTag n)) -> do
+      rty <- readTVarIO (tagRefs env)
+      let pt = PackedTag (fromIntegral t)
+      BoxedVal <$> buildDataAt stk (rty EC.! TT.typeTag pt) pt n (i + 1 +)
+    v -> pure v
+
 -- | The frame layout of a let body's combinator: the value slot of each
 -- wide variable of the frame, counting from the top ('wideSlots' in
 -- MCode.hs); empty for anything else.
@@ -2722,8 +2775,8 @@ contFrames = go []
 -- writer had wide frames. The slots are the pending arguments at the
 -- capture, then each frame's slots and its own pending arguments,
 -- innermost frame first.
-narrowCont :: (CombIx -> FrameLayout) -> K -> Int -> [a] -> [a]
-narrowCont layout k a0 vs0 = top ++ go (contFrames k) rest
+narrowCont :: (CombIx -> FrameLayout) -> (a -> [a] -> a) -> K -> Int -> [a] -> [a]
+narrowCont layout box k a0 vs0 = top ++ go (contFrames k) rest
   where
     (top, rest) = splitAt a0 vs0
     go [] vs = vs
@@ -2736,7 +2789,7 @@ narrowCont layout k a0 vs0 = top ++ go (contFrames k) rest
         walk _ [] xs = xs
         walk i ws@((w, width) : ws') xs
           | i < w, (pre, post) <- splitAt (w - i) xs = pre ++ walk w ws post
-          | x : xs' <- xs = x : walk (w + width) ws' (drop (width - 1) xs')
+          | x : xs' <- xs = box x (take (width - 1) xs') : walk (w + width) ws' (drop (width - 1) xs')
           | otherwise = []
 
 -- | The inverse of 'narrowCont' for this process's frames: each wide

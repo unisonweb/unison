@@ -12,7 +12,11 @@ change would be and roughly what it would buy; when one is done it leaves this f
 Right now, an `Enum` / nullary constructor is three words that never change; like GHC's
 own nullary constructors, one per (type, constructor) could be shared instead of allocated
 at every `Pack`. The constant pool already holds one per `Pack … ZArgs` site for native code; the
-interpreter's `buildData` would read a per-cache table of them.
+interpreter's `buildData` would read a per-cache table of them. How much it is worth: a
+census of the interpreter on 2026-10-27 counted nullary constructors as 13.0M of the 20.1M
+`Pack`s of `jitSuite` and 17.8M of the 28.5M of the library `suite` (the convention of
+delayed-data-construction.local.md keeps the returned ones, about a quarter, out of the
+heap; the rest escape into structures and still allocate).
 
 ### One allocation for several `Pack`s
 

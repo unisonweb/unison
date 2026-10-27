@@ -113,6 +113,7 @@ import Unison.Runtime.Machine
     Tracer (..),
     apply0,
     baseCCache,
+    boxSlot,
     cacheAdd,
     cacheAdd0,
     eval0,
@@ -776,8 +777,8 @@ prepareEvaluation ppe tm ctx = do
       Just r -> r
       Nothing -> error "prepareEvaluation: could not remap main ref"
 
-watchHook :: IORef Val -> XStack -> IO ()
-watchHook r xstk = peek (packXStack xstk) >>= writeIORef r
+watchHook :: CCache p -> IORef Val -> XStack -> IO ()
+watchHook cc r xstk = boxSlot cc (packXStack xstk) 0 >>= writeIORef r
 
 backReferenceTm ::
   EnumMap Word64 Reference ->
@@ -817,7 +818,7 @@ evalInContext ::
 evalInContext ppe ctx prof activeThreads w = do
   r <- newIORef (boxedVal BlackHole)
   crs <- readTVarIO (combRefs $ ccache ctx)
-  let hook = watchHook r
+  let hook = watchHook (ccache ctx) r
       decom = decompileCtx crs ctx
       mkResponse errs =
         if Set.null errs

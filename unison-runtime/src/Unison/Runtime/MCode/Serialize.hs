@@ -177,6 +177,8 @@ data InstrT
   | NewForeignPtrT
   | AddFinalizerT
   | RecPackT
+  | PackWideT
+  | BoxT
   | RecUnpackT
   | RecSetT
   | MkCallbackT
@@ -208,6 +210,8 @@ instance Tag InstrT where
   tag2word RecUnpackT = 25
   tag2word RecSetT = 26
   tag2word MkCallbackT = 27
+  tag2word PackWideT = 28
+  tag2word BoxT = 29
 
   word2tag 0 = pure Prim1T
   word2tag 1 = pure Prim2T
@@ -235,6 +239,8 @@ instance Tag InstrT where
   word2tag 25 = pure RecUnpackT
   word2tag 26 = pure RecSetT
   word2tag 27 = pure MkCallbackT
+  word2tag 28 = pure PackWideT
+  word2tag 29 = pure BoxT
   word2tag n = unknownTag "InstrT" n
 
 putInstr :: GInstr cix -> Builder
@@ -249,6 +255,8 @@ putInstr = \case
   (Name r a) -> putTag NameT <> putRef r <> putArgs a
   (Info s) -> putTag InfoT <> putString s
   (Pack r w a) -> putTag PackT <> putReference r <> putPackedTag w <> putArgs a
+  (PackWide r w a) -> putTag PackWideT <> putReference r <> putPackedTag w <> putArgs a
+  (Box i) -> putTag BoxT <> pInt i
   (RecPack shape args) -> putTag RecPackT <> putRecordShape shape <> putArgs args
   (RecUnpack fields recIndex) -> putTag RecUnpackT <> putFoldable putFieldRef fields <> pInt recIndex
   (RecSet field args) -> putTag RecSetT <> putFieldRef field <> putArgs args
@@ -304,6 +312,8 @@ getInstr =
     NameT -> Name <$> getRef <*> getArgs
     InfoT -> Info <$> getString
     PackT -> Pack <$> getReference <*> getPackedTag <*> getArgs
+    PackWideT -> PackWide <$> getReference <*> getPackedTag <*> getArgs
+    BoxT -> Box <$> gInt
     LitT -> Lit <$> getLit
     PrintT -> Print <$> gInt
     ResetT -> Reset <$> getEnumSet gWord <*> gInt <*> getMaybe gInt

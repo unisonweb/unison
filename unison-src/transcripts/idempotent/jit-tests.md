@@ -368,6 +368,299 @@ churn k n =
            49999000000
 ```
 
+## Delayed data construction
+
+Small constructors travel between a return and a match in stack slots
+(`UNISON_WIDE=on`, Unison.Runtime.Wide): a constructor returned by an unknown
+callee and matched by the caller, a state tuple threaded through calls, and
+every way a value can escape, which boxes it.
+
+``` unison
+use Nat + - * / == < > <= >=
+
+structural type Cons a = Nil | Cons a (Cons a)
+
+Cons.fromList : [a] -> Cons a
+Cons.fromList = cases
+  [] -> Cons.Nil
+  x +: xs -> Cons.Cons x (Cons.fromList xs)
+
+Cons.toList : Cons a -> [a]
+Cons.toList = cases
+  Cons.Nil -> []
+  Cons.Cons h t -> h +: Cons.toList t
+
+-- the motivating case: an unknown f returns an Optional, matched at once
+Cons.filterMap : (a ->{g} Optional b) -> Cons a ->{g} Cons b
+Cons.filterMap f = cases
+  Cons.Nil -> Cons.Nil
+  Cons.Cons h t -> match f h with
+    None -> Cons.filterMap f t
+    Some b -> Cons.Cons b (Cons.filterMap f t)
+
+Cons.head : Cons a -> Optional a
+Cons.head = cases
+  Cons.Nil -> None
+  Cons.Cons h _ -> Some h
+
+evens : Nat -> Optional Nat
+evens n = if Nat.mod n 2 == 0 then Some (n * 10) else None
+
+-- a state tuple returned by a non-tail call, matched later
+step : Nat -> Nat -> (Nat, Nat)
+step acc i = (acc + i, i + 1)
+
+sumTo : Nat -> Nat
+sumTo n =
+  go acc i =
+    if i > n then acc
+    else
+      p = step acc i
+      match p with (acc', i') -> go acc' i'
+  go 0 0
+
+structural type Res = Ok Nat | Err Text
+
+parse : Nat -> Res
+parse n = if n < 100 then Res.Ok (n * 2) else Res.Err "too big"
+
+results : [Nat] -> (Nat, Text)
+results = cases
+  [] -> (0, "")
+  n +: ns -> match results ns with
+    (oks, errs) -> match parse n with
+      Res.Ok v -> (oks + v, errs)
+      Res.Err e -> (oks, errs ++ e ++ ";")
+
+-- a bound constructor that is only returned, and one that is matched and
+-- then returned
+pair : Nat -> (Nat, Nat)
+pair n =
+  p = (n, n + 1)
+  p
+
+both : Nat -> (Nat, Nat)
+both n =
+  p = (n, n * 3)
+  match p with (a, b) -> if a < b then p else (b, a)
+
+-- escapes: into a list, a closure, a reference, a constructor, a record,
+-- a comparison, a hash, and twice on one path
+escapeList : Nat -> [(Nat, Nat)]
+escapeList n =
+  p = step n 1
+  [p, p]
+
+escapeClosure : Nat -> '(Nat, Nat)
+escapeClosure n =
+  p = step n 2
+  'p
+
+escapeRef : Nat -> (Nat, Nat)
+escapeRef n = Scope.run do
+  r = Scope.ref (0, 0)
+  p = step n 3
+  Ref.write r p
+  Ref.read r
+
+escapeNested : Nat -> Optional (Nat, Nat)
+escapeNested n =
+  p = step n 4
+  Some p
+
+escapeRecord : Nat -> { p: (Nat, Nat), q: Optional Nat }
+escapeRecord n = { p: step n 5, q: evens n }
+
+escapeCompare : Nat -> (Boolean, Boolean, Int)
+escapeCompare n =
+  p = step n 6
+  q = step n 6
+  (p Universal.== q, p Universal.< (n, 0), Universal.compare p (step n 7))
+
+escapeTwice : Nat -> (Nat, (Nat, Nat), (Nat, Nat))
+escapeTwice n =
+  p = step n 8
+  first = match p with (a, _) -> a
+  (first, p, p)
+
+-- nullary constructors in flight and escaping
+nullary : Nat -> (Optional Nat, [Optional Nat], Boolean)
+nullary n =
+  o = if n == 0 then None else Some n
+  flag = match o with
+    None -> false
+    Some _ -> true
+  (o, [o, None], flag)
+
+-- a let-bound function value applied to pending arguments
+same : a -> a
+same a = a
+
+adder : Nat -> (Nat -> Nat)
+adder x =
+  f = same (y -> x + y)
+  f
+
+applyAdder : Nat -> Nat -> Nat
+applyAdder x y = adder x y
+
+-- a continuation captured inside a frame that holds an unboxed pair, and
+-- resumed twice
+structural ability Ask where
+  ask : Nat
+
+twice : '{Ask} Nat -> Nat
+twice body =
+  h = cases
+    { Ask.ask -> k } -> (handle k 1 with h) + (handle k 2 with h)
+    { x } -> x
+  handle !body with h
+
+askPair : Nat -> Nat
+askPair n =
+  twice do
+    p = step n 9
+    a = Ask.ask
+    match p with (acc, i) -> acc + i + a
+
+> Cons.toList (Cons.filterMap evens (Cons.fromList [1, 2, 3, 4, 5, 6]))
+> Cons.head (Cons.fromList [7, 8])
+> Cons.head (Cons.fromList [])
+> sumTo 100
+> results [1, 200, 3, 400]
+> pair 5
+> both 5
+> both 0
+> escapeList 1
+> !(escapeClosure 1)
+> escapeRef 1
+> escapeNested 1
+> escapeRecord 2
+> escapeCompare 3
+> escapeTwice 4
+> nullary 0
+> nullary 5
+> applyAdder 3 4
+> askPair 10
+> Universal.murmurHashUntyped (step 1 2) == Universal.murmurHashUntyped (3, 3)
+```
+
+``` ucm :added-by-ucm
+  Loading changes detected in scratch.u.
+
+  + structural ability Ask
+  + structural type Cons a
+  + structural type Res
+
+  + adder          : Nat -> Nat -> Nat
+  + applyAdder     : Nat -> Nat -> Nat
+  + askPair        : Nat -> Nat
+  + both           : Nat -> (Nat, Nat)
+  + Cons.filterMap : (a ->{g} Optional b) -> Cons a ->{g} Cons b
+  + Cons.fromList  : [a] -> Cons a
+  + Cons.head      : Cons a -> Optional a
+  + Cons.toList    : Cons a -> [a]
+  + escapeClosure  : Nat -> '(Nat, Nat)
+  + escapeCompare  : Nat -> (Boolean, Boolean, Int)
+  + escapeList     : Nat -> [(Nat, Nat)]
+  + escapeNested   : Nat -> Optional (Nat, Nat)
+  + escapeRecord   : Nat -> {p: (Nat, Nat), q: Optional Nat}
+  + escapeRef      : Nat -> (Nat, Nat)
+  + escapeTwice    : Nat -> (Nat, (Nat, Nat), (Nat, Nat))
+  + evens          : Nat -> Optional Nat
+  + nullary        : Nat
+                     -> (Optional Nat, [Optional Nat], Boolean)
+  + pair           : Nat -> (Nat, Nat)
+  + parse          : Nat -> Res
+  + results        : [Nat] -> (Nat, Text)
+  + same           : a -> a
+  + step           : Nat -> Nat -> (Nat, Nat)
+  + sumTo          : Nat -> Nat
+  + twice          : '{Ask} Nat -> Nat
+
+  Run `update` to apply these changes to your codebase.
+
+    148 | > Cons.toList (Cons.filterMap evens (Cons.fromList [1, 2, 3, 4, 5, 6]))
+            ⧩
+            [20, 40, 60]
+
+    149 | > Cons.head (Cons.fromList [7, 8])
+            ⧩
+            Some 7
+
+    150 | > Cons.head (Cons.fromList [])
+            ⧩
+            None
+
+    151 | > sumTo 100
+            ⧩
+            5050
+
+    152 | > results [1, 200, 3, 400]
+            ⧩
+            (8, "too big;too big;")
+
+    153 | > pair 5
+            ⧩
+            (5, 6)
+
+    154 | > both 5
+            ⧩
+            (5, 15)
+
+    155 | > both 0
+            ⧩
+            (0, 0)
+
+    156 | > escapeList 1
+            ⧩
+            [(2, 2), (2, 2)]
+
+    157 | > !(escapeClosure 1)
+            ⧩
+            (3, 3)
+
+    158 | > escapeRef 1
+            ⧩
+            (4, 4)
+
+    159 | > escapeNested 1
+            ⧩
+            Some (5, 5)
+
+    160 | > escapeRecord 2
+            ⧩
+            {p: (7, 6), q: Some 20}
+
+    161 | > escapeCompare 3
+            ⧩
+            (true, false, -1)
+
+    162 | > escapeTwice 4
+            ⧩
+            (12, (12, 9), (12, 9))
+
+    163 | > nullary 0
+            ⧩
+            (None, [None, None], false)
+
+    164 | > nullary 5
+            ⧩
+            (Some 5, [Some 5, None], true)
+
+    165 | > applyAdder 3 4
+            ⧩
+            7
+
+    166 | > askPair 10
+            ⧩
+            61
+
+    167 | > Universal.murmurHashUntyped (step 1 2) == Universal.murmurHashUntyped (3, 3)
+            ⧩
+            true
+```
+
 ## Calls to function values
 
 ``` unison
@@ -805,7 +1098,7 @@ chooseAsk thunk =
 
   + boundedStore  : Nat -> '{g, Store Nat} a ->{g, Exception} a
   + catchE        : '{Exception} a -> Either Text a
-  + chooseAsk     : '{g, Ask} a ->{g, Choose, Ask} a
+  + chooseAsk     : '{g, Ask} a ->{g, Ask, Choose} a
   + constAsk      : Nat -> '{g, Ask} a ->{g} a
   + counted       : '{Counter} (Nat, Nat)
   + countingStore : s

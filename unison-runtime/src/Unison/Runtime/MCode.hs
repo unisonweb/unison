@@ -159,7 +159,7 @@ import Unison.Runtime.ANF
     pattern TVar,
   )
 import Unison.Runtime.ANF qualified as ANF
-import Unison.Runtime.Wide (wideWidth)
+import Unison.Runtime.Wide (wideK, wideOn, wideWidth)
 import Unison.Runtime.Foreign.Function.Type (ForeignFunc (..), foreignFuncBuiltinName)
 import Unison.Runtime.InternalError (internalBug)
 import Unison.Util.BiMap (BiMap)
@@ -732,6 +732,21 @@ data GInstr comb
   | -- Dump some debugging information about the machine state to
     -- the screen.
     Info !String -- prefix for output
+  | -- Write a small data constructor as a wide variable
+    -- (Unison.Runtime.Wide): 'wideWidth' new slots, the value slot on top
+    -- holding the packed tag and the witness of the field count, the
+    -- fields in the slots below. Nothing is allocated.
+    PackWide
+      !Reference
+      !PackedTag
+      -- fields, at most 'wideK'
+      !Args
+  | -- Push the boxed form of a wide variable: its value slot when that
+    -- holds an ordinary value, or the heap object built from the witness
+    -- and the field slots. Emitted where a wide variable escapes.
+    Box
+      -- the variable's value slot
+      !Int
   | -- Pack a record type into a closure and place it on the stack.
     -- The args arrive in ascending field-name order, matching the shape's
     -- slot order.
@@ -1314,6 +1329,60 @@ ctxResolve ctx v = walk 0 ctx
       | v == x = Just (i, m)
       | otherwise = walk (i + wideWidth) ctx
 
+-- | Whether a variable is wide in the context (its nearest binding).
+ctxIsWide :: (Var v) => Ctx v -> v -> Bool
+ctxIsWide ctx v = walk ctx
+  where
+    walk ECtx = False
+    walk (Block ctx) = walk ctx
+    walk (Tag ctx) = walk ctx
+    walk (Var x _ ctx)
+      | v == x = False
+      | otherwise = walk ctx
+    walk (Wide x _ ctx)
+      | v == x = True
+      | otherwise = walk ctx
+
+-- | Whether a variable escapes in a term: is passed as an argument to a
+-- call, a constructor, a record, a primitive, a closure or a reference
+-- update. Matching on it, returning it and forcing it do not count, so a
+-- small constructor bound to a variable that does not escape is never
+-- allocated ('PackWide').
+escapes :: (Var v) => v -> RNormal v -> Bool
+escapes v = go
+  where
+    go = \case
+      TLets _ _ _ bn bo -> go bn || go bo
+      TName _ _ args bo -> v `elem` args || go bo
+      TMatch _ bs -> any arm (toList bs)
+      TShift _ _ e -> go e
+      THnd _ _ _ e -> go e
+      TLocal _ e -> go e
+      TApp _ args -> v `elem` args
+      TUpdate _ _ x -> x == v
+      _ -> False
+    arm (TAbss _ bo) = go bo
+
+-- | Boxes the wide variables among some argument variables, in order: each
+-- one gets a 'Box' and is shadowed by the boxed slot for the rest of the
+-- section, so a variable that escapes twice on one path is boxed once.
+boxEscapes :: (Var v) => Ctx v -> [v] -> (Ctx v -> Emit Section) -> Emit Section
+boxEscapes ctx [] k = k ctx
+boxEscapes ctx (a : as) k
+  | Just (i, _) <- ctxResolve ctx a,
+    ctxIsWide ctx a =
+      Ins (Box i) <$> boxEscapes (Var a BX ctx) as k
+  | otherwise = boxEscapes ctx as k
+
+-- | The argument variables of a let binding that 'emitLet' emits as an
+-- instruction: the ones that have to be boxed first when they are wide.
+-- A binding that becomes a 'Let' section boxes its own.
+instrArgs :: (Var v) => RNormal v -> [v]
+instrArgs = \case
+  TApp _ args -> args
+  TUpdate _ _ x -> [x]
+  _ -> []
+
 -- Add a sequence of variables and calling conventions to the context.
 pushCtx :: [(v, Mem)] -> Ctx v -> Ctx v
 pushCtx new old = foldr (uncurry Var) old new
@@ -1679,10 +1748,10 @@ emitSection rns grpr grpn rec ctx (TLets d us ms bu bo)
       case (d, us, bu) of
         (Direct, [u], TPrm p _)
           | u == v,
-            Just (i, UN) <- ctxResolve ectx v,
+            Just (i, UN) <- ctxResolve (ectx ctx) v,
             all (\(t, (ccs, TAbss vs _)) -> Just (length (zip vs ccs)) == sumFields p t) (EC.mapToList cs) ->
               emitLet rns grpr grpn rec d (zip us ms) ctx bu $
-                emitSumMatching rns grpr grpn rec ectx v i cs
+                emitSumMatching rns grpr grpn rec (ectx ctx) v i cs
         _ ->
           internalBug [] $
             "emitSection: an unboxed sum match that is not the body of a direct let of its tag over a primitive yielding that sum, with each arm binding the primitive's fields for its tag: " ++ show (TLets d us ms bu bo)
@@ -1690,11 +1759,26 @@ emitSection rns grpr grpn rec ctx (TLets d us ms bu bo)
     n /= length us =
       internalBug [] $
         "emitSection: a let of " ++ show (length us) ++ " names whose binding yields " ++ show n ++ " values: " ++ show bu
-  | otherwise =
+  -- a small constructor that never escapes stays in slots
+  | wideOn,
+    [u] <- us,
+    TApp (FCon r n) args <- bu,
+    length args <= wideK,
+    not (escapes u bo) =
+      boxEscapes ctx args $ \ctx ->
+        let rt = toEnum . fromIntegral $ dnum rns r
+         in addCount wideWidth
+              . fmap (Ins (PackWide r (packTags rt n) (emitArgs grpn ctx args)))
+              $ emitSection rns grpr grpn rec (Wide u BX ctx) bo
+  | letYields bu =
       emitLet rns grpr grpn rec d (zip us ms) ctx bu $
-        emitSection rns grpr grpn rec ectx bo
+        emitSection rns grpr grpn rec (ectx ctx) bo
+  | otherwise =
+      boxEscapes ctx (instrArgs bu) $ \ctx ->
+        emitLet rns grpr grpn rec d (zip us ms) ctx bu $
+          emitSection rns grpr grpn rec (ectx ctx) bo
   where
-    ectx = letCtx d bu (zip us ms) ctx
+    ectx ctx = letCtx d bu (zip us ms) ctx
 emitSection rns grpr grpn rec ctx (TName u (Left f) args bo) =
   emitClosures grpr grpn rec ctx args $ \ctx as ->
     let cix = (CIx f (cnum rns f) 0)
@@ -1712,27 +1796,33 @@ emitSection rns grpr grpn rec ctx (TName u (Right v) args bo)
               <$> emitSection rns grpr grpn rec (Var u BX ctx) bo
   | otherwise = emitSectionVErr v
 emitSection _ grpr grpn rec ctx (TVar v)
+  | Just (i, _) <- ctxResolve ctx v,
+    wideOn,
+    ctxIsWide ctx v =
+      countCtx ctx . Yield $ VArgR i wideWidth
   | Just (i, _) <- ctxResolve ctx v = countCtx ctx . Yield $ VArg1 i
   | Just j <- rctxResolve rec v =
       let cix = (CIx grpr grpn j)
        in countCtx ctx $ App False (Env cix cix) $ ZArgs
   | otherwise = emitSectionVErr v
 emitSection _ _ grpn _ ctx (TPrm p args) =
-  -- 3 is a conservative estimate of how many extra stack slots
-  -- a prim op will need for its results.
-  addCount 3
-    . countCtx ctx
-    . Ins (emitPOp p $ emitArgs grpn ctx args)
-    . Yield
-    . VArgV
-    $ countBlock ctx
+  boxEscapes ctx args $ \ctx ->
+    -- 3 is a conservative estimate of how many extra stack slots
+    -- a prim op will need for its results.
+    addCount 3
+      . countCtx ctx
+      . Ins (emitPOp p $ emitArgs grpn ctx args)
+      . Yield
+      . VArgV
+      $ countBlock ctx
 emitSection _ _ grpn _ ctx (TFOp p args) =
-  addCount 3
-    . countCtx ctx
-    . Ins (emitFOp p $ emitArgs grpn ctx args)
-    . Yield
-    . VArgV
-    $ countBlock ctx
+  boxEscapes ctx args $ \ctx ->
+    addCount 3
+      . countCtx ctx
+      . Ins (emitFOp p $ emitArgs grpn ctx args)
+      . Yield
+      . VArgV
+      $ countBlock ctx
 emitSection rns grpr grpn rec ctx (TApp f args) =
   emitClosures grpr grpn rec ctx args $ \ctx as -> do
     -- A record shape, or the reference for a field a record update replaces,
@@ -1905,10 +1995,15 @@ emitFunction rns _mshape _grpr _ _ _ (FComb r) as
   where
     n = cnum rns r
     cix = CIx r n 0
-emitFunction rns _mshape _grpr _ _ _ (FCon r t) as =
-  Ins (Pack r (packTags rt t) as)
-    . Yield
-    $ VArg1 0
+emitFunction rns _mshape _grpr _ _ _ (FCon r t) as
+  | wideOn, countArgs as <= wideK =
+      Ins (PackWide r (packTags rt t) as)
+        . Yield
+        $ VArgR 0 wideWidth
+  | otherwise =
+      Ins (Pack r (packTags rt t) as)
+        . Yield
+        $ VArg1 0
   where
     rt = toEnum . fromIntegral $ dnum rns r
 emitFunction _ (Just (RecEmitShape shape)) _grpr _ _ _ (FRec _rs) as =
@@ -2409,6 +2504,9 @@ emitClosures grpr grpn rec ctx args k =
   where
     allocate ctx [] k = k ctx
     allocate ctx (a : as) k
+      | Just (i, _) <- ctxResolve ctx a,
+        ctxIsWide ctx a =
+          Ins (Box i) <$> allocate (Var a BX ctx) as k
       | Just _ <- ctxResolve ctx a = allocate ctx as k
       | Just n <- rctxResolve rec a =
           let cix = (CIx grpr grpn n)
@@ -2471,6 +2569,7 @@ sectionTypes _ = []
 
 instrTypes :: GInstr comb -> [Word64]
 instrTypes (Pack _ (PackedTag w) _) = [w `shiftR` 16]
+instrTypes (PackWide _ (PackedTag w) _) = [w `shiftR` 16]
 instrTypes (Reset ws _ _) = setToList ws
 instrTypes (Capture w) = [w]
 instrTypes _ = []
@@ -2629,6 +2728,14 @@ prettyIns (Pack r i as) =
     . shows i
     . (' ' :)
     . prettyArgs as
+prettyIns (PackWide r i as) =
+  showString "PackWide "
+    . prettyRef r
+    . (' ' :)
+    . shows i
+    . (' ' :)
+    . prettyArgs as
+prettyIns (Box i) = showString "Box " . shows i
 prettyIns (Lit l) =
   showString "Lit " . showsPrec 11 l
 prettyIns (Name r as) =
@@ -2702,6 +2809,8 @@ pushCount = \case
   Name _ _ -> Just 1
   Info _ -> Just 0
   Pack {} -> Just 1
+  PackWide {} -> Just wideWidth
+  Box _ -> Just 1
   RecPack {} -> Just 1
   RecUnpack fields _ -> Just (V.length fields)
   RecSet {} -> Just 1

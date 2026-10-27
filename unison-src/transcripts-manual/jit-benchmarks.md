@@ -30,6 +30,56 @@ Cons.foldLeft f z = cases
   Cons.Nil -> z
   Cons.Cons h t -> Cons.foldLeft f (f z h) t
 
+-- Small constructors in flight between a return and a match (delayed data
+-- construction, Unison.Runtime.Wide): an Optional from an unknown callee, a
+-- head, a state tuple through a non-tail call, an Either-like step.
+Cons.filterMap : (a ->{g} Optional b) -> Cons a ->{g} Cons b
+Cons.filterMap f = cases
+  Cons.Nil -> Cons.Nil
+  Cons.Cons h t -> match f h with
+    None -> Cons.filterMap f t
+    Some b -> Cons.Cons b (Cons.filterMap f t)
+
+Cons.head : Cons a -> Optional a
+Cons.head = cases
+  Cons.Nil -> None
+  Cons.Cons h _ -> Some h
+
+headLoop : Nat -> Cons Nat -> Nat
+headLoop n c =
+  go acc i =
+    if i == n then acc
+    else match Cons.head c with
+      None -> go acc (i + 1)
+      Some h -> go (acc + h) (i + 1)
+  go 0 0
+
+step : Nat -> Nat -> (Nat, Nat)
+step acc i = (acc + i, i + 1)
+
+stateLoop : Nat -> Nat
+stateLoop n =
+  go acc i =
+    if i > n then acc
+    else
+      p = step acc i
+      match p with (acc', i') -> go acc' i'
+  go 0 0
+
+structural type Res = Ok Nat | Err Nat
+
+parse : Nat -> Res
+parse n = if Nat.mod n 7 == 0 then Res.Err n else Res.Ok (n * 2)
+
+parseLoop : Nat -> Nat
+parseLoop n =
+  go oks errs i =
+    if i == n then oks + errs
+    else match parse i with
+      Res.Ok v -> go (oks + v) errs (i + 1)
+      Res.Err e -> go oks (errs + e) (i + 1)
+  go 0 0 0
+
 structural type Tree = Leaf | Node Tree Nat Nat Tree
 
 Tree.insert : Nat -> Nat -> Tree -> Tree
@@ -366,6 +416,14 @@ jitSuite = do
   printTime "Binary tree: 1000 lookups" 1 let
     t = Tree.build 1000
     n -> repeat n do Tree.lookupAll 1000 t
+  printTime "Cons list: filterMap with a lambda returning Optional (1000 elements)" 1 let
+    c = Cons.range 0 1000
+    n -> repeat n do Cons.filterMap (x -> if Nat.mod x 2 == 0 then Some (x + 1) else None) c
+  printTime "Cons list: head, 10000 times" 1 let
+    c = Cons.range 0 10
+    n -> repeat n do headLoop 10000 c
+  printTime "State tuple through a non-tail call, 10000 steps" 1 (n -> repeat n do stateLoop 10000)
+  printTime "Ok or Err from a step function, 10000 steps" 1 (n -> repeat n do parseLoop 10000)
   printTime "Apply a function argument 10000 times" 1 (n -> repeat n do applyN 10000 (x -> x + 3) 0)
   printTime "Mutate a Ref 10000 times" 1 (n -> repeat n do refLoop 10000)
   printTime "Calls across definitions: Collatz steps for 1 to 1000" 1 (n -> repeat n do collatzTotal 1000)

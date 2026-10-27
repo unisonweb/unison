@@ -57,6 +57,7 @@ module Unison.Runtime.Stack
     UnboxedTypeTag (..),
     unboxedTypeTagToInt,
     unboxedTypeTagFromInt,
+    witnessTag,
     IxClosure,
     Callback (..),
     Augment (..),
@@ -437,6 +438,10 @@ data UnboxedTypeTag
   | FloatTag
   | IntTag
   | NatTag
+  | -- | The value slot of a wide variable holding an unboxed constructor of
+    -- this many fields (Unison.Runtime.Wide): the slot's word is the
+    -- constructor's packed tag and the fields are in the slots below.
+    WitnessTag !Int
   deriving stock (Show, Eq, Ord)
 
 unboxedTypeTagToInt :: UnboxedTypeTag -> Int
@@ -445,9 +450,11 @@ unboxedTypeTagToInt = \case
   FloatTag -> 1
   IntTag -> 2
   NatTag -> 3
+  WitnessTag n -> 4 + n
 
 unboxedTypeTagFromInt :: (HasCallStack) => Int -> UnboxedTypeTag
 unboxedTypeTagFromInt = \case
+  n | n >= 4 -> WitnessTag (n - 4)
   0 -> CharTag
   1 -> FloatTag
   2 -> IntTag
@@ -642,6 +649,7 @@ pattern UnboxedTypeTag t <- Closure (GUnboxedTypeTag t)
       FloatTag -> floatTypeTag
       IntTag -> intTypeTag
       NatTag -> natTypeTag
+      WitnessTag n -> witnessTag n
 
 {-# COMPLETE PAp, Enum, Data1, Data2, Data3, Data4, Data5, Data6, DataG, RecordC, Captured, TextC, ListC, BytesC, Foreign, UnboxedTypeTag, BlackHole, Affine #-}
 
@@ -654,6 +662,23 @@ pattern UnboxedTypeTag t <- Closure (GUnboxedTypeTag t)
 -- We can avoid allocating a closure for common type tags on each poke by having shared top-level closures for them.
 natTypeTag :: Closure
 natTypeTag = (Closure (GUnboxedTypeTag NatTag))
+
+-- | The witness closures of unboxed constructors ('WitnessTag'), one per
+-- field count, so that writing one allocates nothing.
+witnessTag :: Int -> Closure
+witnessTag = \case
+  0 -> witnessTag0
+  1 -> witnessTag1
+  2 -> witnessTag2
+  n -> Closure (GUnboxedTypeTag (WitnessTag n))
+
+witnessTag0, witnessTag1, witnessTag2 :: Closure
+witnessTag0 = Closure (GUnboxedTypeTag (WitnessTag 0))
+{-# NOINLINE witnessTag0 #-}
+witnessTag1 = Closure (GUnboxedTypeTag (WitnessTag 1))
+{-# NOINLINE witnessTag1 #-}
+witnessTag2 = Closure (GUnboxedTypeTag (WitnessTag 2))
+{-# NOINLINE witnessTag2 #-}
 {-# NOINLINE natTypeTag #-}
 
 intTypeTag :: Closure
