@@ -739,6 +739,10 @@ data GInstr comb
     PackWide
       !Reference
       !PackedTag
+      -- whether to write the slots at the frame's base as the frame's
+      -- only slots, for a constructor in tail position: the Yield of
+      -- exactly those slots that follows then moves nothing
+      !Bool
       -- fields, at most 'wideK'
       !Args
   | -- Box a wide variable in place: when its value slot holds a witness,
@@ -1787,7 +1791,7 @@ emitSection rns grpr grpn rec ctx (TLets d us ms bu bo)
       boxEscapes ctx args $ \ctx ->
         let rt = toEnum . fromIntegral $ dnum rns r
          in addCount wideWidth
-              . fmap (Ins (PackWide r (packTags rt n) (emitArgs grpn ctx args)))
+              . fmap (Ins (PackWide r (packTags rt n) False (emitArgs grpn ctx args)))
               $ emitSection rns grpr grpn rec (Wide u BX True ctx) bo
   | letYields bu =
       emitLet rns grpr grpn rec d (zip us ms) ctx bu $
@@ -2016,7 +2020,7 @@ emitFunction rns _mshape _grpr _ _ _ (FComb r) as
     cix = CIx r n 0
 emitFunction rns _mshape _grpr _ _ _ (FCon r t) as
   | wideOn, countArgs as <= wideK =
-      Ins (PackWide r (packTags rt t) as)
+      Ins (PackWide r (packTags rt t) True as)
         . Yield
         $ VArgR 0 wideWidth
   | otherwise =
@@ -2588,7 +2592,7 @@ sectionTypes _ = []
 
 instrTypes :: GInstr comb -> [Word64]
 instrTypes (Pack _ (PackedTag w) _) = [w `shiftR` 16]
-instrTypes (PackWide _ (PackedTag w) _) = [w `shiftR` 16]
+instrTypes (PackWide _ (PackedTag w) _ _) = [w `shiftR` 16]
 instrTypes (Reset ws _ _) = setToList ws
 instrTypes (Capture w) = [w]
 instrTypes _ = []
@@ -2747,8 +2751,8 @@ prettyIns (Pack r i as) =
     . shows i
     . (' ' :)
     . prettyArgs as
-prettyIns (PackWide r i as) =
-  showString "PackWide "
+prettyIns (PackWide r i base as) =
+  showString (if base then "PackWideRet " else "PackWide ")
     . prettyRef r
     . (' ' :)
     . shows i

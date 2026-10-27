@@ -442,12 +442,46 @@ exec _ henv !_activeThreads !stk !k _ (Pack r t args) = do
   stk <- bump stk
   bpoke stk clo
   pure (False, henv, stk, k)
-exec _ henv !_activeThreads !stk !k _ (PackWide _ (PackedTag t) args) = do
-  fields <- closureArgs stk args
-  stk <- bumpn stk wideWidth
-  upokeT stk (fromIntegral t) (witnessTag (length fields))
-  zipWithM_ (pokeOff stk) [1 ..] fields
+exec _ henv !_activeThreads !stk !k _ (PackWide _ (PackedTag t) base args) = do
+  -- one case per field count, like dataBranch's, so that nothing is
+  -- allocated on the way; the fields are read before the slots are
+  -- written, since at the base the new slots overlap the frame
+  stk <- case args of
+    ZArgs -> do
+      stk <- group stk
+      stk <$ upokeT stk (fromIntegral t) (witnessTag 0)
+    VArg1 i -> do
+      a <- peekOff stk i
+      stk <- group stk
+      pokeOff stk 1 a
+      stk <$ upokeT stk (fromIntegral t) (witnessTag 1)
+    VArg2 i j -> do
+      a <- peekOff stk i
+      b <- peekOff stk j
+      stk <- group stk
+      pokeOff stk 1 a
+      pokeOff stk 2 b
+      stk <$ upokeT stk (fromIntegral t) (witnessTag 2)
+    VArgN as -> do
+      -- more fields than wideK allows today: pushed on top, then moved
+      -- to the base by the yield like any other group
+      let n = PA.sizeofPrimArray as
+          copy stk j
+            | j > n = pure ()
+            | otherwise = do
+                v <- peekOff stk (PA.indexPrimArray as (j - 1) + wideWidth)
+                pokeOff stk j v
+                copy stk (j + 1)
+      stk <- bumpn stk wideWidth
+      copy stk 1
+      stk <$ upokeT stk (fromIntegral t) (witnessTag n)
+    _ -> die [] "PackWide: unexpected argument form"
   pure (False, henv, stk, k)
+  where
+    -- the group's slots: on top of the frame, or as the whole frame
+    group stk
+      | base = discardFrame stk >>= \stk -> bumpn stk wideWidth
+      | otherwise = bumpn stk wideWidth
 exec env henv !_activeThreads !stk !k _ (Box i) = do
   peekOff stk i >>= \case
     Val t (UnboxedTypeTag (WitnessTag n)) -> do
@@ -1677,10 +1711,22 @@ dataBranch mrf stk i br = \case
   -- below it, in the order a heap object's fields are pushed
   UnboxedTypeTag (WitnessTag n) -> do
     t <- upeekOff stk i
-    pick (PackedTag (fromIntegral t)) n do
-      fields <- for [1 .. n] \j -> peekOff stk (i + j)
-      stk <- bumpn stk n
-      stk <$ zipWithM_ (pokeOff stk) [0 ..] fields
+    pick (PackedTag (fromIntegral t)) n case n of
+      0 -> pure stk
+      1 -> do
+        a <- peekOff stk (i + 1)
+        stk <- bump stk
+        stk <$ poke stk a
+      2 -> do
+        a <- peekOff stk (i + 1)
+        b <- peekOff stk (i + 2)
+        stk <- bumpn stk 2
+        pokeOff stk 1 b
+        stk <$ poke stk a
+      _ -> do
+        fields <- for [1 .. n] \j -> peekOff stk (i + j)
+        stk <- bumpn stk n
+        stk <$ zipWithM_ (pokeOff stk) [0 ..] fields
   -- one case on the closure: each shape looks its arm up and pushes its
   -- fields in the same alternative (a second dispatch to push them cost a
   -- few nanoseconds per match, 2026-10-15)

@@ -812,7 +812,7 @@ instrReads base d = \case
   Name r args -> (case r of Stk i -> slotAt d i; _ -> Just IS.empty) <+> argReads base d args
   Info _ -> Just IS.empty
   Pack _ _ args -> argReads base d args
-  PackWide _ _ args -> argReads base d args
+  PackWide _ _ _ args -> argReads base d args
   Box i -> slotAt d i
   RecPack _ args -> argReads base d args
   RecUnpack _ i -> slotAt d i

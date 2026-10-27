@@ -255,7 +255,7 @@ putInstr = \case
   (Name r a) -> putTag NameT <> putRef r <> putArgs a
   (Info s) -> putTag InfoT <> putString s
   (Pack r w a) -> putTag PackT <> putReference r <> putPackedTag w <> putArgs a
-  (PackWide r w a) -> putTag PackWideT <> putReference r <> putPackedTag w <> putArgs a
+  (PackWide r w b a) -> putTag PackWideT <> putReference r <> putPackedTag w <> putBool b <> putArgs a
   (Box i) -> putTag BoxT <> pInt i
   (RecPack shape args) -> putTag RecPackT <> putRecordShape shape <> putArgs args
   (RecUnpack fields recIndex) -> putTag RecUnpackT <> putFoldable putFieldRef fields <> pInt recIndex
@@ -312,7 +312,7 @@ getInstr =
     NameT -> Name <$> getRef <*> getArgs
     InfoT -> Info <$> getString
     PackT -> Pack <$> getReference <*> getPackedTag <*> getArgs
-    PackWideT -> PackWide <$> getReference <*> getPackedTag <*> getArgs
+    PackWideT -> PackWide <$> getReference <*> getPackedTag <*> getBool <*> getArgs
     BoxT -> Box <$> gInt
     LitT -> Lit <$> getLit
     PrintT -> Print <$> gInt
