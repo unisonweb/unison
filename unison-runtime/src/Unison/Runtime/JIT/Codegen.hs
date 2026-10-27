@@ -780,7 +780,7 @@ liveAt env base = go
       Yield args -> argReads base d args
       Ins i rest -> instrReads base d i <+> (pushCount i >>= \n -> go (d + n) rest)
       Let b (CIx _ _ w) _ body _ -> case EC.lookup w (envCombs env) of
-        Just (Comb (LamI bodyArity _ _ _)) | bodyArity >= d -> go d b <+> go bodyArity body
+        Just (Comb (LamI bodyArity _ _ _) _) | bodyArity >= d -> go d b <+> go bodyArity body
         _ -> Nothing
       Die _ -> Just IS.empty
       Exit -> Just IS.empty
@@ -1942,7 +1942,7 @@ enabled fe name = name `notElem` envDisabled (feEnv fe)
 -- frame itself.
 genLet :: FnEnv -> Int -> MSection -> CombIx -> Int -> MSection -> Ptr NativeCell -> MSection -> Gen ()
 genLet fe d binding bcix@(CIx _ _ w) f body cell sect = case EC.lookup w (envCombs env) of
-  Just (Comb (LamI bodyArity _ _ _))
+  Just (Comb (LamI bodyArity _ _ _) _)
     | m <- bodyArity - d,
       m >= 0 -> case binding of
         Call _ ccix comb ZArgs
@@ -1956,7 +1956,7 @@ genLet fe d binding bcix@(CIx _ _ w) f body cell sect = case EC.lookup w (envCom
               pushCached d u ix
               genSection fe (d + 1) body
         Call _ _ comb args
-          | Comb (LamI arity _ _ ccell) <- unRComb comb,
+          | Comb (LamI arity _ _ ccell) _ <- unRComb comb,
             let srcs = argSources fe d args,
             D.size srcs == arity -> do
               bcell <- bodyCell
@@ -1965,7 +1965,7 @@ genLet fe d binding bcix@(CIx _ _ w) f body cell sect = case EC.lookup w (envCom
                 genSection fe (d + m) body
         App _ r@(MCode.Env ccix comb) args
           | enabled fe "app",
-            Comb (LamI arity _ _ ccell) <- unRComb comb,
+            Comb (LamI arity _ _ ccell) _ <- unRComb comb,
             let srcs = argSources fe d args,
             D.size srcs == arity -> do
               bcell <- bodyCell
@@ -1978,7 +1978,7 @@ genLet fe d binding bcix@(CIx _ _ w) f body cell sect = case EC.lookup w (envCom
           | enabled fe "name",
             Nothing <- feFast fe,
             m == 1,
-            Comb info@(LamI arity _ _ _) <- unRComb comb,
+            Comb info@(LamI arity _ _ _) _ <- unRComb comb,
             let srcs = argSources fe d args,
             not (D.null srcs),
             D.size srcs < arity,
@@ -2019,7 +2019,7 @@ genLet fe d binding bcix@(CIx _ _ w) f body cell sect = case EC.lookup w (envCom
     bodyCell
       | cell /= noNativeCell = pure cell
       | otherwise = case EC.lookup w (envCombs env) of
-          Just (Comb (LamI bodyArity _ _ _)) ->
+          Just (Comb (LamI bodyArity _ _ _) _) ->
             maybe noNativeCell (\(Pair _ c) -> c) <$> genAuxFunction True fe bodyArity (currentBase fe) body
           _ -> pure noNativeCell
 
@@ -2702,7 +2702,7 @@ genCall fe d cix comb args sect
       genYield fe (d + 1) (VArg1 0) sect
   | e :<| _ <- feEnclosing fe = case unRComb comb of
       -- a tail call inside an inline binding is a call that returns to the body
-      Comb (LamI arity _ _ ccell)
+      Comb (LamI arity _ _ ccell) _
         | let srcs = argSources fe d args,
           D.size srcs == arity ->
             genNonTailCall fe d (enBase e) ccell srcs (enResults e) sect Nothing $
@@ -2721,7 +2721,7 @@ genCall fe d cix comb args sect
             storeB (n - j) b
           emit ("br label %" <> headL)
   | otherwise = case unRComb comb of
-      Comb (LamI arity _ _ cell) -> do
+      Comb (LamI arity _ _ cell) _ -> do
         let srcs = argSources fe d args
             n = D.size srcs
             base = feBase fe
@@ -2786,7 +2786,7 @@ genApp :: FnEnv -> Int -> MRef -> Args -> MSection -> Gen ()
 genApp fe d r args sect = case r of
   MCode.Env cix comb
     | CachedVal {} <- unRComb comb, ZArgs <- args -> genCall fe d cix comb args sect
-    | Comb (LamI arity _ _ _) <- unRComb comb,
+    | Comb (LamI arity _ _ _) _ <- unRComb comb,
       D.size (argSources fe d args) == arity ->
         genCall fe d cix comb args sect
     -- the combinator as a value: a constant closure, returned
@@ -2876,7 +2876,7 @@ pushCached d u ix = do
 combConstant :: FnEnv -> MRef -> Maybe Int
 combConstant fe = \case
   MCode.Env cix comb
-    | Comb info@(LamI arity _ _ _) <- unRComb comb,
+    | Comb info@(LamI arity _ _ _) _ <- unRComb comb,
       arity > 0 ->
         Map.lookup (KeyComb cix info) (envPool (feEnv fe))
   _ -> Nothing
@@ -3489,7 +3489,7 @@ genInstr fe d instr sect k = case instr of
   -- ('genNameStack'). Any number of arguments either way.
   Name (MCode.Env cix comb) args
     | enabled fe "name",
-      Comb info <- unRComb comb,
+      Comb info _ <- unRComb comb,
       Just ix <- Map.lookup (KeyComb cix info) (envPool (feEnv fe)) -> do
         genNameInline fe d ix (argSources fe d args)
         k (d + 1)

@@ -42,6 +42,9 @@ if [ ! -f "$dir/.unison/v2/unison.sqlite3" ]; then
   fi
   tar xzf "$tmp/$asset" -C "$tmp"
   rm "$tmp/$asset"
+  # a leftover directory without a codebase (a download that failed after
+  # creating it) would make mv nest the new one inside it
+  [ -f "$dir/.unison/v2/unison.sqlite3" ] || rm -rf "$dir"
   mv "$tmp" "$dir" 2>/dev/null || true # lost the race to another run: theirs is the same
   trap - EXIT
 fi

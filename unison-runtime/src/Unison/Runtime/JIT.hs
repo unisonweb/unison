@@ -330,7 +330,7 @@ offer jit r = atomically $ do
 -- It never goes back, so a definition is queued at most once.
 entryCell :: MCombs -> Maybe (Ptr NativeCell)
 entryCell cmbs = case EC.lookup 0 cmbs of
-  Just (Comb (LamI _ _ _ cell)) | cell /= noNativeCell -> Just cell
+  Just (Comb (LamI _ _ _ cell) _) | cell /= noNativeCell -> Just cell
   _ -> Nothing
 
 -- | Asks for the definition this combinator belongs to to be compiled.
@@ -430,7 +430,7 @@ data Role = Callee | Caller
 -- sites of @d@ in it.
 edgeCalls :: Config -> MCombs -> Word64 -> IO Double
 edgeCalls config cmbs d = fmap sum . forM (EC.mapToList cmbs) $ \(_, c) -> case c of
-  Comb (LamI _ _ _ cell)
+  Comb (LamI _ _ _ cell) _
     | cell /= noNativeCell,
       sites <- length (filter (== d) (combDeps c)),
       sites > 0 -> do
@@ -446,7 +446,7 @@ edgeCalls config cmbs d = fmap sum . forM (EC.mapToList cmbs) $ \(_, c) -> case 
 -- slots and 56 sites, was 55k lines of IR, and a typical hot function
 -- under 500 (2026-10-09).
 groupSize :: MCombs -> Int
-groupSize cmbs = sum [f * length (combDeps c) | (_, c@(Comb (LamI _ f _ _))) <- EC.mapToList cmbs]
+groupSize cmbs = sum [f * length (combDeps c) | (_, c@(Comb (LamI _ f _ _) _)) <- EC.mapToList cmbs]
 
 -- | Serves requests, forever. LLVM is only ever used from this thread (in
 -- @on@ mode); it is normally loaded at startup already, and if not, by the
@@ -609,7 +609,7 @@ compileThread jit = do
           picked <- forM callees $ \d -> case (EC.lookup d cache, EC.lookup d refs) of
             (Just cmbs, Just ref)
               | Just cell <- entryCell cmbs,
-                Just (Comb (LamI _ _ entry _)) <- EC.lookup 0 cmbs -> do
+                Just (Comb (LamI _ _ entry _) _) <- EC.lookup 0 cmbs -> do
                   code <- readNativeCode cell
                   if code == nullPtr
                     then pure []

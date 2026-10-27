@@ -58,6 +58,7 @@ import GHC.Stack
 import Unison.Builtin.Decls (exceptionRef)
 import Unison.Builtin.Decls qualified as Rf
 import Unison.Prelude hiding (Text)
+import Unison.Runtime.Wide (widePad, wideOn)
 import Unison.Reference
   ( Reference,
     Reference' (Builtin),
@@ -158,7 +159,7 @@ eval0 env !activeThreads !co = do
   #-}
 
 mCombVal :: CombIx -> MComb -> Val
-mCombVal cix (RComb (Comb comb)) =
+mCombVal cix (RComb (Comb comb _)) =
   BoxedVal (PAp cix comb nullSeg)
 mCombVal _ (RComb (CachedVal _ clo)) = clo
 
@@ -213,7 +214,7 @@ apply0 !callback env !threadTracker !i = do
     Nothing -> die [] "apply0: missing reference to entry point"
   let entryCix = (CIx r i 0)
   case unRComb $ rCombSection cmbs entryCix of
-    Comb entryComb -> do
+    Comb entryComb _ -> do
       (tick, cancelTicks) <- startTicker $ profiler env
       apply
         tick
@@ -798,7 +799,9 @@ eval' !yld env henv !activeThreads !stk !k here (Yield args)
       peekOff stk i >>= apply yld env henv activeThreads stk k False ZArgs
   | otherwise = do
       checkTicker yld here k
+      let n = yieldedCount stk args
       stk <- moveArgs stk args
+      stk <- padYield n stk
       stk <- frameArgs stk
       yield yld env henv activeThreads stk k
 eval' !yld env henv !activeThreads !stk !k here (App ck r args) = do
@@ -993,7 +996,7 @@ enter ::
   MComb ->
   IO ()
 enter !yld env henv !activeThreads !stk !k !cref !sck !args = \case
-  (RComb (Comb (LamI a f entry cell))) -> do
+  (RComb (Comb (LamI a f entry cell) _)) -> do
     native <- readNativeEntry cell
     if native == nullPtr
       then do
@@ -1015,6 +1018,7 @@ enter !yld env henv !activeThreads !stk !k !cref !sck !args = \case
     stk <- discardFrame stk
     stk <- bump stk
     poke stk val
+    stk <- padYield 1 stk
     yield yld env henv activeThreads stk k
 {-# INLINE enter #-}
 
@@ -1247,6 +1251,7 @@ apply !yld env henv !activeThreads !stk !k !ck !args !val =
               stk <- discardFrame =<< frameArgs stk
               stk <- bump stk
               bpoke stk $ PAp cix comb seg
+              stk <- padYield 1 stk
               yield yld env henv activeThreads stk k
       where
         ac = asize stk + countArgs args + scount seg
@@ -1259,6 +1264,7 @@ apply !yld env henv !activeThreads !stk !k !ck !args !val =
           stk <- discardFrame stk
           stk <- bump stk
           poke stk v
+          stk <- padYield 1 stk
           yield yld env henv activeThreads stk k
       | otherwise = die [] $ "applying non-function: " ++ show v
 {-# INLINE apply #-}
@@ -1316,7 +1322,7 @@ repush !yld env !activeThreads !stk (HEnv aenv denv0) = go denv0
       | asize stk > 0 =
           peek stk
             >>= apply yld env henv activeThreads stk k False ZArgs
-      | otherwise = yield yld env henv activeThreads stk k
+      | otherwise = padYield (fsize stk) stk >>= \stk -> yield yld env henv activeThreads stk k
       where
         henv = HEnv aenv denv
     go !denv (Mark a ps cs sk) !k = go denv' sk $ Mark a ps cs' k
@@ -1531,6 +1537,32 @@ closeArgs mode !stk !seg args = augSeg mode stk seg as
             | l > 0 = Just $ ArgR 0 l
             | otherwise = Nothing
           l = fsize stk - i
+
+-- | Pads a yield of one ordinary value to the width of a wide variable
+-- (Unison.Runtime.Wide): the value, on top of the stack, moves up and the
+-- field slots below it are left as they are. Given the number of values
+-- yielded: one is the case to pad; a wide variable yielded as its own
+-- slots, or several values, pass through.
+padYield :: Int -> Stack -> IO Stack
+padYield !n !stk
+  | wideOn, n == 1 = do
+      v <- peek stk
+      stk <- ensure stk widePad
+      stk <- bumpn stk widePad
+      stk <$ poke stk v
+  | otherwise = pure stk
+{-# INLINE padYield #-}
+
+-- | How many values a yield delivers, before they are moved.
+yieldedCount :: Stack -> Args -> Int
+yieldedCount stk = \case
+  ZArgs -> 0
+  VArg1 _ -> 1
+  VArg2 _ _ -> 2
+  VArgR _ l -> l
+  VArgN as -> PA.sizeofPrimArray as
+  VArgV i -> fsize stk - i
+{-# INLINE yieldedCount #-}
 
 yield ::
   (RuntimeProfiler prof) =>
@@ -2150,9 +2182,10 @@ canonicalizeReferenced x = mediate $ recanonicalizeRefs x
 
 reflectValue :: CCache p -> Val -> IO (Referenced ANF.Value)
 reflectValue env val = do
+  cmbs <- readTVarIO (combs env)
   tyr <- readTVarIO (tagRefs env)
   tmr <- readTVarIO (combRefs env)
-  reflectValue0 tyr tmr val
+  reflectValue0 cmbs tyr tmr val
     `catch` \(ReflectExn problem) ->
       die [] $ err problem rendered
   where
@@ -2247,13 +2280,15 @@ nativeMapPairs = go []
 -- embedded values (or code), which could be costly. To avoid that
 -- cost, avoid having lots of nested reflected values.
 reflectValue0 ::
+  EnumMap Word64 MCombs ->
   EnumMap Word64 Reference ->
   EnumMap Word64 Reference ->
   Val ->
   IO (Referenced ANF.Value)
-reflectValue0 rty rtm = goV0
+reflectValue0 cmbs rty rtm = goV0
   where
     goIx (CIx _ top i) = flip ANF.GR i <$> resolveTm rtm top
+    layout = frameLayout cmbs
 
     finish (val, RS _ _ (CST _ _ _ tys tms)) =
       WithRefs (toList tys) (toList tms) val
@@ -2294,8 +2329,12 @@ reflectValue0 rty rtm = goV0
             -- as the slots, which is also the order `reifyValue` expects.
             ANF.Record (ANF.RecordSchema (S.fromList (V.toList (shapeFields shape))))
               <$> traverse goV (V.toList vals)
-          Captured k _ segs ->
-            ANF.Cont <$> goVs segs <*> goK k
+          -- one value per variable: the wide variables' field slots are
+          -- dropped before anything looks at them (they hold whatever was
+          -- there), which is what a process without wide frames writes
+          Captured k a segs -> do
+            slots <- traverseAccumSegToList pure segs
+            ANF.Cont <$> traverse goV (narrowCont layout k a slots) <*> goK k
           TextC t -> pure (ANF.BLit (ANF.Text t))
           ListC s -> ANF.BLit . ANF.List . Seq.fromList <$> traverse goV (toList s)
           BytesC b -> pure (ANF.BLit (ANF.Bytes b))
@@ -2316,7 +2355,7 @@ reflectValue0 rty rtm = goV0
       ANF.Mark (fromIntegral a) ps de <$> goK k
     goK (Push f a cix _ _rsect _ k) =
       ANF.Push
-        (fromIntegral f)
+        (fromIntegral (f - layoutPadding (layout cix)))
         (fromIntegral a)
         <$> goIx cix
         <*> goK k
@@ -2448,7 +2487,7 @@ reifyValue0Canon combs tys tms rty rtm rrLookup rfms = goV
         -- takes: the interpreter computes how many are still missing as the
         -- difference, and a difference of zero or less is a closure it never
         -- builds itself and has no case for.
-        (cix, RComb (Comb rcomb@(LamI arity _ _ _)))
+        (cix, RComb (Comb rcomb@(LamI arity _ _ _) _))
           | length vs < arity -> boxedVal . PAp cix rcomb <$> goVs vs
           | otherwise -> die [] . err $ "a partial application of " ++ show (length vs) ++ " arguments to a function of " ++ show arity
         (_, RComb (CachedVal _ val))
@@ -2479,7 +2518,7 @@ reifyValue0Canon combs tys tms rty rtm rrLookup rfms = goV
       pure . boxedVal . RecordG shape $ recordVals vals'
     goV (ANF.Cont vs k) = do
       k' <- goK k
-      vs' <- goVs vs
+      vs' <- goVs (widenCont (frameLayout combs) k' vs)
       pure . boxedVal $ cv k' vs'
       where
         cv k s = Captured k a s
@@ -2499,9 +2538,9 @@ reifyValue0Canon combs tys tms rty rtm rrLookup rfms = goV
           Mark (fromIntegral a) (setFromList ps) (mapFromList de) k
     goK (ANF.Push f a gr k) =
       goIx gr >>= \case
-        (cix, RComb (Comb (LamI _ fr sect cell))) ->
+        (cix, RComb (Comb (LamI _ fr sect cell) lay)) ->
           Push
-            (fromIntegral f)
+            (fromIntegral f + layoutPadding lay)
             (fromIntegral a)
             cix
             fr
@@ -2569,7 +2608,7 @@ reifyValue0 (combs, rty, rtm, rrLookup, rfms) = goV
         -- takes: the interpreter computes how many are still missing as the
         -- difference, and a difference of zero or less is a closure it never
         -- builds itself and has no case for.
-        (cix, RComb (Comb rcomb@(LamI arity _ _ _)))
+        (cix, RComb (Comb rcomb@(LamI arity _ _ _) _))
           | length vs < arity -> boxedVal . PAp cix rcomb <$> goVs vs
           | otherwise -> die [] . err $ "a partial application of " ++ show (length vs) ++ " arguments to a function of " ++ show arity
         (_, RComb (CachedVal _ val))
@@ -2599,7 +2638,7 @@ reifyValue0 (combs, rty, rtm, rrLookup, rfms) = goV
       pure . boxedVal . RecordG shape $ recordVals vals'
     goV (ANF.Cont vs k) = do
       k' <- goK k
-      vs' <- goVs vs
+      vs' <- goVs (widenCont (frameLayout combs) k' vs)
       pure . boxedVal $ cv k' vs'
       where
         cv k s = Captured k a s
@@ -2619,9 +2658,9 @@ reifyValue0 (combs, rty, rtm, rrLookup, rfms) = goV
           Mark (fromIntegral a) (setFromList ps) (mapFromList de) k
     goK (ANF.Push f a gr k) =
       goIx gr >>= \case
-        (cix, RComb (Comb (LamI _ fr sect cell))) ->
+        (cix, RComb (Comb (LamI _ fr sect cell) lay)) ->
           Push
-            (fromIntegral f)
+            (fromIntegral f + layoutPadding lay)
             (fromIntegral a)
             cix
             fr
@@ -2654,6 +2693,75 @@ reifyValue0 (combs, rty, rtm, rrLookup, rfms) = goV
         goP (x, y) = (,) <$> goV x <*> goV y
     goL (ANF.BigInt i) = pure $ encodeVal i
     goL (ANF.BigNat n) = pure $ encodeVal n
+
+-- | The frame layout of a let body's combinator: the value slot of each
+-- wide variable of the frame, counting from the top ('wideSlots' in
+-- MCode.hs); empty for anything else.
+frameLayout :: EnumMap Word64 MCombs -> CombIx -> FrameLayout
+frameLayout cmbs (CIx _ n i)
+  | Just group <- EC.lookup n cmbs,
+    Just (Comb _ lay) <- EC.lookup i group =
+      lay
+  | otherwise = []
+
+-- | The frames of a captured continuation, innermost first, each as its
+-- frame size, its pending argument count and, for a let body, its
+-- combinator. This is the order of their slots from the top of the
+-- captured segment; a 'Captured' holds its frames outermost first (the
+-- order 'splitCont' builds walking outward), so it is the reverse of the K.
+contFrames :: K -> [(Int, Int, Maybe CombIx)]
+contFrames = go []
+  where
+    go acc (Push f a cix _ _ _ k) = go ((f, a, Just cix) : acc) k
+    go acc (Mark a _ _ k) = go ((0, a, Nothing) : acc) k
+    go acc _ = acc
+
+-- | The captured slots of a continuation, top first, with the field slots
+-- of every wide variable dropped, so that there is one value per
+-- variable: the layout a serialized continuation has, whether or not the
+-- writer had wide frames. The slots are the pending arguments at the
+-- capture, then each frame's slots and its own pending arguments,
+-- innermost frame first.
+narrowCont :: (CombIx -> FrameLayout) -> K -> Int -> [a] -> [a]
+narrowCont layout k a0 vs0 = top ++ go (contFrames k) rest
+  where
+    (top, rest) = splitAt a0 vs0
+    go [] vs = vs
+    go ((f, a, mcix) : fs) vs =
+      let (frame, vs') = splitAt f vs
+          (args, vs'') = splitAt a vs'
+       in dropFields (maybe [] layout mcix) frame ++ args ++ go fs vs''
+    dropFields = walk 0
+      where
+        walk _ [] xs = xs
+        walk i ws@((w, width) : ws') xs
+          | i < w, (pre, post) <- splitAt (w - i) xs = pre ++ walk w ws post
+          | x : xs' <- xs = x : walk (w + width) ws' (drop (width - 1) xs')
+          | otherwise = []
+
+-- | The inverse of 'narrowCont' for this process's frames: each wide
+-- variable's value is followed by copies of itself in its field slots,
+-- which are never read but have to hold a value. The frame sizes in the
+-- continuation are already in slots.
+widenCont :: (CombIx -> FrameLayout) -> K -> [a] -> [a]
+widenCont layout k vs0 = top ++ go frames rest
+  where
+    frames = contFrames k
+    (top, rest) = splitAt (length vs0 - sum [varsOf f mcix + a | (f, a, mcix) <- frames]) vs0
+    varsOf f mcix = f - layoutPadding (maybe [] layout mcix)
+    go [] vs = vs
+    go ((f, a, mcix) : fs) vs =
+      let lay = maybe [] layout mcix
+          (frame, vs') = splitAt (varsOf f mcix) vs
+          (args, vs'') = splitAt a vs'
+       in addFields lay frame ++ args ++ go fs vs''
+    addFields = walk 0
+      where
+        walk _ _ [] = []
+        walk _ [] xs = xs
+        walk i ws@((w, width) : ws') (x : xs)
+          | i < w = x : walk (i + 1) ws xs
+          | otherwise = replicate width x ++ walk (w + width) ws' xs
 
 #ifdef OPT_CHECK
 -- Assert that we don't allocate any 'Stack' objects in 'eval', since we expect GHC to always

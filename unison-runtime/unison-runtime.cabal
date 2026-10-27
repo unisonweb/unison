@@ -109,6 +109,7 @@ library
       Unison.Runtime.Stack
       Unison.Runtime.TypeTags
       Unison.Runtime.Vector
+      Unison.Runtime.Wide
   hs-source-dirs:
       src
   default-extensions:

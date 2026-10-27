@@ -29,6 +29,8 @@ module Unison.Runtime.MCode
     RSection,
     Section,
     GComb (.., Lam),
+    FrameLayout,
+    layoutPadding,
     GCombInfo (..),
     NativeCell,
     readNativeCode,
@@ -157,6 +159,7 @@ import Unison.Runtime.ANF
     pattern TVar,
   )
 import Unison.Runtime.ANF qualified as ANF
+import Unison.Runtime.Wide (wideWidth)
 import Unison.Runtime.Foreign.Function.Type (ForeignFunc (..), foreignFuncBuiltinName)
 import Unison.Runtime.InternalError (internalBug)
 import Unison.Util.BiMap (BiMap)
@@ -1083,7 +1086,7 @@ attachNativeCells ::
 attachNativeCells base groups = (n, fmap attachLets groups')
   where
     (groups', n) = runState (traverse (traverse attach) groups) 0
-    attach (Comb (LamI a f s _)) = state \i -> (Comb (LamI a f s (nativeCellAt base i)), i + 1)
+    attach (Comb (LamI a f s _) lay) = state \i -> (Comb (LamI a f s (nativeCellAt base i)) lay, i + 1)
     attach c = pure c
     -- Every Let names its body's combinator, which is in the same group;
     -- the Let carries that combinator's cell so the interpreter can find
@@ -1095,12 +1098,12 @@ attachNativeCells base groups = (n, fmap attachLets groups')
     -- inside a binding gets no re-entry point and its body is interpreted.
     attachLets combs = fmap attachComb combs
       where
-        attachComb (Comb (LamI a f s c)) = Comb (LamI a f (setLets False s) c)
+        attachComb (Comb (LamI a f s c) lay) = Comb (LamI a f (setLets False s) c) lay
         attachComb c = c
         cellOf inBinding w
           | inBinding = noNativeCell
           | otherwise = case EC.lookup w combs of
-              Just (Comb (LamI _ _ _ c)) -> c
+              Just (Comb (LamI _ _ _ c) _) -> c
               _ -> noNativeCell
         setLets inB section = case section of
           Let b cix@(CIx _ _ w) f bd _ -> Let (setLets True b) cix f (setLets inB bd) (cellOf inB w)
@@ -1124,7 +1127,13 @@ attachNativeCells base groups = (n, fmap attachLets groups')
           TestY d m -> TestY (setLets inB d) (fmap (setLets inB) m)
 
 data GComb val comb
-  = Comb {-# UNPACK #-} !(GCombInfo comb)
+  = Comb
+      {-# UNPACK #-} !(GCombInfo comb)
+      -- | the frame layout, when this is the body of an indirect let: the
+      -- value slot and width of each wide variable of the let's frame,
+      -- counting from the top ('wideSlots'); empty for a top-level
+      -- combinator, whose arguments are one slot each
+      !FrameLayout
   | -- A pre-evaluated comb, typically a pure top-level const
     CachedVal !Word64 {- top level comb ix -} !val
   deriving stock (Show, Eq, Ord, Functor, Foldable, Traversable)
@@ -1134,9 +1143,9 @@ data GComb val comb
 -- rebuild a combinator that already has a cell of its own.
 pattern Lam ::
   Int -> Int -> GSection comb -> GComb val comb
-pattern Lam a f sect <- Comb (LamI a f sect _)
+pattern Lam a f sect <- Comb (LamI a f sect _) _
   where
-    Lam a f sect = Comb (LamI a f sect noNativeCell)
+    Lam a f sect = Comb (LamI a f sect noNativeCell) []
 
 -- it seems GHC can't figure this out itself
 {-# COMPLETE CachedVal, Lam #-}
@@ -1149,7 +1158,7 @@ instance Bifoldable GComb where
 
 instance Bitraversable GComb where
   bitraverse f _ (CachedVal cix c) = CachedVal cix <$> f c
-  bitraverse _ f (Comb (LamI a fr s cell)) = Comb . (\s' -> LamI a fr s' cell) <$> traverse f s
+  bitraverse _ f (Comb (LamI a fr s cell) lay) = (\s' -> Comb (LamI a fr s' cell) lay) <$> traverse f s
 
 type RCombs val = GCombs val (RComb val)
 
@@ -1273,6 +1282,9 @@ data Ctx v
   | Block (Ctx v)
   | Tag (Ctx v)
   | Var v Mem (Ctx v)
+  | -- | A wide variable (Unison.Runtime.Wide): 'wideWidth' slots, the
+    -- value slot on top, resolved to that slot.
+    Wide v Mem (Ctx v)
   deriving (Show)
 
 -- Represents the context formed by the top-level let rec around a
@@ -1298,6 +1310,9 @@ ctxResolve ctx v = walk 0 ctx
     walk i (Var x m ctx)
       | v == x = Just (i, m)
       | otherwise = walk (i + 1) ctx
+    walk i (Wide x m ctx)
+      | v == x = Just (i, m)
+      | otherwise = walk (i + wideWidth) ctx
 
 -- Add a sequence of variables and calling conventions to the context.
 pushCtx :: [(v, Mem)] -> Ctx v -> Ctx v
@@ -1309,6 +1324,7 @@ catCtx ECtx r = r
 catCtx (Tag l) r = Tag $ catCtx l r
 catCtx (Block l) r = Block $ catCtx l r
 catCtx (Var v m l) r = Var v m $ catCtx l r
+catCtx (Wide v m l) r = Wide v m $ catCtx l r
 
 -- Split the context after a particular variable
 breakAfter :: (Eq v) => (v -> Bool) -> Ctx v -> (Ctx v, Ctx v)
@@ -1320,6 +1336,67 @@ breakAfter p (Var v m vs) = (Var v m lvs, rvs)
     (lvs, rvs)
       | p v = (ECtx, vs)
       | otherwise = breakAfter p vs
+breakAfter p (Wide v m vs) = (Wide v m lvs, rvs)
+  where
+    (lvs, rvs)
+      | p v = (ECtx, vs)
+      | otherwise = breakAfter p vs
+
+-- | The context of a let's body: the bound variables over the context of
+-- the let. A variable bound by a let that 'emitLet' turns into a 'Let'
+-- section is wide, since its value arrives by a yield
+-- ('Unison.Runtime.Wide'); a binding emitted as an instruction (a literal,
+-- a constructor, a record, a primitive) writes its variable in place, one
+-- slot. A let of several variables (a primitive yielding several values,
+-- in the builtins) keeps one slot each.
+letCtx :: (Var v) => Direction a -> RNormal v -> [(v, Mem)] -> Ctx v -> Ctx v
+letCtx (Indirect _) bnd vcs ctx
+  | letYields bnd = yieldCtx vcs ctx
+letCtx _ _ vcs ctx = pushCtx vcs ctx
+
+-- | The context over the values a 'Let' section's binding yields: wide for
+-- one variable.
+yieldCtx :: [(v, Mem)] -> Ctx v -> Ctx v
+yieldCtx [(v, m)] ctx = Wide v m ctx
+yieldCtx vcs ctx = pushCtx vcs ctx
+
+-- | Whether 'emitLet' emits the binding as a 'Let' section, whose value
+-- arrives by a yield, rather than as an instruction: the complement of
+-- its instruction cases.
+letYields :: (Var v) => RNormal v -> Bool
+letYields = \case
+  TLit _ -> False
+  TBLit _ -> False
+  TApp (FCon _ _) _ -> False
+  TApp (FRec _) _ -> False
+  TApp (FRecSet _) _ -> False
+  TApp (FPrim _) _ -> False
+  TDiscard _ -> False
+  TUpdate {} -> False
+  _ -> True
+
+-- | The wide variables of a frame: the index of each one's value slot,
+-- counting from the top of the context, in increasing order, with the
+-- variable's width in slots. This is what a serialized continuation needs
+-- to map the frame's variables to its slots (reflectValue0 and reifyValue0
+-- in Machine.hs). Every width is 'wideWidth' today; the table allows a
+-- width per variable.
+wideSlots :: Ctx v -> FrameLayout
+wideSlots = go 0
+  where
+    go !_ ECtx = []
+    go i (Block ctx) = go i ctx
+    go i (Tag ctx) = go (i + 1) ctx
+    go i (Var _ _ ctx) = go (i + 1) ctx
+    go i (Wide _ _ ctx) = (i, wideWidth) : go (i + wideWidth) ctx
+
+-- | The wide variables of a frame, each as (the index of its value slot
+-- from the top of the frame, its width in slots), in increasing order.
+type FrameLayout = [(Int, Int)]
+
+-- | The slots a frame layout adds over one per variable.
+layoutPadding :: FrameLayout -> Int
+layoutPadding lay = sum [w - 1 | (_, w) <- lay]
 
 -- Modify the context to contain the variables introduced by an
 -- unboxed sum
@@ -1446,13 +1523,16 @@ counted (C n a) = tell (mempty, Max n) *> pure a
 letIndex :: Word16 -> Word64 -> Word64
 letIndex l c = c .|. fromIntegral l
 
-record :: Ctx v -> Word16 -> Emit Section -> Emit (Word64, Comb)
-record ctx l (EM es) = EM do
+-- | Records the body of an indirect let as a combinator of its own: its
+-- arity is the let's frame plus the yielded variables, and its frame layout
+-- is the frame's wide variables, from the context of the let.
+record :: Ctx v -> [(v, Mem)] -> Word16 -> Emit Section -> Emit (Word64, Comb)
+record ctx vcs l (EM es) = EM do
   c <- ask
   (s, (_m, Max sz)) <- listen es
-  let na = countCtx0 0 ctx
+  let na = countCtx0 0 (yieldCtx vcs ctx)
       n = letIndex l c
-      comb = Lam na sz s
+      comb = Comb (LamI na sz s noNativeCell) (wideSlots ctx)
   tell (EC.mapSingleton n comb, 0)
   pure $ (n, comb)
 
@@ -1475,6 +1555,7 @@ countCtx ctx = counted . C i
 
 countCtx0 :: Int -> Ctx v -> Int
 countCtx0 !i (Var _ _ ctx) = countCtx0 (i + 1) ctx
+countCtx0 !i (Wide _ _ ctx) = countCtx0 (i + wideWidth) ctx
 countCtx0 i (Tag ctx) = countCtx0 (i + 1) ctx
 countCtx0 i (Block ctx) = countCtx0 i ctx
 countCtx0 i ECtx = i
@@ -1613,7 +1694,7 @@ emitSection rns grpr grpn rec ctx (TLets d us ms bu bo)
       emitLet rns grpr grpn rec d (zip us ms) ctx bu $
         emitSection rns grpr grpn rec ectx bo
   where
-    ectx = pushCtx (zip us ms) ctx
+    ectx = letCtx d bu (zip us ms) ctx
 emitSection rns grpr grpn rec ctx (TName u (Left f) args bo) =
   emitClosures grpr grpn rec ctx args $ \ctx as ->
     let cix = (CIx f (cnum rns f) 0)
@@ -1864,6 +1945,7 @@ countBlock :: Ctx v -> Int
 countBlock = go 0
   where
     go !i (Var _ _ ctx) = go (i + 1) ctx
+    go !i (Wide _ _ ctx) = go (i + wideWidth) ctx
     go i (Tag ctx) = go (i + 1) ctx
     go i _ = i
 
@@ -1947,7 +2029,7 @@ emitLet rns grpr grpn rec d vcs ctx bnd
       \esect ->
         f
           <$> emitSection rns grpr grpn rec (Block ctx) bnd
-          <*> record (pushCtx vcs ctx) w esect
+          <*> record ctx vcs w esect
   where
     f s (w, Lam _ f bd) =
       let cix = (CIx grpr grpn w)
@@ -2568,7 +2650,7 @@ sanitizeCombsOfForeignFuncs sanitize sandboxedForeigns m
 
 sanitizeComb :: Set ForeignFunc -> GComb Void CombIx -> GComb Void CombIx
 sanitizeComb sandboxedForeigns = \case
-  Lam a b s -> Lam a b (sanitizeSection sandboxedForeigns s)
+  Comb (LamI a b s c) lay -> Comb (LamI a b (sanitizeSection sandboxedForeigns s) c) lay
 
 -- | Crawl the source code and statically replace all sandboxed foreign funcs with an error.
 sanitizeSection :: Set ForeignFunc -> GSection CombIx -> GSection CombIx

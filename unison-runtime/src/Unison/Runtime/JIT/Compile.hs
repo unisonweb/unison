@@ -98,7 +98,7 @@ poolKeysOf s =
     -- application is built from the function's closure
     ++ [ KeyComb cix info
        | App _ (Env cix comb) args <- sectionsOf s,
-         Comb info@(LamI arity _ _ _) <- [unRComb comb],
+         Comb info@(LamI arity _ _ _) _ <- [unRComb comb],
          Just n <- [argCount args],
          n > 0,
          n < arity
@@ -111,7 +111,7 @@ poolKeysOf s =
     -- a known combinator used as a value, or a top-level value
     combKey = \case
       Env cix comb
-        | Comb info <- unRComb comb -> [KeyComb cix info]
+        | Comb info _ <- unRComb comb -> [KeyComb cix info]
         | otherwise -> cachedKey cix comb
       _ -> []
     cachedKey cix comb = case unRComb comb of
@@ -151,7 +151,7 @@ poolKeysOf s =
       Prim2 SPLL _ _ -> [KeyEnum Ty.seqViewRef TT.seqViewEmptyTag]
       Prim2 SPLR _ _ -> [KeyEnum Ty.seqViewRef TT.seqViewEmptyTag]
       -- a partial application of a known function starts from its closure
-      Name (Env cix comb) _ | Comb info <- unRComb comb -> [KeyComb cix info]
+      Name (Env cix comb) _ | Comb info _ <- unRComb comb -> [KeyComb cix info]
       ForeignCall _ MutableArray_write _ -> [KeyEnum Ty.unitRef TT.unitTag]
       -- the array writes and copies give unit
       ForeignCall _ f _ | f `elem` CG.unitForeign -> [KeyEnum Ty.unitRef TT.unitTag]
@@ -303,9 +303,9 @@ groupUnits c sandbox lazy ref grp combs = do
             Nothing -> (Map.insert grp (seen ++ [first]) m, if null seen then "" else "_v" ++ show (length seen + 1))
   pure (map (unit suffix False) now, map (unit suffix True) later)
   where
-    letCells = Set.fromList [c | Comb (LamI _ _ s _) <- map snd (EC.mapToList combs), c <- letCellsOf s, c /= noNativeCell]
+    letCells = Set.fromList [c | Comb (LamI _ _ s _) _ <- map snd (EC.mapToList combs), c <- letCellsOf s, c /= noNativeCell]
     candidates = [c | c@(i, _, _, _, cell) <- every, isEntry i || Set.member cell letCells]
-    every = [(i, a, f, entry, cell) | (i, Comb (LamI a f entry cell)) <- EC.mapToList combs, cell /= noNativeCell]
+    every = [(i, a, f, entry, cell) | (i, Comb (LamI a f entry cell) _) <- EC.mapToList combs, cell /= noNativeCell]
     isEntry i = i .&. 0xFFFF == 0
     now = [c | c@(i, _, _, _, _) <- candidates, isEntry i || not lazy]
     later = [c | c@(i, _, _, _, _) <- candidates, not (isEntry i), lazy]
