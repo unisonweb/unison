@@ -8,10 +8,11 @@
 -- variable is wide is a function of the code alone, so processes in either
 -- mode agree on the layout of a serialized continuation.
 --
--- The convention is a property of the process, decided once from
--- @UNISON_WIDE@ (@on@ turns it on; the default is off while it is being
--- built), like the replacements mode in JIT/Config.hs. The JIT does not yet
--- generate code for wide frames, so it is off whenever this is on.
+-- The convention is a property of the process, decided once, like the
+-- replacements mode in JIT/Config.hs. The interpreter alone does not gain
+-- from it (JIT/benchmarks/2026-10-27-wide-interpreter.md), so it is meant
+-- to be on exactly when the JIT is; until the JIT generates code for wide
+-- frames it is off unless @UNISON_WIDE=on@, which turns the JIT off.
 module Unison.Runtime.Wide
   ( wideOn,
     wideK,
