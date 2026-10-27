@@ -1,6 +1,6 @@
 # The wide calling convention and delayed construction in the interpreter
 
-2026-10-27, `jitSuite` on the optimized build, `UNISON_JIT=off`, `UNISON_WIDE=off` against `UNISON_WIDE=on` (steps 3 and 4 of delayed-data-construction.local.md, at commit `7032c6c6f` plus the base-writing tail constructor). Medians of one run each; the machine was idle. Ratio is off over on, so below 1 is slower under the convention.
+2026-10-27, `jitSuite` on the optimized build, `UNISON_JIT=off`, `UNISON_WIDE=off` against `UNISON_WIDE=on` (steps 3 and 4 of delayed-data-construction.local.md, at commit `7032c6c6f` plus the base-writing tail constructor). One run each, on an idle machine. Ratio is off over on, so below 1 is slower under the convention.
 
 | row | off (ms) | wide (ms) | ratio |
 |---|---|---|---|
