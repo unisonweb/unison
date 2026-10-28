@@ -603,15 +603,17 @@ int64_t unison_jit_enter(UnisonNativeFn fn, int64_t *ustk, void **bstk, void **p
   // run again and again and getting nowhere (a poll that always fires, say).
   // Say what the context looks like, once. (Without the stack condition this
   // would fire for any function a benchmark loop calls a million times.)
+  // With the trace on, a thousand times is enough and the stack condition is
+  // dropped: an exit that moves the stack can loop too.
   if (__builtin_expect(stress_poll > 0 || stress_callee > 0 || jit_trace, 0)) {
     static _Thread_local UnisonNativeFn last_fn;
     static _Thread_local int64_t last_status, repeats;
-    if (fn == last_fn && status == last_status && status > 0 && ctx->sp == sp) {
-      if (++repeats == 1000000)
+    if (fn == last_fn && status == last_status && status > 0 && (ctx->sp == sp || jit_trace)) {
+      if (++repeats == 1000000 || (jit_trace && repeats == 1000))
         fprintf(stderr,
-                "[jit] %p left with exit %lld a million times in a row: hplim %p, budget left %lld, stress poll %lld/%lld, "
+                "[jit] %p left with exit %lld %lld times in a row: hplim %p, budget left %lld, stress poll %lld/%lld, "
                 "C stack here %p, limit %p, floor %p, sp %lld, frames %lld\n",
-                (void *)fn, (long long)status, *ctx->hplim, (long long)budget_left(ctx), (long long)ctx->stress_poll_left,
+                (void *)fn, (long long)status, (long long)repeats, *ctx->hplim, (long long)budget_left(ctx), (long long)ctx->stress_poll_left,
                 (long long)ctx->stress_poll, (void *)&ctx, (void *)ctx->cstack_limit, (void *)ctx->stack_floor,
                 (long long)sp, (long long)ctx->n_frames);
     } else {

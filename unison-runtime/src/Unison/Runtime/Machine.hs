@@ -81,7 +81,7 @@ import Unison.Runtime.ANF as ANF
   )
 import Unison.Runtime.ANF qualified as ANF
 import Unison.Runtime.ANF.Optimize qualified as ANF
-import Unison.Runtime.JIT (initialNativeCount, jitCompileGroup, jitConfig, jitExits, jitFrames, jitPool, jitRequestCell, jitRequestGroup, jitStats, jitTracing, noteAdHocExit, noteOutput, printJITStats, registerTypeNumbers, stackSlots)
+import Unison.Runtime.JIT (describeExit, initialNativeCount, jitCompileGroup, jitConfig, jitExits, jitFrames, jitPool, jitRequestCell, jitRequestGroup, jitStats, jitTracing, noteAdHocExit, noteOutput, printJITStats, registerTypeNumbers, stackSlots)
 import Unison.Runtime.JIT.Config qualified as JIT
 import Unison.Runtime.JIT.Exits
 import Unison.Runtime.JIT.Frames
@@ -1145,6 +1145,7 @@ runNative !yld env henv0 !activeThreads !stk0 !k0 fn0 = go fn0 henv0 stk0 k0
                 let every = JIT.statsEvery (jitConfig (jit env))
                 when (every > 0 && total `mod` every == 0) (printJITStats (jit env))
               exit <- lookupExit exits status
+              when tracing $ JIT.jitDump ("  exit " ++ show status ++ ": " ++ describeExit exit)
               -- Records are written innermost caller first; K has the
               -- innermost frame on top, so build from the last record.
               k <- if n == 0 then pure k else foldM (pushRecord bstk size (isAdHoc exit)) k (reverse records)
@@ -1222,7 +1223,10 @@ runNative !yld env henv0 !activeThreads !stk0 !k0 fn0 = go fn0 henv0 stk0 k0
         wait n = do
           code <- readNativeCode cell
           if code /= nullPtr
-            then go (castPtrToFunPtr code) henv stk k
+            then do
+              when tracing $ case stk of
+                Stack a f p _ _ -> JIT.jitDump ("again: cell " ++ show cell ++ " code " ++ show code ++ " stack " ++ show (a, f, p))
+              go (castPtrToFunPtr code) henv stk k
             else
               if n == 0
                 then die [] "native code disappeared from its cell"

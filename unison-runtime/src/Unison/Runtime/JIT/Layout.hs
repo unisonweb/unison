@@ -113,7 +113,10 @@ data Layouts = Layouts
     -- length, the values' offset and length ("records" in jit_internal.h)
     lRecord :: !Layout,
     -- | header size in bytes; payload starts after it
-    lHeaderBytes :: !Int
+    lHeaderBytes :: !Int,
+    -- | the info pointer of the type-tag closures (@GUnboxedTypeTag@),
+    -- which the witnesses of unboxed constructors share
+    lTypeTagInfo :: !Int
   }
 
 any' :: a -> Any
@@ -195,6 +198,7 @@ probeLayouts = do
   let !w = WrapIORef ref'
       !fo = Foreign w
   fi <- probeInfo 7 (any' fo)
+  tti <- probeInfo 7 (any' nat)
   wi <- probeInfo 7 (any' w)
   marr <- newArray 1 (Val 9 nat) :: IO (MutableArray (PrimState IO) Val)
   let !wa = WrapMutableArray marr
@@ -220,16 +224,16 @@ probeLayouts = do
   rc <- probeKind 7 4 5 (any' $! RecordG (recordShapeOf 7 [("a", 3), ("bc", 5)]) (recordVals (segFromList [NatVal 9, NatVal 10])))
   -- (the order of GClosure: ListC 1, TextC 2, Enum 3, Data1 4, Data2 5, Data5 6)
   let dataOk k l = lPtrTag l == (if k <= 2 then k + 3 else if k == 5 then 6 else 7) && lPtrs l == k + 1 && lNptrs l == k + 1
-  pure $ case (sequence ds, dg, pap, fi, wi, ai, v, aw, mbw, bw, tw, pw, rc, tx, li, by) of
-    (Right lds, Right ldg, Right lp, Right fii, Right wii, Right aii, Right lv, Right awi, Right mbwi, Right bwi, Right ltw, Right pwi, Right lr, Right txi, Right lii, Right byi)
+  pure $ case (sequence ds, dg, pap, fi, wi, ai, v, aw, mbw, bw, tw, pw, rc, tx, li, (by, tti)) of
+    (Right lds, Right ldg, Right lp, Right fii, Right wii, Right aii, Right lv, Right awi, Right mbwi, Right bwi, Right ltw, Right pwi, Right lr, Right txi, Right lii, (Right byi, Right ttii))
       | and (zipWith dataOk [0 ..] lds),
         lPtrTag ldg == 7 && lPtrs ldg == 3 && lNptrs ldg == 1,
         lPtrTag lp == 7 && lPtrs lp == 4 && lNptrs lp == 5,
         lPtrTag lv == 1 && lPtrs lv == 1 && lNptrs lv == 1,
         lPtrs ltw == 1 && lNptrs ltw == 0 ->
-          Right (Layouts (V.fromList lds) txi lii byi ldg lp fii wii aii awi mbwi bwi (Pair (lInfo ltw) (lPtrTag ltw)) pwi lv lr 8)
+          Right (Layouts (V.fromList lds) txi lii byi ldg lp fii wii aii awi mbwi bwi (Pair (lInfo ltw) (lPtrTag ltw)) pwi lv lr 8 ttii)
       | otherwise -> Left ("closure layouts are not what the code generator expects: " ++ unwords (map summary (lds ++ [ldg, lp, lv, ltw])))
-    _ -> Left ("closure layouts could not be probed: " ++ show ([either id (const "ok") x | x <- ds ++ [dg, pap, v, tw, rc]] ++ [either id (const "ok") x | x <- [fi, wi, ai]] ++ [either id (const "ok") x | x <- [aw, mbw, bw, pw, tx, li, by]]))
+    _ -> Left ("closure layouts could not be probed: " ++ show ([either id (const "ok") x | x <- ds ++ [dg, pap, v, tw, rc]] ++ [either id (const "ok") x | x <- [fi, wi, ai, tti]] ++ [either id (const "ok") x | x <- [aw, mbw, bw, pw, tx, li, by]]))
 
 -- | The layout of a constructor with the given pointer tag and field counts.
 probeKind :: Int -> Int -> Int -> Any -> IO (Either String Layout)

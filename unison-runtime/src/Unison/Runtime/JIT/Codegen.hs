@@ -28,6 +28,10 @@ module Unison.Runtime.JIT.Codegen
     genFunction,
     genDeferred,
     modulePrelude,
+    boxHelperText,
+    patchIndices,
+    relocateCells,
+    countingCell,
     pushCount,
     startsSupported,
     callOutWorthwhile,
@@ -53,9 +57,10 @@ import Data.Maybe (isJust, isNothing)
 import Data.Primitive.PrimArray (primArrayToList)
 import Data.Vector qualified as V
 import Data.Word (Word64)
-import Foreign.Ptr (Ptr, WordPtr (..), ptrToWordPtr)
+import Data.Text qualified as UText
+import Foreign.Ptr (Ptr, WordPtr (..), minusPtr, nullPtr, plusPtr, ptrToWordPtr)
 import GHC.Float (castDoubleToWord64)
-import System.Info (os)
+import System.Info (arch, os)
 import Unison.Builtin.Decls qualified as Ty (eitherRef, optionalRef, pairRef, seqViewRef, unitRef)
 import Unison.Reference (Reference)
 import Unison.Runtime.ANF (PackedTag (..))
@@ -67,6 +72,7 @@ import Unison.Runtime.JIT.Layout
 import Unison.Runtime.JIT.Pool
 import Unison.Runtime.JIT.Strict
 import Unison.Runtime.MCode hiding (Env)
+import Unison.Runtime.Wide (wideK, wideOn, wideWidth)
 import Unison.Runtime.MCode qualified as MCode (GRef (Env))
 import Unison.Runtime.Stack (MCombs, MRef, MSection, Val (..))
 import Unison.Runtime.TypeTags qualified as TT
@@ -99,10 +105,6 @@ data RtsFacts = RtsFacts
 data Env = Env
   { envLayouts :: !Layouts,
     envCtx :: !CtxOffsets,
-    -- | index of this module's first exit in the global table
-    envExitBase :: !Int,
-    -- | index of this module's first frame in the global frame table
-    envFrameBase :: !Int,
     -- | emit the stress-mode poll countdown
     envStressPoll :: !Bool,
     -- | emit the stress-mode "callee not compiled" countdown
@@ -157,14 +159,69 @@ data Env = Env
 -- | The cells left for auxiliary functions: a supply without end (the
 -- first pass over a module, which only counts what each function needs),
 -- or what remains of the module's block.
-data Cells = Counting | Cells !(Deque (Ptr NativeCell))
+-- | The cells for a function's auxiliary functions: counted while the
+-- function is generated (each gets a placeholder, 'countingCell', that
+-- 'relocateCells' replaces once a block of real cells is allocated), or
+-- given.
+data Cells = Counting !Int | Cells !(Deque (Ptr NativeCell))
 
 -- | The next cell, if there is one.
 takeCell :: Cells -> Maybe (Pair (Ptr NativeCell) Cells)
 takeCell = \case
-  Counting -> Just (Pair noNativeCell Counting)
+  Counting k -> Just (Pair (countingCell k) (Counting (k + 1)))
   Cells (c :<| cs) -> Just (Pair c (Cells cs))
   Cells _ -> Nothing
+
+-- | The placeholder for the @k@th auxiliary cell of a function: a small
+-- address no real cell can have.
+countingCell :: Int -> Ptr NativeCell
+countingCell k = nullPtr `plusPtr` (k + 1)
+
+-- | Replaces the placeholder cells in what a function's generation
+-- produced by the real ones, @real k@ for the @k@th.
+relocateCells :: (Int -> Ptr NativeCell) -> Function -> Function
+relocateCells real f =
+  f
+    { fnExits = fmap exit (fnExits f),
+      fnFrames = fmap (\(Frame cix n body c) -> Frame cix n body (cell c)) (fnFrames f),
+      fnAux = fmap (\(Pair sym c) -> Pair sym (cell c)) (fnAux f),
+      fnDeferred = fmap (\d -> d {dCell = cell (dCell d)}) (fnDeferred f),
+      fnMemo = fmap (\(Pair sym c) -> Pair sym (cell c)) (fnMemo f)
+    }
+  where
+    cell c
+      | c /= nullPtr, c < countingCell 1000000 = real (c `minusPtr` countingCell 0)
+      | otherwise = c
+    exit = \case
+      GrowStack n c -> GrowStack n (cell c)
+      Reenter c -> Reenter (cell c)
+      CallOut cix i rest n c -> CallOut cix i rest n (cell c)
+      Named name e -> Named name (exit e)
+      e -> e
+
+-- | The text of an exit or frame index in a function's IR: a placeholder
+-- for the index within the function, which 'patchIndices' replaces by the
+-- global one once the module's tables are registered. So one generation
+-- produces both the text and the counts the tables are sized from, and
+-- the two cannot disagree.
+exitRef, frameRef :: Int -> Text
+exitRef n = "{{E" <> tshow n <> "}}"
+frameRef n = "{{F" <> tshow n <> "}}"
+
+-- | Replaces the placeholders of 'exitRef' and 'frameRef' in a function's
+-- text by the global indices, given the function's first exit and frame.
+patchIndices :: Int -> Int -> UText.Text -> UText.Text
+patchIndices ebase fbase = go
+  where
+    go t = case UText.breakOn "{{" t of
+      (before, rest)
+        | UText.null rest -> before
+        | otherwise ->
+            let kind = UText.index rest 2
+                (num, after) = UText.breakOn "}}" (UText.drop 3 rest)
+                n = read (UText.unpack num) :: Int
+                base = if kind == 'E' then ebase else fbase
+             in before <> UText.pack (show (base + n)) <> go (UText.drop 2 after)
 
 -- | What an auxiliary function is generated from: the section (without its
 -- combinator references, which have no Ord; their CombIx stays), the depth
@@ -351,6 +408,8 @@ data GS = GS
     gsKinds :: !(IM.IntMap Text),
     -- | set when the function can't be compiled after all
     gsFailed :: !(Maybe Text),
+    -- | the instruction being generated, for the message of a failure
+    gsWhere :: !Text,
     -- | auxiliary functions generated so far: their IR, their names and
     -- cells, how many there are, and the cells left to hand out
     gsAuxText :: !(Deque Text),
@@ -435,6 +494,7 @@ initialState maxK cells known worker =
       gsMaxK = maxK,
       gsKinds = IM.empty,
       gsFailed = Nothing,
+      gsWhere = "",
       gsAuxText = D.empty,
       gsAuxCells = D.empty,
       gsNAux = 0,
@@ -454,7 +514,7 @@ initialState maxK cells known worker =
 
 -- | Gives up on the function (or on what 'attempt' is trying).
 failWith :: Text -> Gen ()
-failWith why = modify' (\s -> s {gsFailed = Just $! why})
+failWith why = modify' (\s -> s {gsFailed = Just $! (why <> (if gsWhere s == "" then "" else " at " <> gsWhere s))})
 
 fresh :: Text -> Gen Text
 fresh base = do
@@ -761,42 +821,51 @@ infixr 5 <+>
 -- instruction pushes 'pushCount' values, a @Let@'s body starts at its
 -- combinator's arity, a data match arm pushes the constructor's fields.
 -- An offset of 0 or below is the caller's (a pending argument), not ours.
+--
+-- A wide variable's field slots (Unison.Runtime.Wide) are read by a data
+-- match on it and by its 'Box'; once boxed, in place, the object holds
+-- the fields and the slots are dead, so the walk carries the slots boxed
+-- so far and a match on one of those reads its value slot only.
 liveAt :: Env -> Int -> Int -> MSection -> Maybe IS.IntSet
-liveAt env base = go
+liveAt env base = go IS.empty
   where
-    go d = \case
+    go bx d = \case
       App _ r args -> refReads d r <+> argReads base d args
       Call _ _ _ args -> argReads base d args
       Jump i args -> slotAt d i <+> argReads base d args
-      Match i br -> slotAt d i <+> arms d br
-      NMatch _ i br -> slotAt d i <+> arms d br
-      DMatch _ i br -> slotAt d i <+> arms d br
+      Match i br -> slotAt d i <+> arms bx d br
+      NMatch _ i br -> slotAt d i <+> arms bx d br
+      DMatch _ i br -> slotAt d i <+> (if IS.member (d - i) bx then Just IS.empty else wideFields d i) <+> arms bx d br
       -- the pure request has one field, the value; a request arm pushes
       -- its constructor's fields
       RMatch i pu br ->
         slotAt d i
-          <+> go (d + 1) pu
-          <+> foldr (\(_, gb) acc -> arms d gb <+> acc) (Just IS.empty) (EC.mapToList br)
+          <+> go bx (d + 1) pu
+          <+> foldr (\(_, gb) acc -> arms bx d gb <+> acc) (Just IS.empty) (EC.mapToList br)
       Yield args -> argReads base d args
-      Ins i rest -> instrReads base d i <+> (pushCount i >>= \n -> go (d + n) rest)
+      Ins (Box i) rest ->
+        let fields = IS.fromList [d - i - j | j <- [1 .. wideWidth - 1], d - i - j >= 1]
+         in slotAt d i <+> Just fields <+> fmap (`IS.difference` fields) (go (IS.insert (d - i) bx) d rest)
+      Ins i rest -> instrReads base d i <+> (pushCount i >>= \n -> go bx (d + n) rest)
       Let b (CIx _ _ w) _ body _ -> case EC.lookup w (envCombs env) of
-        Just (Comb (LamI bodyArity _ _ _) _) | bodyArity >= d -> go d b <+> go bodyArity body
+        Just (Comb (LamI bodyArity _ _ _) _) | bodyArity >= d -> go bx d b <+> go bx bodyArity body
         _ -> Nothing
       Die _ -> Just IS.empty
       Exit -> Just IS.empty
     refReads d = \case
       Stk i -> slotAt d i
       _ -> Just IS.empty
+    wideFields d i = if wideOn then foldr (<+>) (Just IS.empty) [slotAt d (i + j) | j <- [1 .. wideWidth - 1]] else Just IS.empty
     -- the arms of a match: each runs with the fields it binds pushed
     -- (none, for a match on an unboxed value), the default arm with
     -- nothing pushed
-    arms d = \case
-      Test1 _ a b -> arm d a <+> go d b
-      Test2 _ a _ b c -> arm d a <+> arm d b <+> go d c
-      TestW df m -> foldr (\(_, a) acc -> arm d a <+> acc) (go d df) (EC.mapToList m)
-      TestT df m -> foldr (\a acc -> go d a <+> acc) (go d df) (Map.elems m)
-      TestY df m -> foldr (\a acc -> go d a <+> acc) (go d df) (Map.elems m)
-    arm d (Arm n a) = go (d + n) a
+    arms bx d = \case
+      Test1 _ a b -> arm bx d a <+> go bx d b
+      Test2 _ a _ b c -> arm bx d a <+> arm bx d b <+> go bx d c
+      TestW df m -> foldr (\(_, a) acc -> arm bx d a <+> acc) (go bx d df) (EC.mapToList m)
+      TestT df m -> foldr (\a acc -> go bx d a <+> acc) (go bx d df) (Map.elems m)
+      TestY df m -> foldr (\a acc -> go bx d a <+> acc) (go bx d df) (Map.elems m)
+    arm bx d (Arm n a) = go bx (d + n) a
 
 -- | The slots an instruction reads (see 'liveAt').
 instrReads :: Int -> Int -> GInstr comb -> Maybe IS.IntSet
@@ -813,7 +882,7 @@ instrReads base d = \case
   Info _ -> Just IS.empty
   Pack _ _ args -> argReads base d args
   PackWide _ _ _ args -> argReads base d args
-  Box i -> slotAt d i
+  Box i -> foldr (<+>) (slotAt d i) [slotAt d (i + j) | j <- [1 .. wideWidth - 1]]
   RecPack _ args -> argReads base d args
   RecUnpack _ i -> slotAt d i
   RecSet _ args -> argReads base d args
@@ -914,7 +983,7 @@ writeRecord env ix fsz masz = do
   emit (off <> " = mul i64 " <> nf <> ", 3")
   rec0 <- fresh "rec"
   emit (rec0 <> " = getelementptr i64, ptr " <> frp <> ", i64 " <> off)
-  emit ("store i64 " <> tshow ix <> ", ptr " <> rec0)
+  emit ("store i64 " <> frameRef ix <> ", ptr " <> rec0)
   rec1 <- fresh "rec"
   emit (rec1 <> " = getelementptr i64, ptr " <> rec0 <> ", i64 1")
   emit ("store i64 " <> tshow fsz <> ", ptr " <> rec1)
@@ -933,17 +1002,17 @@ writeRecord env ix fsz masz = do
 
 -- | Adds an exit and returns its global index.
 addExit :: Env -> Exit -> Gen Int
-addExit env e = do
+addExit _env e = do
   n <- gets gsNExits
   modify' (\s -> s {gsExits = gsExits s |> e, gsNExits = n + 1})
-  pure (envExitBase env + n)
+  pure n
 
 -- | Adds a frame table entry and returns its global index.
 addFrame :: Env -> Frame -> Gen Int
-addFrame env f = do
+addFrame _env f = do
   n <- gets gsNFrames
   modify' (\s -> s {gsFrames = gsFrames s |> f, gsNFrames = n + 1})
-  pure (envFrameBase env + n)
+  pure n
 
 -- | Writes the given slots back to the Unison stack.
 writeSlots :: [Int] -> Gen ()
@@ -1017,7 +1086,7 @@ exitBlock = exitBlockNamed "exit"
 exitBlockNamed :: Text -> FnEnv -> Int -> Exit -> Gen Text
 exitBlockNamed base fe d e = do
   ix <- addExit (feEnv fe) e
-  sideBlock base (joinShared fe d (exitLive fe d e) True Nothing (tshow ix))
+  sideBlock base (joinShared fe d (exitLive fe d e) True Nothing (exitRef ix))
 
 -- | Ends the current block by branching to the function's write-back
 -- block for the given key (see 'SharedKey'), which returns @status@ for
@@ -1081,7 +1150,12 @@ joinCall fe d live isExit ownFrame status = do
       recs = zipWith (\r pending -> r ++ [pending]) ordered (replicate (length ordered - 1) 0 ++ [-1 :: Int])
       flags = (if isExit then 1 else 0) + (if null es && isNothing (feLocal fe) then 2 else 0) :: Int
       header = [flags, currentBase fe, base, d, length slots, length recs]
-      contents = intercalateT ", " (D.fromList (map (("i64 " <>) . tshow) (header ++ slots ++ concat recs)))
+      -- a record's first word is a frame index (a placeholder until the
+      -- module's tables are registered), or -1 for an environment switch
+      recText = \case
+        ix : rest -> (if ix >= 0 then frameRef ix else tshow ix) : map tshow rest
+        [] -> []
+      contents = intercalateT ", " (D.fromList (map ("i64 " <>) (map tshow (header ++ slots) ++ concatMap recText recs)))
   when isExit (useK d)
   vals <- forM slots $ \k -> useK k >> (Pair <$> loadU k <*> loadB k)
   descs <- gets gsDescs
@@ -1200,12 +1274,101 @@ workerCC, workerTail :: Text
 argList :: Deque (Pair Text Text) -> Text
 argList = foldMap (\(Pair u b) -> ", i64 " <> u <> ", ptr " <> b)
 
--- | What a worker returns: the status, and when it is OK the result's
--- unboxed word and boxed pointer. With status 'statusTailCall' the other
--- two are instead the code pointer of a function to call and the stack
--- pointer to call it with.
+-- | The result slots a function returns: one, or under the wide
+-- convention (Unison.Runtime.Wide) the value slot and its field slots.
+resultWidth :: Int
+resultWidth = if wideOn then wideWidth else 1
+
+-- | What a worker returns: the status, and when it is OK the result slots,
+-- each an unboxed word and a boxed pointer. With status 'statusTailCall'
+-- the first pair is instead the code pointer of a function to call and
+-- the stack pointer to call it with. x86-64 returns at most three
+-- integer words in registers under tailcc (LLVM refuses a musttail call
+-- beyond that), so there the pairs after the first travel as doubles,
+-- bitcast on both sides; arm64 has registers for them all.
+workerRetTypes :: [Text]
+workerRetTypes = "i64" : "i64" : "ptr" : concat (replicate (resultWidth - 1) extra)
+  where
+    extra
+      | arch == "aarch64" = ["i64", "ptr"]
+      | otherwise = ["double", "double"]
+
 workerRet :: Text
-workerRet = "{ i64, i64, ptr }"
+workerRet = "{ " <> intercalateT ", " (D.fromList workerRetTypes) <> " }"
+
+-- | Builds a worker's return value from a status and the result slots;
+-- fewer slots than 'resultWidth' are padded with the first (a yield of one
+-- ordinary value), so every pointer in it is a valid one.
+packWorkerRet :: Text -> Deque (Pair Text Text) -> Gen Text
+packWorkerRet st vals = do
+  r0 <- fresh "ret"
+  emit (r0 <> " = insertvalue " <> workerRet <> " undef, i64 " <> st <> ", 0")
+  foldM slot r0 (zip [0 ..] (D.toList (padResults vals)))
+  where
+    slot r (j, Pair u b) = do
+      let (tu, tb) = (workerRetTypes !! (1 + 2 * j), workerRetTypes !! (2 + 2 * j))
+      u' <- cast "i64" tu u
+      b' <- cast "ptr" tb b
+      r1 <- fresh "ret"
+      emit (r1 <> " = insertvalue " <> workerRet <> " " <> r <> ", " <> tu <> " " <> u' <> ", " <> tshow (1 + 2 * j))
+      r2 <- fresh "ret"
+      emit (r2 <> " = insertvalue " <> workerRet <> " " <> r1 <> ", " <> tb <> " " <> b' <> ", " <> tshow (2 + 2 * j))
+      pure r2
+    cast from to v
+      | from == to = pure v
+      | from == "i64" = do
+          d <- fresh "asd"
+          emit (d <> " = bitcast i64 " <> v <> " to double")
+          pure d
+      | otherwise = do
+          i <- fresh "asi"
+          emit (i <> " = ptrtoint ptr " <> v <> " to i64")
+          d <- fresh "asd"
+          emit (d <> " = bitcast i64 " <> i <> " to double")
+          pure d
+
+-- | Result slots padded to 'resultWidth' with copies of the first: a yield
+-- of one ordinary value under the wide convention. The interpreter leaves
+-- the slots below the value as they are, since its stack only ever holds
+-- closures; here every slot up to the frame depth must have been written,
+-- because an exit writes the frame back from the allocas, and a copy is
+-- the cheapest valid pointer to hand.
+padResults :: Deque (Pair Text Text) -> Deque (Pair Text Text)
+padResults vals = case vals of
+  v :<| _ -> vals <> D.fromList (replicate (resultWidth - D.size vals) v)
+  Empty -> vals
+
+-- | Fills the slots below frame offset @k@, down to @k - w + 1@, with
+-- copies of slot @k@ ('padResults' for a value already in its slot).
+padBelow :: Int -> Int -> Gen ()
+padBelow k w = when (w > 1) $ do
+  u <- loadU k
+  b <- loadB k
+  forM_ [k - w + 1 .. k - 1] $ \j -> storeU j u >> storeB j b
+
+-- | The status and the result slots of a worker's return value.
+unpackWorkerRet :: Text -> Gen (Text, Deque (Pair Text Text))
+unpackWorkerRet r = do
+  st <- fresh "st"
+  emit (st <> " = extractvalue " <> workerRet <> " " <> r <> ", 0")
+  vals <- forM [0 .. resultWidth - 1] $ \j -> do
+    let (tu, tb) = (workerRetTypes !! (1 + 2 * j), workerRetTypes !! (2 + 2 * j))
+    u0 <- fresh "r.u"
+    emit (u0 <> " = extractvalue " <> workerRet <> " " <> r <> ", " <> tshow (1 + 2 * j))
+    b0 <- fresh "r.b"
+    emit (b0 <> " = extractvalue " <> workerRet <> " " <> r <> ", " <> tshow (2 + 2 * j))
+    u <- if tu == "i64" then pure u0 else do
+      i <- fresh "r.u"
+      emit (i <> " = bitcast double " <> u0 <> " to i64")
+      pure i
+    b <- if tb == "ptr" then pure b0 else do
+      i <- fresh "r.bi"
+      emit (i <> " = bitcast double " <> b0 <> " to i64")
+      p <- fresh "r.b"
+      emit (p <> " = inttoptr i64 " <> i <> " to ptr")
+      pure p
+    pure (Pair u b)
+  pure (st, D.fromList vals)
 
 -- | The status a worker returns to say "call this function for me, as a
 -- tail call": its arguments are on the Unison stack above the worker's
@@ -1226,14 +1389,15 @@ retStatus fe st
       emit ("ret " <> workerRet <> " " <> r)
   | otherwise = emit ("ret i64 " <> st)
 
--- | Returns a worker's three values.
+-- | Returns a status and one result slot from a worker.
 retWorker :: Text -> Text -> Text -> Gen ()
-retWorker st u b = do
-  r0 <- fresh "ret"
-  emit (r0 <> " = insertvalue " <> workerRet <> " { i64 " <> st <> ", i64 undef, ptr undef }, i64 " <> u <> ", 1")
-  r1 <- fresh "ret"
-  emit (r1 <> " = insertvalue " <> workerRet <> " " <> r0 <> ", ptr " <> b <> ", 2")
-  emit ("ret " <> workerRet <> " " <> r1)
+retWorker st u b = retWorkerSlots st (D.singleton (Pair u b))
+
+-- | Returns a status and the result slots from a worker.
+retWorkerSlots :: Text -> Deque (Pair Text Text) -> Gen ()
+retWorkerSlots st vals = do
+  r <- packWorkerRet st vals
+  emit ("ret " <> workerRet <> " " <> r)
 
 -- | Raises the high-water mark of slots written to the boxed stack (for
 -- marking its cards on return) to the given stack index.
@@ -1253,6 +1417,7 @@ allocates :: MSection -> Bool
 allocates = anyInstr $ \case
   Pack _ _ ZArgs -> False
   Pack {} -> True
+  Box _ -> True
   RecPack {} -> True
   RecSet {} -> True
   Prim2 REFW _ _ -> True
@@ -1319,6 +1484,7 @@ workerShape = \case
   Yield args -> case args of
     VArg1 _ -> True
     VArgV _ -> True
+    VArgR _ l -> wideOn && l == wideWidth
     _ -> False
   Ins _ rest -> workerShape rest
   Match _ br -> branches br
@@ -1397,7 +1563,9 @@ genFunctionText fe body = do
   let block (Pair l is)
         | l == "unreachable" = D.empty
         | otherwise = (l <> ":") <| fmap ("  " <>) is
-      maxK = max (gsMaxK gs) (arity + feFrameSize fe)
+      -- the wrapper (or the uniform return) stores the result slots above
+      -- the frame base after the body ran, so they are ensured here too
+      maxK = maximum [gsMaxK gs, arity + feFrameSize fe, feBase fe + resultWidth]
       entry = entryBlock env (feWorker fe) (feFast fe == Nothing) arity (feBase fe) maxK (gsMaxPool gs) (gsMaxExitArgs gs)
       -- the grow exit, the first this function added, asks for what the
       -- entry check demanded
@@ -1574,14 +1742,33 @@ genWrapper fe body = do
         )
       <> lines ["ok:"]
       <> indent
-        ( lines
-            [ -- the worker may have run native code that moved nothing, but
-              -- the stacks' addresses are the same for the whole native run
-              "%res = add i64 %fp.in, 1",
-              "%res.u = getelementptr i64, ptr %ustk, i64 %res",
-              "store i64 %r.u, ptr %res.u",
-              "%res.b = getelementptr ptr, ptr %bstk, i64 %res",
-              "store ptr %r.b, ptr %res.b",
+        ( -- the worker may have run native code that moved nothing, but
+          -- the stacks' addresses are the same for the whole native run.
+          -- The result slots go above the frame base, the value slot on
+          -- top (a wide result's field pairs may have travelled as doubles)
+          foldMap
+            ( \j ->
+                let k = tshow (resultWidth - j)
+                    (tu, tb) = (workerRetTypes !! (1 + 2 * j), workerRetTypes !! (2 + 2 * j))
+                    uv = "%r.u" <> tshow j
+                    bv = "%r.b" <> tshow j
+                 in lines
+                      ( [ "%res" <> k <> " = add i64 %fp.in, " <> k,
+                          uv <> ".x = extractvalue " <> workerRet <> " %r, " <> tshow (1 + 2 * j),
+                          bv <> ".x = extractvalue " <> workerRet <> " %r, " <> tshow (2 + 2 * j)
+                        ]
+                          ++ (if tu == "i64" then [uv <> " = add i64 " <> uv <> ".x, 0"] else [uv <> " = bitcast double " <> uv <> ".x to i64"])
+                          ++ (if tb == "ptr" then [bv <> " = getelementptr i8, ptr " <> bv <> ".x, i64 0"] else [bv <> ".i = bitcast double " <> bv <> ".x to i64", bv <> " = inttoptr i64 " <> bv <> ".i to ptr"])
+                          ++ [ "%res" <> k <> ".u = getelementptr i64, ptr %ustk, i64 %res" <> k,
+                               "store i64 " <> uv <> ", ptr %res" <> k <> ".u",
+                               "%res" <> k <> ".b = getelementptr ptr, ptr %bstk, i64 %res" <> k,
+                               "store ptr " <> bv <> ", ptr %res" <> k <> ".b"
+                             ]
+                      )
+            )
+            [0 .. resultWidth - 1]
+            <> lines
+            [ "%res = add i64 %fp.in, " <> tshow resultWidth,
               field "%ap.a" oAp,
               "store i64 %ap, ptr %ap.a",
               field "%fp.a" oFp,
@@ -1616,7 +1803,7 @@ genWrapper fe body = do
               "store i64 %fp.in, ptr %p.fp.a",
               field "%p.sp.a" oSp,
               "store i64 %sp, ptr %p.sp.a",
-              "ret i64 " <> tshow pendingIx
+              "ret i64 " <> exitRef pendingIx
             ]
         )
       <> lines ["}"]
@@ -1845,28 +2032,31 @@ genHead fe body = do
         pure stop
       else pure stopHp
   -- A worker that makes calls checks the C stack here, once, instead of
-  -- before each call. If the budget for native calls is used up, it goes
-  -- back to the trampoline (its callers unwinding as for any exit) and is
-  -- entered again at the bottom of the C stack. On Windows a tail call can
-  -- be an ordinary call ('workerTail'), so a worker that makes tail calls
-  -- checks too.
-  stop <-
-    if feWorker fe && (makesCalls body || (os == "mingw32" && makesTailCalls body))
-      then do
-        csp <- fresh "csp"
-        emit (csp <> " = call ptr @llvm.stacksave.p0()")
-        cspi <- fresh "csp"
-        emit (cspi <> " = ptrtoint ptr " <> csp <> " to i64")
-        lim <- ctxField env oCStackLimit
-        limv <- fresh "lim"
-        emit (limv <> " = load i64, ptr " <> lim)
-        deep <- fresh "deep"
-        emit (deep <> " = icmp ult i64 " <> cspi <> ", " <> limv)
-        stop <- fresh "stop"
-        emit (stop <> " = or i1 " <> stopAlloc <> ", " <> deep)
-        pure stop
-      else pure stopAlloc
-  reenter <- exitBlock fe d (Reenter (feCell fe))
+  -- before each call. If the budget for native calls is used up, this call
+  -- runs interpreted: it goes back to the trampoline (its callers unwinding
+  -- as for any exit), which evaluates the body with the frame as written
+  -- back. Not a re-enter: entered again at the bottom of the C stack the
+  -- check can fire again, and does whenever the function's own frame is
+  -- deeper than the budget (the stress mode's 4 KB, 2026-10-28), so a
+  -- re-enter here looped forever. On Windows a tail call can be an
+  -- ordinary call ('workerTail'), so a worker that makes tail calls checks
+  -- too.
+  when (feWorker fe && (makesCalls body || (os == "mingw32" && makesTailCalls body))) $ do
+    csp <- fresh "csp"
+    emit (csp <> " = call ptr @llvm.stacksave.p0()")
+    cspi <- fresh "csp"
+    emit (cspi <> " = ptrtoint ptr " <> csp <> " to i64")
+    lim <- ctxField env oCStackLimit
+    limv <- fresh "lim"
+    emit (limv <> " = load i64, ptr " <> lim)
+    deep <- fresh "deep"
+    emit (deep <> " = icmp ult i64 " <> cspi <> ", " <> limv)
+    interpreted <- exitBlock fe d (Named "C stack" (Resume (feCix fe) body))
+    shallow <- freshLabel "shallow"
+    emit ("br i1 " <> deep <> ", label %" <> interpreted <> ", label %" <> shallow <> unlikely)
+    startBlock shallow
+  let stop = stopAlloc
+  reenter <- exitBlock fe d (Named "entry poll" (Reenter (feCell fe)))
   bodyLabel <- freshLabel "body"
   when (envStressPoll env) $ do
     left <- ctxField env oStressPollLeft
@@ -1947,16 +2137,20 @@ genLet fe d binding bcix@(CIx _ _ w) f body cell sect = case EC.lookup w (envCom
   Just (Comb (LamI bodyArity _ _ _) _)
     | m <- bodyArity - d,
       m >= 0 -> case binding of
+        -- a constant or a closure built in place is one slot: on top of a
+        -- wide result, with copies below it ('padResults')
         Call _ ccix comb ZArgs
-          | m == 1,
+          | m == resultWidth,
             Just (Pair u ix) <- cachedConstant fe ccix comb -> do
-              pushCached d u ix
-              genSection fe (d + 1) body
+              pushCached (d + m - 1) u ix
+              padBelow (d + m) m
+              genSection fe (d + m) body
         App _ (MCode.Env ccix comb) ZArgs
-          | m == 1,
+          | m == resultWidth,
             Just (Pair u ix) <- cachedConstant fe ccix comb -> do
-              pushCached d u ix
-              genSection fe (d + 1) body
+              pushCached (d + m - 1) u ix
+              padBelow (d + m) m
+              genSection fe (d + m) body
         Call _ _ comb args
           | Comb (LamI arity _ _ ccell) _ <- unRComb comb,
             let srcs = argSources fe d args,
@@ -1979,20 +2173,22 @@ genLet fe d binding bcix@(CIx _ _ w) f body cell sect = case EC.lookup w (envCom
           -- closure in the pool ('genNameInline').
           | enabled fe "name",
             Nothing <- feFast fe,
-            m == 1,
+            m == resultWidth,
             Comb info@(LamI arity _ _ _) _ <- unRComb comb,
             let srcs = argSources fe d args,
             not (D.null srcs),
             D.size srcs < arity,
             Just pix <- Map.lookup (KeyComb ccix info) (envPool env) -> do
-              genNameInline fe d pix srcs
-              genSection fe (d + 1) body
+              genNameInline fe (d + m - 1) pix srcs
+              padBelow (d + m) m
+              genSection fe (d + m) body
           | enabled fe "app",
             ZArgs <- args,
-            m == 1,
+            m == resultWidth,
             Just ix <- combConstant fe r -> do
-              poolConstant fe d ix
-              genSection fe (d + 1) body
+              poolConstant fe (d + m - 1) ix
+              padBelow (d + m) m
+              genSection fe (d + m) body
           | otherwise -> exitResume fe d sect
         App _ (Stk i) args | enabled fe "app" -> do
           bcell <- bodyCell
@@ -2055,7 +2251,7 @@ bodyLive fe base m body = liveAt (feEnv fe) (currentBase fe) (base + m) body <+>
 
 genNonTailCall :: FnEnv -> Int -> Int -> Ptr NativeCell -> Deque Int -> Int -> MSection -> Maybe (Pair Int Int) -> Gen () -> Gen ()
 genNonTailCall fe d base ccell srcs m sect ownFrame continue
-  | m == 1,
+  | m == resultWidth,
     Just (Pair wname arity) <- Map.lookup ccell (envWorkers (feEnv fe)),
     arity == D.size srcs =
       genWorkerCall fe d base wname srcs sect ownFrame continue
@@ -2152,16 +2348,15 @@ genWorkerCall fe d base wname srcs sect ownFrame continue = do
     startBlock goL
   cStackGuard fe slow
   vals <- loadSources srcs
-  useK (base + max n 1)
+  useK (base + max n resultWidth)
   bp <- fpPlus base
   r <- fresh "r"
   emit (r <> " = call " <> workerCC <> " " <> workerRet <> " @" <> wname <> "(ptr %ctx, i64 " <> bp <> argList (D.reverse vals) <> ")")
-  st <- fresh "st"
-  emit (st <> " = extractvalue " <> workerRet <> " " <> r <> ", 0")
-  ru <- fresh "r.u"
-  emit (ru <> " = extractvalue " <> workerRet <> " " <> r <> ", 1")
-  rb <- fresh "r.b"
-  emit (rb <> " = extractvalue " <> workerRet <> " " <> r <> ", 2")
+  (st, results) <- unpackWorkerRet r
+  let (ru, rb) = case results of
+        Pair u b :<| _ -> (u, b)
+        Empty -> ("undef", "undef")
+      w = resultWidth
   ok <- fresh "ok"
   emit (ok <> " = icmp eq i64 " <> st <> ", 0")
   callL <- curLabel
@@ -2188,23 +2383,29 @@ genWorkerCall fe d base wname srcs sect ownFrame continue = do
     ok2 <- fresh "ok"
     emit (ok2 <> " = icmp eq i64 " <> r2 <> ", 0")
     emit ("br i1 " <> ok2 <> ", label %" <> tailOkL <> ", label %" <> unwindL <> likely)
+  -- the tail call made for the worker returned through the stack: the
+  -- result slots are above the base
+  tailVals <- forM [0 .. w - 1] $ \_ -> Pair <$> fresh "u" <*> fresh "b"
   sideBlockNamed tailOkL $ do
-    ua <- stackAddrU (base + 1)
-    emit (u2 <> " = load i64, ptr " <> ua)
-    ba <- stackAddrB (base + 1)
-    emit (b2 <> " = load ptr, ptr " <> ba)
+    iforM_ (D.fromList tailVals) $ \j (Pair tu tb) -> do
+      ua <- stackAddrU (base + w - j)
+      emit (tu <> " = load i64, ptr " <> ua)
+      ba <- stackAddrB (base + w - j)
+      emit (tb <> " = load ptr, ptr " <> ba)
     emit ("br label %" <> contL)
   sideBlockNamed unwindL $ do
     status <- fresh "status"
     emit (status <> " = phi i64 [ " <> st <> ", %" <> notOkL <> " ], [ " <> r2 <> ", %" <> tailL <> " ]")
-    unwindWith fe base (bodyLive fe base 1 sect) ownFrame status
+    unwindWith fe base (bodyLive fe base w sect) ownFrame status
   startBlock contL
-  u <- fresh "u"
-  emit (u <> " = phi i64 [ " <> ru <> ", %" <> callL <> " ], [ " <> u2 <> ", %" <> tailOkL <> " ]")
-  b <- fresh "b"
-  emit (b <> " = phi ptr [ " <> rb <> ", %" <> callL <> " ], [ " <> b2 <> ", %" <> tailOkL <> " ]")
-  storeU (base + 1) u
-  storeB (base + 1) b
+  iforM_ (D.fromList (zip (D.toList results) tailVals)) $ \j (Pair ru' rb', Pair tu tb) -> do
+    u <- fresh "u"
+    emit (u <> " = phi i64 [ " <> ru' <> ", %" <> callL <> " ], [ " <> tu <> ", %" <> tailOkL <> " ]")
+    b <- fresh "b"
+    emit (b <> " = phi ptr [ " <> rb' <> ", %" <> callL <> " ], [ " <> tb <> ", %" <> tailOkL <> " ]")
+    storeU (base + w - j) u
+    storeB (base + w - j) b
+  let _ = (u2, b2)
   continue
 
 -- | Runs a generator that may fail. On failure the state is rolled back
@@ -2362,13 +2563,29 @@ genDMatchClosure fe d i mr br sect = do
           else pure Nothing
       let -- where a data value of a constructor without an arm goes
           noArm = maybe other id defaultL
+          -- an arm: a block that pushes the object's fields and falls into
+          -- the arm's body, which is a block of its own so that an unboxed
+          -- constructor, whose fields come from slots, can enter it too
           armFor (u, n) = case branchArmOf br u of
-            Nothing -> pure noArm
-            Just (Arm _ body) -> armBlock "case" $ do
-              when (n >= 7) (requireWide fe base n other)
-              when (n > 0) (pushFields fe d base n other)
-              genSection fe (d + n) body
-          -- the block for a shape: the arm itself when it is the only one
+            Nothing -> pure (noArm, Nothing)
+            Just (Arm _ body) -> do
+              label <- freshLabel "case"
+              bodyL <- freshLabel "arm"
+              ok <- attempt $ withKinds $ do
+                sideBlockNamed label $ do
+                  when (n >= 7) (requireWide fe base n other)
+                  when (n > 0) (pushFields fe d base n other)
+                  emit ("br label %" <> bodyL)
+                sideBlockNamed bodyL (genSection fe (d + n) body)
+              if ok
+                then pure (label, Just bodyL)
+                else do
+                  sideBlockNamed label (exitResume fe d sect)
+                  pure (label, Nothing)
+      armsAll <- forM ctors $ \c -> do
+        (label, mbody) <- armFor c
+        pure (c, label, mbody)
+      let -- the block for a shape: the arm itself when it is the only one
           -- and no constructor is without an arm; otherwise a load of the
           -- packed tag at the shape's offset and a switch on the
           -- constructor number, or for a lone wide constructor a compare
@@ -2376,7 +2593,7 @@ genDMatchClosure fe d i mr br sect = do
           shapeBlock s = case armsOfShape s of
             [] -> pure noArm
             cs -> do
-              arms <- forM cs $ \c -> Pair (fst c) <$> armFor c
+              let arms = [Pair u al | ((u, n), al, _) <- armsAll, (u, n) `elem` cs]
               case arms of
                 [Pair _ al] | not hasDefault, s /= 7 -> pure al
                 _ -> do
@@ -2405,8 +2622,50 @@ genDMatchClosure fe d i mr br sect = do
       -- every data shape gets a block: a shape with no arm goes to the
       -- default arm (or exits, without one)
       entries <- forM [0 .. 7] $ \s -> Pair (layoutOf s) <$> shapeBlock s
+      -- an unboxed constructor (Unison.Runtime.Wide): the slot's closure is
+      -- a witness, which shares the type-tag closures' info pointer, and
+      -- says how many fields follow in the slots below; the constructor
+      -- number is in the slot's word. The fields are copied up to where
+      -- the arm expects them pushed, and the arm's body is entered.
+      -- A witness can only be in a slot with its field slots in the frame
+      -- below it: a match on a value lower than that (a function's argument
+      -- at the frame's bottom, always boxed) gets no witness arm.
+      witnessL <-
+        if not wideOn || d - i - wideK < 1
+          then pure other
+          else do
+            l <- freshLabel "witness"
+            sideBlockNamed l $ do
+              tagw <- loadU (d - i)
+              ctor <- fresh "ctor"
+              emit (ctor <> " = and i64 " <> tagw <> ", 65535")
+              chain <- forM [0 .. wideWidth - 1] $ \k -> do
+                wk <- freshLabel ("witness" <> tshow k)
+                withKinds $ sideBlockNamed wk $ do
+                  copies <- forM [((u, n), bl) | ((u, n), _, Just bl) <- armsAll, n == k] $ \((u, n), bl) -> do
+                    cp <- freshLabel "fields"
+                    sideBlockNamed cp $ do
+                      forM_ [0 .. n - 1] $ \j -> do
+                        fu <- loadU (d - i - 1 - j)
+                        fb <- loadB (d - i - 1 - j)
+                        storeU (d + n - j) fu
+                        storeB (d + n - j) fb
+                      emit ("br label %" <> bl)
+                    pure (Pair u cp)
+                  emit ("switch i64 " <> ctor <> ", label %" <> noArm <> " [ " <> intercalateT " " (D.fromList (map (\(Pair u cp) -> "i64 " <> tshow u <> ", label %" <> cp) copies)) <> " ]")
+                pure wk
+              -- which witness: the pointer against the pool's, in order
+              forM_ (zip [0 ..] chain) $ \(k, wk) -> do
+                wp <- poolClosure (poolIndexWitness k)
+                is <- fresh "is.w"
+                emit (is <> " = icmp eq ptr " <> p <> ", " <> wp)
+                nextL <- freshLabel "not.w"
+                emit ("br i1 " <> is <> ", label %" <> wk <> ", label %" <> nextL)
+                startBlock nextL
+              emit ("br label %" <> other)
+            pure l
       let owns = [Pair (lPtrTag layout) l | Pair layout l <- entries, lPtrTag layout /= 7, l /= other]
-          shared = [Pair (lInfo layout) l | Pair layout l <- entries, lPtrTag layout == 7, l /= other]
+          shared = [Pair (lInfo layout) l | Pair layout l <- entries, lPtrTag layout == 7, l /= other] ++ [Pair (lTypeTagInfo ls) witnessL | witnessL /= other]
       sevenL <-
         if null shared
           then pure other
@@ -2646,16 +2905,20 @@ genYield fe d args _sect
       -- inside an inline binding: the results go to the body
       let srcs = argSources fe d args
           n = D.size srcs
-      if n /= enResults e
+          w = enResults e
+      -- one ordinary value fills a wide result's value slot, with copies
+      -- in the slots below ('padResults')
+      if n /= w && not (wideOn && n == 1 && w == wideWidth)
         then failWith "binding yields the wrong number of values"
         else do
           when (localEnds fe) (endLocal fe)
-          vals <- loadSources srcs
+          vals <- padResults <$> loadSources srcs
           iforM_ vals $ \j (Pair u b) -> do
-            storeU (enBase e + n - j) u
-            storeB (enBase e + n - j) b
+            storeU (enBase e + w - j) u
+            storeB (enBase e + w - j) b
           emit ("br label %" <> enBody e)
 genYield fe d args sect = do
+  modify' (\s -> s {gsWhere = "Yield " <> UT.pack (show args) <> " (depth " <> tshow d <> ", base " <> tshow (feBase fe) <> ", arity " <> tshow (feArity fe) <> ")"})
   let base = feBase fe
   -- pending arguments (fp /= ap) mean over-application; leave that to the interpreter
   pending <- fresh "pending"
@@ -2668,11 +2931,12 @@ genYield fe d args sect = do
   let srcs = argSources fe d args
       n = D.size srcs
   vals <- loadSources srcs
-  -- a worker hands its one result back in registers
+  -- a worker hands its result slots back in registers
   if feWorker fe
-    then case vals of
-      Pair u b :<| Empty -> retWorker "0" u b
-      _ -> modify' (\s -> s {gsFailed = Just "a worker yields other than one value", gsNotWorker = True})
+    then
+      if n == 1 || n == resultWidth
+        then retWorkerSlots "0" vals
+        else modify' (\s -> s {gsFailed = Just "a worker yields other than one result", gsNotWorker = True})
     else genYieldStack fe base n vals
 
 -- | The rest of a return through the stack: the results go above the
@@ -2680,17 +2944,23 @@ genYield fe d args sect = do
 genYieldStack :: FnEnv -> Int -> Int -> Deque (Pair Text Text) -> Gen ()
 genYieldStack fe base n vals = do
   let env = feEnv fe
+      -- one ordinary value is padded to a wide result (the interpreter's
+      -- padYield): it goes on top, the slots below it stay as they are
+      w = if wideOn && n == 1 then wideWidth else n
+  -- the result slots are above the frame base, within what the entry
+  -- check ensured (the interpreter's padYield ensures them itself)
+  useK (base + w)
   iforM_ vals $ \j (Pair u b) -> do
-    ua <- stackAddrU (base + n - j)
+    ua <- stackAddrU (base + w - j)
     emit ("store i64 " <> u <> ", ptr " <> ua)
-    ba <- stackAddrB (base + n - j)
+    ba <- stackAddrB (base + w - j)
     emit ("store ptr " <> b <> ", ptr " <> ba)
   ap <- ctxField env oAp
   emit ("store i64 %ap, ptr " <> ap)
   fp <- ctxField env oFp
   emit ("store i64 %ap, ptr " <> fp) -- frameArgs: fp = ap
   sp <- ctxField env oSp
-  f <- fpPlus (base + n)
+  f <- fpPlus (base + w)
   emit ("store i64 " <> f <> ", ptr " <> sp)
   emit "ret i64 0"
 
@@ -2863,6 +3133,16 @@ cachedConstant fe cix comb = case unRComb comb of
   _ -> Nothing
 
 -- | Pushes a cached top-level value.
+-- | Loads a pool entry.
+poolClosure :: Int -> Gen Text
+poolClosure ix = do
+  usePool ix
+  a <- fresh "pool.a"
+  emit (a <> " = getelementptr ptr, ptr %pool, i64 " <> tshow ix)
+  v <- fresh "const"
+  emit (v <> " = load ptr, ptr " <> a)
+  pure v
+
 pushCached :: Int -> Int -> Int -> Gen ()
 pushCached d u ix = do
   usePool ix
@@ -3256,6 +3536,8 @@ instrNative :: Switches -> GInstr comb -> Bool
 instrNative sw = \case
   Lit _ -> True
   Pack {} -> True
+  PackWide {} -> True
+  Box _ -> True
   RecPack {} -> swRecords sw
   RecUnpack {} -> swRecords sw
   RecSet {} -> swRecords sw
@@ -3324,6 +3606,8 @@ localUnobserved = \case
     harmless = \case
       Lit _ -> True
       Pack {} -> True
+      PackWide {} -> True
+      Box _ -> True
       RecPack {} -> True
       RecUnpack {} -> True
       RecSet {} -> True
@@ -3394,7 +3678,7 @@ endLocal fe = forM_ (feLocal fe) $ \lo -> do
 
 -- | An instruction at depth @d@; continues with the depth after it.
 genInstr :: FnEnv -> Int -> GInstr (RComb Val) -> MSection -> (Int -> Gen ()) -> Gen ()
-genInstr fe d instr sect k = case instr of
+genInstr fe d instr sect k = modify' (\s -> s {gsWhere = UT.pack (prettyIns instr "") <> " (depth " <> tshow d <> ")"}) >> case instr of
   Lit l | litSupported l -> do
     let !(Pair u tag) = case l of
           MI i -> Pair (tshow i) (feTagInt fe)
@@ -3418,6 +3702,61 @@ genInstr fe d instr sect k = case instr of
         slow <- exitBlock fe d (Resume (feCix fe) sect)
         genPack fe d refIx t fields slow
         k (d + 1)
+  -- an unboxed constructor: the packed tag and its witness in the value
+  -- slot on top, the fields in the slots below (Unison.Runtime.Wide)
+  PackWide _ (PackedTag t) _ args -> do
+    vals <- loadSources (argSources fe d args)
+    let n = D.size vals
+        w = wideWidth
+    wp <- poolClosure (poolIndexWitness n)
+    storeU (d + w) (tshow t)
+    storeB (d + w) wp
+    iforM_ vals $ \j (Pair u b) -> do
+      storeU (d + w - 1 - j) u
+      storeB (d + w - 1 - j) b
+    -- the field slots a smaller constructor leaves unused get the witness
+    -- too: every slot up to the depth is written (see 'padResults')
+    forM_ [n .. w - 2] $ \j -> do
+      storeU (d + w - 1 - j) "0"
+      storeB (d + w - 1 - j) wp
+    k (d + w)
+  -- boxing a wide variable in place: an ordinary value needs nothing; a
+  -- witness (one of the pool's, compared by pointer: their shared info
+  -- pointer would not do, since the type tags of unboxed numbers have it
+  -- too) is replaced by the object it stands for
+  Box i -> do
+    p <- loadB (d - i)
+    slow <- exitBlock fe d (Resume (feCix fe) sect)
+    done <- freshLabel "boxed"
+    boxL <- freshLabel "box"
+    -- which witness, if any: the field count is the index of the one the
+    -- pointer equals
+    tests <- forM [0 .. wideK] $ \n -> do
+      wp <- poolClosure (poolIndexWitness n)
+      is <- fresh "is.w"
+      emit (is <> " = icmp eq ptr " <> p <> ", " <> wp)
+      pure is
+    let (test0, testsN) = case tests of
+          t : ts -> (t, ts)
+          [] -> ("false", [])
+    anyW <- foldM (\acc is -> do r <- fresh "witness"; emit (r <> " = or i1 " <> acc <> ", " <> is); pure r) test0 testsN
+    n <- foldM (\acc (j, is) -> do r <- fresh "n"; emit (r <> " = select i1 " <> is <> ", i64 " <> tshow j <> ", i64 " <> acc); pure r) "0" (zip [1 :: Int ..] testsN)
+    emit ("br i1 " <> anyW <> ", label %" <> boxL <> ", label %" <> done <> unlikely)
+    startBlock boxL
+    tagw <- loadU (d - i)
+    fields <- forM [1 .. wideK] $ \j -> Pair <$> loadU (d - i - j) <*> loadB (d - i - j)
+    r <- fresh "boxed"
+    emit (r <> " = call ptr @" <> boxHelperName <> "(ptr %ctx, ptr %pool, i64 " <> tagw <> ", i64 " <> n <> foldMap (\(Pair u b) -> ", i64 " <> u <> ", ptr " <> b) fields <> ")")
+    isNull <- fresh "unboxed"
+    emit (isNull <> " = icmp eq ptr " <> r <> ", null")
+    okL <- freshLabel "boxed.ok"
+    emit ("br i1 " <> isNull <> ", label %" <> slow <> ", label %" <> okL <> unlikely)
+    startBlock okL
+    storeU (d - i) "-1"
+    storeB (d - i) r
+    emit ("br label %" <> done)
+    startBlock done
+    k d
   -- a record literal: built from the pool's empty record of its shape
   RecPack shape args
     | enabled fe "records",
@@ -4098,10 +4437,55 @@ requireTagged slow bs = do
 -- RTS's heap walker rejects. An untagged field value goes to @slow@.
 genPack :: FnEnv -> Int -> Int -> PackedTag -> Deque Int -> Text -> Gen ()
 genPack fe d refIx (PackedTag t) fields slow = do
+  -- the fields, before the allocation call so nothing is held across it
+  vals <- loadSources fields
+  requireTagged slow (fmap (\(Pair _ b) -> b) vals)
+  ref <- poolReference fe refIx
+  genPackObj fe (d + 1) ref (tshow t) vals
+
+-- | The Reference of a type: the pointer field of the pool's Enum for it.
+poolReference :: FnEnv -> Int -> Gen Text
+poolReference fe refIx = do
+  usePool refIx
+  ea <- fresh "enum.a"
+  emit (ea <> " = getelementptr ptr, ptr %pool, i64 " <> tshow refIx)
+  ep <- fresh "enum"
+  emit (ep <> " = load ptr, ptr " <> ea)
+  ei <- fresh "enum"
+  emit (ei <> " = ptrtoint ptr " <> ep <> " to i64")
+  eb <- fresh "enum.base"
+  emit (eb <> " = and i64 " <> ei <> ", -8")
+  enumReference fe eb
+
+-- | The reference field of an enum (a constructor with no fields), from
+-- its untagged address.
+enumReference :: FnEnv -> Text -> Gen Text
+enumReference fe eb = do
+  let ls = envLayouts (feEnv fe)
+  ra <- fresh "ref.a"
+  emit (ra <> " = add i64 " <> eb <> ", " <> tshow (lFieldOffset (lData ls V.! 0) 0))
+  rp <- fresh "ref.p"
+  emit (rp <> " = inttoptr i64 " <> ra <> " to ptr")
+  ref <- fresh "ref"
+  emit (ref <> " = load ptr, ptr " <> rp)
+  pure ref
+
+-- | Allocates a data constructor with the given reference, packed tag (a
+-- register or a constant) and field values, and stores it in slot @dst@.
+genPackObj :: FnEnv -> Int -> Text -> Text -> Deque (Pair Text Text) -> Gen ()
+genPackObj fe dst ref tag vals = do
+  tp <- genPackPtr fe ref tag vals
+  storeU dst "-1"
+  storeB dst tp
+
+-- | Allocates a data constructor with the given reference, packed tag (a
+-- register or a constant) and field values, and gives its tagged pointer.
+genPackPtr :: FnEnv -> Text -> Text -> Deque (Pair Text Text) -> Gen Text
+genPackPtr fe ref tag vals = do
   let env = feEnv fe
       ls = envLayouts env
       rts = envRts env
-      n = D.size fields
+      n = D.size vals
       wide = n > 6
       layout = if wide then lDataG ls else lData ls V.! n
       ptrTag = lPtrTag layout
@@ -4114,25 +4498,6 @@ genPack fe d refIx (PackedTag t) fields slow = do
       words
         | wide = conWords + bytesWords + ptrsWords
         | otherwise = conWords
-  -- the fields, before the allocation call so nothing is held across it
-  vals <- loadSources fields
-  requireTagged slow (fmap (\(Pair _ b) -> b) vals)
-  -- the Reference: the pointer field of the pool's Enum for this type
-  usePool refIx
-  ea <- fresh "enum.a"
-  emit (ea <> " = getelementptr ptr, ptr %pool, i64 " <> tshow refIx)
-  ep <- fresh "enum"
-  emit (ep <> " = load ptr, ptr " <> ea)
-  ei <- fresh "enum"
-  emit (ei <> " = ptrtoint ptr " <> ep <> " to i64")
-  eb <- fresh "enum.base"
-  emit (eb <> " = and i64 " <> ei <> ", -8")
-  ra <- fresh "ref.a"
-  emit (ra <> " = add i64 " <> eb <> ", " <> tshow (lFieldOffset (lData ls V.! 0) 0))
-  rp <- fresh "ref.p"
-  emit (rp <> " = inttoptr i64 " <> ra <> " to ptr")
-  ref <- fresh "ref"
-  emit (ref <> " = load ptr, ptr " <> rp)
   -- charge the budget and allocate
   obj <- allocWords env words
   let word i = do
@@ -4149,7 +4514,7 @@ genPack fe d refIx (PackedTag t) fields slow = do
   refA <- payload (lPtrs layout - 1)
   emit ("store ptr " <> ref <> ", ptr " <> refA)
   tagA <- payload (lPtrs layout)
-  emit ("store i64 " <> tshow t <> ", ptr " <> tagA)
+  emit ("store i64 " <> tag <> ", ptr " <> tagA)
   if not wide
     then iforM_ vals $ \j (Pair u b) -> do
       ba <- payload j
@@ -4183,8 +4548,81 @@ genPack fe d refIx (PackedTag t) fields slow = do
   emit (ti <> " = or i64 " <> oi <> ", " <> tshow (ptrTag :: Int))
   tp <- fresh "tagged"
   emit (tp <> " = inttoptr i64 " <> ti <> " to ptr")
-  storeU (d + 1) "-1"
-  storeB (d + 1) tp
+  pure tp
+
+-- | The reference of the type whose number is in the packed tag @tagw@,
+-- from the pool's type table ('poolIndexTypes'); a number the table does
+-- not cover, or one still holding the placeholder, goes to @slow@.
+typeReference :: FnEnv -> Text -> Text -> Gen Text
+typeReference fe tagw slow = do
+  let ls = envLayouts (feEnv fe)
+      rts = envRts (feEnv fe)
+      d0 = lData ls V.! 0
+      vl = lVal ls
+  tn <- fresh "tynum"
+  emit (tn <> " = lshr i64 " <> tagw <> ", 16")
+  tbl <- poolClosure poolIndexTypes
+  raw <- fresh "raw"
+  emit (raw <> " = ptrtoint ptr " <> tbl <> " to i64")
+  fo <- taggedObject "foreign" raw (lForeignInfo ls) slow
+  wrapped <- loadAt fo "wrap" "i64" (lHeaderBytes ls)
+  w <- taggedObjectTag "types" wrapped (mutableArrayWrap fe) slow
+  arr <- loadAt w "arr" "i64" (lHeaderBytes ls)
+  count <- loadAt arr "count" "i64" (8 * rPtrsCount rts)
+  oob <- fresh "oob"
+  emit (oob <> " = icmp uge i64 " <> tn <> ", " <> count)
+  branchIf "known" oob slow
+  ea <- fresh "elem.a"
+  emit (ea <> " = add i64 " <> tn <> ", " <> tshow (rPtrsHeader rts))
+  arrP <- fresh "arr.p"
+  emit (arrP <> " = inttoptr i64 " <> arr <> " to ptr")
+  ep <- fresh "elem.p"
+  emit (ep <> " = getelementptr i64, ptr " <> arrP <> ", i64 " <> ea)
+  v <- fresh "elem"
+  emit (v <> " = load i64, ptr " <> ep)
+  val <- taggedObjectTag "val" v (Pair (lInfo vl) (lPtrTag vl)) slow
+  en <- loadAt val "enum" "i64" (lFieldOffset vl 0)
+  -- the placeholder of a number without a type fails this test
+  enum <- taggedObjectTag "enum" en (Pair (lInfo d0) (lPtrTag d0)) slow
+  enumReference fe enum
+
+-- | The text of a module's boxing helper, @unison_box_witness@, which a
+-- 'Box' of a witness calls (Unison.Runtime.Wide): given the packed tag,
+-- the field count and the field values of an unboxed constructor, it
+-- allocates the object and gives its tagged pointer, or null when the
+-- type table does not cover the type or a field is an untagged pointer,
+-- which sends the instruction to the interpreter. One function per module
+-- rather than code at every site: a function with many small constructors
+-- escaping had three copies of all this at each of them, and its re-entry
+-- functions copies of those, 127 MB of IR for one module (2026-10-28).
+boxHelperText :: Env -> Text
+boxHelperText env
+  | not wideOn = ""
+  | otherwise =
+      let fe = FnEnv env "box" (CIx Ty.unitRef 0 0) 0 0 nullPtr Nothing 0 "%tag.char" "%tag.float" "%tag.int" "%tag.nat" D.empty False Nothing boxHelperName True Nothing
+          gs0 = initialState 0 (envCells env) (envKnown env) False
+          gs = flip execState gs0 $ do
+            failL <- freshLabel "fail"
+            ref <- typeReference fe "%tagw" failL
+            arms <- forM [0 .. wideK] $ \n -> do
+              l <- freshLabel ("fields" <> tshow n)
+              sideBlockNamed l $ do
+                let vals = D.fromList (take n [Pair "%u0" "%b0", Pair "%u1" "%b1"])
+                requireTagged failL (fmap (\(Pair _ b) -> b) vals)
+                tp <- genPackPtr fe ref "%tagw" vals
+                emit ("ret ptr " <> tp)
+              pure (Pair n l)
+            emit ("switch i64 %n, label %" <> failL <> " [ " <> intercalateT " " (D.fromList [ "i64 " <> tshow n <> ", label %" <> l | Pair n l <- arms]) <> " ]")
+            sideBlockNamed failL (emit "ret ptr null")
+            startBlock "unreachable"
+          block (Pair l is)
+            | l == "unreachable" = D.empty
+            | otherwise = (l <> ":") <| fmap ("  " <>) is
+          header = "define internal ptr @" <> boxHelperName <> "(ptr %ctx, ptr %pool, i64 %tagw, i64 %n, i64 %u0, ptr %b0, i64 %u1, ptr %b1) {"
+       in unlinesT (gsDescText gs <> (header <| foldMap block (gsBlocks gs)) |> "}")
+
+boxHelperName :: Text
+boxHelperName = "unison_box_witness"
 
 -- | Allocates a record with the given fields (in ascending field-name
 -- order, the shape's slot order) and pushes it: the record closure, its

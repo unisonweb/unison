@@ -10,27 +10,68 @@
 --
 -- The convention is a property of the process, decided once, like the
 -- replacements mode in JIT/Config.hs. The interpreter alone does not gain
--- from it (JIT/benchmarks/2026-10-27-wide-interpreter.md), so it is meant
--- to be on exactly when the JIT is; until the JIT generates code for wide
--- frames it is off unless @UNISON_WIDE=on@, which turns the JIT off.
+-- from it (JIT/benchmarks/2026-10-27-wide-interpreter.md), so it is on
+-- exactly when the JIT is (@UNISON_JIT=on@ or @eager@) unless
+-- @UNISON_WIDE=on|off@ overrides that, for testing either combination. A
+-- compiled program's MCode has the convention of the mode it was compiled
+-- under baked in (its frames and the instructions that write them), so its
+-- file carries the mode and 'setWide' applies it before anything loads.
 module Unison.Runtime.Wide
   ( wideOn,
+    setWide,
     wideK,
     wideWidth,
     widePad,
   )
 where
 
+import Control.Exception (throwIO)
 import Data.Char (toLower)
+import Data.IORef
+import Data.Maybe (fromMaybe)
 import System.Environment (lookupEnv)
 import System.IO.Unsafe (unsafePerformIO)
 
 -- | Whether the process uses the wide calling convention.
 wideOn :: Bool
 wideOn = unsafePerformIO $ do
-  v <- lookupEnv "UNISON_WIDE"
-  pure (fmap (map toLower) v == Just "on")
+  chosen <- readIORef wideRef
+  w <- maybe wideFromEnvironment pure chosen
+  writeIORef wideRef (Just w)
+  writeIORef wideUsed True
+  pure w
 {-# NOINLINE wideOn #-}
+
+wideFromEnvironment :: IO Bool
+wideFromEnvironment = do
+  override <- lookupEnv "UNISON_WIDE"
+  mode <- lookupEnv "UNISON_JIT"
+  pure $ case (map toLower <$> override, map toLower (fromMaybe "off" mode)) of
+    (Just "on", _) -> True
+    (Just "off", _) -> False
+    (_, "on") -> True
+    (_, "eager") -> True
+    _ -> False
+
+wideRef :: IORef (Maybe Bool)
+wideRef = unsafePerformIO (newIORef Nothing)
+{-# NOINLINE wideRef #-}
+
+wideUsed :: IORef Bool
+wideUsed = unsafePerformIO (newIORef False)
+{-# NOINLINE wideUsed #-}
+
+-- | Chooses the convention, for a compiled program from the mode stored in
+-- its file. It has to happen before any code has used the setting: code
+-- already loaded under the other convention can't be redone, so a late
+-- choice that differs is an error.
+setWide :: Bool -> IO ()
+setWide w = do
+  used <- readIORef wideUsed
+  chosen <- readIORef wideRef
+  case chosen of
+    Just w' | used && w' /= w -> throwIO (userError ("the wide calling convention is " ++ (if w' then "on" else "off") ++ " and already in use; it cannot be changed to " ++ (if w then "on" else "off")))
+    _ -> writeIORef wideRef (Just w)
 
 -- | The number of field slots of a wide variable.
 wideK :: Int

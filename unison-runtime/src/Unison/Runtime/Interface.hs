@@ -84,6 +84,7 @@ import Unison.Runtime.Foreign.Function (functionUnreplacements)
 import Unison.Runtime.InternalError (CompileExn (CE))
 import Unison.Runtime.JIT (JIT, initialNativeCount, jitCompileGroup, jitConfig, printJITStats, registerTypeNumbers, startJIT)
 import Unison.Runtime.JIT.Config qualified as JIT
+import Unison.Runtime.Wide (setWide, wideOn)
 import Unison.Runtime.MCode
   ( Args (..),
     CombIx (..),
@@ -932,10 +933,11 @@ tryM =
     . fmap (const Nothing)
 
 runStandalone :: JIT -> Bool -> StoredCache -> CombIx -> IO (Either Error ())
-runStandalone jit sandboxed sc@(SCache _ _ _ _ _ _ _ _ _ _ _ _ _ _ repl) init = do
-  -- The file's replacement mode, before anything decodes a value or
-  -- consults the foreign function table
+runStandalone jit sandboxed sc@(SCache _ _ _ _ _ _ _ _ _ _ _ _ _ _ repl wide) init = do
+  -- The file's replacement mode and calling convention, before anything
+  -- decodes a value, consults the foreign function table or lays out a frame
   JIT.setReplacements repl
+  setWide wide
   -- What startRuntime and the loader (cacheAdd) do for the JIT on the
   -- codebase path, for a compiled program
   startJIT jit
@@ -975,10 +977,13 @@ data StoredCache
       -- it has to decode values the same way, whatever its own environment
       -- says
       JIT.Replacements
+      -- whether the code was compiled under the wide calling convention
+      -- (Unison.Runtime.Wide), for the same reason
+      Bool
   deriving (Show, Eq)
 
 putStoredCache :: StoredCache -> Builder
-putStoredCache (SCache cs crs cacheableCombs oinfo trs ftm fty frs int rtm rty rsLookup sbs rfm repl) =
+putStoredCache (SCache cs crs cacheableCombs oinfo trs ftm fty frs int rtm rty rsLookup sbs rfm repl wide) =
   putEnumMap putNat (putEnumMap putNat (putComb absurd)) cs
     <> putEnumMap putNat putReference crs
     <> putEnumSet putNat cacheableCombs
@@ -994,6 +999,7 @@ putStoredCache (SCache cs crs cacheableCombs oinfo trs ftm fty frs int rtm rty r
     <> putMap putReference (putFoldable putReference) sbs
     <> putRecordFieldMappings rfm
     <> BU.word8 (case repl of JIT.AllReplacements -> 0; JIT.TaggedReplacements -> 1; JIT.NoReplacements -> 2)
+    <> BU.word8 (if wide then 1 else 0)
 
 putRecordFieldMappings :: RecordFieldMappings -> Builder
 putRecordFieldMappings (RecordFieldMappings next rfm) =
@@ -1026,7 +1032,13 @@ getStoredCache =
     <*> getMap getReference (fromList <$> getList getReference)
     <*> getRecordFieldMappings
     <*> getReplacements
+    <*> getWide
   where
+    getWide =
+      getWord8 >>= \case
+        0 -> pure False
+        1 -> pure True
+        n -> fail ("getStoredCache: unknown calling convention " ++ show n)
     getReplacements =
       getWord8 >>= \case
         0 -> pure JIT.AllReplacements
@@ -1041,7 +1053,7 @@ debugTextFormat fancy =
     render = if fancy then toANSI else toPlain
 
 restoreCache :: JIT -> Bool -> StoredCache -> IO (CCache ())
-restoreCache jit sandboxed (SCache cs crs cacheableCombs opt trs ftm fty frs int rtm rty recSchemas sbs rfm _) = do
+restoreCache jit sandboxed (SCache cs crs cacheableCombs opt trs ftm fty frs int rtm rty recSchemas sbs rfm _ _) = do
   -- Every combinator gets a native code cell, as it would loading from a
   -- codebase (see JIT/design.md, "Where cells live"); without one the JIT
   -- never compiles it. The cells come from the cache's pool, which keeps
@@ -1149,8 +1161,9 @@ buildSCache ::
   Map Reference (Set Reference) ->
   RecordFieldMappings ->
   JIT.Replacements ->
+  Bool ->
   StoredCache
-buildSCache crsrc cssrc cacheableCombs optsrc trsrc ftm fty frs int rtmsrc rtysrc rsLookup sndbx rfm repl =
+buildSCache crsrc cssrc cacheableCombs optsrc trsrc ftm fty frs int rtmsrc rtysrc rsLookup sndbx rfm repl wide =
   SCache
     cs
     crs
@@ -1167,6 +1180,7 @@ buildSCache crsrc cssrc cacheableCombs optsrc trsrc ftm fty frs int rtmsrc rtysr
     (restrictTmR sndbx)
     rfm
     repl
+    wide
   where
     termRefs = Map.keysSet int
 
@@ -1218,6 +1232,7 @@ standalone cc init =
           <*> readTVarIO (sandbox cc)
           <*> readTVarIO (recordFieldMappings cc)
           <*> pure JIT.replacements
+          <*> pure wideOn
       Nothing ->
         die [] $ "standalone: unknown combinator: " ++ show init
 

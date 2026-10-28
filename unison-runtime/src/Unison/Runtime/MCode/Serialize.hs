@@ -46,8 +46,8 @@ getPackedTag = PackedTag <$> gWord
 
 putComb :: (clos -> Builder) -> GComb clos comb -> Builder
 putComb pClos = \case
-  (Lam a f body) ->
-    putTag LamT <> pInt a <> pInt f <> putSection body
+  (Comb (LamI a f body _) lay) ->
+    putTag LamT <> pInt a <> pInt f <> putFoldable (putPair pInt pInt) lay <> putSection body
   (CachedVal w v) ->
     putTag CachedClosureT <> putNat w <> pClos v
 
@@ -55,7 +55,7 @@ getComb :: (PrimBase m) => Get m (GComb Void CombIx)
 getComb =
   getTag >>= \case
     LamT ->
-      Lam <$> gInt <*> gInt <*> getSection
+      (\a f lay body -> Comb (LamI a f body noNativeCell) lay) <$> gInt <*> gInt <*> getList (getPair gInt gInt) <*> getSection
     CachedClosureT -> error "getComb: Unexpected serialized Cached Closure"
 
 getMForeignFunc :: (PrimBase m) => Get m ForeignFunc

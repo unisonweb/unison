@@ -14,9 +14,11 @@ own nullary constructors, one per (type, constructor) could be shared instead of
 at every `Pack`. The constant pool already holds one per `Pack … ZArgs` site for native code; the
 interpreter's `buildData` would read a per-cache table of them. How much it is worth: a
 census of the interpreter on 2026-10-27 counted nullary constructors as 13.0M of the 20.1M
-`Pack`s of `jitSuite` and 17.8M of the 28.5M of the library `suite` (the convention of
-delayed-data-construction.local.md keeps the returned ones, about a quarter, out of the
-heap; the rest escape into structures and still allocate).
+`Pack`s of `jitSuite` and 17.8M of the 28.5M of the library `suite` (the wide calling
+convention, design.md "The wide calling convention", keeps the ones that are returned or
+bound and never escape, about a quarter, out of the heap; the rest escape into structures
+and still allocate). Native code already shares them: a `Pack` with no fields is a load of
+the pool's enum for that constructor, so the gain is the interpreter's.
 
 ### One allocation for several `Pack`s
 
@@ -39,31 +41,6 @@ would have to live in one chunk (the maximum frame size is known, so an entry ch
 guarantee it), and everything that walks the stack across frames (`Capture`, `saveFrame`'s
 copies, continuations, the GC marking in `unison_jit_enter`, the C helpers reading argument
 slots) would follow chunk links. A sizeable interpreter change.
-
-### Wide stack slots
-
-Idea is to store arity <= K data constructors unboxed on the stack. K=1 or 2. 
-So if you write a function that returns an `Optional Nat`, there's no allocation
-that happens, even without inlining.
-
-If K=1, then each stack slot becomes 2 words wide. First word is the constructor tag,
-second word is the constructor argument, similar to now. This second word will
-go unused very often, but that might be fine.
-
-If K=2, then each stack slot becomes 3 words wide, etc.
-
-### Escape analysis + scalar replacement
-
-This needs some research. Just doing escape analysis alone seems like less of a win
-than you'd think. Like if you just convert heap allocation to stack allocation, that
-doesn't matter and can even be slower, since allocation is bumping a pointer and 
-GC doesn't traverse garbage in the youngest generation.
-
-But if combined with other optimizations, you can start doing interesting stuff. 
-
-The thing I don't like about it is it's sensitive to inlining, which makes it
-somewhat fragile (compared to the wide stack slots idea, which is robust and
-easy to think about).
 
 ### Dropping the reference pointer from data closures
 

@@ -1339,7 +1339,7 @@ ctxResolve ctx v = walk 0 ctx
 -- | Whether a variable is wide in the context (its nearest binding) and
 -- may hold an unboxed constructor, so an escape has to box it.
 ctxIsWide :: (Var v) => Ctx v -> v -> Bool
-ctxIsWide ctx v = walk ctx
+ctxIsWide ctx v = wideOn && walk ctx
   where
     walk ECtx = False
     walk (Block ctx) = walk ctx
@@ -1364,26 +1364,6 @@ markBoxed ctx v = case ctx of
   Wide x m unboxed ctx
     | v == x -> Wide x m False ctx
     | otherwise -> Wide x m unboxed (markBoxed ctx v)
-
--- | Whether a variable escapes in a term: is passed as an argument to a
--- call, a constructor, a record, a primitive, a closure or a reference
--- update. Matching on it, returning it and forcing it do not count, so a
--- small constructor bound to a variable that does not escape is never
--- allocated ('PackWide').
-escapes :: (Var v) => v -> RNormal v -> Bool
-escapes v = go
-  where
-    go = \case
-      TLets _ _ _ bn bo -> go bn || go bo
-      TName _ _ args bo -> v `elem` args || go bo
-      TMatch _ bs -> any arm (toList bs)
-      TShift _ _ e -> go e
-      THnd _ _ _ e -> go e
-      TLocal _ e -> go e
-      TApp _ args -> v `elem` args
-      TUpdate _ _ x -> x == v
-      _ -> False
-    arm (TAbss _ bo) = go bo
 
 -- | Boxes the wide variables among some argument variables, in order: each
 -- one gets a 'Box', which boxes it in place, and is marked boxed for the
@@ -1782,12 +1762,12 @@ emitSection rns grpr grpn rec ctx (TLets d us ms bu bo)
     n /= length us =
       internalBug [] $
         "emitSection: a let of " ++ show (length us) ++ " names whose binding yields " ++ show n ++ " values: " ++ show bu
-  -- a small constructor that never escapes stays in slots
+  -- a small constructor stays in slots, boxed where it escapes
+  -- ('boxEscapes'): a path on which it never escapes allocates nothing
   | wideOn,
     [u] <- us,
     TApp (FCon r n) args <- bu,
-    length args <= wideK,
-    not (escapes u bo) =
+    length args <= wideK =
       boxEscapes ctx args $ \ctx ->
         let rt = toEnum . fromIntegral $ dnum rns r
          in addCount wideWidth

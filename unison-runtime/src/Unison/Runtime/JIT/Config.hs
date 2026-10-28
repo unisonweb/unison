@@ -22,7 +22,6 @@ import Data.IORef
 import Data.List (stripPrefix)
 import Data.Maybe (fromMaybe, isJust, mapMaybe)
 import System.Environment (lookupEnv)
-import Unison.Runtime.Wide (wideOn)
 import System.IO (hFlush, hPutStrLn, stderr)
 import System.IO.Unsafe (unsafePerformIO)
 import Text.Read (readMaybe)
@@ -257,10 +256,7 @@ readConfig = do
   let setting key = listToMaybe' (mapMaybe (stripPrefix (key ++ "=")) stress) >>= readMaybe
   pure
     Config
-      { -- the JIT does not generate code for wide frames yet
-        -- (Unison.Runtime.Wide), so the wide convention turns it off
-        mode = case map toLower (fromMaybe "off" mode) of
-          _ | wideOn -> Off
+      { mode = case map toLower (fromMaybe "off" mode) of
           "eager" -> Eager
           "on" -> On
           _ -> Off,

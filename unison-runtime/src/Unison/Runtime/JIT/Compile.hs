@@ -27,6 +27,7 @@ import Data.Bits ((.&.))
 import Data.Foldable (toList)
 import Data.IORef
 import Data.Map qualified as Map
+import Data.List (zip4)
 import Data.Map.Strict qualified as MapS
 import Data.Maybe (isJust)
 import Data.Primitive.PrimArray (sizeofPrimArray)
@@ -42,7 +43,7 @@ import Unison.Builtin.Decls qualified as Ty (eitherRef, optionalRef, pairRef, se
 import Unison.Reference (Reference)
 import Unison.Runtime.ANF (PackedTag (..))
 import Unison.Runtime.Foreign.Function.Type (ForeignFunc (..))
-import Unison.Runtime.JIT.Codegen (AuxMemo, CtxOffsets, Deferred (..), Function (..), RtsFacts, genDeferred, genFunction, modulePrelude)
+import Unison.Runtime.JIT.Codegen (AuxMemo, CtxOffsets, Deferred (..), Function (..), RtsFacts, boxHelperText, genDeferred, genFunction, modulePrelude, patchIndices, relocateCells)
 import Unison.Runtime.JIT.Codegen qualified as CG
 import Unison.Runtime.JIT.Config
 import Unison.Runtime.JIT.Estimate (Estimate (..), judge)
@@ -50,7 +51,7 @@ import Unison.Runtime.JIT.Exits (Exits, nameEntry, newExits, registerExits, repl
 import Unison.Runtime.JIT.Frames (Frames, newFrames, registerFrames, replaceFrames)
 import Unison.Runtime.JIT.LLVM
 import Unison.Runtime.JIT.Layout (Layouts)
-import Unison.Runtime.JIT.Pool (Pool, PoolKey (..), newPool, poolIndices, poolStableSize)
+import Unison.Runtime.JIT.Pool (Pool, PoolKey (..), newPool, poolIndices, poolStableSize, poolTypes)
 import Unison.Runtime.JIT.Strict (Pair (..), unlinesT)
 import Unison.Runtime.MCode
 import Unison.Runtime.Stack (MCombs, MSection, Val (..))
@@ -391,6 +392,7 @@ compileUnits c st numbers modName lazy candidates = do
   forM_ notWorthIt $ \(u, why) -> jitLog config (uName u ++ ": " ++ why)
   atomicModifyIORef' (cTotals c) (\t -> (t {ctNotWorthIt = ctNotWorthIt t + length notWorthIt}, ()))
   jitLog config (modName ++ ": compiling " ++ unwords (map uName units))
+  poolTypes (cPool c) numbers
   poolIxs <- poolIndices (cPool c) (concatMap (poolKeysOf . uSection) units)
   memos <- readIORef (cRootMemos c)
   let gen u e = uGen u (uName u) e
@@ -398,28 +400,43 @@ compileUnits c st numbers modName lazy candidates = do
       disabledD = D.fromList (map UT.pack (disabled config))
       -- a private copy gets internal linkage, so that LLVM drops it once it
       -- is inlined at every call
-      env local workers u (base, fbase, cells) =
-        CG.Env (jsLayouts st) (jsCtx st) base fbase (stressPoll config > 0) (stressCallee config > 0) (exitCall config) (uCombs u) poolIxs (jsRts st) typeNumbers cells disabledD lazy (Map.findWithDefault Map.empty (uRoot u) memos) local workers (uSandboxed u) (uCopy u) (CG.switches config) (poolStableSize (cPool c))
+      env local workers u cells =
+        CG.Env (jsLayouts st) (jsCtx st) (stressPoll config > 0) (stressCallee config > 0) (exitCall config) (uCombs u) poolIxs (jsRts st) typeNumbers cells disabledD lazy (Map.findWithDefault Map.empty (uRoot u) memos) local workers (uSandboxed u) (uCopy u) (CG.switches config) (poolStableSize (cPool c))
       -- The functions that get a worker: calls to them from this module
       -- pass arguments and results in registers (design.md, "Workers").
       workersOf us
         | any (`elem` disabled config) ["direct", "worker"] = Map.empty
         | otherwise = Map.fromList [(uCell u, Pair (UT.pack (uName u ++ "_w")) a) | u <- us, Just a <- [uWorker u]]
-      -- first pass: find out which functions compile, and how many exits,
-      -- frames and cells for auxiliary functions each needs
-      -- A function that fails as a worker (it turns out to return other
-      -- than one value) is generated in the uniform form instead.
-      candidates1 = workersOf units
-      firstTry u = gen u (env Map.empty candidates1 u (0, 0, CG.Counting))
-      firstPass =
-        [ case firstTry u of
-            Left _ | Map.member (uCell u) candidates1 -> (u {uWorker = Nothing}, gen u (env Map.empty (Map.delete (uCell u) candidates1) u (0, 0, CG.Counting)))
-            r -> (u, r)
-        | u <- units
-        ]
-      failed = [(u, "not compiled: " ++ why) | (u, Left why) <- firstPass]
+      -- Which functions compile, and in which form. A function that fails
+      -- as a worker (it turns out to return other than one value) is
+      -- generated in the uniform form instead, and its callers then call it
+      -- that way, so the generation is repeated until no unit changes
+      -- status; calls between the module's functions are direct (named),
+      -- which needs the set of compiled functions too. The last repetition
+      -- is the one kept: its own counts of exits, frames and auxiliary
+      -- cells size the tables, and the indices it embedded as placeholders
+      -- are patched in afterwards ('patchIndices', 'relocateCells'), so
+      -- what is registered and what the IR refers to cannot disagree. (A
+      -- separate counting pass with a different worker set did disagree
+      -- once, shifting a function's exit indices by one: it then took an
+      -- entry-poll re-enter in place of a call's resume, forever,
+      -- 2026-10-28.)
+      directOf us
+        | "direct" `elem` disabled config = Map.empty
+        | otherwise = Map.fromList [(uCell u, UT.pack (uName u)) | u <- us]
+      tryWith local ws u = case gen u (env local ws u (CG.Counting 0)) of
+        Left _ | Map.member (uCell u) ws -> (u {uWorker = Nothing}, gen u (env local (Map.delete (uCell u) ws) u (CG.Counting 0)))
+        r -> (u, r)
+      settle us local ws =
+        let fp = map (tryWith local ws) us
+            okUnits = [u | (u, Right _) <- fp]
+            ws' = workersOf okUnits
+            local' = directOf okUnits
+         in if Map.keysSet ws' == Map.keysSet ws && Map.keysSet local' == Map.keysSet local then fp else settle (map fst fp) local' ws'
+      finalPass = settle units (directOf units) (workersOf units)
+      failed = [(u, "not compiled: " ++ why) | (u, Left why) <- finalPass]
       skipped = notWorthIt ++ failed
-      ok = [(u, f) | (u, Right f) <- firstPass]
+      ok = [(u, f) | (u, Right f) <- finalPass]
   forM_ failed $ \(u, why) -> jitLog config (uName u ++ ": " ++ why)
   unless (null ok) $ do
     let counts = map (length . fnExits . snd) ok
@@ -428,18 +445,21 @@ compileUnits c st numbers modName lazy candidates = do
     base <- registerExits (cExits c) (concatMap (toList . fnExits . snd) ok)
     fbase <- registerFrames (cFrames c) (concatMap (toList . fnFrames . snd) ok)
     cellBlock <- newNativeCells (sum acounts)
-    -- second pass, with each function's real exit and frame bases and cells
-    let cells = [CG.Cells (D.fromList (map (nativeCellAt cellBlock) [a .. a + n - 1])) | (a, n) <- zip (scanl (+) 0 acounts) acounts]
-        bases = zip3 (scanl (+) base counts) (scanl (+) fbase fcounts) cells
-        -- calls between the functions of this module are direct (a call
-        -- site has the same exits either way, so the counts above hold)
-        local
-          | "direct" `elem` disabled config = Map.empty
-          | otherwise = Map.fromList [(uCell u, UT.pack (uName u)) | (u, _) <- ok]
-        compiled = [(u, f) | (b, (u, _)) <- zip bases ok, Right f <- [gen u (env local (workersOf (map fst ok)) u b)]]
+    -- the placeholders become the global indices and the real cells
+    let compiled =
+          [ (u, patched)
+            | ((u, f), eb, fb, cb) <- zip4 ok (scanl (+) base counts) (scanl (+) fbase fcounts) (scanl (+) 0 acounts),
+              let relocated = relocateCells (\k -> nativeCellAt cellBlock (cb + k)) f
+                  patched = relocated {fnIR = UT.fromText (patchIndices eb fb (UT.toText (fnIR f)))}
+          ]
         fns = map snd compiled
-        ir = modulePrelude <> unlinesT (D.fromList (map fnIR fns))
-    -- the second pass's exits and frames name the auxiliary functions' cells
+        local = directOf (map fst ok)
+        -- the boxing helper the functions' Box sites call, once per module
+        helper = case ok of
+          (u, _) : _ -> boxHelperText (env local (workersOf (map fst ok)) u (CG.Counting 0))
+          _ -> ""
+        ir = modulePrelude <> helper <> unlinesT (D.fromList (map fnIR fns))
+    -- the registered exits and frames name the auxiliary functions' cells
     replaceExits (cExits c) base (concatMap (toList . fnExits) fns)
     replaceFrames (cFrames c) fbase (concatMap (toList . fnFrames) fns)
     -- The dump has each function's MCode as a comment above its IR, and
@@ -454,7 +474,7 @@ compileUnits c st numbers modName lazy candidates = do
                   ]
                     ++ ["; " ++ uName u ++ " " ++ why | (u, why) <- skipped]
                 )
-                ++ [modulePrelude]
+                ++ [modulePrelude, helper]
                 ++ concat [[UT.pack (uDescribe u), fnIR f] | (u, f) <- compiled]
       if dumpToStderr dir
         then jitDump (UT.unpack annotated)

@@ -21,6 +21,7 @@ module Unison.Runtime.JIT
     noteAdHocExit,
     registerTypeNumbers,
     printJITStats,
+    describeExit,
     noteOutput,
   )
 where
@@ -701,11 +702,13 @@ printExits jit most = do
   when (total > 0) $ do
     jitDump ("[jit] " ++ show total ++ " exits taken (" ++ show (length counts) ++ " sites):")
     forM_ (take most (sortOn (\(_, _, n) -> negate n) counts)) $ \(i, e, n) ->
-      jitDump ("  " ++ show n ++ "\t#" ++ show i ++ "\t" ++ describe e)
-  where
-    describe = \case
-      Resume cix sect -> "resume " ++ show cix ++ " at " ++ takeWhile (/= '\n') (dropWhile (== ' ') (prettySection 0 sect ""))
-      GrowStack n _ -> "grow stack by " ++ show n
-      Reenter _ -> "reenter (poll)"
-      CallOut cix instr _ _ _ -> "call out " ++ show cix ++ " for " ++ takeWhile (/= '\n') (prettyIns instr "")
-      Named name e -> name ++ ": " ++ describe e
+      jitDump ("  " ++ show n ++ "\t#" ++ show i ++ "\t" ++ describeExit e)
+
+-- | An exit, in a line, for the statistics and the trace.
+describeExit :: Exit -> String
+describeExit = \case
+  Resume cix sect -> "resume " ++ show cix ++ " at " ++ takeWhile (/= '\n') (dropWhile (== ' ') (prettySection 0 sect ""))
+  GrowStack n _ -> "grow stack by " ++ show n
+  Reenter cell -> "reenter (poll) " ++ show cell
+  CallOut cix instr _ _ _ -> "call out " ++ show cix ++ " for " ++ takeWhile (/= '\n') (prettyIns instr "")
+  Named name e -> name ++ ": " ++ describeExit e
