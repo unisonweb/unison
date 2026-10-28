@@ -195,6 +195,7 @@ relocateCells real f =
     exit = \case
       GrowStack n c -> GrowStack n (cell c)
       Reenter c -> Reenter (cell c)
+      Retry c cix sect -> Retry (cell c) cix sect
       CallOut cix i rest n c -> CallOut cix i rest n (cell c)
       Named name e -> Named name (exit e)
       e -> e
@@ -406,6 +407,12 @@ data GS = GS
     -- closure built yet (design.md, "Slots"). Absent means the slot's
     -- allocas hold the value. Saved and restored around branch arms.
     gsKinds :: !(IM.IntMap Text),
+    -- | slots holding a call's result that cannot be a witness (the callee
+    -- never yields one, 'mayYieldWitness'): a Box of one is nothing and a
+    -- match on one needs no witness arm. Scoped like 'gsKinds'.
+    gsPlain :: !IS.IntSet,
+    -- | whether the witness closures are needed, and so loaded at entry
+    gsUsesWitness :: !Bool,
     -- | set when the function can't be compiled after all
     gsFailed :: !(Maybe Text),
     -- | the instruction being generated, for the message of a failure
@@ -493,6 +500,8 @@ initialState maxK cells known worker =
       gsNFrames = 0,
       gsMaxK = maxK,
       gsKinds = IM.empty,
+      gsPlain = IS.empty,
+      gsUsesWitness = False,
       gsFailed = Nothing,
       gsWhere = "",
       gsAuxText = D.empty,
@@ -576,15 +585,56 @@ setBoolKind :: Int -> Text -> Gen ()
 setBoolKind k c = useSlot k >> modify' (\s -> s {gsKinds = IM.insert k c (gsKinds s)})
 
 clearKind :: Int -> Gen ()
-clearKind k = modify' (\s -> s {gsKinds = IM.delete k (gsKinds s)})
+clearKind k = modify' (\s -> s {gsKinds = IM.delete k (gsKinds s), gsPlain = IS.delete k (gsPlain s)})
+
+-- | Marks slot @k@ as holding a value that cannot be a witness.
+markPlain :: Int -> Gen ()
+markPlain k = modify' (\s -> s {gsPlain = IS.insert k (gsPlain s)})
+
+-- | The register holding the pool's witness closure with @k@ fields,
+-- loaded once at entry ('entryBlock').
+witnessClosure :: Int -> Gen Text
+witnessClosure k = do
+  modify' (\s -> s {gsUsesWitness = True})
+  pure ("%witness" <> tshow k)
+
+-- | Whether a function's section can yield a witness (an unboxed
+-- constructor, Unison.Runtime.Wide) as its result: it yields a wide
+-- variable or a constructor built in tail position, or ends in a call,
+-- whose result is unknown. The result of a call to a function that
+-- cannot is marked 'gsPlain'.
+mayYieldWitness :: MSection -> Bool
+mayYieldWitness = \case
+  Yield args -> case args of
+    VArgR _ l -> wideOn && l == wideWidth
+    _ -> False
+  Ins (PackWide _ _ True _) _ -> True
+  Ins _ rest -> mayYieldWitness rest
+  Let _ _ _ body _ -> mayYieldWitness body
+  Match _ br -> arms br
+  NMatch _ _ br -> arms br
+  DMatch _ _ br -> arms br
+  RMatch _ pu br -> mayYieldWitness pu || any (arms . snd) (EC.mapToList br)
+  Die _ -> False
+  Exit -> False
+  _ -> True
+  where
+    arms = \case
+      Test1 _ a b -> arm a || mayYieldWitness b
+      Test2 _ a _ b c -> arm a || arm b || mayYieldWitness c
+      TestW df m -> mayYieldWitness df || any (arm . snd) (EC.mapToList m)
+      TestT df m -> mayYieldWitness df || any mayYieldWitness (Map.elems m)
+      TestY df m -> mayYieldWitness df || any mayYieldWitness (Map.elems m)
+    arm (Arm _ a) = mayYieldWitness a
 
 -- | Runs a generator and puts the slot kinds back afterwards: for code
 -- (a branch arm, an inline binding) after which control rejoins other paths.
 withKinds :: Gen a -> Gen a
 withKinds g = do
   ks <- gets gsKinds
+  pl <- gets gsPlain
   r <- g
-  modify' (\s -> s {gsKinds = ks})
+  modify' (\s -> s {gsKinds = ks, gsPlain = pl})
   pure r
 
 loadU :: Int -> Gen Text
@@ -1566,7 +1616,7 @@ genFunctionText fe body = do
       -- the wrapper (or the uniform return) stores the result slots above
       -- the frame base after the body ran, so they are ensured here too
       maxK = maximum [gsMaxK gs, arity + feFrameSize fe, feBase fe + resultWidth]
-      entry = entryBlock env (feWorker fe) (feFast fe == Nothing) arity (feBase fe) maxK (gsMaxPool gs) (gsMaxExitArgs gs)
+      entry = entryBlock env (feWorker fe) (feFast fe == Nothing) arity (feBase fe) maxK (gsMaxPool gs) (gsMaxExitArgs gs) (gsUsesWitness gs)
       -- the grow exit, the first this function added, asks for what the
       -- entry check demanded
       fixGrow e
@@ -1595,7 +1645,7 @@ genFunctionText fe body = do
 genFastEntry :: FnEnv -> MSection -> Gen Text
 genFastEntry fe body = do
   s <- get
-  let gs0 = s {gsFresh = 0, gsBlocks = D.empty, gsCur = Pair "head" D.empty, gsMaxK = feArity fe, gsKinds = IM.empty, gsCaptured = Nothing, gsMaxPool = -1, gsMaxExitArgs = 0, gsShared = Map.empty, gsDescs = Map.empty, gsDescText = D.empty}
+  let gs0 = s {gsFresh = 0, gsBlocks = D.empty, gsCur = Pair "head" D.empty, gsMaxK = feArity fe, gsKinds = IM.empty, gsPlain = IS.empty, gsUsesWitness = False, gsCaptured = Nothing, gsMaxPool = -1, gsMaxExitArgs = 0, gsShared = Map.empty, gsDescs = Map.empty, gsDescText = D.empty}
       !(text, gs) = runState (genFunctionText fe body) gs0
   put
     s
@@ -1841,7 +1891,7 @@ genAuxFunction later fe loaded base body = do
           known = Pair name cell
           -- (an environment switch in force at the exit this re-enters after has become a Local frame in K)
           fe' = fe {feName = name, feArity = loaded, feCell = cell, feHead = Nothing, feBase = base, feEnclosing = D.empty, feWorker = False, feFast = Nothing, feSym = name, feInternal = False, feLocal = Nothing}
-          gs0 = s {gsFresh = 0, gsBlocks = D.empty, gsCur = Pair "head" D.empty, gsMaxK = loaded, gsKinds = IM.empty, gsFailed = Nothing, gsCells = cells, gsNAux = gsNAux s + 1, gsCaptured = Nothing, gsMaxPool = -1, gsMaxExitArgs = 0, gsWorker = False, gsShared = Map.empty, gsDescs = Map.empty, gsDescText = D.empty}
+          gs0 = s {gsFresh = 0, gsBlocks = D.empty, gsCur = Pair "head" D.empty, gsMaxK = loaded, gsKinds = IM.empty, gsPlain = IS.empty, gsUsesWitness = False, gsFailed = Nothing, gsCells = cells, gsNAux = gsNAux s + 1, gsCaptured = Nothing, gsMaxPool = -1, gsMaxExitArgs = 0, gsWorker = False, gsShared = Map.empty, gsDescs = Map.empty, gsDescText = D.empty}
           !(text, gs) = runState (genFunctionText fe' body) gs0
       case gsFailed gs of
         Just why -> put s {gsNotes = gsNotes gs |> (name <> ": " <> why)} >> pure Nothing
@@ -1894,8 +1944,8 @@ callOutWorthwhile i rest = case (pushCount i, rest) of
 -- stack check, then a branch to the loop head. @maxK@ is the highest
 -- frame offset the function touches, which is at least the frame size and
 -- covers the arguments of every call it makes.
-entryBlock :: Env -> Bool -> Bool -> Int -> Int -> Int -> Int -> Int -> Deque Text
-entryBlock env worker checks arity base maxK maxPool maxExitArgs =
+entryBlock :: Env -> Bool -> Bool -> Int -> Int -> Int -> Int -> Int -> Bool -> Deque Text
+entryBlock env worker checks arity base maxK maxPool maxExitArgs witnesses =
   fmap ("  " <>) $
     -- %fp is the combinator's frame pointer, %fpb the interpreter's (the
     -- one passed in); they differ by the frame base
@@ -1926,6 +1976,7 @@ entryBlock env worker checks arity base maxK maxPool maxExitArgs =
       <> poolLoad "%tag.float" poolIndexFloatTag
       <> poolLoad "%tag.int" poolIndexIntTag
       <> poolLoad "%tag.nat" poolIndexNatTag
+      <> (if witnesses then foldMap (\k -> poolLoad ("%witness" <> tshow k) (poolIndexWitness k)) [0 .. wideK] else D.empty)
       <> each
         [1 .. arity]
         ( \k' ->
@@ -2032,15 +2083,13 @@ genHead fe body = do
         pure stop
       else pure stopHp
   -- A worker that makes calls checks the C stack here, once, instead of
-  -- before each call. If the budget for native calls is used up, this call
-  -- runs interpreted: it goes back to the trampoline (its callers unwinding
-  -- as for any exit), which evaluates the body with the frame as written
-  -- back. Not a re-enter: entered again at the bottom of the C stack the
-  -- check can fire again, and does whenever the function's own frame is
-  -- deeper than the budget (the stress mode's 4 KB, 2026-10-28), so a
-  -- re-enter here looped forever. On Windows a tail call can be an
-  -- ordinary call ('workerTail'), so a worker that makes tail calls checks
-  -- too.
+  -- before each call. If the budget for native calls is used up, it goes
+  -- back to the trampoline (its callers unwinding as for any exit) and is
+  -- entered again at the bottom of the C stack; if that gets nowhere, which
+  -- it does when the function's own frame is deeper than the budget (the
+  -- stress mode's 4 KB, 2026-10-28), the trampoline interprets the call
+  -- ('Retry'). On Windows a tail call can be an ordinary call
+  -- ('workerTail'), so a worker that makes tail calls checks too.
   when (feWorker fe && (makesCalls body || (os == "mingw32" && makesTailCalls body))) $ do
     csp <- fresh "csp"
     emit (csp <> " = call ptr @llvm.stacksave.p0()")
@@ -2051,9 +2100,9 @@ genHead fe body = do
     emit (limv <> " = load i64, ptr " <> lim)
     deep <- fresh "deep"
     emit (deep <> " = icmp ult i64 " <> cspi <> ", " <> limv)
-    interpreted <- exitBlock fe d (Named "C stack" (Resume (feCix fe) body))
+    retry <- exitBlock fe d (Named "C stack" (Retry (feCell fe) (feCix fe) body))
     shallow <- freshLabel "shallow"
-    emit ("br i1 " <> deep <> ", label %" <> interpreted <> ", label %" <> shallow <> unlikely)
+    emit ("br i1 " <> deep <> ", label %" <> retry <> ", label %" <> shallow <> unlikely)
     startBlock shallow
   let stop = stopAlloc
   reenter <- exitBlock fe d (Named "entry poll" (Reenter (feCell fe)))
@@ -2152,12 +2201,13 @@ genLet fe d binding bcix@(CIx _ _ w) f body cell sect = case EC.lookup w (envCom
               padBelow (d + m) m
               genSection fe (d + m) body
         Call _ _ comb args
-          | Comb (LamI arity _ _ ccell) _ <- unRComb comb,
+          | Comb (LamI arity _ csect ccell) _ <- unRComb comb,
             let srcs = argSources fe d args,
             D.size srcs == arity -> do
               bcell <- bodyCell
               ix <- addFrame env (Frame bcix f body bcell)
-              genNonTailCall fe d d ccell srcs m sect (Just (Pair ix d)) $
+              genNonTailCall fe d d ccell srcs m sect (Just (Pair ix d)) $ do
+                unless (mayYieldWitness csect) (markPlain (d + m))
                 genSection fe (d + m) body
         App _ r@(MCode.Env ccix comb) args
           | enabled fe "app",
@@ -2398,11 +2448,14 @@ genWorkerCall fe d base wname srcs sect ownFrame continue = do
     emit (status <> " = phi i64 [ " <> st <> ", %" <> notOkL <> " ], [ " <> r2 <> ", %" <> tailL <> " ]")
     unwindWith fe base (bodyLive fe base w sect) ownFrame status
   startBlock contL
-  iforM_ (D.fromList (zip (D.toList results) tailVals)) $ \j (Pair ru' rb', Pair tu tb) -> do
+  -- the phis first, all of them: a block's phis must be grouped at its top
+  joined <- forM (zip (D.toList results) tailVals) $ \(Pair ru' rb', Pair tu tb) -> do
     u <- fresh "u"
     emit (u <> " = phi i64 [ " <> ru' <> ", %" <> callL <> " ], [ " <> tu <> ", %" <> tailOkL <> " ]")
     b <- fresh "b"
     emit (b <> " = phi ptr [ " <> rb' <> ", %" <> callL <> " ], [ " <> tb <> ", %" <> tailOkL <> " ]")
+    pure (Pair u b)
+  iforM_ (D.fromList joined) $ \j (Pair u b) -> do
     storeU (base + w - j) u
     storeB (base + w - j) b
   let _ = (u2, b2)
@@ -2656,7 +2709,7 @@ genDMatchClosure fe d i mr br sect = do
                 pure wk
               -- which witness: the pointer against the pool's, in order
               forM_ (zip [0 ..] chain) $ \(k, wk) -> do
-                wp <- poolClosure (poolIndexWitness k)
+                wp <- witnessClosure k
                 is <- fresh "is.w"
                 emit (is <> " = icmp eq ptr " <> p <> ", " <> wp)
                 nextL <- freshLabel "not.w"
@@ -3708,7 +3761,7 @@ genInstr fe d instr sect k = modify' (\s -> s {gsWhere = UT.pack (prettyIns inst
     vals <- loadSources (argSources fe d args)
     let n = D.size vals
         w = wideWidth
-    wp <- poolClosure (poolIndexWitness n)
+    wp <- witnessClosure n
     storeU (d + w) (tshow t)
     storeB (d + w) wp
     iforM_ vals $ \j (Pair u b) -> do
@@ -3725,38 +3778,42 @@ genInstr fe d instr sect k = modify' (\s -> s {gsWhere = UT.pack (prettyIns inst
   -- pointer would not do, since the type tags of unboxed numbers have it
   -- too) is replaced by the object it stands for
   Box i -> do
-    p <- loadB (d - i)
-    slow <- exitBlock fe d (Resume (feCix fe) sect)
-    done <- freshLabel "boxed"
-    boxL <- freshLabel "box"
-    -- which witness, if any: the field count is the index of the one the
-    -- pointer equals
-    tests <- forM [0 .. wideK] $ \n -> do
-      wp <- poolClosure (poolIndexWitness n)
-      is <- fresh "is.w"
-      emit (is <> " = icmp eq ptr " <> p <> ", " <> wp)
-      pure is
-    let (test0, testsN) = case tests of
-          t : ts -> (t, ts)
-          [] -> ("false", [])
-    anyW <- foldM (\acc is -> do r <- fresh "witness"; emit (r <> " = or i1 " <> acc <> ", " <> is); pure r) test0 testsN
-    n <- foldM (\acc (j, is) -> do r <- fresh "n"; emit (r <> " = select i1 " <> is <> ", i64 " <> tshow j <> ", i64 " <> acc); pure r) "0" (zip [1 :: Int ..] testsN)
-    emit ("br i1 " <> anyW <> ", label %" <> boxL <> ", label %" <> done <> unlikely)
-    startBlock boxL
-    tagw <- loadU (d - i)
-    fields <- forM [1 .. wideK] $ \j -> Pair <$> loadU (d - i - j) <*> loadB (d - i - j)
-    r <- fresh "boxed"
-    emit (r <> " = call ptr @" <> boxHelperName <> "(ptr %ctx, ptr %pool, i64 " <> tagw <> ", i64 " <> n <> foldMap (\(Pair u b) -> ", i64 " <> u <> ", ptr " <> b) fields <> ")")
-    isNull <- fresh "unboxed"
-    emit (isNull <> " = icmp eq ptr " <> r <> ", null")
-    okL <- freshLabel "boxed.ok"
-    emit ("br i1 " <> isNull <> ", label %" <> slow <> ", label %" <> okL <> unlikely)
-    startBlock okL
-    storeU (d - i) "-1"
-    storeB (d - i) r
-    emit ("br label %" <> done)
-    startBlock done
-    k d
+    plain <- gets (IS.member (d - i) . gsPlain)
+    if plain
+      then k d
+      else do
+        p <- loadB (d - i)
+        slow <- exitBlock fe d (Resume (feCix fe) sect)
+        done <- freshLabel "boxed"
+        boxL <- freshLabel "box"
+        -- which witness, if any: the field count is the index of the one the
+        -- pointer equals
+        tests <- forM [0 .. wideK] $ \n -> do
+          wp <- witnessClosure n
+          is <- fresh "is.w"
+          emit (is <> " = icmp eq ptr " <> p <> ", " <> wp)
+          pure is
+        let (test0, testsN) = case tests of
+              t : ts -> (t, ts)
+              [] -> ("false", [])
+        anyW <- foldM (\acc is -> do r <- fresh "witness"; emit (r <> " = or i1 " <> acc <> ", " <> is); pure r) test0 testsN
+        n <- foldM (\acc (j, is) -> do r <- fresh "n"; emit (r <> " = select i1 " <> is <> ", i64 " <> tshow j <> ", i64 " <> acc); pure r) "0" (zip [1 :: Int ..] testsN)
+        emit ("br i1 " <> anyW <> ", label %" <> boxL <> ", label %" <> done <> unlikely)
+        startBlock boxL
+        tagw <- loadU (d - i)
+        fields <- forM [1 .. wideK] $ \j -> Pair <$> loadU (d - i - j) <*> loadB (d - i - j)
+        r <- fresh "boxed"
+        emit (r <> " = call ptr @" <> boxHelperName <> "(ptr %ctx, ptr %pool, i64 " <> tagw <> ", i64 " <> n <> foldMap (\(Pair u b) -> ", i64 " <> u <> ", ptr " <> b) fields <> ")")
+        isNull <- fresh "unboxed"
+        emit (isNull <> " = icmp eq ptr " <> r <> ", null")
+        okL <- freshLabel "boxed.ok"
+        emit ("br i1 " <> isNull <> ", label %" <> slow <> ", label %" <> okL <> unlikely)
+        startBlock okL
+        storeU (d - i) "-1"
+        storeB (d - i) r
+        emit ("br label %" <> done)
+        startBlock done
+        k d
   -- a record literal: built from the pool's empty record of its shape
   RecPack shape args
     | enabled fe "records",

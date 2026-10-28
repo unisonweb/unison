@@ -710,5 +710,6 @@ describeExit = \case
   Resume cix sect -> "resume " ++ show cix ++ " at " ++ takeWhile (/= '\n') (dropWhile (== ' ') (prettySection 0 sect ""))
   GrowStack n _ -> "grow stack by " ++ show n
   Reenter cell -> "reenter (poll) " ++ show cell
+  Retry cell cix sect -> "retry " ++ show cell ++ ", else resume " ++ show cix ++ " at " ++ takeWhile (/= '\n') (dropWhile (== ' ') (prettySection 0 sect ""))
   CallOut cix instr _ _ _ -> "call out " ++ show cix ++ " for " ++ takeWhile (/= '\n') (prettyIns instr "")
   Named name e -> name ++ ": " ++ describeExit e

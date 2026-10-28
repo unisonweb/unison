@@ -63,6 +63,7 @@ static const char *debug_getenv(const char *name) { return jit_debug() ? getenv(
 // ---- Declarations copied from llvm-c (Types.h, Error.h, Orc.h, TargetMachine.h)
 
 typedef int LLVMBool;
+typedef enum { LLVMAbortProcessAction, LLVMPrintMessageAction, LLVMReturnStatusAction } LLVMVerifierFailureAction;
 typedef struct LLVMOpaqueContext *LLVMContextRef;
 typedef struct LLVMOpaqueModule *LLVMModuleRef;
 typedef struct LLVMOpaqueMemoryBuffer *LLVMMemoryBufferRef;
@@ -128,6 +129,7 @@ enum { LLVMCodeModelJITDefault = 1 };
   X(LLVMCreateMemoryBufferWithMemoryRangeCopy, LLVMMemoryBufferRef,                            \
     (const char *, size_t, const char *))                                                      \
   X(LLVMParseIRInContext, LLVMBool, (LLVMContextRef, LLVMMemoryBufferRef, LLVMModuleRef *, char **)) \
+  X(LLVMVerifyModule, LLVMBool, (LLVMModuleRef, LLVMVerifierFailureAction, char **))           \
   X(LLVMGetDefaultTargetTriple, char *, (void))                                                \
   X(LLVMGetHostCPUName, char *, (void))                                                        \
   X(LLVMGetHostCPUFeatures, char *, (void))                                                    \
@@ -430,12 +432,18 @@ int unison_jit_init(void) {
       argv[argc++] = "-enable-misched=false";
       argv[argc++] = "-enable-post-misched=false";
     }
+    // The inliner's threshold: 600 where LLVM's default is 225. Generated
+    // functions carry more instructions than their work (the exit paths,
+    // the slot stores, and under the wide convention a seven-word return),
+    // so the default refused to inline small callees into hot loops: the
+    // Collatz row ran 1.8x slower under the convention with the step
+    // function called, 1.2x with it inlined, and the rows that call across
+    // definitions gain either way (benchmarks/2026-10-28-wide-jit.md).
+    // UNISON_JIT_INLINE_THRESHOLD overrides it under UNISON_JIT_DEBUG.
     static char inl[64];
     const char *t = debug_getenv("UNISON_JIT_INLINE_THRESHOLD");
-    if (t && *t) {
-      snprintf(inl, sizeof inl, "-inline-threshold=%d", atoi(t));
-      argv[argc++] = inl;
-    }
+    snprintf(inl, sizeof inl, "-inline-threshold=%d", (t && *t) ? atoi(t) : 600);
+    argv[argc++] = inl;
     if (argc > 1) LLVMParseCommandLineOptions(argc, argv, NULL);
     // UNISON_JIT_LLVM_OPTS: further LLVM command line options, space
     // separated (-time-passes, -debug-pass-manager, ...), for measurement.
@@ -519,6 +527,17 @@ static int add_module(const char *ir, size_t len, const char *passes, char **out
   if (LLVMParseIRInContext(ctx, buf, &mod, &msg)) {
     snprintf(last_error, sizeof last_error, "parse: %s", msg);
     LLVMDisposeMessage(msg);
+    LLVMOrcDisposeThreadSafeContext(tsctx);
+    return -1;
+  }
+  // The parser accepts some ill-formed modules that the passes then
+  // mishandle (phis not grouped at a block's top, 2026-10-28), so under
+  // UNISON_JIT_DEBUG the verifier runs on every module and a module that
+  // fails it is refused, with the reason.
+  if (jit_debug() && LLVMVerifyModule(mod, LLVMReturnStatusAction, &msg)) {
+    snprintf(last_error, sizeof last_error, "verify: %s", msg);
+    LLVMDisposeMessage(msg);
+    LLVMDisposeModule(mod);
     LLVMOrcDisposeThreadSafeContext(tsctx);
     return -1;
   }

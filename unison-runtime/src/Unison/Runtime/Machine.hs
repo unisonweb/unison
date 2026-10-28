@@ -1103,7 +1103,24 @@ runNative ::
   K ->
   FunPtr NativeFn ->
   IO ()
-runNative !yld env henv0 !activeThreads !stk0 !k0 fn0 = go fn0 henv0 stk0 k0
+runNative !yld env henv0 !activeThreads !stk0 !k0 fn0 = do
+  -- the last Retry exit of this run and the stack it left: the same one
+  -- again, with the stack where it was, is interpreted instead
+  retried <- newIORef Nothing
+  runNativeFrom retried yld env henv0 activeThreads stk0 k0 fn0
+
+runNativeFrom ::
+  (RuntimeProfiler prof) =>
+  IORef (Maybe (Ptr NativeCell, Int, Int, Int)) ->
+  Ticker prof ->
+  CCache prof ->
+  HEnv ->
+  ActiveThreads ->
+  Stack ->
+  K ->
+  FunPtr NativeFn ->
+  IO ()
+runNativeFrom retried !yld env henv0 !activeThreads !stk0 !k0 fn0 = go fn0 henv0 stk0 k0
   where
     -- read once: these are consulted several times per round trip, and
     -- the tables on every one
@@ -1186,6 +1203,18 @@ runNative !yld env henv0 !activeThreads !stk0 !k0 fn0 = go fn0 henv0 stk0 k0
         when tracing $ JIT.jitDump "reenter"
         Conc.yield
         again cell henv stk k
+      Retry cell cix sect -> do
+        let here = case stk of Stack a f p _ _ -> (cell, a, f, p)
+        same <- (== Just here) <$> readIORef retried
+        if same
+          then do
+            when tracing $ JIT.jitDump ("retry got nowhere: interpreting " ++ show cix)
+            eval yld env henv activeThreads stk k cix sect
+          else do
+            when tracing $ JIT.jitDump "retry"
+            writeIORef retried (Just here)
+            Conc.yield
+            again cell henv stk k
       -- The interpreter runs one instruction, then native code continues
       -- after it, with whatever the instruction did to the handler
       -- environment and K. The exception case is eval's, except that the

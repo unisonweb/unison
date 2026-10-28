@@ -20,6 +20,17 @@ bound and never escape, about a quarter, out of the heap; the rest escape into s
 and still allocate). Native code already shares them: a `Pack` with no fields is a load of
 the pool's enum for that constructor, so the gain is the interpreter's.
 
+### A let over a call of a zero-arity definition
+
+The benchmark row "Apply a function argument 10000 times" exits once per
+iteration in both modes (13.8M exits in a run, 2026-10-28): its loop binds the
+result of `App (Env f) ZArgs` where `f` is a zero-arity definition that is not
+a cached constant, and `genLet` has no case for that binding, so the function
+resumes in the interpreter at the Let every time. A call of a zero-arity
+combinator is an ordinary call with no arguments; the generator should treat
+it as one (worker call or uniform call), as it does `Call`. The row measures
+the exit, not the application.
+
 ### One allocation for several `Pack`s
 
 Consecutive `Pack`s in a straight-line run, and the arithmetic between them, could share one

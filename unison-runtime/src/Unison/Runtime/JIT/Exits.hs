@@ -43,6 +43,14 @@ data Exit
   | -- | the runtime asked the thread to stop; call the function whose
     -- cell this is again when the thread next runs
     Reenter !(Ptr NativeCell)
+  | -- | call the function whose cell this is again, as 'Reenter', unless
+    -- the same exit was just taken with the stack where it is now, which
+    -- means calling again gets nowhere: then interpret from this section
+    -- of this combinator instead. For a condition that is usually cleared
+    -- by the unwind but need not be: a worker's C stack budget, used up by
+    -- native recursion (the unwind frees it) or by the function's own
+    -- frame (it does not).
+    Retry !(Ptr NativeCell) !CombIx !MSection
   | -- | run this instruction with the interpreter (it pushes the given
     -- number of values), then call the function in this cell, which
     -- continues with the section after it. If the instruction pushed a
@@ -58,6 +66,7 @@ data Exit
 isAdHoc :: Exit -> Bool
 isAdHoc (GrowStack _ _) = True
 isAdHoc (Reenter _) = True
+isAdHoc (Retry {}) = True
 isAdHoc (Named _ e) = isAdHoc e
 isAdHoc _ = False
 

@@ -132,7 +132,14 @@ static int64_t alloc_budget = 256 * 1024;
 static int64_t bump_alloc = 1;
 // C stack kept free for the runtime's own C code (the GC in particular),
 // below which native code never goes whatever the budget says.
-#define CSTACK_RESERVE (256 * 1024)
+// What the C stack must keep below native code: the runtime's own calls on
+// this thread (the collector, the allocator, the helpers), none of them
+// deep. GHC's worker threads have 512 KB stacks, so the reserve decides
+// how much native recursion fits before the budget check sends the
+// recursion through the trampoline: 128 KB leaves 384 KB, where 256 KB
+// left a thousand frames of a list map under the wide convention (272
+// bytes each, 160 without it) just outside (2026-10-28).
+#define CSTACK_RESERVE (128 * 1024)
 // Every native non-tail call in progress uses at least 16 bytes of C stack,
 // and a frame writes one record per inline Let it is inside of plus its
 // own, so the budget bounds the number of frame records. Frames are far
