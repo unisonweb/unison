@@ -185,6 +185,9 @@ data Unit = Unit
     -- | the arity, for a combinator that can have a worker (an entry
     -- point or local function whose returns all yield one value)
     uWorker :: Maybe Int,
+    -- | the worker returns one result pair: the code cannot yield a witness
+    -- (see Codegen's 'Worker')
+    uNarrow :: Bool,
     -- | a private copy of a callee compiled earlier: it exists so that
     -- the module's calls to it are direct (and may be inlined), is not
     -- installed in its cell (the earlier code stays for everyone else),
@@ -325,7 +328,8 @@ groupUnits c sandbox lazy ref grp combs = do
               ++ "\n"
               ++ unlines (map ("; " ++) (lines (prettySection 4 entry "")))
           worker = if isEntry i && CG.workerShape entry then Just a else Nothing
-       in Unit name name cell combs entry describe onDemand worker False sandbox (\sym env -> first UT.unpack (genFunction env (UT.pack sym) cix a f entry cell))
+          narrow = not (CG.mayYieldWitness entry)
+       in Unit name name cell combs entry describe onDemand worker narrow False sandbox (\sym env -> first UT.unpack (genFunction env (UT.pack sym) cix a f entry cell))
 
 -- | Private copies of a compiled group's entry point and local functions,
 -- for a module that calls them (see 'uCopy'). The group's re-entry points
@@ -367,6 +371,7 @@ deferredUnit parent d =
     True
     Nothing
     False
+    False
     (uSandboxed parent)
     (\_ env -> first UT.unpack (genDeferred env d))
 
@@ -406,7 +411,7 @@ compileUnits c st numbers modName lazy candidates = do
       -- pass arguments and results in registers (design.md, "Workers").
       workersOf us
         | any (`elem` disabled config) ["direct", "worker"] = Map.empty
-        | otherwise = Map.fromList [(uCell u, Pair (UT.pack (uName u ++ "_w")) a) | u <- us, Just a <- [uWorker u]]
+        | otherwise = Map.fromList [(uCell u, CG.Worker (UT.pack (uName u ++ "_w")) a (uNarrow u)) | u <- us, Just a <- [uWorker u]]
       -- Which functions compile, and in which form. A function that fails
       -- as a worker (it turns out to return other than one value) is
       -- generated in the uniform form instead, and its callers then call it

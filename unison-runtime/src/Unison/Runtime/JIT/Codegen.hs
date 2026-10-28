@@ -41,6 +41,8 @@ module Unison.Runtime.JIT.Codegen
     switches,
     unitForeign,
     workerShape,
+    mayYieldWitness,
+    Worker (..),
   )
 where
 
@@ -139,8 +141,8 @@ data Env = Env
     -- inline, instead of a call through the cell
     envLocal :: !(Map.Map (Ptr NativeCell) Text),
     -- | the functions of this module that have a worker (see 'feWorker'),
-    -- by cell: the worker's symbol and its arity
-    envWorkers :: !(Map.Map (Ptr NativeCell) (Pair Text Int)),
+    -- by cell
+    envWorkers :: !(Map.Map (Ptr NativeCell) Worker),
     -- | the code is from a sandboxed code cache: Ref.cas and
     -- Ref.readForCas are left to the interpreter, which refuses them
     envSandboxed :: !Bool,
@@ -159,6 +161,13 @@ data Env = Env
 -- | The cells left for auxiliary functions: a supply without end (the
 -- first pass over a module, which only counts what each function needs),
 -- or what remains of the module's block.
+-- | A function of the module that has a worker: the worker's symbol, its
+-- arity, and whether it is narrow (returns one result pair where the
+-- convention has 'resultWidth': a function whose code cannot yield a
+-- witness, 'mayYieldWitness', needs no field pairs, and the seven-word
+-- return was the cost of every call that LLVM did not inline).
+data Worker = Worker {wName :: !Text, wArity :: !Int, wNarrow :: !Bool}
+
 -- | The cells for a function's auxiliary functions: counted while the
 -- function is generated (each gets a placeholder, 'countingCell', that
 -- 'relocateCells' replaces once a block of real cells is allocated), or
@@ -796,6 +805,8 @@ data FnEnv = FnEnv
     -- registers. The Unison stack is written only when something exits.
     -- The function the cell points to is then a wrapper around it.
     feWorker :: !Bool,
+    -- | a worker returning one result pair (see 'Worker')
+    feNarrow :: !Bool,
     -- | Set while generating a worker's /fast entry/: the function its
     -- callers call, which holds only the paths that need nothing checked
     -- (no stack room, no poll: they can't exit, call or loop) and return
@@ -1305,8 +1316,8 @@ tailToFull :: FnEnv -> Text -> Gen ()
 tailToFull fe full = do
   vals <- loadSources (D.fromList [1 .. feArity fe])
   r <- fresh "r"
-  emit (r <> " = " <> workerTail <> " " <> workerCC <> " " <> workerRet <> " @" <> full <> "(ptr %ctx, i64 %fp.in" <> argList vals <> ")")
-  emit ("ret " <> workerRet <> " " <> r)
+  emit (r <> " = " <> workerTail <> " " <> workerCC <> " " <> workerRet (feWidth fe) <> " @" <> full <> "(ptr %ctx, i64 %fp.in" <> argList vals <> ")")
+  emit ("ret " <> workerRet (feWidth fe) <> " " <> r)
 
 -- | The calling convention of workers, and how one tail calls another.
 -- @tailcc@ with @musttail@ guarantees a tail call between workers of any
@@ -1336,33 +1347,44 @@ resultWidth = if wideOn then wideWidth else 1
 -- integer words in registers under tailcc (LLVM refuses a musttail call
 -- beyond that), so there the pairs after the first travel as doubles,
 -- bitcast on both sides; arm64 has registers for them all.
-workerRetTypes :: [Text]
-workerRetTypes = "i64" : "i64" : "ptr" : concat (replicate (resultWidth - 1) extra)
+workerRetTypes :: Int -> [Text]
+workerRetTypes w = "i64" : "i64" : "ptr" : concat (replicate (w - 1) extra)
   where
     extra
       | arch == "aarch64" = ["i64", "ptr"]
       | otherwise = ["double", "double"]
 
-workerRet :: Text
-workerRet = "{ " <> intercalateT ", " (D.fromList workerRetTypes) <> " }"
+workerRet :: Int -> Text
+workerRet w = "{ " <> intercalateT ", " (D.fromList (workerRetTypes w)) <> " }"
+
+-- | The result pairs a function's worker returns: one when narrow.
+feWidth :: FnEnv -> Int
+feWidth fe
+  | feNarrow fe = 1
+  | otherwise = resultWidth
+
+workerWidth :: Worker -> Int
+workerWidth w
+  | wNarrow w = 1
+  | otherwise = resultWidth
 
 -- | Builds a worker's return value from a status and the result slots;
 -- fewer slots than 'resultWidth' are padded with the first (a yield of one
 -- ordinary value), so every pointer in it is a valid one.
-packWorkerRet :: Text -> Deque (Pair Text Text) -> Gen Text
-packWorkerRet st vals = do
+packWorkerRet :: Int -> Text -> Deque (Pair Text Text) -> Gen Text
+packWorkerRet w st vals = do
   r0 <- fresh "ret"
-  emit (r0 <> " = insertvalue " <> workerRet <> " undef, i64 " <> st <> ", 0")
-  foldM slot r0 (zip [0 ..] (D.toList (padResults vals)))
+  emit (r0 <> " = insertvalue " <> workerRet w <> " undef, i64 " <> st <> ", 0")
+  foldM slot r0 (zip [0 ..] (take w (D.toList (padResults vals))))
   where
     slot r (j, Pair u b) = do
-      let (tu, tb) = (workerRetTypes !! (1 + 2 * j), workerRetTypes !! (2 + 2 * j))
+      let (tu, tb) = (workerRetTypes w !! (1 + 2 * j), workerRetTypes w !! (2 + 2 * j))
       u' <- cast "i64" tu u
       b' <- cast "ptr" tb b
       r1 <- fresh "ret"
-      emit (r1 <> " = insertvalue " <> workerRet <> " " <> r <> ", " <> tu <> " " <> u' <> ", " <> tshow (1 + 2 * j))
+      emit (r1 <> " = insertvalue " <> workerRet w <> " " <> r <> ", " <> tu <> " " <> u' <> ", " <> tshow (1 + 2 * j))
       r2 <- fresh "ret"
-      emit (r2 <> " = insertvalue " <> workerRet <> " " <> r1 <> ", " <> tb <> " " <> b' <> ", " <> tshow (2 + 2 * j))
+      emit (r2 <> " = insertvalue " <> workerRet w <> " " <> r1 <> ", " <> tb <> " " <> b' <> ", " <> tshow (2 + 2 * j))
       pure r2
     cast from to v
       | from == to = pure v
@@ -1397,16 +1419,16 @@ padBelow k w = when (w > 1) $ do
   forM_ [k - w + 1 .. k - 1] $ \j -> storeU j u >> storeB j b
 
 -- | The status and the result slots of a worker's return value.
-unpackWorkerRet :: Text -> Gen (Text, Deque (Pair Text Text))
-unpackWorkerRet r = do
+unpackWorkerRet :: Int -> Text -> Gen (Text, Deque (Pair Text Text))
+unpackWorkerRet w r = do
   st <- fresh "st"
-  emit (st <> " = extractvalue " <> workerRet <> " " <> r <> ", 0")
-  vals <- forM [0 .. resultWidth - 1] $ \j -> do
-    let (tu, tb) = (workerRetTypes !! (1 + 2 * j), workerRetTypes !! (2 + 2 * j))
+  emit (st <> " = extractvalue " <> workerRet w <> " " <> r <> ", 0")
+  vals <- forM [0 .. w - 1] $ \j -> do
+    let (tu, tb) = (workerRetTypes w !! (1 + 2 * j), workerRetTypes w !! (2 + 2 * j))
     u0 <- fresh "r.u"
-    emit (u0 <> " = extractvalue " <> workerRet <> " " <> r <> ", " <> tshow (1 + 2 * j))
+    emit (u0 <> " = extractvalue " <> workerRet w <> " " <> r <> ", " <> tshow (1 + 2 * j))
     b0 <- fresh "r.b"
-    emit (b0 <> " = extractvalue " <> workerRet <> " " <> r <> ", " <> tshow (2 + 2 * j))
+    emit (b0 <> " = extractvalue " <> workerRet w <> " " <> r <> ", " <> tshow (2 + 2 * j))
     u <- if tu == "i64" then pure u0 else do
       i <- fresh "r.u"
       emit (i <> " = bitcast double " <> u0 <> " to i64")
@@ -1435,19 +1457,19 @@ retStatus :: FnEnv -> Text -> Gen ()
 retStatus fe st
   | feWorker fe = do
       r <- fresh "ret"
-      emit (r <> " = insertvalue " <> workerRet <> " undef, i64 " <> st <> ", 0")
-      emit ("ret " <> workerRet <> " " <> r)
+      emit (r <> " = insertvalue " <> workerRet (feWidth fe) <> " undef, i64 " <> st <> ", 0")
+      emit ("ret " <> workerRet (feWidth fe) <> " " <> r)
   | otherwise = emit ("ret i64 " <> st)
 
 -- | Returns a status and one result slot from a worker.
-retWorker :: Text -> Text -> Text -> Gen ()
-retWorker st u b = retWorkerSlots st (D.singleton (Pair u b))
+retWorker :: FnEnv -> Text -> Text -> Text -> Gen ()
+retWorker fe st u b = retWorkerSlots fe st (D.singleton (Pair u b))
 
 -- | Returns a status and the result slots from a worker.
-retWorkerSlots :: Text -> Deque (Pair Text Text) -> Gen ()
-retWorkerSlots st vals = do
-  r <- packWorkerRet st vals
-  emit ("ret " <> workerRet <> " " <> r)
+retWorkerSlots :: FnEnv -> Text -> Deque (Pair Text Text) -> Gen ()
+retWorkerSlots fe st vals = do
+  r <- packWorkerRet (feWidth fe) st vals
+  emit ("ret " <> workerRet (feWidth fe) <> " " <> r)
 
 -- | Raises the high-water mark of slots written to the boxed stack (for
 -- marking its cards on return) to the given stack index.
@@ -1571,7 +1593,8 @@ runFunction env name cix arity frameSize cell headL base worker body =
         | fast = name <> "_wf"
         | worker = workerName name
         | otherwise = name
-      fe = FnEnv env name cix arity frameSize cell headL base "%tag.char" "%tag.float" "%tag.int" "%tag.nat" D.empty worker Nothing sym (envInternal env) Nothing
+      narrow = worker && maybe False wNarrow (Map.lookup cell (envWorkers env))
+      fe = FnEnv env name cix arity frameSize cell headL base "%tag.char" "%tag.float" "%tag.int" "%tag.nat" D.empty worker narrow Nothing sym (envInternal env) Nothing
       gs0 = initialState arity (envCells env) (envKnown env) worker
       -- a worker comes with the function the cell points to, the wrapper,
       -- and maybe with a fast entry
@@ -1630,7 +1653,7 @@ genFunctionText fe body = do
             "define internal "
               <> workerCC
               <> " "
-              <> workerRet
+              <> workerRet (feWidth fe)
               <> " @"
               <> feSym fe
               <> "(ptr %ctx, i64 %fp.in"
@@ -1743,6 +1766,7 @@ genWrapper fe body = do
   let env = feEnv fe
       name = feName fe
       arity = feArity fe
+      wd = feWidth fe
       field reg f = reg <> " = getelementptr i8, ptr %ctx, i64 " <> tshow (f (envCtx env))
       indent = fmap ("  " <>)
       lines = D.fromList
@@ -1778,15 +1802,15 @@ genWrapper fe body = do
               [ "%r = call "
                   <> workerCC
                   <> " "
-                  <> workerRet
+                  <> workerRet wd
                   <> " @"
                   <> workerName name
                   <> "(ptr %ctx, i64 %fp.in"
                   <> foldMap (\k -> ", i64 %u" <> tshow k <> ", ptr %b" <> tshow k) [1 .. arity]
                   <> ")",
-                "%st = extractvalue " <> workerRet <> " %r, 0",
-                "%r.u = extractvalue " <> workerRet <> " %r, 1",
-                "%r.b = extractvalue " <> workerRet <> " %r, 2",
+                "%st = extractvalue " <> workerRet wd <> " %r, 0",
+                "%r.u = extractvalue " <> workerRet wd <> " %r, 1",
+                "%r.b = extractvalue " <> workerRet wd <> " %r, 2",
                 "switch i64 %st, label %exit [ i64 0, label %ok  i64 " <> tshow statusTailCall <> ", label %tail ]"
               ]
         )
@@ -1795,17 +1819,19 @@ genWrapper fe body = do
         ( -- the worker may have run native code that moved nothing, but
           -- the stacks' addresses are the same for the whole native run.
           -- The result slots go above the frame base, the value slot on
-          -- top (a wide result's field pairs may have travelled as doubles)
+          -- top (a wide result's field pairs may have travelled as doubles);
+          -- a narrow worker's one pair fills every slot
           foldMap
             ( \j ->
                 let k = tshow (resultWidth - j)
-                    (tu, tb) = (workerRetTypes !! (1 + 2 * j), workerRetTypes !! (2 + 2 * j))
+                    j' = min j (wd - 1)
+                    (tu, tb) = (workerRetTypes wd !! (1 + 2 * j'), workerRetTypes wd !! (2 + 2 * j'))
                     uv = "%r.u" <> tshow j
                     bv = "%r.b" <> tshow j
                  in lines
                       ( [ "%res" <> k <> " = add i64 %fp.in, " <> k,
-                          uv <> ".x = extractvalue " <> workerRet <> " %r, " <> tshow (1 + 2 * j),
-                          bv <> ".x = extractvalue " <> workerRet <> " %r, " <> tshow (2 + 2 * j)
+                          uv <> ".x = extractvalue " <> workerRet wd <> " %r, " <> tshow (1 + 2 * j'),
+                          bv <> ".x = extractvalue " <> workerRet wd <> " %r, " <> tshow (2 + 2 * j')
                         ]
                           ++ (if tu == "i64" then [uv <> " = add i64 " <> uv <> ".x, 0"] else [uv <> " = bitcast double " <> uv <> ".x to i64"])
                           ++ (if tb == "ptr" then [bv <> " = getelementptr i8, ptr " <> bv <> ".x, i64 0"] else [bv <> ".i = bitcast double " <> bv <> ".x to i64", bv <> " = inttoptr i64 " <> bv <> ".i to ptr"])
@@ -2302,9 +2328,9 @@ bodyLive fe base m body = liveAt (feEnv fe) (currentBase fe) (base + m) body <+>
 genNonTailCall :: FnEnv -> Int -> Int -> Ptr NativeCell -> Deque Int -> Int -> MSection -> Maybe (Pair Int Int) -> Gen () -> Gen ()
 genNonTailCall fe d base ccell srcs m sect ownFrame continue
   | m == resultWidth,
-    Just (Pair wname arity) <- Map.lookup ccell (envWorkers (feEnv fe)),
-    arity == D.size srcs =
-      genWorkerCall fe d base wname srcs sect ownFrame continue
+    Just wk <- Map.lookup ccell (envWorkers (feEnv fe)),
+    wArity wk == D.size srcs =
+      genWorkerCall fe d base wk srcs sect ownFrame continue
   | otherwise =
       genNonTailCallWith fe d base (loadCallee (feEnv fe) ccell) (fpPlus (base + D.size srcs)) srcs m sect ownFrame continue
 
@@ -2385,8 +2411,9 @@ unwindWith fe base live ownFrame r = joinShared fe base live False ownFrame r
 -- itself ('statusTailCall'): its callee's arguments are on the stack
 -- above @base@, and the call is made here, as a plain call through the
 -- stack.
-genWorkerCall :: FnEnv -> Int -> Int -> Text -> Deque Int -> MSection -> Maybe (Pair Int Int) -> Gen () -> Gen ()
-genWorkerCall fe d base wname srcs sect ownFrame continue = do
+genWorkerCall :: FnEnv -> Int -> Int -> Worker -> Deque Int -> MSection -> Maybe (Pair Int Int) -> Gen () -> Gen ()
+genWorkerCall fe d base wk srcs sect ownFrame continue = do
+  let wname = wName wk
   let env = feEnv fe
       n = D.size srcs
   slow <- exitBlock fe d (Resume (feCix fe) sect)
@@ -2401,8 +2428,9 @@ genWorkerCall fe d base wname srcs sect ownFrame continue = do
   useK (base + max n resultWidth)
   bp <- fpPlus base
   r <- fresh "r"
-  emit (r <> " = call " <> workerCC <> " " <> workerRet <> " @" <> wname <> "(ptr %ctx, i64 " <> bp <> argList (D.reverse vals) <> ")")
-  (st, results) <- unpackWorkerRet r
+  emit (r <> " = call " <> workerCC <> " " <> workerRet (workerWidth wk) <> " @" <> wname <> "(ptr %ctx, i64 " <> bp <> argList (D.reverse vals) <> ")")
+  -- a narrow callee's one pair fills every result slot
+  (st, results) <- fmap padResults <$> unpackWorkerRet (workerWidth wk) r
   let (ru, rb) = case results of
         Pair u b :<| _ -> (u, b)
         Empty -> ("undef", "undef")
@@ -2987,8 +3015,8 @@ genYield fe d args sect = do
   -- a worker hands its result slots back in registers
   if feWorker fe
     then
-      if n == 1 || n == resultWidth
-        then retWorkerSlots "0" vals
+      if n == 1 || n == feWidth fe
+        then retWorkerSlots fe "0" vals
         else modify' (\s -> s {gsFailed = Just "a worker yields other than one result", gsNotWorker = True})
     else genYieldStack fe base n vals
 
@@ -3054,7 +3082,7 @@ genCall fe d cix comb args sect
           then exitResume fe d sect
           else case Map.lookup cell (envWorkers env) of
             -- worker to worker: a real tail call with the arguments in registers
-            Just (Pair wname _) | feWorker fe -> do
+            Just wk | feWorker fe, workerWidth wk == feWidth fe, let wname = wName wk -> do
               when (envStressCallee env) $ do
                 fire <- stressFire env oStressCalleeLeft oStressCallee
                 slow <- exitBlock fe d (Resume (feCix fe) sect)
@@ -3063,8 +3091,8 @@ genCall fe d cix comb args sect
                 startBlock goL
               vals <- loadSources srcs
               r <- fresh "r"
-              emit (r <> " = " <> workerTail <> " " <> workerCC <> " " <> workerRet <> " @" <> wname <> "(ptr %ctx, i64 %fpb" <> argList (D.reverse vals) <> ")")
-              emit ("ret " <> workerRet <> " " <> r)
+              emit (r <> " = " <> workerTail <> " " <> workerCC <> " " <> workerRet (feWidth fe) <> " @" <> wname <> "(ptr %ctx, i64 %fpb" <> argList (D.reverse vals) <> ")")
+              emit ("ret " <> workerRet (feWidth fe) <> " " <> r)
             _ -> do
               Pair fnp isNull <- loadCallee env cell
               slow <- exitBlock fe d (Resume (feCix fe) sect)
@@ -3096,7 +3124,7 @@ tailCallThroughStack fe fnp top
       emit (fni <> " = ptrtoint ptr " <> fnp <> " to i64")
       tp <- fresh "top"
       emit (tp <> " = inttoptr i64 " <> top <> " to ptr")
-      retWorker (tshow statusTailCall) fni tp
+      retWorker fe (tshow statusTailCall) fni tp
   | otherwise = do
       r <- fresh "r"
       emit (r <> " = musttail call i64 " <> fnp <> "(ptr %ctx, i64 %ap, i64 %fpb, i64 " <> top <> ")")
@@ -4656,7 +4684,7 @@ boxHelperText :: Env -> Text
 boxHelperText env
   | not wideOn = ""
   | otherwise =
-      let fe = FnEnv env "box" (CIx Ty.unitRef 0 0) 0 0 nullPtr Nothing 0 "%tag.char" "%tag.float" "%tag.int" "%tag.nat" D.empty False Nothing boxHelperName True Nothing
+      let fe = FnEnv env "box" (CIx Ty.unitRef 0 0) 0 0 nullPtr Nothing 0 "%tag.char" "%tag.float" "%tag.int" "%tag.nat" D.empty False False Nothing boxHelperName True Nothing
           gs0 = initialState 0 (envCells env) (envKnown env) False
           gs = flip execState gs0 $ do
             failL <- freshLabel "fail"

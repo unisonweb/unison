@@ -20,6 +20,18 @@ bound and never escape, about a quarter, out of the heap; the rest escape into s
 and still allocate). Native code already shares them: a `Pack` with no fields is a load of
 the pool's enum for that constructor, so the gain is the interpreter's.
 
+### One witness closure
+
+A `Box` of a value that may be a witness (the result of an unknown call, say
+`f h` in a list map) compares the slot's closure against the three witness
+closures, one per field count, and a data match on such a value has the same
+chain. With one witness closure, and the field count in the slot's word
+beside the packed tag (bits above the 16 of the constructor and the type
+number), both become one compare. The interpreter would read the count from
+the word as well (`WitnessTag` becomes a constant). Worth about the
+difference on the `Cons.map` and `filterMap` rows (0.7x and 0.77x on
+2026-10-28), where the test is most of what the convention adds.
+
 ### A let over a call of a zero-arity definition
 
 The benchmark row "Apply a function argument 10000 times" exits once per
