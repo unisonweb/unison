@@ -154,6 +154,10 @@ myproject/main> share.render @unison/base
 
 `share.search` is the search box on the front page of Share: a name like `List.map` or a type like `[a] -> Nat` finds terms and types, a query starting with `@` finds users, organizations and projects, and `in @user/project` (or `in @user`) narrows a definition search. `share.project-search` finds projects by name or summary. `share.source` prints the source of a definition, and `share.render` prints its documentation, or a project's README if you give it no name. By default they look at the project's latest release; `@unison/base/releases/7.20.0:List.map` picks a release and `@unison/base/main:List.map` a branch.
 
+### When an action can't finish
+
+`update`, `delete`, `merge`, `pull` and `upgrade` must produce a branch that compiles. When one can't, UCM switches to a temporary branch and writes the definitions that need attention to `<action>-<shorthash>.u` (for example `merge-a0458b71.u`; the hash is of the action, its arguments and the branches involved). The reply names the file and the branch and says what to do next: edit the file until it compiles, check it with `load <file>`, then run `update` to merge the temporary branch back and delete it (or `cancel` to abandon). Deleting a definition from the file deletes it from the branch.
+
 ## Usage
 
 By default, your coding assistant will automatically use the Unison MCP server when it deems it appropriate, however

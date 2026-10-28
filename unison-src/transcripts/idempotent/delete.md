@@ -536,15 +536,25 @@ scratch/main> delete a b c
   I couldn't complete the delete, because some definitions are
   still in use.
 
-  I've created a temporary branch and added the affected
-  definitions to scratch.u, where you can fix them up or remove
-  any that are obsolete.
+  I've switched you to a temporary branch, update-main, and put
+  the definitions that need attention in delete-a9c4a8a9.u.
 
-  Once you're happy with the results, use `update` to merge them
-  back into main, or `cancel` if you change your mind.
+  To finish the delete:
+
+    1. Edit delete-a9c4a8a9.u until it compiles. Fix each
+    definition, or delete the ones you no longer want: deleting
+    a definition from the file deletes it from the branch.
+    2. Run `load delete-a9c4a8a9.u` to check the file. Repeat
+    steps 1 and 2 until it loads with no errors.
+    3. Run `update` (without arguments, from this branch). It
+    saves the file's definitions, merges update-main into main
+    and deletes the temporary branch.
+
+  Or, to abandon the delete instead, run `cancel` to delete the
+  temporary branch and switch back to main.
 ```
 
-``` unison :added-by-ucm scratch.u
+``` unison :added-by-ucm delete-a9c4a8a9.u
 -- The definitions below depend on the deleted definitions.
 -- Please fix the errors and run `update`.
 
@@ -738,15 +748,25 @@ scratch/main> delete ping
   I couldn't complete the delete, because some definitions are
   still in use.
 
-  I've created a temporary branch and added the affected
-  definitions to scratch.u, where you can fix them up or remove
-  any that are obsolete.
+  I've switched you to a temporary branch, update-main, and put
+  the definitions that need attention in delete-b0fa78c8.u.
 
-  Once you're happy with the results, use `update` to merge them
-  back into main, or `cancel` if you change your mind.
+  To finish the delete:
+
+    1. Edit delete-b0fa78c8.u until it compiles. Fix each
+    definition, or delete the ones you no longer want: deleting
+    a definition from the file deletes it from the branch.
+    2. Run `load delete-b0fa78c8.u` to check the file. Repeat
+    steps 1 and 2 until it loads with no errors.
+    3. Run `update` (without arguments, from this branch). It
+    saves the file's definitions, merges update-main into main
+    and deletes the temporary branch.
+
+  Or, to abandon the delete instead, run `cancel` to delete the
+  temporary branch and switch back to main.
 ```
 
-``` unison :added-by-ucm scratch.u
+``` unison :added-by-ucm delete-b0fa78c8.u
 -- The definitions below depend on the deleted definitions.
 -- Please fix the errors and run `update`.
 

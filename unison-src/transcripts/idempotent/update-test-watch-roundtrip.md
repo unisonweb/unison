@@ -48,15 +48,25 @@ foo n = "hello, world!"
   I couldn't complete the update, because some existing
   definitions would no longer typecheck.
 
-  I've created a temporary branch and added the affected
-  definitions to scratch.u, where you can fix them up or remove
-  any that are obsolete.
+  I've switched you to a temporary branch, update-main, and put
+  the definitions that need attention in update-a498a0f7.u.
 
-  Once you're happy with the results, use `update` to merge them
-  back into main, or `cancel` if you change your mind.
+  To finish the update:
+
+    1. Edit update-a498a0f7.u until it compiles. Fix each
+    definition, or delete the ones you no longer want: deleting
+    a definition from the file deletes it from the branch.
+    2. Run `load update-a498a0f7.u` to check the file. Repeat
+    steps 1 and 2 until it loads with no errors.
+    3. Run `update` (without arguments, from this branch). It
+    saves the file's definitions, merges update-main into main
+    and deletes the temporary branch.
+
+  Or, to abandon the update instead, run `cancel` to delete the
+  temporary branch and switch back to main.
 ```
 
-``` unison :added-by-ucm scratch.u
+``` unison :added-by-ucm update-a498a0f7.u
 foo n = "hello, world!"
 
 -- The definitions below no longer typecheck with the changes above.

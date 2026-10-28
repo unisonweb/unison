@@ -54,15 +54,25 @@ scratch/main> update
   I couldn't complete the update, because some existing
   definitions would no longer typecheck.
 
-  I've created a temporary branch and added the affected
-  definitions to scratch.u, where you can fix them up or remove
-  any that are obsolete.
+  I've switched you to a temporary branch, update-main, and put
+  the definitions that need attention in update-00b86312.u.
 
-  Once you're happy with the results, use `update` to merge them
-  back into main, or `cancel` if you change your mind.
+  To finish the update:
+
+    1. Edit update-00b86312.u until it compiles. Fix each
+    definition, or delete the ones you no longer want: deleting
+    a definition from the file deletes it from the branch.
+    2. Run `load update-00b86312.u` to check the file. Repeat
+    steps 1 and 2 until it loads with no errors.
+    3. Run `update` (without arguments, from this branch). It
+    saves the file's definitions, merges update-main into main
+    and deletes the temporary branch.
+
+  Or, to abandon the update instead, run `cancel` to delete the
+  temporary branch and switch back to main.
 ```
 
-``` unison :added-by-ucm scratch.u
+``` unison :added-by-ucm update-00b86312.u
 foo = +17
 
 -- The definitions below no longer typecheck with the changes above.
@@ -132,15 +142,26 @@ scratch/main> upgrade old new
 
   I couldn't automatically upgrade old to new.
 
-  I've created a temporary branch and added the affected
-  definitions to scratch.u, where you can fix them up or remove
-  any that are obsolete.
+  I've switched you to a temporary branch, upgrade-old-to-new,
+  and put the definitions that need attention in
+  upgrade-e3493e45.u.
 
-  Once you're happy with the results, use `update` to merge them
-  back into main, or `cancel` if you change your mind.
+  To finish the upgrade:
+
+    1. Edit upgrade-e3493e45.u until it compiles. Fix each
+    definition, or delete the ones you no longer want: deleting
+    a definition from the file deletes it from the branch.
+    2. Run `load upgrade-e3493e45.u` to check the file. Repeat
+    steps 1 and 2 until it loads with no errors.
+    3. Run `update` (without arguments, from this branch). It
+    saves the file's definitions, merges upgrade-old-to-new into
+    main and deletes the temporary branch.
+
+  Or, to abandon the upgrade instead, run `cancel` to delete the
+  temporary branch and switch back to main.
 ```
 
-``` unison :added-by-ucm scratch.u
+``` unison :added-by-ucm upgrade-e3493e45.u
 -- The definitions below no longer typecheck after upgrading.
 -- Please fix the errors, then run `update`.
 
@@ -244,23 +265,27 @@ scratch/alice> merge /bob
   Computing merge...
 
   I couldn't automatically merge scratch/bob into scratch/alice.
-  However, I've added the definitions that need attention to the
-  top of scratch.u.
 
-  When you're done, you can run
+  I've switched you to a temporary branch, merge-bob-into-alice,
+  and put the definitions that need attention in
+  merge-871a0464.u.
 
-    update
+  To finish the merge:
 
-  to merge your changes back into alice and delete the temporary
-  branch. Or, if you decide to cancel the merge instead, you can
-  run
+    1. Edit merge-871a0464.u until it compiles. Fix each
+    definition, or delete the ones you no longer want: deleting
+    a definition from the file deletes it from the branch.
+    2. Run `load merge-871a0464.u` to check the file. Repeat
+    steps 1 and 2 until it loads with no errors.
+    3. Run `update` (without arguments, from this branch). It
+    saves the file's definitions, merges merge-bob-into-alice
+    into alice and deletes the temporary branch.
 
-    cancel
-
-  to delete the temporary branch and switch back to alice.
+  Or, to abandon the merge instead, run `cancel` to delete the
+  temporary branch and switch back to alice.
 ```
 
-``` unison :added-by-ucm scratch.u
+``` unison :added-by-ucm merge-871a0464.u
 -- scratch/alice
 foo : Nat
 foo = 17

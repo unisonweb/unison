@@ -2,6 +2,7 @@ module Unison.Codebase.Editor.Output
   ( Output (..),
     AmbiguousReset'Argument (..),
     CreatedProjectBranchFrom (..),
+    ScratchFileHandoff (..),
     WhichBranchEmpty (..),
     NumberedOutput (..),
     NumberedArgs,
@@ -183,6 +184,19 @@ data AmbiguousReset'Argument
   | AmbiguousReset'Target
 
 --  | ShowDiff
+
+-- | What an action (@update@, @delete@, @merge@, @pull@, @upgrade@) that couldn't produce a branch that compiles leaves
+-- behind: a temporary branch, which the user has been switched to, and a scratch file of the definitions to fix up.
+data ScratchFileHandoff = ScratchFileHandoff
+  { -- | The action, like @update@ or @merge@.
+    action :: !Text,
+    -- | The scratch file to get compiling.
+    scratchFile :: !FilePath,
+    -- | The temporary branch the user is now on.
+    temporaryBranch :: !ProjectBranchName,
+    -- | The branch the action was run on, which @update@ will get back to.
+    baseBranch :: !ProjectBranchName
+  }
 
 data Output
   = -- Generic Success response; we might consider deleting this.
@@ -440,12 +454,12 @@ data Output
   | FailedToFetchLatestReleaseOfBase
   | HappyCoding
   | ProjectHasNoReleases ProjectName
-  | DeleteFailure !FilePath !ProjectBranchName
-  | UpdateTypecheckingFailure
-  | UpdateTypecheckingFailure2 !FilePath !ProjectBranchName
-  | UpgradeFailure !ProjectBranchName !FilePath !(List.NonEmpty (NameSegment, NameSegment))
+  | DeleteFailure !ScratchFileHandoff
+  | UpdateTypecheckingFailure !FilePath
+  | UpdateTypecheckingFailure2 !ScratchFileHandoff
+  | UpgradeFailure !ScratchFileHandoff !(List.NonEmpty (NameSegment, NameSegment))
   | UpgradeSuccess !(List.NonEmpty (NameSegment, NameSegment)) !(Map NameSegment NameSegment)
-  | MergeFailure !FilePath !MergeSourceAndTarget
+  | MergeFailure !ScratchFileHandoff !MergeSourceAndTarget
   | MergeFailureWithMergetool !MergeSourceAndTarget !Text !ExitCode
   | MergeSuccess !MergeSourceAndTarget
   | MergeSuccessFastForward !MergeSourceAndTarget

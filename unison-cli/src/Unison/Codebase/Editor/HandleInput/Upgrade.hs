@@ -4,7 +4,6 @@ module Unison.Codebase.Editor.HandleInput.Upgrade
   )
 where
 
-import Control.Lens ((?=))
 import Control.Lens qualified as Lens
 import Control.Monad.Reader (ask)
 import Control.Monad.State.Strict (State)
@@ -29,6 +28,7 @@ import Unison.Cli.Monad qualified as Cli
 import Unison.Cli.MonadUtils qualified as Cli
 import Unison.Cli.Pretty qualified as Pretty
 import Unison.Cli.ProjectUtils qualified as Cli
+import Unison.Cli.ScratchFile qualified as ScratchFile
 import Unison.Cli.UpdateUtils (getNamespaceDependentsOf, hydrateRefs, makeUniqueTypeGuids, nameHydratedRefIds, parseAndTypecheck, subtractDependents)
 import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Branch (Branch0)
@@ -217,7 +217,7 @@ handleUpgrade1 namePairs = do
       uniqueTypeGuidsByName <-
         Cli.runTransaction (makeUniqueTypeGuids (BiMultimap.range unconflictedView.defns.types))
 
-      _ <-
+      (_, temporaryBranch) <-
         HandleInput.Branch.createBranch
           (textualDescriptionOfUpgrade upgradeInfos)
           ( CreateFrom'Upgrade
@@ -234,15 +234,22 @@ handleUpgrade1 namePairs = do
           pp.project
           (findTemporaryBranchName pp.project.projectId ((\info -> (info.oldName, info.newName)) <$> upgradeInfos))
       scratchFilePath <-
-        Cli.getLatestFile <&> \case
-          Nothing -> "scratch.u"
-          Just (file, _) -> file
-      #latestFile ?= (scratchFilePath, True)
-      liftIO $ env.writeSource (Text.pack scratchFilePath) (Pretty.toPlain 80 prettyUnisonFile) True
+        ScratchFile.writeActionScratchFile
+          "upgrade"
+          ( into @Text pp.project.name
+              : into @Text pp.branch.name
+              : into @Text (Branch.headHash currentNamespace)
+              : foldMap (\info -> [NameSegment.toUnescapedText info.oldName, NameSegment.toUnescapedText info.newName]) upgradeInfos
+          )
+          (Pretty.toPlain 80 prettyUnisonFile)
       Cli.returnEarly
         ( Output.UpgradeFailure
-            pp.branch.name
-            scratchFilePath
+            Output.ScratchFileHandoff
+              { action = "upgrade",
+                scratchFile = scratchFilePath,
+                temporaryBranch,
+                baseBranch = pp.branch.name
+              }
             ((\info -> (info.oldName, info.newName)) <$> upgradeInfos)
         )
 

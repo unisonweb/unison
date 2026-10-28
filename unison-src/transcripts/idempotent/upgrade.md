@@ -125,15 +125,26 @@ proj/main> upgrade old new
 
   I couldn't automatically upgrade old to new.
 
-  I've created a temporary branch and added the affected
-  definitions to scratch.u, where you can fix them up or remove
-  any that are obsolete.
+  I've switched you to a temporary branch, upgrade-old-to-new,
+  and put the definitions that need attention in
+  upgrade-df705b9c.u.
 
-  Once you're happy with the results, use `update` to merge them
-  back into main, or `cancel` if you change your mind.
+  To finish the upgrade:
+
+    1. Edit upgrade-df705b9c.u until it compiles. Fix each
+    definition, or delete the ones you no longer want: deleting
+    a definition from the file deletes it from the branch.
+    2. Run `load upgrade-df705b9c.u` to check the file. Repeat
+    steps 1 and 2 until it loads with no errors.
+    3. Run `update` (without arguments, from this branch). It
+    saves the file's definitions, merges upgrade-old-to-new into
+    main and deletes the temporary branch.
+
+  Or, to abandon the upgrade instead, run `cancel` to delete the
+  temporary branch and switch back to main.
 ```
 
-``` unison :added-by-ucm scratch.u
+``` unison :added-by-ucm upgrade-df705b9c.u
 -- The definitions below no longer typecheck after upgrading.
 -- Please fix the errors, then run `update`.
 
@@ -236,15 +247,26 @@ proj/main> upgrade old new
 
   I couldn't automatically upgrade old to new.
 
-  I've created a temporary branch and added the affected
-  definitions to scratch.u, where you can fix them up or remove
-  any that are obsolete.
+  I've switched you to a temporary branch, upgrade-old-to-new,
+  and put the definitions that need attention in
+  upgrade-df705b9c.u.
 
-  Once you're happy with the results, use `update` to merge them
-  back into main, or `cancel` if you change your mind.
+  To finish the upgrade:
+
+    1. Edit upgrade-df705b9c.u until it compiles. Fix each
+    definition, or delete the ones you no longer want: deleting
+    a definition from the file deletes it from the branch.
+    2. Run `load upgrade-df705b9c.u` to check the file. Repeat
+    steps 1 and 2 until it loads with no errors.
+    3. Run `update` (without arguments, from this branch). It
+    saves the file's definitions, merges upgrade-old-to-new into
+    main and deletes the temporary branch.
+
+  Or, to abandon the upgrade instead, run `cancel` to delete the
+  temporary branch and switch back to main.
 ```
 
-``` unison :added-by-ucm scratch.u
+``` unison :added-by-ucm upgrade-df705b9c.u
 -- The definitions below no longer typecheck after upgrading.
 -- Please fix the errors, then run `update`.
 
@@ -414,15 +436,26 @@ myproject/main> upgrade old new
 
   I couldn't automatically upgrade old to new.
 
-  I've created a temporary branch and added the affected
-  definitions to scratch.u, where you can fix them up or remove
-  any that are obsolete.
+  I've switched you to a temporary branch, upgrade-old-to-new,
+  and put the definitions that need attention in
+  upgrade-3c5ec1b9.u.
 
-  Once you're happy with the results, use `update` to merge them
-  back into main, or `cancel` if you change your mind.
+  To finish the upgrade:
+
+    1. Edit upgrade-3c5ec1b9.u until it compiles. Fix each
+    definition, or delete the ones you no longer want: deleting
+    a definition from the file deletes it from the branch.
+    2. Run `load upgrade-3c5ec1b9.u` to check the file. Repeat
+    steps 1 and 2 until it loads with no errors.
+    3. Run `update` (without arguments, from this branch). It
+    saves the file's definitions, merges upgrade-old-to-new into
+    main and deletes the temporary branch.
+
+  Or, to abandon the upgrade instead, run `cancel` to delete the
+  temporary branch and switch back to main.
 ```
 
-``` unison :added-by-ucm scratch.u
+``` unison :added-by-ucm upgrade-3c5ec1b9.u
 -- The definitions below no longer typecheck after upgrading.
 -- Please fix the errors, then run `update`.
 
@@ -754,15 +787,25 @@ scratch/main> upgrade foo_1 foo_2 bar_1 bar_2
   I couldn't automatically upgrade foo_1 to foo_2 and
   bar_1 to bar_2.
 
-  I've created a temporary branch and added the affected
-  definitions to scratch.u, where you can fix them up or remove
-  any that are obsolete.
+  I've switched you to a temporary branch, upgrade, and put the
+  definitions that need attention in upgrade-444ca7d0.u.
 
-  Once you're happy with the results, use `update` to merge them
-  back into main, or `cancel` if you change your mind.
+  To finish the upgrade:
+
+    1. Edit upgrade-444ca7d0.u until it compiles. Fix each
+    definition, or delete the ones you no longer want: deleting
+    a definition from the file deletes it from the branch.
+    2. Run `load upgrade-444ca7d0.u` to check the file. Repeat
+    steps 1 and 2 until it loads with no errors.
+    3. Run `update` (without arguments, from this branch). It
+    saves the file's definitions, merges upgrade into main and
+    deletes the temporary branch.
+
+  Or, to abandon the upgrade instead, run `cancel` to delete the
+  temporary branch and switch back to main.
 ```
 
-``` unison :added-by-ucm scratch.u
+``` unison :added-by-ucm upgrade-444ca7d0.u
 -- The definitions below no longer typecheck after upgrading.
 -- Please fix the errors, then run `update`.
 

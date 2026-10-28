@@ -36,6 +36,7 @@ library
       Unison.Cli.NamesUtils
       Unison.Cli.Pretty
       Unison.Cli.ProjectUtils
+      Unison.Cli.ScratchFile
       Unison.Cli.ServantClientUtils
       Unison.Cli.Share.Definitions
       Unison.Cli.Share.Projects
@@ -388,6 +389,7 @@ test-suite cli-tests
   other-modules:
       Unison.Test.ClearCache
       Unison.Test.Cli.Monad
+      Unison.Test.Cli.ScratchFile
       Unison.Test.LSP
       Unison.Test.MCP
       Unison.Test.TestProgress

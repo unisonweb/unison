@@ -60,6 +60,7 @@ import Unison.Codebase.Editor.Output
     NumberedArgs,
     NumberedOutput (..),
     Output (..),
+    ScratchFileHandoff (..),
     ShareError (..),
     TestReportStats (CachedTests, NewlyComputed),
     TodoOutput,
@@ -2155,36 +2156,35 @@ notifyUser dir issueFn = \case
         <> P.wrap "🎉 🥳 Happy coding!"
   ProjectHasNoReleases projectName ->
     pure . P.wrap $ prettyProjectName projectName <> "has no releases."
-  DeleteFailure scratchFile0 baseBranch -> do
-    scratchFile <- renderFileName scratchFile0
+  DeleteFailure handoff ->
     pure $
       P.wrap "I couldn't complete the delete, because some definitions are still in use."
         <> P.newline
         <> P.newline
-        <> iveCreatedATemporaryBranch scratchFile
+        <> scratchFileNextSteps handoff
+  UpdateTypecheckingFailure scratchFile ->
+    pure $
+      P.wrap
+        ( "Typechecking failed. I've updated"
+            <> P.group (prettyFilePath scratchFile)
+            <> "with the definitions that still need fixing."
+        )
         <> P.newline
         <> P.newline
-        <> onceYoureHappy baseBranch
-  UpdateTypecheckingFailure ->
-    pure . P.wrap $
-      "Typechecking failed. I've updated your scratch file with the definitions that need fixing."
-        <> P.newline
-        <> P.newline
-        <> "Once the file is compiling, try"
-        <> makeExample' IP.update
-        <> "again."
-  UpdateTypecheckingFailure2 scratchFile0 baseBranch -> do
-    scratchFile <- renderFileName scratchFile0
+        <> P.wrap
+          ( "Edit the file, run"
+              <> IP.makeExample IP.load [prettyFilePath scratchFile]
+              <> "to check it, and once it loads with no errors, run"
+              <> makeExample' IP.update
+              <> "again."
+          )
+  UpdateTypecheckingFailure2 handoff ->
     pure $
       P.wrap "I couldn't complete the update, because some existing definitions would no longer typecheck."
         <> P.newline
         <> P.newline
-        <> iveCreatedATemporaryBranch scratchFile
-        <> P.newline
-        <> P.newline
-        <> onceYoureHappy baseBranch
-  UpgradeFailure baseBranch scratchFile0 names -> do
-    scratchFile <- renderFileName scratchFile0
+        <> scratchFileNextSteps handoff
+  UpgradeFailure handoff names ->
     pure $
       P.wrap
         ( "I couldn't automatically upgrade"
@@ -2201,10 +2201,7 @@ notifyUser dir issueFn = \case
         )
         <> P.newline
         <> P.newline
-        <> iveCreatedATemporaryBranch scratchFile
-        <> P.newline
-        <> P.newline
-        <> onceYoureHappy baseBranch
+        <> scratchFileNextSteps handoff
   UpgradeSuccess names unmanglings ->
     pure $
       P.wrap $
@@ -2222,32 +2219,18 @@ notifyUser dir issueFn = \case
                    )
                  & P.oxfordCommasWith "."
              )
-  MergeFailure path aliceAndBob ->
+  MergeFailure handoff aliceAndBob ->
     pure $
-      P.lines $
-        [ P.wrap $
-            "I couldn't automatically merge"
-              <> prettyMergeSource aliceAndBob.bob
-              <> "into"
-              <> P.group (prettyProjectAndBranchName aliceAndBob.alice <> ".")
-              <> "However, I've added the definitions that need attention to the top of"
-              <> P.group (prettyFilePath path <> "."),
-          "",
-          P.wrap "When you're done, you can run",
-          "",
-          P.indentN 2 (IP.makeExampleNoBackticks IP.update []),
-          "",
-          P.wrap $
-            "to merge your changes back into"
-              <> prettyProjectBranchName aliceAndBob.alice.branch
-              <> "and delete the temporary branch. Or, if you decide to cancel the merge instead, you can run",
-          "",
-          P.indentN 2 (IP.makeExampleNoBackticks IP.cancelInputPattern []),
-          "",
-          P.wrap $
-            "to delete the temporary branch and switch back to"
-              <> P.group (prettyProjectBranchName aliceAndBob.alice.branch <> ".")
-        ]
+      P.wrap
+        ( "I couldn't automatically"
+            <> P.group (P.text handoff.action)
+            <> prettyMergeSource aliceAndBob.bob
+            <> "into"
+            <> P.group (prettyProjectAndBranchName aliceAndBob.alice <> ".")
+        )
+        <> P.newline
+        <> P.newline
+        <> scratchFileNextSteps handoff
   MergeFailureWithMergetool aliceAndBob mergetool exitCode ->
     case exitCode of
       ExitSuccess ->
@@ -2964,11 +2947,48 @@ notifyUser dir issueFn = \case
   CantUpdateLib names ->
     pure (P.fatalCallout (modifyingLibNotAllowed names))
   where
-    iveCreatedATemporaryBranch scratchFile =
-      P.wrap $
-        "I've created a temporary branch and added the affected definitions to"
-          <> P.group (scratchFile <> ",")
-          <> "where you can fix them up or remove any that are obsolete."
+    -- What an agent (or person) needs to do next after an action left them on a temporary branch with a scratch file.
+    scratchFileNextSteps :: ScratchFileHandoff -> Pretty
+    scratchFileNextSteps handoff =
+      P.lines
+        [ P.wrap $
+            "I've switched you to a temporary branch,"
+              <> P.group (prettyProjectBranchName handoff.temporaryBranch <> ",")
+              <> "and put the definitions that need attention in"
+              <> P.group (file <> "."),
+          "",
+          "To finish the " <> P.text handoff.action <> ":",
+          "",
+          P.indentN 2 . P.lines $
+            [ P.wrap $
+                "1. Edit"
+                  <> file
+                  <> "until it compiles. Fix each definition, or delete the ones you no longer want:"
+                  <> "deleting a definition from the file deletes it from the branch.",
+              P.wrap $
+                "2. Run"
+                  <> IP.makeExample IP.load [file]
+                  <> "to check the file. Repeat steps 1 and 2 until it loads with no errors.",
+              P.wrap $
+                "3. Run"
+                  <> makeExample' IP.update
+                  <> "(without arguments, from this branch). It saves the file's definitions, merges"
+                  <> P.group (prettyProjectBranchName handoff.temporaryBranch)
+                  <> "into"
+                  <> P.group (prettyProjectBranchName handoff.baseBranch)
+                  <> "and deletes the temporary branch."
+            ],
+          "",
+          P.wrap $
+            "Or, to abandon the"
+              <> P.text handoff.action
+              <> "instead, run"
+              <> makeExample' IP.cancelInputPattern
+              <> "to delete the temporary branch and switch back to"
+              <> P.group (prettyProjectBranchName handoff.baseBranch <> ".")
+        ]
+      where
+        file = prettyFilePath handoff.scratchFile
 
     modifyingLibNotAllowed :: (Foldable f) => f Name -> Pretty
     modifyingLibNotAllowed names =
@@ -2986,16 +3006,6 @@ notifyUser dir issueFn = \case
         <> P.newline
         <> P.newline
         <> P.wrap "Modifying definitions in `lib` is not allowed."
-
-    onceYoureHappy baseBranch =
-      P.wrap $
-        "Once you're happy with the results, use"
-          <> makeExample' IP.update
-          <> "to merge them back into"
-          <> P.group (prettyProjectBranchName baseBranch <> ",")
-          <> "or"
-          <> makeExample' IP.cancelInputPattern
-          <> "if you change your mind."
 
 prettyAddUpdateDeleteLegend :: Bool -> Bool -> Bool -> Maybe Pretty
 prettyAddUpdateDeleteLegend existAdds existUpdates existDeletes

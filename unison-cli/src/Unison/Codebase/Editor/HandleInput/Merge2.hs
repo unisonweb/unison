@@ -15,7 +15,7 @@ module Unison.Codebase.Editor.HandleInput.Merge2
   )
 where
 
-import Control.Lens (mapped, (?=), _1)
+import Control.Lens (mapped, _1)
 import Control.Monad.Reader (ask)
 import Data.Map.Strict qualified as Map
 import Data.Semialign (zipWith)
@@ -45,6 +45,7 @@ import Unison.Cli.Monad (Cli)
 import Unison.Cli.Monad qualified as Cli
 import Unison.Cli.MonadUtils qualified as Cli
 import Unison.Cli.ProjectUtils qualified as ProjectUtils
+import Unison.Cli.ScratchFile qualified as ScratchFile
 import Unison.Cli.Share.Projects qualified as Share
 import Unison.Cli.UpdateUtils (hydrateRefs)
 import Unison.Codebase qualified as Codebase
@@ -137,7 +138,9 @@ handleMerge (ProjectAndBranch maybeBobProjectName bobBranchName) = do
       }
 
 data MergeInfo = MergeInfo
-  { alice :: !AliceMergeInfo,
+  { -- | What the user ran, @merge@ or @pull@. It names the scratch file, if the merge needs one.
+    action :: !Text,
+    alice :: !AliceMergeInfo,
     bob :: !BobMergeInfo,
     lca :: !LcaMergeInfo,
     -- | How should we describe this merge in the reflog?
@@ -348,7 +351,7 @@ doMerge info = do
         typecheckedFile <-
           mergeblob.typecheckedFile & onNothing do
             env <- ask
-            _ <-
+            (_, temporaryBranch) <-
               HandleInput.Branch.createBranch
                 info.description
                 ( let sourceStuff =
@@ -387,16 +390,25 @@ doMerge info = do
             case maybeMergetool of
               Nothing -> do
                 scratchFilePath <-
-                  Cli.getLatestFile <&> \case
-                    Nothing -> "scratch.u"
-                    Just (file, _) -> file
-                #latestFile ?= (scratchFilePath, True)
-                liftIO $
-                  env.writeSource
-                    (Text.pack scratchFilePath)
+                  ScratchFile.writeActionScratchFile
+                    info.action
+                    [ into @Text aliceBranchNames,
+                      info.description,
+                      into @Text info.alice.causalHash,
+                      into @Text info.bob.causalHash,
+                      maybe "" (into @Text) info.lca.causalHash
+                    ]
                     (Pretty.toPlain 80 mergeblob.unparsedFile)
-                    True
-                done (Output.MergeFailure scratchFilePath mergeSourceAndTarget)
+                done
+                  ( Output.MergeFailure
+                      Output.ScratchFileHandoff
+                        { action = info.action,
+                          scratchFile = scratchFilePath,
+                          temporaryBranch,
+                          baseBranch = aliceBranchNames.branch
+                        }
+                      mergeSourceAndTarget
+                  )
               Just mergetool0 -> do
                 let aliceFilenameSlug = projectBranchNameToValidProjectBranchNameText mergeSourceAndTarget.alice.branch
                 let bobFilenameSlug = mangleMergeSource mergeSourceAndTarget.bob
@@ -468,7 +480,8 @@ doMergeLocalBranch branches = do
   -- Do the merge!
   doMerge
     MergeInfo
-      { alice =
+      { action = "merge",
+        alice =
           AliceMergeInfo
             { causalHash = aliceCausalHash,
               projectAndBranch = branches.alice
