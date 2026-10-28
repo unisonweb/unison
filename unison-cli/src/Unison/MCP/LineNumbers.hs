@@ -4,13 +4,22 @@
 --
 -- Only messages about the transcript's own @unison@ blocks are touched. Messages about a file that a command loaded,
 -- like @load foo.u@, already have that file's line numbers and are left alone.
-module Unison.MCP.LineNumbers (absolutizeLineNumbers) where
+module Unison.MCP.LineNumbers (absolutizeLineNumbers, unisonBlockStarts) where
 
 import CMark qualified
 import Data.Char (isDigit)
 import Data.Text qualified as Text
 import Unison.Codebase.Transcript
 import Unison.Prelude
+
+-- | Where the code of each @unison@ block in the source starts, 1-based: the line after its opening fence.
+unisonBlockStarts :: Text -> [Int]
+unisonBlockStarts source =
+  [ line + 1
+  | CMark.Node _ CMark.DOCUMENT blocks <- [CMark.commonmarkToNode [CMark.optSourcePos] source],
+    CMark.Node (Just CMark.PosInfo {CMark.startLine = line}) (CMark.CODE_BLOCK info _) _ <- blocks,
+    ("unison" : _) <- [Text.words info]
+  ]
 
 -- | The transcript that was run (its output), the source it was run from, and what to call that source (for the note
 -- this adds when it changes something). If the blocks can't be matched up with the source, nothing is changed.
@@ -20,14 +29,7 @@ absolutizeLineNumbers sourceName source transcript@Transcript {stanzas}
   | not changed = transcript
   | otherwise = transcript {stanzas = rewritten ++ [note]}
   where
-    -- Where each `unison` block's code starts in the source, 1-based: the line after its opening fence.
-    starts =
-      [ startLine pos + 1
-      | CMark.Node _ CMark.DOCUMENT blocks <- [CMark.commonmarkToNode [CMark.optSourcePos] source],
-        CMark.Node (Just pos) (CMark.CODE_BLOCK info _) _ <- blocks,
-        ("unison" : _) <- [Text.words info]
-      ]
-    startLine CMark.PosInfo {CMark.startLine = line} = line
+    starts = unisonBlockStarts source
     userUnisonBlocks = [() | Right (Unison tags _) <- stanzas, not (generated tags)]
     (rewritten, changed) = go starts Nothing False stanzas
     note =
@@ -67,22 +69,40 @@ absolutizeLineNumbers sourceName source transcript@Transcript {stanzas}
       line -> (line, False)
 
 -- | Rewrite the lines of a message that quote a line of the block: @<spaces><n> | <source>@, where @n@ is a line of a
--- block of the given length that starts at the given line of the transcript.
+-- block of the given length (or the line just past its end, which is where UCM points when the code ends too soon) that
+-- starts at the given line of the transcript.
+--
+-- The @|@s stay in the same column when the new numbers fit before them. When they don't, they all move right together,
+-- so the quoted lines of a message stay lined up whatever the number of digits.
 rewriteText :: Int -> Int -> Text -> (Text, Bool)
-rewriteText start len text =
-  let rewrites = rewriteLine <$> Text.splitOn "\n" text
-   in (Text.intercalate "\n" (fst <$> rewrites), any snd rewrites)
+rewriteText start len text = (Text.intercalate "\n" (render <$> parsed), any isQuote parsed)
   where
-    rewriteLine line =
+    parsed = parseLine <$> Text.splitOn "\n" text
+
+    -- How far the `|`s have to move right so that the longest new number fits.
+    shift = maximum (0 : [Text.length new - column | Quote column new _ <- parsed])
+
+    render = \case
+      Other line -> line
+      Quote column new rest -> Text.replicate (column + shift - Text.length new) " " <> new <> rest
+
+    isQuote = \case
+      Quote {} -> True
+      Other _ -> False
+
+    parseLine line =
       let (spaces, afterSpaces) = Text.span (== ' ') line
           (digits, afterDigits) = Text.span isDigit afterSpaces
        in case readMaybe (Text.unpack digits) of
             Just n
               | n >= 1,
-                n <= len,
+                n <= len + 1,
                 " |" `Text.isPrefixOf` afterDigits ->
-                  let new = tShow (start + n - 1)
-                      -- keep the `|`s lined up
-                      spaces' = Text.replicate (max 0 (Text.length spaces - (Text.length new - Text.length digits))) " "
-                   in (spaces' <> new <> afterDigits, True)
-            _ -> (line, False)
+                  Quote (Text.length spaces + Text.length digits) (tShow (start + n - 1)) afterDigits
+            _ -> Other line
+
+-- | A line of a message that is either a quoted line of the block (the column its number ends in, the new number, and
+-- what follows the number) or anything else.
+data Line
+  = Quote Int Text Text
+  | Other Text

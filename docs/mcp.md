@@ -133,6 +133,8 @@ For anything long, `transcript-file` is better: when something goes wrong, the a
 
 A call that takes more than five minutes is cancelled; set `UNISON_MCP_TIMEOUT` (in seconds) in the server's environment to change that.
 
+The reply repeats the transcript with UCM's output filled in, except that a `unison` block of more than 10 lines is replaced by a note saying which lines of the transcript it was, since the caller has just written it. Pass `echo: true` to get such blocks back. Commands are always repeated, and short blocks too.
+
 UCM quotes the line it is complaining about with a number that counts from the start of the code block. In messages about the transcript's own `unison` blocks those numbers are rewritten to count from the start of the transcript, so they can be used directly; messages about a file loaded with `load` keep that file's numbers.
 
 If the result is more than 25 lines, it is written to a temporary file and the tool returns the path, so the agent can search the file instead of reading all of it. The files are removed when the MCP server exits. When a transcript fails, the error is always in the reply itself; only the part of the transcript before the failure goes to the file.

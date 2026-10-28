@@ -24,6 +24,7 @@ import Unison.Codebase.Transcript
 import Unison.Codebase.Transcript.Parser qualified as Transcript
 import Unison.Codebase.Transcript.Runner qualified as Transcript
 import Unison.MCP.Allowlist
+import Unison.MCP.Echo
 import Unison.MCP.LineNumbers
 import Unison.MCP.Output
 import Unison.MCP.Wrapper
@@ -47,12 +48,14 @@ serverDescription =
 -- | The transcript to run, given either as text or as the path of a file that has it.
 data TranscriptArgs = TranscriptArgs
   { transcript :: Maybe Text,
-    transcriptFile :: Maybe FilePath
+    transcriptFile :: Maybe FilePath,
+    -- | Repeat the long `unison` blocks in the reply too.
+    echo :: Bool
   }
 
 instance FromJSON TranscriptArgs where
   parseJSON = Aeson.withObject "TranscriptArgs" \o ->
-    TranscriptArgs <$> o .:? "transcript" <*> o .:? "transcript-file"
+    TranscriptArgs <$> o .:? "transcript" <*> o .:? "transcript-file" <*> (fromMaybe False <$> o .:? "echo")
 
 instance HasInputSchema TranscriptArgs where
   toInputSchema _ =
@@ -72,6 +75,15 @@ instance HasInputSchema TranscriptArgs where
                     ( "description",
                       Aeson.String
                         "The path of a file containing a Unison transcript, relative to the server's working directory. Preferred for anything long: when something goes wrong you can edit just the part that needs fixing and run the file again, without sending the whole transcript each time. The file is not changed."
+                    )
+                  ]
+              ),
+              ( "echo",
+                Aeson.object
+                  [ ("type", Aeson.String "boolean"),
+                    ( "description",
+                      Aeson.String
+                        "Include the code of long unison blocks (more than 10 lines) in the reply. By default they are left out, since you just wrote them; the reply says which lines of the transcript they are."
                     )
                   ]
               )
@@ -174,14 +186,18 @@ howToGiveTheTranscript =
     <> "a file that has it), so that when something goes wrong you can edit just the part that needs fixing and run it again."
 
 runTranscript :: Transcript.Runner -> Codebase IO Symbol Ann -> OutputDir -> Tier -> TranscriptArgs -> IO CallToolResult
-runTranscript runner codebase outputDir tier TranscriptArgs {transcript, transcriptFile} =
+runTranscript runner codebase outputDir tier TranscriptArgs {transcript, transcriptFile, echo} =
   loadTranscript >>= \case
     Left problem -> pure (errorToolResult problem)
     Right (name, source, hint) -> do
       let sourceName = if isJust transcriptFile then Text.pack name else "your transcript"
       let ok text = textToolResult (text <> hint)
           failed text = errorToolResult (text <> hint)
-      let absolutize = absolutizeLineNumbers sourceName (Text.decodeUtf8With Text.lenientDecode source)
+      let sourceText = Text.decodeUtf8With Text.lenientDecode source
+          -- The numbers have to be fixed first, while the blocks are still whole.
+          absolutize =
+            (if echo then id else elideLongBlocks maxEchoedLines sourceName sourceText)
+              . absolutizeLineNumbers sourceName sourceText
       case Transcript.parse name source of
         Left err -> pure (failed ("The transcript didn't parse:\n" <> Text.pack (P.errorBundlePretty err)))
         Right parsed -> do

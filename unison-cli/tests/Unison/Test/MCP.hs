@@ -10,6 +10,7 @@ import Unison.Cli.Share.Ref
 import Unison.Codebase.Transcript (Transcript)
 import Unison.Codebase.Transcript.Parser qualified as Transcript
 import Unison.MCP.Allowlist
+import Unison.MCP.Echo
 import Unison.MCP.LineNumbers
 import Unison.MCP.Output
 
@@ -20,6 +21,8 @@ test =
       shareRefTests,
       searchWordsTests,
       lineNumberTests,
+      gutterAlignmentTests,
+      echoTests,
       outputTests
     ]
 
@@ -221,3 +224,94 @@ lineNumberTests =
     absolutized sourceText name outputText = do
       output <- parse outputText
       pure (Transcript.format (absolutizeLineNumbers name sourceText output))
+
+-- | A `unison` block of 12 lines.
+twelveLines :: [Text]
+twelveLines = [Text.pack ("x" <> show i <> " = 1") | i <- [1 .. 12 :: Int]]
+
+-- | A source whose only `unison` block has its code start on the given line.
+sourceWithBlockAt :: Int -> Text
+sourceWithBlockAt line =
+  Text.unlines (replicate (line - 2) "text" ++ ["``` unison"] ++ twelveLines ++ ["```"])
+
+-- | The output of running a source that has one `unison` block, with the given lines in the message about it.
+outputWithMessage :: [Text] -> Text
+outputWithMessage messageLines =
+  Text.unlines (["``` unison"] ++ twelveLines ++ ["```", "", "``` ucm :added-by-ucm"] ++ (("  " <>) <$> messageLines) ++ ["```"])
+
+gutterAlignmentTests :: Test ()
+gutterAlignmentTests =
+  scope "gutter alignment" . tests $
+    [ rewrites "more digits that fit before the |" 1000 ["      2 | x = bad"] "   1001 | x = bad",
+      rewrites "more digits than fit before the |, which then move right" 1000 ["2 | x = bad"] "1001 | x = bad",
+      rewrites
+        "lines that were lined up stay lined up when the digits grow"
+        100
+        [" 9 | a", "10 | b"]
+        "108 | a\n  109 | b",
+      rewrites
+        "lines that were lined up stay lined up when only some of the numbers grow"
+        8
+        ["      2 | a", "      3 | b"]
+        "      9 | a\n       10 | b",
+      rewrites "the line just past the end of the code, where UCM points when the code ends too soon" 10 ["     13 | "] "     22 | ",
+      scope "a number further past the end is not a line of the block" do
+        output <- absolutized (sourceWithBlockAt 10) "your transcript" (outputWithMessage ["     14 | not a line"])
+        expect ("     14 | not a line" `Text.isInfixOf` output)
+    ]
+  where
+    rewrites name start messageLines expected = scope name do
+      output <- absolutized (sourceWithBlockAt start) "your transcript" (outputWithMessage messageLines)
+      expect (expected `Text.isInfixOf` output)
+    absolutized sourceText name outputText = do
+      out <- parse outputText
+      pure (Transcript.format (absolutizeLineNumbers name sourceText out))
+
+echoTests :: Test ()
+echoTests =
+  scope "echo" . tests $
+    [ scope "a long unison block is replaced by a note of where it is" do
+        output <- elided source run
+        expect ("-- code block 2: your 12 lines, lines 6-17 of your transcript" `Text.isInfixOf` output)
+        expect (not ("x5 = 5" `Text.isInfixOf` output)),
+      scope "a short unison block, and the commands, are kept" do
+        output <- elided source run
+        expect ("short = 1" `Text.isInfixOf` output)
+        expect ("scratch/main> projects" `Text.isInfixOf` output),
+      scope "what UCM said about the block is kept" do
+        output <- elided source run
+        expect ("  + x1 : Nat" `Text.isInfixOf` output),
+      scope "a note says how to get the blocks back" do
+        output <- elided source run
+        expect ("Set `echo` to true to include them." `Text.isInfixOf` output)
+        expect (not ("\\`" `Text.isInfixOf` output)),
+      scope "the tags of the block are kept" do
+        output <- elided source (Text.replace "``` unison\nx1" "``` unison :hide\nx1" run)
+        expect ("``` unison :hide\n-- code block 2" `Text.isInfixOf` output),
+      scope "no note when nothing was left out" do
+        output <- elided "``` unison\nshort = 1\n```\n" "``` unison\nshort = 1\n```\n"
+        expect (not ("Set `echo`" `Text.isInfixOf` output)),
+      scope "exactly the limit is kept" do
+        let ten = Text.unlines (["``` unison"] ++ [Text.pack ("x" <> show i <> " = 1") | i <- [1 .. maxEchoedLines]] ++ ["```"])
+        output <- elided ten ten
+        expect ("x1 = 1" `Text.isInfixOf` output),
+      scope "a unison block that UCM wrote (from edit) is never left out" do
+        let generatedBlock = Text.unlines (["``` unison :added-by-ucm"] ++ [Text.pack ("y" <> show i <> " = 1") | i <- [1 .. 20 :: Int]] ++ ["```"])
+        output <- elided source (run <> "\n" <> generatedBlock)
+        expect ("y15 = 1" `Text.isInfixOf` output)
+    ]
+  where
+    -- 12 lines of code, starting on line 6, then 1 line.
+    source =
+      Text.unlines $
+        ["``` ucm", "scratch/main> projects", "```", "", "``` unison"]
+          ++ [Text.pack ("x" <> show i <> " = " <> show i) | i <- [1 .. 12 :: Int]]
+          ++ ["```", "", "``` unison", "short = 1", "```"]
+    run =
+      Text.unlines $
+        ["``` ucm", "scratch/main> projects", "", "  1. scratch", "```", "", "``` unison"]
+          ++ [Text.pack ("x" <> show i <> " = " <> show i) | i <- [1 .. 12 :: Int]]
+          ++ ["```", "", "``` ucm :added-by-ucm", "  + x1 : Nat", "```", "", "``` unison", "short = 1", "```", "", "``` ucm :added-by-ucm", "  + short : Nat", "```"]
+    elided sourceText outputText = do
+      out <- parse outputText
+      pure (Transcript.format (elideLongBlocks maxEchoedLines "your transcript" sourceText out))
