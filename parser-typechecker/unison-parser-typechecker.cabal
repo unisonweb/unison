@@ -277,6 +277,7 @@ test-suite parser-typechecker-tests
       Unison.Test.Typechecker
       Unison.Test.Typechecker.Components
       Unison.Test.Typechecker.Context
+      Unison.Test.Typechecker.Context.Structure
       Unison.Test.Typechecker.TypeError
       Unison.Test.Util.Pretty
       Unison.Test.Util.Relation
