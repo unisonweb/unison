@@ -18,7 +18,17 @@ census of the interpreter on 2026-10-27 counted nullary constructors as 13.0M of
 convention, design.md "The wide calling convention", keeps the ones that are returned or
 bound and never escape, about a quarter, out of the heap; the rest escape into structures
 and still allocate). Native code already shares them: a `Pack` with no fields is a load of
-the pool's enum for that constructor, so the gain is the interpreter's.
+the pool's enum for that constructor, so the gain would be the interpreter's.
+Measured on 2026-10-28 with a per-cache table by type and constructor number,
+filled as constructors were first built, consulted by every `Pack` with no
+fields: no row of the benchmark suite moved by more than 2% under the
+interpreter, a few were slightly slower. A three-word allocation in the
+nursery costs about what the two array reads and the tag test cost, and the
+garbage it leaves is free to a copying collector. Not kept; the entry stays
+for the record. A `Box` of a witness with no fields still allocates its enum
+natively (the type table holds one enum per type, for the reference), which a
+table by constructor would avoid; rare, since a nullary value that escapes is
+usually built boxed in the first place.
 
 ### One witness closure
 
