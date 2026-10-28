@@ -1,0 +1,394 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-comment">-- |</span><span>
+</span><span id="line-2"></span><span class="hs-comment">-- The API for dealing with labels on Github issues as described on</span><span>
+</span><span id="line-3"></span><span class="hs-comment">-- &lt;http://developer.github.com/v3/issues/labels/&gt;.</span><span>
+</span><span id="line-4"></span><span>
+</span><span id="line-5"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="GitHub.Endpoints.Issues.Labels.html"><span class="hs-identifier">GitHub.Endpoints.Issues.Labels</span></a></span><span> </span><span class="hs-special">(</span><span>
+</span><span id="line-6"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Issues.Labels.html#labelsOnRepoR"><span class="hs-identifier">labelsOnRepoR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-7"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Issues.Labels.html#labelR"><span class="hs-identifier">labelR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-8"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Issues.Labels.html#createLabelR"><span class="hs-identifier">createLabelR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-9"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Issues.Labels.html#updateLabelR"><span class="hs-identifier">updateLabelR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-10"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Issues.Labels.html#deleteLabelR"><span class="hs-identifier">deleteLabelR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-11"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Issues.Labels.html#labelsOnIssueR"><span class="hs-identifier">labelsOnIssueR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-12"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Issues.Labels.html#addLabelsToIssueR"><span class="hs-identifier">addLabelsToIssueR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-13"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Issues.Labels.html#removeLabelFromIssueR"><span class="hs-identifier">removeLabelFromIssueR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-14"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Issues.Labels.html#replaceAllLabelsForIssueR"><span class="hs-identifier">replaceAllLabelsForIssueR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-15"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Issues.Labels.html#removeAllLabelsFromIssueR"><span class="hs-identifier">removeAllLabelsFromIssueR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-16"></span><span>    </span><span class="annot"><a href="GitHub.Endpoints.Issues.Labels.html#labelsOnMilestoneR"><span class="hs-identifier">labelsOnMilestoneR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-17"></span><span>    </span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="GitHub.Data.html"><span class="hs-identifier">GitHub.Data</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-18"></span><span>    </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-19"></span><span>
+</span><span id="line-20"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GitHub.Data.html"><span class="hs-identifier">GitHub.Data</span></a></span><span>
+</span><span id="line-21"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GitHub.Internal.Prelude.html"><span class="hs-identifier">GitHub.Internal.Prelude</span></a></span><span>
+</span><span id="line-22"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Prelude</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-23"></span><span>
+</span><span id="line-24"></span><span class="hs-comment">-- | List all labels for this repository.</span><span>
+</span><span id="line-25"></span><span class="hs-comment">-- See &lt;https://developer.github.com/v3/issues/labels/#list-all-labels-for-this-repository&gt;</span><span>
+</span><span id="line-26"></span><span id="local-6989586621679560549"><span class="annot"><a href="GitHub.Endpoints.Issues.Labels.html#labelsOnRepoR"><span class="hs-identifier hs-type">labelsOnRepoR</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GitHub.Data.Name.html#Name"><span class="hs-identifier hs-type">Name</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.Definitions.html#Owner"><span class="hs-identifier hs-type">Owner</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Name.html#Name"><span class="hs-identifier hs-type">Name</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.Repos.html#Repo"><span class="hs-identifier hs-type">Repo</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Request.html#FetchCount"><span class="hs-identifier hs-type">FetchCount</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Request.html#Request"><span class="hs-identifier hs-type">Request</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679560549"><span class="hs-identifier hs-type">k</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Vector</span></span><span> </span><span class="annot"><a href="GitHub.Data.Definitions.html#IssueLabel"><span class="hs-identifier hs-type">IssueLabel</span></a></span><span class="hs-special">)</span></span><span>
+</span><span id="line-27"></span><span id="labelsOnRepoR"><span class="annot"><span class="annottext">labelsOnRepoR :: forall (k :: RW).
+Name Owner
+-&gt; Name Repo -&gt; FetchCount -&gt; Request k (Vector IssueLabel)
+</span><a href="GitHub.Endpoints.Issues.Labels.html#labelsOnRepoR"><span class="hs-identifier hs-var hs-var">labelsOnRepoR</span></a></span></span><span> </span><span id="local-6989586621679560649"><span class="annot"><span class="annottext">Name Owner
+</span><a href="#local-6989586621679560649"><span class="hs-identifier hs-var">user</span></a></span></span><span> </span><span id="local-6989586621679560650"><span class="annot"><span class="annottext">Name Repo
+</span><a href="#local-6989586621679560650"><span class="hs-identifier hs-var">repo</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-28"></span><span>    </span><span class="annot"><span class="annottext">Paths -&gt; QueryString -&gt; FetchCount -&gt; Request k (Vector IssueLabel)
+forall a (mt :: RW).
+FromJSON a =&gt;
+Paths -&gt; QueryString -&gt; FetchCount -&gt; Request mt (Vector a)
+</span><a href="GitHub.Data.Request.html#pagedQuery"><span class="hs-identifier hs-var">pagedQuery</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;repos&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Name Owner -&gt; Text
+forall a. IsPathPart a =&gt; a -&gt; Text
+</span><a href="GitHub.Data.Request.html#toPathPart"><span class="hs-identifier hs-var">toPathPart</span></a></span><span> </span><span class="annot"><span class="annottext">Name Owner
+</span><a href="#local-6989586621679560649"><span class="hs-identifier hs-var">user</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Name Repo -&gt; Text
+forall a. IsPathPart a =&gt; a -&gt; Text
+</span><a href="GitHub.Data.Request.html#toPathPart"><span class="hs-identifier hs-var">toPathPart</span></a></span><span> </span><span class="annot"><span class="annottext">Name Repo
+</span><a href="#local-6989586621679560650"><span class="hs-identifier hs-var">repo</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;labels&quot;</span></span><span class="hs-special">]</span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span>
+</span><span id="line-29"></span><span>
+</span><span id="line-30"></span><span class="hs-comment">-- | Query a single label.</span><span>
+</span><span id="line-31"></span><span class="hs-comment">-- See &lt;https://developer.github.com/v3/issues/labels/#get-a-single-label&gt;</span><span>
+</span><span id="line-32"></span><span id="local-6989586621679560561"><span class="annot"><a href="GitHub.Endpoints.Issues.Labels.html#labelR"><span class="hs-identifier hs-type">labelR</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GitHub.Data.Name.html#Name"><span class="hs-identifier hs-type">Name</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.Definitions.html#Owner"><span class="hs-identifier hs-type">Owner</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Name.html#Name"><span class="hs-identifier hs-type">Name</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.Repos.html#Repo"><span class="hs-identifier hs-type">Repo</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Name.html#Name"><span class="hs-identifier hs-type">Name</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.Definitions.html#IssueLabel"><span class="hs-identifier hs-type">IssueLabel</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Request.html#Request"><span class="hs-identifier hs-type">Request</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679560561"><span class="hs-identifier hs-type">k</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.Definitions.html#IssueLabel"><span class="hs-identifier hs-type">IssueLabel</span></a></span></span><span>
+</span><span id="line-33"></span><span id="labelR"><span class="annot"><span class="annottext">labelR :: forall (k :: RW).
+Name Owner -&gt; Name Repo -&gt; Name IssueLabel -&gt; Request k IssueLabel
+</span><a href="GitHub.Endpoints.Issues.Labels.html#labelR"><span class="hs-identifier hs-var hs-var">labelR</span></a></span></span><span> </span><span id="local-6989586621679560658"><span class="annot"><span class="annottext">Name Owner
+</span><a href="#local-6989586621679560658"><span class="hs-identifier hs-var">user</span></a></span></span><span> </span><span id="local-6989586621679560659"><span class="annot"><span class="annottext">Name Repo
+</span><a href="#local-6989586621679560659"><span class="hs-identifier hs-var">repo</span></a></span></span><span> </span><span id="local-6989586621679560660"><span class="annot"><span class="annottext">Name IssueLabel
+</span><a href="#local-6989586621679560660"><span class="hs-identifier hs-var">lbl</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-34"></span><span>    </span><span class="annot"><span class="annottext">Paths -&gt; QueryString -&gt; Request k IssueLabel
+forall (mt :: RW) a. Paths -&gt; QueryString -&gt; Request mt a
+</span><a href="GitHub.Data.Request.html#query"><span class="hs-identifier hs-var">query</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;repos&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Name Owner -&gt; Text
+forall a. IsPathPart a =&gt; a -&gt; Text
+</span><a href="GitHub.Data.Request.html#toPathPart"><span class="hs-identifier hs-var">toPathPart</span></a></span><span> </span><span class="annot"><span class="annottext">Name Owner
+</span><a href="#local-6989586621679560658"><span class="hs-identifier hs-var">user</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Name Repo -&gt; Text
+forall a. IsPathPart a =&gt; a -&gt; Text
+</span><a href="GitHub.Data.Request.html#toPathPart"><span class="hs-identifier hs-var">toPathPart</span></a></span><span> </span><span class="annot"><span class="annottext">Name Repo
+</span><a href="#local-6989586621679560659"><span class="hs-identifier hs-var">repo</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;labels&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Name IssueLabel -&gt; Text
+forall a. IsPathPart a =&gt; a -&gt; Text
+</span><a href="GitHub.Data.Request.html#toPathPart"><span class="hs-identifier hs-var">toPathPart</span></a></span><span> </span><span class="annot"><span class="annottext">Name IssueLabel
+</span><a href="#local-6989586621679560660"><span class="hs-identifier hs-var">lbl</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span>
+</span><span id="line-35"></span><span>
+</span><span id="line-36"></span><span class="hs-comment">-- | Create a label.</span><span>
+</span><span id="line-37"></span><span class="hs-comment">-- See &lt;https://developer.github.com/v3/issues/labels/#create-a-label&gt;</span><span>
+</span><span id="line-38"></span><span class="annot"><a href="GitHub.Endpoints.Issues.Labels.html#createLabelR"><span class="hs-identifier hs-type">createLabelR</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GitHub.Data.Name.html#Name"><span class="hs-identifier hs-type">Name</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.Definitions.html#Owner"><span class="hs-identifier hs-type">Owner</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Name.html#Name"><span class="hs-identifier hs-type">Name</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.Repos.html#Repo"><span class="hs-identifier hs-type">Repo</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Definitions.html#NewIssueLabel"><span class="hs-identifier hs-type">NewIssueLabel</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Request.html#Request"><span class="hs-identifier hs-type">Request</span></a></span><span> </span><span class="hs-special">'</span><span class="annot"><a href="GitHub.Data.Request.html#RW"><span class="hs-identifier hs-type">RW</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.Definitions.html#IssueLabel"><span class="hs-identifier hs-type">IssueLabel</span></a></span><span>
+</span><span id="line-39"></span><span id="createLabelR"><span class="annot"><span class="annottext">createLabelR :: Name Owner -&gt; Name Repo -&gt; NewIssueLabel -&gt; Request 'RW IssueLabel
+</span><a href="GitHub.Endpoints.Issues.Labels.html#createLabelR"><span class="hs-identifier hs-var hs-var">createLabelR</span></a></span></span><span> </span><span id="local-6989586621679560662"><span class="annot"><span class="annottext">Name Owner
+</span><a href="#local-6989586621679560662"><span class="hs-identifier hs-var">user</span></a></span></span><span> </span><span id="local-6989586621679560663"><span class="annot"><span class="annottext">Name Repo
+</span><a href="#local-6989586621679560663"><span class="hs-identifier hs-var">repo</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-40"></span><span>    </span><span class="annot"><span class="annottext">CommandMethod -&gt; Paths -&gt; ByteString -&gt; Request 'RW IssueLabel
+forall a. CommandMethod -&gt; Paths -&gt; ByteString -&gt; Request 'RW a
+</span><a href="GitHub.Data.Request.html#command"><span class="hs-identifier hs-var">command</span></a></span><span> </span><span class="annot"><span class="annottext">CommandMethod
+</span><a href="GitHub.Data.Request.html#Post"><span class="hs-identifier hs-var">Post</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;repos&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Name Owner -&gt; Text
+forall a. IsPathPart a =&gt; a -&gt; Text
+</span><a href="GitHub.Data.Request.html#toPathPart"><span class="hs-identifier hs-var">toPathPart</span></a></span><span> </span><span class="annot"><span class="annottext">Name Owner
+</span><a href="#local-6989586621679560662"><span class="hs-identifier hs-var">user</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Name Repo -&gt; Text
+forall a. IsPathPart a =&gt; a -&gt; Text
+</span><a href="GitHub.Data.Request.html#toPathPart"><span class="hs-identifier hs-var">toPathPart</span></a></span><span> </span><span class="annot"><span class="annottext">Name Repo
+</span><a href="#local-6989586621679560663"><span class="hs-identifier hs-var">repo</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;labels&quot;</span></span><span class="hs-special">]</span><span> </span><span class="annot"><span class="annottext">(ByteString -&gt; Request 'RW IssueLabel)
+-&gt; (NewIssueLabel -&gt; ByteString)
+-&gt; NewIssueLabel
+-&gt; Request 'RW IssueLabel
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">NewIssueLabel -&gt; ByteString
+forall a. ToJSON a =&gt; a -&gt; ByteString
+</span><span class="hs-identifier hs-var">encode</span></span><span>
+</span><span id="line-41"></span><span>
+</span><span id="line-42"></span><span class="hs-comment">-- | Update a label.</span><span>
+</span><span id="line-43"></span><span class="hs-comment">-- See &lt;https://developer.github.com/v3/issues/labels/#update-a-label&gt;</span><span>
+</span><span id="line-44"></span><span class="annot"><a href="GitHub.Endpoints.Issues.Labels.html#updateLabelR"><span class="hs-identifier hs-type">updateLabelR</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GitHub.Data.Name.html#Name"><span class="hs-identifier hs-type">Name</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.Definitions.html#Owner"><span class="hs-identifier hs-type">Owner</span></a></span><span>
+</span><span id="line-45"></span><span>             </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Name.html#Name"><span class="hs-identifier hs-type">Name</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.Repos.html#Repo"><span class="hs-identifier hs-type">Repo</span></a></span><span>
+</span><span id="line-46"></span><span>             </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Name.html#Name"><span class="hs-identifier hs-type">Name</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.Definitions.html#IssueLabel"><span class="hs-identifier hs-type">IssueLabel</span></a></span><span>   </span><span class="annot"><span class="hs-comment">-- ^ old label name</span></span><span>
+</span><span id="line-47"></span><span>             </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Definitions.html#UpdateIssueLabel"><span class="hs-identifier hs-type">UpdateIssueLabel</span></a></span><span>   </span><span class="annot"><span class="hs-comment">-- ^ new label</span></span><span>
+</span><span id="line-48"></span><span>             </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Request.html#Request"><span class="hs-identifier hs-type">Request</span></a></span><span> </span><span class="hs-special">'</span><span class="annot"><a href="GitHub.Data.Request.html#RW"><span class="hs-identifier hs-type">RW</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.Definitions.html#IssueLabel"><span class="hs-identifier hs-type">IssueLabel</span></a></span><span>
+</span><span id="line-49"></span><span id="updateLabelR"><span class="annot"><span class="annottext">updateLabelR :: Name Owner
+-&gt; Name Repo
+-&gt; Name IssueLabel
+-&gt; UpdateIssueLabel
+-&gt; Request 'RW IssueLabel
+</span><a href="GitHub.Endpoints.Issues.Labels.html#updateLabelR"><span class="hs-identifier hs-var hs-var">updateLabelR</span></a></span></span><span> </span><span id="local-6989586621679560668"><span class="annot"><span class="annottext">Name Owner
+</span><a href="#local-6989586621679560668"><span class="hs-identifier hs-var">user</span></a></span></span><span> </span><span id="local-6989586621679560669"><span class="annot"><span class="annottext">Name Repo
+</span><a href="#local-6989586621679560669"><span class="hs-identifier hs-var">repo</span></a></span></span><span> </span><span id="local-6989586621679560670"><span class="annot"><span class="annottext">Name IssueLabel
+</span><a href="#local-6989586621679560670"><span class="hs-identifier hs-var">oldLbl</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-50"></span><span>    </span><span class="annot"><span class="annottext">CommandMethod -&gt; Paths -&gt; ByteString -&gt; Request 'RW IssueLabel
+forall a. CommandMethod -&gt; Paths -&gt; ByteString -&gt; Request 'RW a
+</span><a href="GitHub.Data.Request.html#command"><span class="hs-identifier hs-var">command</span></a></span><span> </span><span class="annot"><span class="annottext">CommandMethod
+</span><a href="GitHub.Data.Request.html#Patch"><span class="hs-identifier hs-var">Patch</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;repos&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Name Owner -&gt; Text
+forall a. IsPathPart a =&gt; a -&gt; Text
+</span><a href="GitHub.Data.Request.html#toPathPart"><span class="hs-identifier hs-var">toPathPart</span></a></span><span> </span><span class="annot"><span class="annottext">Name Owner
+</span><a href="#local-6989586621679560668"><span class="hs-identifier hs-var">user</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Name Repo -&gt; Text
+forall a. IsPathPart a =&gt; a -&gt; Text
+</span><a href="GitHub.Data.Request.html#toPathPart"><span class="hs-identifier hs-var">toPathPart</span></a></span><span> </span><span class="annot"><span class="annottext">Name Repo
+</span><a href="#local-6989586621679560669"><span class="hs-identifier hs-var">repo</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;labels&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Name IssueLabel -&gt; Text
+forall a. IsPathPart a =&gt; a -&gt; Text
+</span><a href="GitHub.Data.Request.html#toPathPart"><span class="hs-identifier hs-var">toPathPart</span></a></span><span> </span><span class="annot"><span class="annottext">Name IssueLabel
+</span><a href="#local-6989586621679560670"><span class="hs-identifier hs-var">oldLbl</span></a></span><span class="hs-special">]</span><span> </span><span class="annot"><span class="annottext">(ByteString -&gt; Request 'RW IssueLabel)
+-&gt; (UpdateIssueLabel -&gt; ByteString)
+-&gt; UpdateIssueLabel
+-&gt; Request 'RW IssueLabel
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">UpdateIssueLabel -&gt; ByteString
+forall a. ToJSON a =&gt; a -&gt; ByteString
+</span><span class="hs-identifier hs-var">encode</span></span><span>
+</span><span id="line-51"></span><span>
+</span><span id="line-52"></span><span class="hs-comment">-- | Delete a label.</span><span>
+</span><span id="line-53"></span><span class="hs-comment">-- See &lt;https://developer.github.com/v3/issues/labels/#delete-a-label&gt;</span><span>
+</span><span id="line-54"></span><span class="annot"><a href="GitHub.Endpoints.Issues.Labels.html#deleteLabelR"><span class="hs-identifier hs-type">deleteLabelR</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GitHub.Data.Name.html#Name"><span class="hs-identifier hs-type">Name</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.Definitions.html#Owner"><span class="hs-identifier hs-type">Owner</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Name.html#Name"><span class="hs-identifier hs-type">Name</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.Repos.html#Repo"><span class="hs-identifier hs-type">Repo</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Name.html#Name"><span class="hs-identifier hs-type">Name</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.Definitions.html#IssueLabel"><span class="hs-identifier hs-type">IssueLabel</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Request.html#GenRequest"><span class="hs-identifier hs-type">GenRequest</span></a></span><span> </span><span class="hs-special">'</span><span class="annot"><a href="GitHub.Data.Request.html#MtUnit"><span class="hs-identifier hs-type">MtUnit</span></a></span><span> </span><span class="hs-special">'</span><span class="annot"><a href="GitHub.Data.Request.html#RW"><span class="hs-identifier hs-type">RW</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-55"></span><span id="deleteLabelR"><span class="annot"><span class="annottext">deleteLabelR :: Name Owner
+-&gt; Name Repo -&gt; Name IssueLabel -&gt; GenRequest 'MtUnit 'RW ()
+</span><a href="GitHub.Endpoints.Issues.Labels.html#deleteLabelR"><span class="hs-identifier hs-var hs-var">deleteLabelR</span></a></span></span><span> </span><span id="local-6989586621679560672"><span class="annot"><span class="annottext">Name Owner
+</span><a href="#local-6989586621679560672"><span class="hs-identifier hs-var">user</span></a></span></span><span> </span><span id="local-6989586621679560673"><span class="annot"><span class="annottext">Name Repo
+</span><a href="#local-6989586621679560673"><span class="hs-identifier hs-var">repo</span></a></span></span><span> </span><span id="local-6989586621679560674"><span class="annot"><span class="annottext">Name IssueLabel
+</span><a href="#local-6989586621679560674"><span class="hs-identifier hs-var">lbl</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-56"></span><span>    </span><span class="annot"><span class="annottext">CommandMethod -&gt; Paths -&gt; ByteString -&gt; GenRequest 'MtUnit 'RW ()
+forall (mt :: MediaType (*)) a.
+CommandMethod -&gt; Paths -&gt; ByteString -&gt; GenRequest mt 'RW a
+</span><a href="GitHub.Data.Request.html#Command"><span class="hs-identifier hs-var">Command</span></a></span><span> </span><span class="annot"><span class="annottext">CommandMethod
+</span><a href="GitHub.Data.Request.html#Delete"><span class="hs-identifier hs-var">Delete</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;repos&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Name Owner -&gt; Text
+forall a. IsPathPart a =&gt; a -&gt; Text
+</span><a href="GitHub.Data.Request.html#toPathPart"><span class="hs-identifier hs-var">toPathPart</span></a></span><span> </span><span class="annot"><span class="annottext">Name Owner
+</span><a href="#local-6989586621679560672"><span class="hs-identifier hs-var">user</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Name Repo -&gt; Text
+forall a. IsPathPart a =&gt; a -&gt; Text
+</span><a href="GitHub.Data.Request.html#toPathPart"><span class="hs-identifier hs-var">toPathPart</span></a></span><span> </span><span class="annot"><span class="annottext">Name Repo
+</span><a href="#local-6989586621679560673"><span class="hs-identifier hs-var">repo</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;labels&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Name IssueLabel -&gt; Text
+forall a. IsPathPart a =&gt; a -&gt; Text
+</span><a href="GitHub.Data.Request.html#toPathPart"><span class="hs-identifier hs-var">toPathPart</span></a></span><span> </span><span class="annot"><span class="annottext">Name IssueLabel
+</span><a href="#local-6989586621679560674"><span class="hs-identifier hs-var">lbl</span></a></span><span class="hs-special">]</span><span> </span><span class="annot"><span class="annottext">ByteString
+forall a. Monoid a =&gt; a
+</span><span class="hs-identifier hs-var">mempty</span></span><span>
+</span><span id="line-57"></span><span>
+</span><span id="line-58"></span><span class="hs-comment">-- | List labels on an issue.</span><span>
+</span><span id="line-59"></span><span class="hs-comment">-- See &lt;https://developer.github.com/v3/issues/labels/#list-labels-on-an-issue&gt;</span><span>
+</span><span id="line-60"></span><span id="local-6989586621679560578"><span class="annot"><a href="GitHub.Endpoints.Issues.Labels.html#labelsOnIssueR"><span class="hs-identifier hs-type">labelsOnIssueR</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GitHub.Data.Name.html#Name"><span class="hs-identifier hs-type">Name</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.Definitions.html#Owner"><span class="hs-identifier hs-type">Owner</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Name.html#Name"><span class="hs-identifier hs-type">Name</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.Repos.html#Repo"><span class="hs-identifier hs-type">Repo</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Id.html#Id"><span class="hs-identifier hs-type">Id</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.Issues.html#Issue"><span class="hs-identifier hs-type">Issue</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Request.html#FetchCount"><span class="hs-identifier hs-type">FetchCount</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Request.html#Request"><span class="hs-identifier hs-type">Request</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679560578"><span class="hs-identifier hs-type">k</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Vector</span></span><span> </span><span class="annot"><a href="GitHub.Data.Definitions.html#IssueLabel"><span class="hs-identifier hs-type">IssueLabel</span></a></span><span class="hs-special">)</span></span><span>
+</span><span id="line-61"></span><span id="labelsOnIssueR"><span class="annot"><span class="annottext">labelsOnIssueR :: forall (k :: RW).
+Name Owner
+-&gt; Name Repo
+-&gt; Id Issue
+-&gt; FetchCount
+-&gt; Request k (Vector IssueLabel)
+</span><a href="GitHub.Endpoints.Issues.Labels.html#labelsOnIssueR"><span class="hs-identifier hs-var hs-var">labelsOnIssueR</span></a></span></span><span> </span><span id="local-6989586621679560684"><span class="annot"><span class="annottext">Name Owner
+</span><a href="#local-6989586621679560684"><span class="hs-identifier hs-var">user</span></a></span></span><span> </span><span id="local-6989586621679560685"><span class="annot"><span class="annottext">Name Repo
+</span><a href="#local-6989586621679560685"><span class="hs-identifier hs-var">repo</span></a></span></span><span> </span><span id="local-6989586621679560686"><span class="annot"><span class="annottext">Id Issue
+</span><a href="#local-6989586621679560686"><span class="hs-identifier hs-var">iid</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-62"></span><span>    </span><span class="annot"><span class="annottext">Paths -&gt; QueryString -&gt; FetchCount -&gt; Request k (Vector IssueLabel)
+forall a (mt :: RW).
+FromJSON a =&gt;
+Paths -&gt; QueryString -&gt; FetchCount -&gt; Request mt (Vector a)
+</span><a href="GitHub.Data.Request.html#pagedQuery"><span class="hs-identifier hs-var">pagedQuery</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;repos&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Name Owner -&gt; Text
+forall a. IsPathPart a =&gt; a -&gt; Text
+</span><a href="GitHub.Data.Request.html#toPathPart"><span class="hs-identifier hs-var">toPathPart</span></a></span><span> </span><span class="annot"><span class="annottext">Name Owner
+</span><a href="#local-6989586621679560684"><span class="hs-identifier hs-var">user</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Name Repo -&gt; Text
+forall a. IsPathPart a =&gt; a -&gt; Text
+</span><a href="GitHub.Data.Request.html#toPathPart"><span class="hs-identifier hs-var">toPathPart</span></a></span><span> </span><span class="annot"><span class="annottext">Name Repo
+</span><a href="#local-6989586621679560685"><span class="hs-identifier hs-var">repo</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;issues&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Id Issue -&gt; Text
+forall a. IsPathPart a =&gt; a -&gt; Text
+</span><a href="GitHub.Data.Request.html#toPathPart"><span class="hs-identifier hs-var">toPathPart</span></a></span><span> </span><span class="annot"><span class="annottext">Id Issue
+</span><a href="#local-6989586621679560686"><span class="hs-identifier hs-var">iid</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;labels&quot;</span></span><span class="hs-special">]</span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span>
+</span><span id="line-63"></span><span>
+</span><span id="line-64"></span><span class="hs-comment">-- | Add lables to an issue.</span><span>
+</span><span id="line-65"></span><span class="hs-comment">-- See &lt;https://developer.github.com/v3/issues/labels/#add-labels-to-an-issue&gt;</span><span>
+</span><span id="line-66"></span><span id="local-6989586621679560580"><span class="annot"><a href="GitHub.Endpoints.Issues.Labels.html#addLabelsToIssueR"><span class="hs-identifier hs-type">addLabelsToIssueR</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Foldable</span></span><span> </span><span class="annot"><a href="#local-6989586621679560580"><span class="hs-identifier hs-type">f</span></a></span><span>
+</span><span id="line-67"></span><span>                  </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Name.html#Name"><span class="hs-identifier hs-type">Name</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.Definitions.html#Owner"><span class="hs-identifier hs-type">Owner</span></a></span><span>
+</span><span id="line-68"></span><span>                  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Name.html#Name"><span class="hs-identifier hs-type">Name</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.Repos.html#Repo"><span class="hs-identifier hs-type">Repo</span></a></span><span>
+</span><span id="line-69"></span><span>                  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Id.html#Id"><span class="hs-identifier hs-type">Id</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.Issues.html#Issue"><span class="hs-identifier hs-type">Issue</span></a></span><span>
+</span><span id="line-70"></span><span>                  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679560580"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GitHub.Data.Name.html#Name"><span class="hs-identifier hs-type">Name</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.Definitions.html#IssueLabel"><span class="hs-identifier hs-type">IssueLabel</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-71"></span><span>                  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Request.html#Request"><span class="hs-identifier hs-type">Request</span></a></span><span> </span><span class="hs-special">'</span><span class="annot"><a href="GitHub.Data.Request.html#RW"><span class="hs-identifier hs-type">RW</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Vector</span></span><span> </span><span class="annot"><a href="GitHub.Data.Definitions.html#IssueLabel"><span class="hs-identifier hs-type">IssueLabel</span></a></span><span class="hs-special">)</span></span><span>
+</span><span id="line-72"></span><span id="addLabelsToIssueR"><span class="annot"><span class="annottext">addLabelsToIssueR :: forall (f :: * -&gt; *).
+Foldable f =&gt;
+Name Owner
+-&gt; Name Repo
+-&gt; Id Issue
+-&gt; f (Name IssueLabel)
+-&gt; Request 'RW (Vector IssueLabel)
+</span><a href="GitHub.Endpoints.Issues.Labels.html#addLabelsToIssueR"><span class="hs-identifier hs-var hs-var">addLabelsToIssueR</span></a></span></span><span> </span><span id="local-6989586621679560693"><span class="annot"><span class="annottext">Name Owner
+</span><a href="#local-6989586621679560693"><span class="hs-identifier hs-var">user</span></a></span></span><span> </span><span id="local-6989586621679560694"><span class="annot"><span class="annottext">Name Repo
+</span><a href="#local-6989586621679560694"><span class="hs-identifier hs-var">repo</span></a></span></span><span> </span><span id="local-6989586621679560695"><span class="annot"><span class="annottext">Id Issue
+</span><a href="#local-6989586621679560695"><span class="hs-identifier hs-var">iid</span></a></span></span><span> </span><span id="local-6989586621679560696"><span class="annot"><span class="annottext">f (Name IssueLabel)
+</span><a href="#local-6989586621679560696"><span class="hs-identifier hs-var">lbls</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-73"></span><span>    </span><span class="annot"><span class="annottext">CommandMethod
+-&gt; Paths -&gt; ByteString -&gt; Request 'RW (Vector IssueLabel)
+forall a. CommandMethod -&gt; Paths -&gt; ByteString -&gt; Request 'RW a
+</span><a href="GitHub.Data.Request.html#command"><span class="hs-identifier hs-var">command</span></a></span><span> </span><span class="annot"><span class="annottext">CommandMethod
+</span><a href="GitHub.Data.Request.html#Post"><span class="hs-identifier hs-var">Post</span></a></span><span> </span><span class="annot"><span class="annottext">Paths
+</span><a href="#local-6989586621679560697"><span class="hs-identifier hs-var">paths</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[Name IssueLabel] -&gt; ByteString
+forall a. ToJSON a =&gt; a -&gt; ByteString
+</span><span class="hs-identifier hs-var">encode</span></span><span> </span><span class="annot"><span class="annottext">([Name IssueLabel] -&gt; ByteString)
+-&gt; [Name IssueLabel] -&gt; ByteString
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">f (Name IssueLabel) -&gt; [Name IssueLabel]
+forall a. f a -&gt; [a]
+forall (t :: * -&gt; *) a. Foldable t =&gt; t a -&gt; [a]
+</span><span class="hs-identifier hs-var">toList</span></span><span> </span><span class="annot"><span class="annottext">f (Name IssueLabel)
+</span><a href="#local-6989586621679560696"><span class="hs-identifier hs-var">lbls</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-74"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-75"></span><span>    </span><span id="local-6989586621679560697"><span class="annot"><span class="annottext">paths :: Paths
+</span><a href="#local-6989586621679560697"><span class="hs-identifier hs-var hs-var">paths</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;repos&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Name Owner -&gt; Text
+forall a. IsPathPart a =&gt; a -&gt; Text
+</span><a href="GitHub.Data.Request.html#toPathPart"><span class="hs-identifier hs-var">toPathPart</span></a></span><span> </span><span class="annot"><span class="annottext">Name Owner
+</span><a href="#local-6989586621679560693"><span class="hs-identifier hs-var">user</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Name Repo -&gt; Text
+forall a. IsPathPart a =&gt; a -&gt; Text
+</span><a href="GitHub.Data.Request.html#toPathPart"><span class="hs-identifier hs-var">toPathPart</span></a></span><span> </span><span class="annot"><span class="annottext">Name Repo
+</span><a href="#local-6989586621679560694"><span class="hs-identifier hs-var">repo</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;issues&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Id Issue -&gt; Text
+forall a. IsPathPart a =&gt; a -&gt; Text
+</span><a href="GitHub.Data.Request.html#toPathPart"><span class="hs-identifier hs-var">toPathPart</span></a></span><span> </span><span class="annot"><span class="annottext">Id Issue
+</span><a href="#local-6989586621679560695"><span class="hs-identifier hs-var">iid</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;labels&quot;</span></span><span class="hs-special">]</span><span>
+</span><span id="line-76"></span><span>
+</span><span id="line-77"></span><span class="hs-comment">-- | Remove a label from an issue.</span><span>
+</span><span id="line-78"></span><span class="hs-comment">-- See &lt;https://developer.github.com/v3/issues/labels/#remove-a-label-from-an-issue&gt;</span><span>
+</span><span id="line-79"></span><span class="annot"><a href="GitHub.Endpoints.Issues.Labels.html#removeLabelFromIssueR"><span class="hs-identifier hs-type">removeLabelFromIssueR</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GitHub.Data.Name.html#Name"><span class="hs-identifier hs-type">Name</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.Definitions.html#Owner"><span class="hs-identifier hs-type">Owner</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Name.html#Name"><span class="hs-identifier hs-type">Name</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.Repos.html#Repo"><span class="hs-identifier hs-type">Repo</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Id.html#Id"><span class="hs-identifier hs-type">Id</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.Issues.html#Issue"><span class="hs-identifier hs-type">Issue</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Name.html#Name"><span class="hs-identifier hs-type">Name</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.Definitions.html#IssueLabel"><span class="hs-identifier hs-type">IssueLabel</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Request.html#GenRequest"><span class="hs-identifier hs-type">GenRequest</span></a></span><span> </span><span class="hs-special">'</span><span class="annot"><a href="GitHub.Data.Request.html#MtUnit"><span class="hs-identifier hs-type">MtUnit</span></a></span><span> </span><span class="hs-special">'</span><span class="annot"><a href="GitHub.Data.Request.html#RW"><span class="hs-identifier hs-type">RW</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-80"></span><span id="removeLabelFromIssueR"><span class="annot"><span class="annottext">removeLabelFromIssueR :: Name Owner
+-&gt; Name Repo
+-&gt; Id Issue
+-&gt; Name IssueLabel
+-&gt; GenRequest 'MtUnit 'RW ()
+</span><a href="GitHub.Endpoints.Issues.Labels.html#removeLabelFromIssueR"><span class="hs-identifier hs-var hs-var">removeLabelFromIssueR</span></a></span></span><span> </span><span id="local-6989586621679560705"><span class="annot"><span class="annottext">Name Owner
+</span><a href="#local-6989586621679560705"><span class="hs-identifier hs-var">user</span></a></span></span><span> </span><span id="local-6989586621679560706"><span class="annot"><span class="annottext">Name Repo
+</span><a href="#local-6989586621679560706"><span class="hs-identifier hs-var">repo</span></a></span></span><span> </span><span id="local-6989586621679560707"><span class="annot"><span class="annottext">Id Issue
+</span><a href="#local-6989586621679560707"><span class="hs-identifier hs-var">iid</span></a></span></span><span> </span><span id="local-6989586621679560708"><span class="annot"><span class="annottext">Name IssueLabel
+</span><a href="#local-6989586621679560708"><span class="hs-identifier hs-var">lbl</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-81"></span><span>    </span><span class="annot"><span class="annottext">CommandMethod -&gt; Paths -&gt; ByteString -&gt; GenRequest 'MtUnit 'RW ()
+forall (mt :: MediaType (*)) a.
+CommandMethod -&gt; Paths -&gt; ByteString -&gt; GenRequest mt 'RW a
+</span><a href="GitHub.Data.Request.html#Command"><span class="hs-identifier hs-var">Command</span></a></span><span> </span><span class="annot"><span class="annottext">CommandMethod
+</span><a href="GitHub.Data.Request.html#Delete"><span class="hs-identifier hs-var">Delete</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;repos&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Name Owner -&gt; Text
+forall a. IsPathPart a =&gt; a -&gt; Text
+</span><a href="GitHub.Data.Request.html#toPathPart"><span class="hs-identifier hs-var">toPathPart</span></a></span><span> </span><span class="annot"><span class="annottext">Name Owner
+</span><a href="#local-6989586621679560705"><span class="hs-identifier hs-var">user</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Name Repo -&gt; Text
+forall a. IsPathPart a =&gt; a -&gt; Text
+</span><a href="GitHub.Data.Request.html#toPathPart"><span class="hs-identifier hs-var">toPathPart</span></a></span><span> </span><span class="annot"><span class="annottext">Name Repo
+</span><a href="#local-6989586621679560706"><span class="hs-identifier hs-var">repo</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;issues&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Id Issue -&gt; Text
+forall a. IsPathPart a =&gt; a -&gt; Text
+</span><a href="GitHub.Data.Request.html#toPathPart"><span class="hs-identifier hs-var">toPathPart</span></a></span><span> </span><span class="annot"><span class="annottext">Id Issue
+</span><a href="#local-6989586621679560707"><span class="hs-identifier hs-var">iid</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;labels&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Name IssueLabel -&gt; Text
+forall a. IsPathPart a =&gt; a -&gt; Text
+</span><a href="GitHub.Data.Request.html#toPathPart"><span class="hs-identifier hs-var">toPathPart</span></a></span><span> </span><span class="annot"><span class="annottext">Name IssueLabel
+</span><a href="#local-6989586621679560708"><span class="hs-identifier hs-var">lbl</span></a></span><span class="hs-special">]</span><span> </span><span class="annot"><span class="annottext">ByteString
+forall a. Monoid a =&gt; a
+</span><span class="hs-identifier hs-var">mempty</span></span><span>
+</span><span id="line-82"></span><span>
+</span><span id="line-83"></span><span class="hs-comment">-- | Replace all labels on an issue.</span><span>
+</span><span id="line-84"></span><span class="hs-comment">-- See &lt;https://developer.github.com/v3/issues/labels/#replace-all-labels-for-an-issue&gt;</span><span>
+</span><span id="line-85"></span><span class="hs-comment">--</span><span>
+</span><span id="line-86"></span><span class="hs-comment">-- Sending an empty list will remove all labels from the issue.</span><span>
+</span><span id="line-87"></span><span id="local-6989586621679560709"><span class="annot"><a href="GitHub.Endpoints.Issues.Labels.html#replaceAllLabelsForIssueR"><span class="hs-identifier hs-type">replaceAllLabelsForIssueR</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Foldable</span></span><span> </span><span class="annot"><a href="#local-6989586621679560709"><span class="hs-identifier hs-type">f</span></a></span><span>
+</span><span id="line-88"></span><span>                          </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Name.html#Name"><span class="hs-identifier hs-type">Name</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.Definitions.html#Owner"><span class="hs-identifier hs-type">Owner</span></a></span><span>
+</span><span id="line-89"></span><span>                          </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Name.html#Name"><span class="hs-identifier hs-type">Name</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.Repos.html#Repo"><span class="hs-identifier hs-type">Repo</span></a></span><span>
+</span><span id="line-90"></span><span>                          </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Id.html#Id"><span class="hs-identifier hs-type">Id</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.Issues.html#Issue"><span class="hs-identifier hs-type">Issue</span></a></span><span>
+</span><span id="line-91"></span><span>                          </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679560709"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GitHub.Data.Name.html#Name"><span class="hs-identifier hs-type">Name</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.Definitions.html#IssueLabel"><span class="hs-identifier hs-type">IssueLabel</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-92"></span><span>                          </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Request.html#Request"><span class="hs-identifier hs-type">Request</span></a></span><span> </span><span class="hs-special">'</span><span class="annot"><a href="GitHub.Data.Request.html#RW"><span class="hs-identifier hs-type">RW</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Vector</span></span><span> </span><span class="annot"><a href="GitHub.Data.Definitions.html#IssueLabel"><span class="hs-identifier hs-type">IssueLabel</span></a></span><span class="hs-special">)</span></span><span>
+</span><span id="line-93"></span><span id="replaceAllLabelsForIssueR"><span class="annot"><span class="annottext">replaceAllLabelsForIssueR :: forall (f :: * -&gt; *).
+Foldable f =&gt;
+Name Owner
+-&gt; Name Repo
+-&gt; Id Issue
+-&gt; f (Name IssueLabel)
+-&gt; Request 'RW (Vector IssueLabel)
+</span><a href="GitHub.Endpoints.Issues.Labels.html#replaceAllLabelsForIssueR"><span class="hs-identifier hs-var hs-var">replaceAllLabelsForIssueR</span></a></span></span><span> </span><span id="local-6989586621679560714"><span class="annot"><span class="annottext">Name Owner
+</span><a href="#local-6989586621679560714"><span class="hs-identifier hs-var">user</span></a></span></span><span> </span><span id="local-6989586621679560715"><span class="annot"><span class="annottext">Name Repo
+</span><a href="#local-6989586621679560715"><span class="hs-identifier hs-var">repo</span></a></span></span><span> </span><span id="local-6989586621679560716"><span class="annot"><span class="annottext">Id Issue
+</span><a href="#local-6989586621679560716"><span class="hs-identifier hs-var">iid</span></a></span></span><span> </span><span id="local-6989586621679560717"><span class="annot"><span class="annottext">f (Name IssueLabel)
+</span><a href="#local-6989586621679560717"><span class="hs-identifier hs-var">lbls</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-94"></span><span>    </span><span class="annot"><span class="annottext">CommandMethod
+-&gt; Paths -&gt; ByteString -&gt; Request 'RW (Vector IssueLabel)
+forall a. CommandMethod -&gt; Paths -&gt; ByteString -&gt; Request 'RW a
+</span><a href="GitHub.Data.Request.html#command"><span class="hs-identifier hs-var">command</span></a></span><span> </span><span class="annot"><span class="annottext">CommandMethod
+</span><a href="GitHub.Data.Request.html#Put"><span class="hs-identifier hs-var">Put</span></a></span><span> </span><span class="annot"><span class="annottext">Paths
+</span><a href="#local-6989586621679560719"><span class="hs-identifier hs-var">paths</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[Name IssueLabel] -&gt; ByteString
+forall a. ToJSON a =&gt; a -&gt; ByteString
+</span><span class="hs-identifier hs-var">encode</span></span><span> </span><span class="annot"><span class="annottext">([Name IssueLabel] -&gt; ByteString)
+-&gt; [Name IssueLabel] -&gt; ByteString
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">f (Name IssueLabel) -&gt; [Name IssueLabel]
+forall a. f a -&gt; [a]
+forall (t :: * -&gt; *) a. Foldable t =&gt; t a -&gt; [a]
+</span><span class="hs-identifier hs-var">toList</span></span><span> </span><span class="annot"><span class="annottext">f (Name IssueLabel)
+</span><a href="#local-6989586621679560717"><span class="hs-identifier hs-var">lbls</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-95"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-96"></span><span>    </span><span id="local-6989586621679560719"><span class="annot"><span class="annottext">paths :: Paths
+</span><a href="#local-6989586621679560719"><span class="hs-identifier hs-var hs-var">paths</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;repos&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Name Owner -&gt; Text
+forall a. IsPathPart a =&gt; a -&gt; Text
+</span><a href="GitHub.Data.Request.html#toPathPart"><span class="hs-identifier hs-var">toPathPart</span></a></span><span> </span><span class="annot"><span class="annottext">Name Owner
+</span><a href="#local-6989586621679560714"><span class="hs-identifier hs-var">user</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Name Repo -&gt; Text
+forall a. IsPathPart a =&gt; a -&gt; Text
+</span><a href="GitHub.Data.Request.html#toPathPart"><span class="hs-identifier hs-var">toPathPart</span></a></span><span> </span><span class="annot"><span class="annottext">Name Repo
+</span><a href="#local-6989586621679560715"><span class="hs-identifier hs-var">repo</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;issues&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Id Issue -&gt; Text
+forall a. IsPathPart a =&gt; a -&gt; Text
+</span><a href="GitHub.Data.Request.html#toPathPart"><span class="hs-identifier hs-var">toPathPart</span></a></span><span> </span><span class="annot"><span class="annottext">Id Issue
+</span><a href="#local-6989586621679560716"><span class="hs-identifier hs-var">iid</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;labels&quot;</span></span><span class="hs-special">]</span><span>
+</span><span id="line-97"></span><span>
+</span><span id="line-98"></span><span class="hs-comment">-- | Remove all labels from an issue.</span><span>
+</span><span id="line-99"></span><span class="hs-comment">-- See &lt;https://developer.github.com/v3/issues/labels/#remove-all-labels-from-an-issue&gt;</span><span>
+</span><span id="line-100"></span><span class="annot"><a href="GitHub.Endpoints.Issues.Labels.html#removeAllLabelsFromIssueR"><span class="hs-identifier hs-type">removeAllLabelsFromIssueR</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GitHub.Data.Name.html#Name"><span class="hs-identifier hs-type">Name</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.Definitions.html#Owner"><span class="hs-identifier hs-type">Owner</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Name.html#Name"><span class="hs-identifier hs-type">Name</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.Repos.html#Repo"><span class="hs-identifier hs-type">Repo</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Id.html#Id"><span class="hs-identifier hs-type">Id</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.Issues.html#Issue"><span class="hs-identifier hs-type">Issue</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Request.html#GenRequest"><span class="hs-identifier hs-type">GenRequest</span></a></span><span> </span><span class="hs-special">'</span><span class="annot"><a href="GitHub.Data.Request.html#MtUnit"><span class="hs-identifier hs-type">MtUnit</span></a></span><span> </span><span class="hs-special">'</span><span class="annot"><a href="GitHub.Data.Request.html#RW"><span class="hs-identifier hs-type">RW</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-101"></span><span id="removeAllLabelsFromIssueR"><span class="annot"><span class="annottext">removeAllLabelsFromIssueR :: Name Owner -&gt; Name Repo -&gt; Id Issue -&gt; GenRequest 'MtUnit 'RW ()
+</span><a href="GitHub.Endpoints.Issues.Labels.html#removeAllLabelsFromIssueR"><span class="hs-identifier hs-var hs-var">removeAllLabelsFromIssueR</span></a></span></span><span> </span><span id="local-6989586621679560726"><span class="annot"><span class="annottext">Name Owner
+</span><a href="#local-6989586621679560726"><span class="hs-identifier hs-var">user</span></a></span></span><span> </span><span id="local-6989586621679560727"><span class="annot"><span class="annottext">Name Repo
+</span><a href="#local-6989586621679560727"><span class="hs-identifier hs-var">repo</span></a></span></span><span> </span><span id="local-6989586621679560728"><span class="annot"><span class="annottext">Id Issue
+</span><a href="#local-6989586621679560728"><span class="hs-identifier hs-var">iid</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-102"></span><span>    </span><span class="annot"><span class="annottext">CommandMethod -&gt; Paths -&gt; ByteString -&gt; GenRequest 'MtUnit 'RW ()
+forall (mt :: MediaType (*)) a.
+CommandMethod -&gt; Paths -&gt; ByteString -&gt; GenRequest mt 'RW a
+</span><a href="GitHub.Data.Request.html#Command"><span class="hs-identifier hs-var">Command</span></a></span><span> </span><span class="annot"><span class="annottext">CommandMethod
+</span><a href="GitHub.Data.Request.html#Delete"><span class="hs-identifier hs-var">Delete</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;repos&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Name Owner -&gt; Text
+forall a. IsPathPart a =&gt; a -&gt; Text
+</span><a href="GitHub.Data.Request.html#toPathPart"><span class="hs-identifier hs-var">toPathPart</span></a></span><span> </span><span class="annot"><span class="annottext">Name Owner
+</span><a href="#local-6989586621679560726"><span class="hs-identifier hs-var">user</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Name Repo -&gt; Text
+forall a. IsPathPart a =&gt; a -&gt; Text
+</span><a href="GitHub.Data.Request.html#toPathPart"><span class="hs-identifier hs-var">toPathPart</span></a></span><span> </span><span class="annot"><span class="annottext">Name Repo
+</span><a href="#local-6989586621679560727"><span class="hs-identifier hs-var">repo</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;issues&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Id Issue -&gt; Text
+forall a. IsPathPart a =&gt; a -&gt; Text
+</span><a href="GitHub.Data.Request.html#toPathPart"><span class="hs-identifier hs-var">toPathPart</span></a></span><span> </span><span class="annot"><span class="annottext">Id Issue
+</span><a href="#local-6989586621679560728"><span class="hs-identifier hs-var">iid</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;labels&quot;</span></span><span class="hs-special">]</span><span> </span><span class="annot"><span class="annottext">ByteString
+forall a. Monoid a =&gt; a
+</span><span class="hs-identifier hs-var">mempty</span></span><span>
+</span><span id="line-103"></span><span>
+</span><span id="line-104"></span><span class="hs-comment">-- | Query labels for every issue in a milestone.</span><span>
+</span><span id="line-105"></span><span class="hs-comment">-- See &lt;https://developer.github.com/v3/issues/labels/#get-labels-for-every-issue-in-a-milestone&gt;</span><span>
+</span><span id="line-106"></span><span id="local-6989586621679560592"><span class="annot"><a href="GitHub.Endpoints.Issues.Labels.html#labelsOnMilestoneR"><span class="hs-identifier hs-type">labelsOnMilestoneR</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GitHub.Data.Name.html#Name"><span class="hs-identifier hs-type">Name</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.Definitions.html#Owner"><span class="hs-identifier hs-type">Owner</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Name.html#Name"><span class="hs-identifier hs-type">Name</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.Repos.html#Repo"><span class="hs-identifier hs-type">Repo</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Id.html#Id"><span class="hs-identifier hs-type">Id</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.Milestone.html#Milestone"><span class="hs-identifier hs-type">Milestone</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Request.html#FetchCount"><span class="hs-identifier hs-type">FetchCount</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GitHub.Data.Request.html#Request"><span class="hs-identifier hs-type">Request</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679560592"><span class="hs-identifier hs-type">k</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Vector</span></span><span> </span><span class="annot"><a href="GitHub.Data.Definitions.html#IssueLabel"><span class="hs-identifier hs-type">IssueLabel</span></a></span><span class="hs-special">)</span></span><span>
+</span><span id="line-107"></span><span id="labelsOnMilestoneR"><span class="annot"><span class="annottext">labelsOnMilestoneR :: forall (k :: RW).
+Name Owner
+-&gt; Name Repo
+-&gt; Id Milestone
+-&gt; FetchCount
+-&gt; Request k (Vector IssueLabel)
+</span><a href="GitHub.Endpoints.Issues.Labels.html#labelsOnMilestoneR"><span class="hs-identifier hs-var hs-var">labelsOnMilestoneR</span></a></span></span><span> </span><span id="local-6989586621679560736"><span class="annot"><span class="annottext">Name Owner
+</span><a href="#local-6989586621679560736"><span class="hs-identifier hs-var">user</span></a></span></span><span> </span><span id="local-6989586621679560737"><span class="annot"><span class="annottext">Name Repo
+</span><a href="#local-6989586621679560737"><span class="hs-identifier hs-var">repo</span></a></span></span><span> </span><span id="local-6989586621679560738"><span class="annot"><span class="annottext">Id Milestone
+</span><a href="#local-6989586621679560738"><span class="hs-identifier hs-var">mid</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-108"></span><span>    </span><span class="annot"><span class="annottext">Paths -&gt; QueryString -&gt; FetchCount -&gt; Request k (Vector IssueLabel)
+forall a (mt :: RW).
+FromJSON a =&gt;
+Paths -&gt; QueryString -&gt; FetchCount -&gt; Request mt (Vector a)
+</span><a href="GitHub.Data.Request.html#pagedQuery"><span class="hs-identifier hs-var">pagedQuery</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;repos&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Name Owner -&gt; Text
+forall a. IsPathPart a =&gt; a -&gt; Text
+</span><a href="GitHub.Data.Request.html#toPathPart"><span class="hs-identifier hs-var">toPathPart</span></a></span><span> </span><span class="annot"><span class="annottext">Name Owner
+</span><a href="#local-6989586621679560736"><span class="hs-identifier hs-var">user</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Name Repo -&gt; Text
+forall a. IsPathPart a =&gt; a -&gt; Text
+</span><a href="GitHub.Data.Request.html#toPathPart"><span class="hs-identifier hs-var">toPathPart</span></a></span><span> </span><span class="annot"><span class="annottext">Name Repo
+</span><a href="#local-6989586621679560737"><span class="hs-identifier hs-var">repo</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;milestones&quot;</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Id Milestone -&gt; Text
+forall a. IsPathPart a =&gt; a -&gt; Text
+</span><a href="GitHub.Data.Request.html#toPathPart"><span class="hs-identifier hs-var">toPathPart</span></a></span><span> </span><span class="annot"><span class="annottext">Id Milestone
+</span><a href="#local-6989586621679560738"><span class="hs-identifier hs-var">mid</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;labels&quot;</span></span><span class="hs-special">]</span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span>
+</span><span id="line-109"></span></pre></body></html>

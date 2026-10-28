@@ -1,0 +1,249 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-comment">-- | The frame table, one per JIT. A native caller whose callee exits writes a</span><span>
+</span><span id="line-2"></span><span class="hs-comment">-- frame record naming an entry here; the trampoline turns the record into</span><span>
+</span><span id="line-3"></span><span class="hs-comment">-- the @Push@ frame the interpreter would have pushed. See unison-runtime/src/Unison/Runtime/JIT/design.md,</span><span>
+</span><span id="line-4"></span><span class="hs-comment">-- &quot;Frames: native code records, Haskell builds&quot;.</span><span>
+</span><span id="line-5"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Unison.Runtime.JIT.Frames.html"><span class="hs-identifier">Unison.Runtime.JIT.Frames</span></a></span><span>
+</span><span id="line-6"></span><span>  </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="Unison.Runtime.JIT.Frames.html#Frame"><span class="hs-identifier">Frame</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-7"></span><span>    </span><span class="annot"><a href="Unison.Runtime.JIT.Frames.html#FrameIndex"><span class="hs-identifier">FrameIndex</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-8"></span><span>    </span><span class="annot"><a href="Unison.Runtime.JIT.Frames.html#Frames"><span class="hs-identifier">Frames</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-9"></span><span>    </span><span class="annot"><a href="Unison.Runtime.JIT.Frames.html#newFrames"><span class="hs-identifier">newFrames</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-10"></span><span>    </span><span class="annot"><a href="Unison.Runtime.JIT.Frames.html#registerFrames"><span class="hs-identifier">registerFrames</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-11"></span><span>    </span><span class="annot"><a href="Unison.Runtime.JIT.Frames.html#replaceFrames"><span class="hs-identifier">replaceFrames</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-12"></span><span>    </span><span class="annot"><a href="Unison.Runtime.JIT.Frames.html#lookupFrame"><span class="hs-identifier">lookupFrame</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-13"></span><span>  </span><span class="hs-special">)</span><span>
+</span><span id="line-14"></span><span class="hs-keyword">where</span><span>
+</span><span id="line-15"></span><span>
+</span><span id="line-16"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Monad</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">forM_</span></span><span class="hs-special">)</span><span>
+</span><span id="line-17"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Monad.Primitive</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">PrimState</span></span><span class="hs-special">)</span><span>
+</span><span id="line-18"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.IORef</span></span><span>
+</span><span id="line-19"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Primitive.SmallArray</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">SmallMutableArray</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">copySmallMutableArray</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">getSizeofSmallMutableArray</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">newSmallArray</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">readSmallArray</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">writeSmallArray</span></span><span class="hs-special">)</span><span>
+</span><span id="line-20"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Foreign.Ptr</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Ptr</span></span><span class="hs-special">)</span><span>
+</span><span id="line-21"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Unison.Runtime.MCode.html"><span class="hs-identifier">Unison.Runtime.MCode</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Runtime.MCode.html#CombIx"><span class="hs-identifier">CombIx</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Unison.Runtime.MCode.html#NativeCell"><span class="hs-identifier">NativeCell</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-22"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Unison.Runtime.Stack.html"><span class="hs-identifier">Unison.Runtime.Stack</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Runtime.Stack.html#MSection"><span class="hs-identifier">MSection</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-23"></span><span>
+</span><span id="line-24"></span><span class="hs-comment">-- | The fixed parts of a @Push@ frame for one @Let@: the body's @CombIx@,</span><span>
+</span><span id="line-25"></span><span class="hs-comment">-- stack guard and section, and the cell holding the body's native code.</span><span>
+</span><span id="line-26"></span><span class="hs-keyword">data</span><span> </span><span id="Frame"><span class="annot"><a href="Unison.Runtime.JIT.Frames.html#Frame"><span class="hs-identifier hs-var">Frame</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="Frame"><span class="annot"><a href="Unison.Runtime.JIT.Frames.html#Frame"><span class="hs-identifier hs-var">Frame</span></a></span></span><span> </span><span class="hs-glyph">!</span><span class="annot"><a href="Unison.Runtime.MCode.html#CombIx"><span class="hs-identifier hs-type">CombIx</span></a></span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">!</span><span class="annot"><a href="Unison.Runtime.Stack.html#MSection"><span class="hs-identifier hs-type">MSection</span></a></span><span> </span><span class="hs-glyph">!</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Unison.Runtime.MCode.html#NativeCell"><span class="hs-identifier hs-type">NativeCell</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-27"></span><span>
+</span><span id="line-28"></span><span class="annot"><span class="hs-comment">-- | 1-based.</span></span><span>
+</span><span id="line-29"></span><span class="hs-keyword">type</span><span> </span><span id="FrameIndex"><span class="annot"><a href="Unison.Runtime.JIT.Frames.html#FrameIndex"><span class="hs-identifier hs-var">FrameIndex</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>
+</span><span id="line-30"></span><span>
+</span><span id="line-31"></span><span class="hs-comment">-- | Like the exits table: an array that grows by copying, written only by</span><span>
+</span><span id="line-32"></span><span class="hs-comment">-- the thread that compiles.</span><span>
+</span><span id="line-33"></span><span class="hs-keyword">data</span><span> </span><span id="Table"><span class="annot"><a href="Unison.Runtime.JIT.Frames.html#Table"><span class="hs-identifier hs-var">Table</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="Table"><span class="annot"><a href="Unison.Runtime.JIT.Frames.html#Table"><span class="hs-identifier hs-var">Table</span></a></span></span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">!</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">SmallMutableArray</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">PrimState</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span class="hs-special">)</span><span> </span><span class="annot"><a href="Unison.Runtime.JIT.Frames.html#Frame"><span class="hs-identifier hs-type">Frame</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-34"></span><span>
+</span><span id="line-35"></span><span class="hs-keyword">newtype</span><span> </span><span id="Frames"><span class="annot"><a href="Unison.Runtime.JIT.Frames.html#Frames"><span class="hs-identifier hs-var">Frames</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="Frames"><span class="annot"><a href="Unison.Runtime.JIT.Frames.html#Frames"><span class="hs-identifier hs-var">Frames</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">IORef</span></span><span> </span><span class="annot"><a href="Unison.Runtime.JIT.Frames.html#Table"><span class="hs-identifier hs-type">Table</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-36"></span><span>
+</span><span id="line-37"></span><span class="annot"><a href="Unison.Runtime.JIT.Frames.html#newFrames"><span class="hs-identifier hs-type">newFrames</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="Unison.Runtime.JIT.Frames.html#Frames"><span class="hs-identifier hs-type">Frames</span></a></span><span>
+</span><span id="line-38"></span><span id="newFrames"><span class="annot"><span class="annottext">newFrames :: IO Frames
+</span><a href="Unison.Runtime.JIT.Frames.html#newFrames"><span class="hs-identifier hs-var hs-var">newFrames</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">IORef Table -&gt; Frames
+</span><a href="Unison.Runtime.JIT.Frames.html#Frames"><span class="hs-identifier hs-var">Frames</span></a></span><span> </span><span class="annot"><span class="annottext">(IORef Table -&gt; Frames) -&gt; IO (IORef Table) -&gt; IO Frames
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Table -&gt; IO (IORef Table)
+forall a. a -&gt; IO (IORef a)
+</span><span class="hs-identifier hs-var">newIORef</span></span><span> </span><span class="annot"><span class="annottext">(Table -&gt; IO (IORef Table))
+-&gt; (SmallMutableArray RealWorld Frame -&gt; Table)
+-&gt; SmallMutableArray RealWorld Frame
+-&gt; IO (IORef Table)
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">FrameIndex -&gt; SmallMutableArray (PrimState IO) Frame -&gt; Table
+</span><a href="Unison.Runtime.JIT.Frames.html#Table"><span class="hs-identifier hs-var">Table</span></a></span><span> </span><span class="annot"><span class="annottext">FrameIndex
+</span><span class="hs-number">1</span></span><span> </span><span class="annot"><span class="annottext">(SmallMutableArray RealWorld Frame -&gt; IO (IORef Table))
+-&gt; IO (SmallMutableArray RealWorld Frame) -&gt; IO (IORef Table)
+forall (m :: * -&gt; *) a b. Monad m =&gt; (a -&gt; m b) -&gt; m a -&gt; m b
+</span><span class="hs-operator hs-var">=&lt;&lt;</span></span><span> </span><span class="annot"><span class="annottext">FrameIndex -&gt; Frame -&gt; IO (SmallMutableArray (PrimState IO) Frame)
+forall (m :: * -&gt; *) a.
+PrimMonad m =&gt;
+FrameIndex -&gt; a -&gt; m (SmallMutableArray (PrimState m) a)
+</span><span class="hs-identifier hs-var">newSmallArray</span></span><span> </span><span class="annot"><span class="annottext">FrameIndex
+</span><span class="hs-number">1024</span></span><span> </span><span class="annot"><span class="annottext">Frame
+</span><a href="Unison.Runtime.JIT.Frames.html#unknown"><span class="hs-identifier hs-var">unknown</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-39"></span><span>
+</span><span id="line-40"></span><span class="annot"><a href="Unison.Runtime.JIT.Frames.html#unknown"><span class="hs-identifier hs-type">unknown</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Unison.Runtime.JIT.Frames.html#Frame"><span class="hs-identifier hs-type">Frame</span></a></span><span>
+</span><span id="line-41"></span><span id="unknown"><span class="annot"><span class="annottext">unknown :: Frame
+</span><a href="Unison.Runtime.JIT.Frames.html#unknown"><span class="hs-identifier hs-var hs-var">unknown</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; Frame
+forall a. HasCallStack =&gt; [Char] -&gt; a
+</span><span class="hs-identifier hs-var">error</span></span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><span class="hs-string">&quot;JIT: unknown frame index&quot;</span></span><span>
+</span><span id="line-42"></span><span>
+</span><span id="line-43"></span><span class="hs-comment">-- | Adds a module's frames and returns the index of the first one. The</span><span>
+</span><span id="line-44"></span><span class="hs-comment">-- rest follow consecutively, in the order given.</span><span>
+</span><span id="line-45"></span><span class="annot"><a href="Unison.Runtime.JIT.Frames.html#registerFrames"><span class="hs-identifier hs-type">registerFrames</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Unison.Runtime.JIT.Frames.html#Frames"><span class="hs-identifier hs-type">Frames</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Unison.Runtime.JIT.Frames.html#Frame"><span class="hs-identifier hs-type">Frame</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="Unison.Runtime.JIT.Frames.html#FrameIndex"><span class="hs-identifier hs-type">FrameIndex</span></a></span><span>
+</span><span id="line-46"></span><span id="registerFrames"><span class="annot"><span class="annottext">registerFrames :: Frames -&gt; [Frame] -&gt; IO FrameIndex
+</span><a href="Unison.Runtime.JIT.Frames.html#registerFrames"><span class="hs-identifier hs-var hs-var">registerFrames</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Runtime.JIT.Frames.html#Frames"><span class="hs-identifier hs-type">Frames</span></a></span><span> </span><span id="local-6989586621681819880"><span class="annot"><span class="annottext">IORef Table
+</span><a href="#local-6989586621681819880"><span class="hs-identifier hs-var">table</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621681819881"><span class="annot"><span class="annottext">[Frame]
+</span><a href="#local-6989586621681819881"><span class="hs-identifier hs-var">frames</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-47"></span><span>  </span><span class="annot"><a href="Unison.Runtime.JIT.Frames.html#Table"><span class="hs-identifier hs-type">Table</span></a></span><span> </span><span id="local-6989586621681819882"><span class="annot"><span class="annottext">FrameIndex
+</span><a href="#local-6989586621681819882"><span class="hs-identifier hs-var">next</span></a></span></span><span> </span><span id="local-6989586621681819883"><span class="annot"><span class="annottext">SmallMutableArray (PrimState IO) Frame
+</span><a href="#local-6989586621681819883"><span class="hs-identifier hs-var">arr</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">IORef Table -&gt; IO Table
+forall a. IORef a -&gt; IO a
+</span><span class="hs-identifier hs-var">readIORef</span></span><span> </span><span class="annot"><span class="annottext">IORef Table
+</span><a href="#local-6989586621681819880"><span class="hs-identifier hs-var">table</span></a></span><span>
+</span><span id="line-48"></span><span>  </span><span id="local-6989586621681819885"><span class="annot"><span class="annottext">FrameIndex
+</span><a href="#local-6989586621681819885"><span class="hs-identifier hs-var">size</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">SmallMutableArray (PrimState IO) Frame -&gt; IO FrameIndex
+forall (m :: * -&gt; *) a.
+PrimMonad m =&gt;
+SmallMutableArray (PrimState m) a -&gt; m FrameIndex
+</span><span class="hs-identifier hs-var">getSizeofSmallMutableArray</span></span><span> </span><span class="annot"><span class="annottext">SmallMutableArray (PrimState IO) Frame
+</span><a href="#local-6989586621681819883"><span class="hs-identifier hs-var">arr</span></a></span><span>
+</span><span id="line-49"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621681819886"><span class="annot"><span class="annottext">n :: FrameIndex
+</span><a href="#local-6989586621681819886"><span class="hs-identifier hs-var hs-var">n</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Frame] -&gt; FrameIndex
+forall a. [a] -&gt; FrameIndex
+forall (t :: * -&gt; *) a. Foldable t =&gt; t a -&gt; FrameIndex
+</span><span class="hs-identifier hs-var">length</span></span><span> </span><span class="annot"><span class="annottext">[Frame]
+</span><a href="#local-6989586621681819881"><span class="hs-identifier hs-var">frames</span></a></span><span>
+</span><span id="line-50"></span><span>  </span><span id="local-6989586621681819888"><span class="annot"><span class="annottext">SmallMutableArray RealWorld Frame
+</span><a href="#local-6989586621681819888"><span class="hs-identifier hs-var">arr'</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span>
+</span><span id="line-51"></span><span>    </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">FrameIndex
+</span><a href="#local-6989586621681819882"><span class="hs-identifier hs-var">next</span></a></span><span> </span><span class="annot"><span class="annottext">FrameIndex -&gt; FrameIndex -&gt; FrameIndex
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">FrameIndex
+</span><a href="#local-6989586621681819886"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">FrameIndex -&gt; FrameIndex -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&lt;=</span></span><span> </span><span class="annot"><span class="annottext">FrameIndex
+</span><a href="#local-6989586621681819885"><span class="hs-identifier hs-var">size</span></a></span><span>
+</span><span id="line-52"></span><span>      </span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="annottext">SmallMutableArray RealWorld Frame
+-&gt; IO (SmallMutableArray RealWorld Frame)
+forall a. a -&gt; IO a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">SmallMutableArray RealWorld Frame
+SmallMutableArray (PrimState IO) Frame
+</span><a href="#local-6989586621681819883"><span class="hs-identifier hs-var">arr</span></a></span><span>
+</span><span id="line-53"></span><span>      </span><span class="hs-keyword">else</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-54"></span><span>        </span><span id="local-6989586621681819891"><span class="annot"><span class="annottext">SmallMutableArray RealWorld Frame
+</span><a href="#local-6989586621681819891"><span class="hs-identifier hs-var">bigger</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">FrameIndex -&gt; Frame -&gt; IO (SmallMutableArray (PrimState IO) Frame)
+forall (m :: * -&gt; *) a.
+PrimMonad m =&gt;
+FrameIndex -&gt; a -&gt; m (SmallMutableArray (PrimState m) a)
+</span><span class="hs-identifier hs-var">newSmallArray</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">FrameIndex -&gt; FrameIndex -&gt; FrameIndex
+forall a. Ord a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-identifier hs-var">max</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">FrameIndex
+</span><span class="hs-number">2</span></span><span> </span><span class="annot"><span class="annottext">FrameIndex -&gt; FrameIndex -&gt; FrameIndex
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">*</span></span><span> </span><span class="annot"><span class="annottext">FrameIndex
+</span><a href="#local-6989586621681819885"><span class="hs-identifier hs-var">size</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">FrameIndex
+</span><a href="#local-6989586621681819882"><span class="hs-identifier hs-var">next</span></a></span><span> </span><span class="annot"><span class="annottext">FrameIndex -&gt; FrameIndex -&gt; FrameIndex
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">FrameIndex
+</span><a href="#local-6989586621681819886"><span class="hs-identifier hs-var">n</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Frame
+</span><a href="Unison.Runtime.JIT.Frames.html#unknown"><span class="hs-identifier hs-var">unknown</span></a></span><span>
+</span><span id="line-55"></span><span>        </span><span class="annot"><span class="annottext">SmallMutableArray (PrimState IO) Frame
+-&gt; FrameIndex
+-&gt; SmallMutableArray (PrimState IO) Frame
+-&gt; FrameIndex
+-&gt; FrameIndex
+-&gt; IO ()
+forall (m :: * -&gt; *) a.
+PrimMonad m =&gt;
+SmallMutableArray (PrimState m) a
+-&gt; FrameIndex
+-&gt; SmallMutableArray (PrimState m) a
+-&gt; FrameIndex
+-&gt; FrameIndex
+-&gt; m ()
+</span><span class="hs-identifier hs-var">copySmallMutableArray</span></span><span> </span><span class="annot"><span class="annottext">SmallMutableArray RealWorld Frame
+SmallMutableArray (PrimState IO) Frame
+</span><a href="#local-6989586621681819891"><span class="hs-identifier hs-var">bigger</span></a></span><span> </span><span class="annot"><span class="annottext">FrameIndex
+</span><span class="hs-number">0</span></span><span> </span><span class="annot"><span class="annottext">SmallMutableArray (PrimState IO) Frame
+</span><a href="#local-6989586621681819883"><span class="hs-identifier hs-var">arr</span></a></span><span> </span><span class="annot"><span class="annottext">FrameIndex
+</span><span class="hs-number">0</span></span><span> </span><span class="annot"><span class="annottext">FrameIndex
+</span><a href="#local-6989586621681819882"><span class="hs-identifier hs-var">next</span></a></span><span>
+</span><span id="line-56"></span><span>        </span><span class="hs-identifier">pure</span><span> </span><span class="annot"><span class="annottext">SmallMutableArray RealWorld Frame
+</span><a href="#local-6989586621681819891"><span class="hs-identifier hs-var">bigger</span></a></span><span>
+</span><span id="line-57"></span><span>  </span><span class="annot"><span class="annottext">[(FrameIndex, Frame)] -&gt; ((FrameIndex, Frame) -&gt; IO ()) -&gt; IO ()
+forall (t :: * -&gt; *) (m :: * -&gt; *) a b.
+(Foldable t, Monad m) =&gt;
+t a -&gt; (a -&gt; m b) -&gt; m ()
+</span><span class="hs-identifier hs-var">forM_</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[FrameIndex] -&gt; [Frame] -&gt; [(FrameIndex, Frame)]
+forall a b. [a] -&gt; [b] -&gt; [(a, b)]
+</span><span class="hs-identifier hs-var">zip</span></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">FrameIndex
+</span><a href="#local-6989586621681819882"><span class="hs-identifier hs-var">next</span></a></span><span> </span><span class="hs-glyph">..</span><span class="hs-special">]</span><span> </span><span class="annot"><span class="annottext">[Frame]
+</span><a href="#local-6989586621681819881"><span class="hs-identifier hs-var">frames</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(((FrameIndex, Frame) -&gt; IO ()) -&gt; IO ())
+-&gt; ((FrameIndex, Frame) -&gt; IO ()) -&gt; IO ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span class="hs-special">(</span><span id="local-6989586621681819894"><span class="annot"><span class="annottext">FrameIndex
+</span><a href="#local-6989586621681819894"><span class="hs-identifier hs-var">i</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681819895"><span class="annot"><span class="annottext">Frame
+</span><a href="#local-6989586621681819895"><span class="hs-identifier hs-var">f</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">SmallMutableArray (PrimState IO) Frame
+-&gt; FrameIndex -&gt; Frame -&gt; IO ()
+forall (m :: * -&gt; *) a.
+PrimMonad m =&gt;
+SmallMutableArray (PrimState m) a -&gt; FrameIndex -&gt; a -&gt; m ()
+</span><span class="hs-identifier hs-var">writeSmallArray</span></span><span> </span><span class="annot"><span class="annottext">SmallMutableArray RealWorld Frame
+SmallMutableArray (PrimState IO) Frame
+</span><a href="#local-6989586621681819888"><span class="hs-identifier hs-var">arr'</span></a></span><span> </span><span class="annot"><span class="annottext">FrameIndex
+</span><a href="#local-6989586621681819894"><span class="hs-identifier hs-var">i</span></a></span><span> </span><span class="annot"><span class="annottext">(Frame -&gt; IO ()) -&gt; Frame -&gt; IO ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$!</span></span><span> </span><span class="annot"><span class="annottext">Frame
+</span><a href="#local-6989586621681819895"><span class="hs-identifier hs-var">f</span></a></span><span>
+</span><span id="line-58"></span><span>  </span><span class="annot"><span class="annottext">IORef Table -&gt; Table -&gt; IO ()
+forall a. IORef a -&gt; a -&gt; IO ()
+</span><span class="hs-identifier hs-var">writeIORef</span></span><span> </span><span class="annot"><span class="annottext">IORef Table
+</span><a href="#local-6989586621681819880"><span class="hs-identifier hs-var">table</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">FrameIndex -&gt; SmallMutableArray (PrimState IO) Frame -&gt; Table
+</span><a href="Unison.Runtime.JIT.Frames.html#Table"><span class="hs-identifier hs-var">Table</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">FrameIndex
+</span><a href="#local-6989586621681819882"><span class="hs-identifier hs-var">next</span></a></span><span> </span><span class="annot"><span class="annottext">FrameIndex -&gt; FrameIndex -&gt; FrameIndex
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">FrameIndex
+</span><a href="#local-6989586621681819886"><span class="hs-identifier hs-var">n</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">SmallMutableArray RealWorld Frame
+SmallMutableArray (PrimState IO) Frame
+</span><a href="#local-6989586621681819888"><span class="hs-identifier hs-var">arr'</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-59"></span><span>  </span><span class="hs-identifier">pure</span><span> </span><span class="annot"><span class="annottext">FrameIndex
+</span><a href="#local-6989586621681819882"><span class="hs-identifier hs-var">next</span></a></span><span>
+</span><span id="line-60"></span><span>
+</span><span id="line-61"></span><span class="hs-comment">-- | Overwrites frames registered earlier, starting at the given index</span><span>
+</span><span id="line-62"></span><span class="hs-comment">-- (see replaceExits).</span><span>
+</span><span id="line-63"></span><span class="annot"><a href="Unison.Runtime.JIT.Frames.html#replaceFrames"><span class="hs-identifier hs-type">replaceFrames</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Unison.Runtime.JIT.Frames.html#Frames"><span class="hs-identifier hs-type">Frames</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.Runtime.JIT.Frames.html#FrameIndex"><span class="hs-identifier hs-type">FrameIndex</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Unison.Runtime.JIT.Frames.html#Frame"><span class="hs-identifier hs-type">Frame</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-64"></span><span id="replaceFrames"><span class="annot"><span class="annottext">replaceFrames :: Frames -&gt; FrameIndex -&gt; [Frame] -&gt; IO ()
+</span><a href="Unison.Runtime.JIT.Frames.html#replaceFrames"><span class="hs-identifier hs-var hs-var">replaceFrames</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Runtime.JIT.Frames.html#Frames"><span class="hs-identifier hs-type">Frames</span></a></span><span> </span><span id="local-6989586621681819898"><span class="annot"><span class="annottext">IORef Table
+</span><a href="#local-6989586621681819898"><span class="hs-identifier hs-var">table</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621681819899"><span class="annot"><span class="annottext">FrameIndex
+</span><a href="#local-6989586621681819899"><span class="hs-identifier hs-var">base</span></a></span></span><span> </span><span id="local-6989586621681819900"><span class="annot"><span class="annottext">[Frame]
+</span><a href="#local-6989586621681819900"><span class="hs-identifier hs-var">frames</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-65"></span><span>  </span><span class="annot"><a href="Unison.Runtime.JIT.Frames.html#Table"><span class="hs-identifier hs-type">Table</span></a></span><span> </span><span class="annot"><span class="annottext">FrameIndex
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621681819901"><span class="annot"><span class="annottext">SmallMutableArray (PrimState IO) Frame
+</span><a href="#local-6989586621681819901"><span class="hs-identifier hs-var">arr</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">IORef Table -&gt; IO Table
+forall a. IORef a -&gt; IO a
+</span><span class="hs-identifier hs-var">readIORef</span></span><span> </span><span class="annot"><span class="annottext">IORef Table
+</span><a href="#local-6989586621681819898"><span class="hs-identifier hs-var">table</span></a></span><span>
+</span><span id="line-66"></span><span>  </span><span class="annot"><span class="annottext">[(FrameIndex, Frame)] -&gt; ((FrameIndex, Frame) -&gt; IO ()) -&gt; IO ()
+forall (t :: * -&gt; *) (m :: * -&gt; *) a b.
+(Foldable t, Monad m) =&gt;
+t a -&gt; (a -&gt; m b) -&gt; m ()
+</span><span class="hs-identifier hs-var">forM_</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[FrameIndex] -&gt; [Frame] -&gt; [(FrameIndex, Frame)]
+forall a b. [a] -&gt; [b] -&gt; [(a, b)]
+</span><span class="hs-identifier hs-var">zip</span></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">FrameIndex
+</span><a href="#local-6989586621681819899"><span class="hs-identifier hs-var">base</span></a></span><span> </span><span class="hs-glyph">..</span><span class="hs-special">]</span><span> </span><span class="annot"><span class="annottext">[Frame]
+</span><a href="#local-6989586621681819900"><span class="hs-identifier hs-var">frames</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(((FrameIndex, Frame) -&gt; IO ()) -&gt; IO ())
+-&gt; ((FrameIndex, Frame) -&gt; IO ()) -&gt; IO ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span class="hs-special">(</span><span id="local-6989586621681819902"><span class="annot"><span class="annottext">FrameIndex
+</span><a href="#local-6989586621681819902"><span class="hs-identifier hs-var">i</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681819903"><span class="annot"><span class="annottext">Frame
+</span><a href="#local-6989586621681819903"><span class="hs-identifier hs-var">f</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">SmallMutableArray (PrimState IO) Frame
+-&gt; FrameIndex -&gt; Frame -&gt; IO ()
+forall (m :: * -&gt; *) a.
+PrimMonad m =&gt;
+SmallMutableArray (PrimState m) a -&gt; FrameIndex -&gt; a -&gt; m ()
+</span><span class="hs-identifier hs-var">writeSmallArray</span></span><span> </span><span class="annot"><span class="annottext">SmallMutableArray (PrimState IO) Frame
+</span><a href="#local-6989586621681819901"><span class="hs-identifier hs-var">arr</span></a></span><span> </span><span class="annot"><span class="annottext">FrameIndex
+</span><a href="#local-6989586621681819902"><span class="hs-identifier hs-var">i</span></a></span><span> </span><span class="annot"><span class="annottext">(Frame -&gt; IO ()) -&gt; Frame -&gt; IO ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$!</span></span><span> </span><span class="annot"><span class="annottext">Frame
+</span><a href="#local-6989586621681819903"><span class="hs-identifier hs-var">f</span></a></span><span>
+</span><span id="line-67"></span><span>
+</span><span id="line-68"></span><span class="annot"><a href="Unison.Runtime.JIT.Frames.html#lookupFrame"><span class="hs-identifier hs-type">lookupFrame</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Unison.Runtime.JIT.Frames.html#Frames"><span class="hs-identifier hs-type">Frames</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.Runtime.JIT.Frames.html#FrameIndex"><span class="hs-identifier hs-type">FrameIndex</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="Unison.Runtime.JIT.Frames.html#Frame"><span class="hs-identifier hs-type">Frame</span></a></span><span>
+</span><span id="line-69"></span><span id="lookupFrame"><span class="annot"><span class="annottext">lookupFrame :: Frames -&gt; FrameIndex -&gt; IO Frame
+</span><a href="Unison.Runtime.JIT.Frames.html#lookupFrame"><span class="hs-identifier hs-var hs-var">lookupFrame</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Runtime.JIT.Frames.html#Frames"><span class="hs-identifier hs-type">Frames</span></a></span><span> </span><span id="local-6989586621681819904"><span class="annot"><span class="annottext">IORef Table
+</span><a href="#local-6989586621681819904"><span class="hs-identifier hs-var">table</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621681819905"><span class="annot"><span class="annottext">FrameIndex
+</span><a href="#local-6989586621681819905"><span class="hs-identifier hs-var">i</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-70"></span><span>  </span><span class="annot"><a href="Unison.Runtime.JIT.Frames.html#Table"><span class="hs-identifier hs-type">Table</span></a></span><span> </span><span class="annot"><span class="annottext">FrameIndex
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621681819906"><span class="annot"><span class="annottext">SmallMutableArray (PrimState IO) Frame
+</span><a href="#local-6989586621681819906"><span class="hs-identifier hs-var">arr</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">IORef Table -&gt; IO Table
+forall a. IORef a -&gt; IO a
+</span><span class="hs-identifier hs-var">readIORef</span></span><span> </span><span class="annot"><span class="annottext">IORef Table
+</span><a href="#local-6989586621681819904"><span class="hs-identifier hs-var">table</span></a></span><span>
+</span><span id="line-71"></span><span>  </span><span class="annot"><span class="annottext">SmallMutableArray (PrimState IO) Frame -&gt; FrameIndex -&gt; IO Frame
+forall (m :: * -&gt; *) a.
+PrimMonad m =&gt;
+SmallMutableArray (PrimState m) a -&gt; FrameIndex -&gt; m a
+</span><span class="hs-identifier hs-var">readSmallArray</span></span><span> </span><span class="annot"><span class="annottext">SmallMutableArray (PrimState IO) Frame
+</span><a href="#local-6989586621681819906"><span class="hs-identifier hs-var">arr</span></a></span><span> </span><span class="annot"><span class="annottext">FrameIndex
+</span><a href="#local-6989586621681819905"><span class="hs-identifier hs-var">i</span></a></span><span>
+</span><span id="line-72"></span></pre></body></html>

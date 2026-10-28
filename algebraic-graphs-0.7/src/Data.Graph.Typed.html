@@ -1,0 +1,426 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-comment">-----------------------------------------------------------------------------</span><span>
+</span><span id="line-2"></span><span class="hs-comment">-- |</span><span>
+</span><span id="line-3"></span><span class="hs-comment">-- Module     : Data.Graph.Typed</span><span>
+</span><span id="line-4"></span><span class="hs-comment">-- Copyright  : (c) Anton Lorenzen, Andrey Mokhov 2016-2022</span><span>
+</span><span id="line-5"></span><span class="hs-comment">-- License    : MIT (see the file LICENSE)</span><span>
+</span><span id="line-6"></span><span class="hs-comment">-- Maintainer : anfelor@posteo.de, andrey.mokhov@gmail.com</span><span>
+</span><span id="line-7"></span><span class="hs-comment">-- Stability  : unstable</span><span>
+</span><span id="line-8"></span><span class="hs-comment">--</span><span>
+</span><span id="line-9"></span><span class="hs-comment">-- __Alga__ is a library for algebraic construction and manipulation of graphs</span><span>
+</span><span id="line-10"></span><span class="hs-comment">-- in Haskell. See &lt;https://github.com/snowleopard/alga-paper this paper&gt; for the</span><span>
+</span><span id="line-11"></span><span class="hs-comment">-- motivation behind the library, the underlying theory, and implementation details.</span><span>
+</span><span id="line-12"></span><span class="hs-comment">--</span><span>
+</span><span id="line-13"></span><span class="hs-comment">-- This module provides primitives for interoperability between this library and</span><span>
+</span><span id="line-14"></span><span class="hs-comment">-- the &quot;Data.Graph&quot; module of the containers library. It is for internal use only</span><span>
+</span><span id="line-15"></span><span class="hs-comment">-- and may be removed without notice at any point.</span><span>
+</span><span id="line-16"></span><span class="hs-comment">-----------------------------------------------------------------------------</span><span>
+</span><span id="line-17"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Data.Graph.Typed.html"><span class="hs-identifier">Data.Graph.Typed</span></a></span><span> </span><span class="hs-special">(</span><span>
+</span><span id="line-18"></span><span>    </span><span class="annot"><span class="hs-comment">-- * Data type and construction</span></span><span>
+</span><span id="line-19"></span><span>    </span><span class="annot"><a href="Data.Graph.Typed.html#GraphKL"><span class="hs-identifier">GraphKL</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Graph.Typed.html#fromAdjacencyMap"><span class="hs-identifier">fromAdjacencyMap</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Graph.Typed.html#fromAdjacencyIntMap"><span class="hs-identifier">fromAdjacencyIntMap</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-20"></span><span>
+</span><span id="line-21"></span><span>    </span><span class="annot"><span class="hs-comment">-- * Basic algorithms</span></span><span>
+</span><span id="line-22"></span><span>    </span><span class="annot"><a href="Data.Graph.Typed.html#dfsForest"><span class="hs-identifier">dfsForest</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Graph.Typed.html#dfsForestFrom"><span class="hs-identifier">dfsForestFrom</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Graph.Typed.html#dfs"><span class="hs-identifier">dfs</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Graph.Typed.html#topSort"><span class="hs-identifier">topSort</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.Graph.Typed.html#scc"><span class="hs-identifier">scc</span></a></span><span>
+</span><span id="line-23"></span><span>    </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-24"></span><span>
+</span><span id="line-25"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Tree</span></span><span>
+</span><span id="line-26"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Maybe</span></span><span>
+</span><span id="line-27"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Foldable</span></span><span>
+</span><span id="line-28"></span><span>
+</span><span id="line-29"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Graph</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">KL</span></span><span>
+</span><span id="line-30"></span><span>
+</span><span id="line-31"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Algebra.Graph.AdjacencyMap.html"><span class="hs-identifier">Algebra.Graph.AdjacencyMap</span></a></span><span>          </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">AM</span></span><span>
+</span><span id="line-32"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Algebra.Graph.NonEmpty.AdjacencyMap.html"><span class="hs-identifier">Algebra.Graph.NonEmpty.AdjacencyMap</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">NonEmpty</span></span><span>
+</span><span id="line-33"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Algebra.Graph.AdjacencyIntMap.html"><span class="hs-identifier">Algebra.Graph.AdjacencyIntMap</span></a></span><span>       </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">AIM</span></span><span>
+</span><span id="line-34"></span><span>
+</span><span id="line-35"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Map.Strict</span></span><span>                     </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Map</span></span><span>
+</span><span id="line-36"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Set</span></span><span>                            </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Set</span></span><span>
+</span><span id="line-37"></span><span>
+</span><span id="line-38"></span><span class="hs-comment">-- | 'GraphKL' encapsulates King-Launchbury graphs, which are implemented in</span><span>
+</span><span id="line-39"></span><span class="hs-comment">-- the &quot;Data.Graph&quot; module of the @containers@ library.</span><span>
+</span><span id="line-40"></span><span class="hs-keyword">data</span><span> </span><span id="GraphKL"><span class="annot"><a href="Data.Graph.Typed.html#GraphKL"><span class="hs-identifier hs-var">GraphKL</span></a></span></span><span> </span><span id="local-6989586621679168126"><span class="annot"><a href="#local-6989586621679168126"><span class="hs-identifier hs-type">a</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="GraphKL"><span class="annot"><a href="Data.Graph.Typed.html#GraphKL"><span class="hs-identifier hs-var">GraphKL</span></a></span></span><span> </span><span class="hs-special">{</span><span>
+</span><span id="line-41"></span><span>    </span><span class="annot"><span class="hs-comment">-- | Array-based graph representation (King and Launchbury, 1995).</span></span><span>
+</span><span id="line-42"></span><span>    </span><span id="toGraphKL"><span class="annot"><span class="annottext">forall a. GraphKL a -&gt; Graph
+</span><a href="Data.Graph.Typed.html#toGraphKL"><span class="hs-identifier hs-var hs-var">toGraphKL</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">KL.Graph</span></span><span class="hs-special">,</span><span>
+</span><span id="line-43"></span><span>    </span><span class="hs-comment">-- | A mapping of &quot;Data.Graph.Vertex&quot; to vertices of type @a@.</span><span>
+</span><span id="line-44"></span><span>    </span><span class="hs-comment">-- This is partial and may fail if the vertex is out of bounds.</span><span>
+</span><span id="line-45"></span><span>    </span><span id="fromVertexKL"><span class="annot"><span class="annottext">forall a. GraphKL a -&gt; Int -&gt; a
+</span><a href="Data.Graph.Typed.html#fromVertexKL"><span class="hs-identifier hs-var hs-var">fromVertexKL</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">KL.Vertex</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679168126"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-46"></span><span>    </span><span class="hs-comment">-- | A mapping from vertices of type @a@ to &quot;Data.Graph.Vertex&quot;.</span><span>
+</span><span id="line-47"></span><span>    </span><span class="hs-comment">-- Returns 'Nothing' if the argument is not in the graph.</span><span>
+</span><span id="line-48"></span><span>    </span><span id="toVertexKL"><span class="annot"><span class="annottext">forall a. GraphKL a -&gt; a -&gt; Maybe Int
+</span><a href="Data.Graph.Typed.html#toVertexKL"><span class="hs-identifier hs-var hs-var">toVertexKL</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="#local-6989586621679168126"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">KL.Vertex</span></span><span> </span><span class="hs-special">}</span><span>
+</span><span id="line-49"></span><span>
+</span><span id="line-50"></span><span class="hs-comment">-- | Build 'GraphKL' from an 'AM.AdjacencyMap'. If @fromAdjacencyMap g == h@</span><span>
+</span><span id="line-51"></span><span class="hs-comment">-- then the following holds:</span><span>
+</span><span id="line-52"></span><span class="hs-comment">--</span><span>
+</span><span id="line-53"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-54"></span><span class="hs-comment">-- map ('fromVertexKL' h) ('Data.Graph.vertices' $ 'toGraphKL' h)                               == 'AM.vertexList' g</span><span>
+</span><span id="line-55"></span><span class="hs-comment">-- map (\\(x, y) -&gt; ('fromVertexKL' h x, 'fromVertexKL' h y)) ('Data.Graph.edges' $ 'toGraphKL' h) == 'AM.edgeList' g</span><span>
+</span><span id="line-56"></span><span class="hs-comment">-- 'toGraphKL' (fromAdjacencyMap (1 * 2 + 3 * 1))                                == 'array' (0,2) [(0,[1]), (1,[]), (2,[0])]</span><span>
+</span><span id="line-57"></span><span class="hs-comment">-- 'toGraphKL' (fromAdjacencyMap (1 * 2 + 2 * 1))                                == 'array' (0,1) [(0,[1]), (1,[0])]</span><span>
+</span><span id="line-58"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-59"></span><span id="local-6989586621679168132"><span class="annot"><a href="Data.Graph.Typed.html#fromAdjacencyMap"><span class="hs-identifier hs-type">fromAdjacencyMap</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ord</span></span><span> </span><span class="annot"><a href="#local-6989586621679168132"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Algebra.Graph.AdjacencyMap.html#AdjacencyMap"><span class="hs-identifier hs-type">AM.AdjacencyMap</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679168132"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Data.Graph.Typed.html#GraphKL"><span class="hs-identifier hs-type">GraphKL</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679168132"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-60"></span><span id="fromAdjacencyMap"><span class="annot"><span class="annottext">fromAdjacencyMap :: forall a. Ord a =&gt; AdjacencyMap a -&gt; GraphKL a
+</span><a href="Data.Graph.Typed.html#fromAdjacencyMap"><span class="hs-identifier hs-var hs-var">fromAdjacencyMap</span></a></span></span><span> </span><span id="local-6989586621679168210"><span class="annot"><span class="annottext">AdjacencyMap a
+</span><a href="#local-6989586621679168210"><span class="hs-identifier hs-var">am</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="Data.Graph.Typed.html#GraphKL"><span class="hs-identifier hs-type">GraphKL</span></a></span><span>
+</span><span id="line-61"></span><span>    </span><span class="hs-special">{</span><span> </span><span class="annot"><span class="annottext">toGraphKL :: Graph
+</span><a href="Data.Graph.Typed.html#toGraphKL"><span class="hs-identifier hs-var">toGraphKL</span></a></span><span>    </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Graph
+</span><a href="#local-6989586621679168211"><span class="hs-identifier hs-var">g</span></a></span><span>
+</span><span id="line-62"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">fromVertexKL :: Int -&gt; a
+</span><a href="Data.Graph.Typed.html#fromVertexKL"><span class="hs-identifier hs-var">fromVertexKL</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679168212"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679168212"><span class="hs-identifier hs-var">u</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Int -&gt; ((), a, [a])
+</span><a href="#local-6989586621679168213"><span class="hs-identifier hs-var">r</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679168212"><span class="hs-identifier hs-var">u</span></a></span><span> </span><span class="hs-keyword">of</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">()
+</span><span class="hs-identifier">_</span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679168214"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679168214"><span class="hs-identifier hs-var">v</span></a></span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">[a]
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679168214"><span class="hs-identifier hs-var">v</span></a></span><span>
+</span><span id="line-63"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">toVertexKL :: a -&gt; Maybe Int
+</span><a href="Data.Graph.Typed.html#toVertexKL"><span class="hs-identifier hs-var">toVertexKL</span></a></span><span>   </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">a -&gt; Maybe Int
+</span><a href="#local-6989586621679168215"><span class="hs-identifier hs-var">t</span></a></span><span> </span><span class="hs-special">}</span><span>
+</span><span id="line-64"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-65"></span><span>    </span><span class="hs-special">(</span><span id="local-6989586621679168211"><span class="annot"><span class="annottext">Graph
+</span><a href="#local-6989586621679168211"><span class="hs-identifier hs-var">g</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679168213"><span class="annot"><span class="annottext">Int -&gt; ((), a, [a])
+</span><a href="#local-6989586621679168213"><span class="hs-identifier hs-var">r</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679168215"><span class="annot"><span class="annottext">a -&gt; Maybe Int
+</span><a href="#local-6989586621679168215"><span class="hs-identifier hs-var">t</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[((), a, [a])] -&gt; (Graph, Int -&gt; ((), a, [a]), a -&gt; Maybe Int)
+forall key node.
+Ord key =&gt;
+[(node, key, [key])]
+-&gt; (Graph, Int -&gt; (node, key, [key]), key -&gt; Maybe Int)
+</span><span class="hs-identifier hs-var">KL.graphFromEdges</span></span><span> </span><span class="hs-special">[</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679168217"><span class="hs-identifier hs-var">x</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679168218"><span class="hs-identifier hs-var">ys</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">|</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679168217"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679168217"><span class="hs-identifier hs-var">x</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679168218"><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679168218"><span class="hs-identifier hs-var">ys</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">AdjacencyMap a -&gt; [(a, [a])]
+forall a. AdjacencyMap a -&gt; [(a, [a])]
+</span><a href="Algebra.Graph.AdjacencyMap.html#adjacencyList"><span class="hs-identifier hs-var">AM.adjacencyList</span></a></span><span> </span><span class="annot"><span class="annottext">AdjacencyMap a
+</span><a href="#local-6989586621679168210"><span class="hs-identifier hs-var">am</span></a></span><span> </span><span class="hs-special">]</span><span>
+</span><span id="line-66"></span><span>
+</span><span id="line-67"></span><span class="hs-comment">-- | Build 'GraphKL' from an 'AIM.AdjacencyIntMap'. If</span><span>
+</span><span id="line-68"></span><span class="hs-comment">-- @fromAdjacencyIntMap g == h@ then the following holds:</span><span>
+</span><span id="line-69"></span><span class="hs-comment">--</span><span>
+</span><span id="line-70"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-71"></span><span class="hs-comment">-- map ('fromVertexKL' h) ('Data.Graph.vertices' $ 'toGraphKL' h)                               == 'Data.IntSet.toAscList' ('Algebra.Graph.AdjacencyIntMap.vertexIntSet' g)</span><span>
+</span><span id="line-72"></span><span class="hs-comment">-- map (\\(x, y) -&gt; ('fromVertexKL' h x, 'fromVertexKL' h y)) ('Data.Graph.edges' $ 'toGraphKL' h) == 'Algebra.Graph.AdjacencyIntMap.edgeList' g</span><span>
+</span><span id="line-73"></span><span class="hs-comment">-- 'toGraphKL' (fromAdjacencyIntMap (1 * 2 + 3 * 1))                             == 'array' (0,2) [(0,[1]), (1,[]), (2,[0])]</span><span>
+</span><span id="line-74"></span><span class="hs-comment">-- 'toGraphKL' (fromAdjacencyIntMap (1 * 2 + 2 * 1))                             == 'array' (0,1) [(0,[1]), (1,[0])]</span><span>
+</span><span id="line-75"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-76"></span><span class="annot"><a href="Data.Graph.Typed.html#fromAdjacencyIntMap"><span class="hs-identifier hs-type">fromAdjacencyIntMap</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Algebra.Graph.AdjacencyIntMap.html#AdjacencyIntMap"><span class="hs-identifier hs-type">AIM.AdjacencyIntMap</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Data.Graph.Typed.html#GraphKL"><span class="hs-identifier hs-type">GraphKL</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>
+</span><span id="line-77"></span><span id="fromAdjacencyIntMap"><span class="annot"><span class="annottext">fromAdjacencyIntMap :: AdjacencyIntMap -&gt; GraphKL Int
+</span><a href="Data.Graph.Typed.html#fromAdjacencyIntMap"><span class="hs-identifier hs-var hs-var">fromAdjacencyIntMap</span></a></span></span><span> </span><span id="local-6989586621679168220"><span class="annot"><span class="annottext">AdjacencyIntMap
+</span><a href="#local-6989586621679168220"><span class="hs-identifier hs-var">aim</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="Data.Graph.Typed.html#GraphKL"><span class="hs-identifier hs-type">GraphKL</span></a></span><span>
+</span><span id="line-78"></span><span>    </span><span class="hs-special">{</span><span> </span><span class="annot"><span class="annottext">toGraphKL :: Graph
+</span><a href="Data.Graph.Typed.html#toGraphKL"><span class="hs-identifier hs-var">toGraphKL</span></a></span><span>    </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Graph
+</span><a href="#local-6989586621679168221"><span class="hs-identifier hs-var">g</span></a></span><span>
+</span><span id="line-79"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">fromVertexKL :: Int -&gt; Int
+</span><a href="Data.Graph.Typed.html#fromVertexKL"><span class="hs-identifier hs-var">fromVertexKL</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679168222"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679168222"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Int -&gt; ((), Int, [Int])
+</span><a href="#local-6989586621679168223"><span class="hs-identifier hs-var">r</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679168222"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="hs-keyword">of</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">()
+</span><span class="hs-identifier">_</span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679168224"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679168224"><span class="hs-identifier hs-var">v</span></a></span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">[Int]
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679168224"><span class="hs-identifier hs-var">v</span></a></span><span>
+</span><span id="line-80"></span><span>    </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">toVertexKL :: Int -&gt; Maybe Int
+</span><a href="Data.Graph.Typed.html#toVertexKL"><span class="hs-identifier hs-var">toVertexKL</span></a></span><span>   </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Maybe Int
+</span><a href="#local-6989586621679168225"><span class="hs-identifier hs-var">t</span></a></span><span> </span><span class="hs-special">}</span><span>
+</span><span id="line-81"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-82"></span><span>    </span><span class="hs-special">(</span><span id="local-6989586621679168221"><span class="annot"><span class="annottext">Graph
+</span><a href="#local-6989586621679168221"><span class="hs-identifier hs-var">g</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679168223"><span class="annot"><span class="annottext">Int -&gt; ((), Int, [Int])
+</span><a href="#local-6989586621679168223"><span class="hs-identifier hs-var">r</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679168225"><span class="annot"><span class="annottext">Int -&gt; Maybe Int
+</span><a href="#local-6989586621679168225"><span class="hs-identifier hs-var">t</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[((), Int, [Int])]
+-&gt; (Graph, Int -&gt; ((), Int, [Int]), Int -&gt; Maybe Int)
+forall key node.
+Ord key =&gt;
+[(node, key, [key])]
+-&gt; (Graph, Int -&gt; (node, key, [key]), key -&gt; Maybe Int)
+</span><span class="hs-identifier hs-var">KL.graphFromEdges</span></span><span> </span><span class="hs-special">[</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679168226"><span class="hs-identifier hs-var">x</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">[Int]
+</span><a href="#local-6989586621679168227"><span class="hs-identifier hs-var">ys</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">|</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679168226"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679168226"><span class="hs-identifier hs-var">x</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679168227"><span class="annot"><span class="annottext">[Int]
+</span><a href="#local-6989586621679168227"><span class="hs-identifier hs-var">ys</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">AdjacencyIntMap -&gt; [(Int, [Int])]
+</span><a href="Algebra.Graph.AdjacencyIntMap.html#adjacencyList"><span class="hs-identifier hs-var">AIM.adjacencyList</span></a></span><span> </span><span class="annot"><span class="annottext">AdjacencyIntMap
+</span><a href="#local-6989586621679168220"><span class="hs-identifier hs-var">aim</span></a></span><span> </span><span class="hs-special">]</span><span>
+</span><span id="line-83"></span><span>
+</span><span id="line-84"></span><span class="hs-comment">-- | Compute the /depth-first search/ forest of a graph.</span><span>
+</span><span id="line-85"></span><span class="hs-comment">--</span><span>
+</span><span id="line-86"></span><span class="hs-comment">-- In the following examples we will use the helper function:</span><span>
+</span><span id="line-87"></span><span class="hs-comment">--</span><span>
+</span><span id="line-88"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-89"></span><span class="hs-comment">-- (%) :: Ord a =&gt; ('GraphKL' a -&gt; b) -&gt; 'AM.AdjacencyMap' a -&gt; b</span><span>
+</span><span id="line-90"></span><span class="hs-comment">-- f % x = f ('fromAdjacencyMap' x)</span><span>
+</span><span id="line-91"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-92"></span><span class="hs-comment">--</span><span>
+</span><span id="line-93"></span><span class="hs-comment">-- for greater clarity.</span><span>
+</span><span id="line-94"></span><span class="hs-comment">--</span><span>
+</span><span id="line-95"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-96"></span><span class="hs-comment">-- 'AM.forest' (dfsForest % 'AM.edge' 1 1)           == 'AM.vertex' 1</span><span>
+</span><span id="line-97"></span><span class="hs-comment">-- 'AM.forest' (dfsForest % 'AM.edge' 1 2)           == 'AM.edge' 1 2</span><span>
+</span><span id="line-98"></span><span class="hs-comment">-- 'AM.forest' (dfsForest % 'AM.edge' 2 1)           == 'AM.vertices' [1,2]</span><span>
+</span><span id="line-99"></span><span class="hs-comment">-- 'AM.isSubgraphOf' ('AM.forest' $ dfsForest % x) x == True</span><span>
+</span><span id="line-100"></span><span class="hs-comment">-- dfsForest % 'AM.forest' (dfsForest % x)      == dfsForest % x</span><span>
+</span><span id="line-101"></span><span class="hs-comment">-- dfsForest % 'AM.vertices' vs                 == 'map' (\\v -&gt; Node v []) ('Data.List.nub' $ 'Data.List.sort' vs)</span><span>
+</span><span id="line-102"></span><span class="hs-comment">-- dfsForest % (3 * (1 + 4) * (1 + 5))     == [ Node { rootLabel = 1</span><span>
+</span><span id="line-103"></span><span class="hs-comment">--                                                   , subForest = [ Node { rootLabel = 5</span><span>
+</span><span id="line-104"></span><span class="hs-comment">--                                                                        , subForest = [] }]}</span><span>
+</span><span id="line-105"></span><span class="hs-comment">--                                            , Node { rootLabel = 3</span><span>
+</span><span id="line-106"></span><span class="hs-comment">--                                                   , subForest = [ Node { rootLabel = 4</span><span>
+</span><span id="line-107"></span><span class="hs-comment">--                                                                        , subForest = [] }]}]</span><span>
+</span><span id="line-108"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-109"></span><span id="local-6989586621679168139"><span class="annot"><a href="Data.Graph.Typed.html#dfsForest"><span class="hs-identifier hs-type">dfsForest</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Data.Graph.Typed.html#GraphKL"><span class="hs-identifier hs-type">GraphKL</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679168139"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Forest</span></span><span> </span><span class="annot"><a href="#local-6989586621679168139"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-110"></span><span id="dfsForest"><span class="annot"><span class="annottext">dfsForest :: forall a. GraphKL a -&gt; Forest a
+</span><a href="Data.Graph.Typed.html#dfsForest"><span class="hs-identifier hs-var hs-var">dfsForest</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Graph.Typed.html#GraphKL"><span class="hs-identifier hs-type">GraphKL</span></a></span><span> </span><span id="local-6989586621679168238"><span class="annot"><span class="annottext">Graph
+</span><a href="#local-6989586621679168238"><span class="hs-identifier hs-var">g</span></a></span></span><span> </span><span id="local-6989586621679168239"><span class="annot"><span class="annottext">Int -&gt; a
+</span><a href="#local-6989586621679168239"><span class="hs-identifier hs-var">r</span></a></span></span><span> </span><span class="annot"><span class="annottext">a -&gt; Maybe Int
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Tree Int -&gt; Tree a) -&gt; [Tree Int] -&gt; [Tree a]
+forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(Int -&gt; a) -&gt; Tree Int -&gt; Tree a
+forall a b. (a -&gt; b) -&gt; Tree a -&gt; Tree b
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; a
+</span><a href="#local-6989586621679168239"><span class="hs-identifier hs-var">r</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Graph -&gt; [Tree Int]
+</span><span class="hs-identifier hs-var">KL.dff</span></span><span> </span><span class="annot"><span class="annottext">Graph
+</span><a href="#local-6989586621679168238"><span class="hs-identifier hs-var">g</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-111"></span><span>
+</span><span id="line-112"></span><span class="hs-comment">-- | Compute the /depth-first search/ forest of a graph, searching from each of</span><span>
+</span><span id="line-113"></span><span class="hs-comment">-- the given vertices in order. Note that the resulting forest does not</span><span>
+</span><span id="line-114"></span><span class="hs-comment">-- necessarily span the whole graph, as some vertices may be unreachable.</span><span>
+</span><span id="line-115"></span><span class="hs-comment">--</span><span>
+</span><span id="line-116"></span><span class="hs-comment">-- In the following examples we will use the helper function:</span><span>
+</span><span id="line-117"></span><span class="hs-comment">--</span><span>
+</span><span id="line-118"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-119"></span><span class="hs-comment">-- (%) :: Ord a =&gt; ('GraphKL' a -&gt; b) -&gt; 'AM.AdjacencyMap' a -&gt; b</span><span>
+</span><span id="line-120"></span><span class="hs-comment">-- f % x = f ('fromAdjacencyMap' x)</span><span>
+</span><span id="line-121"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-122"></span><span class="hs-comment">--</span><span>
+</span><span id="line-123"></span><span class="hs-comment">-- for greater clarity.</span><span>
+</span><span id="line-124"></span><span class="hs-comment">--</span><span>
+</span><span id="line-125"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-126"></span><span class="hs-comment">-- 'AM.forest' $ (dfsForestFrom % 'AM.edge' 1 1) [1]          == 'AM.vertex' 1</span><span>
+</span><span id="line-127"></span><span class="hs-comment">-- 'AM.forest' $ (dfsForestFrom % 'AM.edge' 1 2) [0]          == 'AM.empty'</span><span>
+</span><span id="line-128"></span><span class="hs-comment">-- 'AM.forest' $ (dfsForestFrom % 'AM.edge' 1 2) [1]          == 'AM.edge' 1 2</span><span>
+</span><span id="line-129"></span><span class="hs-comment">-- 'AM.forest' $ (dfsForestFrom % 'AM.edge' 1 2) [2]          == 'AM.vertex' 2</span><span>
+</span><span id="line-130"></span><span class="hs-comment">-- 'AM.forest' $ (dfsForestFrom % 'AM.edge' 1 2) [2,1]        == 'AM.vertices' [1,2]</span><span>
+</span><span id="line-131"></span><span class="hs-comment">-- 'AM.isSubgraphOf' ('AM.forest' $ dfsForestFrom % x $ vs) x == True</span><span>
+</span><span id="line-132"></span><span class="hs-comment">-- dfsForestFrom % x $ 'AM.vertexList' x                 == 'dfsForest' % x</span><span>
+</span><span id="line-133"></span><span class="hs-comment">-- dfsForestFrom % 'AM.vertices' vs $ vs                 == 'map' (\\v -&gt; Node v []) ('Data.List.nub' vs)</span><span>
+</span><span id="line-134"></span><span class="hs-comment">-- dfsForestFrom % x $ []                           == []</span><span>
+</span><span id="line-135"></span><span class="hs-comment">-- dfsForestFrom % (3 * (1 + 4) * (1 + 5)) $ [1,4]  == [ Node { rootLabel = 1</span><span>
+</span><span id="line-136"></span><span class="hs-comment">--                                                            , subForest = [ Node { rootLabel = 5</span><span>
+</span><span id="line-137"></span><span class="hs-comment">--                                                                                 , subForest = [] }</span><span>
+</span><span id="line-138"></span><span class="hs-comment">--                                                     , Node { rootLabel = 4</span><span>
+</span><span id="line-139"></span><span class="hs-comment">--                                                            , subForest = [] }]</span><span>
+</span><span id="line-140"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-141"></span><span id="local-6989586621679168146"><span class="annot"><a href="Data.Graph.Typed.html#dfsForestFrom"><span class="hs-identifier hs-type">dfsForestFrom</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Data.Graph.Typed.html#GraphKL"><span class="hs-identifier hs-type">GraphKL</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679168146"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="#local-6989586621679168146"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Forest</span></span><span> </span><span class="annot"><a href="#local-6989586621679168146"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-142"></span><span id="dfsForestFrom"><span class="annot"><span class="annottext">dfsForestFrom :: forall a. GraphKL a -&gt; [a] -&gt; Forest a
+</span><a href="Data.Graph.Typed.html#dfsForestFrom"><span class="hs-identifier hs-var hs-var">dfsForestFrom</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Graph.Typed.html#GraphKL"><span class="hs-identifier hs-type">GraphKL</span></a></span><span> </span><span id="local-6989586621679168244"><span class="annot"><span class="annottext">Graph
+</span><a href="#local-6989586621679168244"><span class="hs-identifier hs-var">g</span></a></span></span><span> </span><span id="local-6989586621679168245"><span class="annot"><span class="annottext">Int -&gt; a
+</span><a href="#local-6989586621679168245"><span class="hs-identifier hs-var">r</span></a></span></span><span> </span><span id="local-6989586621679168246"><span class="annot"><span class="annottext">a -&gt; Maybe Int
+</span><a href="#local-6989586621679168246"><span class="hs-identifier hs-var">t</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Tree Int -&gt; Tree a) -&gt; [Tree Int] -&gt; [Tree a]
+forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(Int -&gt; a) -&gt; Tree Int -&gt; Tree a
+forall a b. (a -&gt; b) -&gt; Tree a -&gt; Tree b
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; a
+</span><a href="#local-6989586621679168245"><span class="hs-identifier hs-var">r</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">([Tree Int] -&gt; [Tree a]) -&gt; ([a] -&gt; [Tree Int]) -&gt; [a] -&gt; [Tree a]
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Graph -&gt; [Int] -&gt; [Tree Int]
+</span><span class="hs-identifier hs-var">KL.dfs</span></span><span> </span><span class="annot"><span class="annottext">Graph
+</span><a href="#local-6989586621679168244"><span class="hs-identifier hs-var">g</span></a></span><span> </span><span class="annot"><span class="annottext">([Int] -&gt; [Tree Int]) -&gt; ([a] -&gt; [Int]) -&gt; [a] -&gt; [Tree Int]
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">(a -&gt; Maybe Int) -&gt; [a] -&gt; [Int]
+forall a b. (a -&gt; Maybe b) -&gt; [a] -&gt; [b]
+</span><span class="hs-identifier hs-var">mapMaybe</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; Maybe Int
+</span><a href="#local-6989586621679168246"><span class="hs-identifier hs-var">t</span></a></span><span>
+</span><span id="line-143"></span><span>
+</span><span id="line-144"></span><span class="hs-comment">-- | Compute the list of vertices visited by the /depth-first search/ in a</span><span>
+</span><span id="line-145"></span><span class="hs-comment">-- graph, when searching from each of the given vertices in order.</span><span>
+</span><span id="line-146"></span><span class="hs-comment">--</span><span>
+</span><span id="line-147"></span><span class="hs-comment">-- In the following examples we will use the helper function:</span><span>
+</span><span id="line-148"></span><span class="hs-comment">--</span><span>
+</span><span id="line-149"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-150"></span><span class="hs-comment">-- (%) :: Ord a =&gt; ('GraphKL' a -&gt; b) -&gt; 'AM.AdjacencyMap' a -&gt; b</span><span>
+</span><span id="line-151"></span><span class="hs-comment">-- f % x = f ('fromAdjacencyMap' x)</span><span>
+</span><span id="line-152"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-153"></span><span class="hs-comment">--</span><span>
+</span><span id="line-154"></span><span class="hs-comment">-- for greater clarity.</span><span>
+</span><span id="line-155"></span><span class="hs-comment">--</span><span>
+</span><span id="line-156"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-157"></span><span class="hs-comment">-- dfs % 'AM.edge' 1 1 $ [1]   == [1]</span><span>
+</span><span id="line-158"></span><span class="hs-comment">-- dfs % 'AM.edge' 1 2 $ [0]   == []</span><span>
+</span><span id="line-159"></span><span class="hs-comment">-- dfs % 'AM.edge' 1 2 $ [1]   == [1,2]</span><span>
+</span><span id="line-160"></span><span class="hs-comment">-- dfs % 'AM.edge' 1 2 $ [2]   == [2]</span><span>
+</span><span id="line-161"></span><span class="hs-comment">-- dfs % 'AM.edge' 1 2 $ [1,2] == [1,2]</span><span>
+</span><span id="line-162"></span><span class="hs-comment">-- dfs % 'AM.edge' 1 2 $ [2,1] == [2,1]</span><span>
+</span><span id="line-163"></span><span class="hs-comment">-- dfs % x        $ []    == []</span><span>
+</span><span id="line-164"></span><span class="hs-comment">--</span><span>
+</span><span id="line-165"></span><span class="hs-comment">-- dfs % (3 * (1 + 4) * (1 + 5)) $ [1,4]     == [1,5,4]</span><span>
+</span><span id="line-166"></span><span class="hs-comment">-- 'Data.List.and' [ 'AM.hasVertex' v x | v &lt;- dfs % x $ vs ] == True</span><span>
+</span><span id="line-167"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-168"></span><span id="local-6989586621679168153"><span class="annot"><a href="Data.Graph.Typed.html#dfs"><span class="hs-identifier hs-type">dfs</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Data.Graph.Typed.html#GraphKL"><span class="hs-identifier hs-type">GraphKL</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679168153"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="#local-6989586621679168153"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="#local-6989586621679168153"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">]</span></span><span>
+</span><span id="line-169"></span><span id="dfs"><span class="annot"><span class="annottext">dfs :: forall a. GraphKL a -&gt; [a] -&gt; [a]
+</span><a href="Data.Graph.Typed.html#dfs"><span class="hs-identifier hs-var hs-var">dfs</span></a></span></span><span> </span><span id="local-6989586621679168253"><span class="annot"><span class="annottext">GraphKL a
+</span><a href="#local-6989586621679168253"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Tree a -&gt; [a]) -&gt; [Tree a] -&gt; [a]
+forall (t :: * -&gt; *) a b. Foldable t =&gt; (a -&gt; [b]) -&gt; t a -&gt; [b]
+</span><span class="hs-identifier hs-var">concatMap</span></span><span> </span><span class="annot"><span class="annottext">Tree a -&gt; [a]
+forall a. Tree a -&gt; [a]
+</span><span class="hs-identifier hs-var">flatten</span></span><span> </span><span class="annot"><span class="annottext">([Tree a] -&gt; [a]) -&gt; ([a] -&gt; [Tree a]) -&gt; [a] -&gt; [a]
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">GraphKL a -&gt; [a] -&gt; [Tree a]
+forall a. GraphKL a -&gt; [a] -&gt; Forest a
+</span><a href="Data.Graph.Typed.html#dfsForestFrom"><span class="hs-identifier hs-var">dfsForestFrom</span></a></span><span> </span><span class="annot"><span class="annottext">GraphKL a
+</span><a href="#local-6989586621679168253"><span class="hs-identifier hs-var">x</span></a></span><span>
+</span><span id="line-170"></span><span>
+</span><span id="line-171"></span><span class="hs-comment">-- | Compute the /topological sort/ of a graph. Note that this function returns</span><span>
+</span><span id="line-172"></span><span class="hs-comment">-- a result even if the graph is cyclic.</span><span>
+</span><span id="line-173"></span><span class="hs-comment">--</span><span>
+</span><span id="line-174"></span><span class="hs-comment">-- In the following examples we will use the helper function:</span><span>
+</span><span id="line-175"></span><span class="hs-comment">--</span><span>
+</span><span id="line-176"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-177"></span><span class="hs-comment">-- (%) :: Ord a =&gt; ('GraphKL' a -&gt; b) -&gt; 'AM.AdjacencyMap' a -&gt; b</span><span>
+</span><span id="line-178"></span><span class="hs-comment">-- f % x = f ('fromAdjacencyMap' x)</span><span>
+</span><span id="line-179"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-180"></span><span class="hs-comment">--</span><span>
+</span><span id="line-181"></span><span class="hs-comment">-- for greater clarity.</span><span>
+</span><span id="line-182"></span><span class="hs-comment">--</span><span>
+</span><span id="line-183"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-184"></span><span class="hs-comment">-- topSort % (1 * 2 + 3 * 1) == [3,1,2]</span><span>
+</span><span id="line-185"></span><span class="hs-comment">-- topSort % (1 * 2 + 2 * 1) == [1,2]</span><span>
+</span><span id="line-186"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-187"></span><span id="local-6989586621679168159"><span class="annot"><a href="Data.Graph.Typed.html#topSort"><span class="hs-identifier hs-type">topSort</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Data.Graph.Typed.html#GraphKL"><span class="hs-identifier hs-type">GraphKL</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679168159"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="#local-6989586621679168159"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">]</span></span><span>
+</span><span id="line-188"></span><span id="topSort"><span class="annot"><span class="annottext">topSort :: forall a. GraphKL a -&gt; [a]
+</span><a href="Data.Graph.Typed.html#topSort"><span class="hs-identifier hs-var hs-var">topSort</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Graph.Typed.html#GraphKL"><span class="hs-identifier hs-type">GraphKL</span></a></span><span> </span><span id="local-6989586621679168256"><span class="annot"><span class="annottext">Graph
+</span><a href="#local-6989586621679168256"><span class="hs-identifier hs-var">g</span></a></span></span><span> </span><span id="local-6989586621679168257"><span class="annot"><span class="annottext">Int -&gt; a
+</span><a href="#local-6989586621679168257"><span class="hs-identifier hs-var">r</span></a></span></span><span> </span><span class="annot"><span class="annottext">a -&gt; Maybe Int
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Int -&gt; a) -&gt; [Int] -&gt; [a]
+forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+</span><span class="hs-identifier hs-var">map</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; a
+</span><a href="#local-6989586621679168257"><span class="hs-identifier hs-var">r</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Graph -&gt; [Int]
+</span><span class="hs-identifier hs-var">KL.topSort</span></span><span> </span><span class="annot"><span class="annottext">Graph
+</span><a href="#local-6989586621679168256"><span class="hs-identifier hs-var">g</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-189"></span><span>
+</span><span id="line-190"></span><span class="hs-comment">-- TODO: Add docs and tests.</span><span>
+</span><span id="line-191"></span><span id="local-6989586621679168161"><span class="annot"><a href="Data.Graph.Typed.html#scc"><span class="hs-identifier hs-type">scc</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ord</span></span><span> </span><span class="annot"><a href="#local-6989586621679168161"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Algebra.Graph.AdjacencyMap.html#AdjacencyMap"><span class="hs-identifier hs-type">AM.AdjacencyMap</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679168161"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Algebra.Graph.AdjacencyMap.html#AdjacencyMap"><span class="hs-identifier hs-type">AM.AdjacencyMap</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Algebra.Graph.NonEmpty.AdjacencyMap.html#AdjacencyMap"><span class="hs-identifier hs-type">NonEmpty.AdjacencyMap</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679168161"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span><span>
+</span><span id="line-192"></span><span id="scc"><span class="annot"><span class="annottext">scc :: forall a. Ord a =&gt; AdjacencyMap a -&gt; AdjacencyMap (AdjacencyMap a)
+</span><a href="Data.Graph.Typed.html#scc"><span class="hs-identifier hs-var hs-var">scc</span></a></span></span><span> </span><span id="local-6989586621679168277"><span class="annot"><span class="annottext">AdjacencyMap a
+</span><a href="#local-6989586621679168277"><span class="hs-identifier hs-var">m</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Int -&gt; AdjacencyMap a)
+-&gt; AdjacencyMap Int -&gt; AdjacencyMap (AdjacencyMap a)
+forall a b.
+(Ord a, Ord b) =&gt;
+(a -&gt; b) -&gt; AdjacencyMap a -&gt; AdjacencyMap b
+</span><a href="Algebra.Graph.AdjacencyMap.html#gmap"><span class="hs-identifier hs-var">AM.gmap</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Map Int (AdjacencyMap a)
+</span><a href="#local-6989586621679168279"><span class="hs-identifier hs-var">component</span></a></span><span> </span><span class="annot"><span class="annottext">Map Int (AdjacencyMap a) -&gt; Int -&gt; AdjacencyMap a
+forall k a. Ord k =&gt; Map k a -&gt; k -&gt; a
+</span><span class="hs-operator hs-var">Map.!</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(AdjacencyMap Int -&gt; AdjacencyMap (AdjacencyMap a))
+-&gt; AdjacencyMap Int -&gt; AdjacencyMap (AdjacencyMap a)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">AdjacencyMap Int -&gt; AdjacencyMap Int
+forall a. Ord a =&gt; AdjacencyMap a -&gt; AdjacencyMap a
+</span><a href="Data.Graph.Typed.html#removeSelfLoops"><span class="hs-identifier hs-var">removeSelfLoops</span></a></span><span> </span><span class="annot"><span class="annottext">(AdjacencyMap Int -&gt; AdjacencyMap Int)
+-&gt; AdjacencyMap Int -&gt; AdjacencyMap Int
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">(a -&gt; Int) -&gt; AdjacencyMap a -&gt; AdjacencyMap Int
+forall a b.
+(Ord a, Ord b) =&gt;
+(a -&gt; b) -&gt; AdjacencyMap a -&gt; AdjacencyMap b
+</span><a href="Algebra.Graph.AdjacencyMap.html#gmap"><span class="hs-identifier hs-var">AM.gmap</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Map a Int
+</span><a href="#local-6989586621679168282"><span class="hs-identifier hs-var">leader</span></a></span><span> </span><span class="annot"><span class="annottext">Map a Int -&gt; a -&gt; Int
+forall k a. Ord k =&gt; Map k a -&gt; k -&gt; a
+</span><span class="hs-operator hs-var">Map.!</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">AdjacencyMap a
+</span><a href="#local-6989586621679168277"><span class="hs-identifier hs-var">m</span></a></span><span>
+</span><span id="line-193"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-194"></span><span>    </span><span class="annot"><a href="Data.Graph.Typed.html#GraphKL"><span class="hs-identifier hs-type">GraphKL</span></a></span><span> </span><span id="local-6989586621679168283"><span class="annot"><span class="annottext">Graph
+</span><a href="#local-6989586621679168283"><span class="hs-identifier hs-var">g</span></a></span></span><span> </span><span id="local-6989586621679168284"><span class="annot"><span class="annottext">Int -&gt; a
+</span><a href="#local-6989586621679168284"><span class="hs-identifier hs-var">decode</span></a></span></span><span> </span><span class="annot"><span class="annottext">a -&gt; Maybe Int
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">AdjacencyMap a -&gt; GraphKL a
+forall a. Ord a =&gt; AdjacencyMap a -&gt; GraphKL a
+</span><a href="Data.Graph.Typed.html#fromAdjacencyMap"><span class="hs-identifier hs-var">fromAdjacencyMap</span></a></span><span> </span><span class="annot"><span class="annottext">AdjacencyMap a
+</span><a href="#local-6989586621679168277"><span class="hs-identifier hs-var">m</span></a></span><span>
+</span><span id="line-195"></span><span>    </span><span id="local-6989586621679168285"><span class="annot"><span class="annottext">sccs :: [[Int]]
+</span><a href="#local-6989586621679168285"><span class="hs-identifier hs-var hs-var">sccs</span></a></span></span><span>      </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Tree Int -&gt; [Int]) -&gt; [Tree Int] -&gt; [[Int]]
+forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+</span><span class="hs-identifier hs-var">map</span></span><span> </span><span class="annot"><span class="annottext">Tree Int -&gt; [Int]
+forall a. Tree a -&gt; [a]
+forall (t :: * -&gt; *) a. Foldable t =&gt; t a -&gt; [a]
+</span><span class="hs-identifier hs-var">toList</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Graph -&gt; [Tree Int]
+</span><span class="hs-identifier hs-var">KL.scc</span></span><span> </span><span class="annot"><span class="annottext">Graph
+</span><a href="#local-6989586621679168283"><span class="hs-identifier hs-var">g</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-196"></span><span>    </span><span id="local-6989586621679168282"><span class="annot"><span class="annottext">leader :: Map a Int
+</span><a href="#local-6989586621679168282"><span class="hs-identifier hs-var hs-var">leader</span></a></span></span><span>    </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[(a, Int)] -&gt; Map a Int
+forall k a. Ord k =&gt; [(k, a)] -&gt; Map k a
+</span><span class="hs-identifier hs-var">Map.fromList</span></span><span> </span><span class="hs-special">[</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; a
+</span><a href="#local-6989586621679168284"><span class="hs-identifier hs-var">decode</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679168289"><span class="hs-identifier hs-var">y</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679168290"><span class="hs-identifier hs-var">x</span></a></span><span class="hs-special">)</span><span>      </span><span class="hs-glyph">|</span><span> </span><span id="local-6989586621679168290"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679168290"><span class="hs-identifier hs-var">x</span></a></span></span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span id="local-6989586621679168291"><span class="annot"><span class="annottext">[Int]
+</span><a href="#local-6989586621679168291"><span class="hs-identifier hs-var">xs</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">[[Int]]
+</span><a href="#local-6989586621679168285"><span class="hs-identifier hs-var">sccs</span></a></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679168289"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679168289"><span class="hs-identifier hs-var">y</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679168290"><span class="hs-identifier hs-var">x</span></a></span><span class="annot"><span class="annottext">Int -&gt; [Int] -&gt; [Int]
+forall a. a -&gt; [a] -&gt; [a]
+</span><span class="hs-glyph hs-var">:</span></span><span class="annot"><span class="annottext">[Int]
+</span><a href="#local-6989586621679168291"><span class="hs-identifier hs-var">xs</span></a></span><span> </span><span class="hs-special">]</span><span>
+</span><span id="line-197"></span><span>    </span><span id="local-6989586621679168279"><span class="annot"><span class="annottext">component :: Map Int (AdjacencyMap a)
+</span><a href="#local-6989586621679168279"><span class="hs-identifier hs-var hs-var">component</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[(Int, AdjacencyMap a)] -&gt; Map Int (AdjacencyMap a)
+forall k a. Ord k =&gt; [(k, a)] -&gt; Map k a
+</span><span class="hs-identifier hs-var">Map.fromList</span></span><span> </span><span class="hs-special">[</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679168292"><span class="hs-identifier hs-var">x</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">[Int] -&gt; AdjacencyMap a
+</span><a href="#local-6989586621679168293"><span class="hs-identifier hs-var">expand</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679168292"><span class="hs-identifier hs-var">x</span></a></span><span class="annot"><span class="annottext">Int -&gt; [Int] -&gt; [Int]
+forall a. a -&gt; [a] -&gt; [a]
+</span><span class="hs-glyph hs-var">:</span></span><span class="annot"><span class="annottext">[Int]
+</span><a href="#local-6989586621679168294"><span class="hs-identifier hs-var">xs</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">|</span><span> </span><span id="local-6989586621679168292"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679168292"><span class="hs-identifier hs-var">x</span></a></span></span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span id="local-6989586621679168294"><span class="annot"><span class="annottext">[Int]
+</span><a href="#local-6989586621679168294"><span class="hs-identifier hs-var">xs</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">[[Int]]
+</span><a href="#local-6989586621679168285"><span class="hs-identifier hs-var">sccs</span></a></span><span> </span><span class="hs-special">]</span><span>
+</span><span id="line-198"></span><span>    </span><span id="local-6989586621679168293"><span class="annot"><span class="annottext">expand :: [Int] -&gt; AdjacencyMap a
+</span><a href="#local-6989586621679168293"><span class="hs-identifier hs-var hs-var">expand</span></a></span></span><span> </span><span id="local-6989586621679168295"><span class="annot"><span class="annottext">[Int]
+</span><a href="#local-6989586621679168295"><span class="hs-identifier hs-var">xs</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Maybe (AdjacencyMap a) -&gt; AdjacencyMap a
+forall a. HasCallStack =&gt; Maybe a -&gt; a
+</span><span class="hs-identifier hs-var">fromJust</span></span><span> </span><span class="annot"><span class="annottext">(Maybe (AdjacencyMap a) -&gt; AdjacencyMap a)
+-&gt; Maybe (AdjacencyMap a) -&gt; AdjacencyMap a
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">AdjacencyMap a -&gt; Maybe (AdjacencyMap a)
+forall a. AdjacencyMap a -&gt; Maybe (AdjacencyMap a)
+</span><a href="Algebra.Graph.NonEmpty.AdjacencyMap.html#toNonEmpty"><span class="hs-identifier hs-var">NonEmpty.toNonEmpty</span></a></span><span> </span><span class="annot"><span class="annottext">(AdjacencyMap a -&gt; Maybe (AdjacencyMap a))
+-&gt; AdjacencyMap a -&gt; Maybe (AdjacencyMap a)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">(a -&gt; Bool) -&gt; AdjacencyMap a -&gt; AdjacencyMap a
+forall a. (a -&gt; Bool) -&gt; AdjacencyMap a -&gt; AdjacencyMap a
+</span><a href="Algebra.Graph.AdjacencyMap.html#induce"><span class="hs-identifier hs-var">AM.induce</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a -&gt; Set a -&gt; Bool
+forall a. Ord a =&gt; a -&gt; Set a -&gt; Bool
+</span><span class="hs-operator hs-var">`Set.member`</span></span><span> </span><span class="annot"><span class="annottext">Set a
+</span><a href="#local-6989586621679168300"><span class="hs-identifier hs-var">s</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">AdjacencyMap a
+</span><a href="#local-6989586621679168277"><span class="hs-identifier hs-var">m</span></a></span><span>
+</span><span id="line-199"></span><span>      </span><span class="hs-keyword">where</span><span>
+</span><span id="line-200"></span><span>        </span><span id="local-6989586621679168300"><span class="annot"><span class="annottext">s :: Set a
+</span><a href="#local-6989586621679168300"><span class="hs-identifier hs-var hs-var">s</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[a] -&gt; Set a
+forall a. Ord a =&gt; [a] -&gt; Set a
+</span><span class="hs-identifier hs-var">Set.fromList</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(Int -&gt; a) -&gt; [Int] -&gt; [a]
+forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+</span><span class="hs-identifier hs-var">map</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; a
+</span><a href="#local-6989586621679168284"><span class="hs-identifier hs-var">decode</span></a></span><span> </span><span class="annot"><span class="annottext">[Int]
+</span><a href="#local-6989586621679168295"><span class="hs-identifier hs-var">xs</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-201"></span><span>
+</span><span id="line-202"></span><span id="local-6989586621679168175"><span class="annot"><a href="Data.Graph.Typed.html#removeSelfLoops"><span class="hs-identifier hs-type">removeSelfLoops</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ord</span></span><span> </span><span class="annot"><a href="#local-6989586621679168175"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Algebra.Graph.AdjacencyMap.html#AdjacencyMap"><span class="hs-identifier hs-type">AM.AdjacencyMap</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679168175"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Algebra.Graph.AdjacencyMap.html#AdjacencyMap"><span class="hs-identifier hs-type">AM.AdjacencyMap</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679168175"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-203"></span><span id="removeSelfLoops"><span class="annot"><span class="annottext">removeSelfLoops :: forall a. Ord a =&gt; AdjacencyMap a -&gt; AdjacencyMap a
+</span><a href="Data.Graph.Typed.html#removeSelfLoops"><span class="hs-identifier hs-var hs-var">removeSelfLoops</span></a></span></span><span> </span><span id="local-6989586621679168305"><span class="annot"><span class="annottext">AdjacencyMap a
+</span><a href="#local-6989586621679168305"><span class="hs-identifier hs-var">m</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(a -&gt; AdjacencyMap a -&gt; AdjacencyMap a)
+-&gt; AdjacencyMap a -&gt; [a] -&gt; AdjacencyMap a
+forall a b. (a -&gt; b -&gt; b) -&gt; b -&gt; [a] -&gt; b
+forall (t :: * -&gt; *) a b.
+Foldable t =&gt;
+(a -&gt; b -&gt; b) -&gt; b -&gt; t a -&gt; b
+</span><span class="hs-identifier hs-var">foldr</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span id="local-6989586621679168307"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679168307"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">a -&gt; a -&gt; AdjacencyMap a -&gt; AdjacencyMap a
+forall a. Ord a =&gt; a -&gt; a -&gt; AdjacencyMap a -&gt; AdjacencyMap a
+</span><a href="Algebra.Graph.AdjacencyMap.html#removeEdge"><span class="hs-identifier hs-var">AM.removeEdge</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679168307"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679168307"><span class="hs-identifier hs-var">x</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">AdjacencyMap a
+</span><a href="#local-6989586621679168305"><span class="hs-identifier hs-var">m</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">AdjacencyMap a -&gt; [a]
+forall a. AdjacencyMap a -&gt; [a]
+</span><a href="Algebra.Graph.AdjacencyMap.html#vertexList"><span class="hs-identifier hs-var">AM.vertexList</span></a></span><span> </span><span class="annot"><span class="annottext">AdjacencyMap a
+</span><a href="#local-6989586621679168305"><span class="hs-identifier hs-var">m</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-204"></span></pre></body></html>

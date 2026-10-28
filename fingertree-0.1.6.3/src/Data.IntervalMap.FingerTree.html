@@ -1,0 +1,1212 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE CPP #-}</span><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# LANGUAGE MultiParamTypeClasses #-}</span><span class="hs-cpp">
+#if __GLASGOW_HASKELL__ &gt;= 702
+</span><span class="hs-pragma">{-# LANGUAGE Safe #-}</span><span class="hs-cpp">
+#endif
+</span><span class="hs-cpp">#if __GLASGOW_HASKELL__ &gt;= 706
+</span><span class="hs-pragma">{-# LANGUAGE DeriveGeneric #-}</span><span class="hs-cpp">
+#endif
+</span><span class="hs-cpp">#if __GLASGOW_HASKELL__ &gt;= 710 &amp;&amp; __GLASGOW_HASKELL__ &lt; 802
+</span><span class="hs-pragma">{-# LANGUAGE AutoDeriveTypeable #-}</span><span class="hs-cpp">
+#endif
+</span><span class="hs-cpp">#if __GLASGOW_HASKELL__ &gt;= 710
+</span><span class="hs-pragma">{-# LANGUAGE DeriveAnyClass #-}</span><span class="hs-cpp">
+#endif
+</span><span class="hs-comment">-----------------------------------------------------------------------------</span><span>
+</span><span id="line-16"></span><span class="hs-comment">-- |</span><span>
+</span><span id="line-17"></span><span class="hs-comment">-- Module      :  Data.PriorityQueue.FingerTree</span><span>
+</span><span id="line-18"></span><span class="hs-comment">-- Copyright   :  (c) Ross Paterson 2008</span><span>
+</span><span id="line-19"></span><span class="hs-comment">-- License     :  BSD-style</span><span>
+</span><span id="line-20"></span><span class="hs-comment">-- Maintainer  :  R.Paterson@city.ac.uk</span><span>
+</span><span id="line-21"></span><span class="hs-comment">-- Stability   :  experimental</span><span>
+</span><span id="line-22"></span><span class="hs-comment">-- Portability :  non-portable (MPTCs and functional dependencies)</span><span>
+</span><span id="line-23"></span><span class="hs-comment">--</span><span>
+</span><span id="line-24"></span><span class="hs-comment">-- Interval maps implemented using the 'FingerTree' type, following</span><span>
+</span><span id="line-25"></span><span class="hs-comment">-- section 4.8 of</span><span>
+</span><span id="line-26"></span><span class="hs-comment">--</span><span>
+</span><span id="line-27"></span><span class="hs-comment">--  * Ralf Hinze and Ross Paterson,</span><span>
+</span><span id="line-28"></span><span class="hs-comment">--    \&quot;Finger trees: a simple general-purpose data structure\&quot;,</span><span>
+</span><span id="line-29"></span><span class="hs-comment">--    /Journal of Functional Programming/ 16:2 (2006) pp 197-217.</span><span>
+</span><span id="line-30"></span><span class="hs-comment">--    &lt;https://staff.city.ac.uk/~ross/papers/FingerTree.html&gt;</span><span>
+</span><span id="line-31"></span><span class="hs-comment">--</span><span>
+</span><span id="line-32"></span><span class="hs-comment">-- An amortized running time is given for each operation, with /n/</span><span>
+</span><span id="line-33"></span><span class="hs-comment">-- referring to the size of the priority queue.  These bounds hold even</span><span>
+</span><span id="line-34"></span><span class="hs-comment">-- in a persistent (shared) setting.</span><span>
+</span><span id="line-35"></span><span class="hs-comment">--</span><span>
+</span><span id="line-36"></span><span class="hs-comment">-- /Note/: Many of these operations have the same names as similar</span><span>
+</span><span id="line-37"></span><span class="hs-comment">-- operations on lists in the &quot;Prelude&quot;.  The ambiguity may be resolved</span><span>
+</span><span id="line-38"></span><span class="hs-comment">-- using either qualification or the @hiding@ clause.</span><span>
+</span><span id="line-39"></span><span class="hs-comment">--</span><span>
+</span><span id="line-40"></span><span class="hs-comment">-----------------------------------------------------------------------------</span><span>
+</span><span id="line-41"></span><span>
+</span><span id="line-42"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Data.IntervalMap.FingerTree.html"><span class="hs-identifier">Data.IntervalMap.FingerTree</span></a></span><span> </span><span class="hs-special">(</span><span>
+</span><span id="line-43"></span><span>    </span><span class="annot"><span class="hs-comment">-- * Intervals</span></span><span>
+</span><span id="line-44"></span><span>    </span><span class="annot"><a href="Data.IntervalMap.FingerTree.html#Interval"><span class="hs-identifier">Interval</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.IntervalMap.FingerTree.html#low"><span class="hs-identifier">low</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.IntervalMap.FingerTree.html#high"><span class="hs-identifier">high</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.IntervalMap.FingerTree.html#point"><span class="hs-identifier">point</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-45"></span><span>    </span><span class="annot"><span class="hs-comment">-- * Interval maps</span></span><span>
+</span><span id="line-46"></span><span>    </span><span class="annot"><a href="Data.IntervalMap.FingerTree.html#IntervalMap"><span class="hs-identifier">IntervalMap</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.IntervalMap.FingerTree.html#empty"><span class="hs-identifier">empty</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.IntervalMap.FingerTree.html#singleton"><span class="hs-identifier">singleton</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.IntervalMap.FingerTree.html#insert"><span class="hs-identifier">insert</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.IntervalMap.FingerTree.html#union"><span class="hs-identifier">union</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-47"></span><span>    </span><span class="annot"><span class="hs-comment">-- * Searching</span></span><span>
+</span><span id="line-48"></span><span>    </span><span class="annot"><a href="Data.IntervalMap.FingerTree.html#search"><span class="hs-identifier">search</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.IntervalMap.FingerTree.html#intersections"><span class="hs-identifier">intersections</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.IntervalMap.FingerTree.html#dominators"><span class="hs-identifier">dominators</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-49"></span><span>    </span><span class="annot"><span class="hs-comment">-- * Extraction</span></span><span>
+</span><span id="line-50"></span><span>    </span><span class="annot"><a href="Data.IntervalMap.FingerTree.html#bounds"><span class="hs-identifier">bounds</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.IntervalMap.FingerTree.html#leastView"><span class="hs-identifier">leastView</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.IntervalMap.FingerTree.html#splitAfter"><span class="hs-identifier">splitAfter</span></a></span><span>
+</span><span id="line-51"></span><span>    </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-52"></span><span>
+</span><span id="line-53"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="Data.FingerTree.html"><span class="hs-identifier">Data.FingerTree</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">FT</span></span><span>
+</span><span id="line-54"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Data.FingerTree.html"><span class="hs-identifier">Data.FingerTree</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.FingerTree.html#FingerTree"><span class="hs-identifier">FingerTree</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.FingerTree.html#Measured"><span class="hs-identifier">Measured</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.FingerTree.html#ViewL"><span class="hs-identifier">ViewL</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.FingerTree.html#%3C%7C"><span class="hs-operator">(&lt;|)</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.FingerTree.html#%3E%3C"><span class="hs-operator">(&gt;&lt;)</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-55"></span><span>
+</span><span id="line-56"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Prelude</span></span><span> </span><span class="hs-keyword">hiding</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">null</span></span><span class="hs-special">)</span><span class="hs-cpp">
+#if MIN_VERSION_base(4,6,0)
+</span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">GHC.Generics</span></span><span class="hs-cpp">
+#endif
+</span><span class="hs-cpp">#if MIN_VERSION_base(4,8,0)
+</span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Prelude</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">null</span></span><span class="hs-special">)</span><span class="hs-cpp">
+#else
+</span><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">Control.Applicative</span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="hs-operator">&lt;$&gt;</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-64"></span><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">Data.Monoid</span><span class="hs-cpp">
+#endif
+</span><span class="hs-cpp">#if !(MIN_VERSION_base(4,8,0)) || defined(__MHS__)
+</span><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">Data.Foldable</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">Foldable</span><span class="hs-special">(</span><span class="hs-identifier">foldMap</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-68"></span><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">Data.Traversable</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">Traversable</span><span class="hs-special">(</span><span class="hs-identifier">traverse</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-cpp">
+#endif
+</span><span class="hs-cpp">#if (MIN_VERSION_base(4,9,0)) &amp;&amp; !(MIN_VERSION_base(4,11,0))
+</span><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">Data.Semigroup</span><span class="hs-cpp">
+#endif
+</span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.DeepSeq</span></span><span>
+</span><span id="line-74"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Foldable</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">toList</span></span><span class="hs-special">)</span><span>
+</span><span id="line-75"></span><span>
+</span><span id="line-76"></span><span class="hs-comment">----------------------------------</span><span>
+</span><span id="line-77"></span><span class="hs-comment">-- 4.8 Application: interval trees</span><span>
+</span><span id="line-78"></span><span class="hs-comment">----------------------------------</span><span>
+</span><span id="line-79"></span><span>
+</span><span id="line-80"></span><span class="hs-comment">-- | A closed interval.  The lower bound should be less than or equal</span><span>
+</span><span id="line-81"></span><span class="hs-comment">-- to the upper bound.</span><span>
+</span><span id="line-82"></span><span class="hs-keyword">data</span><span> </span><span id="Interval"><span class="annot"><a href="Data.IntervalMap.FingerTree.html#Interval"><span class="hs-identifier hs-var">Interval</span></a></span></span><span> </span><span id="local-6989586621679077173"><span class="annot"><a href="#local-6989586621679077173"><span class="hs-identifier hs-type">v</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="Interval"><span class="annot"><a href="Data.IntervalMap.FingerTree.html#Interval"><span class="hs-identifier hs-var">Interval</span></a></span></span><span> </span><span class="annot"><a href="#local-6989586621679077173"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679077173"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="annot"><span class="hs-comment">-- ^ Lower and upper bounds of the interval.</span></span><span>
+</span><span id="line-83"></span><span>    </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679077447"><span id="local-6989586621679077451"><span class="annot"><span class="annottext">Interval v -&gt; Interval v -&gt; Bool
+(Interval v -&gt; Interval v -&gt; Bool)
+-&gt; (Interval v -&gt; Interval v -&gt; Bool) -&gt; Eq (Interval v)
+forall v. Eq v =&gt; Interval v -&gt; Interval v -&gt; Bool
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: forall v. Eq v =&gt; Interval v -&gt; Interval v -&gt; Bool
+== :: Interval v -&gt; Interval v -&gt; Bool
+$c/= :: forall v. Eq v =&gt; Interval v -&gt; Interval v -&gt; Bool
+/= :: Interval v -&gt; Interval v -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679077460"><span id="local-6989586621679077464"><span id="local-6989586621679077468"><span id="local-6989586621679077472"><span id="local-6989586621679077475"><span id="local-6989586621679077478"><span id="local-6989586621679077481"><span class="annot"><span class="annottext">Eq (Interval v)
+Eq (Interval v) =&gt;
+(Interval v -&gt; Interval v -&gt; Ordering)
+-&gt; (Interval v -&gt; Interval v -&gt; Bool)
+-&gt; (Interval v -&gt; Interval v -&gt; Bool)
+-&gt; (Interval v -&gt; Interval v -&gt; Bool)
+-&gt; (Interval v -&gt; Interval v -&gt; Bool)
+-&gt; (Interval v -&gt; Interval v -&gt; Interval v)
+-&gt; (Interval v -&gt; Interval v -&gt; Interval v)
+-&gt; Ord (Interval v)
+Interval v -&gt; Interval v -&gt; Bool
+Interval v -&gt; Interval v -&gt; Ordering
+Interval v -&gt; Interval v -&gt; Interval v
+forall a.
+Eq a =&gt;
+(a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+forall v. Ord v =&gt; Eq (Interval v)
+forall v. Ord v =&gt; Interval v -&gt; Interval v -&gt; Bool
+forall v. Ord v =&gt; Interval v -&gt; Interval v -&gt; Ordering
+forall v. Ord v =&gt; Interval v -&gt; Interval v -&gt; Interval v
+$ccompare :: forall v. Ord v =&gt; Interval v -&gt; Interval v -&gt; Ordering
+compare :: Interval v -&gt; Interval v -&gt; Ordering
+$c&lt; :: forall v. Ord v =&gt; Interval v -&gt; Interval v -&gt; Bool
+&lt; :: Interval v -&gt; Interval v -&gt; Bool
+$c&lt;= :: forall v. Ord v =&gt; Interval v -&gt; Interval v -&gt; Bool
+&lt;= :: Interval v -&gt; Interval v -&gt; Bool
+$c&gt; :: forall v. Ord v =&gt; Interval v -&gt; Interval v -&gt; Bool
+&gt; :: Interval v -&gt; Interval v -&gt; Bool
+$c&gt;= :: forall v. Ord v =&gt; Interval v -&gt; Interval v -&gt; Bool
+&gt;= :: Interval v -&gt; Interval v -&gt; Bool
+$cmax :: forall v. Ord v =&gt; Interval v -&gt; Interval v -&gt; Interval v
+max :: Interval v -&gt; Interval v -&gt; Interval v
+$cmin :: forall v. Ord v =&gt; Interval v -&gt; Interval v -&gt; Interval v
+min :: Interval v -&gt; Interval v -&gt; Interval v
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679077491"><span id="local-6989586621679077497"><span id="local-6989586621679077501"><span class="annot"><span class="annottext">Int -&gt; Interval v -&gt; ShowS
+[Interval v] -&gt; ShowS
+Interval v -&gt; String
+(Int -&gt; Interval v -&gt; ShowS)
+-&gt; (Interval v -&gt; String)
+-&gt; ([Interval v] -&gt; ShowS)
+-&gt; Show (Interval v)
+forall v. Show v =&gt; Int -&gt; Interval v -&gt; ShowS
+forall v. Show v =&gt; [Interval v] -&gt; ShowS
+forall v. Show v =&gt; Interval v -&gt; String
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: forall v. Show v =&gt; Int -&gt; Interval v -&gt; ShowS
+showsPrec :: Int -&gt; Interval v -&gt; ShowS
+$cshow :: forall v. Show v =&gt; Interval v -&gt; String
+show :: Interval v -&gt; String
+$cshowList :: forall v. Show v =&gt; [Interval v] -&gt; ShowS
+showList :: [Interval v] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679077507"><span id="local-6989586621679077511"><span id="local-6989586621679077514"><span id="local-6989586621679077523"><span class="annot"><span class="annottext">ReadPrec [Interval v]
+ReadPrec (Interval v)
+Int -&gt; ReadS (Interval v)
+ReadS [Interval v]
+(Int -&gt; ReadS (Interval v))
+-&gt; ReadS [Interval v]
+-&gt; ReadPrec (Interval v)
+-&gt; ReadPrec [Interval v]
+-&gt; Read (Interval v)
+forall v. Read v =&gt; ReadPrec [Interval v]
+forall v. Read v =&gt; ReadPrec (Interval v)
+forall v. Read v =&gt; Int -&gt; ReadS (Interval v)
+forall v. Read v =&gt; ReadS [Interval v]
+forall a.
+(Int -&gt; ReadS a)
+-&gt; ReadS [a] -&gt; ReadPrec a -&gt; ReadPrec [a] -&gt; Read a
+$creadsPrec :: forall v. Read v =&gt; Int -&gt; ReadS (Interval v)
+readsPrec :: Int -&gt; ReadS (Interval v)
+$creadList :: forall v. Read v =&gt; ReadS [Interval v]
+readList :: ReadS [Interval v]
+$creadPrec :: forall v. Read v =&gt; ReadPrec (Interval v)
+readPrec :: ReadPrec (Interval v)
+$creadListPrec :: forall v. Read v =&gt; ReadPrec [Interval v]
+readListPrec :: ReadPrec [Interval v]
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Read</span></span></span></span></span></span><span class="hs-cpp">
+#if __GLASGOW_HASKELL__ &gt;= 706
+</span><span>        </span><span class="hs-special">,</span><span> </span><span id="local-6989586621679077530"><span id="local-6989586621679077532"><span class="annot"><span class="annottext">(forall x. Interval v -&gt; Rep (Interval v) x)
+-&gt; (forall x. Rep (Interval v) x -&gt; Interval v)
+-&gt; Generic (Interval v)
+forall x. Rep (Interval v) x -&gt; Interval v
+forall x. Interval v -&gt; Rep (Interval v) x
+forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+forall v x. Rep (Interval v) x -&gt; Interval v
+forall v x. Interval v -&gt; Rep (Interval v) x
+$cfrom :: forall v x. Interval v -&gt; Rep (Interval v) x
+from :: forall x. Interval v -&gt; Rep (Interval v) x
+$cto :: forall v x. Rep (Interval v) x -&gt; Interval v
+to :: forall x. Rep (Interval v) x -&gt; Interval v
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Generic</span></span></span></span><span class="hs-cpp">
+#if __GLASGOW_HASKELL__ &gt;= 710
+</span><span>        </span><span class="hs-special">,</span><span> </span><span id="local-6989586621679077539"><span class="annot"><span class="annottext">Interval v -&gt; ()
+(Interval v -&gt; ()) -&gt; NFData (Interval v)
+forall v. NFData v =&gt; Interval v -&gt; ()
+forall a. (a -&gt; ()) -&gt; NFData a
+$crnf :: forall v. NFData v =&gt; Interval v -&gt; ()
+rnf :: Interval v -&gt; ()
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">NFData</span></span></span><span class="hs-cpp">
+#endif
+</span><span class="hs-cpp">#endif
+</span><span>        </span><span class="hs-special">)</span><span>
+</span><span id="line-91"></span><span>
+</span><span id="line-92"></span><span class="annot"><span class="hs-comment">-- | Lower bound of the interval</span></span><span>
+</span><span id="line-93"></span><span id="local-6989586621679077168"><span class="annot"><a href="Data.IntervalMap.FingerTree.html#low"><span class="hs-identifier hs-type">low</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Data.IntervalMap.FingerTree.html#Interval"><span class="hs-identifier hs-type">Interval</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679077168"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679077168"><span class="hs-identifier hs-type">v</span></a></span></span><span>
+</span><span id="line-94"></span><span id="low"><span class="annot"><span class="annottext">low :: forall v. Interval v -&gt; v
+</span><a href="Data.IntervalMap.FingerTree.html#low"><span class="hs-identifier hs-var hs-var">low</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.IntervalMap.FingerTree.html#Interval"><span class="hs-identifier hs-type">Interval</span></a></span><span> </span><span id="local-6989586621679077554"><span class="annot"><span class="annottext">v
+</span><a href="#local-6989586621679077554"><span class="hs-identifier hs-var">lo</span></a></span></span><span> </span><span class="annot"><span class="annottext">v
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">v
+</span><a href="#local-6989586621679077554"><span class="hs-identifier hs-var">lo</span></a></span><span>
+</span><span id="line-95"></span><span>
+</span><span id="line-96"></span><span class="annot"><span class="hs-comment">-- | Upper bound of the interval</span></span><span>
+</span><span id="line-97"></span><span id="local-6989586621679077555"><span class="annot"><a href="Data.IntervalMap.FingerTree.html#high"><span class="hs-identifier hs-type">high</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Data.IntervalMap.FingerTree.html#Interval"><span class="hs-identifier hs-type">Interval</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679077555"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679077555"><span class="hs-identifier hs-type">v</span></a></span></span><span>
+</span><span id="line-98"></span><span id="high"><span class="annot"><span class="annottext">high :: forall v. Interval v -&gt; v
+</span><a href="Data.IntervalMap.FingerTree.html#high"><span class="hs-identifier hs-var hs-var">high</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.IntervalMap.FingerTree.html#Interval"><span class="hs-identifier hs-type">Interval</span></a></span><span> </span><span class="annot"><span class="annottext">v
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621679077556"><span class="annot"><span class="annottext">v
+</span><a href="#local-6989586621679077556"><span class="hs-identifier hs-var">hi</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">v
+</span><a href="#local-6989586621679077556"><span class="hs-identifier hs-var">hi</span></a></span><span>
+</span><span id="line-99"></span><span>
+</span><span id="line-100"></span><span class="annot"><span class="hs-comment">-- | An interval in which the lower and upper bounds are equal.</span></span><span>
+</span><span id="line-101"></span><span id="local-6989586621679077171"><span class="annot"><a href="Data.IntervalMap.FingerTree.html#point"><span class="hs-identifier hs-type">point</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="#local-6989586621679077171"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Data.IntervalMap.FingerTree.html#Interval"><span class="hs-identifier hs-type">Interval</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679077171"><span class="hs-identifier hs-type">v</span></a></span></span><span>
+</span><span id="line-102"></span><span id="point"><span class="annot"><span class="annottext">point :: forall v. v -&gt; Interval v
+</span><a href="Data.IntervalMap.FingerTree.html#point"><span class="hs-identifier hs-var hs-var">point</span></a></span></span><span> </span><span id="local-6989586621679077557"><span class="annot"><span class="annottext">v
+</span><a href="#local-6989586621679077557"><span class="hs-identifier hs-var">v</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">v -&gt; v -&gt; Interval v
+forall v. v -&gt; v -&gt; Interval v
+</span><a href="Data.IntervalMap.FingerTree.html#Interval"><span class="hs-identifier hs-var">Interval</span></a></span><span> </span><span class="annot"><span class="annottext">v
+</span><a href="#local-6989586621679077557"><span class="hs-identifier hs-var">v</span></a></span><span> </span><span class="annot"><span class="annottext">v
+</span><a href="#local-6989586621679077557"><span class="hs-identifier hs-var">v</span></a></span><span>
+</span><span id="line-103"></span><span>
+</span><span id="line-104"></span><span class="hs-keyword">data</span><span> </span><span id="Node"><span class="annot"><a href="Data.IntervalMap.FingerTree.html#Node"><span class="hs-identifier hs-var">Node</span></a></span></span><span> </span><span id="local-6989586621679077208"><span class="annot"><a href="#local-6989586621679077208"><span class="hs-identifier hs-type">v</span></a></span></span><span> </span><span id="local-6989586621679077209"><span class="annot"><a href="#local-6989586621679077209"><span class="hs-identifier hs-type">a</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="Node"><span class="annot"><a href="Data.IntervalMap.FingerTree.html#Node"><span class="hs-identifier hs-var">Node</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.IntervalMap.FingerTree.html#Interval"><span class="hs-identifier hs-type">Interval</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679077208"><span class="hs-identifier hs-type">v</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><a href="#local-6989586621679077209"><span class="hs-identifier hs-type">a</span></a></span><span>
+</span><span id="line-105"></span><span>    </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679077562"><span id="local-6989586621679077566"><span class="annot"><span class="annottext">Node v a -&gt; Node v a -&gt; Bool
+(Node v a -&gt; Node v a -&gt; Bool)
+-&gt; (Node v a -&gt; Node v a -&gt; Bool) -&gt; Eq (Node v a)
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+forall v a. (Eq v, Eq a) =&gt; Node v a -&gt; Node v a -&gt; Bool
+$c== :: forall v a. (Eq v, Eq a) =&gt; Node v a -&gt; Node v a -&gt; Bool
+== :: Node v a -&gt; Node v a -&gt; Bool
+$c/= :: forall v a. (Eq v, Eq a) =&gt; Node v a -&gt; Node v a -&gt; Bool
+/= :: Node v a -&gt; Node v a -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679077576"><span id="local-6989586621679077580"><span id="local-6989586621679077584"><span id="local-6989586621679077588"><span id="local-6989586621679077591"><span id="local-6989586621679077594"><span id="local-6989586621679077597"><span class="annot"><span class="annottext">Eq (Node v a)
+Eq (Node v a) =&gt;
+(Node v a -&gt; Node v a -&gt; Ordering)
+-&gt; (Node v a -&gt; Node v a -&gt; Bool)
+-&gt; (Node v a -&gt; Node v a -&gt; Bool)
+-&gt; (Node v a -&gt; Node v a -&gt; Bool)
+-&gt; (Node v a -&gt; Node v a -&gt; Bool)
+-&gt; (Node v a -&gt; Node v a -&gt; Node v a)
+-&gt; (Node v a -&gt; Node v a -&gt; Node v a)
+-&gt; Ord (Node v a)
+Node v a -&gt; Node v a -&gt; Bool
+Node v a -&gt; Node v a -&gt; Ordering
+Node v a -&gt; Node v a -&gt; Node v a
+forall a.
+Eq a =&gt;
+(a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+forall v a. (Ord v, Ord a) =&gt; Eq (Node v a)
+forall v a. (Ord v, Ord a) =&gt; Node v a -&gt; Node v a -&gt; Bool
+forall v a. (Ord v, Ord a) =&gt; Node v a -&gt; Node v a -&gt; Ordering
+forall v a. (Ord v, Ord a) =&gt; Node v a -&gt; Node v a -&gt; Node v a
+$ccompare :: forall v a. (Ord v, Ord a) =&gt; Node v a -&gt; Node v a -&gt; Ordering
+compare :: Node v a -&gt; Node v a -&gt; Ordering
+$c&lt; :: forall v a. (Ord v, Ord a) =&gt; Node v a -&gt; Node v a -&gt; Bool
+&lt; :: Node v a -&gt; Node v a -&gt; Bool
+$c&lt;= :: forall v a. (Ord v, Ord a) =&gt; Node v a -&gt; Node v a -&gt; Bool
+&lt;= :: Node v a -&gt; Node v a -&gt; Bool
+$c&gt; :: forall v a. (Ord v, Ord a) =&gt; Node v a -&gt; Node v a -&gt; Bool
+&gt; :: Node v a -&gt; Node v a -&gt; Bool
+$c&gt;= :: forall v a. (Ord v, Ord a) =&gt; Node v a -&gt; Node v a -&gt; Bool
+&gt;= :: Node v a -&gt; Node v a -&gt; Bool
+$cmax :: forall v a. (Ord v, Ord a) =&gt; Node v a -&gt; Node v a -&gt; Node v a
+max :: Node v a -&gt; Node v a -&gt; Node v a
+$cmin :: forall v a. (Ord v, Ord a) =&gt; Node v a -&gt; Node v a -&gt; Node v a
+min :: Node v a -&gt; Node v a -&gt; Node v a
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679077602"><span id="local-6989586621679077607"><span id="local-6989586621679077611"><span class="annot"><span class="annottext">Int -&gt; Node v a -&gt; ShowS
+[Node v a] -&gt; ShowS
+Node v a -&gt; String
+(Int -&gt; Node v a -&gt; ShowS)
+-&gt; (Node v a -&gt; String) -&gt; ([Node v a] -&gt; ShowS) -&gt; Show (Node v a)
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+forall v a. (Show v, Show a) =&gt; Int -&gt; Node v a -&gt; ShowS
+forall v a. (Show v, Show a) =&gt; [Node v a] -&gt; ShowS
+forall v a. (Show v, Show a) =&gt; Node v a -&gt; String
+$cshowsPrec :: forall v a. (Show v, Show a) =&gt; Int -&gt; Node v a -&gt; ShowS
+showsPrec :: Int -&gt; Node v a -&gt; ShowS
+$cshow :: forall v a. (Show v, Show a) =&gt; Node v a -&gt; String
+show :: Node v a -&gt; String
+$cshowList :: forall v a. (Show v, Show a) =&gt; [Node v a] -&gt; ShowS
+showList :: [Node v a] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679077616"><span id="local-6989586621679077620"><span id="local-6989586621679077623"><span id="local-6989586621679077631"><span class="annot"><span class="annottext">ReadPrec [Node v a]
+ReadPrec (Node v a)
+Int -&gt; ReadS (Node v a)
+ReadS [Node v a]
+(Int -&gt; ReadS (Node v a))
+-&gt; ReadS [Node v a]
+-&gt; ReadPrec (Node v a)
+-&gt; ReadPrec [Node v a]
+-&gt; Read (Node v a)
+forall a.
+(Int -&gt; ReadS a)
+-&gt; ReadS [a] -&gt; ReadPrec a -&gt; ReadPrec [a] -&gt; Read a
+forall v a. (Read v, Read a) =&gt; ReadPrec [Node v a]
+forall v a. (Read v, Read a) =&gt; ReadPrec (Node v a)
+forall v a. (Read v, Read a) =&gt; Int -&gt; ReadS (Node v a)
+forall v a. (Read v, Read a) =&gt; ReadS [Node v a]
+$creadsPrec :: forall v a. (Read v, Read a) =&gt; Int -&gt; ReadS (Node v a)
+readsPrec :: Int -&gt; ReadS (Node v a)
+$creadList :: forall v a. (Read v, Read a) =&gt; ReadS [Node v a]
+readList :: ReadS [Node v a]
+$creadPrec :: forall v a. (Read v, Read a) =&gt; ReadPrec (Node v a)
+readPrec :: ReadPrec (Node v a)
+$creadListPrec :: forall v a. (Read v, Read a) =&gt; ReadPrec [Node v a]
+readListPrec :: ReadPrec [Node v a]
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Read</span></span></span></span></span></span><span class="hs-cpp">
+#if __GLASGOW_HASKELL__ &gt;= 706
+</span><span>        </span><span class="hs-special">,</span><span> </span><span id="local-6989586621679077634"><span id="local-6989586621679077636"><span class="annot"><span class="annottext">(forall x. Node v a -&gt; Rep (Node v a) x)
+-&gt; (forall x. Rep (Node v a) x -&gt; Node v a) -&gt; Generic (Node v a)
+forall x. Rep (Node v a) x -&gt; Node v a
+forall x. Node v a -&gt; Rep (Node v a) x
+forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+forall v a x. Rep (Node v a) x -&gt; Node v a
+forall v a x. Node v a -&gt; Rep (Node v a) x
+$cfrom :: forall v a x. Node v a -&gt; Rep (Node v a) x
+from :: forall x. Node v a -&gt; Rep (Node v a) x
+$cto :: forall v a x. Rep (Node v a) x -&gt; Node v a
+to :: forall x. Rep (Node v a) x -&gt; Node v a
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Generic</span></span></span></span><span class="hs-cpp">
+#if __GLASGOW_HASKELL__ &gt;= 710
+</span><span>        </span><span class="hs-special">,</span><span> </span><span id="local-6989586621679077641"><span class="annot"><span class="annottext">Node v a -&gt; ()
+(Node v a -&gt; ()) -&gt; NFData (Node v a)
+forall a. (a -&gt; ()) -&gt; NFData a
+forall v a. (NFData v, NFData a) =&gt; Node v a -&gt; ()
+$crnf :: forall v a. (NFData v, NFData a) =&gt; Node v a -&gt; ()
+rnf :: Node v a -&gt; ()
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">NFData</span></span></span><span class="hs-cpp">
+#endif
+</span><span class="hs-cpp">#endif
+</span><span>        </span><span class="hs-special">)</span><span>
+</span><span id="line-113"></span><span>
+</span><span id="line-114"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679077205"><span id="local-6989586621679077656"><span class="annot"><span class="hs-identifier hs-type">Functor</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.IntervalMap.FingerTree.html#Node"><span class="hs-identifier hs-type">Node</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679077205"><span class="hs-identifier hs-type">v</span></a></span><span class="hs-special">)</span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-115"></span><span>    </span><span id="local-6989586621679077660"><span class="annot"><span class="annottext">fmap :: forall a b. (a -&gt; b) -&gt; Node v a -&gt; Node v b
+</span><span class="hs-identifier hs-var hs-var hs-var">fmap</span></span></span><span> </span><span id="local-6989586621679077661"><span class="annot"><span class="annottext">a -&gt; b
+</span><a href="#local-6989586621679077661"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.IntervalMap.FingerTree.html#Node"><span class="hs-identifier hs-type">Node</span></a></span><span> </span><span id="local-6989586621679077662"><span class="annot"><span class="annottext">Interval v
+</span><a href="#local-6989586621679077662"><span class="hs-identifier hs-var">i</span></a></span></span><span> </span><span id="local-6989586621679077663"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679077663"><span class="hs-identifier hs-var">x</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Interval v -&gt; b -&gt; Node v b
+forall v a. Interval v -&gt; a -&gt; Node v a
+</span><a href="Data.IntervalMap.FingerTree.html#Node"><span class="hs-identifier hs-var">Node</span></a></span><span> </span><span class="annot"><span class="annottext">Interval v
+</span><a href="#local-6989586621679077662"><span class="hs-identifier hs-var">i</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a -&gt; b
+</span><a href="#local-6989586621679077661"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679077663"><span class="hs-identifier hs-var">x</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-116"></span><span>
+</span><span id="line-117"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679077233"><span id="local-6989586621679077665"><span id="local-6989586621679077672"><span id="local-6989586621679077677"><span id="local-6989586621679077680"><span id="local-6989586621679077683"><span id="local-6989586621679077686"><span id="local-6989586621679077689"><span id="local-6989586621679077692"><span id="local-6989586621679077695"><span id="local-6989586621679077698"><span id="local-6989586621679077701"><span id="local-6989586621679077704"><span id="local-6989586621679077709"><span id="local-6989586621679077714"><span id="local-6989586621679077719"><span id="local-6989586621679077724"><span class="annot"><span class="hs-identifier hs-type">Foldable</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.IntervalMap.FingerTree.html#Node"><span class="hs-identifier hs-type">Node</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679077233"><span class="hs-identifier hs-type">v</span></a></span><span class="hs-special">)</span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-118"></span><span>    </span><span id="local-6989586621679077730"><span class="annot"><span class="annottext">foldMap :: forall m a. Monoid m =&gt; (a -&gt; m) -&gt; Node v a -&gt; m
+</span><a href="#local-6989586621679077730"><span class="hs-identifier hs-var hs-var hs-var">foldMap</span></a></span></span><span> </span><span id="local-6989586621679077732"><span class="annot"><span class="annottext">a -&gt; m
+</span><a href="#local-6989586621679077732"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.IntervalMap.FingerTree.html#Node"><span class="hs-identifier hs-type">Node</span></a></span><span> </span><span class="annot"><span class="annottext">Interval v
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621679077733"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679077733"><span class="hs-identifier hs-var">x</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">a -&gt; m
+</span><a href="#local-6989586621679077732"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679077733"><span class="hs-identifier hs-var">x</span></a></span><span>
+</span><span id="line-119"></span><span>
+</span><span id="line-120"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679077251"><span id="local-6989586621679077740"><span id="local-6989586621679077746"><span id="local-6989586621679077751"><span class="annot"><span class="hs-identifier hs-type">Traversable</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.IntervalMap.FingerTree.html#Node"><span class="hs-identifier hs-type">Node</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679077251"><span class="hs-identifier hs-type">v</span></a></span><span class="hs-special">)</span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-121"></span><span>    </span><span id="local-6989586621679077760"><span class="annot"><span class="annottext">traverse :: forall (f :: * -&gt; *) a b.
+Applicative f =&gt;
+(a -&gt; f b) -&gt; Node v a -&gt; f (Node v b)
+</span><a href="#local-6989586621679077760"><span class="hs-identifier hs-var hs-var hs-var">traverse</span></a></span></span><span> </span><span id="local-6989586621679077762"><span class="annot"><span class="annottext">a -&gt; f b
+</span><a href="#local-6989586621679077762"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.IntervalMap.FingerTree.html#Node"><span class="hs-identifier hs-type">Node</span></a></span><span> </span><span id="local-6989586621679077763"><span class="annot"><span class="annottext">Interval v
+</span><a href="#local-6989586621679077763"><span class="hs-identifier hs-var">i</span></a></span></span><span> </span><span id="local-6989586621679077764"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679077764"><span class="hs-identifier hs-var">x</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Interval v -&gt; b -&gt; Node v b
+forall v a. Interval v -&gt; a -&gt; Node v a
+</span><a href="Data.IntervalMap.FingerTree.html#Node"><span class="hs-identifier hs-var">Node</span></a></span><span> </span><span class="annot"><span class="annottext">Interval v
+</span><a href="#local-6989586621679077763"><span class="hs-identifier hs-var">i</span></a></span><span> </span><span class="annot"><span class="annottext">(b -&gt; Node v b) -&gt; f b -&gt; f (Node v b)
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; f b
+</span><a href="#local-6989586621679077762"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679077764"><span class="hs-identifier hs-var">x</span></a></span><span>
+</span><span id="line-122"></span><span>
+</span><span id="line-123"></span><span class="hs-comment">-- rightmost interval (including largest lower bound) and largest upper bound.</span><span>
+</span><span id="line-124"></span><span class="hs-keyword">data</span><span> </span><span id="IntInterval"><span class="annot"><a href="Data.IntervalMap.FingerTree.html#IntInterval"><span class="hs-identifier hs-var">IntInterval</span></a></span></span><span> </span><span id="local-6989586621679077276"><span class="annot"><a href="#local-6989586621679077276"><span class="hs-identifier hs-type">v</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="NoInterval"><span class="annot"><a href="Data.IntervalMap.FingerTree.html#NoInterval"><span class="hs-identifier hs-var">NoInterval</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span id="IntInterval"><span class="annot"><a href="Data.IntervalMap.FingerTree.html#IntInterval"><span class="hs-identifier hs-var">IntInterval</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.IntervalMap.FingerTree.html#Interval"><span class="hs-identifier hs-type">Interval</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679077276"><span class="hs-identifier hs-type">v</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><a href="#local-6989586621679077276"><span class="hs-identifier hs-type">v</span></a></span><span class="hs-cpp">
+#if __GLASGOW_HASKELL__ &gt;= 710
+</span><span>    </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679077769"><span id="local-6989586621679077771"><span class="annot"><span class="annottext">(forall x. IntInterval v -&gt; Rep (IntInterval v) x)
+-&gt; (forall x. Rep (IntInterval v) x -&gt; IntInterval v)
+-&gt; Generic (IntInterval v)
+forall x. Rep (IntInterval v) x -&gt; IntInterval v
+forall x. IntInterval v -&gt; Rep (IntInterval v) x
+forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+forall v x. Rep (IntInterval v) x -&gt; IntInterval v
+forall v x. IntInterval v -&gt; Rep (IntInterval v) x
+$cfrom :: forall v x. IntInterval v -&gt; Rep (IntInterval v) x
+from :: forall x. IntInterval v -&gt; Rep (IntInterval v) x
+$cto :: forall v x. Rep (IntInterval v) x -&gt; IntInterval v
+to :: forall x. Rep (IntInterval v) x -&gt; IntInterval v
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Generic</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679077775"><span class="annot"><span class="annottext">IntInterval v -&gt; ()
+(IntInterval v -&gt; ()) -&gt; NFData (IntInterval v)
+forall v. NFData v =&gt; IntInterval v -&gt; ()
+forall a. (a -&gt; ()) -&gt; NFData a
+$crnf :: forall v. NFData v =&gt; IntInterval v -&gt; ()
+rnf :: IntInterval v -&gt; ()
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">NFData</span></span></span><span class="hs-special">)</span><span class="hs-cpp">
+#elif __GLASGOW_HASKELL__ &gt;= 706
+</span><span>    </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">Generic</span><span class="hs-special">)</span><span class="hs-cpp">
+#endif
+</span><span class="hs-cpp">
+#if MIN_VERSION_base(4,9,0)
+</span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679077272"><span id="local-6989586621679077796"><span id="local-6989586621679077800"><span class="annot"><span class="hs-identifier hs-type">Ord</span></span><span> </span><span class="annot"><a href="#local-6989586621679077272"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Semigroup</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.IntervalMap.FingerTree.html#IntInterval"><span class="hs-identifier hs-type">IntInterval</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679077272"><span class="hs-identifier hs-type">v</span></a></span><span class="hs-special">)</span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-133"></span><span>    </span><span id="local-6989586621679077806"><span class="annot"><span class="annottext">&lt;&gt; :: IntInterval v -&gt; IntInterval v -&gt; IntInterval v
+</span><span class="hs-operator hs-var hs-var hs-var">(&lt;&gt;)</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">IntInterval v -&gt; IntInterval v -&gt; IntInterval v
+forall v. Ord v =&gt; IntInterval v -&gt; IntInterval v -&gt; IntInterval v
+</span><a href="Data.IntervalMap.FingerTree.html#intervalUnion"><span class="hs-identifier hs-var">intervalUnion</span></a></span><span class="hs-cpp">
+#endif
+</span><span>
+</span><span id="line-136"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679077275"><span id="local-6989586621679077813"><span id="local-6989586621679077817"><span class="annot"><span class="hs-identifier hs-type">Ord</span></span><span> </span><span class="annot"><a href="#local-6989586621679077275"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Monoid</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.IntervalMap.FingerTree.html#IntInterval"><span class="hs-identifier hs-type">IntInterval</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679077275"><span class="hs-identifier hs-type">v</span></a></span><span class="hs-special">)</span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-137"></span><span>    </span><span id="local-6989586621679077820"><span class="annot"><span class="annottext">mempty :: IntInterval v
+</span><span class="hs-identifier hs-var hs-var hs-var">mempty</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">IntInterval v
+forall v. IntInterval v
+</span><a href="Data.IntervalMap.FingerTree.html#NoInterval"><span class="hs-identifier hs-var">NoInterval</span></a></span><span class="hs-cpp">
+#if !(MIN_VERSION_base(4,11,0))
+</span><span>    </span><span class="hs-identifier">mappend</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">intervalUnion</span><span class="hs-cpp">
+#endif
+</span><span>
+</span><span id="line-142"></span><span id="local-6989586621679077821"><span class="annot"><a href="Data.IntervalMap.FingerTree.html#intervalUnion"><span class="hs-identifier hs-type">intervalUnion</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ord</span></span><span> </span><span class="annot"><a href="#local-6989586621679077821"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Data.IntervalMap.FingerTree.html#IntInterval"><span class="hs-identifier hs-type">IntInterval</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679077821"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Data.IntervalMap.FingerTree.html#IntInterval"><span class="hs-identifier hs-type">IntInterval</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679077821"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Data.IntervalMap.FingerTree.html#IntInterval"><span class="hs-identifier hs-type">IntInterval</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679077821"><span class="hs-identifier hs-type">v</span></a></span></span><span>
+</span><span id="line-143"></span><span class="annot"><span class="annottext">IntInterval v
+</span><a href="Data.IntervalMap.FingerTree.html#NoInterval"><span class="hs-identifier hs-var">NoInterval</span></a></span><span> </span><span id="intervalUnion"><span class="annot"><span class="annottext">intervalUnion :: forall v. Ord v =&gt; IntInterval v -&gt; IntInterval v -&gt; IntInterval v
+</span><a href="Data.IntervalMap.FingerTree.html#intervalUnion"><span class="hs-operator hs-var hs-var">`intervalUnion`</span></a></span></span><span> </span><span id="local-6989586621679077824"><span class="annot"><span class="annottext">IntInterval v
+</span><a href="#local-6989586621679077824"><span class="hs-identifier hs-var">i</span></a></span></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">IntInterval v
+</span><a href="#local-6989586621679077824"><span class="hs-identifier hs-var">i</span></a></span><span>
+</span><span id="line-144"></span><span id="local-6989586621679077825"><span class="annot"><span class="annottext">IntInterval v
+</span><a href="#local-6989586621679077825"><span class="hs-identifier hs-var">i</span></a></span></span><span> </span><span class="annot"><a href="Data.IntervalMap.FingerTree.html#intervalUnion"><span class="hs-operator hs-var">`intervalUnion`</span></a></span><span> </span><span class="annot"><span class="annottext">IntInterval v
+</span><a href="Data.IntervalMap.FingerTree.html#NoInterval"><span class="hs-identifier hs-var">NoInterval</span></a></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">IntInterval v
+</span><a href="#local-6989586621679077825"><span class="hs-identifier hs-var">i</span></a></span><span>
+</span><span id="line-145"></span><span class="annot"><a href="Data.IntervalMap.FingerTree.html#IntInterval"><span class="hs-identifier hs-type">IntInterval</span></a></span><span> </span><span class="annot"><span class="annottext">Interval v
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621679077826"><span class="annot"><span class="annottext">v
+</span><a href="#local-6989586621679077826"><span class="hs-identifier hs-var">hi1</span></a></span></span><span> </span><span class="annot"><a href="Data.IntervalMap.FingerTree.html#intervalUnion"><span class="hs-operator hs-var">`intervalUnion`</span></a></span><span> </span><span class="annot"><a href="Data.IntervalMap.FingerTree.html#IntInterval"><span class="hs-identifier hs-type">IntInterval</span></a></span><span> </span><span id="local-6989586621679077827"><span class="annot"><span class="annottext">Interval v
+</span><a href="#local-6989586621679077827"><span class="hs-identifier hs-var">int2</span></a></span></span><span> </span><span id="local-6989586621679077828"><span class="annot"><span class="annottext">v
+</span><a href="#local-6989586621679077828"><span class="hs-identifier hs-var">hi2</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-146"></span><span>    </span><span class="annot"><span class="annottext">Interval v -&gt; v -&gt; IntInterval v
+forall v. Interval v -&gt; v -&gt; IntInterval v
+</span><a href="Data.IntervalMap.FingerTree.html#IntInterval"><span class="hs-identifier hs-var">IntInterval</span></a></span><span> </span><span class="annot"><span class="annottext">Interval v
+</span><a href="#local-6989586621679077827"><span class="hs-identifier hs-var">int2</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">v -&gt; v -&gt; v
+forall a. Ord a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-identifier hs-var">max</span></span><span> </span><span class="annot"><span class="annottext">v
+</span><a href="#local-6989586621679077826"><span class="hs-identifier hs-var">hi1</span></a></span><span> </span><span class="annot"><span class="annottext">v
+</span><a href="#local-6989586621679077828"><span class="hs-identifier hs-var">hi2</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-147"></span><span>
+</span><span id="line-148"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679077283"><span id="local-6989586621679077284"><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ord</span></span><span> </span><span class="annot"><a href="#local-6989586621679077283"><span class="hs-identifier hs-type">v</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Data.FingerTree.html#Measured"><span class="hs-identifier hs-type">Measured</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.IntervalMap.FingerTree.html#IntInterval"><span class="hs-identifier hs-type">IntInterval</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679077283"><span class="hs-identifier hs-type">v</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.IntervalMap.FingerTree.html#Node"><span class="hs-identifier hs-type">Node</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679077283"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679077284"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-149"></span><span>    </span><span id="local-6989586621679077836"><span class="annot"><span class="annottext">measure :: Node v a -&gt; IntInterval v
+</span><a href="#local-6989586621679077836"><span class="hs-identifier hs-var hs-var hs-var">measure</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.IntervalMap.FingerTree.html#Node"><span class="hs-identifier hs-type">Node</span></a></span><span> </span><span id="local-6989586621679077838"><span class="annot"><span class="annottext">Interval v
+</span><a href="#local-6989586621679077838"><span class="hs-identifier hs-var">i</span></a></span></span><span> </span><span class="annot"><span class="annottext">a
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Interval v -&gt; v -&gt; IntInterval v
+forall v. Interval v -&gt; v -&gt; IntInterval v
+</span><a href="Data.IntervalMap.FingerTree.html#IntInterval"><span class="hs-identifier hs-var">IntInterval</span></a></span><span> </span><span class="annot"><span class="annottext">Interval v
+</span><a href="#local-6989586621679077838"><span class="hs-identifier hs-var">i</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Interval v -&gt; v
+forall v. Interval v -&gt; v
+</span><a href="Data.IntervalMap.FingerTree.html#high"><span class="hs-identifier hs-var">high</span></a></span><span> </span><span class="annot"><span class="annottext">Interval v
+</span><a href="#local-6989586621679077838"><span class="hs-identifier hs-var">i</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-150"></span><span>
+</span><span id="line-151"></span><span class="annot"><span class="hs-comment">-- | Map of closed intervals, possibly with duplicates.</span></span><span>
+</span><span id="line-152"></span><span class="hs-keyword">newtype</span><span> </span><span id="IntervalMap"><span class="annot"><a href="Data.IntervalMap.FingerTree.html#IntervalMap"><span class="hs-identifier hs-var">IntervalMap</span></a></span></span><span> </span><span id="local-6989586621679077301"><span class="annot"><a href="#local-6989586621679077301"><span class="hs-identifier hs-type">v</span></a></span></span><span> </span><span id="local-6989586621679077302"><span class="annot"><a href="#local-6989586621679077302"><span class="hs-identifier hs-type">a</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-153"></span><span>    </span><span id="IntervalMap"><span class="annot"><a href="Data.IntervalMap.FingerTree.html#IntervalMap"><span class="hs-identifier hs-var">IntervalMap</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.FingerTree.html#FingerTree"><span class="hs-identifier hs-type">FingerTree</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.IntervalMap.FingerTree.html#IntInterval"><span class="hs-identifier hs-type">IntInterval</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679077301"><span class="hs-identifier hs-type">v</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.IntervalMap.FingerTree.html#Node"><span class="hs-identifier hs-type">Node</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679077301"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679077302"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-cpp">
+#if __GLASGOW_HASKELL__ &gt;= 710
+</span><span>    </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679077841"><span id="local-6989586621679077843"><span class="annot"><span class="annottext">(forall x. IntervalMap v a -&gt; Rep (IntervalMap v a) x)
+-&gt; (forall x. Rep (IntervalMap v a) x -&gt; IntervalMap v a)
+-&gt; Generic (IntervalMap v a)
+forall x. Rep (IntervalMap v a) x -&gt; IntervalMap v a
+forall x. IntervalMap v a -&gt; Rep (IntervalMap v a) x
+forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+forall v a x. Rep (IntervalMap v a) x -&gt; IntervalMap v a
+forall v a x. IntervalMap v a -&gt; Rep (IntervalMap v a) x
+$cfrom :: forall v a x. IntervalMap v a -&gt; Rep (IntervalMap v a) x
+from :: forall x. IntervalMap v a -&gt; Rep (IntervalMap v a) x
+$cto :: forall v a x. Rep (IntervalMap v a) x -&gt; IntervalMap v a
+to :: forall x. Rep (IntervalMap v a) x -&gt; IntervalMap v a
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Generic</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679077848"><span class="annot"><span class="annottext">IntervalMap v a -&gt; ()
+(IntervalMap v a -&gt; ()) -&gt; NFData (IntervalMap v a)
+forall a. (a -&gt; ()) -&gt; NFData a
+forall v a. (NFData a, NFData v) =&gt; IntervalMap v a -&gt; ()
+$crnf :: forall v a. (NFData a, NFData v) =&gt; IntervalMap v a -&gt; ()
+rnf :: IntervalMap v a -&gt; ()
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var">NFData</span></span></span><span class="hs-special">)</span><span class="hs-cpp">
+#elif __GLASGOW_HASKELL__ &gt;= 706
+</span><span>    </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">Generic</span><span class="hs-special">)</span><span class="hs-cpp">
+#endif
+</span><span class="hs-comment">-- ordered lexicographically by interval</span><span>
+</span><span id="line-160"></span><span>
+</span><span id="line-161"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679077298"><span id="local-6989586621679077863"><span class="annot"><span class="hs-identifier hs-type">Functor</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.IntervalMap.FingerTree.html#IntervalMap"><span class="hs-identifier hs-type">IntervalMap</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679077298"><span class="hs-identifier hs-type">v</span></a></span><span class="hs-special">)</span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-162"></span><span>    </span><span id="local-6989586621679077867"><span class="annot"><span class="annottext">fmap :: forall a b. (a -&gt; b) -&gt; IntervalMap v a -&gt; IntervalMap v b
+</span><span class="hs-identifier hs-var hs-var hs-var">fmap</span></span></span><span> </span><span id="local-6989586621679077868"><span class="annot"><span class="annottext">a -&gt; b
+</span><a href="#local-6989586621679077868"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.IntervalMap.FingerTree.html#IntervalMap"><span class="hs-identifier hs-type">IntervalMap</span></a></span><span> </span><span id="local-6989586621679077869"><span class="annot"><span class="annottext">FingerTree (IntInterval v) (Node v a)
+</span><a href="#local-6989586621679077869"><span class="hs-identifier hs-var">t</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">FingerTree (IntInterval v) (Node v b) -&gt; IntervalMap v b
+forall v a.
+FingerTree (IntInterval v) (Node v a) -&gt; IntervalMap v a
+</span><a href="Data.IntervalMap.FingerTree.html#IntervalMap"><span class="hs-identifier hs-var">IntervalMap</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(Node v a -&gt; Node v b)
+-&gt; FingerTree (IntInterval v) (Node v a)
+-&gt; FingerTree (IntInterval v) (Node v b)
+forall a b v. (a -&gt; b) -&gt; FingerTree v a -&gt; FingerTree v b
+</span><a href="Data.FingerTree.html#unsafeFmap"><span class="hs-identifier hs-var">FT.unsafeFmap</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(a -&gt; b) -&gt; Node v a -&gt; Node v b
+forall a b. (a -&gt; b) -&gt; Node v a -&gt; Node v b
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; b
+</span><a href="#local-6989586621679077868"><span class="hs-identifier hs-var">f</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">FingerTree (IntInterval v) (Node v a)
+</span><a href="#local-6989586621679077869"><span class="hs-identifier hs-var">t</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-163"></span><span>
+</span><span id="line-164"></span><span class="annot"><span class="hs-comment">-- | Values in lexicographical order of intervals.</span></span><span>
+</span><span id="line-165"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679077314"><span id="local-6989586621679077872"><span id="local-6989586621679077879"><span id="local-6989586621679077884"><span id="local-6989586621679077887"><span id="local-6989586621679077890"><span id="local-6989586621679077893"><span id="local-6989586621679077896"><span id="local-6989586621679077899"><span id="local-6989586621679077902"><span id="local-6989586621679077906"><span id="local-6989586621679077909"><span id="local-6989586621679077914"><span id="local-6989586621679077919"><span id="local-6989586621679077924"><span id="local-6989586621679077929"><span class="annot"><span class="hs-identifier hs-type">Foldable</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.IntervalMap.FingerTree.html#IntervalMap"><span class="hs-identifier hs-type">IntervalMap</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679077314"><span class="hs-identifier hs-type">v</span></a></span><span class="hs-special">)</span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-166"></span><span>    </span><span id="local-6989586621679077939"><span class="annot"><span class="annottext">foldMap :: forall m a. Monoid m =&gt; (a -&gt; m) -&gt; IntervalMap v a -&gt; m
+</span><span class="hs-identifier hs-var hs-var hs-var">foldMap</span></span></span><span> </span><span id="local-6989586621679077940"><span class="annot"><span class="annottext">a -&gt; m
+</span><a href="#local-6989586621679077940"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.IntervalMap.FingerTree.html#IntervalMap"><span class="hs-identifier hs-type">IntervalMap</span></a></span><span> </span><span id="local-6989586621679077941"><span class="annot"><span class="annottext">FingerTree (IntInterval v) (Node v a)
+</span><a href="#local-6989586621679077941"><span class="hs-identifier hs-var">t</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Node v a -&gt; m) -&gt; FingerTree (IntInterval v) (Node v a) -&gt; m
+forall m a.
+Monoid m =&gt;
+(a -&gt; m) -&gt; FingerTree (IntInterval v) a -&gt; m
+forall (t :: * -&gt; *) m a.
+(Foldable t, Monoid m) =&gt;
+(a -&gt; m) -&gt; t a -&gt; m
+</span><span class="hs-identifier hs-var">foldMap</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(a -&gt; m) -&gt; Node v a -&gt; m
+forall m a. Monoid m =&gt; (a -&gt; m) -&gt; Node v a -&gt; m
+forall (t :: * -&gt; *) m a.
+(Foldable t, Monoid m) =&gt;
+(a -&gt; m) -&gt; t a -&gt; m
+</span><span class="hs-identifier hs-var">foldMap</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; m
+</span><a href="#local-6989586621679077940"><span class="hs-identifier hs-var">f</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">FingerTree (IntInterval v) (Node v a)
+</span><a href="#local-6989586621679077941"><span class="hs-identifier hs-var">t</span></a></span><span class="hs-cpp">
+#if MIN_VERSION_base(4,8,0)
+</span><span>    </span><span id="local-6989586621679077942"><span class="annot"><span class="annottext">null :: forall a. IntervalMap v a -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var">null</span></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.IntervalMap.FingerTree.html#IntervalMap"><span class="hs-identifier hs-type">IntervalMap</span></a></span><span> </span><span id="local-6989586621679077943"><span class="annot"><span class="annottext">FingerTree (IntInterval v) (Node v a)
+</span><a href="#local-6989586621679077943"><span class="hs-identifier hs-var">t</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">FingerTree (IntInterval v) (Node v a) -&gt; Bool
+forall v a. FingerTree v a -&gt; Bool
+</span><a href="Data.FingerTree.html#null"><span class="hs-identifier hs-var">FT.null</span></a></span><span> </span><span class="annot"><span class="annottext">FingerTree (IntInterval v) (Node v a)
+</span><a href="#local-6989586621679077943"><span class="hs-identifier hs-var">t</span></a></span><span class="hs-cpp">
+#endif
+</span><span>
+</span><span id="line-171"></span><span class="annot"><span class="hs-comment">-- | Traverse the intervals in lexicographical order.</span></span><span>
+</span><span id="line-172"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679077325"><span id="local-6989586621679077951"><span id="local-6989586621679077957"><span id="local-6989586621679077962"><span class="annot"><span class="hs-identifier hs-type">Traversable</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.IntervalMap.FingerTree.html#IntervalMap"><span class="hs-identifier hs-type">IntervalMap</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679077325"><span class="hs-identifier hs-type">v</span></a></span><span class="hs-special">)</span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-173"></span><span>    </span><span id="local-6989586621679077972"><span class="annot"><span class="annottext">traverse :: forall (f :: * -&gt; *) a b.
+Applicative f =&gt;
+(a -&gt; f b) -&gt; IntervalMap v a -&gt; f (IntervalMap v b)
+</span><span class="hs-identifier hs-var hs-var hs-var">traverse</span></span></span><span> </span><span id="local-6989586621679077973"><span class="annot"><span class="annottext">a -&gt; f b
+</span><a href="#local-6989586621679077973"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.IntervalMap.FingerTree.html#IntervalMap"><span class="hs-identifier hs-type">IntervalMap</span></a></span><span> </span><span id="local-6989586621679077974"><span class="annot"><span class="annottext">FingerTree (IntInterval v) (Node v a)
+</span><a href="#local-6989586621679077974"><span class="hs-identifier hs-var">t</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-174"></span><span>        </span><span class="annot"><span class="annottext">FingerTree (IntInterval v) (Node v b) -&gt; IntervalMap v b
+forall v a.
+FingerTree (IntInterval v) (Node v a) -&gt; IntervalMap v a
+</span><a href="Data.IntervalMap.FingerTree.html#IntervalMap"><span class="hs-identifier hs-var">IntervalMap</span></a></span><span> </span><span class="annot"><span class="annottext">(FingerTree (IntInterval v) (Node v b) -&gt; IntervalMap v b)
+-&gt; f (FingerTree (IntInterval v) (Node v b)) -&gt; f (IntervalMap v b)
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">(Node v a -&gt; f (Node v b))
+-&gt; FingerTree (IntInterval v) (Node v a)
+-&gt; f (FingerTree (IntInterval v) (Node v b))
+forall (f :: * -&gt; *) a b v.
+Applicative f =&gt;
+(a -&gt; f b) -&gt; FingerTree v a -&gt; f (FingerTree v b)
+</span><a href="Data.FingerTree.html#unsafeTraverse"><span class="hs-identifier hs-var">FT.unsafeTraverse</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(a -&gt; f b) -&gt; Node v a -&gt; f (Node v b)
+forall (t :: * -&gt; *) (f :: * -&gt; *) a b.
+(Traversable t, Applicative f) =&gt;
+(a -&gt; f b) -&gt; t a -&gt; f (t b)
+forall (f :: * -&gt; *) a b.
+Applicative f =&gt;
+(a -&gt; f b) -&gt; Node v a -&gt; f (Node v b)
+</span><span class="hs-identifier hs-var">traverse</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; f b
+</span><a href="#local-6989586621679077973"><span class="hs-identifier hs-var">f</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">FingerTree (IntInterval v) (Node v a)
+</span><a href="#local-6989586621679077974"><span class="hs-identifier hs-var">t</span></a></span><span>
+</span><span id="line-175"></span><span>
+</span><span id="line-176"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679077335"><span id="local-6989586621679077336"><span id="local-6989586621679077980"><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Eq</span></span><span> </span><span class="annot"><a href="#local-6989586621679077335"><span class="hs-identifier hs-type">v</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Eq</span></span><span> </span><span class="annot"><a href="#local-6989586621679077336"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Eq</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.IntervalMap.FingerTree.html#IntervalMap"><span class="hs-identifier hs-type">IntervalMap</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679077335"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679077336"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-177"></span><span>    </span><span class="annot"><a href="Data.IntervalMap.FingerTree.html#IntervalMap"><span class="hs-identifier hs-type">IntervalMap</span></a></span><span> </span><span id="local-6989586621679077988"><span class="annot"><span class="annottext">FingerTree (IntInterval v) (Node v a)
+</span><a href="#local-6989586621679077988"><span class="hs-identifier hs-var">xs</span></a></span></span><span> </span><span id="local-6989586621679077989"><span class="annot"><span class="annottext">== :: IntervalMap v a -&gt; IntervalMap v a -&gt; Bool
+</span><span class="hs-operator hs-var hs-var hs-var">==</span></span></span><span> </span><span class="annot"><a href="Data.IntervalMap.FingerTree.html#IntervalMap"><span class="hs-identifier hs-type">IntervalMap</span></a></span><span> </span><span id="local-6989586621679077990"><span class="annot"><span class="annottext">FingerTree (IntInterval v) (Node v a)
+</span><a href="#local-6989586621679077990"><span class="hs-identifier hs-var">ys</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">FingerTree (IntInterval v) (Node v a) -&gt; [Node v a]
+forall a. FingerTree (IntInterval v) a -&gt; [a]
+forall (t :: * -&gt; *) a. Foldable t =&gt; t a -&gt; [a]
+</span><span class="hs-identifier hs-var">toList</span></span><span> </span><span class="annot"><span class="annottext">FingerTree (IntInterval v) (Node v a)
+</span><a href="#local-6989586621679077988"><span class="hs-identifier hs-var">xs</span></a></span><span> </span><span class="annot"><span class="annottext">[Node v a] -&gt; [Node v a] -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">FingerTree (IntInterval v) (Node v a) -&gt; [Node v a]
+forall a. FingerTree (IntInterval v) a -&gt; [a]
+forall (t :: * -&gt; *) a. Foldable t =&gt; t a -&gt; [a]
+</span><span class="hs-identifier hs-var">toList</span></span><span> </span><span class="annot"><span class="annottext">FingerTree (IntInterval v) (Node v a)
+</span><a href="#local-6989586621679077990"><span class="hs-identifier hs-var">ys</span></a></span><span>
+</span><span id="line-178"></span><span>
+</span><span id="line-179"></span><span class="annot"><span class="hs-comment">-- | Lexicographical ordering</span></span><span>
+</span><span id="line-180"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679077340"><span id="local-6989586621679077341"><span id="local-6989586621679077999"><span id="local-6989586621679078003"><span id="local-6989586621679078006"><span id="local-6989586621679078009"><span id="local-6989586621679078012"><span id="local-6989586621679078015"><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ord</span></span><span> </span><span class="annot"><a href="#local-6989586621679077340"><span class="hs-identifier hs-type">v</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ord</span></span><span> </span><span class="annot"><a href="#local-6989586621679077341"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ord</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.IntervalMap.FingerTree.html#IntervalMap"><span class="hs-identifier hs-type">IntervalMap</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679077340"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679077341"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span></span></span></span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-181"></span><span>    </span><span id="local-6989586621679078022"><span class="annot"><span class="annottext">compare :: IntervalMap v a -&gt; IntervalMap v a -&gt; Ordering
+</span><span class="hs-identifier hs-var hs-var hs-var">compare</span></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.IntervalMap.FingerTree.html#IntervalMap"><span class="hs-identifier hs-type">IntervalMap</span></a></span><span> </span><span id="local-6989586621679078023"><span class="annot"><span class="annottext">FingerTree (IntInterval v) (Node v a)
+</span><a href="#local-6989586621679078023"><span class="hs-identifier hs-var">xs</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.IntervalMap.FingerTree.html#IntervalMap"><span class="hs-identifier hs-type">IntervalMap</span></a></span><span> </span><span id="local-6989586621679078024"><span class="annot"><span class="annottext">FingerTree (IntInterval v) (Node v a)
+</span><a href="#local-6989586621679078024"><span class="hs-identifier hs-var">ys</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Node v a] -&gt; [Node v a] -&gt; Ordering
+forall a. Ord a =&gt; a -&gt; a -&gt; Ordering
+</span><span class="hs-identifier hs-var">compare</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">FingerTree (IntInterval v) (Node v a) -&gt; [Node v a]
+forall a. FingerTree (IntInterval v) a -&gt; [a]
+forall (t :: * -&gt; *) a. Foldable t =&gt; t a -&gt; [a]
+</span><span class="hs-identifier hs-var">toList</span></span><span> </span><span class="annot"><span class="annottext">FingerTree (IntInterval v) (Node v a)
+</span><a href="#local-6989586621679078023"><span class="hs-identifier hs-var">xs</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">FingerTree (IntInterval v) (Node v a) -&gt; [Node v a]
+forall a. FingerTree (IntInterval v) a -&gt; [a]
+forall (t :: * -&gt; *) a. Foldable t =&gt; t a -&gt; [a]
+</span><span class="hs-identifier hs-var">toList</span></span><span> </span><span class="annot"><span class="annottext">FingerTree (IntInterval v) (Node v a)
+</span><a href="#local-6989586621679078024"><span class="hs-identifier hs-var">ys</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-182"></span><span>
+</span><span id="line-183"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679077345"><span id="local-6989586621679077346"><span id="local-6989586621679078029"><span id="local-6989586621679078033"><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Show</span></span><span> </span><span class="annot"><a href="#local-6989586621679077345"><span class="hs-identifier hs-type">v</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Show</span></span><span> </span><span class="annot"><a href="#local-6989586621679077346"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Show</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.IntervalMap.FingerTree.html#IntervalMap"><span class="hs-identifier hs-type">IntervalMap</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679077345"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679077346"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-184"></span><span>    </span><span id="local-6989586621679078041"><span class="annot"><span class="annottext">showsPrec :: Int -&gt; IntervalMap v a -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var">showsPrec</span></span></span><span> </span><span id="local-6989586621679078042"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679078042"><span class="hs-identifier hs-var">p</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.IntervalMap.FingerTree.html#IntervalMap"><span class="hs-identifier hs-type">IntervalMap</span></a></span><span> </span><span id="local-6989586621679078043"><span class="annot"><span class="annottext">FingerTree (IntInterval v) (Node v a)
+</span><a href="#local-6989586621679078043"><span class="hs-identifier hs-var">ns</span></a></span></span><span class="hs-special">)</span><span>
+</span><span id="line-185"></span><span>      </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">FingerTree (IntInterval v) (Node v a) -&gt; Bool
+forall v a. FingerTree v a -&gt; Bool
+</span><a href="Data.FingerTree.html#null"><span class="hs-identifier hs-var">FT.null</span></a></span><span> </span><span class="annot"><span class="annottext">FingerTree (IntInterval v) (Node v a)
+</span><a href="#local-6989586621679078043"><span class="hs-identifier hs-var">ns</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; ShowS
+</span><span class="hs-identifier hs-var">showString</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;empty&quot;</span></span><span>
+</span><span id="line-186"></span><span>      </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-187"></span><span>        </span><span class="annot"><span class="annottext">Bool -&gt; ShowS -&gt; ShowS
+</span><span class="hs-identifier hs-var">showParen</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621679078042"><span class="hs-identifier hs-var">p</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&gt;</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[Node v a] -&gt; ShowS
+forall v a. (Show v, Show a) =&gt; [Node v a] -&gt; ShowS
+</span><a href="#local-6989586621679078046"><span class="hs-identifier hs-var">showIntervals</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">FingerTree (IntInterval v) (Node v a) -&gt; [Node v a]
+forall a. FingerTree (IntInterval v) a -&gt; [a]
+forall (t :: * -&gt; *) a. Foldable t =&gt; t a -&gt; [a]
+</span><span class="hs-identifier hs-var">toList</span></span><span> </span><span class="annot"><span class="annottext">FingerTree (IntInterval v) (Node v a)
+</span><a href="#local-6989586621679078043"><span class="hs-identifier hs-var">ns</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-188"></span><span>      </span><span class="hs-keyword">where</span><span>
+</span><span id="line-189"></span><span>        </span><span id="local-6989586621679078046"><span class="annot"><span class="annottext">showIntervals :: [Node v a] -&gt; ShowS
+</span><a href="#local-6989586621679078046"><span class="hs-identifier hs-var hs-var">showIntervals</span></a></span></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; ShowS
+</span><span class="hs-identifier hs-var">showString</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;empty&quot;</span></span><span>
+</span><span id="line-190"></span><span>        </span><span class="annot"><a href="#local-6989586621679078046"><span class="hs-identifier hs-var">showIntervals</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.IntervalMap.FingerTree.html#Node"><span class="hs-identifier hs-type">Node</span></a></span><span> </span><span id="local-6989586621679078052"><span class="annot"><span class="annottext">Interval v
+</span><a href="#local-6989586621679078052"><span class="hs-identifier hs-var">i</span></a></span></span><span> </span><span id="local-6989586621679078053"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679078053"><span class="hs-identifier hs-var">x</span></a></span></span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span id="local-6989586621679078054"><span class="annot"><span class="annottext">[Node v a]
+</span><a href="#local-6989586621679078054"><span class="hs-identifier hs-var">ixs</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-191"></span><span>            </span><span class="annot"><span class="annottext">String -&gt; ShowS
+</span><span class="hs-identifier hs-var">showString</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;insert &quot;</span></span><span> </span><span class="annot"><span class="annottext">ShowS -&gt; ShowS -&gt; ShowS
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Interval v -&gt; ShowS
+forall a. Show a =&gt; Int -&gt; a -&gt; ShowS
+</span><span class="hs-identifier hs-var">showsPrec</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">11</span></span><span> </span><span class="annot"><span class="annottext">Interval v
+</span><a href="#local-6989586621679078052"><span class="hs-identifier hs-var">i</span></a></span><span> </span><span class="annot"><span class="annottext">ShowS -&gt; ShowS -&gt; ShowS
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span>
+</span><span id="line-192"></span><span>                </span><span class="annot"><span class="annottext">Char -&gt; ShowS
+</span><span class="hs-identifier hs-var">showChar</span></span><span> </span><span class="annot"><span class="annottext">Char
+</span><span class="hs-char">' '</span></span><span> </span><span class="annot"><span class="annottext">ShowS -&gt; ShowS -&gt; ShowS
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; a -&gt; ShowS
+forall a. Show a =&gt; Int -&gt; a -&gt; ShowS
+</span><span class="hs-identifier hs-var">showsPrec</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">11</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679078053"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">ShowS -&gt; ShowS -&gt; ShowS
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span>
+</span><span id="line-193"></span><span>                </span><span class="annot"><span class="annottext">String -&gt; ShowS
+</span><span class="hs-identifier hs-var">showString</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot; $ &quot;</span></span><span> </span><span class="annot"><span class="annottext">ShowS -&gt; ShowS -&gt; ShowS
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">[Node v a] -&gt; ShowS
+</span><a href="#local-6989586621679078046"><span class="hs-identifier hs-var">showIntervals</span></a></span><span> </span><span class="annot"><span class="annottext">[Node v a]
+</span><a href="#local-6989586621679078054"><span class="hs-identifier hs-var">ixs</span></a></span><span class="hs-cpp">
+
+#if MIN_VERSION_base(4,9,0)
+</span><span class="annot"><span class="hs-comment">-- | 'union'.</span></span><span>
+</span><span id="line-197"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679077356"><span id="local-6989586621679077357"><span id="local-6989586621679078060"><span id="local-6989586621679078064"><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ord</span></span><span> </span><span class="annot"><a href="#local-6989586621679077356"><span class="hs-identifier hs-type">v</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Semigroup</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.IntervalMap.FingerTree.html#IntervalMap"><span class="hs-identifier hs-type">IntervalMap</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679077356"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679077357"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-198"></span><span>    </span><span id="local-6989586621679078069"><span class="annot"><span class="annottext">&lt;&gt; :: IntervalMap v a -&gt; IntervalMap v a -&gt; IntervalMap v a
+</span><span class="hs-operator hs-var hs-var hs-var">(&lt;&gt;)</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">IntervalMap v a -&gt; IntervalMap v a -&gt; IntervalMap v a
+forall v a.
+Ord v =&gt;
+IntervalMap v a -&gt; IntervalMap v a -&gt; IntervalMap v a
+</span><a href="Data.IntervalMap.FingerTree.html#union"><span class="hs-identifier hs-var">union</span></a></span><span class="hs-cpp">
+#endif
+</span><span>
+</span><span id="line-201"></span><span class="annot"><span class="hs-comment">-- | 'empty' and 'union'.</span></span><span>
+</span><span id="line-202"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679077360"><span id="local-6989586621679077361"><span id="local-6989586621679078075"><span id="local-6989586621679078079"><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ord</span></span><span> </span><span class="annot"><a href="#local-6989586621679077360"><span class="hs-identifier hs-type">v</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Monoid</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.IntervalMap.FingerTree.html#IntervalMap"><span class="hs-identifier hs-type">IntervalMap</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679077360"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679077361"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-203"></span><span>    </span><span id="local-6989586621679078082"><span class="annot"><span class="annottext">mempty :: IntervalMap v a
+</span><span class="hs-identifier hs-var hs-var hs-var">mempty</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">IntervalMap v a
+forall v a. Ord v =&gt; IntervalMap v a
+</span><a href="Data.IntervalMap.FingerTree.html#empty"><span class="hs-identifier hs-var">empty</span></a></span><span class="hs-cpp">
+#if !(MIN_VERSION_base(4,11,0))
+</span><span>    </span><span class="hs-identifier">mappend</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">union</span><span class="hs-cpp">
+#endif
+</span><span>
+</span><span id="line-208"></span><span class="annot"><span class="hs-comment">-- | /O(1)/.  The empty interval map.</span></span><span>
+</span><span id="line-209"></span><span id="local-6989586621679078083"><span id="local-6989586621679078084"><span class="annot"><a href="Data.IntervalMap.FingerTree.html#empty"><span class="hs-identifier hs-type">empty</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ord</span></span><span> </span><span class="annot"><a href="#local-6989586621679078083"><span class="hs-identifier hs-type">v</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Data.IntervalMap.FingerTree.html#IntervalMap"><span class="hs-identifier hs-type">IntervalMap</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679078083"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679078084"><span class="hs-identifier hs-type">a</span></a></span></span></span><span>
+</span><span id="line-210"></span><span id="empty"><span class="annot"><span class="annottext">empty :: forall v a. Ord v =&gt; IntervalMap v a
+</span><a href="Data.IntervalMap.FingerTree.html#empty"><span class="hs-identifier hs-var hs-var">empty</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">FingerTree (IntInterval v) (Node v a) -&gt; IntervalMap v a
+forall v a.
+FingerTree (IntInterval v) (Node v a) -&gt; IntervalMap v a
+</span><a href="Data.IntervalMap.FingerTree.html#IntervalMap"><span class="hs-identifier hs-var">IntervalMap</span></a></span><span> </span><span class="annot"><span class="annottext">FingerTree (IntInterval v) (Node v a)
+forall v a. Measured v a =&gt; FingerTree v a
+</span><a href="Data.FingerTree.html#empty"><span class="hs-identifier hs-var">FT.empty</span></a></span><span>
+</span><span id="line-211"></span><span>
+</span><span id="line-212"></span><span class="annot"><span class="hs-comment">-- | /O(1)/.  Interval map with a single entry.</span></span><span>
+</span><span id="line-213"></span><span id="local-6989586621679077366"><span id="local-6989586621679077367"><span class="annot"><a href="Data.IntervalMap.FingerTree.html#singleton"><span class="hs-identifier hs-type">singleton</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ord</span></span><span> </span><span class="annot"><a href="#local-6989586621679077366"><span class="hs-identifier hs-type">v</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Data.IntervalMap.FingerTree.html#Interval"><span class="hs-identifier hs-type">Interval</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679077366"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679077367"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Data.IntervalMap.FingerTree.html#IntervalMap"><span class="hs-identifier hs-type">IntervalMap</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679077366"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679077367"><span class="hs-identifier hs-type">a</span></a></span></span></span><span>
+</span><span id="line-214"></span><span id="singleton"><span class="annot"><span class="annottext">singleton :: forall v a. Ord v =&gt; Interval v -&gt; a -&gt; IntervalMap v a
+</span><a href="Data.IntervalMap.FingerTree.html#singleton"><span class="hs-identifier hs-var hs-var">singleton</span></a></span></span><span> </span><span id="local-6989586621679078090"><span class="annot"><span class="annottext">Interval v
+</span><a href="#local-6989586621679078090"><span class="hs-identifier hs-var">i</span></a></span></span><span> </span><span id="local-6989586621679078091"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679078091"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">FingerTree (IntInterval v) (Node v a) -&gt; IntervalMap v a
+forall v a.
+FingerTree (IntInterval v) (Node v a) -&gt; IntervalMap v a
+</span><a href="Data.IntervalMap.FingerTree.html#IntervalMap"><span class="hs-identifier hs-var">IntervalMap</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Node v a -&gt; FingerTree (IntInterval v) (Node v a)
+forall v a. Measured v a =&gt; a -&gt; FingerTree v a
+</span><a href="Data.FingerTree.html#singleton"><span class="hs-identifier hs-var">FT.singleton</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Interval v -&gt; a -&gt; Node v a
+forall v a. Interval v -&gt; a -&gt; Node v a
+</span><a href="Data.IntervalMap.FingerTree.html#Node"><span class="hs-identifier hs-var">Node</span></a></span><span> </span><span class="annot"><span class="annottext">Interval v
+</span><a href="#local-6989586621679078090"><span class="hs-identifier hs-var">i</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679078091"><span class="hs-identifier hs-var">x</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-215"></span><span>
+</span><span id="line-216"></span><span class="hs-comment">-- | /O(log n)/.  Insert an interval and associated value into a map.</span><span>
+</span><span id="line-217"></span><span class="hs-comment">-- The map may contain duplicate intervals; the new entry will be inserted</span><span>
+</span><span id="line-218"></span><span class="hs-comment">-- before any existing entries for the same interval.</span><span>
+</span><span id="line-219"></span><span id="local-6989586621679077372"><span id="local-6989586621679077373"><span class="annot"><a href="Data.IntervalMap.FingerTree.html#insert"><span class="hs-identifier hs-type">insert</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ord</span></span><span> </span><span class="annot"><a href="#local-6989586621679077372"><span class="hs-identifier hs-type">v</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Data.IntervalMap.FingerTree.html#Interval"><span class="hs-identifier hs-type">Interval</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679077372"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679077373"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Data.IntervalMap.FingerTree.html#IntervalMap"><span class="hs-identifier hs-type">IntervalMap</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679077372"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679077373"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Data.IntervalMap.FingerTree.html#IntervalMap"><span class="hs-identifier hs-type">IntervalMap</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679077372"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679077373"><span class="hs-identifier hs-type">a</span></a></span></span></span><span>
+</span><span id="line-220"></span><span id="insert"><span class="annot"><span class="annottext">insert :: forall v a.
+Ord v =&gt;
+Interval v -&gt; a -&gt; IntervalMap v a -&gt; IntervalMap v a
+</span><a href="Data.IntervalMap.FingerTree.html#insert"><span class="hs-identifier hs-var hs-var">insert</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.IntervalMap.FingerTree.html#Interval"><span class="hs-identifier hs-type">Interval</span></a></span><span> </span><span id="local-6989586621679078098"><span class="annot"><span class="annottext">v
+</span><a href="#local-6989586621679078098"><span class="hs-identifier hs-var">lo</span></a></span></span><span> </span><span id="local-6989586621679078099"><span class="annot"><span class="annottext">v
+</span><a href="#local-6989586621679078099"><span class="hs-identifier hs-var">hi</span></a></span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">a
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621679078100"><span class="annot"><span class="annottext">IntervalMap v a
+</span><a href="#local-6989586621679078100"><span class="hs-identifier hs-var">m</span></a></span></span><span> </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">v
+</span><a href="#local-6989586621679078098"><span class="hs-identifier hs-var">lo</span></a></span><span> </span><span class="annot"><span class="annottext">v -&gt; v -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&gt;</span></span><span> </span><span class="annot"><span class="annottext">v
+</span><a href="#local-6989586621679078099"><span class="hs-identifier hs-var">hi</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">IntervalMap v a
+</span><a href="#local-6989586621679078100"><span class="hs-identifier hs-var">m</span></a></span><span>
+</span><span id="line-221"></span><span class="annot"><a href="Data.IntervalMap.FingerTree.html#insert"><span class="hs-identifier hs-var">insert</span></a></span><span> </span><span id="local-6989586621679078101"><span class="annot"><span class="annottext">Interval v
+</span><a href="#local-6989586621679078101"><span class="hs-identifier hs-var">i</span></a></span></span><span> </span><span id="local-6989586621679078102"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679078102"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.IntervalMap.FingerTree.html#IntervalMap"><span class="hs-identifier hs-type">IntervalMap</span></a></span><span> </span><span id="local-6989586621679078103"><span class="annot"><span class="annottext">FingerTree (IntInterval v) (Node v a)
+</span><a href="#local-6989586621679078103"><span class="hs-identifier hs-var">t</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">FingerTree (IntInterval v) (Node v a) -&gt; IntervalMap v a
+forall v a.
+FingerTree (IntInterval v) (Node v a) -&gt; IntervalMap v a
+</span><a href="Data.IntervalMap.FingerTree.html#IntervalMap"><span class="hs-identifier hs-var">IntervalMap</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">FingerTree (IntInterval v) (Node v a)
+</span><a href="#local-6989586621679078104"><span class="hs-identifier hs-var">l</span></a></span><span> </span><span class="annot"><span class="annottext">FingerTree (IntInterval v) (Node v a)
+-&gt; FingerTree (IntInterval v) (Node v a)
+-&gt; FingerTree (IntInterval v) (Node v a)
+forall v a.
+Measured v a =&gt;
+FingerTree v a -&gt; FingerTree v a -&gt; FingerTree v a
+</span><a href="Data.FingerTree.html#%3E%3C"><span class="hs-operator hs-var">&gt;&lt;</span></a></span><span> </span><span class="annot"><span class="annottext">Interval v -&gt; a -&gt; Node v a
+forall v a. Interval v -&gt; a -&gt; Node v a
+</span><a href="Data.IntervalMap.FingerTree.html#Node"><span class="hs-identifier hs-var">Node</span></a></span><span> </span><span class="annot"><span class="annottext">Interval v
+</span><a href="#local-6989586621679078101"><span class="hs-identifier hs-var">i</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679078102"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">Node v a
+-&gt; FingerTree (IntInterval v) (Node v a)
+-&gt; FingerTree (IntInterval v) (Node v a)
+forall v a. Measured v a =&gt; a -&gt; FingerTree v a -&gt; FingerTree v a
+</span><a href="Data.FingerTree.html#%3C%7C"><span class="hs-operator hs-var">&lt;|</span></a></span><span> </span><span class="annot"><span class="annottext">FingerTree (IntInterval v) (Node v a)
+</span><a href="#local-6989586621679078105"><span class="hs-identifier hs-var">r</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-222"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-223"></span><span>    </span><span class="hs-special">(</span><span id="local-6989586621679078104"><span class="annot"><span class="annottext">FingerTree (IntInterval v) (Node v a)
+</span><a href="#local-6989586621679078104"><span class="hs-identifier hs-var">l</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679078105"><span class="annot"><span class="annottext">FingerTree (IntInterval v) (Node v a)
+</span><a href="#local-6989586621679078105"><span class="hs-identifier hs-var">r</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(IntInterval v -&gt; Bool)
+-&gt; FingerTree (IntInterval v) (Node v a)
+-&gt; (FingerTree (IntInterval v) (Node v a),
+    FingerTree (IntInterval v) (Node v a))
+forall v a.
+Measured v a =&gt;
+(v -&gt; Bool) -&gt; FingerTree v a -&gt; (FingerTree v a, FingerTree v a)
+</span><a href="Data.FingerTree.html#split"><span class="hs-identifier hs-var">FT.split</span></a></span><span> </span><span class="annot"><span class="annottext">IntInterval v -&gt; Bool
+</span><a href="#local-6989586621679078110"><span class="hs-identifier hs-var">larger</span></a></span><span> </span><span class="annot"><span class="annottext">FingerTree (IntInterval v) (Node v a)
+</span><a href="#local-6989586621679078103"><span class="hs-identifier hs-var">t</span></a></span><span>
+</span><span id="line-224"></span><span>    </span><span id="local-6989586621679078110"><span class="annot"><span class="annottext">larger :: IntInterval v -&gt; Bool
+</span><a href="#local-6989586621679078110"><span class="hs-identifier hs-var hs-var">larger</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.IntervalMap.FingerTree.html#IntInterval"><span class="hs-identifier hs-type">IntInterval</span></a></span><span> </span><span id="local-6989586621679078116"><span class="annot"><span class="annottext">Interval v
+</span><a href="#local-6989586621679078116"><span class="hs-identifier hs-var">k</span></a></span></span><span> </span><span class="annot"><span class="annottext">v
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Interval v
+</span><a href="#local-6989586621679078116"><span class="hs-identifier hs-var">k</span></a></span><span> </span><span class="annot"><span class="annottext">Interval v -&gt; Interval v -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&gt;=</span></span><span> </span><span class="annot"><span class="annottext">Interval v
+</span><a href="#local-6989586621679078101"><span class="hs-identifier hs-var">i</span></a></span><span>
+</span><span id="line-225"></span><span>    </span><span class="annot"><a href="#local-6989586621679078110"><span class="hs-identifier hs-var">larger</span></a></span><span> </span><span class="annot"><span class="annottext">IntInterval v
+</span><a href="Data.IntervalMap.FingerTree.html#NoInterval"><span class="hs-identifier hs-var">NoInterval</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; Bool
+forall a. HasCallStack =&gt; String -&gt; a
+</span><span class="hs-identifier hs-var">error</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;larger NoInterval&quot;</span></span><span>
+</span><span id="line-226"></span><span>
+</span><span id="line-227"></span><span class="hs-comment">-- | /O(m log (n/\//m))/.  Merge two interval maps.</span><span>
+</span><span id="line-228"></span><span class="hs-comment">-- The map may contain duplicate intervals; entries with equal intervals</span><span>
+</span><span id="line-229"></span><span class="hs-comment">-- are kept in the original order.</span><span>
+</span><span id="line-230"></span><span id="local-6989586621679078118"><span id="local-6989586621679078119"><span class="annot"><a href="Data.IntervalMap.FingerTree.html#union"><span class="hs-identifier hs-type">union</span></a></span><span>  </span><span class="hs-glyph">::</span><span>  </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ord</span></span><span> </span><span class="annot"><a href="#local-6989586621679078118"><span class="hs-identifier hs-type">v</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Data.IntervalMap.FingerTree.html#IntervalMap"><span class="hs-identifier hs-type">IntervalMap</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679078118"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679078119"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Data.IntervalMap.FingerTree.html#IntervalMap"><span class="hs-identifier hs-type">IntervalMap</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679078118"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679078119"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Data.IntervalMap.FingerTree.html#IntervalMap"><span class="hs-identifier hs-type">IntervalMap</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679078118"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679078119"><span class="hs-identifier hs-type">a</span></a></span></span></span><span>
+</span><span id="line-231"></span><span id="union"><span class="annot"><span class="annottext">union :: forall v a.
+Ord v =&gt;
+IntervalMap v a -&gt; IntervalMap v a -&gt; IntervalMap v a
+</span><a href="Data.IntervalMap.FingerTree.html#union"><span class="hs-identifier hs-var hs-var">union</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.IntervalMap.FingerTree.html#IntervalMap"><span class="hs-identifier hs-type">IntervalMap</span></a></span><span> </span><span id="local-6989586621679078122"><span class="annot"><span class="annottext">FingerTree (IntInterval v) (Node v a)
+</span><a href="#local-6989586621679078122"><span class="hs-identifier hs-var">xs</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.IntervalMap.FingerTree.html#IntervalMap"><span class="hs-identifier hs-type">IntervalMap</span></a></span><span> </span><span id="local-6989586621679078123"><span class="annot"><span class="annottext">FingerTree (IntInterval v) (Node v a)
+</span><a href="#local-6989586621679078123"><span class="hs-identifier hs-var">ys</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">FingerTree (IntInterval v) (Node v a) -&gt; IntervalMap v a
+forall v a.
+FingerTree (IntInterval v) (Node v a) -&gt; IntervalMap v a
+</span><a href="Data.IntervalMap.FingerTree.html#IntervalMap"><span class="hs-identifier hs-var">IntervalMap</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">FingerTree (IntInterval v) (Node v a)
+-&gt; FingerTree (IntInterval v) (Node v a)
+-&gt; FingerTree (IntInterval v) (Node v a)
+forall {v} {a}.
+Ord v =&gt;
+FingerTree (IntInterval v) (Node v a)
+-&gt; FingerTree (IntInterval v) (Node v a)
+-&gt; FingerTree (IntInterval v) (Node v a)
+</span><a href="#local-6989586621679078124"><span class="hs-identifier hs-var">merge1</span></a></span><span> </span><span class="annot"><span class="annottext">FingerTree (IntInterval v) (Node v a)
+</span><a href="#local-6989586621679078122"><span class="hs-identifier hs-var">xs</span></a></span><span> </span><span class="annot"><span class="annottext">FingerTree (IntInterval v) (Node v a)
+</span><a href="#local-6989586621679078123"><span class="hs-identifier hs-var">ys</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-232"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-233"></span><span>    </span><span id="local-6989586621679078124"><span class="annot"><span class="annottext">merge1 :: FingerTree (IntInterval v) (Node v a)
+-&gt; FingerTree (IntInterval v) (Node v a)
+-&gt; FingerTree (IntInterval v) (Node v a)
+</span><a href="#local-6989586621679078124"><span class="hs-identifier hs-var hs-var">merge1</span></a></span></span><span> </span><span id="local-6989586621679078135"><span class="annot"><span class="annottext">FingerTree (IntInterval v) (Node v a)
+</span><a href="#local-6989586621679078135"><span class="hs-keyword hs-var">as</span></a></span></span><span> </span><span id="local-6989586621679078136"><span class="annot"><span class="annottext">FingerTree (IntInterval v) (Node v a)
+</span><a href="#local-6989586621679078136"><span class="hs-identifier hs-var">bs</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">FingerTree (IntInterval v) (Node v a)
+-&gt; ViewL (FingerTree (IntInterval v)) (Node v a)
+forall v a.
+Measured v a =&gt;
+FingerTree v a -&gt; ViewL (FingerTree v) a
+</span><a href="Data.FingerTree.html#viewl"><span class="hs-identifier hs-var">FT.viewl</span></a></span><span> </span><span class="annot"><span class="annottext">FingerTree (IntInterval v) (Node v a)
+</span><a href="#local-6989586621679078135"><span class="hs-keyword hs-var">as</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-234"></span><span>        </span><span class="annot"><span class="annottext">ViewL (FingerTree (IntInterval v)) (Node v a)
+</span><a href="Data.FingerTree.html#EmptyL"><span class="hs-identifier hs-var">EmptyL</span></a></span><span>                  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">FingerTree (IntInterval v) (Node v a)
+</span><a href="#local-6989586621679078136"><span class="hs-identifier hs-var">bs</span></a></span><span>
+</span><span id="line-235"></span><span>        </span><span id="local-6989586621679078139"><span class="annot"><span class="annottext">a :: Node v a
+</span><a href="#local-6989586621679078139"><span class="hs-identifier hs-var">a</span></a></span></span><span class="hs-glyph">@</span><span class="hs-special">(</span><span class="annot"><a href="Data.IntervalMap.FingerTree.html#Node"><span class="hs-identifier hs-type">Node</span></a></span><span> </span><span id="local-6989586621679078140"><span class="annot"><span class="annottext">Interval v
+</span><a href="#local-6989586621679078140"><span class="hs-identifier hs-var">i</span></a></span></span><span> </span><span class="annot"><span class="annottext">a
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="annot"><a href="Data.FingerTree.html#%3A%3C"><span class="hs-operator hs-type">:&lt;</span></a></span><span> </span><span id="local-6989586621679078142"><span class="annot"><span class="annottext">FingerTree (IntInterval v) (Node v a)
+</span><a href="#local-6989586621679078142"><span class="hs-identifier hs-var">as'</span></a></span></span><span>     </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">FingerTree (IntInterval v) (Node v a)
+</span><a href="#local-6989586621679078143"><span class="hs-identifier hs-var">l</span></a></span><span> </span><span class="annot"><span class="annottext">FingerTree (IntInterval v) (Node v a)
+-&gt; FingerTree (IntInterval v) (Node v a)
+-&gt; FingerTree (IntInterval v) (Node v a)
+forall v a.
+Measured v a =&gt;
+FingerTree v a -&gt; FingerTree v a -&gt; FingerTree v a
+</span><a href="Data.FingerTree.html#%3E%3C"><span class="hs-operator hs-var">&gt;&lt;</span></a></span><span> </span><span class="annot"><span class="annottext">Node v a
+</span><a href="#local-6989586621679078139"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="annot"><span class="annottext">Node v a
+-&gt; FingerTree (IntInterval v) (Node v a)
+-&gt; FingerTree (IntInterval v) (Node v a)
+forall v a. Measured v a =&gt; a -&gt; FingerTree v a -&gt; FingerTree v a
+</span><a href="Data.FingerTree.html#%3C%7C"><span class="hs-operator hs-var">&lt;|</span></a></span><span> </span><span class="annot"><span class="annottext">FingerTree (IntInterval v) (Node v a)
+-&gt; FingerTree (IntInterval v) (Node v a)
+-&gt; FingerTree (IntInterval v) (Node v a)
+</span><a href="#local-6989586621679078144"><span class="hs-identifier hs-var">merge2</span></a></span><span> </span><span class="annot"><span class="annottext">FingerTree (IntInterval v) (Node v a)
+</span><a href="#local-6989586621679078142"><span class="hs-identifier hs-var">as'</span></a></span><span> </span><span class="annot"><span class="annottext">FingerTree (IntInterval v) (Node v a)
+</span><a href="#local-6989586621679078145"><span class="hs-identifier hs-var">r</span></a></span><span>
+</span><span id="line-236"></span><span>          </span><span class="hs-keyword">where</span><span>
+</span><span id="line-237"></span><span>            </span><span class="hs-special">(</span><span id="local-6989586621679078143"><span class="annot"><span class="annottext">FingerTree (IntInterval v) (Node v a)
+</span><a href="#local-6989586621679078143"><span class="hs-identifier hs-var">l</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679078145"><span class="annot"><span class="annottext">FingerTree (IntInterval v) (Node v a)
+</span><a href="#local-6989586621679078145"><span class="hs-identifier hs-var">r</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(IntInterval v -&gt; Bool)
+-&gt; FingerTree (IntInterval v) (Node v a)
+-&gt; (FingerTree (IntInterval v) (Node v a),
+    FingerTree (IntInterval v) (Node v a))
+forall v a.
+Measured v a =&gt;
+(v -&gt; Bool) -&gt; FingerTree v a -&gt; (FingerTree v a, FingerTree v a)
+</span><a href="Data.FingerTree.html#split"><span class="hs-identifier hs-var">FT.split</span></a></span><span> </span><span class="annot"><span class="annottext">IntInterval v -&gt; Bool
+</span><a href="#local-6989586621679078151"><span class="hs-identifier hs-var">larger</span></a></span><span> </span><span class="annot"><span class="annottext">FingerTree (IntInterval v) (Node v a)
+</span><a href="#local-6989586621679078136"><span class="hs-identifier hs-var">bs</span></a></span><span>
+</span><span id="line-238"></span><span>            </span><span id="local-6989586621679078151"><span class="annot"><span class="annottext">larger :: IntInterval v -&gt; Bool
+</span><a href="#local-6989586621679078151"><span class="hs-identifier hs-var hs-var">larger</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.IntervalMap.FingerTree.html#IntInterval"><span class="hs-identifier hs-type">IntInterval</span></a></span><span> </span><span id="local-6989586621679078157"><span class="annot"><span class="annottext">Interval v
+</span><a href="#local-6989586621679078157"><span class="hs-identifier hs-var">k</span></a></span></span><span> </span><span class="annot"><span class="annottext">v
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Interval v
+</span><a href="#local-6989586621679078157"><span class="hs-identifier hs-var">k</span></a></span><span> </span><span class="annot"><span class="annottext">Interval v -&gt; Interval v -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&gt;=</span></span><span> </span><span class="annot"><span class="annottext">Interval v
+</span><a href="#local-6989586621679078140"><span class="hs-identifier hs-var">i</span></a></span><span>
+</span><span id="line-239"></span><span>            </span><span class="annot"><a href="#local-6989586621679078151"><span class="hs-identifier hs-var">larger</span></a></span><span> </span><span class="annot"><span class="annottext">IntInterval v
+</span><a href="Data.IntervalMap.FingerTree.html#NoInterval"><span class="hs-identifier hs-var">NoInterval</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; Bool
+forall a. HasCallStack =&gt; String -&gt; a
+</span><span class="hs-identifier hs-var">error</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;larger NoInterval&quot;</span></span><span>
+</span><span id="line-240"></span><span>    </span><span id="local-6989586621679078144"><span class="annot"><span class="annottext">merge2 :: FingerTree (IntInterval v) (Node v a)
+-&gt; FingerTree (IntInterval v) (Node v a)
+-&gt; FingerTree (IntInterval v) (Node v a)
+</span><a href="#local-6989586621679078144"><span class="hs-identifier hs-var hs-var">merge2</span></a></span></span><span> </span><span id="local-6989586621679078158"><span class="annot"><span class="annottext">FingerTree (IntInterval v) (Node v a)
+</span><a href="#local-6989586621679078158"><span class="hs-keyword hs-var">as</span></a></span></span><span> </span><span id="local-6989586621679078159"><span class="annot"><span class="annottext">FingerTree (IntInterval v) (Node v a)
+</span><a href="#local-6989586621679078159"><span class="hs-identifier hs-var">bs</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">FingerTree (IntInterval v) (Node v a)
+-&gt; ViewL (FingerTree (IntInterval v)) (Node v a)
+forall v a.
+Measured v a =&gt;
+FingerTree v a -&gt; ViewL (FingerTree v) a
+</span><a href="Data.FingerTree.html#viewl"><span class="hs-identifier hs-var">FT.viewl</span></a></span><span> </span><span class="annot"><span class="annottext">FingerTree (IntInterval v) (Node v a)
+</span><a href="#local-6989586621679078159"><span class="hs-identifier hs-var">bs</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-241"></span><span>        </span><span class="annot"><span class="annottext">ViewL (FingerTree (IntInterval v)) (Node v a)
+</span><a href="Data.FingerTree.html#EmptyL"><span class="hs-identifier hs-var">EmptyL</span></a></span><span>                  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">FingerTree (IntInterval v) (Node v a)
+</span><a href="#local-6989586621679078158"><span class="hs-keyword hs-var">as</span></a></span><span>
+</span><span id="line-242"></span><span>        </span><span id="local-6989586621679078160"><span class="annot"><span class="annottext">b :: Node v a
+</span><a href="#local-6989586621679078160"><span class="hs-identifier hs-var">b</span></a></span></span><span class="hs-glyph">@</span><span class="hs-special">(</span><span class="annot"><a href="Data.IntervalMap.FingerTree.html#Node"><span class="hs-identifier hs-type">Node</span></a></span><span> </span><span id="local-6989586621679078161"><span class="annot"><span class="annottext">Interval v
+</span><a href="#local-6989586621679078161"><span class="hs-identifier hs-var">i</span></a></span></span><span> </span><span class="annot"><span class="annottext">a
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="annot"><a href="Data.FingerTree.html#%3A%3C"><span class="hs-operator hs-type">:&lt;</span></a></span><span> </span><span id="local-6989586621679078162"><span class="annot"><span class="annottext">FingerTree (IntInterval v) (Node v a)
+</span><a href="#local-6989586621679078162"><span class="hs-identifier hs-var">bs'</span></a></span></span><span>     </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">FingerTree (IntInterval v) (Node v a)
+</span><a href="#local-6989586621679078163"><span class="hs-identifier hs-var">l</span></a></span><span> </span><span class="annot"><span class="annottext">FingerTree (IntInterval v) (Node v a)
+-&gt; FingerTree (IntInterval v) (Node v a)
+-&gt; FingerTree (IntInterval v) (Node v a)
+forall v a.
+Measured v a =&gt;
+FingerTree v a -&gt; FingerTree v a -&gt; FingerTree v a
+</span><a href="Data.FingerTree.html#%3E%3C"><span class="hs-operator hs-var">&gt;&lt;</span></a></span><span> </span><span class="annot"><span class="annottext">Node v a
+</span><a href="#local-6989586621679078160"><span class="hs-identifier hs-var">b</span></a></span><span> </span><span class="annot"><span class="annottext">Node v a
+-&gt; FingerTree (IntInterval v) (Node v a)
+-&gt; FingerTree (IntInterval v) (Node v a)
+forall v a. Measured v a =&gt; a -&gt; FingerTree v a -&gt; FingerTree v a
+</span><a href="Data.FingerTree.html#%3C%7C"><span class="hs-operator hs-var">&lt;|</span></a></span><span> </span><span class="annot"><span class="annottext">FingerTree (IntInterval v) (Node v a)
+-&gt; FingerTree (IntInterval v) (Node v a)
+-&gt; FingerTree (IntInterval v) (Node v a)
+</span><a href="#local-6989586621679078124"><span class="hs-identifier hs-var">merge1</span></a></span><span> </span><span class="annot"><span class="annottext">FingerTree (IntInterval v) (Node v a)
+</span><a href="#local-6989586621679078164"><span class="hs-identifier hs-var">r</span></a></span><span> </span><span class="annot"><span class="annottext">FingerTree (IntInterval v) (Node v a)
+</span><a href="#local-6989586621679078162"><span class="hs-identifier hs-var">bs'</span></a></span><span>
+</span><span id="line-243"></span><span>          </span><span class="hs-keyword">where</span><span>
+</span><span id="line-244"></span><span>            </span><span class="hs-special">(</span><span id="local-6989586621679078163"><span class="annot"><span class="annottext">FingerTree (IntInterval v) (Node v a)
+</span><a href="#local-6989586621679078163"><span class="hs-identifier hs-var">l</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679078164"><span class="annot"><span class="annottext">FingerTree (IntInterval v) (Node v a)
+</span><a href="#local-6989586621679078164"><span class="hs-identifier hs-var">r</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(IntInterval v -&gt; Bool)
+-&gt; FingerTree (IntInterval v) (Node v a)
+-&gt; (FingerTree (IntInterval v) (Node v a),
+    FingerTree (IntInterval v) (Node v a))
+forall v a.
+Measured v a =&gt;
+(v -&gt; Bool) -&gt; FingerTree v a -&gt; (FingerTree v a, FingerTree v a)
+</span><a href="Data.FingerTree.html#split"><span class="hs-identifier hs-var">FT.split</span></a></span><span> </span><span class="annot"><span class="annottext">IntInterval v -&gt; Bool
+</span><a href="#local-6989586621679078168"><span class="hs-identifier hs-var">larger</span></a></span><span> </span><span class="annot"><span class="annottext">FingerTree (IntInterval v) (Node v a)
+</span><a href="#local-6989586621679078158"><span class="hs-keyword hs-var">as</span></a></span><span>
+</span><span id="line-245"></span><span>            </span><span id="local-6989586621679078168"><span class="annot"><span class="annottext">larger :: IntInterval v -&gt; Bool
+</span><a href="#local-6989586621679078168"><span class="hs-identifier hs-var hs-var">larger</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.IntervalMap.FingerTree.html#IntInterval"><span class="hs-identifier hs-type">IntInterval</span></a></span><span> </span><span id="local-6989586621679078174"><span class="annot"><span class="annottext">Interval v
+</span><a href="#local-6989586621679078174"><span class="hs-identifier hs-var">k</span></a></span></span><span> </span><span class="annot"><span class="annottext">v
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Interval v
+</span><a href="#local-6989586621679078174"><span class="hs-identifier hs-var">k</span></a></span><span> </span><span class="annot"><span class="annottext">Interval v -&gt; Interval v -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&gt;</span></span><span> </span><span class="annot"><span class="annottext">Interval v
+</span><a href="#local-6989586621679078161"><span class="hs-identifier hs-var">i</span></a></span><span>
+</span><span id="line-246"></span><span>            </span><span class="annot"><a href="#local-6989586621679078168"><span class="hs-identifier hs-var">larger</span></a></span><span> </span><span class="annot"><span class="annottext">IntInterval v
+</span><a href="Data.IntervalMap.FingerTree.html#NoInterval"><span class="hs-identifier hs-var">NoInterval</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; Bool
+forall a. HasCallStack =&gt; String -&gt; a
+</span><span class="hs-identifier hs-var">error</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;larger NoInterval&quot;</span></span><span>
+</span><span id="line-247"></span><span>
+</span><span id="line-248"></span><span class="hs-comment">-- | /O(k log (n/\//k))/.  All intervals that intersect with the given</span><span>
+</span><span id="line-249"></span><span class="hs-comment">-- interval, in lexicographical order.</span><span>
+</span><span id="line-250"></span><span id="local-6989586621679077392"><span id="local-6989586621679077393"><span class="annot"><a href="Data.IntervalMap.FingerTree.html#intersections"><span class="hs-identifier hs-type">intersections</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ord</span></span><span> </span><span class="annot"><a href="#local-6989586621679077392"><span class="hs-identifier hs-type">v</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Data.IntervalMap.FingerTree.html#Interval"><span class="hs-identifier hs-type">Interval</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679077392"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Data.IntervalMap.FingerTree.html#IntervalMap"><span class="hs-identifier hs-type">IntervalMap</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679077392"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679077393"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="hs-special">(</span><span class="annot"><a href="Data.IntervalMap.FingerTree.html#Interval"><span class="hs-identifier hs-type">Interval</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679077392"><span class="hs-identifier hs-type">v</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679077393"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span class="hs-special">]</span></span></span><span>
+</span><span id="line-251"></span><span id="intersections"><span class="annot"><span class="annottext">intersections :: forall v a.
+Ord v =&gt;
+Interval v -&gt; IntervalMap v a -&gt; [(Interval v, a)]
+</span><a href="Data.IntervalMap.FingerTree.html#intersections"><span class="hs-identifier hs-var hs-var">intersections</span></a></span></span><span> </span><span id="local-6989586621679078177"><span class="annot"><span class="annottext">Interval v
+</span><a href="#local-6989586621679078177"><span class="hs-identifier hs-var">i</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">v -&gt; v -&gt; IntervalMap v a -&gt; [(Interval v, a)]
+forall v a. Ord v =&gt; v -&gt; v -&gt; IntervalMap v a -&gt; [(Interval v, a)]
+</span><a href="Data.IntervalMap.FingerTree.html#inRange"><span class="hs-identifier hs-var">inRange</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Interval v -&gt; v
+forall v. Interval v -&gt; v
+</span><a href="Data.IntervalMap.FingerTree.html#low"><span class="hs-identifier hs-var">low</span></a></span><span> </span><span class="annot"><span class="annottext">Interval v
+</span><a href="#local-6989586621679078177"><span class="hs-identifier hs-var">i</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Interval v -&gt; v
+forall v. Interval v -&gt; v
+</span><a href="Data.IntervalMap.FingerTree.html#high"><span class="hs-identifier hs-var">high</span></a></span><span> </span><span class="annot"><span class="annottext">Interval v
+</span><a href="#local-6989586621679078177"><span class="hs-identifier hs-var">i</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-252"></span><span>
+</span><span id="line-253"></span><span class="hs-comment">-- | /O(k log (n/\//k))/.  All intervals that contain the given interval,</span><span>
+</span><span id="line-254"></span><span class="hs-comment">-- in lexicographical order.</span><span>
+</span><span id="line-255"></span><span id="local-6989586621679078179"><span id="local-6989586621679078180"><span class="annot"><a href="Data.IntervalMap.FingerTree.html#dominators"><span class="hs-identifier hs-type">dominators</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ord</span></span><span> </span><span class="annot"><a href="#local-6989586621679078179"><span class="hs-identifier hs-type">v</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Data.IntervalMap.FingerTree.html#Interval"><span class="hs-identifier hs-type">Interval</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679078179"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Data.IntervalMap.FingerTree.html#IntervalMap"><span class="hs-identifier hs-type">IntervalMap</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679078179"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679078180"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="hs-special">(</span><span class="annot"><a href="Data.IntervalMap.FingerTree.html#Interval"><span class="hs-identifier hs-type">Interval</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679078179"><span class="hs-identifier hs-type">v</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679078180"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span class="hs-special">]</span></span></span><span>
+</span><span id="line-256"></span><span id="dominators"><span class="annot"><span class="annottext">dominators :: forall v a.
+Ord v =&gt;
+Interval v -&gt; IntervalMap v a -&gt; [(Interval v, a)]
+</span><a href="Data.IntervalMap.FingerTree.html#dominators"><span class="hs-identifier hs-var hs-var">dominators</span></a></span></span><span> </span><span id="local-6989586621679078183"><span class="annot"><span class="annottext">Interval v
+</span><a href="#local-6989586621679078183"><span class="hs-identifier hs-var">i</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">v -&gt; v -&gt; IntervalMap v a -&gt; [(Interval v, a)]
+forall v a. Ord v =&gt; v -&gt; v -&gt; IntervalMap v a -&gt; [(Interval v, a)]
+</span><a href="Data.IntervalMap.FingerTree.html#inRange"><span class="hs-identifier hs-var">inRange</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Interval v -&gt; v
+forall v. Interval v -&gt; v
+</span><a href="Data.IntervalMap.FingerTree.html#high"><span class="hs-identifier hs-var">high</span></a></span><span> </span><span class="annot"><span class="annottext">Interval v
+</span><a href="#local-6989586621679078183"><span class="hs-identifier hs-var">i</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Interval v -&gt; v
+forall v. Interval v -&gt; v
+</span><a href="Data.IntervalMap.FingerTree.html#low"><span class="hs-identifier hs-var">low</span></a></span><span> </span><span class="annot"><span class="annottext">Interval v
+</span><a href="#local-6989586621679078183"><span class="hs-identifier hs-var">i</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-257"></span><span>
+</span><span id="line-258"></span><span class="hs-comment">-- | /O(k log (n/\//k))/.  All intervals that contain the given point,</span><span>
+</span><span id="line-259"></span><span class="hs-comment">-- in lexicographical order.</span><span>
+</span><span id="line-260"></span><span id="local-6989586621679077400"><span id="local-6989586621679077401"><span class="annot"><a href="Data.IntervalMap.FingerTree.html#search"><span class="hs-identifier hs-type">search</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ord</span></span><span> </span><span class="annot"><a href="#local-6989586621679077400"><span class="hs-identifier hs-type">v</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679077400"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Data.IntervalMap.FingerTree.html#IntervalMap"><span class="hs-identifier hs-type">IntervalMap</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679077400"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679077401"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="hs-special">(</span><span class="annot"><a href="Data.IntervalMap.FingerTree.html#Interval"><span class="hs-identifier hs-type">Interval</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679077400"><span class="hs-identifier hs-type">v</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679077401"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span class="hs-special">]</span></span></span><span>
+</span><span id="line-261"></span><span id="search"><span class="annot"><span class="annottext">search :: forall v a. Ord v =&gt; v -&gt; IntervalMap v a -&gt; [(Interval v, a)]
+</span><a href="Data.IntervalMap.FingerTree.html#search"><span class="hs-identifier hs-var hs-var">search</span></a></span></span><span> </span><span id="local-6989586621679078186"><span class="annot"><span class="annottext">v
+</span><a href="#local-6989586621679078186"><span class="hs-identifier hs-var">p</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">v -&gt; v -&gt; IntervalMap v a -&gt; [(Interval v, a)]
+forall v a. Ord v =&gt; v -&gt; v -&gt; IntervalMap v a -&gt; [(Interval v, a)]
+</span><a href="Data.IntervalMap.FingerTree.html#inRange"><span class="hs-identifier hs-var">inRange</span></a></span><span> </span><span class="annot"><span class="annottext">v
+</span><a href="#local-6989586621679078186"><span class="hs-identifier hs-var">p</span></a></span><span> </span><span class="annot"><span class="annottext">v
+</span><a href="#local-6989586621679078186"><span class="hs-identifier hs-var">p</span></a></span><span>
+</span><span id="line-262"></span><span>
+</span><span id="line-263"></span><span class="hs-comment">-- | /O(k log (n/\//k))/.  All intervals that intersect with the given</span><span>
+</span><span id="line-264"></span><span class="hs-comment">-- interval, in lexicographical order.</span><span>
+</span><span id="line-265"></span><span id="local-6989586621679077396"><span id="local-6989586621679077397"><span class="annot"><a href="Data.IntervalMap.FingerTree.html#inRange"><span class="hs-identifier hs-type">inRange</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ord</span></span><span> </span><span class="annot"><a href="#local-6989586621679077396"><span class="hs-identifier hs-type">v</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679077396"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679077396"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Data.IntervalMap.FingerTree.html#IntervalMap"><span class="hs-identifier hs-type">IntervalMap</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679077396"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679077397"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="hs-special">(</span><span class="annot"><a href="Data.IntervalMap.FingerTree.html#Interval"><span class="hs-identifier hs-type">Interval</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679077396"><span class="hs-identifier hs-type">v</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679077397"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span class="hs-special">]</span></span></span><span>
+</span><span id="line-266"></span><span id="inRange"><span class="annot"><span class="annottext">inRange :: forall v a. Ord v =&gt; v -&gt; v -&gt; IntervalMap v a -&gt; [(Interval v, a)]
+</span><a href="Data.IntervalMap.FingerTree.html#inRange"><span class="hs-identifier hs-var hs-var">inRange</span></a></span></span><span> </span><span id="local-6989586621679078191"><span class="annot"><span class="annottext">v
+</span><a href="#local-6989586621679078191"><span class="hs-identifier hs-var">lo</span></a></span></span><span> </span><span id="local-6989586621679078192"><span class="annot"><span class="annottext">v
+</span><a href="#local-6989586621679078192"><span class="hs-identifier hs-var">hi</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.IntervalMap.FingerTree.html#IntervalMap"><span class="hs-identifier hs-type">IntervalMap</span></a></span><span> </span><span id="local-6989586621679078193"><span class="annot"><span class="annottext">FingerTree (IntInterval v) (Node v a)
+</span><a href="#local-6989586621679078193"><span class="hs-identifier hs-var">t</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">FingerTree (IntInterval v) (Node v a) -&gt; [(Interval v, a)]
+forall {b}.
+FingerTree (IntInterval v) (Node v b) -&gt; [(Interval v, b)]
+</span><a href="#local-6989586621679078194"><span class="hs-identifier hs-var">matches</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(IntInterval v -&gt; Bool)
+-&gt; FingerTree (IntInterval v) (Node v a)
+-&gt; FingerTree (IntInterval v) (Node v a)
+forall v a.
+Measured v a =&gt;
+(v -&gt; Bool) -&gt; FingerTree v a -&gt; FingerTree v a
+</span><a href="Data.FingerTree.html#takeUntil"><span class="hs-identifier hs-var">FT.takeUntil</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">v -&gt; IntInterval v -&gt; Bool
+forall v. Ord v =&gt; v -&gt; IntInterval v -&gt; Bool
+</span><a href="Data.IntervalMap.FingerTree.html#greater"><span class="hs-identifier hs-var">greater</span></a></span><span> </span><span class="annot"><span class="annottext">v
+</span><a href="#local-6989586621679078192"><span class="hs-identifier hs-var">hi</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">FingerTree (IntInterval v) (Node v a)
+</span><a href="#local-6989586621679078193"><span class="hs-identifier hs-var">t</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-267"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-268"></span><span>    </span><span id="local-6989586621679078194"><span class="annot"><span class="annottext">matches :: FingerTree (IntInterval v) (Node v b) -&gt; [(Interval v, b)]
+</span><a href="#local-6989586621679078194"><span class="hs-identifier hs-var hs-var">matches</span></a></span></span><span> </span><span id="local-6989586621679078202"><span class="annot"><span class="annottext">FingerTree (IntInterval v) (Node v b)
+</span><a href="#local-6989586621679078202"><span class="hs-identifier hs-var">xs</span></a></span></span><span>  </span><span class="hs-glyph">=</span><span>  </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">FingerTree (IntInterval v) (Node v b)
+-&gt; ViewL (FingerTree (IntInterval v)) (Node v b)
+forall v a.
+Measured v a =&gt;
+FingerTree v a -&gt; ViewL (FingerTree v) a
+</span><a href="Data.FingerTree.html#viewl"><span class="hs-identifier hs-var">FT.viewl</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(IntInterval v -&gt; Bool)
+-&gt; FingerTree (IntInterval v) (Node v b)
+-&gt; FingerTree (IntInterval v) (Node v b)
+forall v a.
+Measured v a =&gt;
+(v -&gt; Bool) -&gt; FingerTree v a -&gt; FingerTree v a
+</span><a href="Data.FingerTree.html#dropUntil"><span class="hs-identifier hs-var">FT.dropUntil</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">v -&gt; IntInterval v -&gt; Bool
+forall v. Ord v =&gt; v -&gt; IntInterval v -&gt; Bool
+</span><a href="Data.IntervalMap.FingerTree.html#atleast"><span class="hs-identifier hs-var">atleast</span></a></span><span> </span><span class="annot"><span class="annottext">v
+</span><a href="#local-6989586621679078191"><span class="hs-identifier hs-var">lo</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">FingerTree (IntInterval v) (Node v b)
+</span><a href="#local-6989586621679078202"><span class="hs-identifier hs-var">xs</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-269"></span><span>        </span><span class="annot"><span class="annottext">ViewL (FingerTree (IntInterval v)) (Node v b)
+</span><a href="Data.FingerTree.html#EmptyL"><span class="hs-identifier hs-var">EmptyL</span></a></span><span>    </span><span class="hs-glyph">-&gt;</span><span>  </span><span class="hs-special">[</span><span class="hs-special">]</span><span>
+</span><span id="line-270"></span><span>        </span><span class="annot"><a href="Data.IntervalMap.FingerTree.html#Node"><span class="hs-identifier hs-type">Node</span></a></span><span> </span><span id="local-6989586621679078205"><span class="annot"><span class="annottext">Interval v
+</span><a href="#local-6989586621679078205"><span class="hs-identifier hs-var">i</span></a></span></span><span> </span><span id="local-6989586621679078206"><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679078206"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="annot"><a href="Data.FingerTree.html#%3A%3C"><span class="hs-operator hs-type">:&lt;</span></a></span><span> </span><span id="local-6989586621679078207"><span class="annot"><span class="annottext">FingerTree (IntInterval v) (Node v b)
+</span><a href="#local-6989586621679078207"><span class="hs-identifier hs-var">xs'</span></a></span></span><span>  </span><span class="hs-glyph">-&gt;</span><span>  </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Interval v
+</span><a href="#local-6989586621679078205"><span class="hs-identifier hs-var">i</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679078206"><span class="hs-identifier hs-var">x</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(Interval v, b) -&gt; [(Interval v, b)] -&gt; [(Interval v, b)]
+forall a. a -&gt; [a] -&gt; [a]
+</span><span class="hs-glyph hs-var">:</span></span><span> </span><span class="annot"><span class="annottext">FingerTree (IntInterval v) (Node v b) -&gt; [(Interval v, b)]
+</span><a href="#local-6989586621679078194"><span class="hs-identifier hs-var">matches</span></a></span><span> </span><span class="annot"><span class="annottext">FingerTree (IntInterval v) (Node v b)
+</span><a href="#local-6989586621679078207"><span class="hs-identifier hs-var">xs'</span></a></span><span>
+</span><span id="line-271"></span><span>
+</span><span id="line-272"></span><span class="hs-comment">-- | /O(1)/.  @'bounds' m@ returns @'Nothing'@ if @m@ is empty, and</span><span>
+</span><span id="line-273"></span><span class="hs-comment">-- otherwise @'Just' i@, where @i@ is the smallest interval containing</span><span>
+</span><span id="line-274"></span><span class="hs-comment">-- all the intervals in the map.</span><span>
+</span><span id="line-275"></span><span class="hs-comment">--</span><span>
+</span><span id="line-276"></span><span class="hs-comment">-- @since 0.1.3.0</span><span>
+</span><span id="line-277"></span><span id="local-6989586621679077411"><span id="local-6989586621679077412"><span class="annot"><a href="Data.IntervalMap.FingerTree.html#bounds"><span class="hs-identifier hs-type">bounds</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ord</span></span><span> </span><span class="annot"><a href="#local-6989586621679077411"><span class="hs-identifier hs-type">v</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Data.IntervalMap.FingerTree.html#IntervalMap"><span class="hs-identifier hs-type">IntervalMap</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679077411"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679077412"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.IntervalMap.FingerTree.html#Interval"><span class="hs-identifier hs-type">Interval</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679077411"><span class="hs-identifier hs-type">v</span></a></span><span class="hs-special">)</span></span></span><span>
+</span><span id="line-278"></span><span id="bounds"><span class="annot"><span class="annottext">bounds :: forall v a. Ord v =&gt; IntervalMap v a -&gt; Maybe (Interval v)
+</span><a href="Data.IntervalMap.FingerTree.html#bounds"><span class="hs-identifier hs-var hs-var">bounds</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.IntervalMap.FingerTree.html#IntervalMap"><span class="hs-identifier hs-type">IntervalMap</span></a></span><span> </span><span id="local-6989586621679078213"><span class="annot"><span class="annottext">FingerTree (IntInterval v) (Node v a)
+</span><a href="#local-6989586621679078213"><span class="hs-identifier hs-var">t</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">FingerTree (IntInterval v) (Node v a) -&gt; IntInterval v
+forall v a. Measured v a =&gt; a -&gt; v
+</span><a href="Data.FingerTree.html#measure"><span class="hs-identifier hs-var">measure</span></a></span><span> </span><span class="annot"><span class="annottext">FingerTree (IntInterval v) (Node v a)
+</span><a href="#local-6989586621679078213"><span class="hs-identifier hs-var">t</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-279"></span><span>    </span><span class="annot"><span class="annottext">IntInterval v
+</span><a href="Data.IntervalMap.FingerTree.html#NoInterval"><span class="hs-identifier hs-var">NoInterval</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Maybe (Interval v)
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-280"></span><span>    </span><span class="annot"><a href="Data.IntervalMap.FingerTree.html#IntInterval"><span class="hs-identifier hs-type">IntInterval</span></a></span><span> </span><span class="annot"><span class="annottext">Interval v
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621679078214"><span class="annot"><span class="annottext">v
+</span><a href="#local-6989586621679078214"><span class="hs-identifier hs-var">hi</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">FingerTree (IntInterval v) (Node v a)
+-&gt; ViewL (FingerTree (IntInterval v)) (Node v a)
+forall v a.
+Measured v a =&gt;
+FingerTree v a -&gt; ViewL (FingerTree v) a
+</span><a href="Data.FingerTree.html#viewl"><span class="hs-identifier hs-var">FT.viewl</span></a></span><span> </span><span class="annot"><span class="annottext">FingerTree (IntInterval v) (Node v a)
+</span><a href="#local-6989586621679078213"><span class="hs-identifier hs-var">t</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-281"></span><span>        </span><span class="annot"><span class="annottext">ViewL (FingerTree (IntInterval v)) (Node v a)
+</span><a href="Data.FingerTree.html#EmptyL"><span class="hs-identifier hs-var">EmptyL</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Maybe (Interval v)
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-282"></span><span>        </span><span class="annot"><a href="Data.IntervalMap.FingerTree.html#Node"><span class="hs-identifier hs-type">Node</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.IntervalMap.FingerTree.html#Interval"><span class="hs-identifier hs-type">Interval</span></a></span><span> </span><span id="local-6989586621679078215"><span class="annot"><span class="annottext">v
+</span><a href="#local-6989586621679078215"><span class="hs-identifier hs-var">lo</span></a></span></span><span> </span><span class="annot"><span class="annottext">v
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">a
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><a href="Data.FingerTree.html#%3A%3C"><span class="hs-operator hs-type">FT.:&lt;</span></a></span><span> </span><span class="annot"><span class="annottext">FingerTree (IntInterval v) (Node v a)
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Interval v -&gt; Maybe (Interval v)
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">v -&gt; v -&gt; Interval v
+forall v. v -&gt; v -&gt; Interval v
+</span><a href="Data.IntervalMap.FingerTree.html#Interval"><span class="hs-identifier hs-var">Interval</span></a></span><span> </span><span class="annot"><span class="annottext">v
+</span><a href="#local-6989586621679078215"><span class="hs-identifier hs-var">lo</span></a></span><span> </span><span class="annot"><span class="annottext">v
+</span><a href="#local-6989586621679078214"><span class="hs-identifier hs-var">hi</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-283"></span><span>
+</span><span id="line-284"></span><span class="hs-comment">-- | /O(1)/.  @'leastView' m@ returns @'Nothing'@ if @m@ is empty, and</span><span>
+</span><span id="line-285"></span><span class="hs-comment">-- otherwise @'Just' ((i, x), m')@, where @i@ is the least interval,</span><span>
+</span><span id="line-286"></span><span class="hs-comment">-- @x@ is the associated value, and @m'@ is the rest of the map.</span><span>
+</span><span id="line-287"></span><span class="hs-comment">--</span><span>
+</span><span id="line-288"></span><span class="hs-comment">-- @since 0.1.3.0</span><span>
+</span><span id="line-289"></span><span id="local-6989586621679077417"><span id="local-6989586621679077418"><span class="annot"><a href="Data.IntervalMap.FingerTree.html#leastView"><span class="hs-identifier hs-type">leastView</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ord</span></span><span> </span><span class="annot"><a href="#local-6989586621679077417"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span>
+</span><span id="line-290"></span><span>    </span><span class="annot"><a href="Data.IntervalMap.FingerTree.html#IntervalMap"><span class="hs-identifier hs-type">IntervalMap</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679077417"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679077418"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><a href="Data.IntervalMap.FingerTree.html#Interval"><span class="hs-identifier hs-type">Interval</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679077417"><span class="hs-identifier hs-type">v</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679077418"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.IntervalMap.FingerTree.html#IntervalMap"><span class="hs-identifier hs-type">IntervalMap</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679077417"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679077418"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span></span><span>
+</span><span id="line-291"></span><span id="leastView"><span class="annot"><span class="annottext">leastView :: forall v a.
+Ord v =&gt;
+IntervalMap v a -&gt; Maybe ((Interval v, a), IntervalMap v a)
+</span><a href="Data.IntervalMap.FingerTree.html#leastView"><span class="hs-identifier hs-var hs-var">leastView</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.IntervalMap.FingerTree.html#IntervalMap"><span class="hs-identifier hs-type">IntervalMap</span></a></span><span> </span><span id="local-6989586621679078218"><span class="annot"><span class="annottext">FingerTree (IntInterval v) (Node v a)
+</span><a href="#local-6989586621679078218"><span class="hs-identifier hs-var">t</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">FingerTree (IntInterval v) (Node v a)
+-&gt; ViewL (FingerTree (IntInterval v)) (Node v a)
+forall v a.
+Measured v a =&gt;
+FingerTree v a -&gt; ViewL (FingerTree v) a
+</span><a href="Data.FingerTree.html#viewl"><span class="hs-identifier hs-var">FT.viewl</span></a></span><span> </span><span class="annot"><span class="annottext">FingerTree (IntInterval v) (Node v a)
+</span><a href="#local-6989586621679078218"><span class="hs-identifier hs-var">t</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-292"></span><span>    </span><span class="annot"><span class="annottext">ViewL (FingerTree (IntInterval v)) (Node v a)
+</span><a href="Data.FingerTree.html#EmptyL"><span class="hs-identifier hs-var">EmptyL</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Maybe ((Interval v, a), IntervalMap v a)
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-293"></span><span>    </span><span class="annot"><a href="Data.IntervalMap.FingerTree.html#Node"><span class="hs-identifier hs-type">Node</span></a></span><span> </span><span id="local-6989586621679078219"><span class="annot"><span class="annottext">Interval v
+</span><a href="#local-6989586621679078219"><span class="hs-identifier hs-var">i</span></a></span></span><span> </span><span id="local-6989586621679078220"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679078220"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span class="annot"><a href="Data.FingerTree.html#%3A%3C"><span class="hs-operator hs-type">FT.:&lt;</span></a></span><span> </span><span id="local-6989586621679078221"><span class="annot"><span class="annottext">FingerTree (IntInterval v) (Node v a)
+</span><a href="#local-6989586621679078221"><span class="hs-identifier hs-var">t'</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">((Interval v, a), IntervalMap v a)
+-&gt; Maybe ((Interval v, a), IntervalMap v a)
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="annottext">Interval v
+</span><a href="#local-6989586621679078219"><span class="hs-identifier hs-var">i</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679078220"><span class="hs-identifier hs-var">a</span></a></span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">FingerTree (IntInterval v) (Node v a) -&gt; IntervalMap v a
+forall v a.
+FingerTree (IntInterval v) (Node v a) -&gt; IntervalMap v a
+</span><a href="Data.IntervalMap.FingerTree.html#IntervalMap"><span class="hs-identifier hs-var">IntervalMap</span></a></span><span> </span><span class="annot"><span class="annottext">FingerTree (IntInterval v) (Node v a)
+</span><a href="#local-6989586621679078221"><span class="hs-identifier hs-var">t'</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-294"></span><span>
+</span><span id="line-295"></span><span class="hs-comment">-- | /O(log(min(i,n-i)))/.  @'splitAfter' k m@ returns a pair of submaps,</span><span>
+</span><span id="line-296"></span><span class="hs-comment">-- one consisting of intervals whose lower bound is less than or equal</span><span>
+</span><span id="line-297"></span><span class="hs-comment">-- to @k@, and the other of those whose lower bound is greater.</span><span>
+</span><span id="line-298"></span><span class="hs-comment">--</span><span>
+</span><span id="line-299"></span><span class="hs-comment">-- @since 0.1.3.0</span><span>
+</span><span id="line-300"></span><span id="local-6989586621679077421"><span id="local-6989586621679077422"><span class="annot"><a href="Data.IntervalMap.FingerTree.html#splitAfter"><span class="hs-identifier hs-type">splitAfter</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ord</span></span><span> </span><span class="annot"><a href="#local-6989586621679077421"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span>
+</span><span id="line-301"></span><span>    </span><span class="annot"><a href="#local-6989586621679077421"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Data.IntervalMap.FingerTree.html#IntervalMap"><span class="hs-identifier hs-type">IntervalMap</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679077421"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679077422"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.IntervalMap.FingerTree.html#IntervalMap"><span class="hs-identifier hs-type">IntervalMap</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679077421"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679077422"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Data.IntervalMap.FingerTree.html#IntervalMap"><span class="hs-identifier hs-type">IntervalMap</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679077421"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679077422"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span></span><span>
+</span><span id="line-302"></span><span id="splitAfter"><span class="annot"><span class="annottext">splitAfter :: forall v a.
+Ord v =&gt;
+v -&gt; IntervalMap v a -&gt; (IntervalMap v a, IntervalMap v a)
+</span><a href="Data.IntervalMap.FingerTree.html#splitAfter"><span class="hs-identifier hs-var hs-var">splitAfter</span></a></span></span><span> </span><span id="local-6989586621679078224"><span class="annot"><span class="annottext">v
+</span><a href="#local-6989586621679078224"><span class="hs-identifier hs-var">k</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.IntervalMap.FingerTree.html#IntervalMap"><span class="hs-identifier hs-type">IntervalMap</span></a></span><span> </span><span id="local-6989586621679078225"><span class="annot"><span class="annottext">FingerTree (IntInterval v) (Node v a)
+</span><a href="#local-6989586621679078225"><span class="hs-identifier hs-var">t</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">FingerTree (IntInterval v) (Node v a) -&gt; IntervalMap v a
+forall v a.
+FingerTree (IntInterval v) (Node v a) -&gt; IntervalMap v a
+</span><a href="Data.IntervalMap.FingerTree.html#IntervalMap"><span class="hs-identifier hs-var">IntervalMap</span></a></span><span> </span><span class="annot"><span class="annottext">FingerTree (IntInterval v) (Node v a)
+</span><a href="#local-6989586621679078226"><span class="hs-identifier hs-var">before</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">FingerTree (IntInterval v) (Node v a) -&gt; IntervalMap v a
+forall v a.
+FingerTree (IntInterval v) (Node v a) -&gt; IntervalMap v a
+</span><a href="Data.IntervalMap.FingerTree.html#IntervalMap"><span class="hs-identifier hs-var">IntervalMap</span></a></span><span> </span><span class="annot"><span class="annottext">FingerTree (IntInterval v) (Node v a)
+</span><a href="#local-6989586621679078227"><span class="hs-identifier hs-var">after</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-303"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-304"></span><span>    </span><span class="hs-special">(</span><span id="local-6989586621679078226"><span class="annot"><span class="annottext">FingerTree (IntInterval v) (Node v a)
+</span><a href="#local-6989586621679078226"><span class="hs-identifier hs-var">before</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679078227"><span class="annot"><span class="annottext">FingerTree (IntInterval v) (Node v a)
+</span><a href="#local-6989586621679078227"><span class="hs-identifier hs-var">after</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(IntInterval v -&gt; Bool)
+-&gt; FingerTree (IntInterval v) (Node v a)
+-&gt; (FingerTree (IntInterval v) (Node v a),
+    FingerTree (IntInterval v) (Node v a))
+forall v a.
+Measured v a =&gt;
+(v -&gt; Bool) -&gt; FingerTree v a -&gt; (FingerTree v a, FingerTree v a)
+</span><a href="Data.FingerTree.html#split"><span class="hs-identifier hs-var">FT.split</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">v -&gt; IntInterval v -&gt; Bool
+forall v. Ord v =&gt; v -&gt; IntInterval v -&gt; Bool
+</span><a href="Data.IntervalMap.FingerTree.html#greater"><span class="hs-identifier hs-var">greater</span></a></span><span> </span><span class="annot"><span class="annottext">v
+</span><a href="#local-6989586621679078224"><span class="hs-identifier hs-var">k</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">FingerTree (IntInterval v) (Node v a)
+</span><a href="#local-6989586621679078225"><span class="hs-identifier hs-var">t</span></a></span><span>
+</span><span id="line-305"></span><span>
+</span><span id="line-306"></span><span id="local-6989586621679078232"><span class="annot"><a href="Data.IntervalMap.FingerTree.html#atleast"><span class="hs-identifier hs-type">atleast</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ord</span></span><span> </span><span class="annot"><a href="#local-6989586621679078232"><span class="hs-identifier hs-type">v</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679078232"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Data.IntervalMap.FingerTree.html#IntInterval"><span class="hs-identifier hs-type">IntInterval</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679078232"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span></span><span>
+</span><span id="line-307"></span><span id="atleast"><span class="annot"><span class="annottext">atleast :: forall v. Ord v =&gt; v -&gt; IntInterval v -&gt; Bool
+</span><a href="Data.IntervalMap.FingerTree.html#atleast"><span class="hs-identifier hs-var hs-var">atleast</span></a></span></span><span> </span><span id="local-6989586621679078237"><span class="annot"><span class="annottext">v
+</span><a href="#local-6989586621679078237"><span class="hs-identifier hs-var">k</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.IntervalMap.FingerTree.html#IntInterval"><span class="hs-identifier hs-type">IntInterval</span></a></span><span> </span><span class="annot"><span class="annottext">Interval v
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621679078238"><span class="annot"><span class="annottext">v
+</span><a href="#local-6989586621679078238"><span class="hs-identifier hs-var">hi</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">v
+</span><a href="#local-6989586621679078237"><span class="hs-identifier hs-var">k</span></a></span><span> </span><span class="annot"><span class="annottext">v -&gt; v -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&lt;=</span></span><span> </span><span class="annot"><span class="annottext">v
+</span><a href="#local-6989586621679078238"><span class="hs-identifier hs-var">hi</span></a></span><span>
+</span><span id="line-308"></span><span class="annot"><a href="Data.IntervalMap.FingerTree.html#atleast"><span class="hs-identifier hs-var">atleast</span></a></span><span> </span><span class="annot"><span class="annottext">v
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">IntInterval v
+</span><a href="Data.IntervalMap.FingerTree.html#NoInterval"><span class="hs-identifier hs-var">NoInterval</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; Bool
+forall a. HasCallStack =&gt; String -&gt; a
+</span><span class="hs-identifier hs-var">error</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;atleast NoInterval&quot;</span></span><span>
+</span><span id="line-309"></span><span>
+</span><span id="line-310"></span><span id="local-6989586621679077409"><span class="annot"><a href="Data.IntervalMap.FingerTree.html#greater"><span class="hs-identifier hs-type">greater</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ord</span></span><span> </span><span class="annot"><a href="#local-6989586621679077409"><span class="hs-identifier hs-type">v</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679077409"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Data.IntervalMap.FingerTree.html#IntInterval"><span class="hs-identifier hs-type">IntInterval</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679077409"><span class="hs-identifier hs-type">v</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span></span><span>
+</span><span id="line-311"></span><span id="greater"><span class="annot"><span class="annottext">greater :: forall v. Ord v =&gt; v -&gt; IntInterval v -&gt; Bool
+</span><a href="Data.IntervalMap.FingerTree.html#greater"><span class="hs-identifier hs-var hs-var">greater</span></a></span></span><span> </span><span id="local-6989586621679078243"><span class="annot"><span class="annottext">v
+</span><a href="#local-6989586621679078243"><span class="hs-identifier hs-var">k</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.IntervalMap.FingerTree.html#IntInterval"><span class="hs-identifier hs-type">IntInterval</span></a></span><span> </span><span id="local-6989586621679078244"><span class="annot"><span class="annottext">Interval v
+</span><a href="#local-6989586621679078244"><span class="hs-identifier hs-var">i</span></a></span></span><span> </span><span class="annot"><span class="annottext">v
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Interval v -&gt; v
+forall v. Interval v -&gt; v
+</span><a href="Data.IntervalMap.FingerTree.html#low"><span class="hs-identifier hs-var">low</span></a></span><span> </span><span class="annot"><span class="annottext">Interval v
+</span><a href="#local-6989586621679078244"><span class="hs-identifier hs-var">i</span></a></span><span> </span><span class="annot"><span class="annottext">v -&gt; v -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&gt;</span></span><span> </span><span class="annot"><span class="annottext">v
+</span><a href="#local-6989586621679078243"><span class="hs-identifier hs-var">k</span></a></span><span>
+</span><span id="line-312"></span><span class="annot"><a href="Data.IntervalMap.FingerTree.html#greater"><span class="hs-identifier hs-var">greater</span></a></span><span> </span><span class="annot"><span class="annottext">v
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">IntInterval v
+</span><a href="Data.IntervalMap.FingerTree.html#NoInterval"><span class="hs-identifier hs-var">NoInterval</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; Bool
+forall a. HasCallStack =&gt; String -&gt; a
+</span><span class="hs-identifier hs-var">error</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;greater NoInterval&quot;</span></span><span>
+</span><span id="line-313"></span><span>
+</span><span id="line-314"></span><span class="hs-comment">{-
+-- Examples
+
+mkMap :: (Ord v) =&gt; [(v, v, a)] -&gt; IntervalMap v a
+mkMap = foldr ins empty
+  where
+    ins (lo, hi, n) = insert (Interval lo hi) n
+
+composers :: IntervalMap Int String
+composers = mkMap [
+    (1685, 1750, &quot;Bach&quot;),
+    (1685, 1759, &quot;Handel&quot;),
+    (1732, 1809, &quot;Haydn&quot;),
+    (1756, 1791, &quot;Mozart&quot;),
+    (1770, 1827, &quot;Beethoven&quot;),
+    (1782, 1840, &quot;Paganini&quot;),
+    (1797, 1828, &quot;Schubert&quot;),
+    (1803, 1869, &quot;Berlioz&quot;),
+    (1810, 1849, &quot;Chopin&quot;),
+    (1833, 1897, &quot;Brahms&quot;),
+    (1838, 1875, &quot;Bizet&quot;)]
+
+mathematicians :: IntervalMap Int String
+mathematicians = mkMap [
+    (1642, 1727, &quot;Newton&quot;),
+    (1646, 1716, &quot;Leibniz&quot;),
+    (1707, 1783, &quot;Euler&quot;),
+    (1736, 1813, &quot;Lagrange&quot;),
+    (1777, 1855, &quot;Gauss&quot;),
+    (1811, 1831, &quot;Galois&quot;)]
+-}</span><span>
+</span><span id="line-345"></span></pre></body></html>

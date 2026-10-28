@@ -1,0 +1,72 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Network.TLS.Session.html"><span class="hs-identifier">Network.TLS.Session</span></a></span><span> </span><span class="hs-special">(</span><span>
+</span><span id="line-2"></span><span>    </span><span class="annot"><a href="Network.TLS.Session.html#SessionManager"><span class="hs-identifier">SessionManager</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-3"></span><span>    </span><span class="annot"><a href="Network.TLS.Session.html#noSessionManager"><span class="hs-identifier">noSessionManager</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-4"></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-5"></span><span>
+</span><span id="line-6"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Network.TLS.Types.html"><span class="hs-identifier">Network.TLS.Types</span></a></span><span>
+</span><span id="line-7"></span><span>
+</span><span id="line-8"></span><span class="hs-comment">-- | A session manager.</span><span>
+</span><span id="line-9"></span><span class="hs-comment">-- In the server side, all fields are used.</span><span>
+</span><span id="line-10"></span><span class="hs-comment">-- In the client side, only 'sessionEstablish' is used.</span><span>
+</span><span id="line-11"></span><span class="hs-keyword">data</span><span> </span><span id="SessionManager"><span class="annot"><a href="Network.TLS.Session.html#SessionManager"><span class="hs-identifier hs-var">SessionManager</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="SessionManager"><span class="annot"><a href="Network.TLS.Session.html#SessionManager"><span class="hs-identifier hs-var">SessionManager</span></a></span></span><span>
+</span><span id="line-12"></span><span>    </span><span class="hs-special">{</span><span> </span><span id="sessionResume"><span class="annot"><span class="annottext">SessionManager -&gt; SessionIDorTicket -&gt; IO (Maybe SessionData)
+</span><a href="Network.TLS.Session.html#sessionResume"><span class="hs-identifier hs-var hs-var">sessionResume</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Network.TLS.Types.Session.html#SessionIDorTicket"><span class="hs-identifier hs-type">SessionIDorTicket</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="Network.TLS.Types.Session.html#SessionData"><span class="hs-identifier hs-type">SessionData</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-13"></span><span>    </span><span class="annot"><span class="hs-comment">-- ^ Used on TLS 1.2\/1.3 servers to lookup 'SessionData' with 'SessionID' or to decrypt 'Ticket' to get 'SessionData'.</span></span><span>
+</span><span id="line-14"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="sessionResumeOnlyOnce"><span class="annot"><span class="annottext">SessionManager -&gt; SessionIDorTicket -&gt; IO (Maybe SessionData)
+</span><a href="Network.TLS.Session.html#sessionResumeOnlyOnce"><span class="hs-identifier hs-var hs-var">sessionResumeOnlyOnce</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Network.TLS.Types.Session.html#SessionIDorTicket"><span class="hs-identifier hs-type">SessionIDorTicket</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="Network.TLS.Types.Session.html#SessionData"><span class="hs-identifier hs-type">SessionData</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-15"></span><span>    </span><span class="annot"><span class="hs-comment">-- ^ Used for 0RTT on TLS 1.3 servers to lookup 'SessionData' with 'SessionID' or to decrypt 'Ticket' to get 'SessionData'.</span></span><span>
+</span><span id="line-16"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="sessionEstablish"><span class="annot"><span class="annottext">SessionManager
+-&gt; SessionIDorTicket -&gt; SessionData -&gt; IO (Maybe SessionIDorTicket)
+</span><a href="Network.TLS.Session.html#sessionEstablish"><span class="hs-identifier hs-var hs-var">sessionEstablish</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Network.TLS.Types.Session.html#SessionIDorTicket"><span class="hs-identifier hs-type">SessionIDorTicket</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Network.TLS.Types.Session.html#SessionData"><span class="hs-identifier hs-type">SessionData</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="Network.TLS.Types.Session.html#Ticket"><span class="hs-identifier hs-type">Ticket</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-17"></span><span>    </span><span class="annot"><span class="hs-comment">-- ^ Used on TLS 1.2\/1.3 servers to store 'SessionData' with 'SessionID' or to encrypt 'SessionData' to get 'Ticket' ignoring 'SessionID'. Used on TLS 1.2\/1.3 clients to store 'SessionData' with 'SessionIDorTicket' and then return 'Nothing'. For clients, only this field should be set with 'noSessionManager'.</span></span><span>
+</span><span id="line-18"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="sessionInvalidate"><span class="annot"><span class="annottext">SessionManager -&gt; SessionIDorTicket -&gt; IO ()
+</span><a href="Network.TLS.Session.html#sessionInvalidate"><span class="hs-identifier hs-var hs-var">sessionInvalidate</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Network.TLS.Types.Session.html#SessionIDorTicket"><span class="hs-identifier hs-type">SessionIDorTicket</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-19"></span><span>    </span><span class="annot"><span class="hs-comment">-- ^ Used TLS 1.2 servers to delete 'SessionData' with 'SessionID' on errors.</span></span><span>
+</span><span id="line-20"></span><span>    </span><span class="hs-special">,</span><span> </span><span id="sessionUseTicket"><span class="annot"><span class="annottext">SessionManager -&gt; Bool
+</span><a href="Network.TLS.Session.html#sessionUseTicket"><span class="hs-identifier hs-var hs-var">sessionUseTicket</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>
+</span><span id="line-21"></span><span>    </span><span class="annot"><span class="hs-comment">-- ^ Used on TLS 1.2 servers to decide to use 'SessionID' or 'Ticket'. Note that 'SessionID' and 'Ticket' are integrated as identity in TLS 1.3.</span></span><span>
+</span><span id="line-22"></span><span>    </span><span class="hs-special">}</span><span>
+</span><span id="line-23"></span><span>
+</span><span id="line-24"></span><span class="annot"><span class="hs-comment">-- | The session manager to do nothing.</span></span><span>
+</span><span id="line-25"></span><span class="annot"><a href="Network.TLS.Session.html#noSessionManager"><span class="hs-identifier hs-type">noSessionManager</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Network.TLS.Session.html#SessionManager"><span class="hs-identifier hs-type">SessionManager</span></a></span><span>
+</span><span id="line-26"></span><span id="noSessionManager"><span class="annot"><span class="annottext">noSessionManager :: SessionManager
+</span><a href="Network.TLS.Session.html#noSessionManager"><span class="hs-identifier hs-var hs-var">noSessionManager</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-27"></span><span>    </span><span class="annot"><a href="Network.TLS.Session.html#SessionManager"><span class="hs-identifier hs-type">SessionManager</span></a></span><span>
+</span><span id="line-28"></span><span>        </span><span class="hs-special">{</span><span> </span><span class="annot"><span class="annottext">sessionResume :: SessionIDorTicket -&gt; IO (Maybe SessionData)
+</span><a href="Network.TLS.Session.html#sessionResume"><span class="hs-identifier hs-var">sessionResume</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span class="annot"><span class="annottext">SessionIDorTicket
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Maybe SessionData -&gt; IO (Maybe SessionData)
+forall a. a -&gt; IO a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">Maybe SessionData
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-29"></span><span>        </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">sessionResumeOnlyOnce :: SessionIDorTicket -&gt; IO (Maybe SessionData)
+</span><a href="Network.TLS.Session.html#sessionResumeOnlyOnce"><span class="hs-identifier hs-var">sessionResumeOnlyOnce</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span class="annot"><span class="annottext">SessionIDorTicket
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Maybe SessionData -&gt; IO (Maybe SessionData)
+forall a. a -&gt; IO a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">Maybe SessionData
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-30"></span><span>        </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">sessionEstablish :: SessionIDorTicket -&gt; SessionData -&gt; IO (Maybe SessionIDorTicket)
+</span><a href="Network.TLS.Session.html#sessionEstablish"><span class="hs-identifier hs-var">sessionEstablish</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span class="annot"><span class="annottext">SessionIDorTicket
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">SessionData
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Maybe SessionIDorTicket -&gt; IO (Maybe SessionIDorTicket)
+forall a. a -&gt; IO a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">Maybe SessionIDorTicket
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-31"></span><span>        </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">sessionInvalidate :: SessionIDorTicket -&gt; IO ()
+</span><a href="Network.TLS.Session.html#sessionInvalidate"><span class="hs-identifier hs-var">sessionInvalidate</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span class="annot"><span class="annottext">SessionIDorTicket
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">() -&gt; IO ()
+forall a. a -&gt; IO a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-32"></span><span>        </span><span class="hs-special">,</span><span> </span><span class="hs-comment">-- Don't send NewSessionTicket in TLS 1.2 by default.</span><span>
+</span><span id="line-33"></span><span>          </span><span class="hs-comment">-- Send NewSessionTicket with SessionID in TLS 1.3 by default.</span><span>
+</span><span id="line-34"></span><span>          </span><span class="annot"><span class="annottext">sessionUseTicket :: Bool
+</span><a href="Network.TLS.Session.html#sessionUseTicket"><span class="hs-identifier hs-var">sessionUseTicket</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span>
+</span><span id="line-35"></span><span>        </span><span class="hs-special">}</span><span>
+</span><span id="line-36"></span></pre></body></html>

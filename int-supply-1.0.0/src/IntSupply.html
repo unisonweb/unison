@@ -1,0 +1,150 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE BangPatterns #-}</span><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# LANGUAGE BlockArguments #-}</span><span>
+</span><span id="line-3"></span><span class="hs-pragma">{-# LANGUAGE MagicHash #-}</span><span>
+</span><span id="line-4"></span><span class="hs-pragma">{-# LANGUAGE UnboxedTuples #-}</span><span>
+</span><span id="line-5"></span><span>
+</span><span id="line-6"></span><span class="hs-comment">-- | This module provides a simple, efficient supply of integers using atomic fetch-and-add.</span><span>
+</span><span id="line-7"></span><span class="hs-comment">--</span><span>
+</span><span id="line-8"></span><span class="hs-comment">-- To use this module, first create an @IntSupply@. This is often done once at the top level of an application, in</span><span>
+</span><span id="line-9"></span><span class="hs-comment">-- global scope.</span><span>
+</span><span id="line-10"></span><span class="hs-comment">--</span><span>
+</span><span id="line-11"></span><span class="hs-comment">-- &gt; import IntSupply (IntSupply)</span><span>
+</span><span id="line-12"></span><span class="hs-comment">-- &gt; import IntSupply qualified</span><span>
+</span><span id="line-13"></span><span class="hs-comment">-- &gt; import System.IO.Unsafe (unsafePerformIO)</span><span>
+</span><span id="line-14"></span><span class="hs-comment">-- &gt;</span><span>
+</span><span id="line-15"></span><span class="hs-comment">-- &gt; myIntSupply :: IntSupply</span><span>
+</span><span id="line-16"></span><span class="hs-comment">-- &gt; myIntSupply = unsafePerformIO IntSupply.new</span><span>
+</span><span id="line-17"></span><span class="hs-comment">-- &gt; {-# NOINLINE myIntSupply #-}</span><span>
+</span><span id="line-18"></span><span class="hs-comment">--</span><span>
+</span><span id="line-19"></span><span class="hs-comment">-- Next, call @IntSupply.next@ on the supply, which will return 0, then 1, and so on.</span><span>
+</span><span id="line-20"></span><span class="hs-comment">--</span><span>
+</span><span id="line-21"></span><span class="hs-comment">-- &gt; &gt; IntSupply.next myIntSupply</span><span>
+</span><span id="line-22"></span><span class="hs-comment">-- &gt; 0</span><span>
+</span><span id="line-23"></span><span class="hs-comment">-- &gt; &gt; IntSupply.next myIntSupply</span><span>
+</span><span id="line-24"></span><span class="hs-comment">-- &gt; 1</span><span>
+</span><span id="line-25"></span><span class="hs-comment">--</span><span>
+</span><span id="line-26"></span><span class="hs-comment">-- If desired, you can reset the count to 0.</span><span>
+</span><span id="line-27"></span><span class="hs-comment">--</span><span>
+</span><span id="line-28"></span><span class="hs-comment">-- &gt; &gt; IntSupply.reset myIntSupply</span><span>
+</span><span id="line-29"></span><span class="hs-comment">-- &gt; &gt; IntSupply.next myIntSupply</span><span>
+</span><span id="line-30"></span><span class="hs-comment">-- &gt; 0</span><span>
+</span><span id="line-31"></span><span class="hs-comment">--</span><span>
+</span><span id="line-32"></span><span class="hs-comment">-- On a 64-bit machine, for many applications, these integers can be treated as effectively unique: even if</span><span>
+</span><span id="line-33"></span><span class="hs-comment">-- 1,000,000,000 integers were generated per second, it would still take over 580 years to wrap around.</span><span>
+</span><span id="line-34"></span><span class="hs-comment">--</span><span>
+</span><span id="line-35"></span><span class="hs-comment">-- On a 32-bit machine, more care must be taken, of course: even if only 1,000 integers were generated per second, it</span><span>
+</span><span id="line-36"></span><span class="hs-comment">-- would only take 50 days to wrap around.</span><span>
+</span><span id="line-37"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="IntSupply.html"><span class="hs-identifier">IntSupply</span></a></span><span>
+</span><span id="line-38"></span><span>  </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="IntSupply.html#IntSupply"><span class="hs-identifier">IntSupply</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-39"></span><span>    </span><span class="annot"><a href="IntSupply.html#new"><span class="hs-identifier">new</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-40"></span><span>    </span><span class="annot"><a href="IntSupply.html#next"><span class="hs-identifier">next</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-41"></span><span>    </span><span class="annot"><a href="IntSupply.html#reset"><span class="hs-identifier">reset</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-42"></span><span>  </span><span class="hs-special">)</span><span>
+</span><span id="line-43"></span><span class="hs-keyword">where</span><span>
+</span><span id="line-44"></span><span>
+</span><span id="line-45"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Bits</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">finiteBitSize</span></span><span class="hs-special">)</span><span>
+</span><span id="line-46"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">GHC.Base</span></span><span>
+</span><span id="line-47"></span><span>  </span><span class="hs-special">(</span><span> </span><span class="annot"><span class="hs-identifier">IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">IO</span></span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-48"></span><span>    </span><span class="annot"><span class="hs-identifier">Int</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">I#</span></span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-49"></span><span>    </span><span class="annot"><span class="hs-identifier">MutableByteArray#</span></span><span class="hs-special">,</span><span>
+</span><span id="line-50"></span><span>    </span><span class="annot"><span class="hs-identifier">RealWorld</span></span><span class="hs-special">,</span><span>
+</span><span id="line-51"></span><span>    </span><span class="annot"><span class="hs-identifier">atomicWriteIntArray#</span></span><span class="hs-special">,</span><span>
+</span><span id="line-52"></span><span>    </span><span class="annot"><span class="hs-identifier">fetchAddIntArray#</span></span><span class="hs-special">,</span><span>
+</span><span id="line-53"></span><span>    </span><span class="annot"><span class="hs-identifier">newByteArray#</span></span><span class="hs-special">,</span><span>
+</span><span id="line-54"></span><span>    </span><span class="annot"><span class="hs-identifier">writeIntArray#</span></span><span class="hs-special">,</span><span>
+</span><span id="line-55"></span><span>  </span><span class="hs-special">)</span><span>
+</span><span id="line-56"></span><span>
+</span><span id="line-57"></span><span class="annot"><span class="hs-comment">-- | A thread-safe supply of integers.</span></span><span>
+</span><span id="line-58"></span><span class="hs-keyword">data</span><span> </span><span id="IntSupply"><span class="annot"><a href="IntSupply.html#IntSupply"><span class="hs-identifier hs-var">IntSupply</span></a></span></span><span>
+</span><span id="line-59"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span id="IntSupply"><span class="annot"><a href="IntSupply.html#IntSupply"><span class="hs-identifier hs-var">IntSupply</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">MutableByteArray#</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">RealWorld</span></span><span class="hs-special">)</span><span>
+</span><span id="line-60"></span><span>
+</span><span id="line-61"></span><span class="annot"><span class="hs-comment">-- | Create a supply of integers.</span></span><span>
+</span><span id="line-62"></span><span class="annot"><a href="IntSupply.html#new"><span class="hs-identifier hs-type">new</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="IntSupply.html#IntSupply"><span class="hs-identifier hs-type">IntSupply</span></a></span><span>
+</span><span id="line-63"></span><span id="new"><span class="annot"><span class="annottext">new :: IO IntSupply
+</span><a href="IntSupply.html#new"><span class="hs-identifier hs-var hs-var">new</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-64"></span><span>  </span><span class="annot"><span class="annottext">(State# RealWorld -&gt; (# State# RealWorld, IntSupply #))
+-&gt; IO IntSupply
+forall a. (State# RealWorld -&gt; (# State# RealWorld, a #)) -&gt; IO a
+</span><span class="hs-identifier hs-var">IO</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679035140"><span class="annot"><span class="annottext">State# RealWorld
+</span><a href="#local-6989586621679035140"><span class="hs-identifier hs-var">s0</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-65"></span><span>    </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Int#
+-&gt; State# RealWorld
+-&gt; (# State# RealWorld, MutableByteArray# RealWorld #)
+forall d. Int# -&gt; State# d -&gt; (# State# d, MutableByteArray# d #)
+</span><span class="hs-identifier hs-var">newByteArray#</span></span><span> </span><span class="annot"><span class="annottext">Int#
+</span><a href="#local-6989586621679035141"><span class="hs-identifier hs-var">size</span></a></span><span> </span><span class="annot"><span class="annottext">State# RealWorld
+</span><a href="#local-6989586621679035140"><span class="hs-identifier hs-var">s0</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-66"></span><span>      </span><span class="hs-special">(#</span><span> </span><span id="local-6989586621679035142"><span class="annot"><span class="annottext">State# RealWorld
+</span><a href="#local-6989586621679035142"><span class="hs-identifier hs-var">s1</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679035143"><span class="annot"><span class="annottext">MutableByteArray# RealWorld
+</span><a href="#local-6989586621679035143"><span class="hs-identifier hs-var">supply</span></a></span></span><span> </span><span class="hs-special">#)</span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-67"></span><span>        </span><span class="hs-special">(#</span><span> </span><span class="annot"><span class="annottext">MutableByteArray# RealWorld
+-&gt; Int# -&gt; Int# -&gt; State# RealWorld -&gt; State# RealWorld
+forall d.
+MutableByteArray# d -&gt; Int# -&gt; Int# -&gt; State# d -&gt; State# d
+</span><span class="hs-identifier hs-var">writeIntArray#</span></span><span> </span><span class="annot"><span class="annottext">MutableByteArray# RealWorld
+</span><a href="#local-6989586621679035143"><span class="hs-identifier hs-var">supply</span></a></span><span> </span><span class="annot"><span class="annottext">Int#
+</span><span class="hs-number">0#</span></span><span> </span><span class="annot"><span class="annottext">Int#
+</span><span class="hs-number">0#</span></span><span> </span><span class="annot"><span class="annottext">State# RealWorld
+</span><a href="#local-6989586621679035142"><span class="hs-identifier hs-var">s1</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">MutableByteArray# RealWorld -&gt; IntSupply
+</span><a href="IntSupply.html#IntSupply"><span class="hs-identifier hs-var">IntSupply</span></a></span><span> </span><span class="annot"><span class="annottext">MutableByteArray# RealWorld
+</span><a href="#local-6989586621679035143"><span class="hs-identifier hs-var">supply</span></a></span><span> </span><span class="hs-special">#)</span><span>
+</span><span id="line-68"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-69"></span><span>    </span><span class="hs-glyph">!</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">I#</span></span><span> </span><span id="local-6989586621679035141"><span class="annot"><span class="annottext">Int#
+</span><a href="#local-6989586621679035141"><span class="hs-identifier hs-var">size</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-70"></span><span>      </span><span class="annot"><span class="annottext">Int -&gt; Int
+forall b. FiniteBits b =&gt; b -&gt; Int
+</span><span class="hs-identifier hs-var">finiteBitSize</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+forall a. HasCallStack =&gt; a
+</span><span class="hs-identifier hs-var">undefined</span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Integral a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">`div`</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">8</span></span><span>
+</span><span id="line-71"></span><span class="hs-pragma">{-# INLINEABLE</span><span> </span><span class="annot"><a href="IntSupply.html#new"><span class="hs-pragma hs-type">new</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-72"></span><span>
+</span><span id="line-73"></span><span class="annot"><span class="hs-comment">-- | Get the next integer from a supply of integers.</span></span><span>
+</span><span id="line-74"></span><span class="annot"><a href="IntSupply.html#next"><span class="hs-identifier hs-type">next</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="IntSupply.html#IntSupply"><span class="hs-identifier hs-type">IntSupply</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>
+</span><span id="line-75"></span><span id="next"><span class="annot"><span class="annottext">next :: IntSupply -&gt; IO Int
+</span><a href="IntSupply.html#next"><span class="hs-identifier hs-var hs-var">next</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="IntSupply.html#IntSupply"><span class="hs-identifier hs-type">IntSupply</span></a></span><span> </span><span id="local-6989586621679035154"><span class="annot"><span class="annottext">MutableByteArray# RealWorld
+</span><a href="#local-6989586621679035154"><span class="hs-identifier hs-var">supply</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-76"></span><span>  </span><span class="annot"><span class="annottext">(State# RealWorld -&gt; (# State# RealWorld, Int #)) -&gt; IO Int
+forall a. (State# RealWorld -&gt; (# State# RealWorld, a #)) -&gt; IO a
+</span><span class="hs-identifier hs-var">IO</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679035155"><span class="annot"><span class="annottext">State# RealWorld
+</span><a href="#local-6989586621679035155"><span class="hs-identifier hs-var">s0</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-77"></span><span>    </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">MutableByteArray# RealWorld
+-&gt; Int# -&gt; Int# -&gt; State# RealWorld -&gt; (# State# RealWorld, Int# #)
+forall d.
+MutableByteArray# d
+-&gt; Int# -&gt; Int# -&gt; State# d -&gt; (# State# d, Int# #)
+</span><span class="hs-identifier hs-var">fetchAddIntArray#</span></span><span> </span><span class="annot"><span class="annottext">MutableByteArray# RealWorld
+</span><a href="#local-6989586621679035154"><span class="hs-identifier hs-var">supply</span></a></span><span> </span><span class="annot"><span class="annottext">Int#
+</span><span class="hs-number">0#</span></span><span> </span><span class="annot"><span class="annottext">Int#
+</span><span class="hs-number">1#</span></span><span> </span><span class="annot"><span class="annottext">State# RealWorld
+</span><a href="#local-6989586621679035155"><span class="hs-identifier hs-var">s0</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-78"></span><span>      </span><span class="hs-special">(#</span><span> </span><span id="local-6989586621679035156"><span class="annot"><span class="annottext">State# RealWorld
+</span><a href="#local-6989586621679035156"><span class="hs-identifier hs-var">s1</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679035157"><span class="annot"><span class="annottext">Int#
+</span><a href="#local-6989586621679035157"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span class="hs-special">#)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(#</span><span> </span><span class="annot"><span class="annottext">State# RealWorld
+</span><a href="#local-6989586621679035156"><span class="hs-identifier hs-var">s1</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Int# -&gt; Int
+</span><span class="hs-identifier hs-var">I#</span></span><span> </span><span class="annot"><span class="annottext">Int#
+</span><a href="#local-6989586621679035157"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="hs-special">#)</span><span>
+</span><span id="line-79"></span><span class="hs-pragma">{-# INLINEABLE</span><span> </span><span class="annot"><a href="IntSupply.html#next"><span class="hs-pragma hs-type">next</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-80"></span><span>
+</span><span id="line-81"></span><span class="annot"><span class="hs-comment">-- | Reset a supply of integers to 0.</span></span><span>
+</span><span id="line-82"></span><span class="annot"><a href="IntSupply.html#reset"><span class="hs-identifier hs-type">reset</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="IntSupply.html#IntSupply"><span class="hs-identifier hs-type">IntSupply</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-83"></span><span id="reset"><span class="annot"><span class="annottext">reset :: IntSupply -&gt; IO ()
+</span><a href="IntSupply.html#reset"><span class="hs-identifier hs-var hs-var">reset</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="IntSupply.html#IntSupply"><span class="hs-identifier hs-type">IntSupply</span></a></span><span> </span><span id="local-6989586621679035158"><span class="annot"><span class="annottext">MutableByteArray# RealWorld
+</span><a href="#local-6989586621679035158"><span class="hs-identifier hs-var">arr#</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-84"></span><span>  </span><span class="annot"><span class="annottext">(State# RealWorld -&gt; (# State# RealWorld, () #)) -&gt; IO ()
+forall a. (State# RealWorld -&gt; (# State# RealWorld, a #)) -&gt; IO a
+</span><span class="hs-identifier hs-var">IO</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679035159"><span class="annot"><span class="annottext">State# RealWorld
+</span><a href="#local-6989586621679035159"><span class="hs-identifier hs-var">s0</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-85"></span><span>    </span><span class="hs-special">(#</span><span> </span><span class="annot"><span class="annottext">MutableByteArray# RealWorld
+-&gt; Int# -&gt; Int# -&gt; State# RealWorld -&gt; State# RealWorld
+forall d.
+MutableByteArray# d -&gt; Int# -&gt; Int# -&gt; State# d -&gt; State# d
+</span><span class="hs-identifier hs-var">atomicWriteIntArray#</span></span><span> </span><span class="annot"><span class="annottext">MutableByteArray# RealWorld
+</span><a href="#local-6989586621679035158"><span class="hs-identifier hs-var">arr#</span></a></span><span> </span><span class="annot"><span class="annottext">Int#
+</span><span class="hs-number">0#</span></span><span> </span><span class="annot"><span class="annottext">Int#
+</span><span class="hs-number">0#</span></span><span> </span><span class="annot"><span class="annottext">State# RealWorld
+</span><a href="#local-6989586621679035159"><span class="hs-identifier hs-var">s0</span></a></span><span class="hs-special">,</span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span> </span><span class="hs-special">#)</span><span>
+</span><span id="line-86"></span><span class="hs-pragma">{-# INLINEABLE</span><span> </span><span class="annot"><a href="IntSupply.html#reset"><span class="hs-pragma hs-type">reset</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-87"></span></pre></body></html>

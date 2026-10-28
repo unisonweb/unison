@@ -1,0 +1,87 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE DerivingStrategies          #-}</span><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# LANGUAGE GeneralizedNewtypeDeriving  #-}</span><span>
+</span><span id="line-3"></span><span class="hs-comment">-----------------------------------------------------------------------------</span><span>
+</span><span id="line-4"></span><span class="hs-comment">-- |</span><span>
+</span><span id="line-5"></span><span class="hs-comment">-- Module      :  GHC.JS.Ident</span><span>
+</span><span id="line-6"></span><span class="hs-comment">-- Copyright   :  (c) The University of Glasgow 2001</span><span>
+</span><span id="line-7"></span><span class="hs-comment">-- License     :  BSD-style (see the file LICENSE)</span><span>
+</span><span id="line-8"></span><span class="hs-comment">--</span><span>
+</span><span id="line-9"></span><span class="hs-comment">-- Maintainer  :  Jeffrey Young  &lt;jeffrey.young@iohk.io&gt;</span><span>
+</span><span id="line-10"></span><span class="hs-comment">--                Luite Stegeman &lt;luite.stegeman@iohk.io&gt;</span><span>
+</span><span id="line-11"></span><span class="hs-comment">--                Sylvain Henry  &lt;sylvain.henry@iohk.io&gt;</span><span>
+</span><span id="line-12"></span><span class="hs-comment">--                Josh Meredith  &lt;josh.meredith@iohk.io&gt;</span><span>
+</span><span id="line-13"></span><span class="hs-comment">-- Stability   :  experimental</span><span>
+</span><span id="line-14"></span><span class="hs-comment">--</span><span>
+</span><span id="line-15"></span><span class="hs-comment">--</span><span>
+</span><span id="line-16"></span><span class="hs-comment">-- * Domain and Purpose</span><span>
+</span><span id="line-17"></span><span class="hs-comment">--</span><span>
+</span><span id="line-18"></span><span class="hs-comment">--     GHC.JS.Ident defines identifiers for the JS backend. We keep this module</span><span>
+</span><span id="line-19"></span><span class="hs-comment">--     separate to prevent coupling between GHC and the backend and between</span><span>
+</span><span id="line-20"></span><span class="hs-comment">--     unrelated modules is the JS backend.</span><span>
+</span><span id="line-21"></span><span class="hs-comment">--</span><span>
+</span><span id="line-22"></span><span class="hs-comment">-- * Consumers</span><span>
+</span><span id="line-23"></span><span class="hs-comment">--</span><span>
+</span><span id="line-24"></span><span class="hs-comment">--     The entire JavaScript Backend consumes this module including modules in</span><span>
+</span><span id="line-25"></span><span class="hs-comment">--     GHC.JS.\* and modules in GHC.StgToJS.\*</span><span>
+</span><span id="line-26"></span><span class="hs-comment">--</span><span>
+</span><span id="line-27"></span><span class="hs-comment">-- * Additional Notes</span><span>
+</span><span id="line-28"></span><span class="hs-comment">--</span><span>
+</span><span id="line-29"></span><span class="hs-comment">--     This module should be kept as small as possible. Anything added to it</span><span>
+</span><span id="line-30"></span><span class="hs-comment">--     will be coupled to the JS backend EDSL and the JS Backend including the</span><span>
+</span><span id="line-31"></span><span class="hs-comment">--     linker and rts. You have been warned.</span><span>
+</span><span id="line-32"></span><span class="hs-comment">--</span><span>
+</span><span id="line-33"></span><span class="hs-comment">-----------------------------------------------------------------------------</span><span>
+</span><span id="line-34"></span><span>
+</span><span id="line-35"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="GHC.JS.Ident.html"><span class="hs-identifier">GHC.JS.Ident</span></a></span><span>
+</span><span id="line-36"></span><span>  </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="GHC.JS.Ident.html#Ident"><span class="hs-identifier">Ident</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span>
+</span><span id="line-37"></span><span>  </span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.JS.Ident.html#global"><span class="hs-identifier">global</span></a></span><span>
+</span><span id="line-38"></span><span>  </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-39"></span><span>
+</span><span id="line-40"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.20.2.0-6654/src/Prelude.html"><span class="hs-identifier">Prelude</span></a></span><span>
+</span><span id="line-41"></span><span>
+</span><span id="line-42"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Data.FastString.html"><span class="hs-identifier">GHC.Data.FastString</span></a></span><span>
+</span><span id="line-43"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Types.Unique.html"><span class="hs-identifier">GHC.Types.Unique</span></a></span><span>
+</span><span id="line-44"></span><span>
+</span><span id="line-45"></span><span class="hs-comment">--------------------------------------------------------------------------------</span><span>
+</span><span id="line-46"></span><span class="hs-comment">--                            Identifiers</span><span>
+</span><span id="line-47"></span><span class="hs-comment">--------------------------------------------------------------------------------</span><span>
+</span><span id="line-48"></span><span class="hs-comment">-- We use FastString for identifiers in JS backend</span><span>
+</span><span id="line-49"></span><span>
+</span><span id="line-50"></span><span class="annot"><span class="hs-comment">-- | A newtype wrapper around 'FastString' for JS identifiers.</span></span><span>
+</span><span id="line-51"></span><span class="hs-keyword">newtype</span><span> </span><span id="Ident"><span class="annot"><a href="GHC.JS.Ident.html#Ident"><span class="hs-identifier hs-var">Ident</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="TxtI"><span class="annot"><a href="GHC.JS.Ident.html#TxtI"><span class="hs-identifier hs-var">TxtI</span></a></span></span><span> </span><span class="hs-special">{</span><span> </span><span id="identFS"><span class="annot"><span class="annottext">Ident -&gt; FastString
+</span><a href="GHC.JS.Ident.html#identFS"><span class="hs-identifier hs-var hs-var">identFS</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Data.FastString.html#FastString"><span class="hs-identifier hs-type">FastString</span></a></span><span> </span><span class="hs-special">}</span><span>
+</span><span id="line-52"></span><span> </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">stock</span></span><span>   </span><span class="hs-special">(</span><span id="local-6989586621682368917"><span id="local-6989586621682368923"><span id="local-6989586621682368927"><span class="annot"><span class="annottext">Int -&gt; Ident -&gt; ShowS
+[Ident] -&gt; ShowS
+Ident -&gt; String
+(Int -&gt; Ident -&gt; ShowS)
+-&gt; (Ident -&gt; String) -&gt; ([Ident] -&gt; ShowS) -&gt; Show Ident
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; Ident -&gt; ShowS
+showsPrec :: Int -&gt; Ident -&gt; ShowS
+$cshow :: Ident -&gt; String
+show :: Ident -&gt; String
+$cshowList :: [Ident] -&gt; ShowS
+showList :: [Ident] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682368932"><span id="local-6989586621682368936"><span class="annot"><span class="annottext">Ident -&gt; Ident -&gt; Bool
+(Ident -&gt; Ident -&gt; Bool) -&gt; (Ident -&gt; Ident -&gt; Bool) -&gt; Eq Ident
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: Ident -&gt; Ident -&gt; Bool
+== :: Ident -&gt; Ident -&gt; Bool
+$c/= :: Ident -&gt; Ident -&gt; Bool
+/= :: Ident -&gt; Ident -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-53"></span><span> </span><span class="hs-keyword">deriving</span><span> </span><span class="annot"><span class="hs-keyword">newtype</span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621682368941"><span class="annot"><span class="annottext">Ident -&gt; Unique
+(Ident -&gt; Unique) -&gt; Uniquable Ident
+forall a. (a -&gt; Unique) -&gt; Uniquable a
+$cgetUnique :: Ident -&gt; Unique
+getUnique :: Ident -&gt; Unique
+</span><a href="GHC.Types.Unique.html#Uniquable"><span class="hs-identifier hs-var hs-var hs-var hs-var">Uniquable</span></a></span></span><span class="hs-special">)</span><span>
+</span><span id="line-54"></span><span>
+</span><span id="line-55"></span><span class="hs-comment">-- | A not-so-smart constructor for @Ident@s, used to indicate that this name is</span><span>
+</span><span id="line-56"></span><span class="hs-comment">-- expected to be top-level</span><span>
+</span><span id="line-57"></span><span class="annot"><a href="GHC.JS.Ident.html#global"><span class="hs-identifier hs-type">global</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Data.FastString.html#FastString"><span class="hs-identifier hs-type">FastString</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.JS.Ident.html#Ident"><span class="hs-identifier hs-type">Ident</span></a></span><span>
+</span><span id="line-58"></span><span id="global"><span class="annot"><span class="annottext">global :: FastString -&gt; Ident
+</span><a href="GHC.JS.Ident.html#global"><span class="hs-identifier hs-var hs-var">global</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">FastString -&gt; Ident
+</span><a href="GHC.JS.Ident.html#TxtI"><span class="hs-identifier hs-var">TxtI</span></a></span><span>
+</span><span id="line-59"></span></pre></body></html>

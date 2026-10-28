@@ -1,0 +1,350 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-comment">-- | The foreign interface to LLVM, through the C shim in @cbits/jit_llvm.c@.</span><span>
+</span><span id="line-2"></span><span class="hs-comment">-- LLVM isn't linked in: the shim loads it with @dlopen@ when the JIT is</span><span>
+</span><span id="line-3"></span><span class="hs-comment">-- turned on ('initLLVM'), so that ucm builds and runs without LLVM, and the</span><span>
+</span><span id="line-4"></span><span class="hs-comment">-- JIT is unavailable, with a message saying where it looked, on a machine</span><span>
+</span><span id="line-5"></span><span class="hs-comment">-- that has no LLVM 20 or newer.</span><span>
+</span><span id="line-6"></span><span class="hs-comment">--</span><span>
+</span><span id="line-7"></span><span class="hs-comment">-- The shim is ours, over LLVM's C API, because the @llvm-hs@ bindings lag</span><span>
+</span><span id="line-8"></span><span class="hs-comment">-- LLVM releases and we need six functions. Modules are handed over as IR</span><span>
+</span><span id="line-9"></span><span class="hs-comment">-- /text/, which LLVM parses in memory: text can be built by string</span><span>
+</span><span id="line-10"></span><span class="hs-comment">-- building, read by a person and pasted into LLVM's command-line tools,</span><span>
+</span><span id="line-11"></span><span class="hs-comment">-- where bitcode is a bit-level stream only LLVM's own libraries write, and</span><span>
+</span><span id="line-12"></span><span class="hs-comment">-- building IR through the C API would mean many more foreign calls for IR</span><span>
+</span><span id="line-13"></span><span class="hs-comment">-- that can't be inspected without asking LLVM to print it. If parsing ever</span><span>
+</span><span id="line-14"></span><span class="hs-comment">-- shows in the compile times, the generator can be retargeted to the C API</span><span>
+</span><span id="line-15"></span><span class="hs-comment">-- without touching the code generator's logic.</span><span>
+</span><span id="line-16"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Unison.Runtime.JIT.LLVM.html"><span class="hs-identifier">Unison.Runtime.JIT.LLVM</span></a></span><span>
+</span><span id="line-17"></span><span>  </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="Unison.Runtime.JIT.LLVM.html#initLLVM"><span class="hs-identifier">initLLVM</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-18"></span><span>    </span><span class="annot"><a href="Unison.Runtime.JIT.LLVM.html#LoadFailure"><span class="hs-identifier">LoadFailure</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-19"></span><span>    </span><span class="annot"><a href="Unison.Runtime.JIT.LLVM.html#addModule"><span class="hs-identifier">addModule</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-20"></span><span>    </span><span class="annot"><a href="Unison.Runtime.JIT.LLVM.html#lookupSymbol"><span class="hs-identifier">lookupSymbol</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-21"></span><span>    </span><span class="annot"><a href="Unison.Runtime.JIT.LLVM.html#defineSymbol"><span class="hs-identifier">defineSymbol</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-22"></span><span>    </span><span class="annot"><a href="Unison.Runtime.JIT.LLVM.html#targetTriple"><span class="hs-identifier">targetTriple</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-23"></span><span>  </span><span class="hs-special">)</span><span>
+</span><span id="line-24"></span><span class="hs-keyword">where</span><span>
+</span><span id="line-25"></span><span>
+</span><span id="line-26"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.ByteString.Unsafe</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">unsafeUseAsCStringLen</span></span><span class="hs-special">)</span><span>
+</span><span id="line-27"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Text</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">T</span></span><span>
+</span><span id="line-28"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Text.Encoding</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">encodeUtf8</span></span><span class="hs-special">)</span><span>
+</span><span id="line-29"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Word</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Word64</span></span><span class="hs-special">)</span><span>
+</span><span id="line-30"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Foreign.C.String</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">CString</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">peekCString</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">withCString</span></span><span class="hs-special">)</span><span>
+</span><span id="line-31"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Foreign.C.Types</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">CInt</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">CSize</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-32"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Foreign.Marshal.Alloc</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">alloca</span></span><span class="hs-special">)</span><span>
+</span><span id="line-33"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Foreign.Ptr</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">FunPtr</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">Ptr</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">WordPtr</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">castPtrToFunPtr</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">nullPtr</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">wordPtrToPtr</span></span><span class="hs-special">)</span><span>
+</span><span id="line-34"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Foreign.Storable</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">peek</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">poke</span></span><span class="hs-special">)</span><span>
+</span><span id="line-35"></span><span>
+</span><span id="line-36"></span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-keyword">ccall</span></span><span> </span><span class="annot"><span class="hs-keyword">safe</span></span><span> </span><span class="annot"><span class="hs-string">&quot;unison_jit_init&quot;</span></span><span> </span><span id="c_init"><span class="annot"><a href="Unison.Runtime.JIT.LLVM.html#c_init"><span class="hs-identifier hs-var">c_init</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">CInt</span></span><span>
+</span><span id="line-37"></span><span>
+</span><span id="line-38"></span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-keyword">ccall</span></span><span> </span><span class="annot"><span class="hs-keyword">unsafe</span></span><span> </span><span class="annot"><span class="hs-string">&quot;unison_jit_load_attempts&quot;</span></span><span> </span><span id="c_loadAttempts"><span class="annot"><a href="Unison.Runtime.JIT.LLVM.html#c_loadAttempts"><span class="hs-identifier hs-var">c_loadAttempts</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">CString</span></span><span>
+</span><span id="line-39"></span><span>
+</span><span id="line-40"></span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-keyword">ccall</span></span><span> </span><span class="annot"><span class="hs-keyword">unsafe</span></span><span> </span><span class="annot"><span class="hs-string">&quot;unison_jit_llvm_path&quot;</span></span><span> </span><span id="c_llvmPath"><span class="annot"><a href="Unison.Runtime.JIT.LLVM.html#c_llvmPath"><span class="hs-identifier hs-var">c_llvmPath</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">CString</span></span><span>
+</span><span id="line-41"></span><span>
+</span><span id="line-42"></span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-keyword">ccall</span></span><span> </span><span class="annot"><span class="hs-keyword">unsafe</span></span><span> </span><span class="annot"><span class="hs-string">&quot;unison_jit_llvm_version&quot;</span></span><span> </span><span id="c_llvmVersion"><span class="annot"><a href="Unison.Runtime.JIT.LLVM.html#c_llvmVersion"><span class="hs-identifier hs-var">c_llvmVersion</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">CString</span></span><span>
+</span><span id="line-43"></span><span>
+</span><span id="line-44"></span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-keyword">ccall</span></span><span> </span><span class="annot"><span class="hs-keyword">safe</span></span><span> </span><span class="annot"><span class="hs-string">&quot;unison_jit_add_module&quot;</span></span><span> </span><span id="c_addModule"><span class="annot"><a href="Unison.Runtime.JIT.LLVM.html#c_addModule"><span class="hs-identifier hs-var">c_addModule</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">CString</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">CSize</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">CString</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">CString</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">CInt</span></span><span>
+</span><span id="line-45"></span><span>
+</span><span id="line-46"></span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-keyword">ccall</span></span><span> </span><span class="annot"><span class="hs-keyword">unsafe</span></span><span> </span><span class="annot"><span class="hs-string">&quot;unison_jit_free_string&quot;</span></span><span> </span><span id="c_freeString"><span class="annot"><a href="Unison.Runtime.JIT.LLVM.html#c_freeString"><span class="hs-identifier hs-var">c_freeString</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">CString</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-47"></span><span>
+</span><span id="line-48"></span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-keyword">ccall</span></span><span> </span><span class="annot"><span class="hs-keyword">safe</span></span><span> </span><span class="annot"><span class="hs-string">&quot;unison_jit_lookup&quot;</span></span><span> </span><span id="c_lookup"><span class="annot"><a href="Unison.Runtime.JIT.LLVM.html#c_lookup"><span class="hs-identifier hs-var">c_lookup</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">CString</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word64</span></span><span>
+</span><span id="line-49"></span><span>
+</span><span id="line-50"></span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-keyword">ccall</span></span><span> </span><span class="annot"><span class="hs-keyword">safe</span></span><span> </span><span class="annot"><span class="hs-string">&quot;unison_jit_define_symbol&quot;</span></span><span> </span><span id="c_defineSymbol"><span class="annot"><a href="Unison.Runtime.JIT.LLVM.html#c_defineSymbol"><span class="hs-identifier hs-var">c_defineSymbol</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">CString</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word64</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">CInt</span></span><span>
+</span><span id="line-51"></span><span>
+</span><span id="line-52"></span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-keyword">ccall</span></span><span> </span><span class="annot"><span class="hs-keyword">unsafe</span></span><span> </span><span class="annot"><span class="hs-string">&quot;unison_jit_last_error&quot;</span></span><span> </span><span id="c_lastError"><span class="annot"><a href="Unison.Runtime.JIT.LLVM.html#c_lastError"><span class="hs-identifier hs-var">c_lastError</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">CString</span></span><span>
+</span><span id="line-53"></span><span>
+</span><span id="line-54"></span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-keyword">ccall</span></span><span> </span><span class="annot"><span class="hs-keyword">unsafe</span></span><span> </span><span class="annot"><span class="hs-string">&quot;unison_jit_triple&quot;</span></span><span> </span><span id="c_triple"><span class="annot"><a href="Unison.Runtime.JIT.LLVM.html#c_triple"><span class="hs-identifier hs-var">c_triple</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">CString</span></span><span>
+</span><span id="line-55"></span><span>
+</span><span id="line-56"></span><span class="annot"><a href="Unison.Runtime.JIT.LLVM.html#lastError"><span class="hs-identifier hs-type">lastError</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span>
+</span><span id="line-57"></span><span id="lastError"><span class="annot"><span class="annottext">lastError :: [Char] -&gt; IO [Char]
+</span><a href="Unison.Runtime.JIT.LLVM.html#lastError"><span class="hs-identifier hs-var hs-var">lastError</span></a></span></span><span> </span><span id="local-6989586621681789902"><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621681789902"><span class="hs-identifier hs-var">what</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-58"></span><span>  </span><span id="local-6989586621681789903"><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621681789903"><span class="hs-identifier hs-var">e</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Ptr CChar -&gt; IO [Char]
+</span><span class="hs-identifier hs-var">peekCString</span></span><span> </span><span class="annot"><span class="annottext">(Ptr CChar -&gt; IO [Char]) -&gt; IO (Ptr CChar) -&gt; IO [Char]
+forall (m :: * -&gt; *) a b. Monad m =&gt; (a -&gt; m b) -&gt; m a -&gt; m b
+</span><span class="hs-operator hs-var">=&lt;&lt;</span></span><span> </span><span class="annot"><span class="annottext">IO (Ptr CChar)
+</span><a href="Unison.Runtime.JIT.LLVM.html#c_lastError"><span class="hs-identifier hs-var">c_lastError</span></a></span><span>
+</span><span id="line-59"></span><span>  </span><span class="hs-identifier">pure</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[Char]
+</span><span class="hs-string">&quot;JIT: &quot;</span></span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; [Char] -&gt; [Char]
+forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621681789902"><span class="hs-identifier hs-var">what</span></a></span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; [Char] -&gt; [Char]
+forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><span class="hs-string">&quot;: &quot;</span></span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; [Char] -&gt; [Char]
+forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621681789903"><span class="hs-identifier hs-var">e</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-60"></span><span>
+</span><span id="line-61"></span><span class="annot"><span class="hs-comment">-- | Why LLVM couldn't be started.</span></span><span>
+</span><span id="line-62"></span><span class="hs-keyword">data</span><span> </span><span id="LoadFailure"><span class="annot"><a href="Unison.Runtime.JIT.LLVM.html#LoadFailure"><span class="hs-identifier hs-var">LoadFailure</span></a></span></span><span>
+</span><span id="line-63"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-comment">-- | no usable library: each location tried, with what was found there</span></span><span>
+</span><span id="line-64"></span><span>    </span><span id="NotFound"><span class="annot"><a href="Unison.Runtime.JIT.LLVM.html#NotFound"><span class="hs-identifier hs-var">NotFound</span></a></span></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span class="hs-special">]</span><span>
+</span><span id="line-65"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="hs-comment">-- | a library was loaded but the JIT couldn't be set up</span></span><span>
+</span><span id="line-66"></span><span>    </span><span id="InitError"><span class="annot"><a href="Unison.Runtime.JIT.LLVM.html#InitError"><span class="hs-identifier hs-var">InitError</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span>
+</span><span id="line-67"></span><span>
+</span><span id="line-68"></span><span class="hs-comment">-- | Loads LLVM and starts the JIT. Safe to call more than once. On success,</span><span>
+</span><span id="line-69"></span><span class="hs-comment">-- the version loaded and the path it came from.</span><span>
+</span><span id="line-70"></span><span class="annot"><a href="Unison.Runtime.JIT.LLVM.html#initLLVM"><span class="hs-identifier hs-type">initLLVM</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Either</span></span><span> </span><span class="annot"><a href="Unison.Runtime.JIT.LLVM.html#LoadFailure"><span class="hs-identifier hs-type">LoadFailure</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">FilePath</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-71"></span><span id="initLLVM"><span class="annot"><span class="annottext">initLLVM :: IO (Either LoadFailure ([Char], [Char]))
+</span><a href="Unison.Runtime.JIT.LLVM.html#initLLVM"><span class="hs-identifier hs-var hs-var">initLLVM</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-72"></span><span>  </span><span id="local-6989586621681789908"><span class="annot"><span class="annottext">CInt
+</span><a href="#local-6989586621681789908"><span class="hs-identifier hs-var">r</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">IO CInt
+</span><a href="Unison.Runtime.JIT.LLVM.html#c_init"><span class="hs-identifier hs-var">c_init</span></a></span><span>
+</span><span id="line-73"></span><span>  </span><span id="local-6989586621681789909"><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621681789909"><span class="hs-identifier hs-var">path</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Ptr CChar -&gt; IO [Char]
+</span><span class="hs-identifier hs-var">peekCString</span></span><span> </span><span class="annot"><span class="annottext">(Ptr CChar -&gt; IO [Char]) -&gt; IO (Ptr CChar) -&gt; IO [Char]
+forall (m :: * -&gt; *) a b. Monad m =&gt; (a -&gt; m b) -&gt; m a -&gt; m b
+</span><span class="hs-operator hs-var">=&lt;&lt;</span></span><span> </span><span class="annot"><span class="annottext">IO (Ptr CChar)
+</span><a href="Unison.Runtime.JIT.LLVM.html#c_llvmPath"><span class="hs-identifier hs-var">c_llvmPath</span></a></span><span>
+</span><span id="line-74"></span><span>  </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">CInt
+</span><a href="#local-6989586621681789908"><span class="hs-identifier hs-var">r</span></a></span><span> </span><span class="annot"><span class="annottext">CInt -&gt; CInt -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">CInt
+</span><span class="hs-number">0</span></span><span>
+</span><span id="line-75"></span><span>    </span><span class="hs-keyword">then</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-76"></span><span>      </span><span id="local-6989586621681789910"><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621681789910"><span class="hs-identifier hs-var">v</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Ptr CChar -&gt; IO [Char]
+</span><span class="hs-identifier hs-var">peekCString</span></span><span> </span><span class="annot"><span class="annottext">(Ptr CChar -&gt; IO [Char]) -&gt; IO (Ptr CChar) -&gt; IO [Char]
+forall (m :: * -&gt; *) a b. Monad m =&gt; (a -&gt; m b) -&gt; m a -&gt; m b
+</span><span class="hs-operator hs-var">=&lt;&lt;</span></span><span> </span><span class="annot"><span class="annottext">IO (Ptr CChar)
+</span><a href="Unison.Runtime.JIT.LLVM.html#c_llvmVersion"><span class="hs-identifier hs-var">c_llvmVersion</span></a></span><span>
+</span><span id="line-77"></span><span>      </span><span class="hs-identifier">pure</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">([Char], [Char]) -&gt; Either LoadFailure ([Char], [Char])
+forall a b. b -&gt; Either a b
+</span><span class="hs-identifier hs-var">Right</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621681789910"><span class="hs-identifier hs-var">v</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621681789909"><span class="hs-identifier hs-var">path</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-78"></span><span>    </span><span class="hs-keyword">else</span><span>
+</span><span id="line-79"></span><span>      </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; Bool
+forall a. [a] -&gt; Bool
+forall (t :: * -&gt; *) a. Foldable t =&gt; t a -&gt; Bool
+</span><span class="hs-identifier hs-var">null</span></span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621681789909"><span class="hs-identifier hs-var">path</span></a></span><span>
+</span><span id="line-80"></span><span>        </span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="annottext">LoadFailure -&gt; Either LoadFailure ([Char], [Char])
+forall a b. a -&gt; Either a b
+</span><span class="hs-identifier hs-var">Left</span></span><span> </span><span class="annot"><span class="annottext">(LoadFailure -&gt; Either LoadFailure ([Char], [Char]))
+-&gt; ([Char] -&gt; LoadFailure)
+-&gt; [Char]
+-&gt; Either LoadFailure ([Char], [Char])
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">[[Char]] -&gt; LoadFailure
+</span><a href="Unison.Runtime.JIT.LLVM.html#NotFound"><span class="hs-identifier hs-var">NotFound</span></a></span><span> </span><span class="annot"><span class="annottext">([[Char]] -&gt; LoadFailure)
+-&gt; ([Char] -&gt; [[Char]]) -&gt; [Char] -&gt; LoadFailure
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; [[Char]]
+</span><span class="hs-identifier hs-var">lines</span></span><span> </span><span class="annot"><span class="annottext">([Char] -&gt; Either LoadFailure ([Char], [Char]))
+-&gt; IO [Char] -&gt; IO (Either LoadFailure ([Char], [Char]))
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Ptr CChar -&gt; IO [Char]
+</span><span class="hs-identifier hs-var">peekCString</span></span><span> </span><span class="annot"><span class="annottext">(Ptr CChar -&gt; IO [Char]) -&gt; IO (Ptr CChar) -&gt; IO [Char]
+forall (m :: * -&gt; *) a b. Monad m =&gt; (a -&gt; m b) -&gt; m a -&gt; m b
+</span><span class="hs-operator hs-var">=&lt;&lt;</span></span><span> </span><span class="annot"><span class="annottext">IO (Ptr CChar)
+</span><a href="Unison.Runtime.JIT.LLVM.html#c_loadAttempts"><span class="hs-identifier hs-var">c_loadAttempts</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-81"></span><span>        </span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="annottext">LoadFailure -&gt; Either LoadFailure ([Char], [Char])
+forall a b. a -&gt; Either a b
+</span><span class="hs-identifier hs-var">Left</span></span><span> </span><span class="annot"><span class="annottext">(LoadFailure -&gt; Either LoadFailure ([Char], [Char]))
+-&gt; ([Char] -&gt; LoadFailure)
+-&gt; [Char]
+-&gt; Either LoadFailure ([Char], [Char])
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; LoadFailure
+</span><a href="Unison.Runtime.JIT.LLVM.html#InitError"><span class="hs-identifier hs-var">InitError</span></a></span><span> </span><span class="annot"><span class="annottext">([Char] -&gt; Either LoadFailure ([Char], [Char]))
+-&gt; IO [Char] -&gt; IO (Either LoadFailure ([Char], [Char]))
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; IO [Char]
+</span><a href="Unison.Runtime.JIT.LLVM.html#lastError"><span class="hs-identifier hs-var">lastError</span></a></span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><span class="hs-string">&quot;initializing LLVM&quot;</span></span><span>
+</span><span id="line-82"></span><span>
+</span><span id="line-83"></span><span class="hs-comment">-- | Parses a module from IR text, runs the given pass pipeline</span><span>
+</span><span id="line-84"></span><span class="hs-comment">-- (such as @default&lt;O2&gt;@, or @&quot;&quot;@ for none) and hands it to the JIT.</span><span>
+</span><span id="line-85"></span><span class="hs-comment">-- When asked, also returns the module's text after the passes.</span><span>
+</span><span id="line-86"></span><span class="annot"><a href="Unison.Runtime.JIT.LLVM.html#addModule"><span class="hs-identifier hs-type">addModule</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">T.Text</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Either</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-87"></span><span id="addModule"><span class="annot"><span class="annottext">addModule :: Bool -&gt; [Char] -&gt; Text -&gt; IO (Either [Char] (Maybe [Char]))
+</span><a href="Unison.Runtime.JIT.LLVM.html#addModule"><span class="hs-identifier hs-var hs-var">addModule</span></a></span></span><span> </span><span id="local-6989586621681789915"><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621681789915"><span class="hs-identifier hs-var">wantOptimized</span></a></span></span><span> </span><span id="local-6989586621681789916"><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621681789916"><span class="hs-identifier hs-var">passes</span></a></span></span><span> </span><span id="local-6989586621681789917"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681789917"><span class="hs-identifier hs-var">ir</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-88"></span><span>  </span><span class="annot"><span class="annottext">ByteString
+-&gt; (CStringLen -&gt; IO (Either [Char] (Maybe [Char])))
+-&gt; IO (Either [Char] (Maybe [Char]))
+forall a. ByteString -&gt; (CStringLen -&gt; IO a) -&gt; IO a
+</span><span class="hs-identifier hs-var">unsafeUseAsCStringLen</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Text -&gt; ByteString
+</span><span class="hs-identifier hs-var">encodeUtf8</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681789917"><span class="hs-identifier hs-var">ir</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">((CStringLen -&gt; IO (Either [Char] (Maybe [Char])))
+ -&gt; IO (Either [Char] (Maybe [Char])))
+-&gt; (CStringLen -&gt; IO (Either [Char] (Maybe [Char])))
+-&gt; IO (Either [Char] (Maybe [Char]))
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span class="hs-special">(</span><span id="local-6989586621681789918"><span class="annot"><span class="annottext">Ptr CChar
+</span><a href="#local-6989586621681789918"><span class="hs-identifier hs-var">p</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681789919"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681789919"><span class="hs-identifier hs-var">n</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">[Char]
+-&gt; (Ptr CChar -&gt; IO (Either [Char] (Maybe [Char])))
+-&gt; IO (Either [Char] (Maybe [Char]))
+forall a. [Char] -&gt; (Ptr CChar -&gt; IO a) -&gt; IO a
+</span><span class="hs-identifier hs-var">withCString</span></span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621681789916"><span class="hs-identifier hs-var">passes</span></a></span><span> </span><span class="annot"><span class="annottext">((Ptr CChar -&gt; IO (Either [Char] (Maybe [Char])))
+ -&gt; IO (Either [Char] (Maybe [Char])))
+-&gt; (Ptr CChar -&gt; IO (Either [Char] (Maybe [Char])))
+-&gt; IO (Either [Char] (Maybe [Char]))
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621681789920"><span class="annot"><span class="annottext">Ptr CChar
+</span><a href="#local-6989586621681789920"><span class="hs-identifier hs-var">ps</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">(Ptr (Ptr CChar) -&gt; IO (Either [Char] (Maybe [Char])))
+-&gt; IO (Either [Char] (Maybe [Char]))
+forall a b. Storable a =&gt; (Ptr a -&gt; IO b) -&gt; IO b
+</span><span class="hs-identifier hs-var">alloca</span></span><span> </span><span class="annot"><span class="annottext">((Ptr (Ptr CChar) -&gt; IO (Either [Char] (Maybe [Char])))
+ -&gt; IO (Either [Char] (Maybe [Char])))
+-&gt; (Ptr (Ptr CChar) -&gt; IO (Either [Char] (Maybe [Char])))
+-&gt; IO (Either [Char] (Maybe [Char]))
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621681789921"><span class="annot"><span class="annottext">Ptr (Ptr CChar)
+</span><a href="#local-6989586621681789921"><span class="hs-identifier hs-var">out</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-89"></span><span>    </span><span class="annot"><span class="annottext">Ptr (Ptr CChar) -&gt; Ptr CChar -&gt; IO ()
+forall a. Storable a =&gt; Ptr a -&gt; a -&gt; IO ()
+</span><span class="hs-identifier hs-var">poke</span></span><span> </span><span class="annot"><span class="annottext">Ptr (Ptr CChar)
+</span><a href="#local-6989586621681789921"><span class="hs-identifier hs-var">out</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr CChar
+forall a. Ptr a
+</span><span class="hs-identifier hs-var">nullPtr</span></span><span>
+</span><span id="line-90"></span><span>    </span><span id="local-6989586621681789922"><span class="annot"><span class="annottext">CInt
+</span><a href="#local-6989586621681789922"><span class="hs-identifier hs-var">r</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Ptr CChar -&gt; CSize -&gt; Ptr CChar -&gt; Ptr (Ptr CChar) -&gt; IO CInt
+</span><a href="Unison.Runtime.JIT.LLVM.html#c_addModule"><span class="hs-identifier hs-var">c_addModule</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr CChar
+</span><a href="#local-6989586621681789918"><span class="hs-identifier hs-var">p</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; CSize
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681789919"><span class="hs-identifier hs-var">n</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Ptr CChar
+</span><a href="#local-6989586621681789920"><span class="hs-identifier hs-var">ps</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621681789915"><span class="hs-identifier hs-var">wantOptimized</span></a></span><span> </span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="annottext">Ptr (Ptr CChar)
+</span><a href="#local-6989586621681789921"><span class="hs-identifier hs-var">out</span></a></span><span> </span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="annottext">Ptr (Ptr CChar)
+forall a. Ptr a
+</span><span class="hs-identifier hs-var">nullPtr</span></span><span class="hs-special">)</span><span>
+</span><span id="line-91"></span><span>    </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">CInt
+</span><a href="#local-6989586621681789922"><span class="hs-identifier hs-var">r</span></a></span><span> </span><span class="annot"><span class="annottext">CInt -&gt; CInt -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">/=</span></span><span> </span><span class="annot"><span class="annottext">CInt
+</span><span class="hs-number">0</span></span><span>
+</span><span id="line-92"></span><span>      </span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; Either [Char] (Maybe [Char])
+forall a b. a -&gt; Either a b
+</span><span class="hs-identifier hs-var">Left</span></span><span> </span><span class="annot"><span class="annottext">([Char] -&gt; Either [Char] (Maybe [Char]))
+-&gt; IO [Char] -&gt; IO (Either [Char] (Maybe [Char]))
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; IO [Char]
+</span><a href="Unison.Runtime.JIT.LLVM.html#lastError"><span class="hs-identifier hs-var">lastError</span></a></span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><span class="hs-string">&quot;adding a module&quot;</span></span><span>
+</span><span id="line-93"></span><span>      </span><span class="hs-keyword">else</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-94"></span><span>        </span><span id="local-6989586621681789924"><span class="annot"><span class="annottext">Ptr CChar
+</span><a href="#local-6989586621681789924"><span class="hs-identifier hs-var">cs</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Ptr (Ptr CChar) -&gt; IO (Ptr CChar)
+forall a. Storable a =&gt; Ptr a -&gt; IO a
+</span><span class="hs-identifier hs-var">peek</span></span><span> </span><span class="annot"><span class="annottext">Ptr (Ptr CChar)
+</span><a href="#local-6989586621681789921"><span class="hs-identifier hs-var">out</span></a></span><span>
+</span><span id="line-95"></span><span>        </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">Ptr CChar
+</span><a href="#local-6989586621681789924"><span class="hs-identifier hs-var">cs</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr CChar -&gt; Ptr CChar -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">Ptr CChar
+forall a. Ptr a
+</span><span class="hs-identifier hs-var">nullPtr</span></span><span>
+</span><span id="line-96"></span><span>          </span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="annottext">Either [Char] (Maybe [Char]) -&gt; IO (Either [Char] (Maybe [Char]))
+forall a. a -&gt; IO a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Maybe [Char] -&gt; Either [Char] (Maybe [Char])
+forall a b. b -&gt; Either a b
+</span><span class="hs-identifier hs-var">Right</span></span><span> </span><span class="annot"><span class="annottext">Maybe [Char]
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span class="hs-special">)</span><span>
+</span><span id="line-97"></span><span>          </span><span class="hs-keyword">else</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-98"></span><span>            </span><span id="local-6989586621681789925"><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621681789925"><span class="hs-identifier hs-var">txt</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Ptr CChar -&gt; IO [Char]
+</span><span class="hs-identifier hs-var">peekCString</span></span><span> </span><span class="annot"><span class="annottext">Ptr CChar
+</span><a href="#local-6989586621681789924"><span class="hs-identifier hs-var">cs</span></a></span><span>
+</span><span id="line-99"></span><span>            </span><span class="annot"><span class="annottext">Ptr CChar -&gt; IO ()
+</span><a href="Unison.Runtime.JIT.LLVM.html#c_freeString"><span class="hs-identifier hs-var">c_freeString</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr CChar
+</span><a href="#local-6989586621681789924"><span class="hs-identifier hs-var">cs</span></a></span><span>
+</span><span id="line-100"></span><span>            </span><span class="hs-identifier">pure</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Maybe [Char] -&gt; Either [Char] (Maybe [Char])
+forall a b. b -&gt; Either a b
+</span><span class="hs-identifier hs-var">Right</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[Char] -&gt; Maybe [Char]
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621681789925"><span class="hs-identifier hs-var">txt</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-101"></span><span>
+</span><span id="line-102"></span><span class="annot"><span class="hs-comment">-- | The address of a compiled function. Code is generated on first lookup.</span></span><span>
+</span><span id="line-103"></span><span id="local-6989586621681789818"><span class="annot"><a href="Unison.Runtime.JIT.LLVM.html#lookupSymbol"><span class="hs-identifier hs-type">lookupSymbol</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Either</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">FunPtr</span></span><span> </span><span class="annot"><a href="#local-6989586621681789818"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span></span><span>
+</span><span id="line-104"></span><span id="lookupSymbol"><span class="annot"><span class="annottext">lookupSymbol :: forall a. [Char] -&gt; IO (Either [Char] (FunPtr a))
+</span><a href="Unison.Runtime.JIT.LLVM.html#lookupSymbol"><span class="hs-identifier hs-var hs-var">lookupSymbol</span></a></span></span><span> </span><span id="local-6989586621681789938"><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621681789938"><span class="hs-identifier hs-var">name</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-105"></span><span>  </span><span id="local-6989586621681789939"><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621681789939"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; (Ptr CChar -&gt; IO Word64) -&gt; IO Word64
+forall a. [Char] -&gt; (Ptr CChar -&gt; IO a) -&gt; IO a
+</span><span class="hs-identifier hs-var">withCString</span></span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621681789938"><span class="hs-identifier hs-var">name</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr CChar -&gt; IO Word64
+</span><a href="Unison.Runtime.JIT.LLVM.html#c_lookup"><span class="hs-identifier hs-var">c_lookup</span></a></span><span>
+</span><span id="line-106"></span><span>  </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621681789939"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="annot"><span class="annottext">Word64 -&gt; Word64 -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><span class="hs-number">0</span></span><span>
+</span><span id="line-107"></span><span>    </span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; Either [Char] (FunPtr a)
+forall a b. a -&gt; Either a b
+</span><span class="hs-identifier hs-var">Left</span></span><span> </span><span class="annot"><span class="annottext">([Char] -&gt; Either [Char] (FunPtr a))
+-&gt; IO [Char] -&gt; IO (Either [Char] (FunPtr a))
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; IO [Char]
+</span><a href="Unison.Runtime.JIT.LLVM.html#lastError"><span class="hs-identifier hs-var">lastError</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[Char]
+</span><span class="hs-string">&quot;looking up &quot;</span></span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; [Char] -&gt; [Char]
+forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621681789938"><span class="hs-identifier hs-var">name</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-108"></span><span>    </span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="annottext">Either [Char] (FunPtr a) -&gt; IO (Either [Char] (FunPtr a))
+forall a. a -&gt; IO a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">FunPtr a -&gt; Either [Char] (FunPtr a)
+forall a b. b -&gt; Either a b
+</span><span class="hs-identifier hs-var">Right</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Ptr (ZonkAny 0) -&gt; FunPtr a
+forall a b. Ptr a -&gt; FunPtr b
+</span><span class="hs-identifier hs-var">castPtrToFunPtr</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">WordPtr -&gt; Ptr (ZonkAny 0)
+forall a. WordPtr -&gt; Ptr a
+</span><span class="hs-identifier hs-var">wordPtrToPtr</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Word -&gt; WordPtr
+</span><span class="hs-identifier hs-var">WordPtr</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Word64 -&gt; Word
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621681789939"><span class="hs-identifier hs-var">a</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-109"></span><span>
+</span><span id="line-110"></span><span class="annot"><span class="hs-comment">-- | Makes @name@ in generated code refer to @addr@.</span></span><span>
+</span><span id="line-111"></span><span class="annot"><a href="Unison.Runtime.JIT.LLVM.html#defineSymbol"><span class="hs-identifier hs-type">defineSymbol</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word64</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Either</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-112"></span><span id="defineSymbol"><span class="annot"><span class="annottext">defineSymbol :: [Char] -&gt; Word64 -&gt; IO (Either [Char] ())
+</span><a href="Unison.Runtime.JIT.LLVM.html#defineSymbol"><span class="hs-identifier hs-var hs-var">defineSymbol</span></a></span></span><span> </span><span id="local-6989586621681789941"><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621681789941"><span class="hs-identifier hs-var">name</span></a></span></span><span> </span><span id="local-6989586621681789942"><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621681789942"><span class="hs-identifier hs-var">addr</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-113"></span><span>  </span><span id="local-6989586621681789943"><span class="annot"><span class="annottext">CInt
+</span><a href="#local-6989586621681789943"><span class="hs-identifier hs-var">r</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; (Ptr CChar -&gt; IO CInt) -&gt; IO CInt
+forall a. [Char] -&gt; (Ptr CChar -&gt; IO a) -&gt; IO a
+</span><span class="hs-identifier hs-var">withCString</span></span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621681789941"><span class="hs-identifier hs-var">name</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span id="local-6989586621681789944"><span class="annot"><span class="annottext">Ptr CChar
+</span><a href="#local-6989586621681789944"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Ptr CChar -&gt; Word64 -&gt; IO CInt
+</span><a href="Unison.Runtime.JIT.LLVM.html#c_defineSymbol"><span class="hs-identifier hs-var">c_defineSymbol</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr CChar
+</span><a href="#local-6989586621681789944"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><a href="#local-6989586621681789942"><span class="hs-identifier hs-var">addr</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-114"></span><span>  </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">CInt
+</span><a href="#local-6989586621681789943"><span class="hs-identifier hs-var">r</span></a></span><span> </span><span class="annot"><span class="annottext">CInt -&gt; CInt -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">CInt
+</span><span class="hs-number">0</span></span><span> </span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="annottext">Either [Char] () -&gt; IO (Either [Char] ())
+forall a. a -&gt; IO a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">() -&gt; Either [Char] ()
+forall a b. b -&gt; Either a b
+</span><span class="hs-identifier hs-var">Right</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; Either [Char] ()
+forall a b. a -&gt; Either a b
+</span><span class="hs-identifier hs-var">Left</span></span><span> </span><span class="annot"><span class="annottext">([Char] -&gt; Either [Char] ()) -&gt; IO [Char] -&gt; IO (Either [Char] ())
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; IO [Char]
+</span><a href="Unison.Runtime.JIT.LLVM.html#lastError"><span class="hs-identifier hs-var">lastError</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[Char]
+</span><span class="hs-string">&quot;defining &quot;</span></span><span> </span><span class="annot"><span class="annottext">[Char] -&gt; [Char] -&gt; [Char]
+forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">[Char]
+</span><a href="#local-6989586621681789941"><span class="hs-identifier hs-var">name</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-115"></span><span>
+</span><span id="line-116"></span><span class="annot"><a href="Unison.Runtime.JIT.LLVM.html#targetTriple"><span class="hs-identifier hs-type">targetTriple</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span>
+</span><span id="line-117"></span><span id="targetTriple"><span class="annot"><span class="annottext">targetTriple :: IO [Char]
+</span><a href="Unison.Runtime.JIT.LLVM.html#targetTriple"><span class="hs-identifier hs-var hs-var">targetTriple</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Ptr CChar -&gt; IO [Char]
+</span><span class="hs-identifier hs-var">peekCString</span></span><span> </span><span class="annot"><span class="annottext">(Ptr CChar -&gt; IO [Char]) -&gt; IO (Ptr CChar) -&gt; IO [Char]
+forall (m :: * -&gt; *) a b. Monad m =&gt; (a -&gt; m b) -&gt; m a -&gt; m b
+</span><span class="hs-operator hs-var">=&lt;&lt;</span></span><span> </span><span class="annot"><span class="annottext">IO (Ptr CChar)
+</span><a href="Unison.Runtime.JIT.LLVM.html#c_triple"><span class="hs-identifier hs-var">c_triple</span></a></span><span>
+</span><span id="line-118"></span></pre></body></html>

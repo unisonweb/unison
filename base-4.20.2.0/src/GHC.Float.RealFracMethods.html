@@ -1,0 +1,59 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE Safe #-}</span><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# OPTIONS_HADDOCK not-home #-}</span><span>
+</span><span id="line-3"></span><span>
+</span><span id="line-4"></span><span class="hs-comment">-- |</span><span>
+</span><span id="line-5"></span><span class="hs-comment">--</span><span>
+</span><span id="line-6"></span><span class="hs-comment">-- Module      :  GHC.Float.RealFracMethods</span><span>
+</span><span id="line-7"></span><span class="hs-comment">-- Copyright   :  (c) Daniel Fischer 2010</span><span>
+</span><span id="line-8"></span><span class="hs-comment">-- License     :  see libraries/base/LICENSE</span><span>
+</span><span id="line-9"></span><span class="hs-comment">--</span><span>
+</span><span id="line-10"></span><span class="hs-comment">-- Maintainer  :  ghc-devs@haskell.org</span><span>
+</span><span id="line-11"></span><span class="hs-comment">-- Stability   :  internal</span><span>
+</span><span id="line-12"></span><span class="hs-comment">-- Portability :  non-portable (GHC Extensions)</span><span>
+</span><span id="line-13"></span><span class="hs-comment">--</span><span>
+</span><span id="line-14"></span><span class="hs-comment">-- Methods for the RealFrac instances for 'Float' and 'Double',</span><span>
+</span><span id="line-15"></span><span class="hs-comment">-- with specialised versions for 'Int'.</span><span>
+</span><span id="line-16"></span><span class="hs-comment">--</span><span>
+</span><span id="line-17"></span><span class="hs-comment">-- Moved to their own module to not bloat &quot;GHC.Float&quot; further.</span><span>
+</span><span id="line-18"></span><span class="hs-comment">--</span><span>
+</span><span id="line-19"></span><span class="hs-comment">-- /The API of this module is unstable and not meant to be consumed by the general public./</span><span>
+</span><span id="line-20"></span><span class="hs-comment">-- If you absolutely must depend on it, make sure to use a tight upper</span><span>
+</span><span id="line-21"></span><span class="hs-comment">-- bound, e.g., @base &lt; 4.X@ rather than @base &lt; 5@, because the interface can</span><span>
+</span><span id="line-22"></span><span class="hs-comment">-- change rapidly without much warning.</span><span>
+</span><span id="line-23"></span><span class="hs-comment">--</span><span>
+</span><span id="line-24"></span><span>
+</span><span id="line-25"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="GHC.Float.RealFracMethods.html"><span class="hs-identifier">GHC.Float.RealFracMethods</span></a></span><span>
+</span><span id="line-26"></span><span>    </span><span class="hs-special">(</span><span class="annot"><span class="hs-comment">-- *  Double methods</span></span><span>
+</span><span id="line-27"></span><span>     </span><span class="annot"><span class="hs-comment">-- **  Integer results</span></span><span>
+</span><span id="line-28"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Float.RealFracMethods.html#properFractionDoubleInteger"><span class="hs-identifier">properFractionDoubleInteger</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-29"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Float.RealFracMethods.html#truncateDoubleInteger"><span class="hs-identifier">truncateDoubleInteger</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-30"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Float.RealFracMethods.html#floorDoubleInteger"><span class="hs-identifier">floorDoubleInteger</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-31"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Float.RealFracMethods.html#ceilingDoubleInteger"><span class="hs-identifier">ceilingDoubleInteger</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-32"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Float.RealFracMethods.html#roundDoubleInteger"><span class="hs-identifier">roundDoubleInteger</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-33"></span><span>     </span><span class="annot"><span class="hs-comment">-- **  Int results</span></span><span>
+</span><span id="line-34"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Float.RealFracMethods.html#properFractionDoubleInt"><span class="hs-identifier">properFractionDoubleInt</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-35"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Float.RealFracMethods.html#floorDoubleInt"><span class="hs-identifier">floorDoubleInt</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-36"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Float.RealFracMethods.html#ceilingDoubleInt"><span class="hs-identifier">ceilingDoubleInt</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-37"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Float.RealFracMethods.html#roundDoubleInt"><span class="hs-identifier">roundDoubleInt</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-38"></span><span>     </span><span class="annot"><span class="hs-comment">-- *  Double/Int conversions, wrapped primops</span></span><span>
+</span><span id="line-39"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Float.RealFracMethods.html#double2Int"><span class="hs-identifier">double2Int</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-40"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Float.RealFracMethods.html#int2Double"><span class="hs-identifier">int2Double</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-41"></span><span>     </span><span class="annot"><span class="hs-comment">-- *  Float methods</span></span><span>
+</span><span id="line-42"></span><span>     </span><span class="annot"><span class="hs-comment">-- **  Integer results</span></span><span>
+</span><span id="line-43"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Float.RealFracMethods.html#properFractionFloatInteger"><span class="hs-identifier">properFractionFloatInteger</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-44"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Float.RealFracMethods.html#truncateFloatInteger"><span class="hs-identifier">truncateFloatInteger</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-45"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Float.RealFracMethods.html#floorFloatInteger"><span class="hs-identifier">floorFloatInteger</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-46"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Float.RealFracMethods.html#ceilingFloatInteger"><span class="hs-identifier">ceilingFloatInteger</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-47"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Float.RealFracMethods.html#roundFloatInteger"><span class="hs-identifier">roundFloatInteger</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-48"></span><span>     </span><span class="annot"><span class="hs-comment">-- **  Int results</span></span><span>
+</span><span id="line-49"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Float.RealFracMethods.html#properFractionFloatInt"><span class="hs-identifier">properFractionFloatInt</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-50"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Float.RealFracMethods.html#floorFloatInt"><span class="hs-identifier">floorFloatInt</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-51"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Float.RealFracMethods.html#ceilingFloatInt"><span class="hs-identifier">ceilingFloatInt</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-52"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Float.RealFracMethods.html#roundFloatInt"><span class="hs-identifier">roundFloatInt</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-53"></span><span>     </span><span class="annot"><span class="hs-comment">-- *  Float/Int conversions, wrapped primops</span></span><span>
+</span><span id="line-54"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Float.RealFracMethods.html#float2Int"><span class="hs-identifier">float2Int</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-55"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Float.RealFracMethods.html#int2Float"><span class="hs-identifier">int2Float</span></a></span><span>
+</span><span id="line-56"></span><span>     </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-57"></span><span>
+</span><span id="line-58"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Float.RealFracMethods.html"><span class="hs-identifier">GHC.Internal.Float.RealFracMethods</span></a></span><span>
+</span><span id="line-59"></span></pre></body></html>

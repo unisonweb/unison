@@ -1,0 +1,615 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE MagicHash #-}</span><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# LANGUAGE UnboxedTuples #-}</span><span>
+</span><span id="line-3"></span><span>
+</span><span id="line-4"></span><span class="hs-comment">-- | The exits table, one per JIT (which is one per process, see JIT.hs). Native code returns an index into it to say</span><span>
+</span><span id="line-5"></span><span class="hs-comment">-- what the interpreter should do next. See unison-runtime/src/Unison/Runtime/JIT/design.md.</span><span>
+</span><span id="line-6"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Unison.Runtime.JIT.Exits.html"><span class="hs-identifier">Unison.Runtime.JIT.Exits</span></a></span><span>
+</span><span id="line-7"></span><span>  </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="Unison.Runtime.JIT.Exits.html#Exit"><span class="hs-identifier">Exit</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-8"></span><span>    </span><span class="annot"><a href="Unison.Runtime.JIT.Exits.html#isAdHoc"><span class="hs-identifier">isAdHoc</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-9"></span><span>    </span><span class="annot"><a href="Unison.Runtime.JIT.Exits.html#ExitIndex"><span class="hs-identifier">ExitIndex</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-10"></span><span>    </span><span class="annot"><a href="Unison.Runtime.JIT.Exits.html#Exits"><span class="hs-identifier">Exits</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-11"></span><span>    </span><span class="annot"><a href="Unison.Runtime.JIT.Exits.html#newExits"><span class="hs-identifier">newExits</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-12"></span><span>    </span><span class="annot"><a href="Unison.Runtime.JIT.Exits.html#registerExits"><span class="hs-identifier">registerExits</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-13"></span><span>    </span><span class="annot"><a href="Unison.Runtime.JIT.Exits.html#replaceExits"><span class="hs-identifier">replaceExits</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-14"></span><span>    </span><span class="annot"><a href="Unison.Runtime.JIT.Exits.html#lookupExit"><span class="hs-identifier">lookupExit</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-15"></span><span>    </span><span class="annot"><a href="Unison.Runtime.JIT.Exits.html#countExit"><span class="hs-identifier">countExit</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-16"></span><span>    </span><span class="annot"><a href="Unison.Runtime.JIT.Exits.html#exitCounts"><span class="hs-identifier">exitCounts</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-17"></span><span>    </span><span class="annot"><a href="Unison.Runtime.JIT.Exits.html#resetExitCounts"><span class="hs-identifier">resetExitCounts</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-18"></span><span>    </span><span class="annot"><a href="Unison.Runtime.JIT.Exits.html#countEntry"><span class="hs-identifier">countEntry</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-19"></span><span>    </span><span class="annot"><a href="Unison.Runtime.JIT.Exits.html#nameEntry"><span class="hs-identifier">nameEntry</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-20"></span><span>    </span><span class="annot"><a href="Unison.Runtime.JIT.Exits.html#entryCounts"><span class="hs-identifier">entryCounts</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-21"></span><span>  </span><span class="hs-special">)</span><span>
+</span><span id="line-22"></span><span class="hs-keyword">where</span><span>
+</span><span id="line-23"></span><span>
+</span><span id="line-24"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Monad</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">forM</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">forM_</span></span><span class="hs-special">)</span><span>
+</span><span id="line-25"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Monad.Primitive</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">PrimState</span></span><span class="hs-special">)</span><span>
+</span><span id="line-26"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.IORef</span></span><span>
+</span><span id="line-27"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Map.Strict</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">M</span></span><span>
+</span><span id="line-28"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Primitive.PrimArray</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">MutablePrimArray</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">newPrimArray</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">readPrimArray</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">setPrimArray</span></span><span class="hs-special">)</span><span>
+</span><span id="line-29"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Primitive.SmallArray</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">SmallMutableArray</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">copySmallMutableArray</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">getSizeofSmallMutableArray</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">newSmallArray</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">readSmallArray</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">writeSmallArray</span></span><span class="hs-special">)</span><span>
+</span><span id="line-30"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Foreign.Ptr</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Ptr</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">WordPtr</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">ptrToWordPtr</span></span><span class="hs-special">)</span><span>
+</span><span id="line-31"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">GHC.Exts</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Int</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">fetchAddIntArray#</span></span><span class="hs-special">)</span><span>
+</span><span id="line-32"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">GHC.IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-33"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Unison.Runtime.MCode.html"><span class="hs-identifier">Unison.Runtime.MCode</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Runtime.MCode.html#CombIx"><span class="hs-identifier">CombIx</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Unison.Runtime.MCode.html#NativeCell"><span class="hs-identifier">NativeCell</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-34"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Unison.Runtime.Stack.html"><span class="hs-identifier">Unison.Runtime.Stack</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Runtime.Stack.html#MInstr"><span class="hs-identifier">MInstr</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Unison.Runtime.Stack.html#MSection"><span class="hs-identifier">MSection</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-35"></span><span>
+</span><span id="line-36"></span><span class="hs-keyword">data</span><span> </span><span id="Exit"><span class="annot"><a href="Unison.Runtime.JIT.Exits.html#Exit"><span class="hs-identifier hs-var">Exit</span></a></span></span><span>
+</span><span id="line-37"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-comment">-- | interpret from this section of this combinator</span></span><span>
+</span><span id="line-38"></span><span>    </span><span id="Resume"><span class="annot"><a href="Unison.Runtime.JIT.Exits.html#Resume"><span class="hs-identifier hs-var">Resume</span></a></span></span><span> </span><span class="hs-glyph">!</span><span class="annot"><a href="Unison.Runtime.MCode.html#CombIx"><span class="hs-identifier hs-type">CombIx</span></a></span><span> </span><span class="hs-glyph">!</span><span class="annot"><a href="Unison.Runtime.Stack.html#MSection"><span class="hs-identifier hs-type">MSection</span></a></span><span>
+</span><span id="line-39"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="hs-comment">-- | grow the Unison stack to fit a frame of this size, then call the</span><span>
+</span><span id="line-40"></span><span>    </span><span class="hs-comment">-- function whose cell this is again (it may not be the one the</span><span>
+</span><span id="line-41"></span><span>    </span><span class="hs-comment">-- trampoline entered: tail calls change functions)</span><span>
+</span><span id="line-42"></span><span>    </span><span id="GrowStack"><span class="annot"><a href="Unison.Runtime.JIT.Exits.html#GrowStack"><span class="hs-identifier hs-var">GrowStack</span></a></span></span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">!</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Unison.Runtime.MCode.html#NativeCell"><span class="hs-identifier hs-type">NativeCell</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-43"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="hs-comment">-- | the runtime asked the thread to stop; call the function whose</span><span>
+</span><span id="line-44"></span><span>    </span><span class="hs-comment">-- cell this is again when the thread next runs</span><span>
+</span><span id="line-45"></span><span>    </span><span id="Reenter"><span class="annot"><a href="Unison.Runtime.JIT.Exits.html#Reenter"><span class="hs-identifier hs-var">Reenter</span></a></span></span><span> </span><span class="hs-glyph">!</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Unison.Runtime.MCode.html#NativeCell"><span class="hs-identifier hs-type">NativeCell</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-46"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="hs-comment">-- | run this instruction with the interpreter (it pushes the given</span><span>
+</span><span id="line-47"></span><span>    </span><span class="hs-comment">-- number of values), then call the function in this cell, which</span><span>
+</span><span id="line-48"></span><span>    </span><span class="hs-comment">-- continues with the section after it. If the instruction pushed a</span><span>
+</span><span id="line-49"></span><span>    </span><span class="hs-comment">-- different number of values, interpret that section instead.</span><span>
+</span><span id="line-50"></span><span>    </span><span id="CallOut"><span class="annot"><a href="Unison.Runtime.JIT.Exits.html#CallOut"><span class="hs-identifier hs-var">CallOut</span></a></span></span><span> </span><span class="hs-glyph">!</span><span class="annot"><a href="Unison.Runtime.MCode.html#CombIx"><span class="hs-identifier hs-type">CombIx</span></a></span><span> </span><span class="hs-glyph">!</span><span class="annot"><a href="Unison.Runtime.Stack.html#MInstr"><span class="hs-identifier hs-type">MInstr</span></a></span><span> </span><span class="hs-glyph">!</span><span class="annot"><a href="Unison.Runtime.Stack.html#MSection"><span class="hs-identifier hs-type">MSection</span></a></span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">!</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Unison.Runtime.MCode.html#NativeCell"><span class="hs-identifier hs-type">NativeCell</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-51"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="hs-comment">-- | a description, for statistics</span></span><span>
+</span><span id="line-52"></span><span>    </span><span id="Named"><span class="annot"><a href="Unison.Runtime.JIT.Exits.html#Named"><span class="hs-identifier hs-var">Named</span></a></span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="annot"><a href="Unison.Runtime.JIT.Exits.html#Exit"><span class="hs-identifier hs-type">Exit</span></a></span><span>
+</span><span id="line-53"></span><span>
+</span><span id="line-54"></span><span class="hs-comment">-- | An exit the code didn't cause: the poll (the context-switch flag or</span><span>
+</span><span id="line-55"></span><span class="hs-comment">-- the allocation budget) and stack growth land wherever the program</span><span>
+</span><span id="line-56"></span><span class="hs-comment">-- happens to be. The others, a call-out or a resume, are taken at a point</span><span>
+</span><span id="line-57"></span><span class="hs-comment">-- the code itself reaches on every such path.</span><span>
+</span><span id="line-58"></span><span class="annot"><a href="Unison.Runtime.JIT.Exits.html#isAdHoc"><span class="hs-identifier hs-type">isAdHoc</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Unison.Runtime.JIT.Exits.html#Exit"><span class="hs-identifier hs-type">Exit</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>
+</span><span id="line-59"></span><span id="isAdHoc"><span class="annot"><span class="annottext">isAdHoc :: Exit -&gt; Bool
+</span><a href="Unison.Runtime.JIT.Exits.html#isAdHoc"><span class="hs-identifier hs-var hs-var">isAdHoc</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Runtime.JIT.Exits.html#GrowStack"><span class="hs-identifier hs-type">GrowStack</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">Ptr NativeCell
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>
+</span><span id="line-60"></span><span class="annot"><a href="Unison.Runtime.JIT.Exits.html#isAdHoc"><span class="hs-identifier hs-var">isAdHoc</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Runtime.JIT.Exits.html#Reenter"><span class="hs-identifier hs-type">Reenter</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr NativeCell
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>
+</span><span id="line-61"></span><span class="annot"><a href="Unison.Runtime.JIT.Exits.html#isAdHoc"><span class="hs-identifier hs-var">isAdHoc</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Runtime.JIT.Exits.html#Named"><span class="hs-identifier hs-type">Named</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621681820131"><span class="annot"><span class="annottext">Exit
+</span><a href="#local-6989586621681820131"><span class="hs-identifier hs-var">e</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Exit -&gt; Bool
+</span><a href="Unison.Runtime.JIT.Exits.html#isAdHoc"><span class="hs-identifier hs-var">isAdHoc</span></a></span><span> </span><span class="annot"><span class="annottext">Exit
+</span><a href="#local-6989586621681820131"><span class="hs-identifier hs-var">e</span></a></span><span>
+</span><span id="line-62"></span><span class="annot"><a href="Unison.Runtime.JIT.Exits.html#isAdHoc"><span class="hs-identifier hs-var">isAdHoc</span></a></span><span> </span><span class="annot"><span class="annottext">Exit
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span>
+</span><span id="line-63"></span><span>
+</span><span id="line-64"></span><span class="annot"><span class="hs-comment">-- | 1-based; 0 is OK and negative values are errors.</span></span><span>
+</span><span id="line-65"></span><span class="hs-keyword">type</span><span> </span><span id="ExitIndex"><span class="annot"><a href="Unison.Runtime.JIT.Exits.html#ExitIndex"><span class="hs-identifier hs-var">ExitIndex</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>
+</span><span id="line-66"></span><span>
+</span><span id="line-67"></span><span class="hs-comment">-- | The exits, by index, in an array that grows by copying. Looking one up</span><span>
+</span><span id="line-68"></span><span class="hs-comment">-- is on the path of every exit, so it is two loads. Only the thread that</span><span>
+</span><span id="line-69"></span><span class="hs-comment">-- compiles writes; an entry is in place before the code that returns its</span><span>
+</span><span id="line-70"></span><span class="hs-comment">-- index is installed, and a reader that still holds an older array finds</span><span>
+</span><span id="line-71"></span><span class="hs-comment">-- every index it can be handed there.</span><span>
+</span><span id="line-72"></span><span class="hs-keyword">data</span><span> </span><span id="Table"><span class="annot"><a href="Unison.Runtime.JIT.Exits.html#Table"><span class="hs-identifier hs-var">Table</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="Table"><span class="annot"><a href="Unison.Runtime.JIT.Exits.html#Table"><span class="hs-identifier hs-var">Table</span></a></span></span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">!</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">SmallMutableArray</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">PrimState</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span class="hs-special">)</span><span> </span><span class="annot"><a href="Unison.Runtime.JIT.Exits.html#Exit"><span class="hs-identifier hs-type">Exit</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-comment">-- next index, exits</span><span>
+</span><span id="line-73"></span><span>
+</span><span id="line-74"></span><span class="hs-comment">-- | The table, the exit counters, and the entry counts (by code address)</span><span>
+</span><span id="line-75"></span><span class="hs-comment">-- with the names of the functions entered.</span><span>
+</span><span id="line-76"></span><span class="hs-keyword">data</span><span> </span><span id="Exits"><span class="annot"><a href="Unison.Runtime.JIT.Exits.html#Exits"><span class="hs-identifier hs-var">Exits</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="Exits"><span class="annot"><a href="Unison.Runtime.JIT.Exits.html#Exits"><span class="hs-identifier hs-var">Exits</span></a></span></span><span>
+</span><span id="line-77"></span><span>  </span><span class="hs-special">{</span><span> </span><span id="exTable"><span class="annot"><span class="annottext">Exits -&gt; IORef Table
+</span><a href="Unison.Runtime.JIT.Exits.html#exTable"><span class="hs-identifier hs-var hs-var">exTable</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">IORef</span></span><span> </span><span class="annot"><a href="Unison.Runtime.JIT.Exits.html#Table"><span class="hs-identifier hs-type">Table</span></a></span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-78"></span><span>    </span><span id="exCounters"><span class="annot"><span class="annottext">Exits -&gt; MutablePrimArray (PrimState IO) Int
+</span><a href="Unison.Runtime.JIT.Exits.html#exCounters"><span class="hs-identifier hs-var hs-var">exCounters</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">MutablePrimArray</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">PrimState</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-79"></span><span>    </span><span id="exEntries"><span class="annot"><span class="annottext">Exits -&gt; IORef (Map WordPtr Int)
+</span><a href="Unison.Runtime.JIT.Exits.html#exEntries"><span class="hs-identifier hs-var hs-var">exEntries</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">IORef</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">M.Map</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">WordPtr</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-80"></span><span>    </span><span id="exEntryNames"><span class="annot"><span class="annottext">Exits -&gt; IORef (Map WordPtr String)
+</span><a href="Unison.Runtime.JIT.Exits.html#exEntryNames"><span class="hs-identifier hs-var hs-var">exEntryNames</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">IORef</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">M.Map</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">WordPtr</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-81"></span><span>  </span><span class="hs-special">}</span><span>
+</span><span id="line-82"></span><span>
+</span><span id="line-83"></span><span class="hs-comment">-- | An empty table. With statistics on, the counters have a slot per exit</span><span>
+</span><span id="line-84"></span><span class="hs-comment">-- index (up to 'counterSlots'); otherwise one, since nothing counts.</span><span>
+</span><span id="line-85"></span><span class="annot"><a href="Unison.Runtime.JIT.Exits.html#newExits"><span class="hs-identifier hs-type">newExits</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="Unison.Runtime.JIT.Exits.html#Exits"><span class="hs-identifier hs-type">Exits</span></a></span><span>
+</span><span id="line-86"></span><span id="newExits"><span class="annot"><span class="annottext">newExits :: Bool -&gt; IO Exits
+</span><a href="Unison.Runtime.JIT.Exits.html#newExits"><span class="hs-identifier hs-var hs-var">newExits</span></a></span></span><span> </span><span id="local-6989586621681820139"><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621681820139"><span class="hs-identifier hs-var">stats</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-87"></span><span>  </span><span id="local-6989586621681820140"><span class="annot"><span class="annottext">IORef Table
+</span><a href="#local-6989586621681820140"><span class="hs-identifier hs-var">t</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Table -&gt; IO (IORef Table)
+forall a. a -&gt; IO (IORef a)
+</span><span class="hs-identifier hs-var">newIORef</span></span><span> </span><span class="annot"><span class="annottext">(Table -&gt; IO (IORef Table))
+-&gt; (SmallMutableArray RealWorld Exit -&gt; Table)
+-&gt; SmallMutableArray RealWorld Exit
+-&gt; IO (IORef Table)
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; SmallMutableArray (PrimState IO) Exit -&gt; Table
+</span><a href="Unison.Runtime.JIT.Exits.html#Table"><span class="hs-identifier hs-var">Table</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span> </span><span class="annot"><span class="annottext">(SmallMutableArray RealWorld Exit -&gt; IO (IORef Table))
+-&gt; IO (SmallMutableArray RealWorld Exit) -&gt; IO (IORef Table)
+forall (m :: * -&gt; *) a b. Monad m =&gt; (a -&gt; m b) -&gt; m a -&gt; m b
+</span><span class="hs-operator hs-var">=&lt;&lt;</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Exit -&gt; IO (SmallMutableArray (PrimState IO) Exit)
+forall (m :: * -&gt; *) a.
+PrimMonad m =&gt;
+Int -&gt; a -&gt; m (SmallMutableArray (PrimState m) a)
+</span><span class="hs-identifier hs-var">newSmallArray</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1024</span></span><span> </span><span class="annot"><span class="annottext">Exit
+</span><a href="Unison.Runtime.JIT.Exits.html#unknown"><span class="hs-identifier hs-var">unknown</span></a></span><span>
+</span><span id="line-88"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621681820145"><span class="annot"><span class="annottext">n :: Int
+</span><a href="#local-6989586621681820145"><span class="hs-identifier hs-var hs-var">n</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621681820139"><span class="hs-identifier hs-var">stats</span></a></span><span> </span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="Unison.Runtime.JIT.Exits.html#counterSlots"><span class="hs-identifier hs-var">counterSlots</span></a></span><span> </span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span>
+</span><span id="line-89"></span><span>  </span><span id="local-6989586621681820146"><span class="annot"><span class="annottext">MutablePrimArray RealWorld Int
+</span><a href="#local-6989586621681820146"><span class="hs-identifier hs-var">arr</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Int -&gt; IO (MutablePrimArray (PrimState IO) Int)
+forall (m :: * -&gt; *) a.
+(PrimMonad m, Prim a) =&gt;
+Int -&gt; m (MutablePrimArray (PrimState m) a)
+</span><span class="hs-identifier hs-var">newPrimArray</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681820145"><span class="hs-identifier hs-var">n</span></a></span><span>
+</span><span id="line-90"></span><span>  </span><span class="annot"><span class="annottext">MutablePrimArray (PrimState IO) Int -&gt; Int -&gt; Int -&gt; Int -&gt; IO ()
+forall a (m :: * -&gt; *).
+(Prim a, PrimMonad m) =&gt;
+MutablePrimArray (PrimState m) a -&gt; Int -&gt; Int -&gt; a -&gt; m ()
+</span><span class="hs-identifier hs-var">setPrimArray</span></span><span> </span><span class="annot"><span class="annottext">MutablePrimArray RealWorld Int
+MutablePrimArray (PrimState IO) Int
+</span><a href="#local-6989586621681820146"><span class="hs-identifier hs-var">arr</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681820145"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span>
+</span><span id="line-91"></span><span>  </span><span class="annot"><span class="annottext">IORef Table
+-&gt; MutablePrimArray (PrimState IO) Int
+-&gt; IORef (Map WordPtr Int)
+-&gt; IORef (Map WordPtr String)
+-&gt; Exits
+</span><a href="Unison.Runtime.JIT.Exits.html#Exits"><span class="hs-identifier hs-var">Exits</span></a></span><span> </span><span class="annot"><span class="annottext">IORef Table
+</span><a href="#local-6989586621681820140"><span class="hs-identifier hs-var">t</span></a></span><span> </span><span class="annot"><span class="annottext">MutablePrimArray RealWorld Int
+MutablePrimArray (PrimState IO) Int
+</span><a href="#local-6989586621681820146"><span class="hs-identifier hs-var">arr</span></a></span><span> </span><span class="annot"><span class="annottext">(IORef (Map WordPtr Int) -&gt; IORef (Map WordPtr String) -&gt; Exits)
+-&gt; IO (IORef (Map WordPtr Int))
+-&gt; IO (IORef (Map WordPtr String) -&gt; Exits)
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">Map WordPtr Int -&gt; IO (IORef (Map WordPtr Int))
+forall a. a -&gt; IO (IORef a)
+</span><span class="hs-identifier hs-var">newIORef</span></span><span> </span><span class="annot"><span class="annottext">Map WordPtr Int
+forall k a. Map k a
+</span><span class="hs-identifier hs-var">M.empty</span></span><span> </span><span class="annot"><span class="annottext">IO (IORef (Map WordPtr String) -&gt; Exits)
+-&gt; IO (IORef (Map WordPtr String)) -&gt; IO Exits
+forall a b. IO (a -&gt; b) -&gt; IO a -&gt; IO b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Map WordPtr String -&gt; IO (IORef (Map WordPtr String))
+forall a. a -&gt; IO (IORef a)
+</span><span class="hs-identifier hs-var">newIORef</span></span><span> </span><span class="annot"><span class="annottext">Map WordPtr String
+forall k a. Map k a
+</span><span class="hs-identifier hs-var">M.empty</span></span><span>
+</span><span id="line-92"></span><span>
+</span><span id="line-93"></span><span class="annot"><a href="Unison.Runtime.JIT.Exits.html#unknown"><span class="hs-identifier hs-type">unknown</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Unison.Runtime.JIT.Exits.html#Exit"><span class="hs-identifier hs-type">Exit</span></a></span><span>
+</span><span id="line-94"></span><span id="unknown"><span class="annot"><span class="annottext">unknown :: Exit
+</span><a href="Unison.Runtime.JIT.Exits.html#unknown"><span class="hs-identifier hs-var hs-var">unknown</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; Exit
+forall a. HasCallStack =&gt; String -&gt; a
+</span><span class="hs-identifier hs-var">error</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;JIT: unknown exit index&quot;</span></span><span>
+</span><span id="line-95"></span><span>
+</span><span id="line-96"></span><span class="hs-comment">-- | Adds a module's exits and returns the index of the first one. The</span><span>
+</span><span id="line-97"></span><span class="hs-comment">-- rest follow consecutively, in the order given.</span><span>
+</span><span id="line-98"></span><span class="annot"><a href="Unison.Runtime.JIT.Exits.html#registerExits"><span class="hs-identifier hs-type">registerExits</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Unison.Runtime.JIT.Exits.html#Exits"><span class="hs-identifier hs-type">Exits</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Unison.Runtime.JIT.Exits.html#Exit"><span class="hs-identifier hs-type">Exit</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="Unison.Runtime.JIT.Exits.html#ExitIndex"><span class="hs-identifier hs-type">ExitIndex</span></a></span><span>
+</span><span id="line-99"></span><span id="registerExits"><span class="annot"><span class="annottext">registerExits :: Exits -&gt; [Exit] -&gt; IO Int
+</span><a href="Unison.Runtime.JIT.Exits.html#registerExits"><span class="hs-identifier hs-var hs-var">registerExits</span></a></span></span><span> </span><span id="local-6989586621681820150"><span class="annot"><span class="annottext">Exits
+</span><a href="#local-6989586621681820150"><span class="hs-identifier hs-var">ex</span></a></span></span><span> </span><span id="local-6989586621681820151"><span class="annot"><span class="annottext">[Exit]
+</span><a href="#local-6989586621681820151"><span class="hs-identifier hs-var">exits</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-100"></span><span>  </span><span class="annot"><a href="Unison.Runtime.JIT.Exits.html#Table"><span class="hs-identifier hs-type">Table</span></a></span><span> </span><span id="local-6989586621681820152"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681820152"><span class="hs-identifier hs-var">next</span></a></span></span><span> </span><span id="local-6989586621681820153"><span class="annot"><span class="annottext">SmallMutableArray (PrimState IO) Exit
+</span><a href="#local-6989586621681820153"><span class="hs-identifier hs-var">arr</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">IORef Table -&gt; IO Table
+forall a. IORef a -&gt; IO a
+</span><span class="hs-identifier hs-var">readIORef</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Exits -&gt; IORef Table
+</span><a href="Unison.Runtime.JIT.Exits.html#exTable"><span class="hs-identifier hs-var">exTable</span></a></span><span> </span><span class="annot"><span class="annottext">Exits
+</span><a href="#local-6989586621681820150"><span class="hs-identifier hs-var">ex</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-101"></span><span>  </span><span id="local-6989586621681820155"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681820155"><span class="hs-identifier hs-var">size</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">SmallMutableArray (PrimState IO) Exit -&gt; IO Int
+forall (m :: * -&gt; *) a.
+PrimMonad m =&gt;
+SmallMutableArray (PrimState m) a -&gt; m Int
+</span><span class="hs-identifier hs-var">getSizeofSmallMutableArray</span></span><span> </span><span class="annot"><span class="annottext">SmallMutableArray (PrimState IO) Exit
+</span><a href="#local-6989586621681820153"><span class="hs-identifier hs-var">arr</span></a></span><span>
+</span><span id="line-102"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621681820156"><span class="annot"><span class="annottext">n :: Int
+</span><a href="#local-6989586621681820156"><span class="hs-identifier hs-var hs-var">n</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Exit] -&gt; Int
+forall a. [a] -&gt; Int
+forall (t :: * -&gt; *) a. Foldable t =&gt; t a -&gt; Int
+</span><span class="hs-identifier hs-var">length</span></span><span> </span><span class="annot"><span class="annottext">[Exit]
+</span><a href="#local-6989586621681820151"><span class="hs-identifier hs-var">exits</span></a></span><span>
+</span><span id="line-103"></span><span>  </span><span id="local-6989586621681820158"><span class="annot"><span class="annottext">SmallMutableArray RealWorld Exit
+</span><a href="#local-6989586621681820158"><span class="hs-identifier hs-var">arr'</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span>
+</span><span id="line-104"></span><span>    </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681820152"><span class="hs-identifier hs-var">next</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681820156"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&lt;=</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681820155"><span class="hs-identifier hs-var">size</span></a></span><span>
+</span><span id="line-105"></span><span>      </span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="annottext">SmallMutableArray RealWorld Exit
+-&gt; IO (SmallMutableArray RealWorld Exit)
+forall a. a -&gt; IO a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">SmallMutableArray RealWorld Exit
+SmallMutableArray (PrimState IO) Exit
+</span><a href="#local-6989586621681820153"><span class="hs-identifier hs-var">arr</span></a></span><span>
+</span><span id="line-106"></span><span>      </span><span class="hs-keyword">else</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-107"></span><span>        </span><span id="local-6989586621681820161"><span class="annot"><span class="annottext">SmallMutableArray RealWorld Exit
+</span><a href="#local-6989586621681820161"><span class="hs-identifier hs-var">bigger</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Exit -&gt; IO (SmallMutableArray (PrimState IO) Exit)
+forall (m :: * -&gt; *) a.
+PrimMonad m =&gt;
+Int -&gt; a -&gt; m (SmallMutableArray (PrimState m) a)
+</span><span class="hs-identifier hs-var">newSmallArray</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Ord a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-identifier hs-var">max</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">2</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">*</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681820155"><span class="hs-identifier hs-var">size</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681820152"><span class="hs-identifier hs-var">next</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681820156"><span class="hs-identifier hs-var">n</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Exit
+</span><a href="Unison.Runtime.JIT.Exits.html#unknown"><span class="hs-identifier hs-var">unknown</span></a></span><span>
+</span><span id="line-108"></span><span>        </span><span class="annot"><span class="annottext">SmallMutableArray (PrimState IO) Exit
+-&gt; Int
+-&gt; SmallMutableArray (PrimState IO) Exit
+-&gt; Int
+-&gt; Int
+-&gt; IO ()
+forall (m :: * -&gt; *) a.
+PrimMonad m =&gt;
+SmallMutableArray (PrimState m) a
+-&gt; Int -&gt; SmallMutableArray (PrimState m) a -&gt; Int -&gt; Int -&gt; m ()
+</span><span class="hs-identifier hs-var">copySmallMutableArray</span></span><span> </span><span class="annot"><span class="annottext">SmallMutableArray RealWorld Exit
+SmallMutableArray (PrimState IO) Exit
+</span><a href="#local-6989586621681820161"><span class="hs-identifier hs-var">bigger</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span> </span><span class="annot"><span class="annottext">SmallMutableArray (PrimState IO) Exit
+</span><a href="#local-6989586621681820153"><span class="hs-identifier hs-var">arr</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681820152"><span class="hs-identifier hs-var">next</span></a></span><span>
+</span><span id="line-109"></span><span>        </span><span class="hs-identifier">pure</span><span> </span><span class="annot"><span class="annottext">SmallMutableArray RealWorld Exit
+</span><a href="#local-6989586621681820161"><span class="hs-identifier hs-var">bigger</span></a></span><span>
+</span><span id="line-110"></span><span>  </span><span class="annot"><span class="annottext">[(Int, Exit)] -&gt; ((Int, Exit) -&gt; IO ()) -&gt; IO ()
+forall (t :: * -&gt; *) (m :: * -&gt; *) a b.
+(Foldable t, Monad m) =&gt;
+t a -&gt; (a -&gt; m b) -&gt; m ()
+</span><span class="hs-identifier hs-var">forM_</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[Int] -&gt; [Exit] -&gt; [(Int, Exit)]
+forall a b. [a] -&gt; [b] -&gt; [(a, b)]
+</span><span class="hs-identifier hs-var">zip</span></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681820152"><span class="hs-identifier hs-var">next</span></a></span><span> </span><span class="hs-glyph">..</span><span class="hs-special">]</span><span> </span><span class="annot"><span class="annottext">[Exit]
+</span><a href="#local-6989586621681820151"><span class="hs-identifier hs-var">exits</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(((Int, Exit) -&gt; IO ()) -&gt; IO ())
+-&gt; ((Int, Exit) -&gt; IO ()) -&gt; IO ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span class="hs-special">(</span><span id="local-6989586621681820164"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681820164"><span class="hs-identifier hs-var">i</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681820165"><span class="annot"><span class="annottext">Exit
+</span><a href="#local-6989586621681820165"><span class="hs-identifier hs-var">e</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">SmallMutableArray (PrimState IO) Exit -&gt; Int -&gt; Exit -&gt; IO ()
+forall (m :: * -&gt; *) a.
+PrimMonad m =&gt;
+SmallMutableArray (PrimState m) a -&gt; Int -&gt; a -&gt; m ()
+</span><span class="hs-identifier hs-var">writeSmallArray</span></span><span> </span><span class="annot"><span class="annottext">SmallMutableArray RealWorld Exit
+SmallMutableArray (PrimState IO) Exit
+</span><a href="#local-6989586621681820158"><span class="hs-identifier hs-var">arr'</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681820164"><span class="hs-identifier hs-var">i</span></a></span><span> </span><span class="annot"><span class="annottext">(Exit -&gt; IO ()) -&gt; Exit -&gt; IO ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$!</span></span><span> </span><span class="annot"><span class="annottext">Exit
+</span><a href="#local-6989586621681820165"><span class="hs-identifier hs-var">e</span></a></span><span>
+</span><span id="line-111"></span><span>  </span><span class="annot"><span class="annottext">IORef Table -&gt; Table -&gt; IO ()
+forall a. IORef a -&gt; a -&gt; IO ()
+</span><span class="hs-identifier hs-var">writeIORef</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Exits -&gt; IORef Table
+</span><a href="Unison.Runtime.JIT.Exits.html#exTable"><span class="hs-identifier hs-var">exTable</span></a></span><span> </span><span class="annot"><span class="annottext">Exits
+</span><a href="#local-6989586621681820150"><span class="hs-identifier hs-var">ex</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; SmallMutableArray (PrimState IO) Exit -&gt; Table
+</span><a href="Unison.Runtime.JIT.Exits.html#Table"><span class="hs-identifier hs-var">Table</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681820152"><span class="hs-identifier hs-var">next</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681820156"><span class="hs-identifier hs-var">n</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">SmallMutableArray RealWorld Exit
+SmallMutableArray (PrimState IO) Exit
+</span><a href="#local-6989586621681820158"><span class="hs-identifier hs-var">arr'</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-112"></span><span>  </span><span class="hs-identifier">pure</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681820152"><span class="hs-identifier hs-var">next</span></a></span><span>
+</span><span id="line-113"></span><span>
+</span><span id="line-114"></span><span class="hs-comment">-- | Overwrites exits registered earlier, starting at the given index: the</span><span>
+</span><span id="line-115"></span><span class="hs-comment">-- second code generation pass produces the final ones (with the cells of</span><span>
+</span><span id="line-116"></span><span class="hs-comment">-- the auxiliary functions), the first only their number.</span><span>
+</span><span id="line-117"></span><span class="annot"><a href="Unison.Runtime.JIT.Exits.html#replaceExits"><span class="hs-identifier hs-type">replaceExits</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Unison.Runtime.JIT.Exits.html#Exits"><span class="hs-identifier hs-type">Exits</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.Runtime.JIT.Exits.html#ExitIndex"><span class="hs-identifier hs-type">ExitIndex</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Unison.Runtime.JIT.Exits.html#Exit"><span class="hs-identifier hs-type">Exit</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-118"></span><span id="replaceExits"><span class="annot"><span class="annottext">replaceExits :: Exits -&gt; Int -&gt; [Exit] -&gt; IO ()
+</span><a href="Unison.Runtime.JIT.Exits.html#replaceExits"><span class="hs-identifier hs-var hs-var">replaceExits</span></a></span></span><span> </span><span id="local-6989586621681820168"><span class="annot"><span class="annottext">Exits
+</span><a href="#local-6989586621681820168"><span class="hs-identifier hs-var">ex</span></a></span></span><span> </span><span id="local-6989586621681820169"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681820169"><span class="hs-identifier hs-var">base</span></a></span></span><span> </span><span id="local-6989586621681820170"><span class="annot"><span class="annottext">[Exit]
+</span><a href="#local-6989586621681820170"><span class="hs-identifier hs-var">exits</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-119"></span><span>  </span><span class="annot"><a href="Unison.Runtime.JIT.Exits.html#Table"><span class="hs-identifier hs-type">Table</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621681820171"><span class="annot"><span class="annottext">SmallMutableArray (PrimState IO) Exit
+</span><a href="#local-6989586621681820171"><span class="hs-identifier hs-var">arr</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">IORef Table -&gt; IO Table
+forall a. IORef a -&gt; IO a
+</span><span class="hs-identifier hs-var">readIORef</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Exits -&gt; IORef Table
+</span><a href="Unison.Runtime.JIT.Exits.html#exTable"><span class="hs-identifier hs-var">exTable</span></a></span><span> </span><span class="annot"><span class="annottext">Exits
+</span><a href="#local-6989586621681820168"><span class="hs-identifier hs-var">ex</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-120"></span><span>  </span><span class="annot"><span class="annottext">[(Int, Exit)] -&gt; ((Int, Exit) -&gt; IO ()) -&gt; IO ()
+forall (t :: * -&gt; *) (m :: * -&gt; *) a b.
+(Foldable t, Monad m) =&gt;
+t a -&gt; (a -&gt; m b) -&gt; m ()
+</span><span class="hs-identifier hs-var">forM_</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[Int] -&gt; [Exit] -&gt; [(Int, Exit)]
+forall a b. [a] -&gt; [b] -&gt; [(a, b)]
+</span><span class="hs-identifier hs-var">zip</span></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681820169"><span class="hs-identifier hs-var">base</span></a></span><span> </span><span class="hs-glyph">..</span><span class="hs-special">]</span><span> </span><span class="annot"><span class="annottext">[Exit]
+</span><a href="#local-6989586621681820170"><span class="hs-identifier hs-var">exits</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(((Int, Exit) -&gt; IO ()) -&gt; IO ())
+-&gt; ((Int, Exit) -&gt; IO ()) -&gt; IO ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span class="hs-special">(</span><span id="local-6989586621681820172"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681820172"><span class="hs-identifier hs-var">i</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681820173"><span class="annot"><span class="annottext">Exit
+</span><a href="#local-6989586621681820173"><span class="hs-identifier hs-var">e</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">SmallMutableArray (PrimState IO) Exit -&gt; Int -&gt; Exit -&gt; IO ()
+forall (m :: * -&gt; *) a.
+PrimMonad m =&gt;
+SmallMutableArray (PrimState m) a -&gt; Int -&gt; a -&gt; m ()
+</span><span class="hs-identifier hs-var">writeSmallArray</span></span><span> </span><span class="annot"><span class="annottext">SmallMutableArray (PrimState IO) Exit
+</span><a href="#local-6989586621681820171"><span class="hs-identifier hs-var">arr</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681820172"><span class="hs-identifier hs-var">i</span></a></span><span> </span><span class="annot"><span class="annottext">(Exit -&gt; IO ()) -&gt; Exit -&gt; IO ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$!</span></span><span> </span><span class="annot"><span class="annottext">Exit
+</span><a href="#local-6989586621681820173"><span class="hs-identifier hs-var">e</span></a></span><span>
+</span><span id="line-121"></span><span>
+</span><span id="line-122"></span><span class="annot"><a href="Unison.Runtime.JIT.Exits.html#lookupExit"><span class="hs-identifier hs-type">lookupExit</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Unison.Runtime.JIT.Exits.html#Exits"><span class="hs-identifier hs-type">Exits</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.Runtime.JIT.Exits.html#ExitIndex"><span class="hs-identifier hs-type">ExitIndex</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="Unison.Runtime.JIT.Exits.html#Exit"><span class="hs-identifier hs-type">Exit</span></a></span><span>
+</span><span id="line-123"></span><span id="lookupExit"><span class="annot"><span class="annottext">lookupExit :: Exits -&gt; Int -&gt; IO Exit
+</span><a href="Unison.Runtime.JIT.Exits.html#lookupExit"><span class="hs-identifier hs-var hs-var">lookupExit</span></a></span></span><span> </span><span id="local-6989586621681820174"><span class="annot"><span class="annottext">Exits
+</span><a href="#local-6989586621681820174"><span class="hs-identifier hs-var">ex</span></a></span></span><span> </span><span id="local-6989586621681820175"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681820175"><span class="hs-identifier hs-var">i</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-124"></span><span>  </span><span class="annot"><a href="Unison.Runtime.JIT.Exits.html#Table"><span class="hs-identifier hs-type">Table</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621681820176"><span class="annot"><span class="annottext">SmallMutableArray (PrimState IO) Exit
+</span><a href="#local-6989586621681820176"><span class="hs-identifier hs-var">arr</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">IORef Table -&gt; IO Table
+forall a. IORef a -&gt; IO a
+</span><span class="hs-identifier hs-var">readIORef</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Exits -&gt; IORef Table
+</span><a href="Unison.Runtime.JIT.Exits.html#exTable"><span class="hs-identifier hs-var">exTable</span></a></span><span> </span><span class="annot"><span class="annottext">Exits
+</span><a href="#local-6989586621681820174"><span class="hs-identifier hs-var">ex</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-125"></span><span>  </span><span class="annot"><span class="annottext">SmallMutableArray (PrimState IO) Exit -&gt; Int -&gt; IO Exit
+forall (m :: * -&gt; *) a.
+PrimMonad m =&gt;
+SmallMutableArray (PrimState m) a -&gt; Int -&gt; m a
+</span><span class="hs-identifier hs-var">readSmallArray</span></span><span> </span><span class="annot"><span class="annottext">SmallMutableArray (PrimState IO) Exit
+</span><a href="#local-6989586621681820176"><span class="hs-identifier hs-var">arr</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681820175"><span class="hs-identifier hs-var">i</span></a></span><span>
+</span><span id="line-126"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Unison.Runtime.JIT.Exits.html#lookupExit"><span class="hs-pragma hs-type">lookupExit</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-127"></span><span>
+</span><span id="line-128"></span><span class="hs-comment">-- | How often each exit was taken, for @UNISON_JIT_STATS@: one counter per</span><span>
+</span><span id="line-129"></span><span class="hs-comment">-- exit index, with the total in slot 0. Fixed in size so that counting is</span><span>
+</span><span id="line-130"></span><span class="hs-comment">-- one atomic add; exits past the end are counted together in the last</span><span>
+</span><span id="line-131"></span><span class="hs-comment">-- slot. Only allocated when statistics are on.</span><span>
+</span><span id="line-132"></span><span class="annot"><a href="Unison.Runtime.JIT.Exits.html#counterSlots"><span class="hs-identifier hs-type">counterSlots</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>
+</span><span id="line-133"></span><span id="counterSlots"><span class="annot"><span class="annottext">counterSlots :: Int
+</span><a href="Unison.Runtime.JIT.Exits.html#counterSlots"><span class="hs-identifier hs-var hs-var">counterSlots</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1024</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">*</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1024</span></span><span>
+</span><span id="line-134"></span><span>
+</span><span id="line-135"></span><span class="annot"><span class="hs-comment">-- | Counts an exit; gives the total taken so far.</span></span><span>
+</span><span id="line-136"></span><span class="annot"><a href="Unison.Runtime.JIT.Exits.html#countExit"><span class="hs-identifier hs-type">countExit</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Unison.Runtime.JIT.Exits.html#Exits"><span class="hs-identifier hs-type">Exits</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.Runtime.JIT.Exits.html#ExitIndex"><span class="hs-identifier hs-type">ExitIndex</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>
+</span><span id="line-137"></span><span id="countExit"><span class="annot"><span class="annottext">countExit :: Exits -&gt; Int -&gt; IO Int
+</span><a href="Unison.Runtime.JIT.Exits.html#countExit"><span class="hs-identifier hs-var hs-var">countExit</span></a></span></span><span> </span><span id="local-6989586621681820177"><span class="annot"><span class="annottext">Exits
+</span><a href="#local-6989586621681820177"><span class="hs-identifier hs-var">ex</span></a></span></span><span> </span><span id="local-6989586621681820178"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681820178"><span class="hs-identifier hs-var">i</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-138"></span><span>  </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">MutablePrimArray (PrimState IO) Int -&gt; Int -&gt; Int -&gt; IO Int
+</span><a href="Unison.Runtime.JIT.Exits.html#fetchAddInt"><span class="hs-identifier hs-var">fetchAddInt</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Exits -&gt; MutablePrimArray (PrimState IO) Int
+</span><a href="Unison.Runtime.JIT.Exits.html#exCounters"><span class="hs-identifier hs-var">exCounters</span></a></span><span> </span><span class="annot"><span class="annottext">Exits
+</span><a href="#local-6989586621681820177"><span class="hs-identifier hs-var">ex</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Ord a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-identifier hs-var">min</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681820178"><span class="hs-identifier hs-var">i</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="Unison.Runtime.JIT.Exits.html#counterSlots"><span class="hs-identifier hs-var">counterSlots</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span>
+</span><span id="line-139"></span><span>  </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(Int -&gt; Int) -&gt; IO Int -&gt; IO Int
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">MutablePrimArray (PrimState IO) Int -&gt; Int -&gt; Int -&gt; IO Int
+</span><a href="Unison.Runtime.JIT.Exits.html#fetchAddInt"><span class="hs-identifier hs-var">fetchAddInt</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Exits -&gt; MutablePrimArray (PrimState IO) Int
+</span><a href="Unison.Runtime.JIT.Exits.html#exCounters"><span class="hs-identifier hs-var">exCounters</span></a></span><span> </span><span class="annot"><span class="annottext">Exits
+</span><a href="#local-6989586621681820177"><span class="hs-identifier hs-var">ex</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span>
+</span><span id="line-140"></span><span>
+</span><span id="line-141"></span><span class="annot"><span class="hs-comment">-- | Every exit that has been taken, with its count.</span></span><span>
+</span><span id="line-142"></span><span class="annot"><a href="Unison.Runtime.JIT.Exits.html#exitCounts"><span class="hs-identifier hs-type">exitCounts</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Unison.Runtime.JIT.Exits.html#Exits"><span class="hs-identifier hs-type">Exits</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">[</span><span class="hs-special">(</span><span class="annot"><a href="Unison.Runtime.JIT.Exits.html#ExitIndex"><span class="hs-identifier hs-type">ExitIndex</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Unison.Runtime.JIT.Exits.html#Exit"><span class="hs-identifier hs-type">Exit</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">)</span><span class="hs-special">]</span><span>
+</span><span id="line-143"></span><span id="exitCounts"><span class="annot"><span class="annottext">exitCounts :: Exits -&gt; IO [(Int, Exit, Int)]
+</span><a href="Unison.Runtime.JIT.Exits.html#exitCounts"><span class="hs-identifier hs-var hs-var">exitCounts</span></a></span></span><span> </span><span id="local-6989586621681820181"><span class="annot"><span class="annottext">Exits
+</span><a href="#local-6989586621681820181"><span class="hs-identifier hs-var">ex</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-144"></span><span>  </span><span class="annot"><a href="Unison.Runtime.JIT.Exits.html#Table"><span class="hs-identifier hs-type">Table</span></a></span><span> </span><span id="local-6989586621681820182"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681820182"><span class="hs-identifier hs-var">next</span></a></span></span><span> </span><span id="local-6989586621681820183"><span class="annot"><span class="annottext">SmallMutableArray (PrimState IO) Exit
+</span><a href="#local-6989586621681820183"><span class="hs-identifier hs-var">arr</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">IORef Table -&gt; IO Table
+forall a. IORef a -&gt; IO a
+</span><span class="hs-identifier hs-var">readIORef</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Exits -&gt; IORef Table
+</span><a href="Unison.Runtime.JIT.Exits.html#exTable"><span class="hs-identifier hs-var">exTable</span></a></span><span> </span><span class="annot"><span class="annottext">Exits
+</span><a href="#local-6989586621681820181"><span class="hs-identifier hs-var">ex</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-145"></span><span>  </span><span id="local-6989586621681820184"><span class="annot"><span class="annottext">[(Int, Int)]
+</span><a href="#local-6989586621681820184"><span class="hs-identifier hs-var">counts</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">[Int] -&gt; (Int -&gt; IO (Int, Int)) -&gt; IO [(Int, Int)]
+forall (t :: * -&gt; *) (m :: * -&gt; *) a b.
+(Traversable t, Monad m) =&gt;
+t a -&gt; (a -&gt; m b) -&gt; m (t b)
+</span><span class="hs-identifier hs-var">forM</span></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span> </span><span class="hs-glyph">..</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Ord a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-identifier hs-var">min</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681820182"><span class="hs-identifier hs-var">next</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="Unison.Runtime.JIT.Exits.html#counterSlots"><span class="hs-identifier hs-var">counterSlots</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span class="hs-special">]</span><span> </span><span class="annot"><span class="annottext">((Int -&gt; IO (Int, Int)) -&gt; IO [(Int, Int)])
+-&gt; (Int -&gt; IO (Int, Int)) -&gt; IO [(Int, Int)]
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621681820185"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681820185"><span class="hs-identifier hs-var">i</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="hs-special">,</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681820185"><span class="hs-identifier hs-var">i</span></a></span><span> </span><span class="annot"><span class="annottext">(Int -&gt; (Int, Int)) -&gt; IO Int -&gt; IO (Int, Int)
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">MutablePrimArray (PrimState IO) Int -&gt; Int -&gt; IO Int
+forall a (m :: * -&gt; *).
+(Prim a, PrimMonad m) =&gt;
+MutablePrimArray (PrimState m) a -&gt; Int -&gt; m a
+</span><span class="hs-identifier hs-var">readPrimArray</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Exits -&gt; MutablePrimArray (PrimState IO) Int
+</span><a href="Unison.Runtime.JIT.Exits.html#exCounters"><span class="hs-identifier hs-var">exCounters</span></a></span><span> </span><span class="annot"><span class="annottext">Exits
+</span><a href="#local-6989586621681820181"><span class="hs-identifier hs-var">ex</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681820185"><span class="hs-identifier hs-var">i</span></a></span><span>
+</span><span id="line-146"></span><span>  </span><span class="annot"><span class="annottext">[(Int, Int)]
+-&gt; ((Int, Int) -&gt; IO (Int, Exit, Int)) -&gt; IO [(Int, Exit, Int)]
+forall (t :: * -&gt; *) (m :: * -&gt; *) a b.
+(Traversable t, Monad m) =&gt;
+t a -&gt; (a -&gt; m b) -&gt; m (t b)
+</span><span class="hs-identifier hs-var">forM</span></span><span> </span><span class="hs-special">[</span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681820186"><span class="hs-identifier hs-var">i</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681820187"><span class="hs-identifier hs-var">n</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">|</span><span> </span><span class="hs-special">(</span><span id="local-6989586621681820186"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681820186"><span class="hs-identifier hs-var">i</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681820187"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681820187"><span class="hs-identifier hs-var">n</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">[(Int, Int)]
+</span><a href="#local-6989586621681820184"><span class="hs-identifier hs-var">counts</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681820187"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&gt;</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span class="hs-special">]</span><span> </span><span class="annot"><span class="annottext">(((Int, Int) -&gt; IO (Int, Exit, Int)) -&gt; IO [(Int, Exit, Int)])
+-&gt; ((Int, Int) -&gt; IO (Int, Exit, Int)) -&gt; IO [(Int, Exit, Int)]
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span class="hs-special">(</span><span id="local-6989586621681820189"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681820189"><span class="hs-identifier hs-var">i</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681820190"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681820190"><span class="hs-identifier hs-var">n</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span id="local-6989586621681820191"><span class="annot"><span class="annottext">Exit
+</span><a href="#local-6989586621681820191"><span class="hs-identifier hs-var">e</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681820189"><span class="hs-identifier hs-var">i</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Exit
+</span><a href="#local-6989586621681820191"><span class="hs-identifier hs-var">e</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681820190"><span class="hs-identifier hs-var">n</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(Exit -&gt; (Int, Exit, Int)) -&gt; IO Exit -&gt; IO (Int, Exit, Int)
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">SmallMutableArray (PrimState IO) Exit -&gt; Int -&gt; IO Exit
+forall (m :: * -&gt; *) a.
+PrimMonad m =&gt;
+SmallMutableArray (PrimState m) a -&gt; Int -&gt; m a
+</span><span class="hs-identifier hs-var">readSmallArray</span></span><span> </span><span class="annot"><span class="annottext">SmallMutableArray (PrimState IO) Exit
+</span><a href="#local-6989586621681820183"><span class="hs-identifier hs-var">arr</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681820189"><span class="hs-identifier hs-var">i</span></a></span><span>
+</span><span id="line-147"></span><span>
+</span><span id="line-148"></span><span class="annot"><span class="hs-comment">-- | Starts counting again from zero.</span></span><span>
+</span><span id="line-149"></span><span class="annot"><a href="Unison.Runtime.JIT.Exits.html#resetExitCounts"><span class="hs-identifier hs-type">resetExitCounts</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Unison.Runtime.JIT.Exits.html#Exits"><span class="hs-identifier hs-type">Exits</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-150"></span><span id="resetExitCounts"><span class="annot"><span class="annottext">resetExitCounts :: Exits -&gt; IO ()
+</span><a href="Unison.Runtime.JIT.Exits.html#resetExitCounts"><span class="hs-identifier hs-var hs-var">resetExitCounts</span></a></span></span><span> </span><span id="local-6989586621681820192"><span class="annot"><span class="annottext">Exits
+</span><a href="#local-6989586621681820192"><span class="hs-identifier hs-var">ex</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-151"></span><span>  </span><span class="annot"><a href="Unison.Runtime.JIT.Exits.html#Table"><span class="hs-identifier hs-type">Table</span></a></span><span> </span><span id="local-6989586621681820193"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681820193"><span class="hs-identifier hs-var">next</span></a></span></span><span> </span><span class="annot"><span class="annottext">SmallMutableArray (PrimState IO) Exit
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">IORef Table -&gt; IO Table
+forall a. IORef a -&gt; IO a
+</span><span class="hs-identifier hs-var">readIORef</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Exits -&gt; IORef Table
+</span><a href="Unison.Runtime.JIT.Exits.html#exTable"><span class="hs-identifier hs-var">exTable</span></a></span><span> </span><span class="annot"><span class="annottext">Exits
+</span><a href="#local-6989586621681820192"><span class="hs-identifier hs-var">ex</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-152"></span><span>  </span><span class="annot"><span class="annottext">MutablePrimArray (PrimState IO) Int -&gt; Int -&gt; Int -&gt; Int -&gt; IO ()
+forall a (m :: * -&gt; *).
+(Prim a, PrimMonad m) =&gt;
+MutablePrimArray (PrimState m) a -&gt; Int -&gt; Int -&gt; a -&gt; m ()
+</span><span class="hs-identifier hs-var">setPrimArray</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Exits -&gt; MutablePrimArray (PrimState IO) Int
+</span><a href="Unison.Runtime.JIT.Exits.html#exCounters"><span class="hs-identifier hs-var">exCounters</span></a></span><span> </span><span class="annot"><span class="annottext">Exits
+</span><a href="#local-6989586621681820192"><span class="hs-identifier hs-var">ex</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Ord a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-identifier hs-var">min</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681820193"><span class="hs-identifier hs-var">next</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="Unison.Runtime.JIT.Exits.html#counterSlots"><span class="hs-identifier hs-var">counterSlots</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span>
+</span><span id="line-153"></span><span>
+</span><span id="line-154"></span><span class="annot"><a href="Unison.Runtime.JIT.Exits.html#fetchAddInt"><span class="hs-identifier hs-type">fetchAddInt</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">MutablePrimArray</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">PrimState</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>
+</span><span id="line-155"></span><span id="fetchAddInt"><span class="annot"><span class="annottext">fetchAddInt :: MutablePrimArray (PrimState IO) Int -&gt; Int -&gt; Int -&gt; IO Int
+</span><a href="Unison.Runtime.JIT.Exits.html#fetchAddInt"><span class="hs-identifier hs-var hs-var">fetchAddInt</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">MutablePrimArray</span></span><span> </span><span id="local-6989586621681820195"><span class="annot"><span class="annottext">MutableByteArray# (PrimState IO)
+</span><a href="#local-6989586621681820195"><span class="hs-identifier hs-var">arr</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">I#</span></span><span> </span><span id="local-6989586621681820196"><span class="annot"><span class="annottext">Int#
+</span><a href="#local-6989586621681820196"><span class="hs-identifier hs-var">i</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">I#</span></span><span> </span><span id="local-6989586621681820197"><span class="annot"><span class="annottext">Int#
+</span><a href="#local-6989586621681820197"><span class="hs-identifier hs-var">n</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(State# RealWorld -&gt; (# State# RealWorld, Int #)) -&gt; IO Int
+forall a. (State# RealWorld -&gt; (# State# RealWorld, a #)) -&gt; IO a
+</span><span class="hs-identifier hs-var">IO</span></span><span> </span><span class="annot"><span class="annottext">((State# RealWorld -&gt; (# State# RealWorld, Int #)) -&gt; IO Int)
+-&gt; (State# RealWorld -&gt; (# State# RealWorld, Int #)) -&gt; IO Int
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621681820198"><span class="annot"><span class="annottext">State# RealWorld
+</span><a href="#local-6989586621681820198"><span class="hs-identifier hs-var">s</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">MutableByteArray# RealWorld
+-&gt; Int# -&gt; Int# -&gt; State# RealWorld -&gt; (# State# RealWorld, Int# #)
+forall d.
+MutableByteArray# d
+-&gt; Int# -&gt; Int# -&gt; State# d -&gt; (# State# d, Int# #)
+</span><span class="hs-identifier hs-var">fetchAddIntArray#</span></span><span> </span><span class="annot"><span class="annottext">MutableByteArray# RealWorld
+MutableByteArray# (PrimState IO)
+</span><a href="#local-6989586621681820195"><span class="hs-identifier hs-var">arr</span></a></span><span> </span><span class="annot"><span class="annottext">Int#
+</span><a href="#local-6989586621681820196"><span class="hs-identifier hs-var">i</span></a></span><span> </span><span class="annot"><span class="annottext">Int#
+</span><a href="#local-6989586621681820197"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">State# RealWorld
+</span><a href="#local-6989586621681820198"><span class="hs-identifier hs-var">s</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-156"></span><span>  </span><span class="hs-special">(#</span><span> </span><span id="local-6989586621681820199"><span class="annot"><span class="annottext">State# RealWorld
+</span><a href="#local-6989586621681820199"><span class="hs-identifier hs-var">s'</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681820200"><span class="annot"><span class="annottext">Int#
+</span><a href="#local-6989586621681820200"><span class="hs-identifier hs-var">old</span></a></span></span><span> </span><span class="hs-special">#)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(#</span><span> </span><span class="annot"><span class="annottext">State# RealWorld
+</span><a href="#local-6989586621681820199"><span class="hs-identifier hs-var">s'</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Int# -&gt; Int
+</span><span class="hs-identifier hs-var">I#</span></span><span> </span><span class="annot"><span class="annottext">Int#
+</span><a href="#local-6989586621681820200"><span class="hs-identifier hs-var">old</span></a></span><span> </span><span class="hs-special">#)</span><span>
+</span><span id="line-157"></span><span>
+</span><span id="line-158"></span><span class="hs-comment">-- | For @UNISON_JIT_STATS@: how often the trampoline entered each native</span><span>
+</span><span id="line-159"></span><span class="hs-comment">-- function (by code address), and what each is called. Slow (a map in an</span><span>
+</span><span id="line-160"></span><span class="hs-comment">-- IORef); statistics runs only.</span><span>
+</span><span id="line-161"></span><span id="local-6989586621681819988"><span class="annot"><a href="Unison.Runtime.JIT.Exits.html#countEntry"><span class="hs-identifier hs-type">countEntry</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Unison.Runtime.JIT.Exits.html#Exits"><span class="hs-identifier hs-type">Exits</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="#local-6989586621681819988"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span></span><span>
+</span><span id="line-162"></span><span id="countEntry"><span class="annot"><span class="annottext">countEntry :: forall a. Exits -&gt; Ptr a -&gt; IO ()
+</span><a href="Unison.Runtime.JIT.Exits.html#countEntry"><span class="hs-identifier hs-var hs-var">countEntry</span></a></span></span><span> </span><span id="local-6989586621681820204"><span class="annot"><span class="annottext">Exits
+</span><a href="#local-6989586621681820204"><span class="hs-identifier hs-var">ex</span></a></span></span><span> </span><span id="local-6989586621681820205"><span class="annot"><span class="annottext">Ptr a
+</span><a href="#local-6989586621681820205"><span class="hs-identifier hs-var">fn</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">IORef (Map WordPtr Int)
+-&gt; (Map WordPtr Int -&gt; (Map WordPtr Int, ())) -&gt; IO ()
+forall a b. IORef a -&gt; (a -&gt; (a, b)) -&gt; IO b
+</span><span class="hs-identifier hs-var">atomicModifyIORef'</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Exits -&gt; IORef (Map WordPtr Int)
+</span><a href="Unison.Runtime.JIT.Exits.html#exEntries"><span class="hs-identifier hs-var">exEntries</span></a></span><span> </span><span class="annot"><span class="annottext">Exits
+</span><a href="#local-6989586621681820204"><span class="hs-identifier hs-var">ex</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span id="local-6989586621681820207"><span class="annot"><span class="annottext">Map WordPtr Int
+</span><a href="#local-6989586621681820207"><span class="hs-identifier hs-var">m</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(Int -&gt; Int -&gt; Int)
+-&gt; WordPtr -&gt; Int -&gt; Map WordPtr Int -&gt; Map WordPtr Int
+forall k a. Ord k =&gt; (a -&gt; a -&gt; a) -&gt; k -&gt; a -&gt; Map k a -&gt; Map k a
+</span><span class="hs-identifier hs-var">M.insertWith</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">(+)</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Ptr a -&gt; WordPtr
+forall a. Ptr a -&gt; WordPtr
+</span><span class="hs-identifier hs-var">ptrToWordPtr</span></span><span> </span><span class="annot"><span class="annottext">Ptr a
+</span><a href="#local-6989586621681820205"><span class="hs-identifier hs-var">fn</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span> </span><span class="annot"><span class="annottext">Map WordPtr Int
+</span><a href="#local-6989586621681820207"><span class="hs-identifier hs-var">m</span></a></span><span class="hs-special">,</span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-163"></span><span>
+</span><span id="line-164"></span><span class="annot"><span class="hs-comment">-- | Records the name of the function at a code address.</span></span><span>
+</span><span id="line-165"></span><span id="local-6989586621681819995"><span class="annot"><a href="Unison.Runtime.JIT.Exits.html#nameEntry"><span class="hs-identifier hs-type">nameEntry</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Unison.Runtime.JIT.Exits.html#Exits"><span class="hs-identifier hs-type">Exits</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="#local-6989586621681819995"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span></span><span>
+</span><span id="line-166"></span><span id="nameEntry"><span class="annot"><span class="annottext">nameEntry :: forall a. Exits -&gt; Ptr a -&gt; String -&gt; IO ()
+</span><a href="Unison.Runtime.JIT.Exits.html#nameEntry"><span class="hs-identifier hs-var hs-var">nameEntry</span></a></span></span><span> </span><span id="local-6989586621681820210"><span class="annot"><span class="annottext">Exits
+</span><a href="#local-6989586621681820210"><span class="hs-identifier hs-var">ex</span></a></span></span><span> </span><span id="local-6989586621681820211"><span class="annot"><span class="annottext">Ptr a
+</span><a href="#local-6989586621681820211"><span class="hs-identifier hs-var">fn</span></a></span></span><span> </span><span id="local-6989586621681820212"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621681820212"><span class="hs-identifier hs-var">name</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">IORef (Map WordPtr String)
+-&gt; (Map WordPtr String -&gt; (Map WordPtr String, ())) -&gt; IO ()
+forall a b. IORef a -&gt; (a -&gt; (a, b)) -&gt; IO b
+</span><span class="hs-identifier hs-var">atomicModifyIORef'</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Exits -&gt; IORef (Map WordPtr String)
+</span><a href="Unison.Runtime.JIT.Exits.html#exEntryNames"><span class="hs-identifier hs-var">exEntryNames</span></a></span><span> </span><span class="annot"><span class="annottext">Exits
+</span><a href="#local-6989586621681820210"><span class="hs-identifier hs-var">ex</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span id="local-6989586621681820213"><span class="annot"><span class="annottext">Map WordPtr String
+</span><a href="#local-6989586621681820213"><span class="hs-identifier hs-var">m</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">WordPtr -&gt; String -&gt; Map WordPtr String -&gt; Map WordPtr String
+forall k a. Ord k =&gt; k -&gt; a -&gt; Map k a -&gt; Map k a
+</span><span class="hs-identifier hs-var">M.insert</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Ptr a -&gt; WordPtr
+forall a. Ptr a -&gt; WordPtr
+</span><span class="hs-identifier hs-var">ptrToWordPtr</span></span><span> </span><span class="annot"><span class="annottext">Ptr a
+</span><a href="#local-6989586621681820211"><span class="hs-identifier hs-var">fn</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621681820212"><span class="hs-identifier hs-var">name</span></a></span><span> </span><span class="annot"><span class="annottext">Map WordPtr String
+</span><a href="#local-6989586621681820213"><span class="hs-identifier hs-var">m</span></a></span><span class="hs-special">,</span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-167"></span><span>
+</span><span id="line-168"></span><span class="annot"><span class="hs-comment">-- | The entries counted since the last call, by function name.</span></span><span>
+</span><span id="line-169"></span><span class="annot"><a href="Unison.Runtime.JIT.Exits.html#entryCounts"><span class="hs-identifier hs-type">entryCounts</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Unison.Runtime.JIT.Exits.html#Exits"><span class="hs-identifier hs-type">Exits</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">[</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">)</span><span class="hs-special">]</span><span>
+</span><span id="line-170"></span><span id="entryCounts"><span class="annot"><span class="annottext">entryCounts :: Exits -&gt; IO [(String, Int)]
+</span><a href="Unison.Runtime.JIT.Exits.html#entryCounts"><span class="hs-identifier hs-var hs-var">entryCounts</span></a></span></span><span> </span><span id="local-6989586621681820215"><span class="annot"><span class="annottext">Exits
+</span><a href="#local-6989586621681820215"><span class="hs-identifier hs-var">ex</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-171"></span><span>  </span><span id="local-6989586621681820216"><span class="annot"><span class="annottext">Map WordPtr Int
+</span><a href="#local-6989586621681820216"><span class="hs-identifier hs-var">counts</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">IORef (Map WordPtr Int)
+-&gt; (Map WordPtr Int -&gt; (Map WordPtr Int, Map WordPtr Int))
+-&gt; IO (Map WordPtr Int)
+forall a b. IORef a -&gt; (a -&gt; (a, b)) -&gt; IO b
+</span><span class="hs-identifier hs-var">atomicModifyIORef'</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Exits -&gt; IORef (Map WordPtr Int)
+</span><a href="Unison.Runtime.JIT.Exits.html#exEntries"><span class="hs-identifier hs-var">exEntries</span></a></span><span> </span><span class="annot"><span class="annottext">Exits
+</span><a href="#local-6989586621681820215"><span class="hs-identifier hs-var">ex</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span id="local-6989586621681820217"><span class="annot"><span class="annottext">Map WordPtr Int
+</span><a href="#local-6989586621681820217"><span class="hs-identifier hs-var">m</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Map WordPtr Int
+forall k a. Map k a
+</span><span class="hs-identifier hs-var">M.empty</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Map WordPtr Int
+</span><a href="#local-6989586621681820217"><span class="hs-identifier hs-var">m</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-172"></span><span>  </span><span id="local-6989586621681820218"><span class="annot"><span class="annottext">Map WordPtr String
+</span><a href="#local-6989586621681820218"><span class="hs-identifier hs-var">names</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">IORef (Map WordPtr String) -&gt; IO (Map WordPtr String)
+forall a. IORef a -&gt; IO a
+</span><span class="hs-identifier hs-var">readIORef</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Exits -&gt; IORef (Map WordPtr String)
+</span><a href="Unison.Runtime.JIT.Exits.html#exEntryNames"><span class="hs-identifier hs-var">exEntryNames</span></a></span><span> </span><span class="annot"><span class="annottext">Exits
+</span><a href="#local-6989586621681820215"><span class="hs-identifier hs-var">ex</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-173"></span><span>  </span><span class="hs-identifier">pure</span><span> </span><span class="hs-special">[</span><span class="hs-special">(</span><span class="annot"><span class="annottext">String -&gt; WordPtr -&gt; Map WordPtr String -&gt; String
+forall k a. Ord k =&gt; a -&gt; k -&gt; Map k a -&gt; a
+</span><span class="hs-identifier hs-var">M.findWithDefault</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">WordPtr -&gt; String
+forall a. Show a =&gt; a -&gt; String
+</span><span class="hs-identifier hs-var">show</span></span><span> </span><span class="annot"><span class="annottext">WordPtr
+</span><a href="#local-6989586621681820221"><span class="hs-identifier hs-var">a</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">WordPtr
+</span><a href="#local-6989586621681820221"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="annot"><span class="annottext">Map WordPtr String
+</span><a href="#local-6989586621681820218"><span class="hs-identifier hs-var">names</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681820222"><span class="hs-identifier hs-var">n</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">|</span><span> </span><span class="hs-special">(</span><span id="local-6989586621681820221"><span class="annot"><span class="annottext">WordPtr
+</span><a href="#local-6989586621681820221"><span class="hs-identifier hs-var">a</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681820222"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681820222"><span class="hs-identifier hs-var">n</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Map WordPtr Int -&gt; [(WordPtr, Int)]
+forall k a. Map k a -&gt; [(k, a)]
+</span><span class="hs-identifier hs-var">M.toList</span></span><span> </span><span class="annot"><span class="annottext">Map WordPtr Int
+</span><a href="#local-6989586621681820216"><span class="hs-identifier hs-var">counts</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-174"></span></pre></body></html>

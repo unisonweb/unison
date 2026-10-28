@@ -1,0 +1,48 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE Safe #-}</span><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# LANGUAGE ExplicitNamespaces #-}</span><span>
+</span><span id="line-3"></span><span class="hs-pragma">{-# LANGUAGE PatternSynonyms #-}</span><span>
+</span><span id="line-4"></span><span class="hs-pragma">{-# LANGUAGE TypeOperators #-}</span><span>
+</span><span id="line-5"></span><span class="hs-pragma">{-# LANGUAGE NoStarIsType #-}</span><span>
+</span><span id="line-6"></span><span>
+</span><span id="line-7"></span><span class="hs-comment">-- |</span><span>
+</span><span id="line-8"></span><span class="hs-comment">-- This module is an internal GHC module.  It declares the constants used</span><span>
+</span><span id="line-9"></span><span class="hs-comment">-- in the implementation of type-level natural numbers.  The programmer interface</span><span>
+</span><span id="line-10"></span><span class="hs-comment">-- for working with type-level naturals should be defined in a separate module.</span><span>
+</span><span id="line-11"></span><span class="hs-comment">--</span><span>
+</span><span id="line-12"></span><span class="hs-comment">-- @since 4.10.0.0</span><span>
+</span><span id="line-13"></span><span class="hs-comment">--</span><span>
+</span><span id="line-14"></span><span>
+</span><span id="line-15"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="GHC.TypeNats.html"><span class="hs-identifier">GHC.TypeNats</span></a></span><span>
+</span><span id="line-16"></span><span>    </span><span class="hs-special">(</span><span class="annot"><span class="hs-comment">-- *  Nat Kind</span></span><span>
+</span><span id="line-17"></span><span>     </span><span class="annot"><span class="hs-identifier">Natural</span></span><span class="hs-special">,</span><span>
+</span><span id="line-18"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.TypeNats.html#Nat"><span class="hs-identifier">Nat</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-19"></span><span>     </span><span class="annot"><span class="hs-comment">-- *  Linking type and value level</span></span><span>
+</span><span id="line-20"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.TypeNats.html#KnownNat"><span class="hs-identifier">KnownNat</span></a></span><span class="hs-special">(</span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.TypeNats.html#natSing"><span class="hs-identifier">natSing</span></a></span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-21"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.TypeNats.html#natVal"><span class="hs-identifier">natVal</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-22"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.TypeNats.html#natVal%27"><span class="hs-identifier">natVal'</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-23"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.TypeNats.html#SomeNat"><span class="hs-identifier">SomeNat</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-24"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.TypeNats.html#someNatVal"><span class="hs-identifier">someNatVal</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-25"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.TypeNats.html#sameNat"><span class="hs-identifier">sameNat</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-26"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.TypeNats.html#decideNat"><span class="hs-identifier">decideNat</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-27"></span><span>     </span><span class="annot"><span class="hs-comment">-- **  Singleton values</span></span><span>
+</span><span id="line-28"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.TypeNats.html#SNat"><span class="hs-identifier">SNat</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-29"></span><span>     </span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.TypeNats.html#SNat"><span class="hs-identifier">SNat</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-30"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.TypeNats.html#fromSNat"><span class="hs-identifier">fromSNat</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-31"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.TypeNats.html#withSomeSNat"><span class="hs-identifier">withSomeSNat</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-32"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.TypeNats.html#withKnownNat"><span class="hs-identifier">withKnownNat</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-33"></span><span>     </span><span class="annot"><span class="hs-comment">-- *  Functions on type literals</span></span><span>
+</span><span id="line-34"></span><span>     </span><span class="hs-keyword">type</span><span> </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Data.Type.Ord.html#%3C%3D"><span class="hs-operator">(&lt;=)</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-35"></span><span>     </span><span class="hs-keyword">type</span><span> </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.Data.Type.Ord.html#%3C%3D%3F"><span class="hs-operator">(&lt;=?)</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-36"></span><span>     </span><span class="hs-keyword">type</span><span> </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.TypeNats.html#%2B"><span class="hs-operator">(+)</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-37"></span><span>     </span><span class="hs-keyword">type</span><span> </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.TypeNats.html#%2A"><span class="hs-operator">(*)</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-38"></span><span>     </span><span class="hs-keyword">type</span><span> </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.TypeNats.html#%5E"><span class="hs-operator">(^)</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-39"></span><span>     </span><span class="hs-keyword">type</span><span> </span><span class="hs-special">(</span><span class="hs-glyph">-</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-40"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.TypeNats.Internal.html#CmpNat"><span class="hs-identifier">CmpNat</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-41"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.TypeNats.html#cmpNat"><span class="hs-identifier">cmpNat</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-42"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.TypeNats.html#Div"><span class="hs-identifier">Div</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-43"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.TypeNats.html#Mod"><span class="hs-identifier">Mod</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-44"></span><span>     </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.TypeNats.html#Log2"><span class="hs-identifier">Log2</span></a></span><span>
+</span><span id="line-45"></span><span>     </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-46"></span><span>
+</span><span id="line-47"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../ghc-internal-9.1003.0-8c54/src/GHC.Internal.TypeNats.html"><span class="hs-identifier">GHC.Internal.TypeNats</span></a></span><span>
+</span><span id="line-48"></span></pre></body></html>

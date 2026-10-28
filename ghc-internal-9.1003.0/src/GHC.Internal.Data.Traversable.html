@@ -1,0 +1,931 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE DeriveTraversable #-}</span><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# LANGUAGE FlexibleInstances #-}</span><span>
+</span><span id="line-3"></span><span class="hs-pragma">{-# LANGUAGE NoImplicitPrelude #-}</span><span>
+</span><span id="line-4"></span><span class="hs-pragma">{-# LANGUAGE ScopedTypeVariables #-}</span><span>
+</span><span id="line-5"></span><span class="hs-pragma">{-# LANGUAGE StandaloneDeriving #-}</span><span>
+</span><span id="line-6"></span><span class="hs-pragma">{-# LANGUAGE Trustworthy #-}</span><span>
+</span><span id="line-7"></span><span class="hs-pragma">{-# LANGUAGE TypeApplications #-}</span><span>
+</span><span id="line-8"></span><span class="hs-pragma">{-# LANGUAGE TypeOperators #-}</span><span>
+</span><span id="line-9"></span><span>
+</span><span id="line-10"></span><span class="hs-comment">-----------------------------------------------------------------------------</span><span>
+</span><span id="line-11"></span><span class="hs-comment">-- |</span><span>
+</span><span id="line-12"></span><span class="hs-comment">-- Module      :  GHC.Internal.Data.Traversable</span><span>
+</span><span id="line-13"></span><span class="hs-comment">-- Copyright   :  Conor McBride and Ross Paterson 2005</span><span>
+</span><span id="line-14"></span><span class="hs-comment">-- License     :  BSD-style (see the LICENSE file in the distribution)</span><span>
+</span><span id="line-15"></span><span class="hs-comment">--</span><span>
+</span><span id="line-16"></span><span class="hs-comment">-- Maintainer  :  libraries@haskell.org</span><span>
+</span><span id="line-17"></span><span class="hs-comment">-- Stability   :  stable</span><span>
+</span><span id="line-18"></span><span class="hs-comment">-- Portability :  portable</span><span>
+</span><span id="line-19"></span><span class="hs-comment">--</span><span>
+</span><span id="line-20"></span><span class="hs-comment">-- Class of data structures that can be traversed from left to right,</span><span>
+</span><span id="line-21"></span><span class="hs-comment">-- performing an action on each element.  Instances are expected to satisfy</span><span>
+</span><span id="line-22"></span><span class="hs-comment">-- the listed [laws](#laws).</span><span>
+</span><span id="line-23"></span><span class="hs-comment">-----------------------------------------------------------------------------</span><span>
+</span><span id="line-24"></span><span>
+</span><span id="line-25"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="GHC.Internal.Data.Traversable.html"><span class="hs-identifier">GHC.Internal.Data.Traversable</span></a></span><span> </span><span class="hs-special">(</span><span>
+</span><span id="line-26"></span><span>    </span><span class="annot"><span class="hs-comment">-- * The 'Traversable' class</span></span><span>
+</span><span id="line-27"></span><span>    </span><span class="annot"><a href="GHC.Internal.Data.Traversable.html#Traversable"><span class="hs-identifier">Traversable</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-28"></span><span>    </span><span class="annot"><span class="hs-comment">-- * Utility functions</span></span><span>
+</span><span id="line-29"></span><span>    </span><span class="annot"><a href="GHC.Internal.Data.Traversable.html#for"><span class="hs-identifier">for</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-30"></span><span>    </span><span class="annot"><a href="GHC.Internal.Data.Traversable.html#forM"><span class="hs-identifier">forM</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-31"></span><span>    </span><span class="annot"><a href="GHC.Internal.Data.Traversable.html#forAccumM"><span class="hs-identifier">forAccumM</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-32"></span><span>    </span><span class="annot"><a href="GHC.Internal.Data.Traversable.html#mapAccumL"><span class="hs-identifier">mapAccumL</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-33"></span><span>    </span><span class="annot"><a href="GHC.Internal.Data.Traversable.html#mapAccumR"><span class="hs-identifier">mapAccumR</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-34"></span><span>    </span><span class="annot"><a href="GHC.Internal.Data.Traversable.html#mapAccumM"><span class="hs-identifier">mapAccumM</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-35"></span><span>    </span><span class="annot"><span class="hs-comment">-- * General definitions for superclass methods</span></span><span>
+</span><span id="line-36"></span><span>    </span><span class="annot"><a href="GHC.Internal.Data.Traversable.html#fmapDefault"><span class="hs-identifier">fmapDefault</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-37"></span><span>    </span><span class="annot"><a href="GHC.Internal.Data.Traversable.html#foldMapDefault"><span class="hs-identifier">foldMapDefault</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-38"></span><span>    </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-39"></span><span>
+</span><span id="line-40"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Internal.Data.Coerce.html"><span class="hs-identifier">GHC.Internal.Data.Coerce</span></a></span><span>
+</span><span id="line-41"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Internal.Data.Either.html"><span class="hs-identifier">GHC.Internal.Data.Either</span></a></span><span> </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="GHC.Internal.Data.Either.html#Either"><span class="hs-identifier">Either</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span> </span><span class="hs-special">)</span><span>
+</span><span id="line-42"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Internal.Data.Foldable.html"><span class="hs-identifier">GHC.Internal.Data.Foldable</span></a></span><span>
+</span><span id="line-43"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Internal.Data.Functor.html"><span class="hs-identifier">GHC.Internal.Data.Functor</span></a></span><span>
+</span><span id="line-44"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Internal.Data.Functor.Const.html"><span class="hs-identifier">GHC.Internal.Data.Functor.Const</span></a></span><span> </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="GHC.Internal.Data.Functor.Const.html#Const"><span class="hs-identifier">Const</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span> </span><span class="hs-special">)</span><span>
+</span><span id="line-45"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Internal.Data.Functor.Identity.html"><span class="hs-identifier">GHC.Internal.Data.Functor.Identity</span></a></span><span> </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="GHC.Internal.Data.Functor.Identity.html#Identity"><span class="hs-identifier">Identity</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span> </span><span class="hs-special">)</span><span>
+</span><span id="line-46"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Internal.Data.Functor.Utils.html"><span class="hs-identifier">GHC.Internal.Data.Functor.Utils</span></a></span><span> </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="GHC.Internal.Data.Functor.Utils.html#StateL"><span class="hs-identifier">StateL</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Internal.Data.Functor.Utils.html#StateR"><span class="hs-identifier">StateR</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Internal.Data.Functor.Utils.html#StateT"><span class="hs-identifier">StateT</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Internal.Data.Functor.Utils.html#%23."><span class="hs-operator">(#.)</span></a></span><span> </span><span class="hs-special">)</span><span>
+</span><span id="line-47"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Internal.Data.Monoid.html"><span class="hs-identifier">GHC.Internal.Data.Monoid</span></a></span><span> </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="GHC.Internal.Data.Semigroup.Internal.html#Dual"><span class="hs-identifier">Dual</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Internal.Data.Semigroup.Internal.html#Sum"><span class="hs-identifier">Sum</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Internal.Data.Semigroup.Internal.html#Product"><span class="hs-identifier">Product</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-48"></span><span>                     </span><span class="annot"><a href="GHC.Internal.Data.Monoid.html#First"><span class="hs-identifier">First</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Internal.Data.Monoid.html#Last"><span class="hs-identifier">Last</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Internal.Data.Semigroup.Internal.html#Alt"><span class="hs-identifier">Alt</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Internal.Data.Monoid.html#Ap"><span class="hs-identifier">Ap</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span> </span><span class="hs-special">)</span><span>
+</span><span id="line-49"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Internal.Data.Ord.html"><span class="hs-identifier">GHC.Internal.Data.Ord</span></a></span><span> </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="GHC.Internal.Data.Ord.html#Down"><span class="hs-identifier">Down</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span> </span><span class="hs-special">)</span><span>
+</span><span id="line-50"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Internal.Data.Proxy.html"><span class="hs-identifier">GHC.Internal.Data.Proxy</span></a></span><span> </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="GHC.Internal.Data.Proxy.html#Proxy"><span class="hs-identifier">Proxy</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span> </span><span class="hs-special">)</span><span>
+</span><span id="line-51"></span><span>
+</span><span id="line-52"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Internal.Arr.html"><span class="hs-identifier">GHC.Internal.Arr</span></a></span><span>
+</span><span id="line-53"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Internal.Base.html"><span class="hs-identifier">GHC.Internal.Base</span></a></span><span> </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="GHC.Internal.Base.html#Applicative"><span class="hs-identifier">Applicative</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Internal.Base.html#Monad"><span class="hs-identifier">Monad</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Internal.Base.html#Monoid"><span class="hs-identifier">Monoid</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Internal.Maybe.html#Maybe"><span class="hs-identifier">Maybe</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Internal.Base.html#NonEmpty"><span class="hs-identifier">NonEmpty</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-54"></span><span>                  </span><span class="annot"><a href="GHC.Internal.Base.html#%24"><span class="hs-operator">($)</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Internal.Base.html#."><span class="hs-operator">(.)</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Internal.Base.html#id"><span class="hs-identifier">id</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Internal.Base.html#flip"><span class="hs-identifier">flip</span></a></span><span> </span><span class="hs-special">)</span><span>
+</span><span id="line-55"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Internal.Generics.html"><span class="hs-identifier">GHC.Internal.Generics</span></a></span><span>
+</span><span id="line-56"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><a href="GHC.Internal.List.html"><span class="hs-identifier">GHC.Internal.List</span></a></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">List</span></span><span> </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="GHC.Internal.Base.html#foldr"><span class="hs-identifier">foldr</span></a></span><span> </span><span class="hs-special">)</span><span>
+</span><span id="line-57"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../ghc-prim-0.12.0-595c/src/GHC.Tuple.html"><span class="hs-identifier">GHC.Tuple</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="../../ghc-prim-0.12.0-595c/src/GHC.Tuple.html#Solo"><span class="hs-identifier">Solo</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-58"></span><span>
+</span><span id="line-59"></span><span class="hs-comment">-- $setup</span><span>
+</span><span id="line-60"></span><span class="hs-comment">-- &gt;&gt;&gt; import Prelude</span><span>
+</span><span id="line-61"></span><span class="hs-comment">-- &gt;&gt;&gt; import GHC.Internal.Data.Maybe (catMaybes, mapMaybe)</span><span>
+</span><span id="line-62"></span><span class="hs-comment">-- &gt;&gt;&gt; import GHC.Internal.Data.Either (rights)</span><span>
+</span><span id="line-63"></span><span class="hs-comment">-- &gt;&gt;&gt; import GHC.Internal.Data.Foldable (traverse_)</span><span>
+</span><span id="line-64"></span><span>
+</span><span id="line-65"></span><span class="hs-comment">-- XXX: Missing haddock feature.  Links to anchors in other modules</span><span>
+</span><span id="line-66"></span><span class="hs-comment">-- don't have a sensible way to name the link within the module itself.</span><span>
+</span><span id="line-67"></span><span class="hs-comment">-- Thus, the below &quot;Data.Traversable#overview&quot; works well when shown as</span><span>
+</span><span id="line-68"></span><span class="hs-comment">-- @Data.Traversable@ from other modules, but in the home module it should</span><span>
+</span><span id="line-69"></span><span class="hs-comment">-- be possible to specify alternative link text. :-(</span><span>
+</span><span id="line-70"></span><span>
+</span><span id="line-71"></span><span class="hs-comment">-- | Functors representing data structures that can be transformed to</span><span>
+</span><span id="line-72"></span><span class="hs-comment">-- structures of the /same shape/ by performing an 'Applicative' (or,</span><span>
+</span><span id="line-73"></span><span class="hs-comment">-- therefore, 'Monad') action on each element from left to right.</span><span>
+</span><span id="line-74"></span><span class="hs-comment">--</span><span>
+</span><span id="line-75"></span><span class="hs-comment">-- A more detailed description of what /same shape/ means, the various methods,</span><span>
+</span><span id="line-76"></span><span class="hs-comment">-- how traversals are constructed, and example advanced use-cases can be found</span><span>
+</span><span id="line-77"></span><span class="hs-comment">-- in the __Overview__ section of &quot;Data.Traversable#overview&quot;.</span><span>
+</span><span id="line-78"></span><span class="hs-comment">--</span><span>
+</span><span id="line-79"></span><span class="hs-comment">-- For the class laws see the __Laws__ section of &quot;Data.Traversable#laws&quot;.</span><span>
+</span><span id="line-80"></span><span class="hs-comment">--</span><span>
+</span><span id="line-81"></span><span class="hs-keyword">class</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Internal.Base.html#Functor"><span class="hs-identifier hs-type">Functor</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679677293"><span class="hs-identifier hs-type">t</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Internal.Data.Foldable.html#Foldable"><span class="hs-identifier hs-type">Foldable</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679677293"><span class="hs-identifier hs-type">t</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span id="Traversable"><span class="annot"><a href="GHC.Internal.Data.Traversable.html#Traversable"><span class="hs-identifier hs-var">Traversable</span></a></span></span><span> </span><span id="local-6989586621679677293"><span class="annot"><a href="#local-6989586621679677293"><span class="hs-identifier hs-type">t</span></a></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-82"></span><span>    </span><span class="hs-pragma">{-# MINIMAL</span><span> </span><span class="annot"><a href="GHC.Internal.Data.Traversable.html#traverse"><span class="hs-pragma hs-type">traverse</span></a></span><span> </span><span class="hs-pragma">|</span><span> </span><span class="annot"><a href="GHC.Internal.Data.Traversable.html#sequenceA"><span class="hs-pragma hs-type">sequenceA</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-83"></span><span>
+</span><span id="line-84"></span><span>    </span><span class="hs-comment">-- | Map each element of a structure to an action, evaluate these actions</span><span>
+</span><span id="line-85"></span><span>    </span><span class="hs-comment">-- from left to right, and collect the results. For a version that ignores</span><span>
+</span><span id="line-86"></span><span>    </span><span class="hs-comment">-- the results see 'Data.Foldable.traverse_'.</span><span>
+</span><span id="line-87"></span><span>    </span><span class="hs-comment">--</span><span>
+</span><span id="line-88"></span><span>    </span><span class="hs-comment">-- ==== __Examples__</span><span>
+</span><span id="line-89"></span><span>    </span><span class="hs-comment">--</span><span>
+</span><span id="line-90"></span><span>    </span><span class="hs-comment">-- Basic usage:</span><span>
+</span><span id="line-91"></span><span>    </span><span class="hs-comment">--</span><span>
+</span><span id="line-92"></span><span>    </span><span class="hs-comment">-- In the first two examples we show each evaluated action mapping to the</span><span>
+</span><span id="line-93"></span><span>    </span><span class="hs-comment">-- output structure.</span><span>
+</span><span id="line-94"></span><span>    </span><span class="hs-comment">--</span><span>
+</span><span id="line-95"></span><span>    </span><span class="hs-comment">-- &gt;&gt;&gt; traverse Just [1,2,3,4]</span><span>
+</span><span id="line-96"></span><span>    </span><span class="hs-comment">-- Just [1,2,3,4]</span><span>
+</span><span id="line-97"></span><span>    </span><span class="hs-comment">--</span><span>
+</span><span id="line-98"></span><span>    </span><span class="hs-comment">-- &gt;&gt;&gt; traverse id [Right 1, Right 2, Right 3, Right 4]</span><span>
+</span><span id="line-99"></span><span>    </span><span class="hs-comment">-- Right [1,2,3,4]</span><span>
+</span><span id="line-100"></span><span>    </span><span class="hs-comment">--</span><span>
+</span><span id="line-101"></span><span>    </span><span class="hs-comment">-- In the next examples, we show that 'Nothing' and 'Left' values short</span><span>
+</span><span id="line-102"></span><span>    </span><span class="hs-comment">-- circuit the created structure.</span><span>
+</span><span id="line-103"></span><span>    </span><span class="hs-comment">--</span><span>
+</span><span id="line-104"></span><span>    </span><span class="hs-comment">-- &gt;&gt;&gt; traverse (const Nothing) [1,2,3,4]</span><span>
+</span><span id="line-105"></span><span>    </span><span class="hs-comment">-- Nothing</span><span>
+</span><span id="line-106"></span><span>    </span><span class="hs-comment">--</span><span>
+</span><span id="line-107"></span><span>    </span><span class="hs-comment">-- &gt;&gt;&gt; traverse (\x -&gt; if odd x then Just x else Nothing)  [1,2,3,4]</span><span>
+</span><span id="line-108"></span><span>    </span><span class="hs-comment">-- Nothing</span><span>
+</span><span id="line-109"></span><span>    </span><span class="hs-comment">--</span><span>
+</span><span id="line-110"></span><span>    </span><span class="hs-comment">-- &gt;&gt;&gt; traverse id [Right 1, Right 2, Right 3, Right 4, Left 0]</span><span>
+</span><span id="line-111"></span><span>    </span><span class="hs-comment">-- Left 0</span><span>
+</span><span id="line-112"></span><span>    </span><span class="hs-comment">--</span><span>
+</span><span id="line-113"></span><span>    </span><span id="traverse"><span class="annot"><a href="GHC.Internal.Data.Traversable.html#traverse"><span class="hs-identifier hs-type">traverse</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span id="local-6989586621679677294"><span id="local-6989586621679677295"><span id="local-6989586621679677296"><span class="annot"><a href="GHC.Internal.Base.html#Applicative"><span class="hs-identifier hs-type">Applicative</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679677294"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679677295"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679677294"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679677296"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679677293"><span class="hs-identifier hs-type">t</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679677295"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679677294"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679677293"><span class="hs-identifier hs-type">t</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679677296"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">)</span></span></span></span><span>
+</span><span id="line-114"></span><span>    </span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="GHC.Internal.Data.Traversable.html#traverse"><span class="hs-pragma hs-type">traverse</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>  </span><span class="hs-comment">-- See Note [Inline default methods]</span><span>
+</span><span id="line-115"></span><span>    </span><span id="local-6989586621679677711"><span class="annot"><a href="GHC.Internal.Data.Traversable.html#traverse"><span class="hs-identifier hs-var hs-var">traverse</span></a></span><span> </span><span id="local-6989586621679677717"><span class="annot"><span class="annottext">a -&gt; f b
+</span><a href="#local-6989586621679677717"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">t (f b) -&gt; f (t b)
+forall (t :: * -&gt; *) (f :: * -&gt; *) a.
+(Traversable t, Applicative f) =&gt;
+t (f a) -&gt; f (t a)
+forall (f :: * -&gt; *) a. Applicative f =&gt; t (f a) -&gt; f (t a)
+</span><a href="GHC.Internal.Data.Traversable.html#sequenceA"><span class="hs-identifier hs-var">sequenceA</span></a></span><span> </span><span class="annot"><span class="annottext">(t (f b) -&gt; f (t b)) -&gt; (t a -&gt; t (f b)) -&gt; t a -&gt; f (t b)
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><a href="GHC.Internal.Base.html#."><span class="hs-operator hs-var">.</span></a></span><span> </span><span class="annot"><span class="annottext">(a -&gt; f b) -&gt; t a -&gt; t (f b)
+forall a b. (a -&gt; b) -&gt; t a -&gt; t b
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><a href="GHC.Internal.Base.html#fmap"><span class="hs-identifier hs-var">fmap</span></a></span><span> </span><span class="annot"><span class="annottext">a -&gt; f b
+</span><a href="#local-6989586621679677717"><span class="hs-identifier hs-var">f</span></a></span></span><span>
+</span><span id="line-116"></span><span>
+</span><span id="line-117"></span><span>    </span><span class="hs-comment">-- | Evaluate each action in the structure from left to right, and</span><span>
+</span><span id="line-118"></span><span>    </span><span class="hs-comment">-- collect the results. For a version that ignores the results</span><span>
+</span><span id="line-119"></span><span>    </span><span class="hs-comment">-- see 'Data.Foldable.sequenceA_'.</span><span>
+</span><span id="line-120"></span><span>    </span><span class="hs-comment">--</span><span>
+</span><span id="line-121"></span><span>    </span><span class="hs-comment">-- ==== __Examples__</span><span>
+</span><span id="line-122"></span><span>    </span><span class="hs-comment">--</span><span>
+</span><span id="line-123"></span><span>    </span><span class="hs-comment">-- Basic usage:</span><span>
+</span><span id="line-124"></span><span>    </span><span class="hs-comment">--</span><span>
+</span><span id="line-125"></span><span>    </span><span class="hs-comment">-- For the first two examples we show sequenceA fully evaluating a</span><span>
+</span><span id="line-126"></span><span>    </span><span class="hs-comment">-- a structure and collecting the results.</span><span>
+</span><span id="line-127"></span><span>    </span><span class="hs-comment">--</span><span>
+</span><span id="line-128"></span><span>    </span><span class="hs-comment">-- &gt;&gt;&gt; sequenceA [Just 1, Just 2, Just 3]</span><span>
+</span><span id="line-129"></span><span>    </span><span class="hs-comment">-- Just [1,2,3]</span><span>
+</span><span id="line-130"></span><span>    </span><span class="hs-comment">--</span><span>
+</span><span id="line-131"></span><span>    </span><span class="hs-comment">-- &gt;&gt;&gt; sequenceA [Right 1, Right 2, Right 3]</span><span>
+</span><span id="line-132"></span><span>    </span><span class="hs-comment">-- Right [1,2,3]</span><span>
+</span><span id="line-133"></span><span>    </span><span class="hs-comment">--</span><span>
+</span><span id="line-134"></span><span>    </span><span class="hs-comment">-- The next two example show 'Nothing' and 'Just' will short circuit</span><span>
+</span><span id="line-135"></span><span>    </span><span class="hs-comment">-- the resulting structure if present in the input. For more context,</span><span>
+</span><span id="line-136"></span><span>    </span><span class="hs-comment">-- check the 'Traversable' instances for 'Either' and 'Maybe'.</span><span>
+</span><span id="line-137"></span><span>    </span><span class="hs-comment">--</span><span>
+</span><span id="line-138"></span><span>    </span><span class="hs-comment">-- &gt;&gt;&gt; sequenceA [Just 1, Just 2, Just 3, Nothing]</span><span>
+</span><span id="line-139"></span><span>    </span><span class="hs-comment">-- Nothing</span><span>
+</span><span id="line-140"></span><span>    </span><span class="hs-comment">--</span><span>
+</span><span id="line-141"></span><span>    </span><span class="hs-comment">-- &gt;&gt;&gt; sequenceA [Right 1, Right 2, Right 3, Left 4]</span><span>
+</span><span id="line-142"></span><span>    </span><span class="hs-comment">-- Left 4</span><span>
+</span><span id="line-143"></span><span>    </span><span class="hs-comment">--</span><span>
+</span><span id="line-144"></span><span>    </span><span id="sequenceA"><span class="annot"><a href="GHC.Internal.Data.Traversable.html#sequenceA"><span class="hs-identifier hs-type">sequenceA</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span id="local-6989586621679677300"><span id="local-6989586621679677301"><span class="annot"><a href="GHC.Internal.Base.html#Applicative"><span class="hs-identifier hs-type">Applicative</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679677300"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679677293"><span class="hs-identifier hs-type">t</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679677300"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679677301"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679677300"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679677293"><span class="hs-identifier hs-type">t</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679677301"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span></span><span>
+</span><span id="line-145"></span><span>    </span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="GHC.Internal.Data.Traversable.html#sequenceA"><span class="hs-pragma hs-type">sequenceA</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>  </span><span class="hs-comment">-- See Note [Inline default methods]</span><span>
+</span><span id="line-146"></span><span>    </span><span id="local-6989586621679677718"><span class="annot"><a href="GHC.Internal.Data.Traversable.html#sequenceA"><span class="hs-identifier hs-var hs-var">sequenceA</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(f a -&gt; f a) -&gt; t (f a) -&gt; f (t a)
+forall (t :: * -&gt; *) (f :: * -&gt; *) a b.
+(Traversable t, Applicative f) =&gt;
+(a -&gt; f b) -&gt; t a -&gt; f (t b)
+forall (f :: * -&gt; *) a b.
+Applicative f =&gt;
+(a -&gt; f b) -&gt; t a -&gt; f (t b)
+</span><a href="GHC.Internal.Data.Traversable.html#traverse"><span class="hs-identifier hs-var">traverse</span></a></span><span> </span><span class="annot"><span class="annottext">f a -&gt; f a
+forall a. a -&gt; a
+</span><a href="GHC.Internal.Base.html#id"><span class="hs-identifier hs-var">id</span></a></span></span><span>
+</span><span id="line-147"></span><span>
+</span><span id="line-148"></span><span>    </span><span class="hs-comment">-- | Map each element of a structure to a monadic action, evaluate</span><span>
+</span><span id="line-149"></span><span>    </span><span class="hs-comment">-- these actions from left to right, and collect the results. For</span><span>
+</span><span id="line-150"></span><span>    </span><span class="hs-comment">-- a version that ignores the results see 'Data.Foldable.mapM_'.</span><span>
+</span><span id="line-151"></span><span>    </span><span class="hs-comment">--</span><span>
+</span><span id="line-152"></span><span>    </span><span class="hs-comment">-- ==== __Examples__</span><span>
+</span><span id="line-153"></span><span>    </span><span class="hs-comment">--</span><span>
+</span><span id="line-154"></span><span>    </span><span class="hs-comment">-- 'mapM' is literally a 'traverse' with a type signature restricted</span><span>
+</span><span id="line-155"></span><span>    </span><span class="hs-comment">-- to 'Monad'. Its implementation may be more efficient due to additional</span><span>
+</span><span id="line-156"></span><span>    </span><span class="hs-comment">-- power of 'Monad'.</span><span>
+</span><span id="line-157"></span><span>    </span><span class="hs-comment">--</span><span>
+</span><span id="line-158"></span><span>    </span><span id="mapM"><span class="annot"><a href="GHC.Internal.Data.Traversable.html#mapM"><span class="hs-identifier hs-type">mapM</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span id="local-6989586621679677311"><span id="local-6989586621679677312"><span id="local-6989586621679677313"><span class="annot"><a href="GHC.Internal.Base.html#Monad"><span class="hs-identifier hs-type">Monad</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679677311"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679677312"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679677311"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679677313"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679677293"><span class="hs-identifier hs-type">t</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679677312"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679677311"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679677293"><span class="hs-identifier hs-type">t</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679677313"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">)</span></span></span></span><span>
+</span><span id="line-159"></span><span>    </span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="GHC.Internal.Data.Traversable.html#mapM"><span class="hs-pragma hs-type">mapM</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>  </span><span class="hs-comment">-- See Note [Inline default methods]</span><span>
+</span><span id="line-160"></span><span>    </span><span id="local-6989586621679677723"><span class="annot"><a href="GHC.Internal.Data.Traversable.html#mapM"><span class="hs-identifier hs-var hs-var">mapM</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(a -&gt; m b) -&gt; t a -&gt; m (t b)
+forall (t :: * -&gt; *) (f :: * -&gt; *) a b.
+(Traversable t, Applicative f) =&gt;
+(a -&gt; f b) -&gt; t a -&gt; f (t b)
+forall (f :: * -&gt; *) a b.
+Applicative f =&gt;
+(a -&gt; f b) -&gt; t a -&gt; f (t b)
+</span><a href="GHC.Internal.Data.Traversable.html#traverse"><span class="hs-identifier hs-var">traverse</span></a></span></span><span>
+</span><span id="line-161"></span><span>
+</span><span id="line-162"></span><span>    </span><span class="hs-comment">-- | Evaluate each monadic action in the structure from left to</span><span>
+</span><span id="line-163"></span><span>    </span><span class="hs-comment">-- right, and collect the results. For a version that ignores the</span><span>
+</span><span id="line-164"></span><span>    </span><span class="hs-comment">-- results see 'Data.Foldable.sequence_'.</span><span>
+</span><span id="line-165"></span><span>    </span><span class="hs-comment">--</span><span>
+</span><span id="line-166"></span><span>    </span><span class="hs-comment">-- ==== __Examples__</span><span>
+</span><span id="line-167"></span><span>    </span><span class="hs-comment">--</span><span>
+</span><span id="line-168"></span><span>    </span><span class="hs-comment">-- Basic usage:</span><span>
+</span><span id="line-169"></span><span>    </span><span class="hs-comment">--</span><span>
+</span><span id="line-170"></span><span>    </span><span class="hs-comment">-- The first two examples are instances where the input and</span><span>
+</span><span id="line-171"></span><span>    </span><span class="hs-comment">-- and output of 'sequence' are isomorphic.</span><span>
+</span><span id="line-172"></span><span>    </span><span class="hs-comment">--</span><span>
+</span><span id="line-173"></span><span>    </span><span class="hs-comment">-- &gt;&gt;&gt; sequence $ Right [1,2,3,4]</span><span>
+</span><span id="line-174"></span><span>    </span><span class="hs-comment">-- [Right 1,Right 2,Right 3,Right 4]</span><span>
+</span><span id="line-175"></span><span>    </span><span class="hs-comment">--</span><span>
+</span><span id="line-176"></span><span>    </span><span class="hs-comment">-- &gt;&gt;&gt; sequence $ [Right 1,Right 2,Right 3,Right 4]</span><span>
+</span><span id="line-177"></span><span>    </span><span class="hs-comment">-- Right [1,2,3,4]</span><span>
+</span><span id="line-178"></span><span>    </span><span class="hs-comment">--</span><span>
+</span><span id="line-179"></span><span>    </span><span class="hs-comment">-- The following examples demonstrate short circuit behavior</span><span>
+</span><span id="line-180"></span><span>    </span><span class="hs-comment">-- for 'sequence'.</span><span>
+</span><span id="line-181"></span><span>    </span><span class="hs-comment">--</span><span>
+</span><span id="line-182"></span><span>    </span><span class="hs-comment">-- &gt;&gt;&gt; sequence $ Left [1,2,3,4]</span><span>
+</span><span id="line-183"></span><span>    </span><span class="hs-comment">-- Left [1,2,3,4]</span><span>
+</span><span id="line-184"></span><span>    </span><span class="hs-comment">--</span><span>
+</span><span id="line-185"></span><span>    </span><span class="hs-comment">-- &gt;&gt;&gt; sequence $ [Left 0, Right 1,Right 2,Right 3,Right 4]</span><span>
+</span><span id="line-186"></span><span>    </span><span class="hs-comment">-- Left 0</span><span>
+</span><span id="line-187"></span><span>    </span><span class="hs-comment">--</span><span>
+</span><span id="line-188"></span><span>    </span><span id="sequence"><span class="annot"><a href="GHC.Internal.Data.Traversable.html#sequence"><span class="hs-identifier hs-type">sequence</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span id="local-6989586621679677318"><span id="local-6989586621679677319"><span class="annot"><a href="GHC.Internal.Base.html#Monad"><span class="hs-identifier hs-type">Monad</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679677318"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679677293"><span class="hs-identifier hs-type">t</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679677318"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679677319"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679677318"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679677293"><span class="hs-identifier hs-type">t</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679677319"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span></span><span>
+</span><span id="line-189"></span><span>    </span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="GHC.Internal.Data.Traversable.html#sequence"><span class="hs-pragma hs-type">sequence</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>  </span><span class="hs-comment">-- See Note [Inline default methods]</span><span>
+</span><span id="line-190"></span><span>    </span><span id="local-6989586621679677730"><span class="annot"><a href="GHC.Internal.Data.Traversable.html#sequence"><span class="hs-identifier hs-var hs-var">sequence</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">t (m a) -&gt; m (t a)
+forall (t :: * -&gt; *) (f :: * -&gt; *) a.
+(Traversable t, Applicative f) =&gt;
+t (f a) -&gt; f (t a)
+forall (f :: * -&gt; *) a. Applicative f =&gt; t (f a) -&gt; f (t a)
+</span><a href="GHC.Internal.Data.Traversable.html#sequenceA"><span class="hs-identifier hs-var">sequenceA</span></a></span></span><span>
+</span><span id="line-191"></span><span>
+</span><span id="line-192"></span><span class="hs-comment">{- Note [Inline default methods]
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Consider
+
+   class ... =&gt; Traversable t where
+       ...
+       mapM :: Monad m =&gt; (a -&gt; m b) -&gt; t a -&gt; m (t b)
+       mapM = traverse   -- Default method
+
+   instance Traversable [] where
+       {-# INLINE traverse #-}
+       traverse = ...code for traverse on lists ...
+
+This gives rise to a list-instance of mapM looking like this
+
+  $fTraversable[]_$ctraverse = ...code for traverse on lists...
+       {-# INLINE $fTraversable[]_$ctraverse #-}
+  $fTraversable[]_$cmapM    = $fTraversable[]_$ctraverse
+
+Now the $ctraverse obediently inlines into the RHS of $cmapM, /but/
+that's all!  We get
+
+  $fTraversable[]_$cmapM = ...code for traverse on lists...
+
+with NO INLINE pragma!  This happens even though 'traverse' had an
+INLINE pragma because the author knew it should be inlined pretty
+vigorously.
+
+Indeed, it turned out that the rhs of $cmapM was just too big to
+inline, so all uses of mapM on lists used a terribly inefficient
+dictionary-passing style, because of its 'Monad m =&gt;' type.  Disaster!
+
+Solution: add an INLINE pragma on the default method:
+
+   class ... =&gt; Traversable t where
+       ...
+       mapM :: Monad m =&gt; (a -&gt; m b) -&gt; t a -&gt; m (t b)
+       {-# INLINE mapM #-}     -- VERY IMPORTANT!
+       mapM = traverse
+-}</span><span>
+</span><span id="line-232"></span><span>
+</span><span id="line-233"></span><span class="hs-comment">-- instances for Prelude types</span><span>
+</span><span id="line-234"></span><span>
+</span><span id="line-235"></span><span class="annot"><span class="hs-comment">-- | @since base-2.01</span></span><span>
+</span><span id="line-236"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679677743"><span id="local-6989586621679677749"><span id="local-6989586621679677754"><span class="annot"><a href="GHC.Internal.Data.Traversable.html#Traversable"><span class="hs-identifier hs-type">Traversable</span></a></span><span> </span><span class="annot"><a href="GHC.Internal.Maybe.html#Maybe"><span class="hs-identifier hs-type">Maybe</span></a></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-237"></span><span>    </span><span id="local-6989586621679677764"><span class="annot"><span class="annottext">traverse :: forall (f :: * -&gt; *) a b.
+Applicative f =&gt;
+(a -&gt; f b) -&gt; Maybe a -&gt; f (Maybe b)
+</span><a href="GHC.Internal.Data.Traversable.html#traverse"><span class="hs-identifier hs-var hs-var hs-var">traverse</span></a></span></span><span> </span><span class="annot"><span class="annottext">a -&gt; f b
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">Maybe a
+</span><a href="GHC.Internal.Maybe.html#Nothing"><span class="hs-identifier hs-var">Nothing</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Maybe b -&gt; f (Maybe b)
+forall a. a -&gt; f a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><a href="GHC.Internal.Base.html#pure"><span class="hs-identifier hs-var">pure</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe b
+forall a. Maybe a
+</span><a href="GHC.Internal.Maybe.html#Nothing"><span class="hs-identifier hs-var">Nothing</span></a></span><span>
+</span><span id="line-238"></span><span>    </span><span class="annot"><a href="GHC.Internal.Data.Traversable.html#traverse"><span class="hs-identifier hs-var">traverse</span></a></span><span> </span><span id="local-6989586621679677765"><span class="annot"><span class="annottext">a -&gt; f b
+</span><a href="#local-6989586621679677765"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Internal.Maybe.html#Just"><span class="hs-identifier hs-type">Just</span></a></span><span> </span><span id="local-6989586621679677766"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679677766"><span class="hs-identifier hs-var">x</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">b -&gt; Maybe b
+forall a. a -&gt; Maybe a
+</span><a href="GHC.Internal.Maybe.html#Just"><span class="hs-identifier hs-var">Just</span></a></span><span> </span><span class="annot"><span class="annottext">(b -&gt; Maybe b) -&gt; f b -&gt; f (Maybe b)
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><a href="GHC.Internal.Data.Functor.html#%3C%24%3E"><span class="hs-operator hs-var">&lt;$&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">a -&gt; f b
+</span><a href="#local-6989586621679677765"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679677766"><span class="hs-identifier hs-var">x</span></a></span><span>
+</span><span id="line-239"></span><span>
+</span><span id="line-240"></span><span class="annot"><span class="hs-comment">-- | @since base-2.01</span></span><span>
+</span><span id="line-241"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679677776"><span id="local-6989586621679677782"><span id="local-6989586621679677787"><span class="annot"><a href="GHC.Internal.Data.Traversable.html#Traversable"><span class="hs-identifier hs-type">Traversable</span></a></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-242"></span><span>    </span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="GHC.Internal.Data.Traversable.html#traverse"><span class="hs-pragma hs-type">traverse</span></a></span><span> </span><span class="hs-pragma">#-}</span><span> </span><span class="hs-comment">-- so that traverse can fuse</span><span>
+</span><span id="line-243"></span><span>    </span><span id="local-6989586621679677794"><span class="annot"><span class="annottext">traverse :: forall (f :: * -&gt; *) a b.
+Applicative f =&gt;
+(a -&gt; f b) -&gt; [a] -&gt; f [b]
+</span><a href="GHC.Internal.Data.Traversable.html#traverse"><span class="hs-identifier hs-var hs-var hs-var">traverse</span></a></span></span><span> </span><span id="local-6989586621679677795"><span class="annot"><span class="annottext">a -&gt; f b
+</span><a href="#local-6989586621679677795"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(a -&gt; f [b] -&gt; f [b]) -&gt; f [b] -&gt; [a] -&gt; f [b]
+forall a b. (a -&gt; b -&gt; b) -&gt; b -&gt; [a] -&gt; b
+</span><a href="GHC.Internal.Base.html#foldr"><span class="hs-identifier hs-var">List.foldr</span></a></span><span> </span><span class="annot"><span class="annottext">a -&gt; f [b] -&gt; f [b]
+</span><a href="#local-6989586621679677796"><span class="hs-identifier hs-var">cons_f</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[b] -&gt; f [b]
+forall a. a -&gt; f a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><a href="GHC.Internal.Base.html#pure"><span class="hs-identifier hs-var">pure</span></a></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span class="hs-special">)</span><span>
+</span><span id="line-244"></span><span>      </span><span class="hs-keyword">where</span><span> </span><span id="local-6989586621679677796"><span class="annot"><span class="annottext">cons_f :: a -&gt; f [b] -&gt; f [b]
+</span><a href="#local-6989586621679677796"><span class="hs-identifier hs-var hs-var">cons_f</span></a></span></span><span> </span><span id="local-6989586621679677799"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679677799"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span id="local-6989586621679677800"><span class="annot"><span class="annottext">f [b]
+</span><a href="#local-6989586621679677800"><span class="hs-identifier hs-var">ys</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(b -&gt; [b] -&gt; [b]) -&gt; f b -&gt; f [b] -&gt; f [b]
+forall a b c. (a -&gt; b -&gt; c) -&gt; f a -&gt; f b -&gt; f c
+forall (f :: * -&gt; *) a b c.
+Applicative f =&gt;
+(a -&gt; b -&gt; c) -&gt; f a -&gt; f b -&gt; f c
+</span><a href="GHC.Internal.Base.html#liftA2"><span class="hs-identifier hs-var">liftA2</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">:</span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a -&gt; f b
+</span><a href="#local-6989586621679677795"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679677799"><span class="hs-identifier hs-var">x</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">f [b]
+</span><a href="#local-6989586621679677800"><span class="hs-identifier hs-var">ys</span></a></span><span>
+</span><span id="line-245"></span><span>
+</span><span id="line-246"></span><span class="annot"><span class="hs-comment">-- | @since base-4.9.0.0</span></span><span>
+</span><span id="line-247"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679677810"><span id="local-6989586621679677816"><span id="local-6989586621679677821"><span class="annot"><a href="GHC.Internal.Data.Traversable.html#Traversable"><span class="hs-identifier hs-type">Traversable</span></a></span><span> </span><span class="annot"><a href="GHC.Internal.Base.html#NonEmpty"><span class="hs-identifier hs-type">NonEmpty</span></a></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-248"></span><span>  </span><span id="local-6989586621679677829"><span class="annot"><span class="annottext">traverse :: forall (f :: * -&gt; *) a b.
+Applicative f =&gt;
+(a -&gt; f b) -&gt; NonEmpty a -&gt; f (NonEmpty b)
+</span><a href="GHC.Internal.Data.Traversable.html#traverse"><span class="hs-identifier hs-var hs-var hs-var">traverse</span></a></span></span><span> </span><span id="local-6989586621679677830"><span class="annot"><span class="annottext">a -&gt; f b
+</span><a href="#local-6989586621679677830"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-glyph">~</span><span class="hs-special">(</span><span id="local-6989586621679677831"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679677831"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span class="annot"><a href="GHC.Internal.Base.html#%3A%7C"><span class="hs-operator hs-type">:|</span></a></span><span> </span><span id="local-6989586621679677833"><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679677833"><span class="hs-keyword hs-var">as</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(b -&gt; [b] -&gt; NonEmpty b) -&gt; f b -&gt; f [b] -&gt; f (NonEmpty b)
+forall a b c. (a -&gt; b -&gt; c) -&gt; f a -&gt; f b -&gt; f c
+forall (f :: * -&gt; *) a b c.
+Applicative f =&gt;
+(a -&gt; b -&gt; c) -&gt; f a -&gt; f b -&gt; f c
+</span><a href="GHC.Internal.Base.html#liftA2"><span class="hs-identifier hs-var">liftA2</span></a></span><span> </span><span class="annot"><span class="annottext">b -&gt; [b] -&gt; NonEmpty b
+forall a. a -&gt; [a] -&gt; NonEmpty a
+</span><a href="GHC.Internal.Base.html#%3A%7C"><span class="hs-operator hs-var">(:|)</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a -&gt; f b
+</span><a href="#local-6989586621679677830"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679677831"><span class="hs-identifier hs-var">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(a -&gt; f b) -&gt; [a] -&gt; f [b]
+forall (t :: * -&gt; *) (f :: * -&gt; *) a b.
+(Traversable t, Applicative f) =&gt;
+(a -&gt; f b) -&gt; t a -&gt; f (t b)
+forall (f :: * -&gt; *) a b.
+Applicative f =&gt;
+(a -&gt; f b) -&gt; [a] -&gt; f [b]
+</span><a href="GHC.Internal.Data.Traversable.html#traverse"><span class="hs-identifier hs-var">traverse</span></a></span><span> </span><span class="annot"><span class="annottext">a -&gt; f b
+</span><a href="#local-6989586621679677830"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">[a]
+</span><a href="#local-6989586621679677833"><span class="hs-keyword hs-var">as</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-249"></span><span>
+</span><span id="line-250"></span><span class="annot"><span class="hs-comment">-- | @since base-4.7.0.0</span></span><span>
+</span><span id="line-251"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679677356"><span id="local-6989586621679677842"><span id="local-6989586621679677848"><span id="local-6989586621679677853"><span class="annot"><a href="GHC.Internal.Data.Traversable.html#Traversable"><span class="hs-identifier hs-type">Traversable</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Internal.Data.Either.html#Either"><span class="hs-identifier hs-type">Either</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679677356"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-252"></span><span>    </span><span id="local-6989586621679677861"><span class="annot"><span class="annottext">traverse :: forall (f :: * -&gt; *) a b.
+Applicative f =&gt;
+(a -&gt; f b) -&gt; Either a a -&gt; f (Either a b)
+</span><a href="GHC.Internal.Data.Traversable.html#traverse"><span class="hs-identifier hs-var hs-var hs-var">traverse</span></a></span></span><span> </span><span class="annot"><span class="annottext">a -&gt; f b
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Internal.Data.Either.html#Left"><span class="hs-identifier hs-type">Left</span></a></span><span> </span><span id="local-6989586621679677862"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679677862"><span class="hs-identifier hs-var">x</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Either a b -&gt; f (Either a b)
+forall a. a -&gt; f a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><a href="GHC.Internal.Base.html#pure"><span class="hs-identifier hs-var">pure</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a -&gt; Either a b
+forall a b. a -&gt; Either a b
+</span><a href="GHC.Internal.Data.Either.html#Left"><span class="hs-identifier hs-var">Left</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679677862"><span class="hs-identifier hs-var">x</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-253"></span><span>    </span><span class="annot"><a href="GHC.Internal.Data.Traversable.html#traverse"><span class="hs-identifier hs-var">traverse</span></a></span><span> </span><span id="local-6989586621679677863"><span class="annot"><span class="annottext">a -&gt; f b
+</span><a href="#local-6989586621679677863"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Internal.Data.Either.html#Right"><span class="hs-identifier hs-type">Right</span></a></span><span> </span><span id="local-6989586621679677864"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679677864"><span class="hs-identifier hs-var">y</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">b -&gt; Either a b
+forall a b. b -&gt; Either a b
+</span><a href="GHC.Internal.Data.Either.html#Right"><span class="hs-identifier hs-var">Right</span></a></span><span> </span><span class="annot"><span class="annottext">(b -&gt; Either a b) -&gt; f b -&gt; f (Either a b)
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><a href="GHC.Internal.Data.Functor.html#%3C%24%3E"><span class="hs-operator hs-var">&lt;$&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">a -&gt; f b
+</span><a href="#local-6989586621679677863"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679677864"><span class="hs-identifier hs-var">y</span></a></span><span>
+</span><span id="line-254"></span><span>
+</span><span id="line-255"></span><span class="annot"><span class="hs-comment">-- | @since base-4.15</span></span><span>
+</span><span id="line-256"></span><span id="local-6989586621679677872"><span id="local-6989586621679677877"><span id="local-6989586621679677883"><span id="local-6989586621679677888"><span class="hs-keyword">deriving</span><span> </span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="GHC.Internal.Data.Traversable.html#Traversable"><span class="hs-identifier hs-type">Traversable</span></a></span><span> </span><span class="annot"><a href="../../ghc-prim-0.12.0-595c/src/GHC.Tuple.html#Solo"><span class="hs-identifier hs-type">Solo</span></a></span></span></span></span></span><span>
+</span><span id="line-257"></span><span>
+</span><span id="line-258"></span><span class="annot"><span class="hs-comment">-- | @since base-4.7.0.0</span></span><span>
+</span><span id="line-259"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679677370"><span id="local-6989586621679677900"><span id="local-6989586621679677906"><span id="local-6989586621679677911"><span class="annot"><a href="GHC.Internal.Data.Traversable.html#Traversable"><span class="hs-identifier hs-type">Traversable</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="hs-special">,</span><span class="hs-special">)</span><span> </span><span class="annot"><a href="#local-6989586621679677370"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-260"></span><span>    </span><span id="local-6989586621679677918"><span class="annot"><span class="annottext">traverse :: forall (f :: * -&gt; *) a b.
+Applicative f =&gt;
+(a -&gt; f b) -&gt; (a, a) -&gt; f (a, b)
+</span><a href="GHC.Internal.Data.Traversable.html#traverse"><span class="hs-identifier hs-var hs-var hs-var">traverse</span></a></span></span><span> </span><span id="local-6989586621679677919"><span class="annot"><span class="annottext">a -&gt; f b
+</span><a href="#local-6989586621679677919"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679677920"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679677920"><span class="hs-identifier hs-var">x</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679677921"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679677921"><span class="hs-identifier hs-var">y</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="hs-special">,</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679677920"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">(b -&gt; (a, b)) -&gt; f b -&gt; f (a, b)
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><a href="GHC.Internal.Data.Functor.html#%3C%24%3E"><span class="hs-operator hs-var">&lt;$&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">a -&gt; f b
+</span><a href="#local-6989586621679677919"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679677921"><span class="hs-identifier hs-var">y</span></a></span><span>
+</span><span id="line-261"></span><span>
+</span><span id="line-262"></span><span class="annot"><span class="hs-comment">-- | @since base-2.01</span></span><span>
+</span><span id="line-263"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679677382"><span id="local-6989586621679677931"><span id="local-6989586621679677937"><span id="local-6989586621679677942"><span class="annot"><a href="GHC.Internal.Ix.html#Ix"><span class="hs-identifier hs-type">Ix</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679677382"><span class="hs-identifier hs-type">i</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="GHC.Internal.Data.Traversable.html#Traversable"><span class="hs-identifier hs-type">Traversable</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Internal.Arr.html#Array"><span class="hs-identifier hs-type">Array</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679677382"><span class="hs-identifier hs-type">i</span></a></span><span class="hs-special">)</span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-264"></span><span>    </span><span id="local-6989586621679677952"><span class="annot"><span class="annottext">traverse :: forall (f :: * -&gt; *) a b.
+Applicative f =&gt;
+(a -&gt; f b) -&gt; Array i a -&gt; f (Array i b)
+</span><a href="GHC.Internal.Data.Traversable.html#traverse"><span class="hs-identifier hs-var hs-var hs-var">traverse</span></a></span></span><span> </span><span id="local-6989586621679677953"><span class="annot"><span class="annottext">a -&gt; f b
+</span><a href="#local-6989586621679677953"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span id="local-6989586621679677954"><span class="annot"><span class="annottext">Array i a
+</span><a href="#local-6989586621679677954"><span class="hs-identifier hs-var">arr</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(i, i) -&gt; [b] -&gt; Array i b
+forall i e. Ix i =&gt; (i, i) -&gt; [e] -&gt; Array i e
+</span><a href="GHC.Internal.Arr.html#listArray"><span class="hs-identifier hs-var">listArray</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Array i a -&gt; (i, i)
+forall i e. Array i e -&gt; (i, i)
+</span><a href="GHC.Internal.Arr.html#bounds"><span class="hs-identifier hs-var">bounds</span></a></span><span> </span><span class="annot"><span class="annottext">Array i a
+</span><a href="#local-6989586621679677954"><span class="hs-identifier hs-var">arr</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">([b] -&gt; Array i b) -&gt; f [b] -&gt; f (Array i b)
+forall a b. (a -&gt; b) -&gt; f a -&gt; f b
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><a href="GHC.Internal.Base.html#fmap"><span class="hs-operator hs-var">`fmap`</span></a></span><span> </span><span class="annot"><span class="annottext">(a -&gt; f b) -&gt; [a] -&gt; f [b]
+forall (t :: * -&gt; *) (f :: * -&gt; *) a b.
+(Traversable t, Applicative f) =&gt;
+(a -&gt; f b) -&gt; t a -&gt; f (t b)
+forall (f :: * -&gt; *) a b.
+Applicative f =&gt;
+(a -&gt; f b) -&gt; [a] -&gt; f [b]
+</span><a href="GHC.Internal.Data.Traversable.html#traverse"><span class="hs-identifier hs-var">traverse</span></a></span><span> </span><span class="annot"><span class="annottext">a -&gt; f b
+</span><a href="#local-6989586621679677953"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Array i a -&gt; [a]
+forall i e. Array i e -&gt; [e]
+</span><a href="GHC.Internal.Arr.html#elems"><span class="hs-identifier hs-var">elems</span></a></span><span> </span><span class="annot"><span class="annottext">Array i a
+</span><a href="#local-6989586621679677954"><span class="hs-identifier hs-var">arr</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-265"></span><span>
+</span><span id="line-266"></span><span class="annot"><span class="hs-comment">-- | @since base-4.7.0.0</span></span><span>
+</span><span id="line-267"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="GHC.Internal.Data.Traversable.html#Traversable"><span class="hs-identifier hs-type">Traversable</span></a></span><span> </span><span class="annot"><a href="GHC.Internal.Data.Proxy.html#Proxy"><span class="hs-identifier hs-type">Proxy</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-268"></span><span>    </span><span id="local-6989586621679677971"><span class="annot"><span class="annottext">traverse :: forall (f :: * -&gt; *) a b.
+Applicative f =&gt;
+(a -&gt; f b) -&gt; Proxy a -&gt; f (Proxy b)
+</span><a href="GHC.Internal.Data.Traversable.html#traverse"><span class="hs-identifier hs-var hs-var hs-var">traverse</span></a></span></span><span> </span><span class="annot"><span class="annottext">a -&gt; f b
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">Proxy a
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Proxy b -&gt; f (Proxy b)
+forall a. a -&gt; f a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><a href="GHC.Internal.Base.html#pure"><span class="hs-identifier hs-var">pure</span></a></span><span> </span><span class="annot"><span class="annottext">Proxy b
+forall {k} (t :: k). Proxy t
+</span><a href="GHC.Internal.Data.Proxy.html#Proxy"><span class="hs-identifier hs-var">Proxy</span></a></span><span>
+</span><span id="line-269"></span><span>    </span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="GHC.Internal.Data.Traversable.html#traverse"><span class="hs-pragma hs-type">traverse</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-270"></span><span>    </span><span id="local-6989586621679677975"><span class="annot"><span class="annottext">sequenceA :: forall (f :: * -&gt; *) a. Applicative f =&gt; Proxy (f a) -&gt; f (Proxy a)
+</span><a href="GHC.Internal.Data.Traversable.html#sequenceA"><span class="hs-identifier hs-var hs-var hs-var">sequenceA</span></a></span></span><span> </span><span class="annot"><span class="annottext">Proxy (f a)
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Proxy a -&gt; f (Proxy a)
+forall a. a -&gt; f a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><a href="GHC.Internal.Base.html#pure"><span class="hs-identifier hs-var">pure</span></a></span><span> </span><span class="annot"><span class="annottext">Proxy a
+forall {k} (t :: k). Proxy t
+</span><a href="GHC.Internal.Data.Proxy.html#Proxy"><span class="hs-identifier hs-var">Proxy</span></a></span><span>
+</span><span id="line-271"></span><span>    </span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="GHC.Internal.Data.Traversable.html#sequenceA"><span class="hs-pragma hs-type">sequenceA</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-272"></span><span>    </span><span id="local-6989586621679677979"><span class="annot"><span class="annottext">mapM :: forall (m :: * -&gt; *) a b.
+Monad m =&gt;
+(a -&gt; m b) -&gt; Proxy a -&gt; m (Proxy b)
+</span><a href="GHC.Internal.Data.Traversable.html#mapM"><span class="hs-identifier hs-var hs-var hs-var">mapM</span></a></span></span><span> </span><span class="annot"><span class="annottext">a -&gt; m b
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">Proxy a
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Proxy b -&gt; m (Proxy b)
+forall a. a -&gt; m a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><a href="GHC.Internal.Base.html#pure"><span class="hs-identifier hs-var">pure</span></a></span><span> </span><span class="annot"><span class="annottext">Proxy b
+forall {k} (t :: k). Proxy t
+</span><a href="GHC.Internal.Data.Proxy.html#Proxy"><span class="hs-identifier hs-var">Proxy</span></a></span><span>
+</span><span id="line-273"></span><span>    </span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="GHC.Internal.Data.Traversable.html#mapM"><span class="hs-pragma hs-type">mapM</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-274"></span><span>    </span><span id="local-6989586621679677983"><span class="annot"><span class="annottext">sequence :: forall (m :: * -&gt; *) a. Monad m =&gt; Proxy (m a) -&gt; m (Proxy a)
+</span><a href="GHC.Internal.Data.Traversable.html#sequence"><span class="hs-identifier hs-var hs-var hs-var">sequence</span></a></span></span><span> </span><span class="annot"><span class="annottext">Proxy (m a)
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Proxy a -&gt; m (Proxy a)
+forall a. a -&gt; m a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><a href="GHC.Internal.Base.html#pure"><span class="hs-identifier hs-var">pure</span></a></span><span> </span><span class="annot"><span class="annottext">Proxy a
+forall {k} (t :: k). Proxy t
+</span><a href="GHC.Internal.Data.Proxy.html#Proxy"><span class="hs-identifier hs-var">Proxy</span></a></span><span>
+</span><span id="line-275"></span><span>    </span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="GHC.Internal.Data.Traversable.html#sequence"><span class="hs-pragma hs-type">sequence</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-276"></span><span>
+</span><span id="line-277"></span><span class="annot"><span class="hs-comment">-- | @since base-4.7.0.0</span></span><span>
+</span><span id="line-278"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679677410"><span id="local-6989586621679677992"><span id="local-6989586621679677998"><span id="local-6989586621679678003"><span class="annot"><a href="GHC.Internal.Data.Traversable.html#Traversable"><span class="hs-identifier hs-type">Traversable</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Internal.Data.Functor.Const.html#Const"><span class="hs-identifier hs-type">Const</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679677410"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-279"></span><span>    </span><span id="local-6989586621679678009"><span class="annot"><span class="annottext">traverse :: forall (f :: * -&gt; *) a b.
+Applicative f =&gt;
+(a -&gt; f b) -&gt; Const m a -&gt; f (Const m b)
+</span><a href="GHC.Internal.Data.Traversable.html#traverse"><span class="hs-identifier hs-var hs-var hs-var">traverse</span></a></span></span><span> </span><span class="annot"><span class="annottext">a -&gt; f b
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Internal.Data.Functor.Const.html#Const"><span class="hs-identifier hs-type">Const</span></a></span><span> </span><span id="local-6989586621679678011"><span class="annot"><span class="annottext">m
+</span><a href="#local-6989586621679678011"><span class="hs-identifier hs-var">m</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Const m b -&gt; f (Const m b)
+forall a. a -&gt; f a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><a href="GHC.Internal.Base.html#pure"><span class="hs-identifier hs-var">pure</span></a></span><span> </span><span class="annot"><span class="annottext">(Const m b -&gt; f (Const m b)) -&gt; Const m b -&gt; f (Const m b)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><a href="GHC.Internal.Base.html#%24"><span class="hs-operator hs-var">$</span></a></span><span> </span><span class="annot"><span class="annottext">m -&gt; Const m b
+forall {k} a (b :: k). a -&gt; Const a b
+</span><a href="GHC.Internal.Data.Functor.Const.html#Const"><span class="hs-identifier hs-var">Const</span></a></span><span> </span><span class="annot"><span class="annottext">m
+</span><a href="#local-6989586621679678011"><span class="hs-identifier hs-var">m</span></a></span><span>
+</span><span id="line-280"></span><span>
+</span><span id="line-281"></span><span class="annot"><span class="hs-comment">-- | @since base-4.8.0.0</span></span><span>
+</span><span id="line-282"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679678020"><span id="local-6989586621679678026"><span id="local-6989586621679678031"><span class="annot"><a href="GHC.Internal.Data.Traversable.html#Traversable"><span class="hs-identifier hs-type">Traversable</span></a></span><span> </span><span class="annot"><a href="GHC.Internal.Data.Semigroup.Internal.html#Dual"><span class="hs-identifier hs-type">Dual</span></a></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-283"></span><span>    </span><span id="local-6989586621679678038"><span class="annot"><span class="annottext">traverse :: forall (f :: * -&gt; *) a b.
+Applicative f =&gt;
+(a -&gt; f b) -&gt; Dual a -&gt; f (Dual b)
+</span><a href="GHC.Internal.Data.Traversable.html#traverse"><span class="hs-identifier hs-var hs-var hs-var">traverse</span></a></span></span><span> </span><span id="local-6989586621679678039"><span class="annot"><span class="annottext">a -&gt; f b
+</span><a href="#local-6989586621679678039"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Internal.Data.Semigroup.Internal.html#Dual"><span class="hs-identifier hs-type">Dual</span></a></span><span> </span><span id="local-6989586621679678041"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679678041"><span class="hs-identifier hs-var">x</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">b -&gt; Dual b
+forall a. a -&gt; Dual a
+</span><a href="GHC.Internal.Data.Semigroup.Internal.html#Dual"><span class="hs-identifier hs-var">Dual</span></a></span><span> </span><span class="annot"><span class="annottext">(b -&gt; Dual b) -&gt; f b -&gt; f (Dual b)
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><a href="GHC.Internal.Data.Functor.html#%3C%24%3E"><span class="hs-operator hs-var">&lt;$&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">a -&gt; f b
+</span><a href="#local-6989586621679678039"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679678041"><span class="hs-identifier hs-var">x</span></a></span><span>
+</span><span id="line-284"></span><span>
+</span><span id="line-285"></span><span class="annot"><span class="hs-comment">-- | @since base-4.8.0.0</span></span><span>
+</span><span id="line-286"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679678050"><span id="local-6989586621679678056"><span id="local-6989586621679678061"><span class="annot"><a href="GHC.Internal.Data.Traversable.html#Traversable"><span class="hs-identifier hs-type">Traversable</span></a></span><span> </span><span class="annot"><a href="GHC.Internal.Data.Semigroup.Internal.html#Sum"><span class="hs-identifier hs-type">Sum</span></a></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-287"></span><span>    </span><span id="local-6989586621679678068"><span class="annot"><span class="annottext">traverse :: forall (f :: * -&gt; *) a b.
+Applicative f =&gt;
+(a -&gt; f b) -&gt; Sum a -&gt; f (Sum b)
+</span><a href="GHC.Internal.Data.Traversable.html#traverse"><span class="hs-identifier hs-var hs-var hs-var">traverse</span></a></span></span><span> </span><span id="local-6989586621679678069"><span class="annot"><span class="annottext">a -&gt; f b
+</span><a href="#local-6989586621679678069"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Internal.Data.Semigroup.Internal.html#Sum"><span class="hs-identifier hs-type">Sum</span></a></span><span> </span><span id="local-6989586621679678071"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679678071"><span class="hs-identifier hs-var">x</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">b -&gt; Sum b
+forall a. a -&gt; Sum a
+</span><a href="GHC.Internal.Data.Semigroup.Internal.html#Sum"><span class="hs-identifier hs-var">Sum</span></a></span><span> </span><span class="annot"><span class="annottext">(b -&gt; Sum b) -&gt; f b -&gt; f (Sum b)
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><a href="GHC.Internal.Data.Functor.html#%3C%24%3E"><span class="hs-operator hs-var">&lt;$&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">a -&gt; f b
+</span><a href="#local-6989586621679678069"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679678071"><span class="hs-identifier hs-var">x</span></a></span><span>
+</span><span id="line-288"></span><span>
+</span><span id="line-289"></span><span class="annot"><span class="hs-comment">-- | @since base-4.8.0.0</span></span><span>
+</span><span id="line-290"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679678080"><span id="local-6989586621679678086"><span id="local-6989586621679678091"><span class="annot"><a href="GHC.Internal.Data.Traversable.html#Traversable"><span class="hs-identifier hs-type">Traversable</span></a></span><span> </span><span class="annot"><a href="GHC.Internal.Data.Semigroup.Internal.html#Product"><span class="hs-identifier hs-type">Product</span></a></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-291"></span><span>    </span><span id="local-6989586621679678098"><span class="annot"><span class="annottext">traverse :: forall (f :: * -&gt; *) a b.
+Applicative f =&gt;
+(a -&gt; f b) -&gt; Product a -&gt; f (Product b)
+</span><a href="GHC.Internal.Data.Traversable.html#traverse"><span class="hs-identifier hs-var hs-var hs-var">traverse</span></a></span></span><span> </span><span id="local-6989586621679678099"><span class="annot"><span class="annottext">a -&gt; f b
+</span><a href="#local-6989586621679678099"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Internal.Data.Semigroup.Internal.html#Product"><span class="hs-identifier hs-type">Product</span></a></span><span> </span><span id="local-6989586621679678101"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679678101"><span class="hs-identifier hs-var">x</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">b -&gt; Product b
+forall a. a -&gt; Product a
+</span><a href="GHC.Internal.Data.Semigroup.Internal.html#Product"><span class="hs-identifier hs-var">Product</span></a></span><span> </span><span class="annot"><span class="annottext">(b -&gt; Product b) -&gt; f b -&gt; f (Product b)
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><a href="GHC.Internal.Data.Functor.html#%3C%24%3E"><span class="hs-operator hs-var">&lt;$&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">a -&gt; f b
+</span><a href="#local-6989586621679678099"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679678101"><span class="hs-identifier hs-var">x</span></a></span><span>
+</span><span id="line-292"></span><span>
+</span><span id="line-293"></span><span class="annot"><span class="hs-comment">-- | @since base-4.8.0.0</span></span><span>
+</span><span id="line-294"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679678110"><span id="local-6989586621679678116"><span id="local-6989586621679678121"><span class="annot"><a href="GHC.Internal.Data.Traversable.html#Traversable"><span class="hs-identifier hs-type">Traversable</span></a></span><span> </span><span class="annot"><a href="GHC.Internal.Data.Monoid.html#First"><span class="hs-identifier hs-type">First</span></a></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-295"></span><span>    </span><span id="local-6989586621679678130"><span class="annot"><span class="annottext">traverse :: forall (f :: * -&gt; *) a b.
+Applicative f =&gt;
+(a -&gt; f b) -&gt; First a -&gt; f (First b)
+</span><a href="GHC.Internal.Data.Traversable.html#traverse"><span class="hs-identifier hs-var hs-var hs-var">traverse</span></a></span></span><span> </span><span id="local-6989586621679678131"><span class="annot"><span class="annottext">a -&gt; f b
+</span><a href="#local-6989586621679678131"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Internal.Data.Monoid.html#First"><span class="hs-identifier hs-type">First</span></a></span><span> </span><span id="local-6989586621679678133"><span class="annot"><span class="annottext">Maybe a
+</span><a href="#local-6989586621679678133"><span class="hs-identifier hs-var">x</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Maybe b -&gt; First b
+forall a. Maybe a -&gt; First a
+</span><a href="GHC.Internal.Data.Monoid.html#First"><span class="hs-identifier hs-var">First</span></a></span><span> </span><span class="annot"><span class="annottext">(Maybe b -&gt; First b) -&gt; f (Maybe b) -&gt; f (First b)
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><a href="GHC.Internal.Data.Functor.html#%3C%24%3E"><span class="hs-operator hs-var">&lt;$&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">(a -&gt; f b) -&gt; Maybe a -&gt; f (Maybe b)
+forall (t :: * -&gt; *) (f :: * -&gt; *) a b.
+(Traversable t, Applicative f) =&gt;
+(a -&gt; f b) -&gt; t a -&gt; f (t b)
+forall (f :: * -&gt; *) a b.
+Applicative f =&gt;
+(a -&gt; f b) -&gt; Maybe a -&gt; f (Maybe b)
+</span><a href="GHC.Internal.Data.Traversable.html#traverse"><span class="hs-identifier hs-var">traverse</span></a></span><span> </span><span class="annot"><span class="annottext">a -&gt; f b
+</span><a href="#local-6989586621679678131"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe a
+</span><a href="#local-6989586621679678133"><span class="hs-identifier hs-var">x</span></a></span><span>
+</span><span id="line-296"></span><span>
+</span><span id="line-297"></span><span class="annot"><span class="hs-comment">-- | @since base-4.8.0.0</span></span><span>
+</span><span id="line-298"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679678142"><span id="local-6989586621679678148"><span id="local-6989586621679678153"><span class="annot"><a href="GHC.Internal.Data.Traversable.html#Traversable"><span class="hs-identifier hs-type">Traversable</span></a></span><span> </span><span class="annot"><a href="GHC.Internal.Data.Monoid.html#Last"><span class="hs-identifier hs-type">Last</span></a></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-299"></span><span>    </span><span id="local-6989586621679678162"><span class="annot"><span class="annottext">traverse :: forall (f :: * -&gt; *) a b.
+Applicative f =&gt;
+(a -&gt; f b) -&gt; Last a -&gt; f (Last b)
+</span><a href="GHC.Internal.Data.Traversable.html#traverse"><span class="hs-identifier hs-var hs-var hs-var">traverse</span></a></span></span><span> </span><span id="local-6989586621679678163"><span class="annot"><span class="annottext">a -&gt; f b
+</span><a href="#local-6989586621679678163"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Internal.Data.Monoid.html#Last"><span class="hs-identifier hs-type">Last</span></a></span><span> </span><span id="local-6989586621679678165"><span class="annot"><span class="annottext">Maybe a
+</span><a href="#local-6989586621679678165"><span class="hs-identifier hs-var">x</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Maybe b -&gt; Last b
+forall a. Maybe a -&gt; Last a
+</span><a href="GHC.Internal.Data.Monoid.html#Last"><span class="hs-identifier hs-var">Last</span></a></span><span> </span><span class="annot"><span class="annottext">(Maybe b -&gt; Last b) -&gt; f (Maybe b) -&gt; f (Last b)
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><a href="GHC.Internal.Data.Functor.html#%3C%24%3E"><span class="hs-operator hs-var">&lt;$&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">(a -&gt; f b) -&gt; Maybe a -&gt; f (Maybe b)
+forall (t :: * -&gt; *) (f :: * -&gt; *) a b.
+(Traversable t, Applicative f) =&gt;
+(a -&gt; f b) -&gt; t a -&gt; f (t b)
+forall (f :: * -&gt; *) a b.
+Applicative f =&gt;
+(a -&gt; f b) -&gt; Maybe a -&gt; f (Maybe b)
+</span><a href="GHC.Internal.Data.Traversable.html#traverse"><span class="hs-identifier hs-var">traverse</span></a></span><span> </span><span class="annot"><span class="annottext">a -&gt; f b
+</span><a href="#local-6989586621679678163"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe a
+</span><a href="#local-6989586621679678165"><span class="hs-identifier hs-var">x</span></a></span><span>
+</span><span id="line-300"></span><span>
+</span><span id="line-301"></span><span class="annot"><span class="hs-comment">-- | @since base-4.12.0.0</span></span><span>
+</span><span id="line-302"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679677468"><span id="local-6989586621679678177"><span id="local-6989586621679678183"><span id="local-6989586621679678188"><span class="hs-special">(</span><span class="annot"><a href="GHC.Internal.Data.Traversable.html#Traversable"><span class="hs-identifier hs-type">Traversable</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679677468"><span class="hs-identifier hs-type">f</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="GHC.Internal.Data.Traversable.html#Traversable"><span class="hs-identifier hs-type">Traversable</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Internal.Data.Semigroup.Internal.html#Alt"><span class="hs-identifier hs-type">Alt</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679677468"><span class="hs-identifier hs-type">f</span></a></span><span class="hs-special">)</span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-303"></span><span>    </span><span id="local-6989586621679678197"><span class="annot"><span class="annottext">traverse :: forall (f :: * -&gt; *) a b.
+Applicative f =&gt;
+(a -&gt; f b) -&gt; Alt f a -&gt; f (Alt f b)
+</span><a href="GHC.Internal.Data.Traversable.html#traverse"><span class="hs-identifier hs-var hs-var hs-var">traverse</span></a></span></span><span> </span><span id="local-6989586621679678198"><span class="annot"><span class="annottext">a -&gt; f b
+</span><a href="#local-6989586621679678198"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Internal.Data.Semigroup.Internal.html#Alt"><span class="hs-identifier hs-type">Alt</span></a></span><span> </span><span id="local-6989586621679678200"><span class="annot"><span class="annottext">f a
+</span><a href="#local-6989586621679678200"><span class="hs-identifier hs-var">x</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">f b -&gt; Alt f b
+forall {k} (f :: k -&gt; *) (a :: k). f a -&gt; Alt f a
+</span><a href="GHC.Internal.Data.Semigroup.Internal.html#Alt"><span class="hs-identifier hs-var">Alt</span></a></span><span> </span><span class="annot"><span class="annottext">(f b -&gt; Alt f b) -&gt; f (f b) -&gt; f (Alt f b)
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><a href="GHC.Internal.Data.Functor.html#%3C%24%3E"><span class="hs-operator hs-var">&lt;$&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">(a -&gt; f b) -&gt; f a -&gt; f (f b)
+forall (t :: * -&gt; *) (f :: * -&gt; *) a b.
+(Traversable t, Applicative f) =&gt;
+(a -&gt; f b) -&gt; t a -&gt; f (t b)
+forall (f :: * -&gt; *) a b.
+Applicative f =&gt;
+(a -&gt; f b) -&gt; f a -&gt; f (f b)
+</span><a href="GHC.Internal.Data.Traversable.html#traverse"><span class="hs-identifier hs-var">traverse</span></a></span><span> </span><span class="annot"><span class="annottext">a -&gt; f b
+</span><a href="#local-6989586621679678198"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">f a
+</span><a href="#local-6989586621679678200"><span class="hs-identifier hs-var">x</span></a></span><span>
+</span><span id="line-304"></span><span>
+</span><span id="line-305"></span><span class="annot"><span class="hs-comment">-- | @since base-4.12.0.0</span></span><span>
+</span><span id="line-306"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679677482"><span id="local-6989586621679678212"><span id="local-6989586621679678218"><span id="local-6989586621679678223"><span class="hs-special">(</span><span class="annot"><a href="GHC.Internal.Data.Traversable.html#Traversable"><span class="hs-identifier hs-type">Traversable</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679677482"><span class="hs-identifier hs-type">f</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="GHC.Internal.Data.Traversable.html#Traversable"><span class="hs-identifier hs-type">Traversable</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Internal.Data.Monoid.html#Ap"><span class="hs-identifier hs-type">Ap</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679677482"><span class="hs-identifier hs-type">f</span></a></span><span class="hs-special">)</span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-307"></span><span>    </span><span id="local-6989586621679678232"><span class="annot"><span class="annottext">traverse :: forall (f :: * -&gt; *) a b.
+Applicative f =&gt;
+(a -&gt; f b) -&gt; Ap f a -&gt; f (Ap f b)
+</span><a href="GHC.Internal.Data.Traversable.html#traverse"><span class="hs-identifier hs-var hs-var hs-var">traverse</span></a></span></span><span> </span><span id="local-6989586621679678233"><span class="annot"><span class="annottext">a -&gt; f b
+</span><a href="#local-6989586621679678233"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Internal.Data.Monoid.html#Ap"><span class="hs-identifier hs-type">Ap</span></a></span><span> </span><span id="local-6989586621679678235"><span class="annot"><span class="annottext">f a
+</span><a href="#local-6989586621679678235"><span class="hs-identifier hs-var">x</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">f b -&gt; Ap f b
+forall {k} (f :: k -&gt; *) (a :: k). f a -&gt; Ap f a
+</span><a href="GHC.Internal.Data.Monoid.html#Ap"><span class="hs-identifier hs-var">Ap</span></a></span><span> </span><span class="annot"><span class="annottext">(f b -&gt; Ap f b) -&gt; f (f b) -&gt; f (Ap f b)
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><a href="GHC.Internal.Data.Functor.html#%3C%24%3E"><span class="hs-operator hs-var">&lt;$&gt;</span></a></span><span> </span><span class="annot"><span class="annottext">(a -&gt; f b) -&gt; f a -&gt; f (f b)
+forall (t :: * -&gt; *) (f :: * -&gt; *) a b.
+(Traversable t, Applicative f) =&gt;
+(a -&gt; f b) -&gt; t a -&gt; f (t b)
+forall (f :: * -&gt; *) a b.
+Applicative f =&gt;
+(a -&gt; f b) -&gt; f a -&gt; f (f b)
+</span><a href="GHC.Internal.Data.Traversable.html#traverse"><span class="hs-identifier hs-var">traverse</span></a></span><span> </span><span class="annot"><span class="annottext">a -&gt; f b
+</span><a href="#local-6989586621679678233"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">f a
+</span><a href="#local-6989586621679678235"><span class="hs-identifier hs-var">x</span></a></span><span>
+</span><span id="line-308"></span><span>
+</span><span id="line-309"></span><span class="annot"><span class="hs-comment">-- | @since base-4.9.0.0</span></span><span>
+</span><span id="line-310"></span><span id="local-6989586621679678243"><span id="local-6989586621679678248"><span id="local-6989586621679678254"><span id="local-6989586621679678259"><span class="hs-keyword">deriving</span><span> </span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="GHC.Internal.Data.Traversable.html#Traversable"><span class="hs-identifier hs-type">Traversable</span></a></span><span> </span><span class="annot"><a href="GHC.Internal.Data.Functor.Identity.html#Identity"><span class="hs-identifier hs-type">Identity</span></a></span></span></span></span></span><span>
+</span><span id="line-311"></span><span>
+</span><span id="line-312"></span><span>
+</span><span id="line-313"></span><span class="hs-comment">-- Instances for GHC.Generics</span><span>
+</span><span id="line-314"></span><span class="annot"><span class="hs-comment">-- | @since base-4.9.0.0</span></span><span>
+</span><span id="line-315"></span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="GHC.Internal.Data.Traversable.html#Traversable"><span class="hs-identifier hs-type">Traversable</span></a></span><span> </span><span class="annot"><a href="GHC.Internal.Generics.html#U1"><span class="hs-identifier hs-type">U1</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-316"></span><span>    </span><span id="local-6989586621679678276"><span class="annot"><span class="annottext">traverse :: forall (f :: * -&gt; *) a b.
+Applicative f =&gt;
+(a -&gt; f b) -&gt; U1 a -&gt; f (U1 b)
+</span><a href="GHC.Internal.Data.Traversable.html#traverse"><span class="hs-identifier hs-var hs-var hs-var">traverse</span></a></span></span><span> </span><span class="annot"><span class="annottext">a -&gt; f b
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">U1 a
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">U1 b -&gt; f (U1 b)
+forall a. a -&gt; f a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><a href="GHC.Internal.Base.html#pure"><span class="hs-identifier hs-var">pure</span></a></span><span> </span><span class="annot"><span class="annottext">U1 b
+forall k (p :: k). U1 p
+</span><a href="GHC.Internal.Generics.html#U1"><span class="hs-identifier hs-var">U1</span></a></span><span>
+</span><span id="line-317"></span><span>    </span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="GHC.Internal.Data.Traversable.html#traverse"><span class="hs-pragma hs-type">traverse</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-318"></span><span>    </span><span id="local-6989586621679678280"><span class="annot"><span class="annottext">sequenceA :: forall (f :: * -&gt; *) a. Applicative f =&gt; U1 (f a) -&gt; f (U1 a)
+</span><a href="GHC.Internal.Data.Traversable.html#sequenceA"><span class="hs-identifier hs-var hs-var hs-var">sequenceA</span></a></span></span><span> </span><span class="annot"><span class="annottext">U1 (f a)
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">U1 a -&gt; f (U1 a)
+forall a. a -&gt; f a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><a href="GHC.Internal.Base.html#pure"><span class="hs-identifier hs-var">pure</span></a></span><span> </span><span class="annot"><span class="annottext">U1 a
+forall k (p :: k). U1 p
+</span><a href="GHC.Internal.Generics.html#U1"><span class="hs-identifier hs-var">U1</span></a></span><span>
+</span><span id="line-319"></span><span>    </span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="GHC.Internal.Data.Traversable.html#sequenceA"><span class="hs-pragma hs-type">sequenceA</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-320"></span><span>    </span><span id="local-6989586621679678284"><span class="annot"><span class="annottext">mapM :: forall (m :: * -&gt; *) a b. Monad m =&gt; (a -&gt; m b) -&gt; U1 a -&gt; m (U1 b)
+</span><a href="GHC.Internal.Data.Traversable.html#mapM"><span class="hs-identifier hs-var hs-var hs-var">mapM</span></a></span></span><span> </span><span class="annot"><span class="annottext">a -&gt; m b
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">U1 a
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">U1 b -&gt; m (U1 b)
+forall a. a -&gt; m a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><a href="GHC.Internal.Base.html#pure"><span class="hs-identifier hs-var">pure</span></a></span><span> </span><span class="annot"><span class="annottext">U1 b
+forall k (p :: k). U1 p
+</span><a href="GHC.Internal.Generics.html#U1"><span class="hs-identifier hs-var">U1</span></a></span><span>
+</span><span id="line-321"></span><span>    </span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="GHC.Internal.Data.Traversable.html#mapM"><span class="hs-pragma hs-type">mapM</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-322"></span><span>    </span><span id="local-6989586621679678288"><span class="annot"><span class="annottext">sequence :: forall (m :: * -&gt; *) a. Monad m =&gt; U1 (m a) -&gt; m (U1 a)
+</span><a href="GHC.Internal.Data.Traversable.html#sequence"><span class="hs-identifier hs-var hs-var hs-var">sequence</span></a></span></span><span> </span><span class="annot"><span class="annottext">U1 (m a)
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">U1 a -&gt; m (U1 a)
+forall a. a -&gt; m a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><a href="GHC.Internal.Base.html#pure"><span class="hs-identifier hs-var">pure</span></a></span><span> </span><span class="annot"><span class="annottext">U1 a
+forall k (p :: k). U1 p
+</span><a href="GHC.Internal.Generics.html#U1"><span class="hs-identifier hs-var">U1</span></a></span><span>
+</span><span id="line-323"></span><span>    </span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="GHC.Internal.Data.Traversable.html#sequence"><span class="hs-pragma hs-type">sequence</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-324"></span><span>
+</span><span id="line-325"></span><span class="annot"><span class="hs-comment">-- | @since base-4.9.0.0</span></span><span>
+</span><span id="line-326"></span><span id="local-6989586621679678296"><span id="local-6989586621679678301"><span id="local-6989586621679678307"><span id="local-6989586621679678312"><span class="hs-keyword">deriving</span><span> </span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="GHC.Internal.Data.Traversable.html#Traversable"><span class="hs-identifier hs-type">Traversable</span></a></span><span> </span><span class="annot"><a href="GHC.Internal.Generics.html#V1"><span class="hs-identifier hs-type">V1</span></a></span></span></span></span></span><span>
+</span><span id="line-327"></span><span>
+</span><span id="line-328"></span><span class="annot"><span class="hs-comment">-- | @since base-4.9.0.0</span></span><span>
+</span><span id="line-329"></span><span id="local-6989586621679678323"><span id="local-6989586621679678328"><span id="local-6989586621679678334"><span id="local-6989586621679678339"><span class="hs-keyword">deriving</span><span> </span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="GHC.Internal.Data.Traversable.html#Traversable"><span class="hs-identifier hs-type">Traversable</span></a></span><span> </span><span class="annot"><a href="GHC.Internal.Generics.html#Par1"><span class="hs-identifier hs-type">Par1</span></a></span></span></span></span></span><span>
+</span><span id="line-330"></span><span>
+</span><span id="line-331"></span><span class="annot"><span class="hs-comment">-- | @since base-4.9.0.0</span></span><span>
+</span><span id="line-332"></span><span id="local-6989586621679677524"><span id="local-6989586621679678353"><span id="local-6989586621679678360"><span id="local-6989586621679678366"><span id="local-6989586621679678371"><span class="hs-keyword">deriving</span><span> </span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="GHC.Internal.Data.Traversable.html#Traversable"><span class="hs-identifier hs-type">Traversable</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679677524"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="GHC.Internal.Data.Traversable.html#Traversable"><span class="hs-identifier hs-type">Traversable</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Internal.Generics.html#Rec1"><span class="hs-identifier hs-type">Rec1</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679677524"><span class="hs-identifier hs-type">f</span></a></span><span class="hs-special">)</span></span></span></span></span></span><span>
+</span><span id="line-333"></span><span>
+</span><span id="line-334"></span><span class="annot"><span class="hs-comment">-- | @since base-4.9.0.0</span></span><span>
+</span><span id="line-335"></span><span id="local-6989586621679677533"><span id="local-6989586621679677534"><span id="local-6989586621679678382"><span id="local-6989586621679678387"><span id="local-6989586621679678393"><span id="local-6989586621679678398"><span class="hs-keyword">deriving</span><span> </span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="GHC.Internal.Data.Traversable.html#Traversable"><span class="hs-identifier hs-type">Traversable</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Internal.Generics.html#K1"><span class="hs-identifier hs-type">K1</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679677533"><span class="hs-identifier hs-type">i</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679677534"><span class="hs-identifier hs-type">c</span></a></span><span class="hs-special">)</span></span></span></span></span></span></span><span>
+</span><span id="line-336"></span><span>
+</span><span id="line-337"></span><span class="annot"><span class="hs-comment">-- | @since base-4.9.0.0</span></span><span>
+</span><span id="line-338"></span><span id="local-6989586621679677549"><span id="local-6989586621679677550"><span id="local-6989586621679677551"><span id="local-6989586621679678412"><span id="local-6989586621679678419"><span id="local-6989586621679678425"><span id="local-6989586621679678430"><span class="hs-keyword">deriving</span><span> </span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="GHC.Internal.Data.Traversable.html#Traversable"><span class="hs-identifier hs-type">Traversable</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679677549"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="GHC.Internal.Data.Traversable.html#Traversable"><span class="hs-identifier hs-type">Traversable</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Internal.Generics.html#M1"><span class="hs-identifier hs-type">M1</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679677550"><span class="hs-identifier hs-type">i</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679677551"><span class="hs-identifier hs-type">c</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679677549"><span class="hs-identifier hs-type">f</span></a></span><span class="hs-special">)</span></span></span></span></span></span></span></span><span>
+</span><span id="line-339"></span><span>
+</span><span id="line-340"></span><span class="annot"><span class="hs-comment">-- | @since base-4.9.0.0</span></span><span>
+</span><span id="line-341"></span><span id="local-6989586621679677562"><span id="local-6989586621679677563"><span id="local-6989586621679678447"><span id="local-6989586621679678457"><span id="local-6989586621679678463"><span id="local-6989586621679678468"><span class="hs-keyword">deriving</span><span> </span><span class="hs-keyword">instance</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Internal.Data.Traversable.html#Traversable"><span class="hs-identifier hs-type">Traversable</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679677562"><span class="hs-identifier hs-type">f</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Internal.Data.Traversable.html#Traversable"><span class="hs-identifier hs-type">Traversable</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679677563"><span class="hs-identifier hs-type">g</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="GHC.Internal.Data.Traversable.html#Traversable"><span class="hs-identifier hs-type">Traversable</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679677562"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="GHC.Internal.Generics.html#%3A%2B%3A"><span class="hs-operator hs-type">:+:</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679677563"><span class="hs-identifier hs-type">g</span></a></span><span class="hs-special">)</span></span></span></span></span></span></span><span>
+</span><span id="line-342"></span><span>
+</span><span id="line-343"></span><span class="annot"><span class="hs-comment">-- | @since base-4.9.0.0</span></span><span>
+</span><span id="line-344"></span><span id="local-6989586621679677574"><span id="local-6989586621679677575"><span id="local-6989586621679678485"><span id="local-6989586621679678493"><span id="local-6989586621679678499"><span id="local-6989586621679678504"><span class="hs-keyword">deriving</span><span> </span><span class="hs-keyword">instance</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Internal.Data.Traversable.html#Traversable"><span class="hs-identifier hs-type">Traversable</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679677574"><span class="hs-identifier hs-type">f</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Internal.Data.Traversable.html#Traversable"><span class="hs-identifier hs-type">Traversable</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679677575"><span class="hs-identifier hs-type">g</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="GHC.Internal.Data.Traversable.html#Traversable"><span class="hs-identifier hs-type">Traversable</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679677574"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="GHC.Internal.Generics.html#%3A%2A%3A"><span class="hs-operator hs-type">:*:</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679677575"><span class="hs-identifier hs-type">g</span></a></span><span class="hs-special">)</span></span></span></span></span></span></span><span>
+</span><span id="line-345"></span><span>
+</span><span id="line-346"></span><span class="annot"><span class="hs-comment">-- | @since base-4.9.0.0</span></span><span>
+</span><span id="line-347"></span><span id="local-6989586621679677586"><span id="local-6989586621679677587"><span id="local-6989586621679678521"><span id="local-6989586621679678530"><span id="local-6989586621679678536"><span id="local-6989586621679678541"><span class="hs-keyword">deriving</span><span> </span><span class="hs-keyword">instance</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Internal.Data.Traversable.html#Traversable"><span class="hs-identifier hs-type">Traversable</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679677586"><span class="hs-identifier hs-type">f</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Internal.Data.Traversable.html#Traversable"><span class="hs-identifier hs-type">Traversable</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679677587"><span class="hs-identifier hs-type">g</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="GHC.Internal.Data.Traversable.html#Traversable"><span class="hs-identifier hs-type">Traversable</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679677586"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="GHC.Internal.Generics.html#%3A.%3A"><span class="hs-operator hs-type">:.:</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679677587"><span class="hs-identifier hs-type">g</span></a></span><span class="hs-special">)</span></span></span></span></span></span></span><span>
+</span><span id="line-348"></span><span>
+</span><span id="line-349"></span><span class="annot"><span class="hs-comment">-- | @since base-4.9.0.0</span></span><span>
+</span><span id="line-350"></span><span id="local-6989586621679678552"><span id="local-6989586621679678556"><span id="local-6989586621679678562"><span id="local-6989586621679678567"><span class="hs-keyword">deriving</span><span> </span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="GHC.Internal.Data.Traversable.html#Traversable"><span class="hs-identifier hs-type">Traversable</span></a></span><span> </span><span class="annot"><a href="GHC.Internal.Generics.html#UAddr"><span class="hs-identifier hs-type">UAddr</span></a></span></span></span></span></span><span>
+</span><span id="line-351"></span><span>
+</span><span id="line-352"></span><span class="annot"><span class="hs-comment">-- | @since base-4.9.0.0</span></span><span>
+</span><span id="line-353"></span><span id="local-6989586621679678578"><span id="local-6989586621679678582"><span id="local-6989586621679678588"><span id="local-6989586621679678593"><span class="hs-keyword">deriving</span><span> </span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="GHC.Internal.Data.Traversable.html#Traversable"><span class="hs-identifier hs-type">Traversable</span></a></span><span> </span><span class="annot"><a href="GHC.Internal.Generics.html#UChar"><span class="hs-identifier hs-type">UChar</span></a></span></span></span></span></span><span>
+</span><span id="line-354"></span><span>
+</span><span id="line-355"></span><span class="annot"><span class="hs-comment">-- | @since base-4.9.0.0</span></span><span>
+</span><span id="line-356"></span><span id="local-6989586621679678604"><span id="local-6989586621679678608"><span id="local-6989586621679678614"><span id="local-6989586621679678619"><span class="hs-keyword">deriving</span><span> </span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="GHC.Internal.Data.Traversable.html#Traversable"><span class="hs-identifier hs-type">Traversable</span></a></span><span> </span><span class="annot"><a href="GHC.Internal.Generics.html#UDouble"><span class="hs-identifier hs-type">UDouble</span></a></span></span></span></span></span><span>
+</span><span id="line-357"></span><span>
+</span><span id="line-358"></span><span class="annot"><span class="hs-comment">-- | @since base-4.9.0.0</span></span><span>
+</span><span id="line-359"></span><span id="local-6989586621679678630"><span id="local-6989586621679678634"><span id="local-6989586621679678640"><span id="local-6989586621679678645"><span class="hs-keyword">deriving</span><span> </span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="GHC.Internal.Data.Traversable.html#Traversable"><span class="hs-identifier hs-type">Traversable</span></a></span><span> </span><span class="annot"><a href="GHC.Internal.Generics.html#UFloat"><span class="hs-identifier hs-type">UFloat</span></a></span></span></span></span></span><span>
+</span><span id="line-360"></span><span>
+</span><span id="line-361"></span><span class="annot"><span class="hs-comment">-- | @since base-4.9.0.0</span></span><span>
+</span><span id="line-362"></span><span id="local-6989586621679678656"><span id="local-6989586621679678660"><span id="local-6989586621679678666"><span id="local-6989586621679678671"><span class="hs-keyword">deriving</span><span> </span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="GHC.Internal.Data.Traversable.html#Traversable"><span class="hs-identifier hs-type">Traversable</span></a></span><span> </span><span class="annot"><a href="GHC.Internal.Generics.html#UInt"><span class="hs-identifier hs-type">UInt</span></a></span></span></span></span></span><span>
+</span><span id="line-363"></span><span>
+</span><span id="line-364"></span><span class="annot"><span class="hs-comment">-- | @since base-4.9.0.0</span></span><span>
+</span><span id="line-365"></span><span id="local-6989586621679678682"><span id="local-6989586621679678686"><span id="local-6989586621679678692"><span id="local-6989586621679678697"><span class="hs-keyword">deriving</span><span> </span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="GHC.Internal.Data.Traversable.html#Traversable"><span class="hs-identifier hs-type">Traversable</span></a></span><span> </span><span class="annot"><a href="GHC.Internal.Generics.html#UWord"><span class="hs-identifier hs-type">UWord</span></a></span></span></span></span></span><span>
+</span><span id="line-366"></span><span>
+</span><span id="line-367"></span><span class="hs-comment">-- Instance for Data.Ord</span><span>
+</span><span id="line-368"></span><span class="annot"><span class="hs-comment">-- | @since base-4.12.0.0</span></span><span>
+</span><span id="line-369"></span><span id="local-6989586621679678708"><span id="local-6989586621679678713"><span id="local-6989586621679678719"><span id="local-6989586621679678724"><span class="hs-keyword">deriving</span><span> </span><span class="hs-keyword">instance</span><span> </span><span class="annot"><a href="GHC.Internal.Data.Traversable.html#Traversable"><span class="hs-identifier hs-type">Traversable</span></a></span><span> </span><span class="annot"><a href="GHC.Internal.Data.Ord.html#Down"><span class="hs-identifier hs-type">Down</span></a></span></span></span></span></span><span>
+</span><span id="line-370"></span><span>
+</span><span id="line-371"></span><span class="hs-comment">-- general functions</span><span>
+</span><span id="line-372"></span><span>
+</span><span id="line-373"></span><span class="hs-comment">-- | 'for' is 'traverse' with its arguments flipped. For a version</span><span>
+</span><span id="line-374"></span><span class="hs-comment">-- that ignores the results see 'Data.Foldable.for_'.</span><span>
+</span><span id="line-375"></span><span id="local-6989586621679677617"><span id="local-6989586621679677618"><span id="local-6989586621679677619"><span id="local-6989586621679677620"><span class="annot"><a href="GHC.Internal.Data.Traversable.html#for"><span class="hs-identifier hs-type">for</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Internal.Data.Traversable.html#Traversable"><span class="hs-identifier hs-type">Traversable</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679677617"><span class="hs-identifier hs-type">t</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Internal.Base.html#Applicative"><span class="hs-identifier hs-type">Applicative</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679677618"><span class="hs-identifier hs-type">f</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679677617"><span class="hs-identifier hs-type">t</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679677619"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679677619"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679677618"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679677620"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679677618"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679677617"><span class="hs-identifier hs-type">t</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679677620"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">)</span></span></span></span></span><span>
+</span><span id="line-376"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="GHC.Internal.Data.Traversable.html#for"><span class="hs-pragma hs-type">for</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-377"></span><span id="for"><span class="annot"><span class="annottext">for :: forall (t :: * -&gt; *) (f :: * -&gt; *) a b.
+(Traversable t, Applicative f) =&gt;
+t a -&gt; (a -&gt; f b) -&gt; f (t b)
+</span><a href="GHC.Internal.Data.Traversable.html#for"><span class="hs-identifier hs-var hs-var">for</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">((a -&gt; f b) -&gt; t a -&gt; f (t b)) -&gt; t a -&gt; (a -&gt; f b) -&gt; f (t b)
+forall a b c. (a -&gt; b -&gt; c) -&gt; b -&gt; a -&gt; c
+</span><a href="GHC.Internal.Base.html#flip"><span class="hs-identifier hs-var">flip</span></a></span><span> </span><span class="annot"><span class="annottext">(a -&gt; f b) -&gt; t a -&gt; f (t b)
+forall (t :: * -&gt; *) (f :: * -&gt; *) a b.
+(Traversable t, Applicative f) =&gt;
+(a -&gt; f b) -&gt; t a -&gt; f (t b)
+forall (f :: * -&gt; *) a b.
+Applicative f =&gt;
+(a -&gt; f b) -&gt; t a -&gt; f (t b)
+</span><a href="GHC.Internal.Data.Traversable.html#traverse"><span class="hs-identifier hs-var">traverse</span></a></span><span>
+</span><span id="line-378"></span><span>
+</span><span id="line-379"></span><span class="hs-comment">-- | 'forM' is 'mapM' with its arguments flipped. For a version that</span><span>
+</span><span id="line-380"></span><span class="hs-comment">-- ignores the results see 'Data.Foldable.forM_'.</span><span>
+</span><span id="line-381"></span><span id="local-6989586621679677628"><span id="local-6989586621679677629"><span id="local-6989586621679677630"><span id="local-6989586621679677631"><span class="annot"><a href="GHC.Internal.Data.Traversable.html#forM"><span class="hs-identifier hs-type">forM</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Internal.Data.Traversable.html#Traversable"><span class="hs-identifier hs-type">Traversable</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679677628"><span class="hs-identifier hs-type">t</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Internal.Base.html#Monad"><span class="hs-identifier hs-type">Monad</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679677629"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679677628"><span class="hs-identifier hs-type">t</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679677630"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679677630"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679677629"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679677631"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679677629"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679677628"><span class="hs-identifier hs-type">t</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679677631"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">)</span></span></span></span></span><span>
+</span><span id="line-382"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="GHC.Internal.Data.Traversable.html#forM"><span class="hs-pragma hs-type">forM</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-383"></span><span id="forM"><span class="annot"><span class="annottext">forM :: forall (t :: * -&gt; *) (m :: * -&gt; *) a b.
+(Traversable t, Monad m) =&gt;
+t a -&gt; (a -&gt; m b) -&gt; m (t b)
+</span><a href="GHC.Internal.Data.Traversable.html#forM"><span class="hs-identifier hs-var hs-var">forM</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">((a -&gt; m b) -&gt; t a -&gt; m (t b)) -&gt; t a -&gt; (a -&gt; m b) -&gt; m (t b)
+forall a b c. (a -&gt; b -&gt; c) -&gt; b -&gt; a -&gt; c
+</span><a href="GHC.Internal.Base.html#flip"><span class="hs-identifier hs-var">flip</span></a></span><span> </span><span class="annot"><span class="annottext">(a -&gt; m b) -&gt; t a -&gt; m (t b)
+forall (t :: * -&gt; *) (m :: * -&gt; *) a b.
+(Traversable t, Monad m) =&gt;
+(a -&gt; m b) -&gt; t a -&gt; m (t b)
+forall (m :: * -&gt; *) a b. Monad m =&gt; (a -&gt; m b) -&gt; t a -&gt; m (t b)
+</span><a href="GHC.Internal.Data.Traversable.html#mapM"><span class="hs-identifier hs-var">mapM</span></a></span><span>
+</span><span id="line-384"></span><span>
+</span><span id="line-385"></span><span class="hs-comment">-- |The 'mapAccumL' function behaves like a combination of 'fmap'</span><span>
+</span><span id="line-386"></span><span class="hs-comment">-- and 'Data.Foldable.foldl'; it applies a function to each element of a structure,</span><span>
+</span><span id="line-387"></span><span class="hs-comment">-- passing an accumulating parameter from left to right, and returning</span><span>
+</span><span id="line-388"></span><span class="hs-comment">-- a final value of this accumulator together with the new structure.</span><span>
+</span><span id="line-389"></span><span class="hs-comment">--</span><span>
+</span><span id="line-390"></span><span class="hs-comment">-- ==== __Examples__</span><span>
+</span><span id="line-391"></span><span class="hs-comment">--</span><span>
+</span><span id="line-392"></span><span class="hs-comment">-- Basic usage:</span><span>
+</span><span id="line-393"></span><span class="hs-comment">--</span><span>
+</span><span id="line-394"></span><span class="hs-comment">-- &gt;&gt;&gt; mapAccumL (\a b -&gt; (a + b, a)) 0 [1..10]</span><span>
+</span><span id="line-395"></span><span class="hs-comment">-- (55,[0,1,3,6,10,15,21,28,36,45])</span><span>
+</span><span id="line-396"></span><span class="hs-comment">--</span><span>
+</span><span id="line-397"></span><span class="hs-comment">-- &gt;&gt;&gt; mapAccumL (\a b -&gt; (a &lt;&gt; show b, a)) &quot;0&quot; [1..5]</span><span>
+</span><span id="line-398"></span><span class="hs-comment">-- (&quot;012345&quot;,[&quot;0&quot;,&quot;01&quot;,&quot;012&quot;,&quot;0123&quot;,&quot;01234&quot;])</span><span>
+</span><span id="line-399"></span><span class="hs-comment">--</span><span>
+</span><span id="line-400"></span><span class="annot"><a href="GHC.Internal.Data.Traversable.html#mapAccumL"><span class="hs-identifier hs-type">mapAccumL</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-keyword">forall</span><span> </span><span id="local-6989586621679677636"><span class="annot"><a href="#local-6989586621679677636"><span class="hs-identifier hs-type">t</span></a></span></span><span> </span><span id="local-6989586621679677637"><span class="annot"><a href="#local-6989586621679677637"><span class="hs-identifier hs-type">s</span></a></span></span><span> </span><span id="local-6989586621679677638"><span class="annot"><a href="#local-6989586621679677638"><span class="hs-identifier hs-type">a</span></a></span></span><span> </span><span id="local-6989586621679677639"><span class="annot"><a href="#local-6989586621679677639"><span class="hs-identifier hs-type">b</span></a></span></span><span class="hs-operator">.</span><span> </span><span class="annot"><a href="GHC.Internal.Data.Traversable.html#Traversable"><span class="hs-identifier hs-type">Traversable</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679677636"><span class="hs-identifier hs-type">t</span></a></span><span>
+</span><span id="line-401"></span><span>          </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679677637"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679677638"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679677637"><span class="hs-identifier hs-type">s</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679677639"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679677637"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679677636"><span class="hs-identifier hs-type">t</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679677638"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679677637"><span class="hs-identifier hs-type">s</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679677636"><span class="hs-identifier hs-type">t</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679677639"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-402"></span><span class="hs-comment">-- See Note [Function coercion] in Data.Functor.Utils.</span><span>
+</span><span id="line-403"></span><span id="mapAccumL"><span class="annot"><span class="annottext">mapAccumL :: forall (t :: * -&gt; *) s a b.
+Traversable t =&gt;
+(s -&gt; a -&gt; (s, b)) -&gt; s -&gt; t a -&gt; (s, t b)
+</span><a href="GHC.Internal.Data.Traversable.html#mapAccumL"><span class="hs-identifier hs-var hs-var">mapAccumL</span></a></span></span><span> </span><span id="local-6989586621679678741"><span class="annot"><span class="annottext">s -&gt; a -&gt; (s, b)
+</span><a href="#local-6989586621679678741"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span id="local-6989586621679678742"><span class="annot"><span class="annottext">s
+</span><a href="#local-6989586621679678742"><span class="hs-identifier hs-var">s</span></a></span></span><span> </span><span id="local-6989586621679678743"><span class="annot"><span class="annottext">t a
+</span><a href="#local-6989586621679678743"><span class="hs-identifier hs-var">t</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">((a -&gt; StateL s b) -&gt; t a -&gt; StateL s (t b))
+-&gt; (a -&gt; s -&gt; (s, b)) -&gt; t a -&gt; s -&gt; (s, t b)
+forall a b. Coercible a b =&gt; a -&gt; b
+</span><a href="../../ghc-prim-0.12.0-595c/src/GHC.Prim.html#coerce"><span class="hs-identifier hs-var">coerce</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall (t :: * -&gt; *) (f :: * -&gt; *) a b.
+(Traversable t, Applicative f) =&gt;
+(a -&gt; f b) -&gt; t a -&gt; f (t b)
+</span><a href="GHC.Internal.Data.Traversable.html#traverse"><span class="hs-identifier hs-var">traverse</span></a></span><span> </span><span class="hs-glyph">@</span><span class="annot"><a href="#local-6989586621679677636"><span class="hs-identifier hs-type">t</span></a></span><span> </span><span class="hs-glyph">@</span><span class="hs-special">(</span><span class="annot"><a href="GHC.Internal.Data.Functor.Utils.html#StateL"><span class="hs-identifier hs-type">StateL</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679677637"><span class="hs-identifier hs-type">s</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">@</span><span class="annot"><a href="#local-6989586621679677638"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">@</span><span class="annot"><a href="#local-6989586621679677639"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(s -&gt; a -&gt; (s, b)) -&gt; a -&gt; s -&gt; (s, b)
+forall a b c. (a -&gt; b -&gt; c) -&gt; b -&gt; a -&gt; c
+</span><a href="GHC.Internal.Base.html#flip"><span class="hs-identifier hs-var">flip</span></a></span><span> </span><span class="annot"><span class="annottext">s -&gt; a -&gt; (s, b)
+</span><a href="#local-6989586621679678741"><span class="hs-identifier hs-var">f</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">t a
+</span><a href="#local-6989586621679678743"><span class="hs-identifier hs-var">t</span></a></span><span> </span><span class="annot"><span class="annottext">s
+</span><a href="#local-6989586621679678742"><span class="hs-identifier hs-var">s</span></a></span><span>
+</span><span id="line-404"></span><span>
+</span><span id="line-405"></span><span class="hs-comment">-- |The 'mapAccumR' function behaves like a combination of 'fmap'</span><span>
+</span><span id="line-406"></span><span class="hs-comment">-- and 'Data.Foldable.foldr'; it applies a function to each element of a structure,</span><span>
+</span><span id="line-407"></span><span class="hs-comment">-- passing an accumulating parameter from right to left, and returning</span><span>
+</span><span id="line-408"></span><span class="hs-comment">-- a final value of this accumulator together with the new structure.</span><span>
+</span><span id="line-409"></span><span class="hs-comment">--</span><span>
+</span><span id="line-410"></span><span class="hs-comment">-- ==== __Examples__</span><span>
+</span><span id="line-411"></span><span class="hs-comment">--</span><span>
+</span><span id="line-412"></span><span class="hs-comment">-- Basic usage:</span><span>
+</span><span id="line-413"></span><span class="hs-comment">--</span><span>
+</span><span id="line-414"></span><span class="hs-comment">-- &gt;&gt;&gt; mapAccumR (\a b -&gt; (a + b, a)) 0 [1..10]</span><span>
+</span><span id="line-415"></span><span class="hs-comment">-- (55,[54,52,49,45,40,34,27,19,10,0])</span><span>
+</span><span id="line-416"></span><span class="hs-comment">--</span><span>
+</span><span id="line-417"></span><span class="hs-comment">-- &gt;&gt;&gt; mapAccumR (\a b -&gt; (a &lt;&gt; show b, a)) &quot;0&quot; [1..5]</span><span>
+</span><span id="line-418"></span><span class="hs-comment">-- (&quot;054321&quot;,[&quot;05432&quot;,&quot;0543&quot;,&quot;054&quot;,&quot;05&quot;,&quot;0&quot;])</span><span>
+</span><span id="line-419"></span><span class="hs-comment">--</span><span>
+</span><span id="line-420"></span><span class="annot"><a href="GHC.Internal.Data.Traversable.html#mapAccumR"><span class="hs-identifier hs-type">mapAccumR</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-keyword">forall</span><span> </span><span id="local-6989586621679678744"><span class="annot"><a href="#local-6989586621679678744"><span class="hs-identifier hs-type">t</span></a></span></span><span> </span><span id="local-6989586621679678745"><span class="annot"><a href="#local-6989586621679678745"><span class="hs-identifier hs-type">s</span></a></span></span><span> </span><span id="local-6989586621679678746"><span class="annot"><a href="#local-6989586621679678746"><span class="hs-identifier hs-type">a</span></a></span></span><span> </span><span id="local-6989586621679678747"><span class="annot"><a href="#local-6989586621679678747"><span class="hs-identifier hs-type">b</span></a></span></span><span class="hs-operator">.</span><span> </span><span class="annot"><a href="GHC.Internal.Data.Traversable.html#Traversable"><span class="hs-identifier hs-type">Traversable</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679678744"><span class="hs-identifier hs-type">t</span></a></span><span>
+</span><span id="line-421"></span><span>          </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679678745"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679678746"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679678745"><span class="hs-identifier hs-type">s</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679678747"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679678745"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679678744"><span class="hs-identifier hs-type">t</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679678746"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679678745"><span class="hs-identifier hs-type">s</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679678744"><span class="hs-identifier hs-type">t</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679678747"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-422"></span><span class="hs-comment">-- See Note [Function coercion] in Data.Functor.Utils.</span><span>
+</span><span id="line-423"></span><span id="mapAccumR"><span class="annot"><span class="annottext">mapAccumR :: forall (t :: * -&gt; *) s a b.
+Traversable t =&gt;
+(s -&gt; a -&gt; (s, b)) -&gt; s -&gt; t a -&gt; (s, t b)
+</span><a href="GHC.Internal.Data.Traversable.html#mapAccumR"><span class="hs-identifier hs-var hs-var">mapAccumR</span></a></span></span><span> </span><span id="local-6989586621679678753"><span class="annot"><span class="annottext">s -&gt; a -&gt; (s, b)
+</span><a href="#local-6989586621679678753"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span id="local-6989586621679678754"><span class="annot"><span class="annottext">s
+</span><a href="#local-6989586621679678754"><span class="hs-identifier hs-var">s</span></a></span></span><span> </span><span id="local-6989586621679678755"><span class="annot"><span class="annottext">t a
+</span><a href="#local-6989586621679678755"><span class="hs-identifier hs-var">t</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">((a -&gt; StateR s b) -&gt; t a -&gt; StateR s (t b))
+-&gt; (a -&gt; s -&gt; (s, b)) -&gt; t a -&gt; s -&gt; (s, t b)
+forall a b. Coercible a b =&gt; a -&gt; b
+</span><a href="../../ghc-prim-0.12.0-595c/src/GHC.Prim.html#coerce"><span class="hs-identifier hs-var">coerce</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall (t :: * -&gt; *) (f :: * -&gt; *) a b.
+(Traversable t, Applicative f) =&gt;
+(a -&gt; f b) -&gt; t a -&gt; f (t b)
+</span><a href="GHC.Internal.Data.Traversable.html#traverse"><span class="hs-identifier hs-var">traverse</span></a></span><span> </span><span class="hs-glyph">@</span><span class="annot"><a href="#local-6989586621679678744"><span class="hs-identifier hs-type">t</span></a></span><span> </span><span class="hs-glyph">@</span><span class="hs-special">(</span><span class="annot"><a href="GHC.Internal.Data.Functor.Utils.html#StateR"><span class="hs-identifier hs-type">StateR</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679678745"><span class="hs-identifier hs-type">s</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">@</span><span class="annot"><a href="#local-6989586621679678746"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">@</span><span class="annot"><a href="#local-6989586621679678747"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(s -&gt; a -&gt; (s, b)) -&gt; a -&gt; s -&gt; (s, b)
+forall a b c. (a -&gt; b -&gt; c) -&gt; b -&gt; a -&gt; c
+</span><a href="GHC.Internal.Base.html#flip"><span class="hs-identifier hs-var">flip</span></a></span><span> </span><span class="annot"><span class="annottext">s -&gt; a -&gt; (s, b)
+</span><a href="#local-6989586621679678753"><span class="hs-identifier hs-var">f</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">t a
+</span><a href="#local-6989586621679678755"><span class="hs-identifier hs-var">t</span></a></span><span> </span><span class="annot"><span class="annottext">s
+</span><a href="#local-6989586621679678754"><span class="hs-identifier hs-var">s</span></a></span><span>
+</span><span id="line-424"></span><span>
+</span><span id="line-425"></span><span class="hs-comment">-- | The `mapAccumM` function behaves like a combination of `mapM` and</span><span>
+</span><span id="line-426"></span><span class="hs-comment">-- `mapAccumL` that traverses the structure while evaluating the actions</span><span>
+</span><span id="line-427"></span><span class="hs-comment">-- and passing an accumulating parameter from left to right.</span><span>
+</span><span id="line-428"></span><span class="hs-comment">-- It returns a final value of this accumulator together with the new structure.</span><span>
+</span><span id="line-429"></span><span class="hs-comment">-- The accumulator is often used for caching the intermediate results of a computation.</span><span>
+</span><span id="line-430"></span><span class="hs-comment">--</span><span>
+</span><span id="line-431"></span><span class="hs-comment">--  @since base-4.18.0.0</span><span>
+</span><span id="line-432"></span><span class="hs-comment">--</span><span>
+</span><span id="line-433"></span><span class="hs-comment">-- ==== __Examples__</span><span>
+</span><span id="line-434"></span><span class="hs-comment">--</span><span>
+</span><span id="line-435"></span><span class="hs-comment">-- Basic usage:</span><span>
+</span><span id="line-436"></span><span class="hs-comment">--</span><span>
+</span><span id="line-437"></span><span class="hs-comment">-- &gt;&gt;&gt; let expensiveDouble a = putStrLn (&quot;Doubling &quot; &lt;&gt; show a) &gt;&gt; pure (2 * a)</span><span>
+</span><span id="line-438"></span><span class="hs-comment">-- &gt;&gt;&gt; :{</span><span>
+</span><span id="line-439"></span><span class="hs-comment">-- mapAccumM (\cache a -&gt; case lookup a cache of</span><span>
+</span><span id="line-440"></span><span class="hs-comment">--     Nothing -&gt; expensiveDouble a &gt;&gt;= \double -&gt; pure ((a, double):cache, double)</span><span>
+</span><span id="line-441"></span><span class="hs-comment">--     Just double -&gt; pure (cache, double)</span><span>
+</span><span id="line-442"></span><span class="hs-comment">--     ) [] [1, 2, 3, 1, 2, 3]</span><span>
+</span><span id="line-443"></span><span class="hs-comment">-- :}</span><span>
+</span><span id="line-444"></span><span class="hs-comment">-- Doubling 1</span><span>
+</span><span id="line-445"></span><span class="hs-comment">-- Doubling 2</span><span>
+</span><span id="line-446"></span><span class="hs-comment">-- Doubling 3</span><span>
+</span><span id="line-447"></span><span class="hs-comment">-- ([(3,6),(2,4),(1,2)],[2,4,6,2,4,6])</span><span>
+</span><span id="line-448"></span><span class="hs-comment">--</span><span>
+</span><span id="line-449"></span><span class="annot"><a href="GHC.Internal.Data.Traversable.html#mapAccumM"><span class="hs-identifier hs-type">mapAccumM</span></a></span><span>
+</span><span id="line-450"></span><span>  </span><span class="hs-glyph">::</span><span> </span><span class="hs-keyword">forall</span><span> </span><span id="local-6989586621679677652"><span class="annot"><a href="#local-6989586621679677652"><span class="hs-identifier hs-type">m</span></a></span></span><span> </span><span id="local-6989586621679677653"><span class="annot"><a href="#local-6989586621679677653"><span class="hs-identifier hs-type">t</span></a></span></span><span> </span><span id="local-6989586621679677654"><span class="annot"><a href="#local-6989586621679677654"><span class="hs-identifier hs-type">s</span></a></span></span><span> </span><span id="local-6989586621679677655"><span class="annot"><a href="#local-6989586621679677655"><span class="hs-identifier hs-type">a</span></a></span></span><span> </span><span id="local-6989586621679677656"><span class="annot"><a href="#local-6989586621679677656"><span class="hs-identifier hs-type">b</span></a></span></span><span class="hs-operator">.</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Internal.Base.html#Monad"><span class="hs-identifier hs-type">Monad</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679677652"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Internal.Data.Traversable.html#Traversable"><span class="hs-identifier hs-type">Traversable</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679677653"><span class="hs-identifier hs-type">t</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-451"></span><span>  </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679677654"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679677655"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679677652"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679677654"><span class="hs-identifier hs-type">s</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679677656"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-452"></span><span>  </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679677654"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679677653"><span class="hs-identifier hs-type">t</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679677655"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679677652"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679677654"><span class="hs-identifier hs-type">s</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679677653"><span class="hs-identifier hs-type">t</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679677656"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-453"></span><span id="mapAccumM"><span class="annot"><span class="annottext">mapAccumM :: forall (m :: * -&gt; *) (t :: * -&gt; *) s a b.
+(Monad m, Traversable t) =&gt;
+(s -&gt; a -&gt; m (s, b)) -&gt; s -&gt; t a -&gt; m (s, t b)
+</span><a href="GHC.Internal.Data.Traversable.html#mapAccumM"><span class="hs-identifier hs-var hs-var">mapAccumM</span></a></span></span><span> </span><span id="local-6989586621679678763"><span class="annot"><span class="annottext">s -&gt; a -&gt; m (s, b)
+</span><a href="#local-6989586621679678763"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span id="local-6989586621679678764"><span class="annot"><span class="annottext">s
+</span><a href="#local-6989586621679678764"><span class="hs-identifier hs-var">s</span></a></span></span><span> </span><span id="local-6989586621679678765"><span class="annot"><span class="annottext">t a
+</span><a href="#local-6989586621679678765"><span class="hs-identifier hs-var">t</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">((a -&gt; StateT s m b) -&gt; t a -&gt; StateT s m (t b))
+-&gt; (a -&gt; StateT s m b) -&gt; t a -&gt; s -&gt; m (s, t b)
+forall a b. Coercible a b =&gt; a -&gt; b
+</span><a href="../../ghc-prim-0.12.0-595c/src/GHC.Prim.html#coerce"><span class="hs-identifier hs-var">coerce</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall (t :: * -&gt; *) (m :: * -&gt; *) a b.
+(Traversable t, Monad m) =&gt;
+(a -&gt; m b) -&gt; t a -&gt; m (t b)
+</span><a href="GHC.Internal.Data.Traversable.html#mapM"><span class="hs-identifier hs-var">mapM</span></a></span><span> </span><span class="hs-glyph">@</span><span class="annot"><a href="#local-6989586621679677653"><span class="hs-identifier hs-type">t</span></a></span><span> </span><span class="hs-glyph">@</span><span class="hs-special">(</span><span class="annot"><a href="GHC.Internal.Data.Functor.Utils.html#StateT"><span class="hs-identifier hs-type">StateT</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679677654"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679677652"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">@</span><span class="annot"><a href="#local-6989586621679677655"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">@</span><span class="annot"><a href="#local-6989586621679677656"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(s -&gt; m (s, b)) -&gt; StateT s m b
+forall s (m :: * -&gt; *) a. (s -&gt; m (s, a)) -&gt; StateT s m a
+</span><a href="GHC.Internal.Data.Functor.Utils.html#StateT"><span class="hs-identifier hs-var">StateT</span></a></span><span> </span><span class="annot"><span class="annottext">((s -&gt; m (s, b)) -&gt; StateT s m b)
+-&gt; (a -&gt; s -&gt; m (s, b)) -&gt; a -&gt; StateT s m b
+forall b c a. Coercible b c =&gt; (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><a href="GHC.Internal.Data.Functor.Utils.html#%23."><span class="hs-operator hs-var">#.</span></a></span><span> </span><span class="annot"><span class="annottext">(s -&gt; a -&gt; m (s, b)) -&gt; a -&gt; s -&gt; m (s, b)
+forall a b c. (a -&gt; b -&gt; c) -&gt; b -&gt; a -&gt; c
+</span><a href="GHC.Internal.Base.html#flip"><span class="hs-identifier hs-var">flip</span></a></span><span> </span><span class="annot"><span class="annottext">s -&gt; a -&gt; m (s, b)
+</span><a href="#local-6989586621679678763"><span class="hs-identifier hs-var">f</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">t a
+</span><a href="#local-6989586621679678765"><span class="hs-identifier hs-var">t</span></a></span><span> </span><span class="annot"><span class="annottext">s
+</span><a href="#local-6989586621679678764"><span class="hs-identifier hs-var">s</span></a></span><span>
+</span><span id="line-454"></span><span>
+</span><span id="line-455"></span><span class="hs-comment">-- | 'forAccumM' is 'mapAccumM' with the arguments rearranged.</span><span>
+</span><span id="line-456"></span><span class="hs-comment">--</span><span>
+</span><span id="line-457"></span><span class="hs-comment">-- @since base-4.18.0.0</span><span>
+</span><span id="line-458"></span><span id="local-6989586621679677671"><span id="local-6989586621679677672"><span id="local-6989586621679677673"><span id="local-6989586621679677674"><span id="local-6989586621679677675"><span class="annot"><a href="GHC.Internal.Data.Traversable.html#forAccumM"><span class="hs-identifier hs-type">forAccumM</span></a></span><span>
+</span><span id="line-459"></span><span>  </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Internal.Base.html#Monad"><span class="hs-identifier hs-type">Monad</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679677671"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Internal.Data.Traversable.html#Traversable"><span class="hs-identifier hs-type">Traversable</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679677672"><span class="hs-identifier hs-type">t</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-460"></span><span>  </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679677673"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679677672"><span class="hs-identifier hs-type">t</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679677674"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679677673"><span class="hs-identifier hs-type">s</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679677674"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679677671"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679677673"><span class="hs-identifier hs-type">s</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679677675"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679677671"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679677673"><span class="hs-identifier hs-type">s</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679677672"><span class="hs-identifier hs-type">t</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679677675"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">)</span></span></span></span></span></span><span>
+</span><span id="line-461"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="GHC.Internal.Data.Traversable.html#forAccumM"><span class="hs-pragma hs-type">forAccumM</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-462"></span><span id="forAccumM"><span class="annot"><span class="annottext">forAccumM :: forall (m :: * -&gt; *) (t :: * -&gt; *) s a b.
+(Monad m, Traversable t) =&gt;
+s -&gt; t a -&gt; (s -&gt; a -&gt; m (s, b)) -&gt; m (s, t b)
+</span><a href="GHC.Internal.Data.Traversable.html#forAccumM"><span class="hs-identifier hs-var hs-var">forAccumM</span></a></span></span><span> </span><span id="local-6989586621679678771"><span class="annot"><span class="annottext">s
+</span><a href="#local-6989586621679678771"><span class="hs-identifier hs-var">s</span></a></span></span><span> </span><span id="local-6989586621679678772"><span class="annot"><span class="annottext">t a
+</span><a href="#local-6989586621679678772"><span class="hs-identifier hs-var">t</span></a></span></span><span> </span><span id="local-6989586621679678773"><span class="annot"><span class="annottext">s -&gt; a -&gt; m (s, b)
+</span><a href="#local-6989586621679678773"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(s -&gt; a -&gt; m (s, b)) -&gt; s -&gt; t a -&gt; m (s, t b)
+forall (m :: * -&gt; *) (t :: * -&gt; *) s a b.
+(Monad m, Traversable t) =&gt;
+(s -&gt; a -&gt; m (s, b)) -&gt; s -&gt; t a -&gt; m (s, t b)
+</span><a href="GHC.Internal.Data.Traversable.html#mapAccumM"><span class="hs-identifier hs-var">mapAccumM</span></a></span><span> </span><span class="annot"><span class="annottext">s -&gt; a -&gt; m (s, b)
+</span><a href="#local-6989586621679678773"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">s
+</span><a href="#local-6989586621679678771"><span class="hs-identifier hs-var">s</span></a></span><span> </span><span class="annot"><span class="annottext">t a
+</span><a href="#local-6989586621679678772"><span class="hs-identifier hs-var">t</span></a></span><span>
+</span><span id="line-463"></span><span>
+</span><span id="line-464"></span><span class="hs-comment">-- | This function may be used as a value for `fmap` in a `Functor`</span><span>
+</span><span id="line-465"></span><span class="hs-comment">--   instance, provided that 'traverse' is defined. (Using</span><span>
+</span><span id="line-466"></span><span class="hs-comment">--   `fmapDefault` with a `Traversable` instance defined only by</span><span>
+</span><span id="line-467"></span><span class="hs-comment">--   'sequenceA' will result in infinite recursion.)</span><span>
+</span><span id="line-468"></span><span class="hs-comment">--</span><span>
+</span><span id="line-469"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-470"></span><span class="hs-comment">-- 'fmapDefault' f &#8801; 'runIdentity' . 'traverse' ('Identity' . f)</span><span>
+</span><span id="line-471"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-472"></span><span class="annot"><a href="GHC.Internal.Data.Traversable.html#fmapDefault"><span class="hs-identifier hs-type">fmapDefault</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-keyword">forall</span><span> </span><span id="local-6989586621679677681"><span class="annot"><a href="#local-6989586621679677681"><span class="hs-identifier hs-type">t</span></a></span></span><span> </span><span id="local-6989586621679677682"><span class="annot"><a href="#local-6989586621679677682"><span class="hs-identifier hs-type">a</span></a></span></span><span> </span><span id="local-6989586621679677683"><span class="annot"><a href="#local-6989586621679677683"><span class="hs-identifier hs-type">b</span></a></span></span><span> </span><span class="hs-operator">.</span><span> </span><span class="annot"><a href="GHC.Internal.Data.Traversable.html#Traversable"><span class="hs-identifier hs-type">Traversable</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679677681"><span class="hs-identifier hs-type">t</span></a></span><span>
+</span><span id="line-473"></span><span>            </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679677682"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679677683"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679677681"><span class="hs-identifier hs-type">t</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679677682"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679677681"><span class="hs-identifier hs-type">t</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679677683"><span class="hs-identifier hs-type">b</span></a></span><span>
+</span><span id="line-474"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="GHC.Internal.Data.Traversable.html#fmapDefault"><span class="hs-pragma hs-type">fmapDefault</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-475"></span><span class="hs-comment">-- See Note [Function coercion] in Data.Functor.Utils.</span><span>
+</span><span id="line-476"></span><span id="fmapDefault"><span class="annot"><span class="annottext">fmapDefault :: forall (t :: * -&gt; *) a b. Traversable t =&gt; (a -&gt; b) -&gt; t a -&gt; t b
+</span><a href="GHC.Internal.Data.Traversable.html#fmapDefault"><span class="hs-identifier hs-var hs-var">fmapDefault</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">((a -&gt; Identity b) -&gt; t a -&gt; Identity (t b))
+-&gt; (a -&gt; b) -&gt; t a -&gt; t b
+forall a b. Coercible a b =&gt; a -&gt; b
+</span><a href="../../ghc-prim-0.12.0-595c/src/GHC.Prim.html#coerce"><span class="hs-identifier hs-var">coerce</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall (t :: * -&gt; *) (f :: * -&gt; *) a b.
+(Traversable t, Applicative f) =&gt;
+(a -&gt; f b) -&gt; t a -&gt; f (t b)
+</span><a href="GHC.Internal.Data.Traversable.html#traverse"><span class="hs-identifier hs-var">traverse</span></a></span><span> </span><span class="hs-glyph">@</span><span class="annot"><a href="#local-6989586621679677681"><span class="hs-identifier hs-type">t</span></a></span><span> </span><span class="hs-glyph">@</span><span class="annot"><a href="GHC.Internal.Data.Functor.Identity.html#Identity"><span class="hs-identifier hs-type">Identity</span></a></span><span> </span><span class="hs-glyph">@</span><span class="annot"><a href="#local-6989586621679677682"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">@</span><span class="annot"><a href="#local-6989586621679677683"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-477"></span><span>
+</span><span id="line-478"></span><span class="hs-comment">-- | This function may be used as a value for `Data.Foldable.foldMap`</span><span>
+</span><span id="line-479"></span><span class="hs-comment">-- in a `Foldable` instance.</span><span>
+</span><span id="line-480"></span><span class="hs-comment">--</span><span>
+</span><span id="line-481"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-482"></span><span class="hs-comment">-- 'foldMapDefault' f &#8801; 'getConst' . 'traverse' ('Const' . f)</span><span>
+</span><span id="line-483"></span><span class="hs-comment">-- @</span><span>
+</span><span id="line-484"></span><span class="annot"><a href="GHC.Internal.Data.Traversable.html#foldMapDefault"><span class="hs-identifier hs-type">foldMapDefault</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-keyword">forall</span><span> </span><span id="local-6989586621679677687"><span class="annot"><a href="#local-6989586621679677687"><span class="hs-identifier hs-type">t</span></a></span></span><span> </span><span id="local-6989586621679677688"><span class="annot"><a href="#local-6989586621679677688"><span class="hs-identifier hs-type">m</span></a></span></span><span> </span><span id="local-6989586621679677689"><span class="annot"><a href="#local-6989586621679677689"><span class="hs-identifier hs-type">a</span></a></span></span><span> </span><span class="hs-operator">.</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Internal.Data.Traversable.html#Traversable"><span class="hs-identifier hs-type">Traversable</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679677687"><span class="hs-identifier hs-type">t</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Internal.Base.html#Monoid"><span class="hs-identifier hs-type">Monoid</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679677688"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-485"></span><span>               </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679677689"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679677688"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679677687"><span class="hs-identifier hs-type">t</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679677689"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679677688"><span class="hs-identifier hs-type">m</span></a></span><span>
+</span><span id="line-486"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="GHC.Internal.Data.Traversable.html#foldMapDefault"><span class="hs-pragma hs-type">foldMapDefault</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-487"></span><span class="hs-comment">-- See Note [Function coercion] in Data.Functor.Utils.</span><span>
+</span><span id="line-488"></span><span id="foldMapDefault"><span class="annot"><span class="annottext">foldMapDefault :: forall (t :: * -&gt; *) m a.
+(Traversable t, Monoid m) =&gt;
+(a -&gt; m) -&gt; t a -&gt; m
+</span><a href="GHC.Internal.Data.Traversable.html#foldMapDefault"><span class="hs-identifier hs-var hs-var">foldMapDefault</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">((a -&gt; Const m ()) -&gt; t a -&gt; Const m (t ()))
+-&gt; (a -&gt; m) -&gt; t a -&gt; m
+forall a b. Coercible a b =&gt; a -&gt; b
+</span><a href="../../ghc-prim-0.12.0-595c/src/GHC.Prim.html#coerce"><span class="hs-identifier hs-var">coerce</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">forall (t :: * -&gt; *) (f :: * -&gt; *) a b.
+(Traversable t, Applicative f) =&gt;
+(a -&gt; f b) -&gt; t a -&gt; f (t b)
+</span><a href="GHC.Internal.Data.Traversable.html#traverse"><span class="hs-identifier hs-var">traverse</span></a></span><span> </span><span class="hs-glyph">@</span><span class="annot"><a href="#local-6989586621679677687"><span class="hs-identifier hs-type">t</span></a></span><span> </span><span class="hs-glyph">@</span><span class="hs-special">(</span><span class="annot"><a href="GHC.Internal.Data.Functor.Const.html#Const"><span class="hs-identifier hs-type">Const</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679677688"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">@</span><span class="annot"><a href="#local-6989586621679677689"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">@</span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-489"></span><span>
+</span><span id="line-490"></span></pre></body></html>

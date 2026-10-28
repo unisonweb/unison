@@ -1,0 +1,37 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE ScopedTypeVariables #-}</span><span>
+</span><span id="line-2"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Data.Yaml.Frontmatter.html"><span class="hs-identifier">Data.Yaml.Frontmatter</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-3"></span><span>
+</span><span id="line-4"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.Attoparsec.ByteString</span></span><span>
+</span><span id="line-5"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><a href="Data.Frontmatter.Internal.html"><span class="hs-identifier">Data.Frontmatter.Internal</span></a></span><span>
+</span><span id="line-6"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.Yaml</span></span><span>                  </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">FromJSON</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">Value</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">decodeEither</span></span><span class="hs-special">)</span><span>
+</span><span id="line-7"></span><span>
+</span><span id="line-8"></span><span class="hs-comment">-- |</span><span>
+</span><span id="line-9"></span><span class="hs-comment">-- Parses a YAML frontmatter or JSON frontmatter from a 'ByteString' as a</span><span>
+</span><span id="line-10"></span><span class="hs-comment">-- 'Value'. Because of how @Data.Yaml@ is implemented using @aeson@, this will</span><span>
+</span><span id="line-11"></span><span class="hs-comment">-- succeed for JSON frontmatters as well as YAML ones.</span><span>
+</span><span id="line-12"></span><span id="local-6989586621679075498"><span class="annot"><a href="Data.Yaml.Frontmatter.html#frontmatterYaml"><span class="hs-identifier hs-type">frontmatterYaml</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">FromJSON</span></span><span> </span><span class="annot"><a href="#local-6989586621679075498"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Parser</span></span><span> </span><span class="annot"><a href="#local-6989586621679075498"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-13"></span><span id="frontmatterYaml"><span class="annot"><span class="annottext">frontmatterYaml :: forall a. FromJSON a =&gt; Parser a
+</span><a href="Data.Yaml.Frontmatter.html#frontmatterYaml"><span class="hs-identifier hs-var hs-var">frontmatterYaml</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Parser ByteString a
+</span><a href="#local-6989586621679075517"><span class="hs-identifier hs-var">frontmatterYaml'</span></a></span><span> </span><span class="annot"><span class="annottext">Parser ByteString a -&gt; String -&gt; Parser ByteString a
+forall i a. Parser i a -&gt; String -&gt; Parser i a
+</span><span class="hs-operator hs-var">&lt;?&gt;</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;frontmatterYaml&quot;</span></span><span>
+</span><span id="line-14"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-15"></span><span>    </span><span id="local-6989586621679075517"><span class="annot"><span class="annottext">frontmatterYaml' :: Parser ByteString a
+</span><a href="#local-6989586621679075517"><span class="hs-identifier hs-var hs-var">frontmatterYaml'</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-16"></span><span>        </span><span id="local-6989586621679075525"><span class="annot"><a href="#local-6989586621679075525"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Parser ByteString
+</span><a href="Data.Frontmatter.Internal.html#frontmatter"><span class="hs-identifier hs-var">frontmatter</span></a></span><span>
+</span><span id="line-17"></span><span>        </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="hs-identifier hs-type">decodeEither</span></span><span> </span><span class="annot"><a href="#local-6989586621679075525"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-18"></span><span>            </span><span class="annot"><span class="hs-identifier hs-type">Left</span></span><span> </span><span id="local-6989586621679075527"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679075527"><span class="hs-identifier hs-var">e</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">String -&gt; Parser ByteString a
+forall a. String -&gt; Parser ByteString a
+forall (m :: * -&gt; *) a. MonadFail m =&gt; String -&gt; m a
+</span><span class="hs-identifier hs-var">fail</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679075527"><span class="hs-identifier hs-var">e</span></a></span><span>
+</span><span id="line-19"></span><span>            </span><span class="annot"><span class="hs-identifier hs-type">Right</span></span><span> </span><span id="local-6989586621679075528"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679075528"><span class="hs-identifier hs-var">v</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">a -&gt; Parser ByteString a
+forall a. a -&gt; Parser ByteString a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679075528"><span class="hs-identifier hs-var">v</span></a></span><span>
+</span><span id="line-20"></span></pre></body></html>

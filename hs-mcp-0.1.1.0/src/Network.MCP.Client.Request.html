@@ -1,0 +1,309 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE OverloadedStrings #-}</span><span>
+</span><span id="line-2"></span><span>
+</span><span id="line-3"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Network.MCP.Client.Request.html"><span class="hs-identifier">Network.MCP.Client.Request</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-4"></span><span>
+</span><span id="line-5"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">System.IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">hFlush</span></span><span class="hs-special">)</span><span>
+</span><span id="line-6"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Concurrent.MVar</span></span><span>
+</span><span id="line-7"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Exception</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">throw</span></span><span class="hs-special">)</span><span>
+</span><span id="line-8"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Aeson</span></span><span>
+</span><span id="line-9"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Network.MCP.Client.Types.html"><span class="hs-identifier">Network.MCP.Client.Types</span></a></span><span>
+</span><span id="line-10"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Aeson.KeyMap</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">KeyMap</span></span><span>
+</span><span id="line-11"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.ByteString.Char8</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">C8</span></span><span>
+</span><span id="line-12"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.ByteString.Lazy.Char8</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">BL</span></span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Text</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">T</span></span><span>
+</span><span id="line-14"></span><span>
+</span><span id="line-15"></span><span class="hs-comment">-- Validate JSON-RPC request structure</span><span>
+</span><span id="line-16"></span><span class="annot"><a href="Network.MCP.Client.Request.html#validateJsonRpcRequest"><span class="hs-identifier hs-type">validateJsonRpcRequest</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Value</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Either</span></span><span> </span><span class="annot"><a href="Network.MCP.Client.Types.html#McpClientError"><span class="hs-identifier hs-type">McpClientError</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-17"></span><span id="validateJsonRpcRequest"><span class="annot"><span class="annottext">validateJsonRpcRequest :: Value -&gt; Either McpClientError ()
+</span><a href="Network.MCP.Client.Request.html#validateJsonRpcRequest"><span class="hs-identifier hs-var hs-var">validateJsonRpcRequest</span></a></span></span><span> </span><span id="local-6989586621679123838"><span class="annot"><span class="annottext">Value
+</span><a href="#local-6989586621679123838"><span class="hs-identifier hs-var">v</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Value
+</span><a href="#local-6989586621679123838"><span class="hs-identifier hs-var">v</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-18"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">Object</span></span><span> </span><span id="local-6989586621679123840"><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679123840"><span class="hs-identifier hs-var">obj</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-19"></span><span>        </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679123841"><span class="annot"><span class="annottext">hasMethod :: Bool
+</span><a href="#local-6989586621679123841"><span class="hs-identifier hs-var hs-var">hasMethod</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;method&quot;</span></span><span> </span><span class="annot"><span class="annottext">Key -&gt; [Key] -&gt; Bool
+forall a. Eq a =&gt; a -&gt; [a] -&gt; Bool
+forall (t :: * -&gt; *) a. (Foldable t, Eq a) =&gt; a -&gt; t a -&gt; Bool
+</span><span class="hs-operator hs-var">`elem`</span></span><span> </span><span class="annot"><span class="annottext">Object -&gt; [Key]
+forall {b}. KeyMap b -&gt; [Key]
+</span><a href="#local-6989586621679123843"><span class="hs-identifier hs-var">keys</span></a></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679123840"><span class="hs-identifier hs-var">obj</span></a></span><span>
+</span><span id="line-20"></span><span>            </span><span id="local-6989586621679123844"><span class="annot"><span class="annottext">hasJsonRpc :: Bool
+</span><a href="#local-6989586621679123844"><span class="hs-identifier hs-var hs-var">hasJsonRpc</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Key -&gt; Object -&gt; Maybe Value
+forall v. Key -&gt; KeyMap v -&gt; Maybe v
+</span><span class="hs-identifier hs-var">KeyMap.lookup</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;jsonrpc&quot;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679123840"><span class="hs-identifier hs-var">obj</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe Value -&gt; Maybe Value -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">Value -&gt; Maybe Value
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Text -&gt; Value
+</span><span class="hs-identifier hs-var">String</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;2.0&quot;</span></span><span class="hs-special">)</span><span>
+</span><span id="line-21"></span><span>        </span><span class="hs-keyword">in</span><span> </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679123841"><span class="hs-identifier hs-var">hasMethod</span></a></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">&amp;&amp;</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621679123844"><span class="hs-identifier hs-var">hasJsonRpc</span></a></span><span>
+</span><span id="line-22"></span><span>           </span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="annottext">() -&gt; Either McpClientError ()
+forall a b. b -&gt; Either a b
+</span><span class="hs-identifier hs-var">Right</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-23"></span><span>           </span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="annottext">McpClientError -&gt; Either McpClientError ()
+forall a b. a -&gt; Either a b
+</span><span class="hs-identifier hs-var">Left</span></span><span> </span><span class="annot"><span class="annottext">(McpClientError -&gt; Either McpClientError ())
+-&gt; McpClientError -&gt; Either McpClientError ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Text -&gt; McpClientError
+</span><a href="Network.MCP.Client.Types.html#ProtocolError"><span class="hs-identifier hs-var">ProtocolError</span></a></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;Invalid JSON-RPC request structure&quot;</span></span><span>
+</span><span id="line-24"></span><span>    </span><span class="annot"><span class="annottext">Value
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">McpClientError -&gt; Either McpClientError ()
+forall a b. a -&gt; Either a b
+</span><span class="hs-identifier hs-var">Left</span></span><span> </span><span class="annot"><span class="annottext">(McpClientError -&gt; Either McpClientError ())
+-&gt; McpClientError -&gt; Either McpClientError ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Text -&gt; McpClientError
+</span><a href="Network.MCP.Client.Types.html#ProtocolError"><span class="hs-identifier hs-var">ProtocolError</span></a></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;Request must be a JSON object&quot;</span></span><span>
+</span><span id="line-25"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-26"></span><span>    </span><span id="local-6989586621679123843"><span class="annot"><span class="annottext">keys :: KeyMap b -&gt; [Key]
+</span><a href="#local-6989586621679123843"><span class="hs-identifier hs-var hs-var">keys</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">((Key, b) -&gt; Key) -&gt; [(Key, b)] -&gt; [Key]
+forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+</span><span class="hs-identifier hs-var">map</span></span><span> </span><span class="annot"><span class="annottext">(Key, b) -&gt; Key
+forall a b. (a, b) -&gt; a
+</span><span class="hs-identifier hs-var">fst</span></span><span> </span><span class="annot"><span class="annottext">([(Key, b)] -&gt; [Key])
+-&gt; (KeyMap b -&gt; [(Key, b)]) -&gt; KeyMap b -&gt; [Key]
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">KeyMap b -&gt; [(Key, b)]
+forall v. KeyMap v -&gt; [(Key, v)]
+</span><span class="hs-identifier hs-var">KeyMap.toList</span></span><span>
+</span><span id="line-27"></span><span>
+</span><span id="line-28"></span><span class="hs-comment">-- Robust request sending and response parsing</span><span>
+</span><span id="line-29"></span><span class="annot"><a href="Network.MCP.Client.Request.html#sendClientRequest"><span class="hs-identifier hs-type">sendClientRequest</span></a></span><span>
+</span><span id="line-30"></span><span>    </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Network.MCP.Client.Types.html#Client"><span class="hs-identifier hs-type">Client</span></a></span><span>      </span><span class="hs-comment">-- stdin handle</span><span>
+</span><span id="line-31"></span><span>    </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Value</span></span><span>       </span><span class="hs-comment">-- request message</span><span>
+</span><span id="line-32"></span><span>    </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Value</span></span><span>    </span><span class="hs-comment">-- parsed result</span><span>
+</span><span id="line-33"></span><span id="sendClientRequest"><span class="annot"><span class="annottext">sendClientRequest :: Client -&gt; Value -&gt; IO Value
+</span><a href="Network.MCP.Client.Request.html#sendClientRequest"><span class="hs-identifier hs-var hs-var">sendClientRequest</span></a></span></span><span> </span><span id="local-6989586621679123853"><span class="annot"><span class="annottext">Client
+</span><a href="#local-6989586621679123853"><span class="hs-identifier hs-var">client</span></a></span></span><span> </span><span id="local-6989586621679123854"><span class="annot"><span class="annottext">Value
+</span><a href="#local-6989586621679123854"><span class="hs-identifier hs-var">message</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-34"></span><span>    </span><span class="hs-comment">-- Validate request structure before sending</span><span>
+</span><span id="line-35"></span><span>    </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Value -&gt; Either McpClientError ()
+</span><a href="Network.MCP.Client.Request.html#validateJsonRpcRequest"><span class="hs-identifier hs-var">validateJsonRpcRequest</span></a></span><span> </span><span class="annot"><span class="annottext">Value
+</span><a href="#local-6989586621679123854"><span class="hs-identifier hs-var">message</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-36"></span><span>        </span><span class="annot"><span class="hs-identifier hs-type">Left</span></span><span> </span><span id="local-6989586621679123855"><span class="annot"><span class="annottext">McpClientError
+</span><a href="#local-6989586621679123855"><span class="hs-identifier hs-var">err</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">McpClientError -&gt; IO ()
+forall a e. (HasCallStack, Exception e) =&gt; e -&gt; a
+</span><span class="hs-identifier hs-var">throw</span></span><span> </span><span class="annot"><span class="annottext">McpClientError
+</span><a href="#local-6989586621679123855"><span class="hs-identifier hs-var">err</span></a></span><span>
+</span><span id="line-37"></span><span>        </span><span class="annot"><span class="hs-identifier hs-type">Right</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">() -&gt; IO ()
+forall a. a -&gt; IO a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-38"></span><span>
+</span><span id="line-39"></span><span>    </span><span id="local-6989586621679123856"><span class="annot"><span class="annottext">Handle
+</span><a href="#local-6989586621679123856"><span class="hs-identifier hs-var">hstdin</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">MVar (Maybe Handle) -&gt; IO (Maybe Handle)
+forall a. MVar a -&gt; IO a
+</span><span class="hs-identifier hs-var">readMVar</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Client -&gt; MVar (Maybe Handle)
+</span><a href="Network.MCP.Client.Types.html#clientStdin"><span class="hs-identifier hs-var">clientStdin</span></a></span><span> </span><span class="annot"><span class="annottext">Client
+</span><a href="#local-6989586621679123853"><span class="hs-identifier hs-var">client</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">IO (Maybe Handle) -&gt; (Maybe Handle -&gt; IO Handle) -&gt; IO Handle
+forall a b. IO a -&gt; (a -&gt; IO b) -&gt; IO b
+forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; (a -&gt; m b) -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;=</span></span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-40"></span><span>        </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621679123859"><span class="annot"><span class="annottext">Handle
+</span><a href="#local-6989586621679123859"><span class="hs-identifier hs-var">inp</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span> </span><span class="annot"><span class="annottext">Handle -&gt; IO Handle
+forall a. a -&gt; IO a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">Handle
+</span><a href="#local-6989586621679123859"><span class="hs-identifier hs-var">inp</span></a></span><span>
+</span><span id="line-41"></span><span>        </span><span class="annot"><span class="annottext">Maybe Handle
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">McpClientError -&gt; IO Handle
+forall a e. (HasCallStack, Exception e) =&gt; e -&gt; a
+</span><span class="hs-identifier hs-var">throw</span></span><span> </span><span class="annot"><span class="annottext">(McpClientError -&gt; IO Handle) -&gt; McpClientError -&gt; IO Handle
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Text -&gt; McpClientError
+</span><a href="Network.MCP.Client.Types.html#ConnectionError"><span class="hs-identifier hs-var">ConnectionError</span></a></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;Stdin not available&quot;</span></span><span>
+</span><span id="line-42"></span><span>
+</span><span id="line-43"></span><span>    </span><span id="local-6989586621679123861"><span class="annot"><span class="annottext">Handle
+</span><a href="#local-6989586621679123861"><span class="hs-identifier hs-var">hstdout</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">MVar (Maybe Handle) -&gt; IO (Maybe Handle)
+forall a. MVar a -&gt; IO a
+</span><span class="hs-identifier hs-var">readMVar</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Client -&gt; MVar (Maybe Handle)
+</span><a href="Network.MCP.Client.Types.html#clientStdout"><span class="hs-identifier hs-var">clientStdout</span></a></span><span> </span><span class="annot"><span class="annottext">Client
+</span><a href="#local-6989586621679123853"><span class="hs-identifier hs-var">client</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">IO (Maybe Handle) -&gt; (Maybe Handle -&gt; IO Handle) -&gt; IO Handle
+forall a b. IO a -&gt; (a -&gt; IO b) -&gt; IO b
+forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; (a -&gt; m b) -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;=</span></span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-44"></span><span>        </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621679123863"><span class="annot"><span class="annottext">Handle
+</span><a href="#local-6989586621679123863"><span class="hs-identifier hs-var">outp</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span> </span><span class="annot"><span class="annottext">Handle -&gt; IO Handle
+forall a. a -&gt; IO a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">Handle
+</span><a href="#local-6989586621679123863"><span class="hs-identifier hs-var">outp</span></a></span><span>
+</span><span id="line-45"></span><span>        </span><span class="annot"><span class="annottext">Maybe Handle
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">McpClientError -&gt; IO Handle
+forall a e. (HasCallStack, Exception e) =&gt; e -&gt; a
+</span><span class="hs-identifier hs-var">throw</span></span><span> </span><span class="annot"><span class="annottext">(McpClientError -&gt; IO Handle) -&gt; McpClientError -&gt; IO Handle
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Text -&gt; McpClientError
+</span><a href="Network.MCP.Client.Types.html#ConnectionError"><span class="hs-identifier hs-var">ConnectionError</span></a></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;Stdout not available&quot;</span></span><span>
+</span><span id="line-46"></span><span>
+</span><span id="line-47"></span><span>    </span><span class="hs-comment">-- Encode and send message</span><span>
+</span><span id="line-48"></span><span>    </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679123864"><span class="annot"><span class="annottext">a :: StrictByteString
+</span><a href="#local-6989586621679123864"><span class="hs-identifier hs-var hs-var">a</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">LazyByteString -&gt; StrictByteString
+</span><span class="hs-identifier hs-var">BL.toStrict</span></span><span> </span><span class="annot"><span class="annottext">(LazyByteString -&gt; StrictByteString)
+-&gt; LazyByteString -&gt; StrictByteString
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Value -&gt; LazyByteString
+forall a. ToJSON a =&gt; a -&gt; LazyByteString
+</span><span class="hs-identifier hs-var">encode</span></span><span> </span><span class="annot"><span class="annottext">Value
+</span><a href="#local-6989586621679123854"><span class="hs-identifier hs-var">message</span></a></span><span>
+</span><span id="line-49"></span><span>    </span><span class="annot"><span class="annottext">Handle -&gt; StrictByteString -&gt; IO ()
+</span><span class="hs-identifier hs-var">C8.hPut</span></span><span> </span><span class="annot"><span class="annottext">Handle
+</span><a href="#local-6989586621679123856"><span class="hs-identifier hs-var">hstdin</span></a></span><span> </span><span class="annot"><span class="annottext">StrictByteString
+</span><a href="#local-6989586621679123864"><span class="hs-identifier hs-var">a</span></a></span><span>
+</span><span id="line-50"></span><span>
+</span><span id="line-51"></span><span>    </span><span class="annot"><span class="annottext">Handle -&gt; IO ()
+</span><span class="hs-identifier hs-var">hFlush</span></span><span> </span><span class="annot"><span class="annottext">Handle
+</span><a href="#local-6989586621679123856"><span class="hs-identifier hs-var">hstdin</span></a></span><span>
+</span><span id="line-52"></span><span>
+</span><span id="line-53"></span><span>    </span><span class="hs-comment">-- Read and parse response</span><span>
+</span><span id="line-54"></span><span>    </span><span id="local-6989586621679123868"><span class="annot"><span class="annottext">StrictByteString
+</span><a href="#local-6989586621679123868"><span class="hs-identifier hs-var">responseStr</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Handle -&gt; IO StrictByteString
+</span><span class="hs-identifier hs-var">C8.hGetLine</span></span><span> </span><span class="annot"><span class="annottext">Handle
+</span><a href="#local-6989586621679123861"><span class="hs-identifier hs-var">hstdout</span></a></span><span>
+</span><span id="line-55"></span><span>    </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679123870"><span class="annot"><span class="annottext">responseBS :: LazyByteString
+</span><a href="#local-6989586621679123870"><span class="hs-identifier hs-var hs-var">responseBS</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">StrictByteString -&gt; LazyByteString
+</span><span class="hs-identifier hs-var">BL.fromStrict</span></span><span> </span><span class="annot"><span class="annottext">StrictByteString
+</span><a href="#local-6989586621679123868"><span class="hs-identifier hs-var">responseStr</span></a></span><span>
+</span><span id="line-56"></span><span>
+</span><span id="line-57"></span><span>    </span><span class="hs-comment">-- Comprehensive response parsing</span><span>
+</span><span id="line-58"></span><span>    </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">LazyByteString -&gt; Either String Value
+forall a. FromJSON a =&gt; LazyByteString -&gt; Either String a
+</span><span class="hs-identifier hs-var">eitherDecode</span></span><span> </span><span class="annot"><span class="annottext">LazyByteString
+</span><a href="#local-6989586621679123870"><span class="hs-identifier hs-var">responseBS</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-59"></span><span>        </span><span class="annot"><span class="hs-identifier hs-type">Left</span></span><span> </span><span id="local-6989586621679123873"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679123873"><span class="hs-identifier hs-var">decodeErr</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-60"></span><span>            </span><span class="annot"><span class="annottext">McpClientError -&gt; IO Value
+forall a e. (HasCallStack, Exception e) =&gt; e -&gt; a
+</span><span class="hs-identifier hs-var">throw</span></span><span> </span><span class="annot"><span class="annottext">(McpClientError -&gt; IO Value) -&gt; McpClientError -&gt; IO Value
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Text -&gt; McpClientError
+</span><a href="Network.MCP.Client.Types.html#ProtocolError"><span class="hs-identifier hs-var">ProtocolError</span></a></span><span> </span><span class="annot"><span class="annottext">(Text -&gt; McpClientError) -&gt; Text -&gt; McpClientError
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; Text
+</span><span class="hs-identifier hs-var">T.pack</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621679123873"><span class="hs-identifier hs-var">decodeErr</span></a></span><span>
+</span><span id="line-61"></span><span>        </span><span class="annot"><span class="hs-identifier hs-type">Right</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Object</span></span><span> </span><span id="local-6989586621679123875"><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679123875"><span class="hs-identifier hs-var">resp</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-62"></span><span>            </span><span class="annot"><span class="annottext">Object -&gt; IO Value
+</span><a href="Network.MCP.Client.Request.html#parseResponse"><span class="hs-identifier hs-var">parseResponse</span></a></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679123875"><span class="hs-identifier hs-var">resp</span></a></span><span>
+</span><span id="line-63"></span><span>        </span><span class="annot"><span class="hs-identifier hs-type">Right</span></span><span> </span><span class="annot"><span class="annottext">Value
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-64"></span><span>            </span><span class="annot"><span class="annottext">McpClientError -&gt; IO Value
+forall a e. (HasCallStack, Exception e) =&gt; e -&gt; a
+</span><span class="hs-identifier hs-var">throw</span></span><span> </span><span class="annot"><span class="annottext">(McpClientError -&gt; IO Value) -&gt; McpClientError -&gt; IO Value
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Text -&gt; McpClientError
+</span><a href="Network.MCP.Client.Types.html#ProtocolError"><span class="hs-identifier hs-var">ProtocolError</span></a></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;Response must be a JSON object&quot;</span></span><span>
+</span><span id="line-65"></span><span>
+</span><span id="line-66"></span><span class="hs-comment">-- Parse the response, handling both success and error cases</span><span>
+</span><span id="line-67"></span><span class="annot"><a href="Network.MCP.Client.Request.html#parseResponse"><span class="hs-identifier hs-type">parseResponse</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">KeyMap.KeyMap</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Value</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Value</span></span><span>
+</span><span id="line-68"></span><span id="parseResponse"><span class="annot"><span class="annottext">parseResponse :: Object -&gt; IO Value
+</span><a href="Network.MCP.Client.Request.html#parseResponse"><span class="hs-identifier hs-var hs-var">parseResponse</span></a></span></span><span> </span><span id="local-6989586621679123877"><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679123877"><span class="hs-identifier hs-var">resp</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-69"></span><span>    </span><span class="hs-keyword">case</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Key -&gt; Object -&gt; Maybe Value
+forall v. Key -&gt; KeyMap v -&gt; Maybe v
+</span><span class="hs-identifier hs-var">KeyMap.lookup</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;result&quot;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679123877"><span class="hs-identifier hs-var">resp</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Key -&gt; Object -&gt; Maybe Value
+forall v. Key -&gt; KeyMap v -&gt; Maybe v
+</span><span class="hs-identifier hs-var">KeyMap.lookup</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;error&quot;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679123877"><span class="hs-identifier hs-var">resp</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-70"></span><span>        </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621679123878"><span class="annot"><span class="annottext">Value
+</span><a href="#local-6989586621679123878"><span class="hs-identifier hs-var">result</span></a></span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Maybe Value
+</span><span class="hs-identifier hs-var">Nothing</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-71"></span><span>            </span><span class="annot"><span class="annottext">Value -&gt; IO Value
+forall a. a -&gt; IO a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">Value
+</span><a href="#local-6989586621679123878"><span class="hs-identifier hs-var">result</span></a></span><span>
+</span><span id="line-72"></span><span>        </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Maybe Value
+</span><span class="hs-identifier hs-var">Nothing</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Object</span></span><span> </span><span id="local-6989586621679123879"><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679123879"><span class="hs-identifier hs-var">errorObj</span></a></span></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-73"></span><span>            </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679123880"><span class="annot"><span class="annottext">code :: Maybe Int
+</span><a href="#local-6989586621679123880"><span class="hs-identifier hs-var hs-var">code</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Key -&gt; Object -&gt; Maybe Value
+forall v. Key -&gt; KeyMap v -&gt; Maybe v
+</span><span class="hs-identifier hs-var">KeyMap.lookup</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;code&quot;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679123879"><span class="hs-identifier hs-var">errorObj</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-74"></span><span>                         </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Number</span></span><span> </span><span id="local-6989586621679123882"><span class="annot"><span class="annottext">Scientific
+</span><a href="#local-6989586621679123882"><span class="hs-identifier hs-var">n</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Maybe Int
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Scientific -&gt; Int
+forall b. Integral b =&gt; Scientific -&gt; b
+forall a b. (RealFrac a, Integral b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">round</span></span><span> </span><span class="annot"><span class="annottext">Scientific
+</span><a href="#local-6989586621679123882"><span class="hs-identifier hs-var">n</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-75"></span><span>                         </span><span class="annot"><span class="annottext">Maybe Value
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Maybe Int
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-76"></span><span>                </span><span id="local-6989586621679123884"><span class="annot"><span class="annottext">message :: Text
+</span><a href="#local-6989586621679123884"><span class="hs-identifier hs-var hs-var">message</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Key -&gt; Object -&gt; Maybe Value
+forall v. Key -&gt; KeyMap v -&gt; Maybe v
+</span><span class="hs-identifier hs-var">KeyMap.lookup</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;message&quot;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679123879"><span class="hs-identifier hs-var">errorObj</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-77"></span><span>                            </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span id="local-6989586621679123885"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679123885"><span class="hs-identifier hs-var">msg</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679123885"><span class="hs-identifier hs-var">msg</span></a></span><span>
+</span><span id="line-78"></span><span>                            </span><span class="annot"><span class="annottext">Maybe Value
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;Unknown server error&quot;</span></span><span>
+</span><span id="line-79"></span><span>                </span><span id="local-6989586621679123886"><span class="annot"><span class="annottext">details :: Maybe Value
+</span><a href="#local-6989586621679123886"><span class="hs-identifier hs-var hs-var">details</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Key -&gt; Object -&gt; Maybe Value
+forall v. Key -&gt; KeyMap v -&gt; Maybe v
+</span><span class="hs-identifier hs-var">KeyMap.lookup</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;data&quot;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679123879"><span class="hs-identifier hs-var">errorObj</span></a></span><span>
+</span><span id="line-80"></span><span>
+</span><span id="line-81"></span><span>            </span><span class="annot"><span class="annottext">McpClientError -&gt; IO Value
+forall a e. (HasCallStack, Exception e) =&gt; e -&gt; a
+</span><span class="hs-identifier hs-var">throw</span></span><span> </span><span class="annot"><span class="annottext">(McpClientError -&gt; IO Value) -&gt; McpClientError -&gt; IO Value
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><a href="Network.MCP.Client.Types.html#ServerError"><span class="hs-identifier hs-type">ServerError</span></a></span><span>
+</span><span id="line-82"></span><span>                </span><span class="hs-special">{</span><span> </span><span class="annot"><span class="annottext">serverErrorCode :: Maybe Int
+</span><a href="Network.MCP.Client.Types.html#serverErrorCode"><span class="hs-identifier hs-var">serverErrorCode</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Maybe Int
+</span><a href="#local-6989586621679123880"><span class="hs-identifier hs-var">code</span></a></span><span>
+</span><span id="line-83"></span><span>                </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">serverErrorMessage :: Text
+</span><a href="Network.MCP.Client.Types.html#serverErrorMessage"><span class="hs-identifier hs-var">serverErrorMessage</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679123884"><span class="hs-identifier hs-var">message</span></a></span><span>
+</span><span id="line-84"></span><span>                </span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">serverErrorData :: Maybe Value
+</span><a href="Network.MCP.Client.Types.html#serverErrorData"><span class="hs-identifier hs-var">serverErrorData</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Maybe Value
+</span><a href="#local-6989586621679123886"><span class="hs-identifier hs-var">details</span></a></span><span>
+</span><span id="line-85"></span><span>                </span><span class="hs-special">}</span><span>
+</span><span id="line-86"></span><span>        </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Maybe Value
+</span><span class="hs-identifier hs-var">Nothing</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Maybe Value
+</span><span class="hs-identifier hs-var">Nothing</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-87"></span><span>            </span><span class="annot"><span class="annottext">McpClientError -&gt; IO Value
+forall a e. (HasCallStack, Exception e) =&gt; e -&gt; a
+</span><span class="hs-identifier hs-var">throw</span></span><span> </span><span class="annot"><span class="annottext">(McpClientError -&gt; IO Value) -&gt; McpClientError -&gt; IO Value
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Text -&gt; McpClientError
+</span><a href="Network.MCP.Client.Types.html#ProtocolError"><span class="hs-identifier hs-var">ProtocolError</span></a></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;Response lacks both result and error&quot;</span></span><span>
+</span><span id="line-88"></span><span>        </span><span class="annot"><span class="annottext">(Maybe Value, Maybe Value)
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-89"></span><span>            </span><span class="annot"><span class="annottext">McpClientError -&gt; IO Value
+forall a e. (HasCallStack, Exception e) =&gt; e -&gt; a
+</span><span class="hs-identifier hs-var">throw</span></span><span> </span><span class="annot"><span class="annottext">(McpClientError -&gt; IO Value) -&gt; McpClientError -&gt; IO Value
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Text -&gt; McpClientError
+</span><a href="Network.MCP.Client.Types.html#ProtocolError"><span class="hs-identifier hs-var">ProtocolError</span></a></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;Invalid response structure&quot;</span></span><span>
+</span><span id="line-90"></span></pre></body></html>

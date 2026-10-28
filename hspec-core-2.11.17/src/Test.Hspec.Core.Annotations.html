@@ -1,0 +1,96 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE CPP #-}</span><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# LANGUAGE GeneralizedNewtypeDeriving #-}</span><span>
+</span><span id="line-3"></span><span class="hs-pragma">{-# LANGUAGE ScopedTypeVariables #-}</span><span>
+</span><span id="line-4"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Annotations.html"><span class="hs-identifier">Test.Hspec.Core.Annotations</span></a></span><span> </span><span class="hs-special">(</span><span>
+</span><span id="line-5"></span><span>  </span><span class="annot"><a href="Test.Hspec.Core.Annotations.html#Annotations"><span class="hs-identifier">Annotations</span></a></span><span>
+</span><span id="line-6"></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Annotations.html#setValue"><span class="hs-identifier">setValue</span></a></span><span>
+</span><span id="line-7"></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Annotations.html#getValue"><span class="hs-identifier">getValue</span></a></span><span>
+</span><span id="line-8"></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-9"></span><span>
+</span><span id="line-10"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Prelude</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-11"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><a href="Test.Hspec.Core.Compat.html"><span class="hs-identifier">Test.Hspec.Core.Compat</span></a></span><span>
+</span><span id="line-12"></span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.Typeable</span></span><span>
+</span><span id="line-14"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.Dynamic</span></span><span>
+</span><span id="line-15"></span><span class="hs-keyword">import</span><span>           </span><span class="annot"><span class="hs-identifier">Data.Map</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Map</span></span><span class="hs-special">)</span><span>
+</span><span id="line-16"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Map</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Map</span></span><span>
+</span><span id="line-17"></span><span>
+</span><span id="line-18"></span><span class="hs-keyword">newtype</span><span> </span><span id="Annotations"><span class="annot"><a href="Test.Hspec.Core.Annotations.html#Annotations"><span class="hs-identifier hs-var">Annotations</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="Annotations"><span class="annot"><a href="Test.Hspec.Core.Annotations.html#Annotations"><span class="hs-identifier hs-var">Annotations</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Map</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">TypeRep</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Dynamic</span></span><span class="hs-special">)</span><span>
+</span><span id="line-19"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span class="hs-cpp">
+#if MIN_VERSION_base(4,11,0)
+</span><span>  </span><span id="local-6989586621679138113"><span id="local-6989586621679138119"><span id="local-6989586621679138126"><span class="annot"><span class="annottext">NonEmpty Annotations -&gt; Annotations
+Annotations -&gt; Annotations -&gt; Annotations
+(Annotations -&gt; Annotations -&gt; Annotations)
+-&gt; (NonEmpty Annotations -&gt; Annotations)
+-&gt; (forall b. Integral b =&gt; b -&gt; Annotations -&gt; Annotations)
+-&gt; Semigroup Annotations
+forall b. Integral b =&gt; b -&gt; Annotations -&gt; Annotations
+forall a.
+(a -&gt; a -&gt; a)
+-&gt; (NonEmpty a -&gt; a)
+-&gt; (forall b. Integral b =&gt; b -&gt; a -&gt; a)
+-&gt; Semigroup a
+$c&lt;&gt; :: Annotations -&gt; Annotations -&gt; Annotations
+&lt;&gt; :: Annotations -&gt; Annotations -&gt; Annotations
+$csconcat :: NonEmpty Annotations -&gt; Annotations
+sconcat :: NonEmpty Annotations -&gt; Annotations
+$cstimes :: forall b. Integral b =&gt; b -&gt; Annotations -&gt; Annotations
+stimes :: forall b. Integral b =&gt; b -&gt; Annotations -&gt; Annotations
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Semigroup</span></span></span></span></span><span class="hs-special">,</span><span class="hs-cpp">
+#endif
+</span><span>  </span><span id="local-6989586621679138140"><span id="local-6989586621679138146"><span id="local-6989586621679138151"><span class="annot"><span class="annottext">Semigroup Annotations
+Annotations
+Semigroup Annotations =&gt;
+Annotations
+-&gt; (Annotations -&gt; Annotations -&gt; Annotations)
+-&gt; ([Annotations] -&gt; Annotations)
+-&gt; Monoid Annotations
+[Annotations] -&gt; Annotations
+Annotations -&gt; Annotations -&gt; Annotations
+forall a.
+Semigroup a =&gt;
+a -&gt; (a -&gt; a -&gt; a) -&gt; ([a] -&gt; a) -&gt; Monoid a
+$cmempty :: Annotations
+mempty :: Annotations
+$cmappend :: Annotations -&gt; Annotations -&gt; Annotations
+mappend :: Annotations -&gt; Annotations -&gt; Annotations
+$cmconcat :: [Annotations] -&gt; Annotations
+mconcat :: [Annotations] -&gt; Annotations
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Monoid</span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-24"></span><span>
+</span><span id="line-25"></span><span id="local-6989586621679138088"><span class="annot"><a href="Test.Hspec.Core.Annotations.html#setValue"><span class="hs-identifier hs-type">setValue</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Typeable</span></span><span> </span><span class="annot"><a href="#local-6989586621679138088"><span class="hs-identifier hs-type">value</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679138088"><span class="hs-identifier hs-type">value</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Annotations.html#Annotations"><span class="hs-identifier hs-type">Annotations</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Annotations.html#Annotations"><span class="hs-identifier hs-type">Annotations</span></a></span></span><span>
+</span><span id="line-26"></span><span id="setValue"><span class="annot"><span class="annottext">setValue :: forall value. Typeable value =&gt; value -&gt; Annotations -&gt; Annotations
+</span><a href="Test.Hspec.Core.Annotations.html#setValue"><span class="hs-identifier hs-var hs-var">setValue</span></a></span></span><span> </span><span id="local-6989586621679138161"><span class="annot"><span class="annottext">value
+</span><a href="#local-6989586621679138161"><span class="hs-identifier hs-var">value</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Test.Hspec.Core.Annotations.html#Annotations"><span class="hs-identifier hs-type">Annotations</span></a></span><span> </span><span id="local-6989586621679138162"><span class="annot"><span class="annottext">Map TypeRep Dynamic
+</span><a href="#local-6989586621679138162"><span class="hs-identifier hs-var">values</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Map TypeRep Dynamic -&gt; Annotations
+</span><a href="Test.Hspec.Core.Annotations.html#Annotations"><span class="hs-identifier hs-var">Annotations</span></a></span><span> </span><span class="annot"><span class="annottext">(Map TypeRep Dynamic -&gt; Annotations)
+-&gt; Map TypeRep Dynamic -&gt; Annotations
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">TypeRep -&gt; Dynamic -&gt; Map TypeRep Dynamic -&gt; Map TypeRep Dynamic
+forall k a. Ord k =&gt; k -&gt; a -&gt; Map k a -&gt; Map k a
+</span><span class="hs-identifier hs-var">Map.insert</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">value -&gt; TypeRep
+forall a. Typeable a =&gt; a -&gt; TypeRep
+</span><span class="hs-identifier hs-var">typeOf</span></span><span> </span><span class="annot"><span class="annottext">value
+</span><a href="#local-6989586621679138161"><span class="hs-identifier hs-var">value</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">value -&gt; Dynamic
+forall a. Typeable a =&gt; a -&gt; Dynamic
+</span><span class="hs-identifier hs-var">toDyn</span></span><span> </span><span class="annot"><span class="annottext">value
+</span><a href="#local-6989586621679138161"><span class="hs-identifier hs-var">value</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Map TypeRep Dynamic
+</span><a href="#local-6989586621679138162"><span class="hs-identifier hs-var">values</span></a></span><span>
+</span><span id="line-27"></span><span>
+</span><span id="line-28"></span><span class="annot"><a href="Test.Hspec.Core.Annotations.html#getValue"><span class="hs-identifier hs-type">getValue</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-keyword">forall</span><span> </span><span id="local-6989586621679138098"><span class="annot"><a href="#local-6989586621679138098"><span class="hs-identifier hs-type">value</span></a></span></span><span class="hs-operator">.</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Typeable</span></span><span> </span><span class="annot"><a href="#local-6989586621679138098"><span class="hs-identifier hs-type">value</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="Test.Hspec.Core.Annotations.html#Annotations"><span class="hs-identifier hs-type">Annotations</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="#local-6989586621679138098"><span class="hs-identifier hs-type">value</span></a></span><span>
+</span><span id="line-29"></span><span id="getValue"><span class="annot"><span class="annottext">getValue :: forall value. Typeable value =&gt; Annotations -&gt; Maybe value
+</span><a href="Test.Hspec.Core.Annotations.html#getValue"><span class="hs-identifier hs-var hs-var">getValue</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Test.Hspec.Core.Annotations.html#Annotations"><span class="hs-identifier hs-type">Annotations</span></a></span><span> </span><span id="local-6989586621679138173"><span class="annot"><span class="annottext">Map TypeRep Dynamic
+</span><a href="#local-6989586621679138173"><span class="hs-identifier hs-var">values</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">TypeRep -&gt; Map TypeRep Dynamic -&gt; Maybe Dynamic
+forall k a. Ord k =&gt; k -&gt; Map k a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Map.lookup</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">value -&gt; TypeRep
+forall a. Typeable a =&gt; a -&gt; TypeRep
+</span><span class="hs-identifier hs-var">typeOf</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">value
+forall a. HasCallStack =&gt; a
+</span><span class="hs-identifier hs-var">undefined</span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="#local-6989586621679138098"><span class="hs-identifier hs-type">value</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Map TypeRep Dynamic
+</span><a href="#local-6989586621679138173"><span class="hs-identifier hs-var">values</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe Dynamic -&gt; (Dynamic -&gt; Maybe value) -&gt; Maybe value
+forall a b. Maybe a -&gt; (a -&gt; Maybe b) -&gt; Maybe b
+forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; (a -&gt; m b) -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;=</span></span><span> </span><span class="annot"><span class="annottext">Dynamic -&gt; Maybe value
+forall a. Typeable a =&gt; Dynamic -&gt; Maybe a
+</span><span class="hs-identifier hs-var">fromDynamic</span></span><span>
+</span><span id="line-30"></span></pre></body></html>

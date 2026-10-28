@@ -1,0 +1,52 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE CPP, NoImplicitPrelude #-}</span><span>
+</span><span id="line-2"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Debug.Trace.Compat.html"><span class="hs-identifier">Debug.Trace.Compat</span></a></span><span> </span><span class="hs-special">(</span><span>
+</span><span id="line-3"></span><span>  </span><span class="hs-keyword">module</span><span> </span><span class="annot"><span class="hs-identifier">Base</span></span><span>
+</span><span id="line-4"></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">traceId</span></span><span>
+</span><span id="line-5"></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">traceShowId</span></span><span>
+</span><span id="line-6"></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">traceM</span></span><span>
+</span><span id="line-7"></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">traceShowM</span></span><span>
+</span><span id="line-8"></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">traceWith</span></span><span>
+</span><span id="line-9"></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">traceShowWith</span></span><span>
+</span><span id="line-10"></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">traceEventWith</span></span><span>
+</span><span id="line-11"></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-12"></span><span>
+</span><span id="line-13"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Debug.Trace</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Base</span></span><span class="hs-cpp">
+
+#if !(MIN_VERSION_base(4,18,0))
+</span><span class="hs-keyword">import</span><span> </span><span class="hs-identifier">Prelude.Compat</span><span class="hs-cpp">
+#endif
+</span><span class="hs-cpp">
+#if !(MIN_VERSION_base(4,18,0))
+</span><span class="hs-comment">{-|
+Like 'trace', but outputs the result of calling a function on the argument.
+
+&gt;&gt;&gt; traceWith fst (&quot;hello&quot;,&quot;world&quot;)
+hello
+(&quot;hello&quot;,&quot;world&quot;)
+
+/Since: 4.18.0.0/
+-}</span><span>
+</span><span id="line-29"></span><span class="hs-identifier">traceWith</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">a</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">String</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">a</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">a</span><span>
+</span><span id="line-30"></span><span class="hs-identifier">traceWith</span><span> </span><span class="hs-identifier">f</span><span> </span><span class="hs-identifier">a</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">trace</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">f</span><span> </span><span class="hs-identifier">a</span><span class="hs-special">)</span><span> </span><span class="hs-identifier">a</span><span>
+</span><span id="line-31"></span><span>
+</span><span id="line-32"></span><span class="hs-comment">{-|
+Like 'traceWith', but uses 'show' on the result of the function to convert it to
+a 'String'.
+
+&gt;&gt;&gt; traceShowWith length [1,2,3]
+3
+[1,2,3]
+
+/Since: 4.18.0.0/
+-}</span><span>
+</span><span id="line-42"></span><span class="hs-identifier">traceShowWith</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">Show</span><span> </span><span class="hs-identifier">b</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">a</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">b</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">a</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">a</span><span>
+</span><span id="line-43"></span><span class="hs-identifier">traceShowWith</span><span> </span><span class="hs-identifier">f</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">traceWith</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">show</span><span> </span><span class="hs-operator">.</span><span> </span><span class="hs-identifier">f</span><span class="hs-special">)</span><span>
+</span><span id="line-44"></span><span>
+</span><span id="line-45"></span><span class="hs-comment">-- | Like 'traceEvent', but emits the result of calling a function on its</span><span>
+</span><span id="line-46"></span><span class="hs-comment">-- argument.</span><span>
+</span><span id="line-47"></span><span class="hs-comment">--</span><span>
+</span><span id="line-48"></span><span class="hs-comment">-- /Since: 4.18.0.0/</span><span>
+</span><span id="line-49"></span><span class="hs-identifier">traceEventWith</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">a</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">String</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">a</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">a</span><span>
+</span><span id="line-50"></span><span class="hs-identifier">traceEventWith</span><span> </span><span class="hs-identifier">f</span><span> </span><span class="hs-identifier">a</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">traceEvent</span><span> </span><span class="hs-special">(</span><span class="hs-identifier">f</span><span> </span><span class="hs-identifier">a</span><span class="hs-special">)</span><span> </span><span class="hs-identifier">a</span><span class="hs-cpp">
+#endif
+</span></pre></body></html>

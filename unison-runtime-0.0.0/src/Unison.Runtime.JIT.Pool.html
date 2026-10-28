@@ -1,0 +1,583 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-comment">-- | The constant pool: Haskell heap objects that native code needs, in an</span><span>
+</span><span id="line-2"></span><span class="hs-comment">-- array whose address is passed on every entry. See unison-runtime/src/Unison/Runtime/JIT/design.md,</span><span>
+</span><span id="line-3"></span><span class="hs-comment">-- &quot;Appendix: the constant pool&quot;, which also says why there is one pool per</span><span>
+</span><span id="line-4"></span><span class="hs-comment">-- process rather than one per module.</span><span>
+</span><span id="line-5"></span><span class="hs-comment">--</span><span>
+</span><span id="line-6"></span><span class="hs-comment">-- Indices are assigned when a module is compiled ('poolIndices') and are</span><span>
+</span><span id="line-7"></span><span class="hs-comment">-- constants in the generated code. The array grows by copying; the old</span><span>
+</span><span id="line-8"></span><span class="hs-comment">-- arrays are kept, and new entries are written to them too where they</span><span>
+</span><span id="line-9"></span><span class="hs-comment">-- fit, so an address read at entry stays valid for as long as that native</span><span>
+</span><span id="line-10"></span><span class="hs-comment">-- run lasts. A run can still meet code that was installed after it began</span><span>
+</span><span id="line-11"></span><span class="hs-comment">-- and uses an index past the end of the array the run holds: a function</span><span>
+</span><span id="line-12"></span><span class="hs-comment">-- that uses an index of 'poolStableSize' or more checks the array's size</span><span>
+</span><span id="line-13"></span><span class="hs-comment">-- at entry, and exits to be entered again with the current array.</span><span>
+</span><span id="line-14"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Unison.Runtime.JIT.Pool.html"><span class="hs-identifier">Unison.Runtime.JIT.Pool</span></a></span><span>
+</span><span id="line-15"></span><span>  </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="Unison.Runtime.JIT.Pool.html#Pool"><span class="hs-identifier">Pool</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-16"></span><span>    </span><span class="annot"><a href="Unison.Runtime.JIT.Pool.html#newPool"><span class="hs-identifier">newPool</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-17"></span><span>    </span><span class="annot"><a href="Unison.Runtime.JIT.Pool.html#PoolKey"><span class="hs-identifier">PoolKey</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-18"></span><span>    </span><span class="annot"><a href="Unison.Runtime.JIT.Pool.html#poolIndices"><span class="hs-identifier">poolIndices</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-19"></span><span>    </span><span class="annot"><a href="Unison.Runtime.JIT.Pool.html#currentPool"><span class="hs-identifier">currentPool</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-20"></span><span>    </span><span class="annot"><a href="Unison.Runtime.JIT.Pool.html#poolStableSize"><span class="hs-identifier">poolStableSize</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-21"></span><span>    </span><span class="annot"><a href="Unison.Runtime.JIT.Pool.html#poolIndexCharTag"><span class="hs-identifier">poolIndexCharTag</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-22"></span><span>    </span><span class="annot"><a href="Unison.Runtime.JIT.Pool.html#poolIndexFloatTag"><span class="hs-identifier">poolIndexFloatTag</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-23"></span><span>    </span><span class="annot"><a href="Unison.Runtime.JIT.Pool.html#poolIndexIntTag"><span class="hs-identifier">poolIndexIntTag</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-24"></span><span>    </span><span class="annot"><a href="Unison.Runtime.JIT.Pool.html#poolIndexNatTag"><span class="hs-identifier">poolIndexNatTag</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-25"></span><span>    </span><span class="annot"><a href="Unison.Runtime.JIT.Pool.html#poolIndexTrue"><span class="hs-identifier">poolIndexTrue</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-26"></span><span>    </span><span class="annot"><a href="Unison.Runtime.JIT.Pool.html#poolIndexFalse"><span class="hs-identifier">poolIndexFalse</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-27"></span><span>  </span><span class="hs-special">)</span><span>
+</span><span id="line-28"></span><span class="hs-keyword">where</span><span>
+</span><span id="line-29"></span><span>
+</span><span id="line-30"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Monad</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">forM</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">forM_</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">when</span></span><span class="hs-special">)</span><span>
+</span><span id="line-31"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Monad.Primitive</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">PrimState</span></span><span class="hs-special">)</span><span>
+</span><span id="line-32"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.IORef</span></span><span>
+</span><span id="line-33"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Map.Strict</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Map</span></span><span>
+</span><span id="line-34"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Maybe</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">fromMaybe</span></span><span class="hs-special">)</span><span>
+</span><span id="line-35"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Primitive.Array</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">MutableArray</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">copyMutableArray</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">newArray</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">sizeofMutableArray</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">writeArray</span></span><span class="hs-special">)</span><span>
+</span><span id="line-36"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Vector</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">V</span></span><span>
+</span><span id="line-37"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Reference</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Reference</span></span><span class="hs-special">)</span><span>
+</span><span id="line-38"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Unison.Runtime.ANF.html"><span class="hs-identifier">Unison.Runtime.ANF</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Runtime.TypeTags.html#PackedTag"><span class="hs-identifier">PackedTag</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-39"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Unison.Runtime.MCode.html"><span class="hs-identifier">Unison.Runtime.MCode</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Runtime.MCode.html#CombIx"><span class="hs-identifier">CombIx</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Unison.Runtime.MCode.html#GCombInfo"><span class="hs-identifier">GCombInfo</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Unison.Runtime.MCode.html#MLit"><span class="hs-identifier">MLit</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Unison.Runtime.MCode.html#RecordShape"><span class="hs-identifier">RecordShape</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-40"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Unison.Runtime.Stack.html"><span class="hs-identifier">Unison.Runtime.Stack</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Runtime.Stack.html#Closure"><span class="hs-identifier">Closure</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Unison.Runtime.Stack.html#MComb"><span class="hs-identifier">MComb</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Unison.Runtime.Stack.html#Val"><span class="hs-identifier">Val</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Unison.Runtime.Stack.html#charTypeTag"><span class="hs-identifier">charTypeTag</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Unison.Runtime.Stack.html#falseVal"><span class="hs-identifier">falseVal</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Unison.Runtime.Stack.html#floatTypeTag"><span class="hs-identifier">floatTypeTag</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Unison.Runtime.Stack.html#intTypeTag"><span class="hs-identifier">intTypeTag</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Unison.Runtime.Stack.html#natTypeTag"><span class="hs-identifier">natTypeTag</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Unison.Runtime.Stack.html#nullSeg"><span class="hs-identifier">nullSeg</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Unison.Runtime.Stack.html#trueVal"><span class="hs-identifier">trueVal</span></a></span><span class="hs-special">,</span><span> </span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="Unison.Runtime.Stack.html#Enum"><span class="hs-identifier">Enum</span></a></span><span class="hs-special">,</span><span> </span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="Unison.Runtime.Stack.html#Foreign"><span class="hs-identifier">Foreign</span></a></span><span class="hs-special">,</span><span> </span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="Unison.Runtime.Stack.html#PAp"><span class="hs-identifier">PAp</span></a></span><span class="hs-special">,</span><span> </span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="Unison.Runtime.Stack.html#RecordG"><span class="hs-identifier">RecordG</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-41"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Unison.Runtime.Stack.html"><span class="hs-identifier">Unison.Runtime.Stack</span></a></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Stack</span></span><span>
+</span><span id="line-42"></span><span>
+</span><span id="line-43"></span><span class="hs-comment">-- The order matches unboxedTypeTagToInt in Stack.hs.</span><span>
+</span><span id="line-44"></span><span class="annot"><a href="Unison.Runtime.JIT.Pool.html#poolIndexCharTag"><span class="hs-identifier hs-type">poolIndexCharTag</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Unison.Runtime.JIT.Pool.html#poolIndexFloatTag"><span class="hs-identifier hs-type">poolIndexFloatTag</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Unison.Runtime.JIT.Pool.html#poolIndexIntTag"><span class="hs-identifier hs-type">poolIndexIntTag</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Unison.Runtime.JIT.Pool.html#poolIndexNatTag"><span class="hs-identifier hs-type">poolIndexNatTag</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>
+</span><span id="line-45"></span><span id="poolIndexCharTag"><span class="annot"><span class="annottext">poolIndexCharTag :: Int
+</span><a href="Unison.Runtime.JIT.Pool.html#poolIndexCharTag"><span class="hs-identifier hs-var hs-var">poolIndexCharTag</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span>
+</span><span id="line-46"></span><span id="poolIndexFloatTag"><span class="annot"><span class="annottext">poolIndexFloatTag :: Int
+</span><a href="Unison.Runtime.JIT.Pool.html#poolIndexFloatTag"><span class="hs-identifier hs-var hs-var">poolIndexFloatTag</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span>
+</span><span id="line-47"></span><span id="poolIndexIntTag"><span class="annot"><span class="annottext">poolIndexIntTag :: Int
+</span><a href="Unison.Runtime.JIT.Pool.html#poolIndexIntTag"><span class="hs-identifier hs-var hs-var">poolIndexIntTag</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">2</span></span><span>
+</span><span id="line-48"></span><span id="poolIndexNatTag"><span class="annot"><span class="annottext">poolIndexNatTag :: Int
+</span><a href="Unison.Runtime.JIT.Pool.html#poolIndexNatTag"><span class="hs-identifier hs-var hs-var">poolIndexNatTag</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">3</span></span><span>
+</span><span id="line-49"></span><span>
+</span><span id="line-50"></span><span class="annot"><span class="hs-comment">-- | The boolean closures, for comparison results.</span></span><span>
+</span><span id="line-51"></span><span class="annot"><a href="Unison.Runtime.JIT.Pool.html#poolIndexTrue"><span class="hs-identifier hs-type">poolIndexTrue</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Unison.Runtime.JIT.Pool.html#poolIndexFalse"><span class="hs-identifier hs-type">poolIndexFalse</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>
+</span><span id="line-52"></span><span id="poolIndexTrue"><span class="annot"><span class="annottext">poolIndexTrue :: Int
+</span><a href="Unison.Runtime.JIT.Pool.html#poolIndexTrue"><span class="hs-identifier hs-var hs-var">poolIndexTrue</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">4</span></span><span>
+</span><span id="line-53"></span><span id="poolIndexFalse"><span class="annot"><span class="annottext">poolIndexFalse :: Int
+</span><a href="Unison.Runtime.JIT.Pool.html#poolIndexFalse"><span class="hs-identifier hs-var hs-var">poolIndexFalse</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">5</span></span><span>
+</span><span id="line-54"></span><span>
+</span><span id="line-55"></span><span class="annot"><a href="Unison.Runtime.JIT.Pool.html#fixedEntries"><span class="hs-identifier hs-type">fixedEntries</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>
+</span><span id="line-56"></span><span id="fixedEntries"><span class="annot"><span class="annottext">fixedEntries :: Int
+</span><a href="Unison.Runtime.JIT.Pool.html#fixedEntries"><span class="hs-identifier hs-var hs-var">fixedEntries</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">6</span></span><span>
+</span><span id="line-57"></span><span>
+</span><span id="line-58"></span><span class="hs-comment">-- | The size of the first array: every array ever passed to native code</span><span>
+</span><span id="line-59"></span><span class="hs-comment">-- has at least this many entries.</span><span>
+</span><span id="line-60"></span><span class="hs-comment">-- | A pool, with the size its first array has: a function that uses only</span><span>
+</span><span id="line-61"></span><span class="hs-comment">-- indices below it never has to check the array it was given (the stress</span><span>
+</span><span id="line-62"></span><span class="hs-comment">-- mode @pool=N@ makes it tiny, so that growing is exercised).</span><span>
+</span><span id="line-63"></span><span class="hs-keyword">data</span><span> </span><span id="Pool"><span class="annot"><a href="Unison.Runtime.JIT.Pool.html#Pool"><span class="hs-identifier hs-var">Pool</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="Pool"><span class="annot"><a href="Unison.Runtime.JIT.Pool.html#Pool"><span class="hs-identifier hs-var">Pool</span></a></span></span><span> </span><span class="hs-glyph">!</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">IORef</span></span><span> </span><span class="annot"><a href="Unison.Runtime.JIT.Pool.html#PoolState"><span class="hs-identifier hs-type">PoolState</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>
+</span><span id="line-64"></span><span>
+</span><span id="line-65"></span><span class="annot"><a href="Unison.Runtime.JIT.Pool.html#poolStableSize"><span class="hs-identifier hs-type">poolStableSize</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Unison.Runtime.JIT.Pool.html#Pool"><span class="hs-identifier hs-type">Pool</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>
+</span><span id="line-66"></span><span id="poolStableSize"><span class="annot"><span class="annottext">poolStableSize :: Pool -&gt; Int
+</span><a href="Unison.Runtime.JIT.Pool.html#poolStableSize"><span class="hs-identifier hs-var hs-var">poolStableSize</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Runtime.JIT.Pool.html#Pool"><span class="hs-identifier hs-type">Pool</span></a></span><span> </span><span class="annot"><span class="annottext">IORef PoolState
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621681820404"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681820404"><span class="hs-identifier hs-var">n</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681820404"><span class="hs-identifier hs-var">n</span></a></span><span>
+</span><span id="line-67"></span><span>
+</span><span id="line-68"></span><span class="annot"><span class="hs-comment">-- | What a pool entry is. Entries are interned by key.</span></span><span>
+</span><span id="line-69"></span><span class="hs-keyword">data</span><span> </span><span id="PoolKey"><span class="annot"><a href="Unison.Runtime.JIT.Pool.html#PoolKey"><span class="hs-identifier hs-var">PoolKey</span></a></span></span><span>
+</span><span id="line-70"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="hs-comment">-- | a constructor with no fields. Also how a 'Reference' is kept: the</span><span>
+</span><span id="line-71"></span><span>    </span><span class="hs-comment">-- entry for @KeyEnum r 0@ is an 'Enum' whose reference field native</span><span>
+</span><span id="line-72"></span><span>    </span><span class="hs-comment">-- code reads when it builds a constructor of that type.</span><span>
+</span><span id="line-73"></span><span>    </span><span id="KeyEnum"><span class="annot"><a href="Unison.Runtime.JIT.Pool.html#KeyEnum"><span class="hs-identifier hs-var">KeyEnum</span></a></span></span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">Reference</span></span><span> </span><span class="hs-glyph">!</span><span class="annot"><a href="Unison.Runtime.TypeTags.html#PackedTag"><span class="hs-identifier hs-type">PackedTag</span></a></span><span>
+</span><span id="line-74"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="hs-comment">-- | a boxed literal (text, term link, type link)</span></span><span>
+</span><span id="line-75"></span><span>    </span><span id="KeyLit"><span class="annot"><a href="Unison.Runtime.JIT.Pool.html#KeyLit"><span class="hs-identifier hs-var">KeyLit</span></a></span></span><span> </span><span class="hs-glyph">!</span><span class="annot"><a href="Unison.Runtime.MCode.html#MLit"><span class="hs-identifier hs-type">MLit</span></a></span><span>
+</span><span id="line-76"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="hs-comment">-- | a known combinator as a value: a @PAp@ with nothing captured, the</span><span>
+</span><span id="line-77"></span><span>    </span><span class="hs-comment">-- same closure the interpreter builds for @App (Env cix) ZArgs@.</span><span>
+</span><span id="line-78"></span><span>    </span><span class="hs-comment">-- Interned by the CombIx alone (the combinator has no Ord).</span><span>
+</span><span id="line-79"></span><span>    </span><span id="KeyComb"><span class="annot"><a href="Unison.Runtime.JIT.Pool.html#KeyComb"><span class="hs-identifier hs-var">KeyComb</span></a></span></span><span> </span><span class="hs-glyph">!</span><span class="annot"><a href="Unison.Runtime.MCode.html#CombIx"><span class="hs-identifier hs-type">CombIx</span></a></span><span> </span><span class="hs-glyph">!</span><span class="hs-special">(</span><span class="annot"><a href="Unison.Runtime.MCode.html#GCombInfo"><span class="hs-identifier hs-type">GCombInfo</span></a></span><span> </span><span class="annot"><a href="Unison.Runtime.Stack.html#MComb"><span class="hs-identifier hs-type">MComb</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-80"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="hs-comment">-- | the boxed part of a top-level value that was evaluated when its</span><span>
+</span><span id="line-81"></span><span>    </span><span class="hs-comment">-- definition was loaded (a @CachedVal@), by its CombIx</span><span>
+</span><span id="line-82"></span><span>    </span><span id="KeyCached"><span class="annot"><a href="Unison.Runtime.JIT.Pool.html#KeyCached"><span class="hs-identifier hs-var">KeyCached</span></a></span></span><span> </span><span class="hs-glyph">!</span><span class="annot"><a href="Unison.Runtime.MCode.html#CombIx"><span class="hs-identifier hs-type">CombIx</span></a></span><span> </span><span class="hs-glyph">!</span><span class="annot"><a href="Unison.Runtime.Stack.html#Closure"><span class="hs-identifier hs-type">Closure</span></a></span><span>
+</span><span id="line-83"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="hs-comment">-- | a record shape, kept as an empty record of that shape: native code</span><span>
+</span><span id="line-84"></span><span>    </span><span class="hs-comment">-- copies the shape's words out of it when it builds a record</span><span>
+</span><span id="line-85"></span><span>    </span><span class="hs-comment">-- (@RecPack@). Interned by the field names, which determine the shape.</span><span>
+</span><span id="line-86"></span><span>    </span><span id="KeyRecord"><span class="annot"><a href="Unison.Runtime.JIT.Pool.html#KeyRecord"><span class="hs-identifier hs-var">KeyRecord</span></a></span></span><span> </span><span class="hs-glyph">!</span><span class="annot"><a href="Unison.Runtime.MCode.html#RecordShape"><span class="hs-identifier hs-type">RecordShape</span></a></span><span>
+</span><span id="line-87"></span><span>
+</span><span id="line-88"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621681820412"><span class="annot"><span class="hs-identifier hs-type">Eq</span></span><span> </span><span class="annot"><a href="Unison.Runtime.JIT.Pool.html#PoolKey"><span class="hs-identifier hs-type">PoolKey</span></a></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-89"></span><span>  </span><span id="local-6989586621681820419"><span class="annot"><span class="annottext">PoolKey
+</span><a href="#local-6989586621681820419"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span id="local-6989586621681820420"><span class="annot"><span class="annottext">== :: PoolKey -&gt; PoolKey -&gt; Bool
+</span><span class="hs-operator hs-var hs-var hs-var">==</span></span></span><span> </span><span id="local-6989586621681820421"><span class="annot"><span class="annottext">PoolKey
+</span><a href="#local-6989586621681820421"><span class="hs-identifier hs-var">b</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">PoolKey -&gt; PoolKey -&gt; Ordering
+forall a. Ord a =&gt; a -&gt; a -&gt; Ordering
+</span><span class="hs-identifier hs-var">compare</span></span><span> </span><span class="annot"><span class="annottext">PoolKey
+</span><a href="#local-6989586621681820419"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="annot"><span class="annottext">PoolKey
+</span><a href="#local-6989586621681820421"><span class="hs-identifier hs-var">b</span></a></span><span> </span><span class="annot"><span class="annottext">Ordering -&gt; Ordering -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">Ordering
+</span><span class="hs-identifier hs-var">EQ</span></span><span>
+</span><span id="line-90"></span><span>
+</span><span id="line-91"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621681820427"><span id="local-6989586621681820430"><span id="local-6989586621681820433"><span id="local-6989586621681820436"><span id="local-6989586621681820439"><span id="local-6989586621681820442"><span class="annot"><span class="hs-identifier hs-type">Ord</span></span><span> </span><span class="annot"><a href="Unison.Runtime.JIT.Pool.html#PoolKey"><span class="hs-identifier hs-type">PoolKey</span></a></span></span></span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-92"></span><span>  </span><span id="local-6989586621681820462"><span class="annot"><span class="annottext">compare :: PoolKey -&gt; PoolKey -&gt; Ordering
+</span><span class="hs-identifier hs-var hs-var hs-var">compare</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">cases</span><span>
+</span><span id="line-93"></span><span>    </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Runtime.JIT.Pool.html#KeyEnum"><span class="hs-identifier hs-type">KeyEnum</span></a></span><span> </span><span id="local-6989586621681820463"><span class="annot"><span class="annottext">Reference
+</span><a href="#local-6989586621681820463"><span class="hs-identifier hs-var">r</span></a></span></span><span> </span><span id="local-6989586621681820464"><span class="annot"><span class="annottext">PackedTag
+</span><a href="#local-6989586621681820464"><span class="hs-identifier hs-var">t</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Runtime.JIT.Pool.html#KeyEnum"><span class="hs-identifier hs-type">KeyEnum</span></a></span><span> </span><span id="local-6989586621681820465"><span class="annot"><span class="annottext">Reference
+</span><a href="#local-6989586621681820465"><span class="hs-identifier hs-var">r'</span></a></span></span><span> </span><span id="local-6989586621681820466"><span class="annot"><span class="annottext">PackedTag
+</span><a href="#local-6989586621681820466"><span class="hs-identifier hs-var">t'</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">(Reference, PackedTag) -&gt; (Reference, PackedTag) -&gt; Ordering
+forall a. Ord a =&gt; a -&gt; a -&gt; Ordering
+</span><span class="hs-identifier hs-var">compare</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Reference
+</span><a href="#local-6989586621681820463"><span class="hs-identifier hs-var">r</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">PackedTag
+</span><a href="#local-6989586621681820464"><span class="hs-identifier hs-var">t</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Reference
+</span><a href="#local-6989586621681820465"><span class="hs-identifier hs-var">r'</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">PackedTag
+</span><a href="#local-6989586621681820466"><span class="hs-identifier hs-var">t'</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-94"></span><span>    </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Runtime.JIT.Pool.html#KeyEnum"><span class="hs-identifier hs-type">KeyEnum</span></a></span><span> </span><span class="hs-special">{</span><span class="hs-special">}</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">PoolKey
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Ordering
+</span><span class="hs-identifier hs-var">LT</span></span><span>
+</span><span id="line-95"></span><span>    </span><span class="annot"><span class="annottext">PoolKey
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Runtime.JIT.Pool.html#KeyEnum"><span class="hs-identifier hs-type">KeyEnum</span></a></span><span> </span><span class="hs-special">{</span><span class="hs-special">}</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Ordering
+</span><span class="hs-identifier hs-var">GT</span></span><span>
+</span><span id="line-96"></span><span>    </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Runtime.JIT.Pool.html#KeyLit"><span class="hs-identifier hs-type">KeyLit</span></a></span><span> </span><span id="local-6989586621681820467"><span class="annot"><span class="annottext">MLit
+</span><a href="#local-6989586621681820467"><span class="hs-identifier hs-var">l</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Runtime.JIT.Pool.html#KeyLit"><span class="hs-identifier hs-type">KeyLit</span></a></span><span> </span><span id="local-6989586621681820468"><span class="annot"><span class="annottext">MLit
+</span><a href="#local-6989586621681820468"><span class="hs-identifier hs-var">l'</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">MLit -&gt; MLit -&gt; Ordering
+forall a. Ord a =&gt; a -&gt; a -&gt; Ordering
+</span><span class="hs-identifier hs-var">compare</span></span><span> </span><span class="annot"><span class="annottext">MLit
+</span><a href="#local-6989586621681820467"><span class="hs-identifier hs-var">l</span></a></span><span> </span><span class="annot"><span class="annottext">MLit
+</span><a href="#local-6989586621681820468"><span class="hs-identifier hs-var">l'</span></a></span><span>
+</span><span id="line-97"></span><span>    </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Runtime.JIT.Pool.html#KeyLit"><span class="hs-identifier hs-type">KeyLit</span></a></span><span> </span><span class="hs-special">{</span><span class="hs-special">}</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">PoolKey
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Ordering
+</span><span class="hs-identifier hs-var">LT</span></span><span>
+</span><span id="line-98"></span><span>    </span><span class="annot"><span class="annottext">PoolKey
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Runtime.JIT.Pool.html#KeyLit"><span class="hs-identifier hs-type">KeyLit</span></a></span><span> </span><span class="hs-special">{</span><span class="hs-special">}</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Ordering
+</span><span class="hs-identifier hs-var">GT</span></span><span>
+</span><span id="line-99"></span><span>    </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Runtime.JIT.Pool.html#KeyComb"><span class="hs-identifier hs-type">KeyComb</span></a></span><span> </span><span id="local-6989586621681820469"><span class="annot"><span class="annottext">CombIx
+</span><a href="#local-6989586621681820469"><span class="hs-identifier hs-var">c</span></a></span></span><span> </span><span class="annot"><span class="annottext">GCombInfo MComb
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Runtime.JIT.Pool.html#KeyComb"><span class="hs-identifier hs-type">KeyComb</span></a></span><span> </span><span id="local-6989586621681820470"><span class="annot"><span class="annottext">CombIx
+</span><a href="#local-6989586621681820470"><span class="hs-identifier hs-var">c'</span></a></span></span><span> </span><span class="annot"><span class="annottext">GCombInfo MComb
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">CombIx -&gt; CombIx -&gt; Ordering
+forall a. Ord a =&gt; a -&gt; a -&gt; Ordering
+</span><span class="hs-identifier hs-var">compare</span></span><span> </span><span class="annot"><span class="annottext">CombIx
+</span><a href="#local-6989586621681820469"><span class="hs-identifier hs-var">c</span></a></span><span> </span><span class="annot"><span class="annottext">CombIx
+</span><a href="#local-6989586621681820470"><span class="hs-identifier hs-var">c'</span></a></span><span>
+</span><span id="line-100"></span><span>    </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Runtime.JIT.Pool.html#KeyComb"><span class="hs-identifier hs-type">KeyComb</span></a></span><span> </span><span class="hs-special">{</span><span class="hs-special">}</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">PoolKey
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Ordering
+</span><span class="hs-identifier hs-var">LT</span></span><span>
+</span><span id="line-101"></span><span>    </span><span class="annot"><span class="annottext">PoolKey
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Runtime.JIT.Pool.html#KeyComb"><span class="hs-identifier hs-type">KeyComb</span></a></span><span> </span><span class="hs-special">{</span><span class="hs-special">}</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Ordering
+</span><span class="hs-identifier hs-var">GT</span></span><span>
+</span><span id="line-102"></span><span>    </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Runtime.JIT.Pool.html#KeyCached"><span class="hs-identifier hs-type">KeyCached</span></a></span><span> </span><span id="local-6989586621681820471"><span class="annot"><span class="annottext">CombIx
+</span><a href="#local-6989586621681820471"><span class="hs-identifier hs-var">c</span></a></span></span><span> </span><span class="annot"><span class="annottext">Closure
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Runtime.JIT.Pool.html#KeyCached"><span class="hs-identifier hs-type">KeyCached</span></a></span><span> </span><span id="local-6989586621681820472"><span class="annot"><span class="annottext">CombIx
+</span><a href="#local-6989586621681820472"><span class="hs-identifier hs-var">c'</span></a></span></span><span> </span><span class="annot"><span class="annottext">Closure
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">CombIx -&gt; CombIx -&gt; Ordering
+forall a. Ord a =&gt; a -&gt; a -&gt; Ordering
+</span><span class="hs-identifier hs-var">compare</span></span><span> </span><span class="annot"><span class="annottext">CombIx
+</span><a href="#local-6989586621681820471"><span class="hs-identifier hs-var">c</span></a></span><span> </span><span class="annot"><span class="annottext">CombIx
+</span><a href="#local-6989586621681820472"><span class="hs-identifier hs-var">c'</span></a></span><span>
+</span><span id="line-103"></span><span>    </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Runtime.JIT.Pool.html#KeyCached"><span class="hs-identifier hs-type">KeyCached</span></a></span><span> </span><span class="hs-special">{</span><span class="hs-special">}</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">PoolKey
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Ordering
+</span><span class="hs-identifier hs-var">LT</span></span><span>
+</span><span id="line-104"></span><span>    </span><span class="annot"><span class="annottext">PoolKey
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Runtime.JIT.Pool.html#KeyCached"><span class="hs-identifier hs-type">KeyCached</span></a></span><span> </span><span class="hs-special">{</span><span class="hs-special">}</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Ordering
+</span><span class="hs-identifier hs-var">GT</span></span><span>
+</span><span id="line-105"></span><span>    </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Runtime.JIT.Pool.html#KeyRecord"><span class="hs-identifier hs-type">KeyRecord</span></a></span><span> </span><span id="local-6989586621681820473"><span class="annot"><span class="annottext">RecordShape
+</span><a href="#local-6989586621681820473"><span class="hs-identifier hs-var">s</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Runtime.JIT.Pool.html#KeyRecord"><span class="hs-identifier hs-type">KeyRecord</span></a></span><span> </span><span id="local-6989586621681820474"><span class="annot"><span class="annottext">RecordShape
+</span><a href="#local-6989586621681820474"><span class="hs-identifier hs-var">s'</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">RecordShape -&gt; RecordShape -&gt; Ordering
+forall a. Ord a =&gt; a -&gt; a -&gt; Ordering
+</span><span class="hs-identifier hs-var">compare</span></span><span> </span><span class="annot"><span class="annottext">RecordShape
+</span><a href="#local-6989586621681820473"><span class="hs-identifier hs-var">s</span></a></span><span> </span><span class="annot"><span class="annottext">RecordShape
+</span><a href="#local-6989586621681820474"><span class="hs-identifier hs-var">s'</span></a></span><span>
+</span><span id="line-106"></span><span>
+</span><span id="line-107"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621681820476"><span id="local-6989586621681820481"><span class="annot"><span class="hs-identifier hs-type">Show</span></span><span> </span><span class="annot"><a href="Unison.Runtime.JIT.Pool.html#PoolKey"><span class="hs-identifier hs-type">PoolKey</span></a></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-108"></span><span>  </span><span id="local-6989586621681820507"><span class="annot"><span class="annottext">show :: PoolKey -&gt; String
+</span><a href="#local-6989586621681820507"><span class="hs-identifier hs-var hs-var hs-var">show</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-109"></span><span>    </span><span class="annot"><a href="Unison.Runtime.JIT.Pool.html#KeyEnum"><span class="hs-identifier hs-type">KeyEnum</span></a></span><span> </span><span id="local-6989586621681820509"><span class="annot"><span class="annottext">Reference
+</span><a href="#local-6989586621681820509"><span class="hs-identifier hs-var">r</span></a></span></span><span> </span><span id="local-6989586621681820510"><span class="annot"><span class="annottext">PackedTag
+</span><a href="#local-6989586621681820510"><span class="hs-identifier hs-var">t</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;KeyEnum &quot;</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; ShowS
+forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">Reference -&gt; String
+forall a. Show a =&gt; a -&gt; String
+</span><span class="hs-identifier hs-var">show</span></span><span> </span><span class="annot"><span class="annottext">Reference
+</span><a href="#local-6989586621681820509"><span class="hs-identifier hs-var">r</span></a></span><span> </span><span class="annot"><span class="annottext">String -&gt; ShowS
+forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot; &quot;</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; ShowS
+forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">PackedTag -&gt; String
+forall a. Show a =&gt; a -&gt; String
+</span><span class="hs-identifier hs-var">show</span></span><span> </span><span class="annot"><span class="annottext">PackedTag
+</span><a href="#local-6989586621681820510"><span class="hs-identifier hs-var">t</span></a></span><span>
+</span><span id="line-110"></span><span>    </span><span class="annot"><a href="Unison.Runtime.JIT.Pool.html#KeyLit"><span class="hs-identifier hs-type">KeyLit</span></a></span><span> </span><span id="local-6989586621681820511"><span class="annot"><span class="annottext">MLit
+</span><a href="#local-6989586621681820511"><span class="hs-identifier hs-var">l</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;KeyLit &quot;</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; ShowS
+forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">MLit -&gt; String
+forall a. Show a =&gt; a -&gt; String
+</span><span class="hs-identifier hs-var">show</span></span><span> </span><span class="annot"><span class="annottext">MLit
+</span><a href="#local-6989586621681820511"><span class="hs-identifier hs-var">l</span></a></span><span>
+</span><span id="line-111"></span><span>    </span><span class="annot"><a href="Unison.Runtime.JIT.Pool.html#KeyComb"><span class="hs-identifier hs-type">KeyComb</span></a></span><span> </span><span id="local-6989586621681820512"><span class="annot"><span class="annottext">CombIx
+</span><a href="#local-6989586621681820512"><span class="hs-identifier hs-var">c</span></a></span></span><span> </span><span class="annot"><span class="annottext">GCombInfo MComb
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;KeyComb &quot;</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; ShowS
+forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">CombIx -&gt; String
+forall a. Show a =&gt; a -&gt; String
+</span><span class="hs-identifier hs-var">show</span></span><span> </span><span class="annot"><span class="annottext">CombIx
+</span><a href="#local-6989586621681820512"><span class="hs-identifier hs-var">c</span></a></span><span>
+</span><span id="line-112"></span><span>    </span><span class="annot"><a href="Unison.Runtime.JIT.Pool.html#KeyCached"><span class="hs-identifier hs-type">KeyCached</span></a></span><span> </span><span id="local-6989586621681820513"><span class="annot"><span class="annottext">CombIx
+</span><a href="#local-6989586621681820513"><span class="hs-identifier hs-var">c</span></a></span></span><span> </span><span class="annot"><span class="annottext">Closure
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;KeyCached &quot;</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; ShowS
+forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">CombIx -&gt; String
+forall a. Show a =&gt; a -&gt; String
+</span><span class="hs-identifier hs-var">show</span></span><span> </span><span class="annot"><span class="annottext">CombIx
+</span><a href="#local-6989586621681820513"><span class="hs-identifier hs-var">c</span></a></span><span>
+</span><span id="line-113"></span><span>    </span><span class="annot"><a href="Unison.Runtime.JIT.Pool.html#KeyRecord"><span class="hs-identifier hs-type">KeyRecord</span></a></span><span> </span><span id="local-6989586621681820514"><span class="annot"><span class="annottext">RecordShape
+</span><a href="#local-6989586621681820514"><span class="hs-identifier hs-var">s</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;KeyRecord &quot;</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; ShowS
+forall a. [a] -&gt; [a] -&gt; [a]
+</span><span class="hs-operator hs-var">++</span></span><span> </span><span class="annot"><span class="annottext">Vector Text -&gt; String
+forall a. Show a =&gt; a -&gt; String
+</span><span class="hs-identifier hs-var">show</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">RecordShape -&gt; Vector Text
+</span><a href="Unison.Runtime.MCode.html#shapeFields"><span class="hs-identifier hs-var">shapeFields</span></a></span><span> </span><span class="annot"><span class="annottext">RecordShape
+</span><a href="#local-6989586621681820514"><span class="hs-identifier hs-var">s</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-114"></span><span>
+</span><span id="line-115"></span><span class="hs-keyword">data</span><span> </span><span id="PoolState"><span class="annot"><a href="Unison.Runtime.JIT.Pool.html#PoolState"><span class="hs-identifier hs-var">PoolState</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="PoolState"><span class="annot"><a href="Unison.Runtime.JIT.Pool.html#PoolState"><span class="hs-identifier hs-var">PoolState</span></a></span></span><span>
+</span><span id="line-116"></span><span>  </span><span class="hs-special">{</span><span> </span><span id="poolArray"><span class="annot"><span class="annottext">PoolState -&gt; MutableArray (PrimState IO) Closure
+</span><a href="Unison.Runtime.JIT.Pool.html#poolArray"><span class="hs-identifier hs-var hs-var">poolArray</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">MutableArray</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">PrimState</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span class="hs-special">)</span><span> </span><span class="annot"><a href="Unison.Runtime.Stack.html#Closure"><span class="hs-identifier hs-type">Closure</span></a></span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-117"></span><span>    </span><span id="poolNext"><span class="annot"><span class="annottext">PoolState -&gt; Int
+</span><a href="Unison.Runtime.JIT.Pool.html#poolNext"><span class="hs-identifier hs-var hs-var">poolNext</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">,</span><span>
+</span><span id="line-118"></span><span>    </span><span id="poolKeys"><span class="annot"><span class="annottext">PoolState -&gt; Map PoolKey Int
+</span><a href="Unison.Runtime.JIT.Pool.html#poolKeys"><span class="hs-identifier hs-var hs-var">poolKeys</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Map.Map</span></span><span> </span><span class="annot"><a href="Unison.Runtime.JIT.Pool.html#PoolKey"><span class="hs-identifier hs-type">PoolKey</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-119"></span><span>    </span><span class="annot"><span class="hs-comment">-- | superseded arrays, kept alive on purpose</span></span><span>
+</span><span id="line-120"></span><span>    </span><span id="poolOld"><span class="annot"><span class="annottext">PoolState -&gt; [MutableArray (PrimState IO) Closure]
+</span><a href="Unison.Runtime.JIT.Pool.html#poolOld"><span class="hs-identifier hs-var hs-var">poolOld</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">MutableArray</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">PrimState</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span class="hs-special">)</span><span> </span><span class="annot"><a href="Unison.Runtime.Stack.html#Closure"><span class="hs-identifier hs-type">Closure</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-121"></span><span>  </span><span class="hs-special">}</span><span>
+</span><span id="line-122"></span><span>
+</span><span id="line-123"></span><span class="hs-comment">-- | A pool holding the fixed entries. The argument is the stress mode's</span><span>
+</span><span id="line-124"></span><span class="hs-comment">-- size for the first array, if any.</span><span>
+</span><span id="line-125"></span><span class="annot"><a href="Unison.Runtime.JIT.Pool.html#newPool"><span class="hs-identifier hs-type">newPool</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="Unison.Runtime.JIT.Pool.html#Pool"><span class="hs-identifier hs-type">Pool</span></a></span><span>
+</span><span id="line-126"></span><span id="newPool"><span class="annot"><span class="annottext">newPool :: Maybe Int -&gt; IO Pool
+</span><a href="Unison.Runtime.JIT.Pool.html#newPool"><span class="hs-identifier hs-var hs-var">newPool</span></a></span></span><span> </span><span id="local-6989586621681820521"><span class="annot"><span class="annottext">Maybe Int
+</span><a href="#local-6989586621681820521"><span class="hs-identifier hs-var">stress</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-127"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621681820522"><span class="annot"><span class="annottext">stable :: Int
+</span><a href="#local-6989586621681820522"><span class="hs-identifier hs-var hs-var">stable</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Ord a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-identifier hs-var">max</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="Unison.Runtime.JIT.Pool.html#fixedEntries"><span class="hs-identifier hs-var">fixedEntries</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; Maybe Int -&gt; Int
+forall a. a -&gt; Maybe a -&gt; a
+</span><span class="hs-identifier hs-var">fromMaybe</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">4096</span></span><span> </span><span class="annot"><span class="annottext">Maybe Int
+</span><a href="#local-6989586621681820521"><span class="hs-identifier hs-var">stress</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-128"></span><span>  </span><span class="hs-comment">-- Everything is forced before it goes in: native code reads these</span><span>
+</span><span id="line-129"></span><span>  </span><span class="hs-comment">-- objects' fields directly, so they must be values, not thunks.</span><span>
+</span><span id="line-130"></span><span>  </span><span id="local-6989586621681820524"><span class="annot"><span class="annottext">MutableArray RealWorld Closure
+</span><a href="#local-6989586621681820524"><span class="hs-identifier hs-var">arr</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Closure -&gt; IO (MutableArray (PrimState IO) Closure)
+forall (m :: * -&gt; *) a.
+PrimMonad m =&gt;
+Int -&gt; a -&gt; m (MutableArray (PrimState m) a)
+</span><span class="hs-identifier hs-var">newArray</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681820522"><span class="hs-identifier hs-var">stable</span></a></span><span> </span><span class="annot"><span class="annottext">(Closure -&gt; IO (MutableArray RealWorld Closure))
+-&gt; Closure -&gt; IO (MutableArray RealWorld Closure)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$!</span></span><span> </span><span class="annot"><span class="annottext">Closure
+</span><a href="Unison.Runtime.Stack.html#natTypeTag"><span class="hs-identifier hs-var">natTypeTag</span></a></span><span>
+</span><span id="line-131"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621681820526"><span class="annot"><span class="annottext">put :: Int -&gt; Closure -&gt; IO ()
+</span><a href="#local-6989586621681820526"><span class="hs-identifier hs-var hs-var">put</span></a></span></span><span> </span><span id="local-6989586621681820527"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681820527"><span class="hs-identifier hs-var">i</span></a></span></span><span> </span><span id="local-6989586621681820528"><span class="annot"><span class="annottext">Closure
+</span><a href="#local-6989586621681820528"><span class="hs-identifier hs-var">c</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">MutableArray (PrimState IO) Closure -&gt; Int -&gt; Closure -&gt; IO ()
+forall (m :: * -&gt; *) a.
+PrimMonad m =&gt;
+MutableArray (PrimState m) a -&gt; Int -&gt; a -&gt; m ()
+</span><span class="hs-identifier hs-var">writeArray</span></span><span> </span><span class="annot"><span class="annottext">MutableArray RealWorld Closure
+MutableArray (PrimState IO) Closure
+</span><a href="#local-6989586621681820524"><span class="hs-identifier hs-var">arr</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681820527"><span class="hs-identifier hs-var">i</span></a></span><span> </span><span class="annot"><span class="annottext">(Closure -&gt; IO ()) -&gt; Closure -&gt; IO ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$!</span></span><span> </span><span class="annot"><span class="annottext">Closure
+</span><a href="#local-6989586621681820528"><span class="hs-identifier hs-var">c</span></a></span><span>
+</span><span id="line-132"></span><span>  </span><span class="annot"><span class="annottext">Int -&gt; Closure -&gt; IO ()
+</span><a href="#local-6989586621681820526"><span class="hs-identifier hs-var">put</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="Unison.Runtime.JIT.Pool.html#poolIndexCharTag"><span class="hs-identifier hs-var">poolIndexCharTag</span></a></span><span> </span><span class="annot"><span class="annottext">Closure
+</span><a href="Unison.Runtime.Stack.html#charTypeTag"><span class="hs-identifier hs-var">charTypeTag</span></a></span><span>
+</span><span id="line-133"></span><span>  </span><span class="annot"><span class="annottext">Int -&gt; Closure -&gt; IO ()
+</span><a href="#local-6989586621681820526"><span class="hs-identifier hs-var">put</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="Unison.Runtime.JIT.Pool.html#poolIndexFloatTag"><span class="hs-identifier hs-var">poolIndexFloatTag</span></a></span><span> </span><span class="annot"><span class="annottext">Closure
+</span><a href="Unison.Runtime.Stack.html#floatTypeTag"><span class="hs-identifier hs-var">floatTypeTag</span></a></span><span>
+</span><span id="line-134"></span><span>  </span><span class="annot"><span class="annottext">Int -&gt; Closure -&gt; IO ()
+</span><a href="#local-6989586621681820526"><span class="hs-identifier hs-var">put</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="Unison.Runtime.JIT.Pool.html#poolIndexIntTag"><span class="hs-identifier hs-var">poolIndexIntTag</span></a></span><span> </span><span class="annot"><span class="annottext">Closure
+</span><a href="Unison.Runtime.Stack.html#intTypeTag"><span class="hs-identifier hs-var">intTypeTag</span></a></span><span>
+</span><span id="line-135"></span><span>  </span><span class="annot"><span class="annottext">Int -&gt; Closure -&gt; IO ()
+</span><a href="#local-6989586621681820526"><span class="hs-identifier hs-var">put</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="Unison.Runtime.JIT.Pool.html#poolIndexNatTag"><span class="hs-identifier hs-var">poolIndexNatTag</span></a></span><span> </span><span class="annot"><span class="annottext">Closure
+</span><a href="Unison.Runtime.Stack.html#natTypeTag"><span class="hs-identifier hs-var">natTypeTag</span></a></span><span>
+</span><span id="line-136"></span><span>  </span><span class="annot"><span class="annottext">Int -&gt; Closure -&gt; IO ()
+</span><a href="#local-6989586621681820526"><span class="hs-identifier hs-var">put</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="Unison.Runtime.JIT.Pool.html#poolIndexTrue"><span class="hs-identifier hs-var">poolIndexTrue</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Val -&gt; Closure
+</span><a href="Unison.Runtime.Stack.html#getBoxedVal"><span class="hs-identifier hs-var">getBoxedVal</span></a></span><span> </span><span class="annot"><span class="annottext">Val
+</span><a href="Unison.Runtime.Stack.html#trueVal"><span class="hs-identifier hs-var">trueVal</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-137"></span><span>  </span><span class="annot"><span class="annottext">Int -&gt; Closure -&gt; IO ()
+</span><a href="#local-6989586621681820526"><span class="hs-identifier hs-var">put</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="Unison.Runtime.JIT.Pool.html#poolIndexFalse"><span class="hs-identifier hs-var">poolIndexFalse</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Val -&gt; Closure
+</span><a href="Unison.Runtime.Stack.html#getBoxedVal"><span class="hs-identifier hs-var">getBoxedVal</span></a></span><span> </span><span class="annot"><span class="annottext">Val
+</span><a href="Unison.Runtime.Stack.html#falseVal"><span class="hs-identifier hs-var">falseVal</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-138"></span><span>  </span><span id="local-6989586621681820530"><span class="annot"><span class="annottext">IORef PoolState
+</span><a href="#local-6989586621681820530"><span class="hs-identifier hs-var">ref</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">PoolState -&gt; IO (IORef PoolState)
+forall a. a -&gt; IO (IORef a)
+</span><span class="hs-identifier hs-var">newIORef</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">MutableArray (PrimState IO) Closure
+-&gt; Int
+-&gt; Map PoolKey Int
+-&gt; [MutableArray (PrimState IO) Closure]
+-&gt; PoolState
+</span><a href="Unison.Runtime.JIT.Pool.html#PoolState"><span class="hs-identifier hs-var">PoolState</span></a></span><span> </span><span class="annot"><span class="annottext">MutableArray RealWorld Closure
+MutableArray (PrimState IO) Closure
+</span><a href="#local-6989586621681820524"><span class="hs-identifier hs-var">arr</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="Unison.Runtime.JIT.Pool.html#fixedEntries"><span class="hs-identifier hs-var">fixedEntries</span></a></span><span> </span><span class="annot"><span class="annottext">Map PoolKey Int
+forall k a. Map k a
+</span><span class="hs-identifier hs-var">Map.empty</span></span><span> </span><span class="hs-special">[</span><span class="hs-special">]</span><span class="hs-special">)</span><span>
+</span><span id="line-139"></span><span>  </span><span class="hs-identifier">pure</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">IORef PoolState -&gt; Int -&gt; Pool
+</span><a href="Unison.Runtime.JIT.Pool.html#Pool"><span class="hs-identifier hs-var">Pool</span></a></span><span> </span><span class="annot"><span class="annottext">IORef PoolState
+</span><a href="#local-6989586621681820530"><span class="hs-identifier hs-var">ref</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681820522"><span class="hs-identifier hs-var">stable</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-140"></span><span>
+</span><span id="line-141"></span><span class="annot"><span class="hs-comment">-- | The array to pass to native code now.</span></span><span>
+</span><span id="line-142"></span><span class="annot"><a href="Unison.Runtime.JIT.Pool.html#currentPool"><span class="hs-identifier hs-type">currentPool</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Unison.Runtime.JIT.Pool.html#Pool"><span class="hs-identifier hs-type">Pool</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">MutableArray</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">PrimState</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span class="hs-special">)</span><span> </span><span class="annot"><a href="Unison.Runtime.Stack.html#Closure"><span class="hs-identifier hs-type">Closure</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-143"></span><span id="currentPool"><span class="annot"><span class="annottext">currentPool :: Pool -&gt; IO (MutableArray (PrimState IO) Closure)
+</span><a href="Unison.Runtime.JIT.Pool.html#currentPool"><span class="hs-identifier hs-var hs-var">currentPool</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Runtime.JIT.Pool.html#Pool"><span class="hs-identifier hs-type">Pool</span></a></span><span> </span><span id="local-6989586621681820533"><span class="annot"><span class="annottext">IORef PoolState
+</span><a href="#local-6989586621681820533"><span class="hs-identifier hs-var">ref</span></a></span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">PoolState -&gt; MutableArray RealWorld Closure
+PoolState -&gt; MutableArray (PrimState IO) Closure
+</span><a href="Unison.Runtime.JIT.Pool.html#poolArray"><span class="hs-identifier hs-var">poolArray</span></a></span><span> </span><span class="annot"><span class="annottext">(PoolState -&gt; MutableArray RealWorld Closure)
+-&gt; IO PoolState -&gt; IO (MutableArray RealWorld Closure)
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">IORef PoolState -&gt; IO PoolState
+forall a. IORef a -&gt; IO a
+</span><span class="hs-identifier hs-var">readIORef</span></span><span> </span><span class="annot"><span class="annottext">IORef PoolState
+</span><a href="#local-6989586621681820533"><span class="hs-identifier hs-var">ref</span></a></span><span>
+</span><span id="line-144"></span><span>
+</span><span id="line-145"></span><span class="hs-comment">-- | The index of each key, adding the ones not seen before. Called when</span><span>
+</span><span id="line-146"></span><span class="hs-comment">-- a module is compiled, before its code is generated.</span><span>
+</span><span id="line-147"></span><span class="annot"><a href="Unison.Runtime.JIT.Pool.html#poolIndices"><span class="hs-identifier hs-type">poolIndices</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Unison.Runtime.JIT.Pool.html#Pool"><span class="hs-identifier hs-type">Pool</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Unison.Runtime.JIT.Pool.html#PoolKey"><span class="hs-identifier hs-type">PoolKey</span></a></span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Map.Map</span></span><span> </span><span class="annot"><a href="Unison.Runtime.JIT.Pool.html#PoolKey"><span class="hs-identifier hs-type">PoolKey</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">)</span><span>
+</span><span id="line-148"></span><span id="poolIndices"><span class="annot"><span class="annottext">poolIndices :: Pool -&gt; [PoolKey] -&gt; IO (Map PoolKey Int)
+</span><a href="Unison.Runtime.JIT.Pool.html#poolIndices"><span class="hs-identifier hs-var hs-var">poolIndices</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Runtime.JIT.Pool.html#Pool"><span class="hs-identifier hs-type">Pool</span></a></span><span> </span><span id="local-6989586621681820536"><span class="annot"><span class="annottext">IORef PoolState
+</span><a href="#local-6989586621681820536"><span class="hs-identifier hs-var">ref</span></a></span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621681820537"><span class="annot"><span class="annottext">[PoolKey]
+</span><a href="#local-6989586621681820537"><span class="hs-identifier hs-var">keys</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-149"></span><span>  </span><span id="local-6989586621681820538"><span class="annot"><span class="annottext">[(PoolKey, Int)]
+</span><a href="#local-6989586621681820538"><span class="hs-identifier hs-var">ixs</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">[PoolKey] -&gt; (PoolKey -&gt; IO (PoolKey, Int)) -&gt; IO [(PoolKey, Int)]
+forall (t :: * -&gt; *) (m :: * -&gt; *) a b.
+(Traversable t, Monad m) =&gt;
+t a -&gt; (a -&gt; m b) -&gt; m (t b)
+</span><span class="hs-identifier hs-var">forM</span></span><span> </span><span class="annot"><span class="annottext">[PoolKey]
+</span><a href="#local-6989586621681820537"><span class="hs-identifier hs-var">keys</span></a></span><span> </span><span class="annot"><span class="annottext">((PoolKey -&gt; IO (PoolKey, Int)) -&gt; IO [(PoolKey, Int)])
+-&gt; (PoolKey -&gt; IO (PoolKey, Int)) -&gt; IO [(PoolKey, Int)]
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621681820539"><span class="annot"><span class="annottext">PoolKey
+</span><a href="#local-6989586621681820539"><span class="hs-identifier hs-var">k</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-150"></span><span>    </span><span id="local-6989586621681820540"><span class="annot"><span class="annottext">PoolState
+</span><a href="#local-6989586621681820540"><span class="hs-identifier hs-var">p</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">IORef PoolState -&gt; IO PoolState
+forall a. IORef a -&gt; IO a
+</span><span class="hs-identifier hs-var">readIORef</span></span><span> </span><span class="annot"><span class="annottext">IORef PoolState
+</span><a href="#local-6989586621681820536"><span class="hs-identifier hs-var">ref</span></a></span><span>
+</span><span id="line-151"></span><span>    </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">PoolKey -&gt; Map PoolKey Int -&gt; Maybe Int
+forall k a. Ord k =&gt; k -&gt; Map k a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Map.lookup</span></span><span> </span><span class="annot"><span class="annottext">PoolKey
+</span><a href="#local-6989586621681820539"><span class="hs-identifier hs-var">k</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">PoolState -&gt; Map PoolKey Int
+</span><a href="Unison.Runtime.JIT.Pool.html#poolKeys"><span class="hs-identifier hs-var">poolKeys</span></a></span><span> </span><span class="annot"><span class="annottext">PoolState
+</span><a href="#local-6989586621681820540"><span class="hs-identifier hs-var">p</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-152"></span><span>      </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621681820542"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681820542"><span class="hs-identifier hs-var">i</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">(PoolKey, Int) -&gt; IO (PoolKey, Int)
+forall a. a -&gt; IO a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">PoolKey
+</span><a href="#local-6989586621681820539"><span class="hs-identifier hs-var">k</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681820542"><span class="hs-identifier hs-var">i</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-153"></span><span>      </span><span class="annot"><span class="annottext">Maybe Int
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-154"></span><span>        </span><span id="local-6989586621681820543"><span class="annot"><span class="annottext">PoolState
+</span><a href="#local-6989586621681820543"><span class="hs-identifier hs-var">p</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">PoolState -&gt; IO PoolState
+forall {f :: * -&gt; *}.
+(PrimState f ~ RealWorld, PrimMonad f) =&gt;
+PoolState -&gt; f PoolState
+</span><a href="#local-6989586621681820544"><span class="hs-identifier hs-var">grow</span></a></span><span> </span><span class="annot"><span class="annottext">PoolState
+</span><a href="#local-6989586621681820540"><span class="hs-identifier hs-var">p</span></a></span><span>
+</span><span id="line-155"></span><span>        </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621681820545"><span class="annot"><span class="annottext">i :: Int
+</span><a href="#local-6989586621681820545"><span class="hs-identifier hs-var hs-var">i</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">PoolState -&gt; Int
+</span><a href="Unison.Runtime.JIT.Pool.html#poolNext"><span class="hs-identifier hs-var">poolNext</span></a></span><span> </span><span class="annot"><span class="annottext">PoolState
+</span><a href="#local-6989586621681820543"><span class="hs-identifier hs-var">p</span></a></span><span>
+</span><span id="line-156"></span><span>            </span><span class="hs-glyph">!</span><span id="local-6989586621681820546"><span class="annot"><span class="annottext">c :: Closure
+</span><a href="#local-6989586621681820546"><span class="hs-identifier hs-var hs-var">c</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">PoolKey -&gt; Closure
+</span><a href="Unison.Runtime.JIT.Pool.html#closureFor"><span class="hs-identifier hs-var">closureFor</span></a></span><span> </span><span class="annot"><span class="annottext">PoolKey
+</span><a href="#local-6989586621681820539"><span class="hs-identifier hs-var">k</span></a></span><span>
+</span><span id="line-157"></span><span>        </span><span class="annot"><span class="annottext">MutableArray (PrimState IO) Closure -&gt; Int -&gt; Closure -&gt; IO ()
+forall (m :: * -&gt; *) a.
+PrimMonad m =&gt;
+MutableArray (PrimState m) a -&gt; Int -&gt; a -&gt; m ()
+</span><span class="hs-identifier hs-var">writeArray</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">PoolState -&gt; MutableArray (PrimState IO) Closure
+</span><a href="Unison.Runtime.JIT.Pool.html#poolArray"><span class="hs-identifier hs-var">poolArray</span></a></span><span> </span><span class="annot"><span class="annottext">PoolState
+</span><a href="#local-6989586621681820543"><span class="hs-identifier hs-var">p</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681820545"><span class="hs-identifier hs-var">i</span></a></span><span> </span><span class="annot"><span class="annottext">Closure
+</span><a href="#local-6989586621681820546"><span class="hs-identifier hs-var">c</span></a></span><span>
+</span><span id="line-158"></span><span>        </span><span class="hs-comment">-- a native run that began before the array last grew holds an old one</span><span>
+</span><span id="line-159"></span><span>        </span><span class="annot"><span class="annottext">[MutableArray RealWorld Closure]
+-&gt; (MutableArray RealWorld Closure -&gt; IO ()) -&gt; IO ()
+forall (t :: * -&gt; *) (m :: * -&gt; *) a b.
+(Foldable t, Monad m) =&gt;
+t a -&gt; (a -&gt; m b) -&gt; m ()
+</span><span class="hs-identifier hs-var">forM_</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">PoolState -&gt; [MutableArray (PrimState IO) Closure]
+</span><a href="Unison.Runtime.JIT.Pool.html#poolOld"><span class="hs-identifier hs-var">poolOld</span></a></span><span> </span><span class="annot"><span class="annottext">PoolState
+</span><a href="#local-6989586621681820543"><span class="hs-identifier hs-var">p</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">((MutableArray RealWorld Closure -&gt; IO ()) -&gt; IO ())
+-&gt; (MutableArray RealWorld Closure -&gt; IO ()) -&gt; IO ()
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621681820548"><span class="annot"><span class="annottext">MutableArray RealWorld Closure
+</span><a href="#local-6989586621681820548"><span class="hs-identifier hs-var">old</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Bool -&gt; IO () -&gt; IO ()
+forall (f :: * -&gt; *). Applicative f =&gt; Bool -&gt; f () -&gt; f ()
+</span><span class="hs-identifier hs-var">when</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681820545"><span class="hs-identifier hs-var">i</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&lt;</span></span><span> </span><span class="annot"><span class="annottext">MutableArray RealWorld Closure -&gt; Int
+forall s a. MutableArray s a -&gt; Int
+</span><span class="hs-identifier hs-var">sizeofMutableArray</span></span><span> </span><span class="annot"><span class="annottext">MutableArray RealWorld Closure
+</span><a href="#local-6989586621681820548"><span class="hs-identifier hs-var">old</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">MutableArray (PrimState IO) Closure -&gt; Int -&gt; Closure -&gt; IO ()
+forall (m :: * -&gt; *) a.
+PrimMonad m =&gt;
+MutableArray (PrimState m) a -&gt; Int -&gt; a -&gt; m ()
+</span><span class="hs-identifier hs-var">writeArray</span></span><span> </span><span class="annot"><span class="annottext">MutableArray RealWorld Closure
+MutableArray (PrimState IO) Closure
+</span><a href="#local-6989586621681820548"><span class="hs-identifier hs-var">old</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681820545"><span class="hs-identifier hs-var">i</span></a></span><span> </span><span class="annot"><span class="annottext">Closure
+</span><a href="#local-6989586621681820546"><span class="hs-identifier hs-var">c</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-160"></span><span>        </span><span class="annot"><span class="annottext">IORef PoolState -&gt; PoolState -&gt; IO ()
+forall a. IORef a -&gt; a -&gt; IO ()
+</span><span class="hs-identifier hs-var">writeIORef</span></span><span> </span><span class="annot"><span class="annottext">IORef PoolState
+</span><a href="#local-6989586621681820536"><span class="hs-identifier hs-var">ref</span></a></span><span> </span><span class="annot"><span class="annottext">PoolState
+</span><a href="#local-6989586621681820543"><span class="hs-identifier hs-var">p</span></a></span><span> </span><span class="hs-special">{</span><span class="annot"><a href="Unison.Runtime.JIT.Pool.html#poolNext"><span class="hs-identifier hs-var">poolNext</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="#local-6989586621681820545"><span class="hs-identifier hs-type">i</span></a></span><span> </span><span class="annot"><span class="hs-operator hs-type">+</span></span><span> </span><span class="annot"><span class="hs-number">1</span></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Unison.Runtime.JIT.Pool.html#poolKeys"><span class="hs-identifier hs-var">poolKeys</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Map.insert</span></span><span> </span><span class="annot"><a href="#local-6989586621681820539"><span class="hs-identifier hs-type">k</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681820545"><span class="hs-identifier hs-type">i</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Runtime.JIT.Pool.html#poolKeys"><span class="hs-identifier hs-var">poolKeys</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681820543"><span class="hs-identifier hs-type">p</span></a></span><span class="hs-special">)</span><span class="hs-special">}</span><span>
+</span><span id="line-161"></span><span>        </span><span class="hs-identifier">pure</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">PoolKey
+</span><a href="#local-6989586621681820539"><span class="hs-identifier hs-var">k</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681820545"><span class="hs-identifier hs-var">i</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-162"></span><span>  </span><span class="hs-identifier">pure</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">[(PoolKey, Int)] -&gt; Map PoolKey Int
+forall k a. Ord k =&gt; [(k, a)] -&gt; Map k a
+</span><span class="hs-identifier hs-var">Map.fromList</span></span><span> </span><span class="annot"><span class="annottext">[(PoolKey, Int)]
+</span><a href="#local-6989586621681820538"><span class="hs-identifier hs-var">ixs</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-163"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-164"></span><span>    </span><span id="local-6989586621681820544"><span class="annot"><span class="annottext">grow :: PoolState -&gt; f PoolState
+</span><a href="#local-6989586621681820544"><span class="hs-identifier hs-var hs-var">grow</span></a></span></span><span> </span><span id="local-6989586621681820577"><span class="annot"><span class="annottext">PoolState
+</span><a href="#local-6989586621681820577"><span class="hs-identifier hs-var">p</span></a></span></span><span>
+</span><span id="line-165"></span><span>      </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">PoolState -&gt; Int
+</span><a href="Unison.Runtime.JIT.Pool.html#poolNext"><span class="hs-identifier hs-var">poolNext</span></a></span><span> </span><span class="annot"><span class="annottext">PoolState
+</span><a href="#local-6989586621681820577"><span class="hs-identifier hs-var">p</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&lt;</span></span><span> </span><span class="annot"><span class="annottext">MutableArray RealWorld Closure -&gt; Int
+forall s a. MutableArray s a -&gt; Int
+</span><span class="hs-identifier hs-var">sizeofMutableArray</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">PoolState -&gt; MutableArray (PrimState IO) Closure
+</span><a href="Unison.Runtime.JIT.Pool.html#poolArray"><span class="hs-identifier hs-var">poolArray</span></a></span><span> </span><span class="annot"><span class="annottext">PoolState
+</span><a href="#local-6989586621681820577"><span class="hs-identifier hs-var">p</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">PoolState -&gt; f PoolState
+forall a. a -&gt; f a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">PoolState
+</span><a href="#local-6989586621681820577"><span class="hs-identifier hs-var">p</span></a></span><span>
+</span><span id="line-166"></span><span>      </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-167"></span><span>          </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621681820578"><span class="annot"><span class="annottext">old :: MutableArray (PrimState IO) Closure
+</span><a href="#local-6989586621681820578"><span class="hs-identifier hs-var hs-var">old</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">PoolState -&gt; MutableArray (PrimState IO) Closure
+</span><a href="Unison.Runtime.JIT.Pool.html#poolArray"><span class="hs-identifier hs-var">poolArray</span></a></span><span> </span><span class="annot"><span class="annottext">PoolState
+</span><a href="#local-6989586621681820577"><span class="hs-identifier hs-var">p</span></a></span><span>
+</span><span id="line-168"></span><span>              </span><span id="local-6989586621681820579"><span class="annot"><span class="annottext">n :: Int
+</span><a href="#local-6989586621681820579"><span class="hs-identifier hs-var hs-var">n</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">MutableArray RealWorld Closure -&gt; Int
+forall s a. MutableArray s a -&gt; Int
+</span><span class="hs-identifier hs-var">sizeofMutableArray</span></span><span> </span><span class="annot"><span class="annottext">MutableArray RealWorld Closure
+MutableArray (PrimState IO) Closure
+</span><a href="#local-6989586621681820578"><span class="hs-identifier hs-var">old</span></a></span><span>
+</span><span id="line-169"></span><span>          </span><span id="local-6989586621681820580"><span class="annot"><span class="annottext">MutableArray (PrimState f) Closure
+</span><a href="#local-6989586621681820580"><span class="hs-identifier hs-var">new</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Closure -&gt; f (MutableArray (PrimState f) Closure)
+forall (m :: * -&gt; *) a.
+PrimMonad m =&gt;
+Int -&gt; a -&gt; m (MutableArray (PrimState m) a)
+</span><span class="hs-identifier hs-var">newArray</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">2</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">*</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681820579"><span class="hs-identifier hs-var">n</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(Closure -&gt; f (MutableArray (PrimState f) Closure))
+-&gt; Closure -&gt; f (MutableArray (PrimState f) Closure)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$!</span></span><span> </span><span class="annot"><span class="annottext">Closure
+</span><a href="Unison.Runtime.Stack.html#natTypeTag"><span class="hs-identifier hs-var">natTypeTag</span></a></span><span>
+</span><span id="line-170"></span><span>          </span><span class="annot"><span class="annottext">MutableArray (PrimState f) Closure
+-&gt; Int -&gt; MutableArray (PrimState f) Closure -&gt; Int -&gt; Int -&gt; f ()
+forall (m :: * -&gt; *) a.
+PrimMonad m =&gt;
+MutableArray (PrimState m) a
+-&gt; Int -&gt; MutableArray (PrimState m) a -&gt; Int -&gt; Int -&gt; m ()
+</span><span class="hs-identifier hs-var">copyMutableArray</span></span><span> </span><span class="annot"><span class="annottext">MutableArray (PrimState f) Closure
+</span><a href="#local-6989586621681820580"><span class="hs-identifier hs-var">new</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span> </span><span class="annot"><span class="annottext">MutableArray (PrimState f) Closure
+MutableArray (PrimState IO) Closure
+</span><a href="#local-6989586621681820578"><span class="hs-identifier hs-var">old</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681820579"><span class="hs-identifier hs-var">n</span></a></span><span>
+</span><span id="line-171"></span><span>          </span><span class="hs-identifier">pure</span><span> </span><span class="annot"><span class="annottext">PoolState
+</span><a href="#local-6989586621681820577"><span class="hs-identifier hs-var">p</span></a></span><span> </span><span class="hs-special">{</span><span class="annot"><a href="Unison.Runtime.JIT.Pool.html#poolArray"><span class="hs-identifier hs-var">poolArray</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="#local-6989586621681820580"><span class="hs-identifier hs-type">new</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Unison.Runtime.JIT.Pool.html#poolOld"><span class="hs-identifier hs-var">poolOld</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="#local-6989586621681820578"><span class="hs-identifier hs-type">old</span></a></span><span> </span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span> </span><span class="annot"><a href="Unison.Runtime.JIT.Pool.html#poolOld"><span class="hs-identifier hs-var">poolOld</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681820577"><span class="hs-identifier hs-type">p</span></a></span><span class="hs-special">}</span><span>
+</span><span id="line-172"></span><span>
+</span><span id="line-173"></span><span class="annot"><a href="Unison.Runtime.JIT.Pool.html#closureFor"><span class="hs-identifier hs-type">closureFor</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Unison.Runtime.JIT.Pool.html#PoolKey"><span class="hs-identifier hs-type">PoolKey</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.Runtime.Stack.html#Closure"><span class="hs-identifier hs-type">Closure</span></a></span><span>
+</span><span id="line-174"></span><span id="closureFor"><span class="annot"><span class="annottext">closureFor :: PoolKey -&gt; Closure
+</span><a href="Unison.Runtime.JIT.Pool.html#closureFor"><span class="hs-identifier hs-var hs-var">closureFor</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-175"></span><span>  </span><span class="annot"><a href="Unison.Runtime.JIT.Pool.html#KeyEnum"><span class="hs-identifier hs-type">KeyEnum</span></a></span><span> </span><span id="local-6989586621681820582"><span class="annot"><span class="annottext">Reference
+</span><a href="#local-6989586621681820582"><span class="hs-identifier hs-var">r</span></a></span></span><span> </span><span id="local-6989586621681820583"><span class="annot"><span class="annottext">PackedTag
+</span><a href="#local-6989586621681820583"><span class="hs-identifier hs-var">t</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Reference -&gt; PackedTag -&gt; Closure
+</span><a href="Unison.Runtime.Stack.html#Enum"><span class="hs-identifier hs-var">Enum</span></a></span><span> </span><span class="annot"><span class="annottext">Reference
+</span><a href="#local-6989586621681820582"><span class="hs-identifier hs-var">r</span></a></span><span> </span><span class="annot"><span class="annottext">PackedTag
+</span><a href="#local-6989586621681820583"><span class="hs-identifier hs-var">t</span></a></span><span>
+</span><span id="line-176"></span><span>  </span><span class="hs-comment">-- the segment's boxes must be evaluated (native code reads through</span><span>
+</span><span id="line-177"></span><span>  </span><span class="hs-comment">-- them); nullSeg's components are CAFs, so force them</span><span>
+</span><span id="line-178"></span><span>  </span><span class="annot"><a href="Unison.Runtime.JIT.Pool.html#KeyComb"><span class="hs-identifier hs-type">KeyComb</span></a></span><span> </span><span id="local-6989586621681820584"><span class="annot"><span class="annottext">CombIx
+</span><a href="#local-6989586621681820584"><span class="hs-identifier hs-var">cix</span></a></span></span><span> </span><span id="local-6989586621681820585"><span class="annot"><span class="annottext">GCombInfo MComb
+</span><a href="#local-6989586621681820585"><span class="hs-identifier hs-var">comb</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">let</span><span> </span><span class="hs-special">(</span><span id="local-6989586621681820586"><span class="annot"><span class="annottext">USeg
+</span><a href="#local-6989586621681820586"><span class="hs-identifier hs-var">u</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681820587"><span class="annot"><span class="annottext">BSeg
+</span><a href="#local-6989586621681820587"><span class="hs-identifier hs-var">b</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(USeg, BSeg)
+</span><a href="Unison.Runtime.Stack.html#nullSeg"><span class="hs-identifier hs-var">nullSeg</span></a></span><span> </span><span class="hs-keyword">in</span><span> </span><span class="annot"><span class="annottext">USeg
+</span><a href="#local-6989586621681820586"><span class="hs-identifier hs-var">u</span></a></span><span> </span><span class="annot"><span class="annottext">USeg -&gt; Closure -&gt; Closure
+forall a b. a -&gt; b -&gt; b
+</span><span class="hs-operator hs-var">`seq`</span></span><span> </span><span class="annot"><span class="annottext">BSeg
+</span><a href="#local-6989586621681820587"><span class="hs-identifier hs-var">b</span></a></span><span> </span><span class="annot"><span class="annottext">BSeg -&gt; Closure -&gt; Closure
+forall a b. a -&gt; b -&gt; b
+</span><span class="hs-operator hs-var">`seq`</span></span><span> </span><span class="annot"><span class="annottext">CombIx -&gt; GCombInfo MComb -&gt; (USeg, BSeg) -&gt; Closure
+</span><a href="Unison.Runtime.Stack.html#PAp"><span class="hs-identifier hs-var">PAp</span></a></span><span> </span><span class="annot"><span class="annottext">CombIx
+</span><a href="#local-6989586621681820584"><span class="hs-identifier hs-var">cix</span></a></span><span> </span><span class="annot"><span class="annottext">GCombInfo MComb
+</span><a href="#local-6989586621681820585"><span class="hs-identifier hs-var">comb</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">USeg
+</span><a href="#local-6989586621681820586"><span class="hs-identifier hs-var">u</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">BSeg
+</span><a href="#local-6989586621681820587"><span class="hs-identifier hs-var">b</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-179"></span><span>  </span><span class="annot"><a href="Unison.Runtime.JIT.Pool.html#KeyCached"><span class="hs-identifier hs-type">KeyCached</span></a></span><span> </span><span class="annot"><span class="annottext">CombIx
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621681820588"><span class="annot"><span class="annottext">Closure
+</span><a href="#local-6989586621681820588"><span class="hs-identifier hs-var">c</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Closure
+</span><a href="#local-6989586621681820588"><span class="hs-identifier hs-var">c</span></a></span><span>
+</span><span id="line-180"></span><span>  </span><span class="annot"><a href="Unison.Runtime.JIT.Pool.html#KeyRecord"><span class="hs-identifier hs-type">KeyRecord</span></a></span><span> </span><span id="local-6989586621681820589"><span class="annot"><span class="annottext">RecordShape
+</span><a href="#local-6989586621681820589"><span class="hs-identifier hs-var">s</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">RecordShape -&gt; RecordVals -&gt; Closure
+</span><a href="Unison.Runtime.Stack.html#RecordG"><span class="hs-identifier hs-var">RecordG</span></a></span><span> </span><span class="annot"><span class="annottext">RecordShape
+</span><a href="#local-6989586621681820589"><span class="hs-identifier hs-var">s</span></a></span><span> </span><span class="annot"><span class="annottext">RecordVals
+forall a. Vector a
+</span><span class="hs-identifier hs-var">V.empty</span></span><span>
+</span><span id="line-181"></span><span>  </span><span class="annot"><a href="Unison.Runtime.JIT.Pool.html#KeyLit"><span class="hs-identifier hs-type">KeyLit</span></a></span><span> </span><span id="local-6989586621681820591"><span class="annot"><span class="annottext">MLit
+</span><a href="#local-6989586621681820591"><span class="hs-identifier hs-var">l</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">MLit
+</span><a href="#local-6989586621681820591"><span class="hs-identifier hs-var">l</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-182"></span><span>    </span><span class="annot"><a href="Unison.Runtime.MCode.html#MT"><span class="hs-identifier hs-type">MT</span></a></span><span> </span><span id="local-6989586621681820593"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681820593"><span class="hs-identifier hs-var">t</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Text -&gt; Closure
+</span><a href="Unison.Runtime.Stack.html#TextC"><span class="hs-identifier hs-var">Stack.TextC</span></a></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681820593"><span class="hs-identifier hs-var">t</span></a></span><span>
+</span><span id="line-183"></span><span>    </span><span class="annot"><a href="Unison.Runtime.MCode.html#MM"><span class="hs-identifier hs-type">MM</span></a></span><span> </span><span id="local-6989586621681820596"><span class="annot"><span class="annottext">Referent
+</span><a href="#local-6989586621681820596"><span class="hs-identifier hs-var">r</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Foreign -&gt; Closure
+</span><a href="Unison.Runtime.Stack.html#Foreign"><span class="hs-identifier hs-var">Foreign</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Referent -&gt; Foreign
+</span><a href="Unison.Runtime.Stack.html#WrapReferent"><span class="hs-identifier hs-var">Stack.WrapReferent</span></a></span><span> </span><span class="annot"><span class="annottext">Referent
+</span><a href="#local-6989586621681820596"><span class="hs-identifier hs-var">r</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-184"></span><span>    </span><span class="annot"><a href="Unison.Runtime.MCode.html#MY"><span class="hs-identifier hs-type">MY</span></a></span><span> </span><span id="local-6989586621681820599"><span class="annot"><span class="annottext">Reference
+</span><a href="#local-6989586621681820599"><span class="hs-identifier hs-var">r</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Foreign -&gt; Closure
+</span><a href="Unison.Runtime.Stack.html#Foreign"><span class="hs-identifier hs-var">Foreign</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Reference -&gt; Foreign
+</span><a href="Unison.Runtime.Stack.html#WrapReference"><span class="hs-identifier hs-var">Stack.WrapReference</span></a></span><span> </span><span class="annot"><span class="annottext">Reference
+</span><a href="#local-6989586621681820599"><span class="hs-identifier hs-var">r</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-185"></span><span>    </span><span class="annot"><span class="annottext">MLit
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">String -&gt; Closure
+forall a. HasCallStack =&gt; String -&gt; a
+</span><span class="hs-identifier hs-var">error</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;closureFor: unboxed literal&quot;</span></span><span>
+</span><span id="line-186"></span></pre></body></html>

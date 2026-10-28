@@ -1,0 +1,712 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE MagicHash #-}</span><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# LANGUAGE UnliftedFFITypes #-}</span><span>
+</span><span id="line-3"></span><span>
+</span><span id="line-4"></span><span class="hs-comment">-- | The interpreter's side of the boundary with native code: the C</span><span>
+</span><span id="line-5"></span><span class="hs-comment">-- functions in cbits/jit_rt.c that the Haskell runtime calls, and nothing</span><span>
+</span><span id="line-6"></span><span class="hs-comment">-- else. See unison-runtime/src/Unison/Runtime/JIT/design.md, &quot;How the interpreter interacts</span><span>
+</span><span id="line-7"></span><span class="hs-comment">-- with native code&quot;. With the JIT off nothing here is reached, because no</span><span>
+</span><span id="line-8"></span><span class="hs-comment">-- cell ever holds code.</span><span>
+</span><span id="line-9"></span><span class="hs-comment">--</span><span>
+</span><span id="line-10"></span><span class="hs-comment">-- Three jobs, in three sections below:</span><span>
+</span><span id="line-11"></span><span class="hs-comment">--</span><span>
+</span><span id="line-12"></span><span class="hs-comment">-- 1. /Entering native code./ 'enterNative' is the one call the trampoline</span><span>
+</span><span id="line-13"></span><span class="hs-comment">--    (Machine.runNative) makes per entry; it hands over the stacks and</span><span>
+</span><span id="line-14"></span><span class="hs-comment">--    the pool and gets a status back. Everything else native code returns</span><span>
+</span><span id="line-15"></span><span class="hs-comment">--    is read afterwards out of the stacks' out-areas with 'outAp' and the</span><span>
+</span><span id="line-16"></span><span class="hs-comment">--    rest, as 'FrameRecord's for the frames of native callers.</span><span>
+</span><span id="line-17"></span><span class="hs-comment">--</span><span>
+</span><span id="line-18"></span><span class="hs-comment">-- 2. /Startup./ 'configureNative' passes the stress settings down,</span><span>
+</span><span id="line-19"></span><span class="hs-comment">--    'ctxLayout' and 'rtsFacts' fetch the numbers the code generator bakes</span><span>
+</span><span id="line-20"></span><span class="hs-comment">--    into every function (the offsets of the C @Ctx@ struct, the RTS's</span><span>
+</span><span id="line-21"></span><span class="hs-comment">--    info pointers and layout constants).</span><span>
+</span><span id="line-22"></span><span class="hs-comment">--</span><span>
+</span><span id="line-23"></span><span class="hs-comment">-- 3. /Addresses./ The names generated code and the IR helpers call, with</span><span>
+</span><span id="line-24"></span><span class="hs-comment">--    their addresses, which the JIT defines as absolute symbols before any</span><span>
+</span><span id="line-25"></span><span class="hs-comment">--    module is added ('helperAddresses', 'tableAddresses'), and the C</span><span>
+</span><span id="line-26"></span><span class="hs-comment">--    copies of the two helpers whose IR definition must shadow them.</span><span>
+</span><span id="line-27"></span><span class="hs-comment">--</span><span>
+</span><span id="line-28"></span><span class="hs-comment">-- The startup checks that run each C helper family against the</span><span>
+</span><span id="line-29"></span><span class="hs-comment">-- interpreter are in &quot;Unison.Runtime.JIT.Native.Probes&quot;.</span><span>
+</span><span id="line-30"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Unison.Runtime.JIT.Native.html"><span class="hs-identifier">Unison.Runtime.JIT.Native</span></a></span><span>
+</span><span id="line-31"></span><span>  </span><span class="hs-special">(</span><span> </span><span class="annot"><span class="hs-comment">-- * Entering native code</span></span><span>
+</span><span id="line-32"></span><span>    </span><span class="annot"><a href="Unison.Runtime.JIT.Native.html#NativeFn"><span class="hs-identifier">NativeFn</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-33"></span><span>    </span><span class="annot"><a href="Unison.Runtime.JIT.Native.html#Status"><span class="hs-identifier">Status</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-34"></span><span>    </span><span class="annot"><a href="Unison.Runtime.JIT.Native.html#statusOK"><span class="hs-identifier">statusOK</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-35"></span><span>    </span><span class="annot"><a href="Unison.Runtime.JIT.Native.html#statusError"><span class="hs-identifier">statusError</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-36"></span><span>    </span><span class="annot"><a href="Unison.Runtime.JIT.Native.html#enterNative"><span class="hs-identifier">enterNative</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-37"></span><span>    </span><span class="annot"><a href="Unison.Runtime.JIT.Native.html#FrameRecord"><span class="hs-identifier">FrameRecord</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-38"></span><span>    </span><span class="annot"><a href="Unison.Runtime.JIT.Native.html#outAp"><span class="hs-identifier">outAp</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-39"></span><span>    </span><span class="annot"><a href="Unison.Runtime.JIT.Native.html#outFp"><span class="hs-identifier">outFp</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-40"></span><span>    </span><span class="annot"><a href="Unison.Runtime.JIT.Native.html#outSp"><span class="hs-identifier">outSp</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-41"></span><span>    </span><span class="annot"><a href="Unison.Runtime.JIT.Native.html#outFrameCount"><span class="hs-identifier">outFrameCount</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-42"></span><span>    </span><span class="annot"><a href="Unison.Runtime.JIT.Native.html#outFrames"><span class="hs-identifier">outFrames</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-43"></span><span>
+</span><span id="line-44"></span><span>    </span><span class="annot"><span class="hs-comment">-- * Startup</span></span><span>
+</span><span id="line-45"></span><span>    </span><span class="annot"><a href="Unison.Runtime.JIT.Native.html#configureNative"><span class="hs-identifier">configureNative</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-46"></span><span>    </span><span class="annot"><a href="Unison.Runtime.JIT.Native.html#ctxLayout"><span class="hs-identifier">ctxLayout</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-47"></span><span>    </span><span class="annot"><a href="Unison.Runtime.JIT.Native.html#rtsFacts"><span class="hs-identifier">rtsFacts</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-48"></span><span>    </span><span class="annot"><a href="Unison.Runtime.JIT.Native.html#hplimValue"><span class="hs-identifier">hplimValue</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-49"></span><span>
+</span><span id="line-50"></span><span>    </span><span class="annot"><span class="hs-comment">-- * Addresses</span></span><span>
+</span><span id="line-51"></span><span>    </span><span class="annot"><a href="Unison.Runtime.JIT.Native.html#helperAddresses"><span class="hs-identifier">helperAddresses</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-52"></span><span>    </span><span class="annot"><a href="Unison.Runtime.JIT.Native.html#tableAddresses"><span class="hs-identifier">tableAddresses</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-53"></span><span>    </span><span class="annot"><a href="Unison.Runtime.JIT.Native.html#murmurCAddress"><span class="hs-identifier">murmurCAddress</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-54"></span><span>    </span><span class="annot"><a href="Unison.Runtime.JIT.Native.html#ucmpCAddress"><span class="hs-identifier">ucmpCAddress</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-55"></span><span>  </span><span class="hs-special">)</span><span>
+</span><span id="line-56"></span><span class="hs-keyword">where</span><span>
+</span><span id="line-57"></span><span>
+</span><span id="line-58"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Monad</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">forM</span></span><span class="hs-special">)</span><span>
+</span><span id="line-59"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Monad.Primitive</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">PrimState</span></span><span class="hs-special">)</span><span>
+</span><span id="line-60"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Int</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Int64</span></span><span class="hs-special">)</span><span>
+</span><span id="line-61"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Primitive.Array</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">MutableArray</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-62"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Primitive.ByteArray</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">MutableByteArray</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">readByteArray</span></span><span class="hs-special">)</span><span>
+</span><span id="line-63"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Word</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Word64</span></span><span class="hs-special">)</span><span>
+</span><span id="line-64"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Foreign.C.String</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">CString</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">peekCString</span></span><span class="hs-special">)</span><span>
+</span><span id="line-65"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Foreign.Marshal.Alloc</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">allocaBytes</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">free</span></span><span class="hs-special">)</span><span>
+</span><span id="line-66"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Foreign.Ptr</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">FunPtr</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">Ptr</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">WordPtr</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">ptrToWordPtr</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">wordPtrToPtr</span></span><span class="hs-special">)</span><span>
+</span><span id="line-67"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Foreign.Storable</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">peekElemOff</span></span><span class="hs-special">)</span><span>
+</span><span id="line-68"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">GHC.Exts</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">MutableArray#</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">MutableByteArray#</span></span><span class="hs-special">)</span><span>
+</span><span id="line-69"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Unison.Runtime.Stack.html"><span class="hs-identifier">Unison.Runtime.Stack</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Runtime.Stack.html#Closure"><span class="hs-identifier">Closure</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-70"></span><span>
+</span><span id="line-71"></span><span class="hs-comment">-- ---------------------------------------------------------------------------</span><span>
+</span><span id="line-72"></span><span class="hs-comment">-- Entering native code</span><span>
+</span><span id="line-73"></span><span>
+</span><span id="line-74"></span><span class="annot"><span class="hs-comment">-- | The uniform signature of compiled code: @(ctx, ap, fp, sp) -&gt; status@.</span></span><span>
+</span><span id="line-75"></span><span class="hs-keyword">data</span><span> </span><span id="NativeFn"><span class="annot"><a href="Unison.Runtime.JIT.Native.html#NativeFn"><span class="hs-identifier hs-var">NativeFn</span></a></span></span><span>
+</span><span id="line-76"></span><span>
+</span><span id="line-77"></span><span class="hs-keyword">type</span><span> </span><span id="Status"><span class="annot"><a href="Unison.Runtime.JIT.Native.html#Status"><span class="hs-identifier hs-var">Status</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>
+</span><span id="line-78"></span><span>
+</span><span id="line-79"></span><span class="hs-comment">-- | What a native caller writes down when its callee exits: which @Let@</span><span>
+</span><span id="line-80"></span><span class="hs-comment">-- body to continue with (an index into the frame table), and the two sizes</span><span>
+</span><span id="line-81"></span><span class="hs-comment">-- a @Push@ frame needs. A negative index, @-1 - i@, is a @Local@ frame</span><span>
+</span><span id="line-82"></span><span class="hs-comment">-- instead: the environment to switch back to is in the boxed out-area at</span><span>
+</span><span id="line-83"></span><span class="hs-comment">-- @i@ past the first pointer, and the pending-argument count is as for a</span><span>
+</span><span id="line-84"></span><span class="hs-comment">-- @Push@.</span><span>
+</span><span id="line-85"></span><span class="hs-keyword">data</span><span> </span><span id="FrameRecord"><span class="annot"><a href="Unison.Runtime.JIT.Native.html#FrameRecord"><span class="hs-identifier hs-var">FrameRecord</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="FrameRecord"><span class="annot"><a href="Unison.Runtime.JIT.Native.html#FrameRecord"><span class="hs-identifier hs-var">FrameRecord</span></a></span></span><span> </span><span class="hs-special">{</span><span id="frIndex"><span class="annot"><span class="annottext">FrameRecord -&gt; Int
+</span><a href="Unison.Runtime.JIT.Native.html#frIndex"><span class="hs-identifier hs-var hs-var">frIndex</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">,</span><span> </span><span id="frFrameSize"><span class="annot"><span class="annottext">FrameRecord -&gt; Int
+</span><a href="Unison.Runtime.JIT.Native.html#frFrameSize"><span class="hs-identifier hs-var hs-var">frFrameSize</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">,</span><span> </span><span id="frPendingArgs"><span class="annot"><span class="annottext">FrameRecord -&gt; Int
+</span><a href="Unison.Runtime.JIT.Native.html#frPendingArgs"><span class="hs-identifier hs-var hs-var">frPendingArgs</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">}</span><span>
+</span><span id="line-86"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621681814934"><span id="local-6989586621681814941"><span id="local-6989586621681814945"><span class="annot"><span class="annottext">Int -&gt; FrameRecord -&gt; ShowS
+[FrameRecord] -&gt; ShowS
+FrameRecord -&gt; String
+(Int -&gt; FrameRecord -&gt; ShowS)
+-&gt; (FrameRecord -&gt; String)
+-&gt; ([FrameRecord] -&gt; ShowS)
+-&gt; Show FrameRecord
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; FrameRecord -&gt; ShowS
+showsPrec :: Int -&gt; FrameRecord -&gt; ShowS
+$cshow :: FrameRecord -&gt; String
+show :: FrameRecord -&gt; String
+$cshowList :: [FrameRecord] -&gt; ShowS
+showList :: [FrameRecord] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-87"></span><span>
+</span><span id="line-88"></span><span class="annot"><a href="Unison.Runtime.JIT.Native.html#statusOK"><span class="hs-identifier hs-type">statusOK</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Unison.Runtime.JIT.Native.html#statusError"><span class="hs-identifier hs-type">statusError</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Unison.Runtime.JIT.Native.html#Status"><span class="hs-identifier hs-type">Status</span></a></span><span>
+</span><span id="line-89"></span><span id="statusOK"><span class="annot"><span class="annottext">statusOK :: Int
+</span><a href="Unison.Runtime.JIT.Native.html#statusOK"><span class="hs-identifier hs-var hs-var">statusOK</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span>
+</span><span id="line-90"></span><span id="statusError"><span class="annot"><span class="annottext">statusError :: Int
+</span><a href="Unison.Runtime.JIT.Native.html#statusError"><span class="hs-identifier hs-var hs-var">statusError</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">-</span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span>
+</span><span id="line-91"></span><span>
+</span><span id="line-92"></span><span class="hs-comment">-- 'enterNative' leaves what native code hands back besides its status in</span><span>
+</span><span id="line-93"></span><span class="hs-comment">-- the spare words past the last slot of the unboxed stack (see</span><span>
+</span><span id="line-94"></span><span class="hs-comment">-- 'Unison.Runtime.Stack.nativeOutWords'): nothing is allocated for a round</span><span>
+</span><span id="line-95"></span><span class="hs-comment">-- trip. These read them, given the stack and its size in slots.</span><span>
+</span><span id="line-96"></span><span class="annot"><a href="Unison.Runtime.JIT.Native.html#outAp"><span class="hs-identifier hs-type">outAp</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Unison.Runtime.JIT.Native.html#outFp"><span class="hs-identifier hs-type">outFp</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Unison.Runtime.JIT.Native.html#outSp"><span class="hs-identifier hs-type">outSp</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Unison.Runtime.JIT.Native.html#outFrameCount"><span class="hs-identifier hs-type">outFrameCount</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">MutableByteArray</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">PrimState</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>
+</span><span id="line-97"></span><span id="outAp"><span class="annot"><span class="annottext">outAp :: MutableByteArray (PrimState IO) -&gt; Int -&gt; IO Int
+</span><a href="Unison.Runtime.JIT.Native.html#outAp"><span class="hs-identifier hs-var hs-var">outAp</span></a></span></span><span> </span><span id="local-6989586621681814949"><span class="annot"><span class="annottext">MutableByteArray (PrimState IO)
+</span><a href="#local-6989586621681814949"><span class="hs-identifier hs-var">ustk</span></a></span></span><span> </span><span id="local-6989586621681814950"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681814950"><span class="hs-identifier hs-var">size</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">MutableByteArray (PrimState IO) -&gt; Int -&gt; IO Int
+forall a (m :: * -&gt; *).
+(Prim a, PrimMonad m) =&gt;
+MutableByteArray (PrimState m) -&gt; Int -&gt; m a
+</span><span class="hs-identifier hs-var">readByteArray</span></span><span> </span><span class="annot"><span class="annottext">MutableByteArray (PrimState IO)
+</span><a href="#local-6989586621681814949"><span class="hs-identifier hs-var">ustk</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681814950"><span class="hs-identifier hs-var">size</span></a></span><span>
+</span><span id="line-98"></span><span id="outFp"><span class="annot"><span class="annottext">outFp :: MutableByteArray (PrimState IO) -&gt; Int -&gt; IO Int
+</span><a href="Unison.Runtime.JIT.Native.html#outFp"><span class="hs-identifier hs-var hs-var">outFp</span></a></span></span><span> </span><span id="local-6989586621681814951"><span class="annot"><span class="annottext">MutableByteArray (PrimState IO)
+</span><a href="#local-6989586621681814951"><span class="hs-identifier hs-var">ustk</span></a></span></span><span> </span><span id="local-6989586621681814952"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681814952"><span class="hs-identifier hs-var">size</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">MutableByteArray (PrimState IO) -&gt; Int -&gt; IO Int
+forall a (m :: * -&gt; *).
+(Prim a, PrimMonad m) =&gt;
+MutableByteArray (PrimState m) -&gt; Int -&gt; m a
+</span><span class="hs-identifier hs-var">readByteArray</span></span><span> </span><span class="annot"><span class="annottext">MutableByteArray (PrimState IO)
+</span><a href="#local-6989586621681814951"><span class="hs-identifier hs-var">ustk</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681814952"><span class="hs-identifier hs-var">size</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span class="hs-special">)</span><span>
+</span><span id="line-99"></span><span id="outSp"><span class="annot"><span class="annottext">outSp :: MutableByteArray (PrimState IO) -&gt; Int -&gt; IO Int
+</span><a href="Unison.Runtime.JIT.Native.html#outSp"><span class="hs-identifier hs-var hs-var">outSp</span></a></span></span><span> </span><span id="local-6989586621681814954"><span class="annot"><span class="annottext">MutableByteArray (PrimState IO)
+</span><a href="#local-6989586621681814954"><span class="hs-identifier hs-var">ustk</span></a></span></span><span> </span><span id="local-6989586621681814955"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681814955"><span class="hs-identifier hs-var">size</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">MutableByteArray (PrimState IO) -&gt; Int -&gt; IO Int
+forall a (m :: * -&gt; *).
+(Prim a, PrimMonad m) =&gt;
+MutableByteArray (PrimState m) -&gt; Int -&gt; m a
+</span><span class="hs-identifier hs-var">readByteArray</span></span><span> </span><span class="annot"><span class="annottext">MutableByteArray (PrimState IO)
+</span><a href="#local-6989586621681814954"><span class="hs-identifier hs-var">ustk</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681814955"><span class="hs-identifier hs-var">size</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">2</span></span><span class="hs-special">)</span><span>
+</span><span id="line-100"></span><span id="outFrameCount"><span class="annot"><span class="annottext">outFrameCount :: MutableByteArray (PrimState IO) -&gt; Int -&gt; IO Int
+</span><a href="Unison.Runtime.JIT.Native.html#outFrameCount"><span class="hs-identifier hs-var hs-var">outFrameCount</span></a></span></span><span> </span><span id="local-6989586621681814956"><span class="annot"><span class="annottext">MutableByteArray (PrimState IO)
+</span><a href="#local-6989586621681814956"><span class="hs-identifier hs-var">ustk</span></a></span></span><span> </span><span id="local-6989586621681814957"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681814957"><span class="hs-identifier hs-var">size</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">MutableByteArray (PrimState IO) -&gt; Int -&gt; IO Int
+forall a (m :: * -&gt; *).
+(Prim a, PrimMonad m) =&gt;
+MutableByteArray (PrimState m) -&gt; Int -&gt; m a
+</span><span class="hs-identifier hs-var">readByteArray</span></span><span> </span><span class="annot"><span class="annottext">MutableByteArray (PrimState IO)
+</span><a href="#local-6989586621681814956"><span class="hs-identifier hs-var">ustk</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681814957"><span class="hs-identifier hs-var">size</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">3</span></span><span class="hs-special">)</span><span>
+</span><span id="line-101"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Unison.Runtime.JIT.Native.html#outAp"><span class="hs-pragma hs-type">outAp</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-102"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Unison.Runtime.JIT.Native.html#outFp"><span class="hs-pragma hs-type">outFp</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-103"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Unison.Runtime.JIT.Native.html#outSp"><span class="hs-pragma hs-type">outSp</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-104"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Unison.Runtime.JIT.Native.html#outFrameCount"><span class="hs-pragma hs-type">outFrameCount</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-105"></span><span>
+</span><span id="line-106"></span><span class="hs-comment">-- | The frame records, in the order they were written (innermost caller</span><span>
+</span><span id="line-107"></span><span class="hs-comment">-- first). Call at most once per entry: a long list is freed as it is read.</span><span>
+</span><span id="line-108"></span><span class="annot"><a href="Unison.Runtime.JIT.Native.html#outFrames"><span class="hs-identifier hs-type">outFrames</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">MutableByteArray</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">PrimState</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Unison.Runtime.JIT.Native.html#FrameRecord"><span class="hs-identifier hs-type">FrameRecord</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-109"></span><span id="outFrames"><span class="annot"><span class="annottext">outFrames :: MutableByteArray (PrimState IO) -&gt; Int -&gt; IO [FrameRecord]
+</span><a href="Unison.Runtime.JIT.Native.html#outFrames"><span class="hs-identifier hs-var hs-var">outFrames</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">MutableByteArray (PrimState IO) -&gt; Int -&gt; IO [FrameRecord]
+</span><a href="Unison.Runtime.JIT.Native.html#frameRecords"><span class="hs-identifier hs-var">frameRecords</span></a></span><span>
+</span><span id="line-110"></span><span>
+</span><span id="line-111"></span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-keyword">ccall</span></span><span> </span><span class="annot"><span class="hs-keyword">unsafe</span></span><span> </span><span class="annot"><span class="hs-string">&quot;unison_jit_enter&quot;</span></span><span>
+</span><span id="line-112"></span><span>  </span><span id="c_enter"><span class="annot"><a href="Unison.Runtime.JIT.Native.html#c_enter"><span class="hs-identifier hs-var">c_enter</span></a></span></span><span> </span><span class="hs-glyph">::</span><span>
+</span><span id="line-113"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">FunPtr</span></span><span> </span><span class="annot"><a href="Unison.Runtime.JIT.Native.html#NativeFn"><span class="hs-identifier hs-type">NativeFn</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-114"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">MutableByteArray#</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">PrimState</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-115"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">MutableArray#</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">PrimState</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span class="hs-special">)</span><span> </span><span class="annot"><a href="Unison.Runtime.Stack.html#Closure"><span class="hs-identifier hs-type">Closure</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-116"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">MutableArray#</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">PrimState</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span class="hs-special">)</span><span> </span><span class="annot"><a href="Unison.Runtime.Stack.html#Closure"><span class="hs-identifier hs-type">Closure</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-117"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">Int64</span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-118"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">Int64</span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-119"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">Int64</span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-120"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">Int64</span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-121"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int64</span></span><span>
+</span><span id="line-122"></span><span>
+</span><span id="line-123"></span><span class="hs-comment">-- | Runs native code with the given stacks (and their size in slots) and</span><span>
+</span><span id="line-124"></span><span class="hs-comment">-- pointers, and returns its status. Where it stopped and the frame records</span><span>
+</span><span id="line-125"></span><span class="hs-comment">-- it wrote are read with 'outAp' and the rest. The handler environment (an</span><span>
+</span><span id="line-126"></span><span class="hs-comment">-- @HEnv@, coerced) goes in and comes back in the boxed stack's out-area</span><span>
+</span><span id="line-127"></span><span class="hs-comment">-- (see 'Unison.Runtime.Stack.nativeOutPtrs'), so that the collector keeps</span><span>
+</span><span id="line-128"></span><span class="hs-comment">-- the pointer right while Haskell code runs around the call.</span><span>
+</span><span id="line-129"></span><span class="annot"><a href="Unison.Runtime.JIT.Native.html#enterNative"><span class="hs-identifier hs-type">enterNative</span></a></span><span> </span><span class="hs-glyph">::</span><span>
+</span><span id="line-130"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">FunPtr</span></span><span> </span><span class="annot"><a href="Unison.Runtime.JIT.Native.html#NativeFn"><span class="hs-identifier hs-type">NativeFn</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-131"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">MutableByteArray</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">PrimState</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-132"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">MutableArray</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">PrimState</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span class="hs-special">)</span><span> </span><span class="annot"><a href="Unison.Runtime.Stack.html#Closure"><span class="hs-identifier hs-type">Closure</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-133"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">MutableArray</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">PrimState</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span class="hs-special">)</span><span> </span><span class="annot"><a href="Unison.Runtime.Stack.html#Closure"><span class="hs-identifier hs-type">Closure</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-134"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-135"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-136"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-137"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-138"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="Unison.Runtime.JIT.Native.html#Status"><span class="hs-identifier hs-type">Status</span></a></span><span>
+</span><span id="line-139"></span><span id="enterNative"><span class="annot"><span class="annottext">enterNative :: FunPtr NativeFn
+-&gt; MutableByteArray (PrimState IO)
+-&gt; MutableArray (PrimState IO) Closure
+-&gt; MutableArray (PrimState IO) Closure
+-&gt; Int
+-&gt; Int
+-&gt; Int
+-&gt; Int
+-&gt; IO Int
+</span><a href="Unison.Runtime.JIT.Native.html#enterNative"><span class="hs-identifier hs-var hs-var">enterNative</span></a></span></span><span> </span><span id="local-6989586621681814960"><span class="annot"><span class="annottext">FunPtr NativeFn
+</span><a href="#local-6989586621681814960"><span class="hs-identifier hs-var">fn</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">MutableByteArray</span></span><span> </span><span id="local-6989586621681814962"><span class="annot"><span class="annottext">MutableByteArray# (PrimState IO)
+</span><a href="#local-6989586621681814962"><span class="hs-identifier hs-var">ustk</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">MutableArray</span></span><span> </span><span id="local-6989586621681814964"><span class="annot"><span class="annottext">MutableArray# (PrimState IO) Closure
+</span><a href="#local-6989586621681814964"><span class="hs-identifier hs-var">bstk</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">MutableArray</span></span><span> </span><span id="local-6989586621681814965"><span class="annot"><span class="annottext">MutableArray# (PrimState IO) Closure
+</span><a href="#local-6989586621681814965"><span class="hs-identifier hs-var">pool</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621681814966"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681814966"><span class="hs-identifier hs-var">size</span></a></span></span><span> </span><span id="local-6989586621681814967"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681814967"><span class="hs-identifier hs-var">ap</span></a></span></span><span> </span><span id="local-6989586621681814968"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681814968"><span class="hs-identifier hs-var">fp</span></a></span></span><span> </span><span id="local-6989586621681814969"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681814969"><span class="hs-identifier hs-var">sp</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-140"></span><span>  </span><span id="local-6989586621681814970"><span class="annot"><span class="annottext">Int64
+</span><a href="#local-6989586621681814970"><span class="hs-identifier hs-var">status</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">FunPtr NativeFn
+-&gt; MutableByteArray# (PrimState IO)
+-&gt; MutableArray# (PrimState IO) Closure
+-&gt; MutableArray# (PrimState IO) Closure
+-&gt; Int64
+-&gt; Int64
+-&gt; Int64
+-&gt; Int64
+-&gt; IO Int64
+</span><a href="Unison.Runtime.JIT.Native.html#c_enter"><span class="hs-identifier hs-var">c_enter</span></a></span><span> </span><span class="annot"><span class="annottext">FunPtr NativeFn
+</span><a href="#local-6989586621681814960"><span class="hs-identifier hs-var">fn</span></a></span><span> </span><span class="annot"><span class="annottext">MutableByteArray# (PrimState IO)
+</span><a href="#local-6989586621681814962"><span class="hs-identifier hs-var">ustk</span></a></span><span> </span><span class="annot"><span class="annottext">MutableArray# (PrimState IO) Closure
+</span><a href="#local-6989586621681814964"><span class="hs-identifier hs-var">bstk</span></a></span><span> </span><span class="annot"><span class="annottext">MutableArray# (PrimState IO) Closure
+</span><a href="#local-6989586621681814965"><span class="hs-identifier hs-var">pool</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; Int64
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681814966"><span class="hs-identifier hs-var">size</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; Int64
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681814967"><span class="hs-identifier hs-var">ap</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; Int64
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681814968"><span class="hs-identifier hs-var">fp</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; Int64
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681814969"><span class="hs-identifier hs-var">sp</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-141"></span><span>  </span><span class="annot"><span class="annottext">Int -&gt; IO Int
+forall a. a -&gt; IO a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">(Int -&gt; IO Int) -&gt; Int -&gt; IO Int
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$!</span></span><span> </span><span class="annot"><span class="annottext">Int64 -&gt; Int
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="annot"><span class="annottext">Int64
+</span><a href="#local-6989586621681814970"><span class="hs-identifier hs-var">status</span></a></span><span>
+</span><span id="line-142"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="Unison.Runtime.JIT.Native.html#enterNative"><span class="hs-pragma hs-type">enterNative</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-143"></span><span>
+</span><span id="line-144"></span><span class="annot"><a href="Unison.Runtime.JIT.Native.html#frameRecords"><span class="hs-identifier hs-type">frameRecords</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">MutableByteArray</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">PrimState</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">[</span><span class="annot"><a href="Unison.Runtime.JIT.Native.html#FrameRecord"><span class="hs-identifier hs-type">FrameRecord</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-145"></span><span id="frameRecords"><span class="annot"><span class="annottext">frameRecords :: MutableByteArray (PrimState IO) -&gt; Int -&gt; IO [FrameRecord]
+</span><a href="Unison.Runtime.JIT.Native.html#frameRecords"><span class="hs-identifier hs-var hs-var">frameRecords</span></a></span></span><span> </span><span id="local-6989586621681814972"><span class="annot"><span class="annottext">MutableByteArray (PrimState IO)
+</span><a href="#local-6989586621681814972"><span class="hs-identifier hs-var">out</span></a></span></span><span> </span><span id="local-6989586621681814973"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681814973"><span class="hs-identifier hs-var">size</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-146"></span><span>  </span><span id="local-6989586621681814974"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681814974"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">MutableByteArray (PrimState IO) -&gt; Int -&gt; IO Int
+forall a (m :: * -&gt; *).
+(Prim a, PrimMonad m) =&gt;
+MutableByteArray (PrimState m) -&gt; Int -&gt; m a
+</span><span class="hs-identifier hs-var">readByteArray</span></span><span> </span><span class="annot"><span class="annottext">MutableByteArray (PrimState IO)
+</span><a href="#local-6989586621681814972"><span class="hs-identifier hs-var">out</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681814973"><span class="hs-identifier hs-var">size</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">3</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>
+</span><span id="line-147"></span><span>  </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681814974"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&lt;=</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="Unison.Runtime.JIT.Native.html#inlineFrames"><span class="hs-identifier hs-var">inlineFrames</span></a></span><span>
+</span><span id="line-148"></span><span>    </span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="annottext">(Int -&gt; IO FrameRecord) -&gt; [Int] -&gt; IO [FrameRecord]
+forall (t :: * -&gt; *) (m :: * -&gt; *) a b.
+(Traversable t, Monad m) =&gt;
+(a -&gt; m b) -&gt; t a -&gt; m (t b)
+forall (m :: * -&gt; *) a b. Monad m =&gt; (a -&gt; m b) -&gt; [a] -&gt; m [b]
+</span><span class="hs-identifier hs-var">mapM</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span id="local-6989586621681814978"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681814978"><span class="hs-identifier hs-var">i</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int -&gt; FrameRecord
+</span><a href="Unison.Runtime.JIT.Native.html#FrameRecord"><span class="hs-identifier hs-var">FrameRecord</span></a></span><span> </span><span class="annot"><span class="annottext">(Int -&gt; Int -&gt; Int -&gt; FrameRecord)
+-&gt; IO Int -&gt; IO (Int -&gt; Int -&gt; FrameRecord)
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">MutableByteArray (PrimState IO) -&gt; Int -&gt; IO Int
+forall a (m :: * -&gt; *).
+(Prim a, PrimMonad m) =&gt;
+MutableByteArray (PrimState m) -&gt; Int -&gt; m a
+</span><span class="hs-identifier hs-var">readByteArray</span></span><span> </span><span class="annot"><span class="annottext">MutableByteArray (PrimState IO)
+</span><a href="#local-6989586621681814972"><span class="hs-identifier hs-var">out</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681814973"><span class="hs-identifier hs-var">size</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">4</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">3</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">*</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681814978"><span class="hs-identifier hs-var">i</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">IO (Int -&gt; Int -&gt; FrameRecord) -&gt; IO Int -&gt; IO (Int -&gt; FrameRecord)
+forall a b. IO (a -&gt; b) -&gt; IO a -&gt; IO b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">MutableByteArray (PrimState IO) -&gt; Int -&gt; IO Int
+forall a (m :: * -&gt; *).
+(Prim a, PrimMonad m) =&gt;
+MutableByteArray (PrimState m) -&gt; Int -&gt; m a
+</span><span class="hs-identifier hs-var">readByteArray</span></span><span> </span><span class="annot"><span class="annottext">MutableByteArray (PrimState IO)
+</span><a href="#local-6989586621681814972"><span class="hs-identifier hs-var">out</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681814973"><span class="hs-identifier hs-var">size</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">5</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">3</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">*</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681814978"><span class="hs-identifier hs-var">i</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">IO (Int -&gt; FrameRecord) -&gt; IO Int -&gt; IO FrameRecord
+forall a b. IO (a -&gt; b) -&gt; IO a -&gt; IO b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">MutableByteArray (PrimState IO) -&gt; Int -&gt; IO Int
+forall a (m :: * -&gt; *).
+(Prim a, PrimMonad m) =&gt;
+MutableByteArray (PrimState m) -&gt; Int -&gt; m a
+</span><span class="hs-identifier hs-var">readByteArray</span></span><span> </span><span class="annot"><span class="annottext">MutableByteArray (PrimState IO)
+</span><a href="#local-6989586621681814972"><span class="hs-identifier hs-var">out</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681814973"><span class="hs-identifier hs-var">size</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">6</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">3</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">*</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681814978"><span class="hs-identifier hs-var">i</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span> </span><span class="hs-glyph">..</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681814974"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span class="hs-special">]</span><span>
+</span><span id="line-149"></span><span>    </span><span class="hs-keyword">else</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-150"></span><span>      </span><span id="local-6989586621681814981"><span class="annot"><span class="annottext">Word
+</span><a href="#local-6989586621681814981"><span class="hs-identifier hs-var">addr</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">MutableByteArray (PrimState IO) -&gt; Int -&gt; IO Word
+forall a (m :: * -&gt; *).
+(Prim a, PrimMonad m) =&gt;
+MutableByteArray (PrimState m) -&gt; Int -&gt; m a
+</span><span class="hs-identifier hs-var">readByteArray</span></span><span> </span><span class="annot"><span class="annottext">MutableByteArray (PrimState IO)
+</span><a href="#local-6989586621681814972"><span class="hs-identifier hs-var">out</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681814973"><span class="hs-identifier hs-var">size</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">4</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word</span></span><span>
+</span><span id="line-151"></span><span>      </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621681814982"><span class="annot"><span class="annottext">buf :: Ptr Int64
+</span><a href="#local-6989586621681814982"><span class="hs-identifier hs-var hs-var">buf</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">WordPtr -&gt; Ptr Int64
+forall a. WordPtr -&gt; Ptr a
+</span><span class="hs-identifier hs-var">wordPtrToPtr</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Word -&gt; WordPtr
+</span><span class="hs-identifier hs-var">WordPtr</span></span><span> </span><span class="annot"><span class="annottext">Word
+</span><a href="#local-6989586621681814981"><span class="hs-identifier hs-var">addr</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int64</span></span><span>
+</span><span id="line-152"></span><span>          </span><span id="local-6989586621681814984"><span class="annot"><span class="annottext">record :: Int -&gt; IO FrameRecord
+</span><a href="#local-6989586621681814984"><span class="hs-identifier hs-var hs-var">record</span></a></span></span><span> </span><span id="local-6989586621681814985"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681814985"><span class="hs-identifier hs-var">i</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-153"></span><span>            </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int -&gt; FrameRecord
+</span><a href="Unison.Runtime.JIT.Native.html#FrameRecord"><span class="hs-identifier hs-var">FrameRecord</span></a></span><span>
+</span><span id="line-154"></span><span>              </span><span class="annot"><span class="annottext">(Int -&gt; Int -&gt; Int -&gt; FrameRecord)
+-&gt; IO Int -&gt; IO (Int -&gt; Int -&gt; FrameRecord)
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int64 -&gt; Int
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="annot"><span class="annottext">(Int64 -&gt; Int) -&gt; IO Int64 -&gt; IO Int
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">Ptr Int64 -&gt; Int -&gt; IO Int64
+forall a. Storable a =&gt; Ptr a -&gt; Int -&gt; IO a
+</span><span class="hs-identifier hs-var">peekElemOff</span></span><span> </span><span class="annot"><span class="annottext">Ptr Int64
+</span><a href="#local-6989586621681814982"><span class="hs-identifier hs-var">buf</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">3</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">*</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681814985"><span class="hs-identifier hs-var">i</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-155"></span><span>              </span><span class="annot"><span class="annottext">IO (Int -&gt; Int -&gt; FrameRecord) -&gt; IO Int -&gt; IO (Int -&gt; FrameRecord)
+forall a b. IO (a -&gt; b) -&gt; IO a -&gt; IO b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int64 -&gt; Int
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="annot"><span class="annottext">(Int64 -&gt; Int) -&gt; IO Int64 -&gt; IO Int
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">Ptr Int64 -&gt; Int -&gt; IO Int64
+forall a. Storable a =&gt; Ptr a -&gt; Int -&gt; IO a
+</span><span class="hs-identifier hs-var">peekElemOff</span></span><span> </span><span class="annot"><span class="annottext">Ptr Int64
+</span><a href="#local-6989586621681814982"><span class="hs-identifier hs-var">buf</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">3</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">*</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681814985"><span class="hs-identifier hs-var">i</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-156"></span><span>              </span><span class="annot"><span class="annottext">IO (Int -&gt; FrameRecord) -&gt; IO Int -&gt; IO FrameRecord
+forall a b. IO (a -&gt; b) -&gt; IO a -&gt; IO b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int64 -&gt; Int
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="annot"><span class="annottext">(Int64 -&gt; Int) -&gt; IO Int64 -&gt; IO Int
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">Ptr Int64 -&gt; Int -&gt; IO Int64
+forall a. Storable a =&gt; Ptr a -&gt; Int -&gt; IO a
+</span><span class="hs-identifier hs-var">peekElemOff</span></span><span> </span><span class="annot"><span class="annottext">Ptr Int64
+</span><a href="#local-6989586621681814982"><span class="hs-identifier hs-var">buf</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">3</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">*</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681814985"><span class="hs-identifier hs-var">i</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">2</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-157"></span><span>      </span><span id="local-6989586621681814986"><span class="annot"><span class="annottext">[FrameRecord]
+</span><a href="#local-6989586621681814986"><span class="hs-identifier hs-var">fs</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">(Int -&gt; IO FrameRecord) -&gt; [Int] -&gt; IO [FrameRecord]
+forall (t :: * -&gt; *) (m :: * -&gt; *) a b.
+(Traversable t, Monad m) =&gt;
+(a -&gt; m b) -&gt; t a -&gt; m (t b)
+forall (m :: * -&gt; *) a b. Monad m =&gt; (a -&gt; m b) -&gt; [a] -&gt; m [b]
+</span><span class="hs-identifier hs-var">mapM</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; IO FrameRecord
+</span><a href="#local-6989586621681814984"><span class="hs-identifier hs-var">record</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span> </span><span class="hs-glyph">..</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681814974"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span class="hs-special">]</span><span>
+</span><span id="line-158"></span><span>      </span><span class="annot"><span class="annottext">Ptr Int64 -&gt; IO ()
+forall a. Ptr a -&gt; IO ()
+</span><span class="hs-identifier hs-var">free</span></span><span> </span><span class="annot"><span class="annottext">Ptr Int64
+</span><a href="#local-6989586621681814982"><span class="hs-identifier hs-var">buf</span></a></span><span>
+</span><span id="line-159"></span><span>      </span><span class="hs-identifier">pure</span><span> </span><span class="annot"><span class="annottext">[FrameRecord]
+</span><a href="#local-6989586621681814986"><span class="hs-identifier hs-var">fs</span></a></span><span>
+</span><span id="line-160"></span><span>
+</span><span id="line-161"></span><span class="annot"><span class="hs-comment">-- | Must match UNISON_JIT_INLINE_FRAMES in jit_rt.h.</span></span><span>
+</span><span id="line-162"></span><span class="annot"><a href="Unison.Runtime.JIT.Native.html#inlineFrames"><span class="hs-identifier hs-type">inlineFrames</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>
+</span><span id="line-163"></span><span id="inlineFrames"><span class="annot"><span class="annottext">inlineFrames :: Int
+</span><a href="Unison.Runtime.JIT.Native.html#inlineFrames"><span class="hs-identifier hs-var hs-var">inlineFrames</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">8</span></span><span>
+</span><span id="line-164"></span><span>
+</span><span id="line-165"></span><span class="hs-comment">-- ---------------------------------------------------------------------------</span><span>
+</span><span id="line-166"></span><span class="hs-comment">-- Startup</span><span>
+</span><span id="line-167"></span><span>
+</span><span id="line-168"></span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-keyword">ccall</span></span><span> </span><span class="annot"><span class="hs-keyword">unsafe</span></span><span> </span><span class="annot"><span class="hs-string">&quot;unison_jit_configure&quot;</span></span><span> </span><span id="c_configure"><span class="annot"><a href="Unison.Runtime.JIT.Native.html#c_configure"><span class="hs-identifier hs-var">c_configure</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int64</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int64</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int64</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int64</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int64</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-169"></span><span>
+</span><span id="line-170"></span><span class="hs-comment">-- | Passes stress settings to the C side: poll every N entries, treat every</span><span>
+</span><span id="line-171"></span><span class="hs-comment">-- Nth callee as uncompiled, C stack budget in bytes (0 for the default),</span><span>
+</span><span id="line-172"></span><span class="hs-comment">-- allocation budget in words, trace. Called once at startup.</span><span>
+</span><span id="line-173"></span><span class="annot"><a href="Unison.Runtime.JIT.Native.html#configureNative"><span class="hs-identifier hs-type">configureNative</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-174"></span><span id="configureNative"><span class="annot"><span class="annottext">configureNative :: Int -&gt; Int -&gt; Int -&gt; Int -&gt; Bool -&gt; IO ()
+</span><a href="Unison.Runtime.JIT.Native.html#configureNative"><span class="hs-identifier hs-var hs-var">configureNative</span></a></span></span><span> </span><span id="local-6989586621681814988"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681814988"><span class="hs-identifier hs-var">pollEvery</span></a></span></span><span> </span><span id="local-6989586621681814989"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681814989"><span class="hs-identifier hs-var">calleeEvery</span></a></span></span><span> </span><span id="local-6989586621681814990"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681814990"><span class="hs-identifier hs-var">cstack</span></a></span></span><span> </span><span id="local-6989586621681814991"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681814991"><span class="hs-identifier hs-var">alloc</span></a></span></span><span> </span><span id="local-6989586621681814992"><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621681814992"><span class="hs-identifier hs-var">tr</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-175"></span><span>  </span><span class="annot"><span class="annottext">Int64 -&gt; Int64 -&gt; Int64 -&gt; Int64 -&gt; Int64 -&gt; IO ()
+</span><a href="Unison.Runtime.JIT.Native.html#c_configure"><span class="hs-identifier hs-var">c_configure</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; Int64
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681814988"><span class="hs-identifier hs-var">pollEvery</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; Int64
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681814989"><span class="hs-identifier hs-var">calleeEvery</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; Int64
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681814990"><span class="hs-identifier hs-var">cstack</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; Int64
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681814991"><span class="hs-identifier hs-var">alloc</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621681814992"><span class="hs-identifier hs-var">tr</span></a></span><span> </span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="annottext">Int64
+</span><span class="hs-number">1</span></span><span> </span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="annottext">Int64
+</span><span class="hs-number">0</span></span><span class="hs-special">)</span><span>
+</span><span id="line-176"></span><span>
+</span><span id="line-177"></span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-keyword">ccall</span></span><span> </span><span class="annot"><span class="hs-keyword">unsafe</span></span><span> </span><span class="annot"><span class="hs-string">&quot;unison_jit_ctx_layout&quot;</span></span><span> </span><span id="c_ctxLayout"><span class="annot"><a href="Unison.Runtime.JIT.Native.html#c_ctxLayout"><span class="hs-identifier hs-var">c_ctxLayout</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int64</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int64</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int64</span></span><span>
+</span><span id="line-178"></span><span>
+</span><span id="line-179"></span><span class="hs-comment">-- | The offsets of the fields of the C @Ctx@, in the order they are</span><span>
+</span><span id="line-180"></span><span class="hs-comment">-- declared, and its total size. The code generator uses these.</span><span>
+</span><span id="line-181"></span><span class="annot"><a href="Unison.Runtime.JIT.Native.html#ctxLayout"><span class="hs-identifier hs-type">ctxLayout</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">]</span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">)</span><span>
+</span><span id="line-182"></span><span id="ctxLayout"><span class="annot"><span class="annottext">ctxLayout :: IO ([Int], Int)
+</span><a href="Unison.Runtime.JIT.Native.html#ctxLayout"><span class="hs-identifier hs-var hs-var">ctxLayout</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; (Ptr Int64 -&gt; IO ([Int], Int)) -&gt; IO ([Int], Int)
+forall a b. Int -&gt; (Ptr a -&gt; IO b) -&gt; IO b
+</span><span class="hs-identifier hs-var">allocaBytes</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">8</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">*</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">32</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">((Ptr Int64 -&gt; IO ([Int], Int)) -&gt; IO ([Int], Int))
+-&gt; (Ptr Int64 -&gt; IO ([Int], Int)) -&gt; IO ([Int], Int)
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621681814994"><span class="annot"><span class="annottext">Ptr Int64
+</span><a href="#local-6989586621681814994"><span class="hs-identifier hs-var">out</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-183"></span><span>  </span><span id="local-6989586621681814995"><span class="annot"><span class="annottext">Int64
+</span><a href="#local-6989586621681814995"><span class="hs-identifier hs-var">size</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Ptr Int64 -&gt; Int64 -&gt; IO Int64
+</span><a href="Unison.Runtime.JIT.Native.html#c_ctxLayout"><span class="hs-identifier hs-var">c_ctxLayout</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr Int64
+</span><a href="#local-6989586621681814994"><span class="hs-identifier hs-var">out</span></a></span><span> </span><span class="annot"><span class="annottext">Int64
+</span><span class="hs-number">32</span></span><span>
+</span><span id="line-184"></span><span>  </span><span id="local-6989586621681814996"><span class="annot"><span class="annottext">[Int64]
+</span><a href="#local-6989586621681814996"><span class="hs-identifier hs-var">offs</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">(Int -&gt; IO Int64) -&gt; [Int] -&gt; IO [Int64]
+forall (t :: * -&gt; *) (m :: * -&gt; *) a b.
+(Traversable t, Monad m) =&gt;
+(a -&gt; m b) -&gt; t a -&gt; m (t b)
+forall (m :: * -&gt; *) a b. Monad m =&gt; (a -&gt; m b) -&gt; [a] -&gt; m [b]
+</span><span class="hs-identifier hs-var">mapM</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Ptr Int64 -&gt; Int -&gt; IO Int64
+forall a. Storable a =&gt; Ptr a -&gt; Int -&gt; IO a
+</span><span class="hs-identifier hs-var">peekElemOff</span></span><span> </span><span class="annot"><span class="annottext">Ptr Int64
+</span><a href="#local-6989586621681814994"><span class="hs-identifier hs-var">out</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span> </span><span class="hs-glyph">..</span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">22</span></span><span class="hs-special">]</span><span>
+</span><span id="line-185"></span><span>  </span><span class="hs-identifier">pure</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(Int64 -&gt; Int) -&gt; [Int64] -&gt; [Int]
+forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+</span><span class="hs-identifier hs-var">map</span></span><span> </span><span class="annot"><span class="annottext">Int64 -&gt; Int
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="annot"><span class="annottext">[Int64]
+</span><a href="#local-6989586621681814996"><span class="hs-identifier hs-var">offs</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Int64 -&gt; Int
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="annot"><span class="annottext">Int64
+</span><a href="#local-6989586621681814995"><span class="hs-identifier hs-var">size</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-186"></span><span>
+</span><span id="line-187"></span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-keyword">ccall</span></span><span> </span><span class="annot"><span class="hs-keyword">unsafe</span></span><span> </span><span class="annot"><span class="hs-string">&quot;unison_jit_rts_facts&quot;</span></span><span> </span><span id="c_rtsFacts"><span class="annot"><a href="Unison.Runtime.JIT.Native.html#c_rtsFacts"><span class="hs-identifier hs-var">c_rtsFacts</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int64</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int64</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int64</span></span><span>
+</span><span id="line-188"></span><span>
+</span><span id="line-189"></span><span class="hs-comment">-- | Facts about the runtime that generated code needs: see</span><span>
+</span><span id="line-190"></span><span class="hs-comment">-- unison_jit_rts_facts in jit_rt.c for what each entry is.</span><span>
+</span><span id="line-191"></span><span class="annot"><a href="Unison.Runtime.JIT.Native.html#rtsFacts"><span class="hs-identifier hs-type">rtsFacts</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span class="hs-special">]</span><span>
+</span><span id="line-192"></span><span id="rtsFacts"><span class="annot"><span class="annottext">rtsFacts :: IO [Int]
+</span><a href="Unison.Runtime.JIT.Native.html#rtsFacts"><span class="hs-identifier hs-var hs-var">rtsFacts</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int -&gt; (Ptr Int64 -&gt; IO [Int]) -&gt; IO [Int]
+forall a b. Int -&gt; (Ptr a -&gt; IO b) -&gt; IO b
+</span><span class="hs-identifier hs-var">allocaBytes</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">8</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">*</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">16</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">((Ptr Int64 -&gt; IO [Int]) -&gt; IO [Int])
+-&gt; (Ptr Int64 -&gt; IO [Int]) -&gt; IO [Int]
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621681814998"><span class="annot"><span class="annottext">Ptr Int64
+</span><a href="#local-6989586621681814998"><span class="hs-identifier hs-var">out</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-193"></span><span>  </span><span id="local-6989586621681814999"><span class="annot"><span class="annottext">Int64
+</span><a href="#local-6989586621681814999"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Ptr Int64 -&gt; Int64 -&gt; IO Int64
+</span><a href="Unison.Runtime.JIT.Native.html#c_rtsFacts"><span class="hs-identifier hs-var">c_rtsFacts</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr Int64
+</span><a href="#local-6989586621681814998"><span class="hs-identifier hs-var">out</span></a></span><span> </span><span class="annot"><span class="annottext">Int64
+</span><span class="hs-number">16</span></span><span>
+</span><span id="line-194"></span><span>  </span><span class="annot"><span class="annottext">(Int64 -&gt; Int) -&gt; [Int64] -&gt; [Int]
+forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+</span><span class="hs-identifier hs-var">map</span></span><span> </span><span class="annot"><span class="annottext">Int64 -&gt; Int
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="annot"><span class="annottext">([Int64] -&gt; [Int]) -&gt; IO [Int64] -&gt; IO [Int]
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">(Int -&gt; IO Int64) -&gt; [Int] -&gt; IO [Int64]
+forall (t :: * -&gt; *) (m :: * -&gt; *) a b.
+(Traversable t, Monad m) =&gt;
+(a -&gt; m b) -&gt; t a -&gt; m (t b)
+forall (m :: * -&gt; *) a b. Monad m =&gt; (a -&gt; m b) -&gt; [a] -&gt; m [b]
+</span><span class="hs-identifier hs-var">mapM</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Ptr Int64 -&gt; Int -&gt; IO Int64
+forall a. Storable a =&gt; Ptr a -&gt; Int -&gt; IO a
+</span><span class="hs-identifier hs-var">peekElemOff</span></span><span> </span><span class="annot"><span class="annottext">Ptr Int64
+</span><a href="#local-6989586621681814998"><span class="hs-identifier hs-var">out</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span> </span><span class="hs-glyph">..</span><span> </span><span class="annot"><span class="annottext">Int64 -&gt; Int
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="annot"><span class="annottext">Int64
+</span><a href="#local-6989586621681814999"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span class="hs-special">]</span><span>
+</span><span id="line-195"></span><span>
+</span><span id="line-196"></span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-keyword">ccall</span></span><span> </span><span class="annot"><span class="hs-keyword">unsafe</span></span><span> </span><span class="annot"><span class="hs-string">&quot;unison_jit_hplim_value&quot;</span></span><span> </span><span id="c_hplimValue"><span class="annot"><a href="Unison.Runtime.JIT.Native.html#c_hplimValue"><span class="hs-identifier hs-var">c_hplimValue</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int64</span></span><span>
+</span><span id="line-197"></span><span>
+</span><span id="line-198"></span><span class="annot"><span class="hs-comment">-- | For tracing: what the poll would see right now.</span></span><span>
+</span><span id="line-199"></span><span class="annot"><a href="Unison.Runtime.JIT.Native.html#hplimValue"><span class="hs-identifier hs-type">hplimValue</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>
+</span><span id="line-200"></span><span id="hplimValue"><span class="annot"><span class="annottext">hplimValue :: IO Int
+</span><a href="Unison.Runtime.JIT.Native.html#hplimValue"><span class="hs-identifier hs-var hs-var">hplimValue</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int64 -&gt; Int
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="annot"><span class="annottext">(Int64 -&gt; Int) -&gt; IO Int64 -&gt; IO Int
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">IO Int64
+</span><a href="Unison.Runtime.JIT.Native.html#c_hplimValue"><span class="hs-identifier hs-var">c_hplimValue</span></a></span><span>
+</span><span id="line-201"></span><span>
+</span><span id="line-202"></span><span class="hs-comment">-- ---------------------------------------------------------------------------</span><span>
+</span><span id="line-203"></span><span class="hs-comment">-- Addresses</span><span>
+</span><span id="line-204"></span><span>
+</span><span id="line-205"></span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-keyword">ccall</span></span><span> </span><span class="annot"><span class="hs-keyword">unsafe</span></span><span> </span><span class="annot"><span class="hs-string">&quot;unison_jit_helper_addresses&quot;</span></span><span> </span><span id="c_helperAddresses"><span class="annot"><a href="Unison.Runtime.JIT.Native.html#c_helperAddresses"><span class="hs-identifier hs-var">c_helperAddresses</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">CString</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int64</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int64</span></span><span>
+</span><span id="line-206"></span><span>
+</span><span id="line-207"></span><span class="hs-comment">-- | Every C function generated code and the IR modules call by name, with</span><span>
+</span><span id="line-208"></span><span class="hs-comment">-- its address, for the JIT to define before any module is added (so that</span><span>
+</span><span id="line-209"></span><span class="hs-comment">-- nothing is looked up in the process, which Linux and Windows don't allow</span><span>
+</span><span id="line-210"></span><span class="hs-comment">-- without more linker flags).</span><span>
+</span><span id="line-211"></span><span class="annot"><a href="Unison.Runtime.JIT.Native.html#helperAddresses"><span class="hs-identifier hs-type">helperAddresses</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">[</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word64</span></span><span class="hs-special">)</span><span class="hs-special">]</span><span>
+</span><span id="line-212"></span><span id="helperAddresses"><span class="annot"><span class="annottext">helperAddresses :: IO [(String, Word64)]
+</span><a href="Unison.Runtime.JIT.Native.html#helperAddresses"><span class="hs-identifier hs-var hs-var">helperAddresses</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int
+-&gt; (Ptr CString -&gt; Ptr (Ptr ()) -&gt; Int64 -&gt; IO Int64)
+-&gt; IO [(String, Word64)]
+</span><a href="Unison.Runtime.JIT.Native.html#namedAddresses"><span class="hs-identifier hs-var">namedAddresses</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">256</span></span><span> </span><span class="annot"><span class="annottext">Ptr CString -&gt; Ptr (Ptr ()) -&gt; Int64 -&gt; IO Int64
+</span><a href="Unison.Runtime.JIT.Native.html#c_helperAddresses"><span class="hs-identifier hs-var">c_helperAddresses</span></a></span><span>
+</span><span id="line-213"></span><span>
+</span><span id="line-214"></span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-keyword">ccall</span></span><span> </span><span class="annot"><span class="hs-keyword">unsafe</span></span><span> </span><span class="annot"><span class="hs-string">&quot;unison_jit_table_addresses&quot;</span></span><span> </span><span id="c_tableAddresses"><span class="annot"><a href="Unison.Runtime.JIT.Native.html#c_tableAddresses"><span class="hs-identifier hs-var">c_tableAddresses</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">CString</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int64</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int64</span></span><span>
+</span><span id="line-215"></span><span>
+</span><span id="line-216"></span><span class="hs-comment">-- | The names the IR helpers refer to the runtime's tables by, with the</span><span>
+</span><span id="line-217"></span><span class="hs-comment">-- tables' addresses, for the JIT to define before the helpers are added.</span><span>
+</span><span id="line-218"></span><span class="annot"><a href="Unison.Runtime.JIT.Native.html#tableAddresses"><span class="hs-identifier hs-type">tableAddresses</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">[</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word64</span></span><span class="hs-special">)</span><span class="hs-special">]</span><span>
+</span><span id="line-219"></span><span id="tableAddresses"><span class="annot"><span class="annottext">tableAddresses :: IO [(String, Word64)]
+</span><a href="Unison.Runtime.JIT.Native.html#tableAddresses"><span class="hs-identifier hs-var hs-var">tableAddresses</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int
+-&gt; (Ptr CString -&gt; Ptr (Ptr ()) -&gt; Int64 -&gt; IO Int64)
+-&gt; IO [(String, Word64)]
+</span><a href="Unison.Runtime.JIT.Native.html#namedAddresses"><span class="hs-identifier hs-var">namedAddresses</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">16</span></span><span> </span><span class="annot"><span class="annottext">Ptr CString -&gt; Ptr (Ptr ()) -&gt; Int64 -&gt; IO Int64
+</span><a href="Unison.Runtime.JIT.Native.html#c_tableAddresses"><span class="hs-identifier hs-var">c_tableAddresses</span></a></span><span>
+</span><span id="line-220"></span><span>
+</span><span id="line-221"></span><span class="annot"><span class="hs-comment">-- | Reads a C table of (name, address) pairs of at most @most@ entries.</span></span><span>
+</span><span id="line-222"></span><span class="annot"><a href="Unison.Runtime.JIT.Native.html#namedAddresses"><span class="hs-identifier hs-type">namedAddresses</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">CString</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int64</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int64</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">[</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Word64</span></span><span class="hs-special">)</span><span class="hs-special">]</span><span>
+</span><span id="line-223"></span><span id="namedAddresses"><span class="annot"><span class="annottext">namedAddresses :: Int
+-&gt; (Ptr CString -&gt; Ptr (Ptr ()) -&gt; Int64 -&gt; IO Int64)
+-&gt; IO [(String, Word64)]
+</span><a href="Unison.Runtime.JIT.Native.html#namedAddresses"><span class="hs-identifier hs-var hs-var">namedAddresses</span></a></span></span><span> </span><span id="local-6989586621681815004"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681815004"><span class="hs-identifier hs-var">most</span></a></span></span><span> </span><span id="local-6989586621681815005"><span class="annot"><span class="annottext">Ptr CString -&gt; Ptr (Ptr ()) -&gt; Int64 -&gt; IO Int64
+</span><a href="#local-6989586621681815005"><span class="hs-identifier hs-var">fill</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int
+-&gt; (Ptr CString -&gt; IO [(String, Word64)]) -&gt; IO [(String, Word64)]
+forall a b. Int -&gt; (Ptr a -&gt; IO b) -&gt; IO b
+</span><span class="hs-identifier hs-var">allocaBytes</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">8</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">*</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681815004"><span class="hs-identifier hs-var">most</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">((Ptr CString -&gt; IO [(String, Word64)]) -&gt; IO [(String, Word64)])
+-&gt; (Ptr CString -&gt; IO [(String, Word64)]) -&gt; IO [(String, Word64)]
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621681815006"><span class="annot"><span class="annottext">Ptr CString
+</span><a href="#local-6989586621681815006"><span class="hs-identifier hs-var">names</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Int
+-&gt; (Ptr (Ptr ()) -&gt; IO [(String, Word64)]) -&gt; IO [(String, Word64)]
+forall a b. Int -&gt; (Ptr a -&gt; IO b) -&gt; IO b
+</span><span class="hs-identifier hs-var">allocaBytes</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">8</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">*</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681815004"><span class="hs-identifier hs-var">most</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">((Ptr (Ptr ()) -&gt; IO [(String, Word64)]) -&gt; IO [(String, Word64)])
+-&gt; (Ptr (Ptr ()) -&gt; IO [(String, Word64)]) -&gt; IO [(String, Word64)]
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621681815007"><span class="annot"><span class="annottext">Ptr (Ptr ())
+</span><a href="#local-6989586621681815007"><span class="hs-identifier hs-var">addrs</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-224"></span><span>  </span><span id="local-6989586621681815008"><span class="annot"><span class="annottext">Int64
+</span><a href="#local-6989586621681815008"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Ptr CString -&gt; Ptr (Ptr ()) -&gt; Int64 -&gt; IO Int64
+</span><a href="#local-6989586621681815005"><span class="hs-identifier hs-var">fill</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr CString
+</span><a href="#local-6989586621681815006"><span class="hs-identifier hs-var">names</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr (Ptr ())
+</span><a href="#local-6989586621681815007"><span class="hs-identifier hs-var">addrs</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int -&gt; Int64
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681815004"><span class="hs-identifier hs-var">most</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-225"></span><span>  </span><span class="annot"><span class="annottext">[Int] -&gt; (Int -&gt; IO (String, Word64)) -&gt; IO [(String, Word64)]
+forall (t :: * -&gt; *) (m :: * -&gt; *) a b.
+(Traversable t, Monad m) =&gt;
+t a -&gt; (a -&gt; m b) -&gt; m (t b)
+</span><span class="hs-identifier hs-var">forM</span></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span> </span><span class="hs-glyph">..</span><span> </span><span class="annot"><span class="annottext">Int64 -&gt; Int
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="annot"><span class="annottext">Int64
+</span><a href="#local-6989586621681815008"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-glyph hs-var">-</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span class="hs-special">]</span><span> </span><span class="annot"><span class="annottext">((Int -&gt; IO (String, Word64)) -&gt; IO [(String, Word64)])
+-&gt; (Int -&gt; IO (String, Word64)) -&gt; IO [(String, Word64)]
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621681815009"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681815009"><span class="hs-identifier hs-var">i</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-226"></span><span>    </span><span id="local-6989586621681815010"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621681815010"><span class="hs-identifier hs-var">name</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Ptr CString -&gt; Int -&gt; IO CString
+forall a. Storable a =&gt; Ptr a -&gt; Int -&gt; IO a
+</span><span class="hs-identifier hs-var">peekElemOff</span></span><span> </span><span class="annot"><span class="annottext">Ptr CString
+</span><a href="#local-6989586621681815006"><span class="hs-identifier hs-var">names</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681815009"><span class="hs-identifier hs-var">i</span></a></span><span> </span><span class="annot"><span class="annottext">IO CString -&gt; (CString -&gt; IO String) -&gt; IO String
+forall a b. IO a -&gt; (a -&gt; IO b) -&gt; IO b
+forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; (a -&gt; m b) -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;=</span></span><span> </span><span class="annot"><span class="annottext">CString -&gt; IO String
+</span><span class="hs-identifier hs-var">peekCString</span></span><span>
+</span><span id="line-227"></span><span>    </span><span id="local-6989586621681815011"><span class="annot"><span class="annottext">Ptr ()
+</span><a href="#local-6989586621681815011"><span class="hs-identifier hs-var">addr</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Ptr (Ptr ()) -&gt; Int -&gt; IO (Ptr ())
+forall a. Storable a =&gt; Ptr a -&gt; Int -&gt; IO a
+</span><span class="hs-identifier hs-var">peekElemOff</span></span><span> </span><span class="annot"><span class="annottext">Ptr (Ptr ())
+</span><a href="#local-6989586621681815007"><span class="hs-identifier hs-var">addrs</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681815009"><span class="hs-identifier hs-var">i</span></a></span><span>
+</span><span id="line-228"></span><span>    </span><span class="hs-identifier">pure</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621681815010"><span class="hs-identifier hs-var">name</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">WordPtr -&gt; Word64
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Ptr () -&gt; WordPtr
+forall a. Ptr a -&gt; WordPtr
+</span><span class="hs-identifier hs-var">ptrToWordPtr</span></span><span> </span><span class="annot"><span class="annottext">Ptr ()
+</span><a href="#local-6989586621681815011"><span class="hs-identifier hs-var">addr</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-229"></span><span>
+</span><span id="line-230"></span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-keyword">ccall</span></span><span> </span><span class="annot"><span class="hs-string">&quot;&amp;unison_jit_murmur&quot;</span></span><span> </span><span id="c_murmurAddr"><span class="annot"><a href="Unison.Runtime.JIT.Native.html#c_murmurAddr"><span class="hs-identifier hs-var">c_murmurAddr</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">FunPtr</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Int64</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-231"></span><span>
+</span><span id="line-232"></span><span class="hs-keyword">foreign</span><span> </span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-keyword">ccall</span></span><span> </span><span class="annot"><span class="hs-string">&quot;&amp;unison_jit_ucmp&quot;</span></span><span> </span><span id="c_ucmpAddr"><span class="annot"><a href="Unison.Runtime.JIT.Native.html#c_ucmpAddr"><span class="hs-identifier hs-var">c_ucmpAddr</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">FunPtr</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Int64</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int64</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int64</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-233"></span><span>
+</span><span id="line-234"></span><span class="hs-comment">-- | Where the C copy of @unison_jit_murmur@ is: what the JIT's own</span><span>
+</span><span id="line-235"></span><span class="hs-comment">-- definition of the name (the IR copy) must not be.</span><span>
+</span><span id="line-236"></span><span class="annot"><a href="Unison.Runtime.JIT.Native.html#murmurCAddress"><span class="hs-identifier hs-type">murmurCAddress</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">FunPtr</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Int64</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-237"></span><span id="murmurCAddress"><span class="annot"><span class="annottext">murmurCAddress :: FunPtr (Int64 -&gt; Ptr () -&gt; IO ())
+</span><a href="Unison.Runtime.JIT.Native.html#murmurCAddress"><span class="hs-identifier hs-var hs-var">murmurCAddress</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">FunPtr (Int64 -&gt; Ptr () -&gt; IO ())
+</span><a href="Unison.Runtime.JIT.Native.html#c_murmurAddr"><span class="hs-identifier hs-var">c_murmurAddr</span></a></span><span>
+</span><span id="line-238"></span><span>
+</span><span id="line-239"></span><span class="annot"><span class="hs-comment">-- | Where the C copy of @unison_jit_ucmp@ is, for the same check.</span></span><span>
+</span><span id="line-240"></span><span class="annot"><a href="Unison.Runtime.JIT.Native.html#ucmpCAddress"><span class="hs-identifier hs-type">ucmpCAddress</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">FunPtr</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Int64</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int64</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int64</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-241"></span><span id="ucmpCAddress"><span class="annot"><span class="annottext">ucmpCAddress :: FunPtr (Int64 -&gt; Ptr () -&gt; Int64 -&gt; Ptr () -&gt; Int64 -&gt; IO ())
+</span><a href="Unison.Runtime.JIT.Native.html#ucmpCAddress"><span class="hs-identifier hs-var hs-var">ucmpCAddress</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">FunPtr (Int64 -&gt; Ptr () -&gt; Int64 -&gt; Ptr () -&gt; Int64 -&gt; IO ())
+</span><a href="Unison.Runtime.JIT.Native.html#c_ucmpAddr"><span class="hs-identifier hs-var">c_ucmpAddr</span></a></span><span>
+</span><span id="line-242"></span></pre></body></html>

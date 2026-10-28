@@ -1,0 +1,495 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Unison.Util.Set.html"><span class="hs-identifier">Unison.Util.Set</span></a></span><span>
+</span><span id="line-2"></span><span>  </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="Unison.Util.Set.html#asSingleton"><span class="hs-identifier">asSingleton</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-3"></span><span>    </span><span class="annot"><a href="Unison.Util.Set.html#difference1"><span class="hs-identifier">difference1</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-4"></span><span>    </span><span class="annot"><a href="Unison.Util.Set.html#differenceMap"><span class="hs-identifier">differenceMap</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-5"></span><span>    </span><span class="annot"><a href="Unison.Util.Set.html#foldCommutativeM"><span class="hs-identifier">foldCommutativeM</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-6"></span><span>    </span><span class="annot"><a href="Unison.Util.Set.html#insertMaybe"><span class="hs-identifier">insertMaybe</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-7"></span><span>    </span><span class="annot"><a href="Unison.Util.Set.html#intersects"><span class="hs-identifier">intersects</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-8"></span><span>    </span><span class="annot"><a href="Unison.Util.Set.html#mapMaybe"><span class="hs-identifier">mapMaybe</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-9"></span><span>    </span><span class="annot"><a href="Unison.Util.Set.html#symmetricDifference"><span class="hs-identifier">symmetricDifference</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-10"></span><span>    </span><span class="annot"><a href="Unison.Util.Set.html#traverse"><span class="hs-identifier">Unison.Util.Set.traverse</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-11"></span><span>    </span><span class="annot"><a href="Unison.Util.Set.html#for"><span class="hs-identifier">Unison.Util.Set.for</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-12"></span><span>    </span><span class="annot"><a href="Unison.Util.Set.html#flatMap"><span class="hs-identifier">flatMap</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-13"></span><span>    </span><span class="annot"><a href="Unison.Util.Set.html#filterM"><span class="hs-identifier">filterM</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-14"></span><span>    </span><span class="annot"><a href="Unison.Util.Set.html#forMaybe"><span class="hs-identifier">forMaybe</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-15"></span><span>    </span><span class="annot"><a href="Unison.Util.Set.html#thenInsert"><span class="hs-identifier">thenInsert</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-16"></span><span>    </span><span class="annot"><a href="Unison.Util.Set.html#thenInsertMaybe"><span class="hs-identifier">thenInsertMaybe</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-17"></span><span>    </span><span class="annot"><a href="Unison.Util.Set.html#unalignWith"><span class="hs-identifier">unalignWith</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-18"></span><span>    </span><span class="annot"><a href="Unison.Util.Set.html#unzipWith"><span class="hs-identifier">unzipWith</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-19"></span><span>  </span><span class="hs-special">)</span><span>
+</span><span id="line-20"></span><span class="hs-keyword">where</span><span>
+</span><span id="line-21"></span><span>
+</span><span id="line-22"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Function</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-operator">(&amp;)</span></span><span class="hs-special">)</span><span>
+</span><span id="line-23"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Functor</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-operator">(&lt;&amp;&gt;)</span></span><span class="hs-special">)</span><span>
+</span><span id="line-24"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Map.Internal</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Map.Internal</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Map</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-25"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Map.Strict</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Map</span></span><span class="hs-special">)</span><span>
+</span><span id="line-26"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Maybe</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Maybe</span></span><span>
+</span><span id="line-27"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Set</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Set</span></span><span class="hs-special">)</span><span>
+</span><span id="line-28"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Set</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Set</span></span><span>
+</span><span id="line-29"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Set.Internal</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Set.Internal</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Set</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">merge</span></span><span class="hs-special">)</span><span>
+</span><span id="line-30"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.These</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">These</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-31"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Unison.Util.Monoid.html"><span class="hs-identifier">Unison.Util.Monoid</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Util.Monoid.html#foldMapM"><span class="hs-identifier">foldMapM</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-32"></span><span>
+</span><span id="line-33"></span><span class="annot"><span class="hs-comment">-- | Get the only member of a set, iff it's a singleton.</span></span><span>
+</span><span id="line-34"></span><span id="local-6989586621679131233"><span class="annot"><a href="Unison.Util.Set.html#asSingleton"><span class="hs-identifier hs-type">asSingleton</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Set</span></span><span> </span><span class="annot"><a href="#local-6989586621679131233"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="#local-6989586621679131233"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-35"></span><span id="asSingleton"><span class="annot"><span class="annottext">asSingleton :: forall a. Set a -&gt; Maybe a
+</span><a href="Unison.Util.Set.html#asSingleton"><span class="hs-identifier hs-var hs-var">asSingleton</span></a></span></span><span> </span><span id="local-6989586621679131377"><span class="annot"><span class="annottext">Set a
+</span><a href="#local-6989586621679131377"><span class="hs-identifier hs-var">xs</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-36"></span><span>  </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">Set a -&gt; Int
+forall a. Set a -&gt; Int
+</span><span class="hs-identifier hs-var">Set.size</span></span><span> </span><span class="annot"><span class="annottext">Set a
+</span><a href="#local-6989586621679131377"><span class="hs-identifier hs-var">xs</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span> </span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="annottext">a -&gt; Maybe a
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Set a -&gt; a
+forall a. Set a -&gt; a
+</span><span class="hs-identifier hs-var">Set.findMin</span></span><span> </span><span class="annot"><span class="annottext">Set a
+</span><a href="#local-6989586621679131377"><span class="hs-identifier hs-var">xs</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="annottext">Maybe a
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-37"></span><span>
+</span><span id="line-38"></span><span class="annot"><span class="hs-comment">-- | Set difference, but return @Nothing@ if the difference is empty.</span></span><span>
+</span><span id="line-39"></span><span id="local-6989586621679131241"><span class="annot"><a href="Unison.Util.Set.html#difference1"><span class="hs-identifier hs-type">difference1</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ord</span></span><span> </span><span class="annot"><a href="#local-6989586621679131241"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Set</span></span><span> </span><span class="annot"><a href="#local-6989586621679131241"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Set</span></span><span> </span><span class="annot"><a href="#local-6989586621679131241"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Set</span></span><span> </span><span class="annot"><a href="#local-6989586621679131241"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span><span>
+</span><span id="line-40"></span><span id="difference1"><span class="annot"><span class="annottext">difference1 :: forall a. Ord a =&gt; Set a -&gt; Set a -&gt; Maybe (Set a)
+</span><a href="Unison.Util.Set.html#difference1"><span class="hs-identifier hs-var hs-var">difference1</span></a></span></span><span> </span><span id="local-6989586621679131384"><span class="annot"><span class="annottext">Set a
+</span><a href="#local-6989586621679131384"><span class="hs-identifier hs-var">xs</span></a></span></span><span> </span><span id="local-6989586621679131385"><span class="annot"><span class="annottext">Set a
+</span><a href="#local-6989586621679131385"><span class="hs-identifier hs-var">ys</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-41"></span><span>  </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">Set a -&gt; Bool
+forall a. Set a -&gt; Bool
+forall (t :: * -&gt; *) a. Foldable t =&gt; t a -&gt; Bool
+</span><span class="hs-identifier hs-var">null</span></span><span> </span><span class="annot"><span class="annottext">Set a
+</span><a href="#local-6989586621679131387"><span class="hs-identifier hs-var">zs</span></a></span><span> </span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="annottext">Maybe (Set a)
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="annottext">Set a -&gt; Maybe (Set a)
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">Set a
+</span><a href="#local-6989586621679131387"><span class="hs-identifier hs-var">zs</span></a></span><span>
+</span><span id="line-42"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-43"></span><span>    </span><span id="local-6989586621679131387"><span class="annot"><span class="annottext">zs :: Set a
+</span><a href="#local-6989586621679131387"><span class="hs-identifier hs-var hs-var">zs</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Set a -&gt; Set a -&gt; Set a
+forall a. Ord a =&gt; Set a -&gt; Set a -&gt; Set a
+</span><span class="hs-identifier hs-var">Set.difference</span></span><span> </span><span class="annot"><span class="annottext">Set a
+</span><a href="#local-6989586621679131384"><span class="hs-identifier hs-var">xs</span></a></span><span> </span><span class="annot"><span class="annottext">Set a
+</span><a href="#local-6989586621679131385"><span class="hs-identifier hs-var">ys</span></a></span><span>
+</span><span id="line-44"></span><span>
+</span><span id="line-45"></span><span class="annot"><span class="hs-comment">-- | Like 'Set.difference', but the second argument is a map.</span></span><span>
+</span><span id="line-46"></span><span id="local-6989586621679131246"><span id="local-6989586621679131247"><span class="annot"><a href="Unison.Util.Set.html#differenceMap"><span class="hs-identifier hs-type">differenceMap</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ord</span></span><span> </span><span class="annot"><a href="#local-6989586621679131246"><span class="hs-identifier hs-type">k</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Set</span></span><span> </span><span class="annot"><a href="#local-6989586621679131246"><span class="hs-identifier hs-type">k</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Map</span></span><span> </span><span class="annot"><a href="#local-6989586621679131246"><span class="hs-identifier hs-type">k</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679131247"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Set</span></span><span> </span><span class="annot"><a href="#local-6989586621679131246"><span class="hs-identifier hs-type">k</span></a></span></span></span><span>
+</span><span id="line-47"></span><span id="differenceMap"><span class="annot"><span class="annottext">differenceMap :: forall k a. Ord k =&gt; Set k -&gt; Map k a -&gt; Set k
+</span><a href="Unison.Util.Set.html#differenceMap"><span class="hs-identifier hs-var hs-var">differenceMap</span></a></span></span><span> </span><span class="annot"><span class="annottext">Set k
+</span><span class="hs-identifier hs-var">Set.Internal.Tip</span></span><span> </span><span class="annot"><span class="annottext">Map k a
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Set k
+forall a. Set a
+</span><span class="hs-identifier hs-var">Set.Internal.Tip</span></span><span>
+</span><span id="line-48"></span><span class="annot"><a href="Unison.Util.Set.html#differenceMap"><span class="hs-identifier hs-var">differenceMap</span></a></span><span> </span><span id="local-6989586621679131396"><span class="annot"><span class="annottext">Set k
+</span><a href="#local-6989586621679131396"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="annot"><span class="annottext">Map k a
+</span><span class="hs-identifier hs-var">Map.Internal.Tip</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Set k
+</span><a href="#local-6989586621679131396"><span class="hs-identifier hs-var">x</span></a></span><span>
+</span><span id="line-49"></span><span class="annot"><a href="Unison.Util.Set.html#differenceMap"><span class="hs-identifier hs-var">differenceMap</span></a></span><span> </span><span id="local-6989586621679131398"><span class="annot"><span class="annottext">Set k
+</span><a href="#local-6989586621679131398"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Map.Internal.Bin</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621679131400"><span class="annot"><span class="annottext">k
+</span><a href="#local-6989586621679131400"><span class="hs-identifier hs-var">k</span></a></span></span><span> </span><span class="annot"><span class="annottext">a
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621679131401"><span class="annot"><span class="annottext">Map k a
+</span><a href="#local-6989586621679131401"><span class="hs-identifier hs-var">yl</span></a></span></span><span> </span><span id="local-6989586621679131402"><span class="annot"><span class="annottext">Map k a
+</span><a href="#local-6989586621679131402"><span class="hs-identifier hs-var">yr</span></a></span></span><span class="hs-special">)</span><span>
+</span><span id="line-50"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Set k -&gt; Int
+forall a. Set a -&gt; Int
+</span><span class="hs-identifier hs-var">Set.size</span></span><span> </span><span class="annot"><span class="annottext">Set k
+</span><a href="#local-6989586621679131403"><span class="hs-identifier hs-var">zl</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Set k -&gt; Int
+forall a. Set a -&gt; Int
+</span><span class="hs-identifier hs-var">Set.size</span></span><span> </span><span class="annot"><span class="annottext">Set k
+</span><a href="#local-6989586621679131405"><span class="hs-identifier hs-var">zr</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">Set k -&gt; Int
+forall a. Set a -&gt; Int
+</span><span class="hs-identifier hs-var">Set.size</span></span><span> </span><span class="annot"><span class="annottext">Set k
+</span><a href="#local-6989586621679131398"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Set k
+</span><a href="#local-6989586621679131398"><span class="hs-identifier hs-var">x</span></a></span><span>
+</span><span id="line-51"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Set k -&gt; Set k -&gt; Set k
+forall a. Set a -&gt; Set a -&gt; Set a
+</span><span class="hs-identifier hs-var">Set.Internal.merge</span></span><span> </span><span class="annot"><span class="annottext">Set k
+</span><a href="#local-6989586621679131403"><span class="hs-identifier hs-var">zl</span></a></span><span> </span><span class="annot"><span class="annottext">Set k
+</span><a href="#local-6989586621679131405"><span class="hs-identifier hs-var">zr</span></a></span><span>
+</span><span id="line-52"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-53"></span><span>    </span><span class="hs-special">(</span><span id="local-6989586621679131406"><span class="annot"><span class="annottext">Set k
+</span><a href="#local-6989586621679131406"><span class="hs-identifier hs-var">xl</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679131407"><span class="annot"><span class="annottext">Set k
+</span><a href="#local-6989586621679131407"><span class="hs-identifier hs-var">xr</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">k -&gt; Set k -&gt; (Set k, Set k)
+forall a. Ord a =&gt; a -&gt; Set a -&gt; (Set a, Set a)
+</span><span class="hs-identifier hs-var">Set.split</span></span><span> </span><span class="annot"><span class="annottext">k
+</span><a href="#local-6989586621679131400"><span class="hs-identifier hs-var">k</span></a></span><span> </span><span class="annot"><span class="annottext">Set k
+</span><a href="#local-6989586621679131398"><span class="hs-identifier hs-var">x</span></a></span><span>
+</span><span id="line-54"></span><span>    </span><span class="hs-glyph">!</span><span id="local-6989586621679131403"><span class="annot"><span class="annottext">zl :: Set k
+</span><a href="#local-6989586621679131403"><span class="hs-identifier hs-var hs-var">zl</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Set k -&gt; Map k a -&gt; Set k
+forall k a. Ord k =&gt; Set k -&gt; Map k a -&gt; Set k
+</span><a href="Unison.Util.Set.html#differenceMap"><span class="hs-identifier hs-var">differenceMap</span></a></span><span> </span><span class="annot"><span class="annottext">Set k
+</span><a href="#local-6989586621679131406"><span class="hs-identifier hs-var">xl</span></a></span><span> </span><span class="annot"><span class="annottext">Map k a
+</span><a href="#local-6989586621679131401"><span class="hs-identifier hs-var">yl</span></a></span><span>
+</span><span id="line-55"></span><span>    </span><span class="hs-glyph">!</span><span id="local-6989586621679131405"><span class="annot"><span class="annottext">zr :: Set k
+</span><a href="#local-6989586621679131405"><span class="hs-identifier hs-var hs-var">zr</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Set k -&gt; Map k a -&gt; Set k
+forall k a. Ord k =&gt; Set k -&gt; Map k a -&gt; Set k
+</span><a href="Unison.Util.Set.html#differenceMap"><span class="hs-identifier hs-var">differenceMap</span></a></span><span> </span><span class="annot"><span class="annottext">Set k
+</span><a href="#local-6989586621679131407"><span class="hs-identifier hs-var">xr</span></a></span><span> </span><span class="annot"><span class="annottext">Map k a
+</span><a href="#local-6989586621679131402"><span class="hs-identifier hs-var">yr</span></a></span><span>
+</span><span id="line-56"></span><span>
+</span><span id="line-57"></span><span class="hs-comment">-- | Fold a set strictly with a monadic &quot;commutative&quot; combining function that doesn't receive the elements in any</span><span>
+</span><span id="line-58"></span><span class="hs-comment">-- particular order.</span><span>
+</span><span id="line-59"></span><span id="local-6989586621679131254"><span id="local-6989586621679131255"><span id="local-6989586621679131256"><span class="annot"><a href="Unison.Util.Set.html#foldCommutativeM"><span class="hs-identifier hs-type">foldCommutativeM</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Monad</span></span><span> </span><span class="annot"><a href="#local-6989586621679131254"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679131255"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679131256"><span class="hs-identifier hs-type">b</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679131254"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679131256"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679131256"><span class="hs-identifier hs-type">b</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Set</span></span><span> </span><span class="annot"><a href="#local-6989586621679131255"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679131254"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679131256"><span class="hs-identifier hs-type">b</span></a></span></span></span></span><span>
+</span><span id="line-60"></span><span id="foldCommutativeM"><span class="annot"><span class="annottext">foldCommutativeM :: forall (m :: * -&gt; *) a b.
+Monad m =&gt;
+(a -&gt; b -&gt; m b) -&gt; b -&gt; Set a -&gt; m b
+</span><a href="Unison.Util.Set.html#foldCommutativeM"><span class="hs-identifier hs-var hs-var">foldCommutativeM</span></a></span></span><span> </span><span id="local-6989586621679131414"><span class="annot"><span class="annottext">a -&gt; b -&gt; m b
+</span><a href="#local-6989586621679131414"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-61"></span><span>  </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621679131415"><span class="annot"><span class="annottext">go :: b -&gt; [Set a] -&gt; m b
+</span><a href="#local-6989586621679131415"><span class="hs-identifier hs-var hs-var">go</span></a></span></span><span> </span><span class="hs-glyph">!</span><span id="local-6989586621679131416"><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679131416"><span class="hs-identifier hs-var">acc</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-62"></span><span>        </span><span class="annot"><span class="hs-identifier hs-type">Set.Internal.Bin</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621679131418"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679131418"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span id="local-6989586621679131419"><span class="annot"><span class="annottext">Set a
+</span><a href="#local-6989586621679131419"><span class="hs-identifier hs-var">l</span></a></span></span><span> </span><span id="local-6989586621679131420"><span class="annot"><span class="annottext">Set a
+</span><a href="#local-6989586621679131420"><span class="hs-identifier hs-var">r</span></a></span></span><span> </span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span> </span><span id="local-6989586621679131421"><span class="annot"><span class="annottext">[Set a]
+</span><a href="#local-6989586621679131421"><span class="hs-identifier hs-var">xs</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-63"></span><span>          </span><span class="hs-glyph">!</span><span id="local-6989586621679131422"><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679131422"><span class="hs-identifier hs-var">acc1</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">a -&gt; b -&gt; m b
+</span><a href="#local-6989586621679131414"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679131418"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679131416"><span class="hs-identifier hs-var">acc</span></a></span><span>
+</span><span id="line-64"></span><span>          </span><span class="annot"><span class="annottext">b -&gt; [Set a] -&gt; m b
+</span><a href="#local-6989586621679131415"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679131422"><span class="hs-identifier hs-var">acc1</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Set a
+</span><a href="#local-6989586621679131419"><span class="hs-identifier hs-var">l</span></a></span><span> </span><span class="annot"><span class="annottext">Set a -&gt; [Set a] -&gt; [Set a]
+forall a. a -&gt; [a] -&gt; [a]
+</span><span class="hs-glyph hs-var">:</span></span><span> </span><span class="annot"><span class="annottext">Set a
+</span><a href="#local-6989586621679131420"><span class="hs-identifier hs-var">r</span></a></span><span> </span><span class="annot"><span class="annottext">Set a -&gt; [Set a] -&gt; [Set a]
+forall a. a -&gt; [a] -&gt; [a]
+</span><span class="hs-glyph hs-var">:</span></span><span> </span><span class="annot"><span class="annottext">[Set a]
+</span><a href="#local-6989586621679131421"><span class="hs-identifier hs-var">xs</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-65"></span><span>        </span><span class="annot"><span class="annottext">Set a
+</span><span class="hs-identifier hs-var">Set.Internal.Tip</span></span><span> </span><span class="annot"><span class="hs-glyph hs-type">:</span></span><span> </span><span id="local-6989586621679131423"><span class="annot"><span class="annottext">[Set a]
+</span><a href="#local-6989586621679131423"><span class="hs-identifier hs-var">xs</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">b -&gt; [Set a] -&gt; m b
+</span><a href="#local-6989586621679131415"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679131416"><span class="hs-identifier hs-var">acc</span></a></span><span> </span><span class="annot"><span class="annottext">[Set a]
+</span><a href="#local-6989586621679131423"><span class="hs-identifier hs-var">xs</span></a></span><span>
+</span><span id="line-66"></span><span>        </span><span class="hs-special">[</span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">b -&gt; m b
+forall a. a -&gt; m a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679131416"><span class="hs-identifier hs-var">acc</span></a></span><span>
+</span><span id="line-67"></span><span>   </span><span class="hs-keyword">in</span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679131424"><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679131424"><span class="hs-identifier hs-var">z</span></a></span></span><span> </span><span id="local-6989586621679131425"><span class="annot"><span class="annottext">Set a
+</span><a href="#local-6989586621679131425"><span class="hs-identifier hs-var">xs</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">b -&gt; [Set a] -&gt; m b
+</span><a href="#local-6989586621679131415"><span class="hs-identifier hs-var">go</span></a></span><span> </span><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679131424"><span class="hs-identifier hs-var">z</span></a></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Set a
+</span><a href="#local-6989586621679131425"><span class="hs-identifier hs-var">xs</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-68"></span><span>
+</span><span id="line-69"></span><span id="local-6989586621679131265"><span class="annot"><a href="Unison.Util.Set.html#insertMaybe"><span class="hs-identifier hs-type">insertMaybe</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ord</span></span><span> </span><span class="annot"><a href="#local-6989586621679131265"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="#local-6989586621679131265"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Set</span></span><span> </span><span class="annot"><a href="#local-6989586621679131265"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Set</span></span><span> </span><span class="annot"><a href="#local-6989586621679131265"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-70"></span><span id="insertMaybe"><span class="annot"><span class="annottext">insertMaybe :: forall a. Ord a =&gt; Maybe a -&gt; Set a -&gt; Set a
+</span><a href="Unison.Util.Set.html#insertMaybe"><span class="hs-identifier hs-var hs-var">insertMaybe</span></a></span></span><span> </span><span id="local-6989586621679131428"><span class="annot"><span class="annottext">Maybe a
+</span><a href="#local-6989586621679131428"><span class="hs-identifier hs-var">mx</span></a></span></span><span> </span><span id="local-6989586621679131429"><span class="annot"><span class="annottext">Set a
+</span><a href="#local-6989586621679131429"><span class="hs-identifier hs-var">xs</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-71"></span><span>  </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Maybe a
+</span><a href="#local-6989586621679131428"><span class="hs-identifier hs-var">mx</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-72"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621679131430"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679131430"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">a -&gt; Set a -&gt; Set a
+forall a. Ord a =&gt; a -&gt; Set a -&gt; Set a
+</span><span class="hs-identifier hs-var">Set.insert</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679131430"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">Set a
+</span><a href="#local-6989586621679131429"><span class="hs-identifier hs-var">xs</span></a></span><span>
+</span><span id="line-73"></span><span>    </span><span class="annot"><span class="annottext">Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Set a
+</span><a href="#local-6989586621679131429"><span class="hs-identifier hs-var">xs</span></a></span><span>
+</span><span id="line-74"></span><span>
+</span><span id="line-75"></span><span class="annot"><span class="hs-comment">-- | Get whether two sets intersect.</span></span><span>
+</span><span id="line-76"></span><span id="local-6989586621679131268"><span class="annot"><a href="Unison.Util.Set.html#intersects"><span class="hs-identifier hs-type">intersects</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ord</span></span><span> </span><span class="annot"><a href="#local-6989586621679131268"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Set</span></span><span> </span><span class="annot"><a href="#local-6989586621679131268"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Set</span></span><span> </span><span class="annot"><a href="#local-6989586621679131268"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span></span><span>
+</span><span id="line-77"></span><span id="intersects"><span class="annot"><span class="annottext">intersects :: forall a. Ord a =&gt; Set a -&gt; Set a -&gt; Bool
+</span><a href="Unison.Util.Set.html#intersects"><span class="hs-identifier hs-var hs-var">intersects</span></a></span></span><span> </span><span id="local-6989586621679131434"><span class="annot"><span class="annottext">Set a
+</span><a href="#local-6989586621679131434"><span class="hs-identifier hs-var">xs</span></a></span></span><span> </span><span id="local-6989586621679131435"><span class="annot"><span class="annottext">Set a
+</span><a href="#local-6989586621679131435"><span class="hs-identifier hs-var">ys</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-78"></span><span>  </span><span class="annot"><span class="annottext">Bool -&gt; Bool
+</span><span class="hs-identifier hs-var">not</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Set a -&gt; Set a -&gt; Bool
+forall a. Ord a =&gt; Set a -&gt; Set a -&gt; Bool
+</span><span class="hs-identifier hs-var">Set.disjoint</span></span><span> </span><span class="annot"><span class="annottext">Set a
+</span><a href="#local-6989586621679131434"><span class="hs-identifier hs-var">xs</span></a></span><span> </span><span class="annot"><span class="annottext">Set a
+</span><a href="#local-6989586621679131435"><span class="hs-identifier hs-var">ys</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-79"></span><span>
+</span><span id="line-80"></span><span id="local-6989586621679131438"><span class="annot"><a href="Unison.Util.Set.html#symmetricDifference"><span class="hs-identifier hs-type">symmetricDifference</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ord</span></span><span> </span><span class="annot"><a href="#local-6989586621679131438"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Set</span></span><span> </span><span class="annot"><a href="#local-6989586621679131438"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Set</span></span><span> </span><span class="annot"><a href="#local-6989586621679131438"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Set</span></span><span> </span><span class="annot"><a href="#local-6989586621679131438"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-81"></span><span id="symmetricDifference"><span class="annot"><span class="annottext">symmetricDifference :: forall a. Ord a =&gt; Set a -&gt; Set a -&gt; Set a
+</span><a href="Unison.Util.Set.html#symmetricDifference"><span class="hs-identifier hs-var hs-var">symmetricDifference</span></a></span></span><span> </span><span id="local-6989586621679131443"><span class="annot"><span class="annottext">Set a
+</span><a href="#local-6989586621679131443"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span id="local-6989586621679131444"><span class="annot"><span class="annottext">Set a
+</span><a href="#local-6989586621679131444"><span class="hs-identifier hs-var">b</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Set a
+</span><a href="#local-6989586621679131443"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="annot"><span class="annottext">Set a -&gt; Set a -&gt; Set a
+forall a. Ord a =&gt; Set a -&gt; Set a -&gt; Set a
+</span><span class="hs-operator hs-var">`Set.difference`</span></span><span> </span><span class="annot"><span class="annottext">Set a
+</span><a href="#local-6989586621679131444"><span class="hs-identifier hs-var">b</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Set a -&gt; Set a -&gt; Set a
+forall a. Ord a =&gt; Set a -&gt; Set a -&gt; Set a
+</span><span class="hs-operator hs-var">`Set.union`</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Set a
+</span><a href="#local-6989586621679131444"><span class="hs-identifier hs-var">b</span></a></span><span> </span><span class="annot"><span class="annottext">Set a -&gt; Set a -&gt; Set a
+forall a. Ord a =&gt; Set a -&gt; Set a -&gt; Set a
+</span><span class="hs-operator hs-var">`Set.difference`</span></span><span> </span><span class="annot"><span class="annottext">Set a
+</span><a href="#local-6989586621679131443"><span class="hs-identifier hs-var">a</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-82"></span><span>
+</span><span id="line-83"></span><span id="local-6989586621679131271"><span id="local-6989586621679131272"><span class="annot"><a href="Unison.Util.Set.html#mapMaybe"><span class="hs-identifier hs-type">mapMaybe</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ord</span></span><span> </span><span class="annot"><a href="#local-6989586621679131271"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679131272"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="#local-6989586621679131271"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Set</span></span><span> </span><span class="annot"><a href="#local-6989586621679131272"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Set</span></span><span> </span><span class="annot"><a href="#local-6989586621679131271"><span class="hs-identifier hs-type">b</span></a></span></span></span><span>
+</span><span id="line-84"></span><span id="mapMaybe"><span class="annot"><span class="annottext">mapMaybe :: forall b a. Ord b =&gt; (a -&gt; Maybe b) -&gt; Set a -&gt; Set b
+</span><a href="Unison.Util.Set.html#mapMaybe"><span class="hs-identifier hs-var hs-var">mapMaybe</span></a></span></span><span> </span><span id="local-6989586621679131448"><span class="annot"><span class="annottext">a -&gt; Maybe b
+</span><a href="#local-6989586621679131448"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[b] -&gt; Set b
+forall a. Ord a =&gt; [a] -&gt; Set a
+</span><span class="hs-identifier hs-var">Set.fromList</span></span><span> </span><span class="annot"><span class="annottext">([b] -&gt; Set b) -&gt; (Set a -&gt; [b]) -&gt; Set a -&gt; Set b
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">(a -&gt; Maybe b) -&gt; [a] -&gt; [b]
+forall a b. (a -&gt; Maybe b) -&gt; [a] -&gt; [b]
+</span><span class="hs-identifier hs-var">Maybe.mapMaybe</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; Maybe b
+</span><a href="#local-6989586621679131448"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">([a] -&gt; [b]) -&gt; (Set a -&gt; [a]) -&gt; Set a -&gt; [b]
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Set a -&gt; [a]
+forall a. Set a -&gt; [a]
+</span><span class="hs-identifier hs-var">Set.toList</span></span><span>
+</span><span id="line-85"></span><span>
+</span><span id="line-86"></span><span id="local-6989586621679131282"><span id="local-6989586621679131283"><span id="local-6989586621679131284"><span class="annot"><a href="Unison.Util.Set.html#forMaybe"><span class="hs-identifier hs-type">forMaybe</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ord</span></span><span> </span><span class="annot"><a href="#local-6989586621679131282"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Applicative</span></span><span> </span><span class="annot"><a href="#local-6989586621679131283"><span class="hs-identifier hs-type">f</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Set</span></span><span> </span><span class="annot"><a href="#local-6989586621679131284"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679131284"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679131283"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="#local-6989586621679131282"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679131283"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Set</span></span><span> </span><span class="annot"><a href="#local-6989586621679131282"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">)</span></span></span></span><span>
+</span><span id="line-87"></span><span id="forMaybe"><span class="annot"><span class="annottext">forMaybe :: forall b (f :: * -&gt; *) a.
+(Ord b, Applicative f) =&gt;
+Set a -&gt; (a -&gt; f (Maybe b)) -&gt; f (Set b)
+</span><a href="Unison.Util.Set.html#forMaybe"><span class="hs-identifier hs-var hs-var">forMaybe</span></a></span></span><span> </span><span id="local-6989586621679131462"><span class="annot"><span class="annottext">Set a
+</span><a href="#local-6989586621679131462"><span class="hs-identifier hs-var">xs</span></a></span></span><span> </span><span id="local-6989586621679131463"><span class="annot"><span class="annottext">a -&gt; f (Maybe b)
+</span><a href="#local-6989586621679131463"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-88"></span><span>  </span><span class="annot"><span class="annottext">(a -&gt; f (Maybe b)) -&gt; [a] -&gt; f [Maybe b]
+forall (t :: * -&gt; *) (f :: * -&gt; *) a b.
+(Traversable t, Applicative f) =&gt;
+(a -&gt; f b) -&gt; t a -&gt; f (t b)
+forall (f :: * -&gt; *) a b.
+Applicative f =&gt;
+(a -&gt; f b) -&gt; [a] -&gt; f [b]
+</span><span class="hs-identifier hs-var">Prelude.traverse</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; f (Maybe b)
+</span><a href="#local-6989586621679131463"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Set a -&gt; [a]
+forall a. Set a -&gt; [a]
+</span><span class="hs-identifier hs-var">Set.toList</span></span><span> </span><span class="annot"><span class="annottext">Set a
+</span><a href="#local-6989586621679131462"><span class="hs-identifier hs-var">xs</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">f [Maybe b] -&gt; ([Maybe b] -&gt; Set b) -&gt; f (Set b)
+forall (f :: * -&gt; *) a b. Functor f =&gt; f a -&gt; (a -&gt; b) -&gt; f b
+</span><span class="hs-operator hs-var">&lt;&amp;&gt;</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679131465"><span class="annot"><span class="annottext">[Maybe b]
+</span><a href="#local-6989586621679131465"><span class="hs-identifier hs-var">ys</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-89"></span><span>    </span><span class="annot"><span class="annottext">[Maybe b]
+</span><a href="#local-6989586621679131465"><span class="hs-identifier hs-var">ys</span></a></span><span>
+</span><span id="line-90"></span><span>      </span><span class="annot"><span class="annottext">[Maybe b] -&gt; ([Maybe b] -&gt; [b]) -&gt; [b]
+forall a b. a -&gt; (a -&gt; b) -&gt; b
+</span><span class="hs-operator hs-var">&amp;</span></span><span> </span><span class="annot"><span class="annottext">[Maybe b] -&gt; [b]
+forall a. [Maybe a] -&gt; [a]
+</span><span class="hs-identifier hs-var">Maybe.catMaybes</span></span><span>
+</span><span id="line-91"></span><span>      </span><span class="annot"><span class="annottext">[b] -&gt; ([b] -&gt; Set b) -&gt; Set b
+forall a b. a -&gt; (a -&gt; b) -&gt; b
+</span><span class="hs-operator hs-var">&amp;</span></span><span> </span><span class="annot"><span class="annottext">[b] -&gt; Set b
+forall a. Ord a =&gt; [a] -&gt; Set a
+</span><span class="hs-identifier hs-var">Set.fromList</span></span><span>
+</span><span id="line-92"></span><span>
+</span><span id="line-93"></span><span id="local-6989586621679131299"><span id="local-6989586621679131300"><span id="local-6989586621679131301"><span class="annot"><a href="Unison.Util.Set.html#traverse"><span class="hs-identifier hs-type">traverse</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Applicative</span></span><span> </span><span class="annot"><a href="#local-6989586621679131299"><span class="hs-identifier hs-type">f</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ord</span></span><span> </span><span class="annot"><a href="#local-6989586621679131300"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679131301"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679131299"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679131300"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Set</span></span><span> </span><span class="annot"><a href="#local-6989586621679131301"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679131299"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Set</span></span><span> </span><span class="annot"><a href="#local-6989586621679131300"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">)</span></span></span></span><span>
+</span><span id="line-94"></span><span id="traverse"><span class="annot"><span class="annottext">traverse :: forall (f :: * -&gt; *) b a.
+(Applicative f, Ord b) =&gt;
+(a -&gt; f b) -&gt; Set a -&gt; f (Set b)
+</span><a href="Unison.Util.Set.html#traverse"><span class="hs-identifier hs-var hs-var">traverse</span></a></span></span><span> </span><span id="local-6989586621679131474"><span class="annot"><span class="annottext">a -&gt; f b
+</span><a href="#local-6989586621679131474"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">([b] -&gt; Set b) -&gt; f [b] -&gt; f (Set b)
+forall a b. (a -&gt; b) -&gt; f a -&gt; f b
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="annot"><span class="annottext">[b] -&gt; Set b
+forall a. Ord a =&gt; [a] -&gt; Set a
+</span><span class="hs-identifier hs-var">Set.fromList</span></span><span> </span><span class="annot"><span class="annottext">(f [b] -&gt; f (Set b)) -&gt; (Set a -&gt; f [b]) -&gt; Set a -&gt; f (Set b)
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">(a -&gt; f b) -&gt; [a] -&gt; f [b]
+forall (t :: * -&gt; *) (f :: * -&gt; *) a b.
+(Traversable t, Applicative f) =&gt;
+(a -&gt; f b) -&gt; t a -&gt; f (t b)
+forall (f :: * -&gt; *) a b.
+Applicative f =&gt;
+(a -&gt; f b) -&gt; [a] -&gt; f [b]
+</span><span class="hs-identifier hs-var">Prelude.traverse</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; f b
+</span><a href="#local-6989586621679131474"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">([a] -&gt; f [b]) -&gt; (Set a -&gt; [a]) -&gt; Set a -&gt; f [b]
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Set a -&gt; [a]
+forall a. Set a -&gt; [a]
+</span><span class="hs-identifier hs-var">Set.toList</span></span><span>
+</span><span id="line-95"></span><span>
+</span><span id="line-96"></span><span id="local-6989586621679131308"><span id="local-6989586621679131309"><span id="local-6989586621679131310"><span class="annot"><a href="Unison.Util.Set.html#for"><span class="hs-identifier hs-type">for</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ord</span></span><span> </span><span class="annot"><a href="#local-6989586621679131308"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Applicative</span></span><span> </span><span class="annot"><a href="#local-6989586621679131309"><span class="hs-identifier hs-type">f</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Set</span></span><span> </span><span class="annot"><a href="#local-6989586621679131310"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679131310"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679131309"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679131308"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679131309"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Set</span></span><span> </span><span class="annot"><a href="#local-6989586621679131308"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">)</span></span></span></span><span>
+</span><span id="line-97"></span><span id="for"><span class="annot"><span class="annottext">for :: forall b (f :: * -&gt; *) a.
+(Ord b, Applicative f) =&gt;
+Set a -&gt; (a -&gt; f b) -&gt; f (Set b)
+</span><a href="Unison.Util.Set.html#for"><span class="hs-identifier hs-var hs-var">for</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">((a -&gt; f b) -&gt; Set a -&gt; f (Set b))
+-&gt; Set a -&gt; (a -&gt; f b) -&gt; f (Set b)
+forall a b c. (a -&gt; b -&gt; c) -&gt; b -&gt; a -&gt; c
+</span><span class="hs-identifier hs-var">flip</span></span><span> </span><span class="annot"><span class="annottext">(a -&gt; f b) -&gt; Set a -&gt; f (Set b)
+forall (f :: * -&gt; *) b a.
+(Applicative f, Ord b) =&gt;
+(a -&gt; f b) -&gt; Set a -&gt; f (Set b)
+</span><a href="Unison.Util.Set.html#traverse"><span class="hs-identifier hs-var">Unison.Util.Set.traverse</span></a></span><span>
+</span><span id="line-98"></span><span>
+</span><span id="line-99"></span><span id="local-6989586621679131317"><span id="local-6989586621679131318"><span class="annot"><a href="Unison.Util.Set.html#flatMap"><span class="hs-identifier hs-type">flatMap</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ord</span></span><span> </span><span class="annot"><a href="#local-6989586621679131317"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679131318"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Set</span></span><span> </span><span class="annot"><a href="#local-6989586621679131317"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Set</span></span><span> </span><span class="annot"><a href="#local-6989586621679131318"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Set</span></span><span> </span><span class="annot"><a href="#local-6989586621679131317"><span class="hs-identifier hs-type">b</span></a></span></span></span><span>
+</span><span id="line-100"></span><span id="flatMap"><span class="annot"><span class="annottext">flatMap :: forall b a. Ord b =&gt; (a -&gt; Set b) -&gt; Set a -&gt; Set b
+</span><a href="Unison.Util.Set.html#flatMap"><span class="hs-identifier hs-var hs-var">flatMap</span></a></span></span><span> </span><span id="local-6989586621679131486"><span class="annot"><span class="annottext">a -&gt; Set b
+</span><a href="#local-6989586621679131486"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Set b] -&gt; Set b
+forall (f :: * -&gt; *) a. (Foldable f, Ord a) =&gt; f (Set a) -&gt; Set a
+</span><span class="hs-identifier hs-var">Set.unions</span></span><span> </span><span class="annot"><span class="annottext">([Set b] -&gt; Set b) -&gt; (Set a -&gt; [Set b]) -&gt; Set a -&gt; Set b
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">(a -&gt; Set b) -&gt; [a] -&gt; [Set b]
+forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; Set b
+</span><a href="#local-6989586621679131486"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">([a] -&gt; [Set b]) -&gt; (Set a -&gt; [a]) -&gt; Set a -&gt; [Set b]
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Set a -&gt; [a]
+forall a. Set a -&gt; [a]
+</span><span class="hs-identifier hs-var">Set.toList</span></span><span>
+</span><span id="line-101"></span><span>
+</span><span id="line-102"></span><span id="local-6989586621679131323"><span id="local-6989586621679131324"><span class="annot"><a href="Unison.Util.Set.html#filterM"><span class="hs-identifier hs-type">filterM</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ord</span></span><span> </span><span class="annot"><a href="#local-6989586621679131323"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Monad</span></span><span> </span><span class="annot"><a href="#local-6989586621679131324"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679131323"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679131324"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Set</span></span><span> </span><span class="annot"><a href="#local-6989586621679131323"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679131324"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Set</span></span><span> </span><span class="annot"><a href="#local-6989586621679131323"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span></span><span>
+</span><span id="line-103"></span><span id="filterM"><span class="annot"><span class="annottext">filterM :: forall a (m :: * -&gt; *).
+(Ord a, Monad m) =&gt;
+(a -&gt; m Bool) -&gt; Set a -&gt; m (Set a)
+</span><a href="Unison.Util.Set.html#filterM"><span class="hs-identifier hs-var hs-var">filterM</span></a></span></span><span> </span><span id="local-6989586621679131497"><span class="annot"><span class="annottext">a -&gt; m Bool
+</span><a href="#local-6989586621679131497"><span class="hs-identifier hs-var">p</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-104"></span><span>  </span><span class="annot"><span class="annottext">(a -&gt; m (Set a)) -&gt; Set a -&gt; m (Set a)
+forall (m :: * -&gt; *) (f :: * -&gt; *) b a.
+(Monad m, Foldable f, Monoid b) =&gt;
+(a -&gt; m b) -&gt; f a -&gt; m b
+</span><a href="Unison.Util.Monoid.html#foldMapM"><span class="hs-identifier hs-var">foldMapM</span></a></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679131498"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679131498"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-105"></span><span>    </span><span class="annot"><span class="annottext">a -&gt; m Bool
+</span><a href="#local-6989586621679131497"><span class="hs-identifier hs-var">p</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679131498"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">m Bool -&gt; (Bool -&gt; Set a) -&gt; m (Set a)
+forall (f :: * -&gt; *) a b. Functor f =&gt; f a -&gt; (a -&gt; b) -&gt; f b
+</span><span class="hs-operator hs-var">&lt;&amp;&gt;</span></span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-106"></span><span>      </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Set a
+forall a. Set a
+</span><span class="hs-identifier hs-var">Set.empty</span></span><span>
+</span><span id="line-107"></span><span>      </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">a -&gt; Set a
+forall a. a -&gt; Set a
+</span><span class="hs-identifier hs-var">Set.singleton</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679131498"><span class="hs-identifier hs-var">x</span></a></span><span>
+</span><span id="line-108"></span><span>
+</span><span id="line-109"></span><span id="local-6989586621679131333"><span class="annot"><a href="Unison.Util.Set.html#thenInsert"><span class="hs-identifier hs-type">thenInsert</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ord</span></span><span> </span><span class="annot"><a href="#local-6989586621679131333"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Set</span></span><span> </span><span class="annot"><a href="#local-6989586621679131333"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621679131333"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Set</span></span><span> </span><span class="annot"><a href="#local-6989586621679131333"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-110"></span><span id="thenInsert"><span class="annot"><span class="annottext">thenInsert :: forall a. Ord a =&gt; Set a -&gt; a -&gt; Set a
+</span><a href="Unison.Util.Set.html#thenInsert"><span class="hs-identifier hs-var hs-var">thenInsert</span></a></span></span><span> </span><span id="local-6989586621679131503"><span class="annot"><span class="annottext">Set a
+</span><a href="#local-6989586621679131503"><span class="hs-identifier hs-var">xs</span></a></span></span><span> </span><span id="local-6989586621679131504"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679131504"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-111"></span><span>  </span><span class="annot"><span class="annottext">a -&gt; Set a -&gt; Set a
+forall a. Ord a =&gt; a -&gt; Set a -&gt; Set a
+</span><span class="hs-identifier hs-var">Set.insert</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679131504"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">Set a
+</span><a href="#local-6989586621679131503"><span class="hs-identifier hs-var">xs</span></a></span><span>
+</span><span id="line-112"></span><span>
+</span><span id="line-113"></span><span id="local-6989586621679131335"><span class="annot"><a href="Unison.Util.Set.html#thenInsertMaybe"><span class="hs-identifier hs-type">thenInsertMaybe</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ord</span></span><span> </span><span class="annot"><a href="#local-6989586621679131335"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Set</span></span><span> </span><span class="annot"><a href="#local-6989586621679131335"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="#local-6989586621679131335"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Set</span></span><span> </span><span class="annot"><a href="#local-6989586621679131335"><span class="hs-identifier hs-type">a</span></a></span></span><span>
+</span><span id="line-114"></span><span id="thenInsertMaybe"><span class="annot"><span class="annottext">thenInsertMaybe :: forall a. Ord a =&gt; Set a -&gt; Maybe a -&gt; Set a
+</span><a href="Unison.Util.Set.html#thenInsertMaybe"><span class="hs-identifier hs-var hs-var">thenInsertMaybe</span></a></span></span><span> </span><span id="local-6989586621679131507"><span class="annot"><span class="annottext">Set a
+</span><a href="#local-6989586621679131507"><span class="hs-identifier hs-var">xs</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-115"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621679131508"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679131508"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">a -&gt; Set a -&gt; Set a
+forall a. Ord a =&gt; a -&gt; Set a -&gt; Set a
+</span><span class="hs-identifier hs-var">Set.insert</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679131508"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">Set a
+</span><a href="#local-6989586621679131507"><span class="hs-identifier hs-var">xs</span></a></span><span>
+</span><span id="line-116"></span><span>  </span><span class="annot"><span class="annottext">Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Set a
+</span><a href="#local-6989586621679131507"><span class="hs-identifier hs-var">xs</span></a></span><span>
+</span><span id="line-117"></span><span>
+</span><span id="line-118"></span><span id="local-6989586621679131337"><span id="local-6989586621679131338"><span id="local-6989586621679131339"><span class="annot"><a href="Unison.Util.Set.html#unalignWith"><span class="hs-identifier hs-type">unalignWith</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ord</span></span><span> </span><span class="annot"><a href="#local-6989586621679131337"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ord</span></span><span> </span><span class="annot"><a href="#local-6989586621679131338"><span class="hs-identifier hs-type">c</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679131339"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">These</span></span><span> </span><span class="annot"><a href="#local-6989586621679131337"><span class="hs-identifier hs-type">b</span></a></span><span> </span><span class="annot"><a href="#local-6989586621679131338"><span class="hs-identifier hs-type">c</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Set</span></span><span> </span><span class="annot"><a href="#local-6989586621679131339"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Set</span></span><span> </span><span class="annot"><a href="#local-6989586621679131337"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Set</span></span><span> </span><span class="annot"><a href="#local-6989586621679131338"><span class="hs-identifier hs-type">c</span></a></span><span class="hs-special">)</span></span></span></span><span>
+</span><span id="line-119"></span><span id="unalignWith"><span class="annot"><span class="annottext">unalignWith :: forall b c a.
+(Ord b, Ord c) =&gt;
+(a -&gt; These b c) -&gt; Set a -&gt; (Set b, Set c)
+</span><a href="Unison.Util.Set.html#unalignWith"><span class="hs-identifier hs-var hs-var">unalignWith</span></a></span></span><span> </span><span id="local-6989586621679131515"><span class="annot"><span class="annottext">a -&gt; These b c
+</span><a href="#local-6989586621679131515"><span class="hs-identifier hs-var">p</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-120"></span><span>  </span><span class="annot"><span class="annottext">((Set b, Set c) -&gt; a -&gt; (Set b, Set c))
+-&gt; (Set b, Set c) -&gt; Set a -&gt; (Set b, Set c)
+forall a b. (a -&gt; b -&gt; a) -&gt; a -&gt; Set b -&gt; a
+</span><span class="hs-identifier hs-var">Set.foldl'</span></span><span> </span><span class="annot"><span class="annottext">(Set b, Set c) -&gt; a -&gt; (Set b, Set c)
+</span><a href="#local-6989586621679131517"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Set b
+forall a. Set a
+</span><span class="hs-identifier hs-var">Set.empty</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Set c
+forall a. Set a
+</span><span class="hs-identifier hs-var">Set.empty</span></span><span class="hs-special">)</span><span>
+</span><span id="line-121"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-122"></span><span>    </span><span id="local-6989586621679131517"><span class="annot"><span class="annottext">f :: (Set b, Set c) -&gt; a -&gt; (Set b, Set c)
+</span><a href="#local-6989586621679131517"><span class="hs-identifier hs-var hs-var">f</span></a></span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679131518"><span class="annot"><span class="annottext">Set b
+</span><a href="#local-6989586621679131518"><span class="hs-identifier hs-var">ys</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679131519"><span class="annot"><span class="annottext">Set c
+</span><a href="#local-6989586621679131519"><span class="hs-identifier hs-var">zs</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621679131520"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679131520"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-123"></span><span>      </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">a -&gt; These b c
+</span><a href="#local-6989586621679131515"><span class="hs-identifier hs-var">p</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679131520"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-124"></span><span>        </span><span class="annot"><span class="hs-identifier hs-type">This</span></span><span> </span><span id="local-6989586621679131522"><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679131522"><span class="hs-identifier hs-var">y</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">let</span><span> </span><span class="hs-glyph">!</span><span id="local-6989586621679131523"><span class="annot"><span class="annottext">ys1 :: Set b
+</span><a href="#local-6989586621679131523"><span class="hs-identifier hs-var hs-var">ys1</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">b -&gt; Set b -&gt; Set b
+forall a. Ord a =&gt; a -&gt; Set a -&gt; Set a
+</span><span class="hs-identifier hs-var">Set.insert</span></span><span> </span><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679131522"><span class="hs-identifier hs-var">y</span></a></span><span> </span><span class="annot"><span class="annottext">Set b
+</span><a href="#local-6989586621679131518"><span class="hs-identifier hs-var">ys</span></a></span><span> </span><span class="hs-keyword">in</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Set b
+</span><a href="#local-6989586621679131523"><span class="hs-identifier hs-var">ys1</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Set c
+</span><a href="#local-6989586621679131519"><span class="hs-identifier hs-var">zs</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-125"></span><span>        </span><span class="annot"><span class="hs-identifier hs-type">That</span></span><span> </span><span id="local-6989586621679131525"><span class="annot"><span class="annottext">c
+</span><a href="#local-6989586621679131525"><span class="hs-identifier hs-var">z</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">let</span><span> </span><span class="hs-glyph">!</span><span id="local-6989586621679131526"><span class="annot"><span class="annottext">zs1 :: Set c
+</span><a href="#local-6989586621679131526"><span class="hs-identifier hs-var hs-var">zs1</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">c -&gt; Set c -&gt; Set c
+forall a. Ord a =&gt; a -&gt; Set a -&gt; Set a
+</span><span class="hs-identifier hs-var">Set.insert</span></span><span> </span><span class="annot"><span class="annottext">c
+</span><a href="#local-6989586621679131525"><span class="hs-identifier hs-var">z</span></a></span><span> </span><span class="annot"><span class="annottext">Set c
+</span><a href="#local-6989586621679131519"><span class="hs-identifier hs-var">zs</span></a></span><span> </span><span class="hs-keyword">in</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Set b
+</span><a href="#local-6989586621679131518"><span class="hs-identifier hs-var">ys</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Set c
+</span><a href="#local-6989586621679131526"><span class="hs-identifier hs-var">zs1</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-126"></span><span>        </span><span class="annot"><span class="hs-identifier hs-type">These</span></span><span> </span><span id="local-6989586621679131528"><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679131528"><span class="hs-identifier hs-var">y</span></a></span></span><span> </span><span id="local-6989586621679131529"><span class="annot"><span class="annottext">c
+</span><a href="#local-6989586621679131529"><span class="hs-identifier hs-var">z</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-127"></span><span>          </span><span class="hs-keyword">let</span><span> </span><span class="hs-glyph">!</span><span id="local-6989586621679131530"><span class="annot"><span class="annottext">ys1 :: Set b
+</span><a href="#local-6989586621679131530"><span class="hs-identifier hs-var hs-var">ys1</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">b -&gt; Set b -&gt; Set b
+forall a. Ord a =&gt; a -&gt; Set a -&gt; Set a
+</span><span class="hs-identifier hs-var">Set.insert</span></span><span> </span><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679131528"><span class="hs-identifier hs-var">y</span></a></span><span> </span><span class="annot"><span class="annottext">Set b
+</span><a href="#local-6989586621679131518"><span class="hs-identifier hs-var">ys</span></a></span><span>
+</span><span id="line-128"></span><span>              </span><span class="hs-glyph">!</span><span id="local-6989586621679131531"><span class="annot"><span class="annottext">zs1 :: Set c
+</span><a href="#local-6989586621679131531"><span class="hs-identifier hs-var hs-var">zs1</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">c -&gt; Set c -&gt; Set c
+forall a. Ord a =&gt; a -&gt; Set a -&gt; Set a
+</span><span class="hs-identifier hs-var">Set.insert</span></span><span> </span><span class="annot"><span class="annottext">c
+</span><a href="#local-6989586621679131529"><span class="hs-identifier hs-var">z</span></a></span><span> </span><span class="annot"><span class="annottext">Set c
+</span><a href="#local-6989586621679131519"><span class="hs-identifier hs-var">zs</span></a></span><span>
+</span><span id="line-129"></span><span>           </span><span class="hs-keyword">in</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Set b
+</span><a href="#local-6989586621679131530"><span class="hs-identifier hs-var">ys1</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Set c
+</span><a href="#local-6989586621679131531"><span class="hs-identifier hs-var">zs1</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-130"></span><span>
+</span><span id="line-131"></span><span id="local-6989586621679131346"><span id="local-6989586621679131347"><span id="local-6989586621679131348"><span class="annot"><a href="Unison.Util.Set.html#unzipWith"><span class="hs-identifier hs-type">unzipWith</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ord</span></span><span> </span><span class="annot"><a href="#local-6989586621679131346"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ord</span></span><span> </span><span class="annot"><a href="#local-6989586621679131347"><span class="hs-identifier hs-type">c</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679131348"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621679131346"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621679131347"><span class="hs-identifier hs-type">c</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Set</span></span><span> </span><span class="annot"><a href="#local-6989586621679131348"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Set</span></span><span> </span><span class="annot"><a href="#local-6989586621679131346"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Set</span></span><span> </span><span class="annot"><a href="#local-6989586621679131347"><span class="hs-identifier hs-type">c</span></a></span><span class="hs-special">)</span></span></span></span><span>
+</span><span id="line-132"></span><span id="unzipWith"><span class="annot"><span class="annottext">unzipWith :: forall b c a.
+(Ord b, Ord c) =&gt;
+(a -&gt; (b, c)) -&gt; Set a -&gt; (Set b, Set c)
+</span><a href="Unison.Util.Set.html#unzipWith"><span class="hs-identifier hs-var hs-var">unzipWith</span></a></span></span><span> </span><span id="local-6989586621679131536"><span class="annot"><span class="annottext">a -&gt; (b, c)
+</span><a href="#local-6989586621679131536"><span class="hs-identifier hs-var">p</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-133"></span><span>  </span><span class="annot"><span class="annottext">((Set b, Set c) -&gt; a -&gt; (Set b, Set c))
+-&gt; (Set b, Set c) -&gt; Set a -&gt; (Set b, Set c)
+forall a b. (a -&gt; b -&gt; a) -&gt; a -&gt; Set b -&gt; a
+</span><span class="hs-identifier hs-var">Set.foldl'</span></span><span> </span><span class="annot"><span class="annottext">(Set b, Set c) -&gt; a -&gt; (Set b, Set c)
+</span><a href="#local-6989586621679131537"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Set b
+forall a. Set a
+</span><span class="hs-identifier hs-var">Set.empty</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Set c
+forall a. Set a
+</span><span class="hs-identifier hs-var">Set.empty</span></span><span class="hs-special">)</span><span>
+</span><span id="line-134"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-135"></span><span>    </span><span id="local-6989586621679131537"><span class="annot"><span class="annottext">f :: (Set b, Set c) -&gt; a -&gt; (Set b, Set c)
+</span><a href="#local-6989586621679131537"><span class="hs-identifier hs-var hs-var">f</span></a></span></span><span> </span><span class="hs-special">(</span><span id="local-6989586621679131538"><span class="annot"><span class="annottext">Set b
+</span><a href="#local-6989586621679131538"><span class="hs-identifier hs-var">ys</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679131539"><span class="annot"><span class="annottext">Set c
+</span><a href="#local-6989586621679131539"><span class="hs-identifier hs-var">zs</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621679131540"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679131540"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="hs-glyph">=</span><span>
+</span><span id="line-136"></span><span>      </span><span class="hs-keyword">let</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679131541"><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679131541"><span class="hs-identifier hs-var">y</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679131542"><span class="annot"><span class="annottext">c
+</span><a href="#local-6989586621679131542"><span class="hs-identifier hs-var">z</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">a -&gt; (b, c)
+</span><a href="#local-6989586621679131536"><span class="hs-identifier hs-var">p</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621679131540"><span class="hs-identifier hs-var">x</span></a></span><span>
+</span><span id="line-137"></span><span>          </span><span class="hs-glyph">!</span><span id="local-6989586621679131543"><span class="annot"><span class="annottext">ys1 :: Set b
+</span><a href="#local-6989586621679131543"><span class="hs-identifier hs-var hs-var">ys1</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">b -&gt; Set b -&gt; Set b
+forall a. Ord a =&gt; a -&gt; Set a -&gt; Set a
+</span><span class="hs-identifier hs-var">Set.insert</span></span><span> </span><span class="annot"><span class="annottext">b
+</span><a href="#local-6989586621679131541"><span class="hs-identifier hs-var">y</span></a></span><span> </span><span class="annot"><span class="annottext">Set b
+</span><a href="#local-6989586621679131538"><span class="hs-identifier hs-var">ys</span></a></span><span>
+</span><span id="line-138"></span><span>          </span><span class="hs-glyph">!</span><span id="local-6989586621679131544"><span class="annot"><span class="annottext">zs1 :: Set c
+</span><a href="#local-6989586621679131544"><span class="hs-identifier hs-var hs-var">zs1</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">c -&gt; Set c -&gt; Set c
+forall a. Ord a =&gt; a -&gt; Set a -&gt; Set a
+</span><span class="hs-identifier hs-var">Set.insert</span></span><span> </span><span class="annot"><span class="annottext">c
+</span><a href="#local-6989586621679131542"><span class="hs-identifier hs-var">z</span></a></span><span> </span><span class="annot"><span class="annottext">Set c
+</span><a href="#local-6989586621679131539"><span class="hs-identifier hs-var">zs</span></a></span><span>
+</span><span id="line-139"></span><span>       </span><span class="hs-keyword">in</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Set b
+</span><a href="#local-6989586621679131543"><span class="hs-identifier hs-var">ys1</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Set c
+</span><a href="#local-6989586621679131544"><span class="hs-identifier hs-var">zs1</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-140"></span></pre></body></html>

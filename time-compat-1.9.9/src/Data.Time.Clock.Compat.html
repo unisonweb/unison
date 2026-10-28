@@ -1,0 +1,138 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE CPP #-}</span><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# LANGUAGE TemplateHaskellQuotes #-}</span><span>
+</span><span id="line-3"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Data.Time.Clock.Compat.html"><span class="hs-identifier">Data.Time.Clock.Compat</span></a></span><span> </span><span class="hs-special">(</span><span>
+</span><span id="line-4"></span><span>    </span><span class="annot"><span class="hs-comment">-- * Universal Time</span></span><span>
+</span><span id="line-5"></span><span>    </span><span class="annot"><span class="hs-comment">-- | Time as measured by the Earth.</span></span><span>
+</span><span id="line-6"></span><span>    </span><span class="annot"><span class="hs-identifier">UniversalTime</span></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-7"></span><span>
+</span><span id="line-8"></span><span>    </span><span class="annot"><span class="hs-comment">-- * Absolute intervals, DiffTime</span></span><span>
+</span><span id="line-9"></span><span>    </span><span class="annot"><span class="hs-identifier">DiffTime</span></span><span class="hs-special">,</span><span>
+</span><span id="line-10"></span><span>    </span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="Data.Time.Clock.Compat.html#Picoseconds"><span class="hs-identifier">Picoseconds</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-11"></span><span>    </span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="Data.Time.Clock.Compat.html#Seconds"><span class="hs-identifier">Seconds</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-12"></span><span>    </span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="Data.Time.Clock.Compat.html#Minutes"><span class="hs-identifier">Minutes</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-13"></span><span>    </span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="Data.Time.Clock.Compat.html#Hours"><span class="hs-identifier">Hours</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-14"></span><span>    </span><span class="annot"><span class="hs-identifier">secondsToDiffTime</span></span><span class="hs-special">,</span><span>
+</span><span id="line-15"></span><span>    </span><span class="annot"><span class="hs-identifier">picosecondsToDiffTime</span></span><span class="hs-special">,</span><span>
+</span><span id="line-16"></span><span>    </span><span class="annot"><span class="hs-identifier">diffTimeToPicoseconds</span></span><span class="hs-special">,</span><span>
+</span><span id="line-17"></span><span>
+</span><span id="line-18"></span><span>    </span><span class="annot"><span class="hs-comment">-- * UTCTime</span></span><span>
+</span><span id="line-19"></span><span>    </span><span class="annot"><span class="hs-identifier">UTCTime</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-20"></span><span>
+</span><span id="line-21"></span><span>    </span><span class="annot"><span class="hs-comment">-- * NominalDiffTime</span></span><span>
+</span><span id="line-22"></span><span>    </span><span class="annot"><span class="hs-identifier">NominalDiffTime</span></span><span class="hs-special">,</span><span>
+</span><span id="line-23"></span><span>    </span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="Data.Time.Clock.Compat.html#Nominal"><span class="hs-identifier">Nominal</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-24"></span><span>    </span><span class="annot"><span class="hs-identifier">secondsToNominalDiffTime</span></span><span class="hs-special">,</span><span>
+</span><span id="line-25"></span><span>    </span><span class="annot"><span class="hs-identifier">nominalDiffTimeToSeconds</span></span><span class="hs-special">,</span><span>
+</span><span id="line-26"></span><span>    </span><span class="annot"><span class="hs-identifier">nominalDay</span></span><span class="hs-special">,</span><span>
+</span><span id="line-27"></span><span>
+</span><span id="line-28"></span><span>    </span><span class="annot"><span class="hs-comment">-- * UTC differences</span></span><span>
+</span><span id="line-29"></span><span>    </span><span class="annot"><span class="hs-identifier">addUTCTime</span></span><span class="hs-special">,</span><span>
+</span><span id="line-30"></span><span>    </span><span class="annot"><span class="hs-identifier">diffUTCTime</span></span><span class="hs-special">,</span><span>
+</span><span id="line-31"></span><span>
+</span><span id="line-32"></span><span>    </span><span class="annot"><span class="hs-comment">-- * Current time</span></span><span>
+</span><span id="line-33"></span><span>    </span><span class="annot"><span class="hs-identifier">getCurrentTime</span></span><span class="hs-special">,</span><span>
+</span><span id="line-34"></span><span>    </span><span class="annot"><span class="hs-identifier">getTime_resolution</span></span><span class="hs-special">,</span><span>
+</span><span id="line-35"></span><span>
+</span><span id="line-36"></span><span>    </span><span class="annot"><span class="hs-comment">-- * Type aliases</span></span><span>
+</span><span id="line-37"></span><span>    </span><span class="annot"><span class="hs-identifier">Year</span></span><span class="hs-special">,</span><span>
+</span><span id="line-38"></span><span>    </span><span class="annot"><span class="hs-identifier">MonthOfYear</span></span><span class="hs-special">,</span><span>
+</span><span id="line-39"></span><span>    </span><span class="annot"><span class="hs-identifier">DayOfMonth</span></span><span class="hs-special">,</span><span>
+</span><span id="line-40"></span><span>    </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-41"></span><span>
+</span><span id="line-42"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Data.Time.Orphans.html"><span class="hs-identifier">Data.Time.Orphans</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-43"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Data.Time.Calendar.Types.html"><span class="hs-identifier">Data.Time.Calendar.Types</span></a></span><span>
+</span><span id="line-44"></span><span>
+</span><span id="line-45"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Time.Clock</span></span><span>
+</span><span id="line-46"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Fixed</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Pico</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">Fixed</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">MkFixed</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-47"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Debug.Trace</span></span><span class="hs-cpp">
+
+#if !MIN_VERSION_time(1,15,0)
+</span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="Data.Time.Clock.Compat.html#Picoseconds"><span class="hs-identifier hs-type">Picoseconds</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Integer</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">DiffTime</span></span><span>
+</span><span id="line-51"></span><span class="hs-keyword">pattern</span><span> </span><span id="Picoseconds"><span id="%24mPicoseconds"><span id="%24bPicoseconds"><span class="annot"><span class="annottext">$mPicoseconds :: forall {r}. DiffTime -&gt; (Integer -&gt; r) -&gt; ((# #) -&gt; r) -&gt; r
+$bPicoseconds :: Integer -&gt; DiffTime
+</span><a href="Data.Time.Clock.Compat.html#Picoseconds"><span class="hs-identifier hs-var hs-var hs-var">Picoseconds</span></a></span></span></span></span><span> </span><span class="annot"><a href="#local-6989586621679071279"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">diffTimeToPicoseconds</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span id="local-6989586621679071279"><span class="annot"><a href="#local-6989586621679071279"><span class="hs-identifier hs-var">a</span></a></span></span><span class="hs-special">)</span><span>
+</span><span id="line-52"></span><span>    </span><span class="hs-keyword">where</span><span>
+</span><span id="line-53"></span><span>        </span><span class="annot"><a href="Data.Time.Clock.Compat.html#Picoseconds"><span class="hs-identifier hs-var">Picoseconds</span></a></span><span> </span><span id="local-6989586621679071280"><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679071280"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Integer -&gt; DiffTime
+</span><span class="hs-identifier hs-var">picosecondsToDiffTime</span></span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679071280"><span class="hs-identifier hs-var">a</span></a></span><span>
+</span><span id="line-54"></span><span>
+</span><span id="line-55"></span><span class="hs-pragma">{-# COMPLETE</span><span> </span><span class="annot"><a href="Data.Time.Clock.Compat.html#Picoseconds"><span class="hs-pragma hs-type">Picoseconds</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-56"></span><span>
+</span><span id="line-57"></span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="Data.Time.Clock.Compat.html#Seconds"><span class="hs-identifier hs-type">Seconds</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Pico</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">DiffTime</span></span><span>
+</span><span id="line-58"></span><span class="hs-keyword">pattern</span><span> </span><span id="Seconds"><span id="%24mSeconds"><span id="%24bSeconds"><span class="annot"><span class="annottext">$mSeconds :: forall {r}. DiffTime -&gt; (Pico -&gt; r) -&gt; ((# #) -&gt; r) -&gt; r
+$bSeconds :: Pico -&gt; DiffTime
+</span><a href="Data.Time.Clock.Compat.html#Seconds"><span class="hs-identifier hs-var hs-var hs-var">Seconds</span></a></span></span></span></span><span> </span><span class="annot"><a href="#local-6989586621679071283"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">MkFixed</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">.</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">diffTimeToPicoseconds</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span id="local-6989586621679071283"><span class="annot"><a href="#local-6989586621679071283"><span class="hs-identifier hs-var">a</span></a></span></span><span class="hs-special">)</span><span>
+</span><span id="line-59"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-60"></span><span>        </span><span class="annot"><a href="Data.Time.Clock.Compat.html#Seconds"><span class="hs-identifier hs-var">Seconds</span></a></span><span> </span><span id="local-6989586621679071285"><span class="annot"><span class="annottext">Pico
+</span><a href="#local-6989586621679071285"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Integer -&gt; DiffTime
+</span><span class="hs-identifier hs-var">picosecondsToDiffTime</span></span><span> </span><span class="hs-special">(</span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Pico
+</span><a href="#local-6989586621679071285"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="hs-keyword">of</span><span> </span><span class="annot"><span class="hs-identifier hs-type">MkFixed</span></span><span> </span><span id="local-6989586621679071286"><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679071286"><span class="hs-identifier hs-var">a'</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Integer
+</span><a href="#local-6989586621679071286"><span class="hs-identifier hs-var">a'</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-61"></span><span>
+</span><span id="line-62"></span><span class="hs-pragma">{-# COMPLETE</span><span> </span><span class="annot"><a href="Data.Time.Clock.Compat.html#Seconds"><span class="hs-pragma hs-type">Seconds</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-63"></span><span>
+</span><span id="line-64"></span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="Data.Time.Clock.Compat.html#Minutes"><span class="hs-identifier hs-type">Minutes</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Pico</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">DiffTime</span></span><span>
+</span><span id="line-65"></span><span class="hs-keyword">pattern</span><span> </span><span id="Minutes"><span id="%24mMinutes"><span id="%24bMinutes"><span class="annot"><span class="annottext">$mMinutes :: forall {r}. DiffTime -&gt; (Pico -&gt; r) -&gt; ((# #) -&gt; r) -&gt; r
+$bMinutes :: Pico -&gt; DiffTime
+</span><a href="Data.Time.Clock.Compat.html#Minutes"><span class="hs-identifier hs-var hs-var hs-var">Minutes</span></a></span></span></span></span><span> </span><span class="annot"><a href="#local-6989586621679071289"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><a href="Data.Time.Clock.Compat.html#Seconds"><span class="hs-identifier hs-type">Seconds</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="hs-operator">/</span></span><span> </span><span class="annot"><span class="hs-number">60</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span id="local-6989586621679071289"><span class="annot"><a href="#local-6989586621679071289"><span class="hs-identifier hs-var">a</span></a></span></span><span class="hs-special">)</span><span>
+</span><span id="line-66"></span><span>    </span><span class="hs-keyword">where</span><span>
+</span><span id="line-67"></span><span>        </span><span class="annot"><a href="Data.Time.Clock.Compat.html#Minutes"><span class="hs-identifier hs-var">Minutes</span></a></span><span> </span><span id="local-6989586621679071295"><span class="annot"><span class="annottext">Pico
+</span><a href="#local-6989586621679071295"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Pico -&gt; DiffTime
+</span><a href="Data.Time.Clock.Compat.html#Seconds"><span class="hs-identifier hs-var">Seconds</span></a></span><span> </span><span class="annot"><span class="annottext">(Pico -&gt; DiffTime) -&gt; Pico -&gt; DiffTime
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Pico
+</span><a href="#local-6989586621679071295"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="annot"><span class="annottext">Pico -&gt; Pico -&gt; Pico
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">*</span></span><span> </span><span class="annot"><span class="annottext">Pico
+</span><span class="hs-number">60</span></span><span>
+</span><span id="line-68"></span><span>
+</span><span id="line-69"></span><span class="hs-pragma">{-# COMPLETE</span><span> </span><span class="annot"><a href="Data.Time.Clock.Compat.html#Minutes"><span class="hs-pragma hs-type">Minutes</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-70"></span><span>
+</span><span id="line-71"></span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="Data.Time.Clock.Compat.html#Hours"><span class="hs-identifier hs-type">Hours</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Pico</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">DiffTime</span></span><span>
+</span><span id="line-72"></span><span class="hs-keyword">pattern</span><span> </span><span id="Hours"><span id="%24mHours"><span id="%24bHours"><span class="annot"><span class="annottext">$mHours :: forall {r}. DiffTime -&gt; (Pico -&gt; r) -&gt; ((# #) -&gt; r) -&gt; r
+$bHours :: Pico -&gt; DiffTime
+</span><a href="Data.Time.Clock.Compat.html#Hours"><span class="hs-identifier hs-var hs-var hs-var">Hours</span></a></span></span></span></span><span> </span><span class="annot"><a href="#local-6989586621679071299"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><a href="Data.Time.Clock.Compat.html#Minutes"><span class="hs-identifier hs-type">Minutes</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">(</span><span class="annot"><span class="hs-operator">/</span></span><span> </span><span class="annot"><span class="hs-number">60</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span id="local-6989586621679071299"><span class="annot"><a href="#local-6989586621679071299"><span class="hs-identifier hs-var">a</span></a></span></span><span class="hs-special">)</span><span>
+</span><span id="line-73"></span><span>    </span><span class="hs-keyword">where</span><span>
+</span><span id="line-74"></span><span>        </span><span class="annot"><a href="Data.Time.Clock.Compat.html#Hours"><span class="hs-identifier hs-var">Hours</span></a></span><span> </span><span id="local-6989586621679071303"><span class="annot"><span class="annottext">Pico
+</span><a href="#local-6989586621679071303"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Pico -&gt; DiffTime
+</span><a href="Data.Time.Clock.Compat.html#Minutes"><span class="hs-identifier hs-var">Minutes</span></a></span><span> </span><span class="annot"><span class="annottext">(Pico -&gt; DiffTime) -&gt; Pico -&gt; DiffTime
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">Pico
+</span><a href="#local-6989586621679071303"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="annot"><span class="annottext">Pico -&gt; Pico -&gt; Pico
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">*</span></span><span> </span><span class="annot"><span class="annottext">Pico
+</span><span class="hs-number">60</span></span><span>
+</span><span id="line-75"></span><span>
+</span><span id="line-76"></span><span class="hs-pragma">{-# COMPLETE</span><span> </span><span class="annot"><a href="Data.Time.Clock.Compat.html#Hours"><span class="hs-pragma hs-type">Hours</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-77"></span><span>
+</span><span id="line-78"></span><span class="annot"><span class="hs-comment">-- | convert from DiffTime</span></span><span>
+</span><span id="line-79"></span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="Data.Time.Clock.Compat.html#Nominal"><span class="hs-identifier hs-type">Nominal</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">DiffTime</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">NominalDiffTime</span></span><span>
+</span><span id="line-80"></span><span class="hs-keyword">pattern</span><span> </span><span id="Nominal"><span id="%24mNominal"><span id="%24bNominal"><span class="annot"><span class="annottext">$mNominal :: forall {r}. NominalDiffTime -&gt; (DiffTime -&gt; r) -&gt; ((# #) -&gt; r) -&gt; r
+$bNominal :: DiffTime -&gt; NominalDiffTime
+</span><a href="Data.Time.Clock.Compat.html#Nominal"><span class="hs-identifier hs-var hs-var hs-var">Nominal</span></a></span></span></span></span><span> </span><span class="annot"><a href="#local-6989586621679071306"><span class="hs-identifier hs-type">dt</span></a></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Data.Time.Clock.Compat.html#Seconds"><span class="hs-identifier hs-type">Seconds</span></a></span><span> </span><span class="annot"><span class="hs-operator hs-type">.</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">nominalDiffTimeToSeconds</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span id="local-6989586621679071306"><span class="annot"><a href="#local-6989586621679071306"><span class="hs-identifier hs-var">dt</span></a></span></span><span class="hs-special">)</span><span>
+</span><span id="line-81"></span><span>    </span><span class="hs-keyword">where</span><span>
+</span><span id="line-82"></span><span>        </span><span class="annot"><a href="Data.Time.Clock.Compat.html#Nominal"><span class="hs-identifier hs-var">Nominal</span></a></span><span> </span><span id="local-6989586621679071307"><span class="annot"><span class="annottext">DiffTime
+</span><a href="#local-6989586621679071307"><span class="hs-identifier hs-var">dt</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Pico -&gt; NominalDiffTime
+</span><span class="hs-identifier hs-var">secondsToNominalDiffTime</span></span><span> </span><span class="hs-special">(</span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">DiffTime
+</span><a href="#local-6989586621679071307"><span class="hs-identifier hs-var">dt</span></a></span><span> </span><span class="hs-keyword">of</span><span> </span><span class="annot"><a href="Data.Time.Clock.Compat.html#Seconds"><span class="hs-identifier hs-type">Seconds</span></a></span><span> </span><span id="local-6989586621679071308"><span class="annot"><span class="annottext">Pico
+</span><a href="#local-6989586621679071308"><span class="hs-identifier hs-var">dt'</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Pico
+</span><a href="#local-6989586621679071308"><span class="hs-identifier hs-var">dt'</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-83"></span><span>
+</span><span id="line-84"></span><span class="hs-pragma">{-# COMPLETE</span><span> </span><span class="annot"><a href="Data.Time.Clock.Compat.html#Nominal"><span class="hs-pragma hs-type">Nominal</span></a></span><span> </span><span class="hs-pragma">#-}</span><span class="hs-cpp">
+
+#endif
+</span><span class="hs-cpp">
+#if !MIN_VERSION_time(1,9,1)
+</span><span>
+</span><span id="line-90"></span><span class="hs-comment">-- | Create a 'NominalDiffTime' from a number of seconds.</span><span>
+</span><span id="line-91"></span><span class="hs-identifier">secondsToNominalDiffTime</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">Pico</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">NominalDiffTime</span><span>
+</span><span id="line-92"></span><span class="hs-identifier">secondsToNominalDiffTime</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">realToFrac</span><span>
+</span><span id="line-93"></span><span>
+</span><span id="line-94"></span><span class="hs-comment">-- | Get the seconds in a 'NominalDiffTime'.</span><span>
+</span><span id="line-95"></span><span class="hs-identifier">nominalDiffTimeToSeconds</span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-identifier">NominalDiffTime</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-identifier">Pico</span><span>
+</span><span id="line-96"></span><span class="hs-identifier">nominalDiffTimeToSeconds</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-identifier">realToFrac</span><span class="hs-cpp">
+
+#endif
+</span></pre></body></html>

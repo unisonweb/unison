@@ -1,0 +1,998 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span id="local-6989586621679487631"><span id="local-6989586621679487632"><span id="local-6989586621679487633"><span id="local-6989586621679487634"><span id="local-6989586621679487635"><span id="local-6989586621679487636"><span id="local-6989586621679487637"><span id="local-6989586621679487638"><span id="local-6989586621679487639"><span id="local-6989586621679487640"><span id="local-6989586621679487641"><span id="local-6989586621679487642"><span id="local-6989586621679487643"><span id="local-6989586621679487644"><span id="local-6989586621679487645"></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span><span class="hs-pragma">{-# LANGUAGE InstanceSigs #-}</span><span>
+</span><span id="line-2"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="GitHub.Data.Reactions.html"><span class="hs-identifier">GitHub.Data.Reactions</span></a></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-3"></span><span>
+</span><span id="line-4"></span><span class="hs-keyword">import</span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="annot"><span class="hs-identifier">Data.Text</span></span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">T</span></span><span>
+</span><span id="line-5"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GitHub.Data.Id.html"><span class="hs-identifier">GitHub.Data.Id</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GitHub.Data.Id.html#Id"><span class="hs-identifier">Id</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-6"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GitHub.Data.Definitions.html"><span class="hs-identifier">GitHub.Data.Definitions</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GitHub.Data.Definitions.html#SimpleUser"><span class="hs-identifier">SimpleUser</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-7"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GitHub.Internal.Prelude.html"><span class="hs-identifier">GitHub.Internal.Prelude</span></a></span><span>
+</span><span id="line-8"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Prelude</span></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span>
+</span><span id="line-9"></span><span>
+</span><span id="line-10"></span><span class="hs-keyword">data</span><span> </span><span id="Reaction"><span class="annot"><a href="GitHub.Data.Reactions.html#Reaction"><span class="hs-identifier hs-var">Reaction</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="Reaction"><span class="annot"><a href="GitHub.Data.Reactions.html#Reaction"><span class="hs-identifier hs-var">Reaction</span></a></span></span><span>
+</span><span id="line-11"></span><span>  </span><span class="hs-special">{</span><span> </span><span id="reactionId"><span class="annot"><span class="annottext">Reaction -&gt; Id Reaction
+</span><a href="GitHub.Data.Reactions.html#reactionId"><span class="hs-identifier hs-var hs-var">reactionId</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GitHub.Data.Id.html#Id"><span class="hs-identifier hs-type">Id</span></a></span><span> </span><span class="annot"><a href="GitHub.Data.Reactions.html#Reaction"><span class="hs-identifier hs-type">Reaction</span></a></span><span>
+</span><span id="line-12"></span><span>  </span><span class="hs-special">,</span><span> </span><span id="reactionUser"><span class="annot"><span class="annottext">Reaction -&gt; Maybe SimpleUser
+</span><a href="GitHub.Data.Reactions.html#reactionUser"><span class="hs-identifier hs-var hs-var">reactionUser</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="GitHub.Data.Definitions.html#SimpleUser"><span class="hs-identifier hs-type">SimpleUser</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-13"></span><span>  </span><span class="hs-special">,</span><span> </span><span id="reactionContent"><span class="annot"><span class="annottext">Reaction -&gt; ReactionContent
+</span><a href="GitHub.Data.Reactions.html#reactionContent"><span class="hs-identifier hs-var hs-var">reactionContent</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><a href="GitHub.Data.Reactions.html#ReactionContent"><span class="hs-identifier hs-type">ReactionContent</span></a></span><span>
+</span><span id="line-14"></span><span>  </span><span class="hs-special">,</span><span> </span><span id="reactionCreatedAt"><span class="annot"><span class="annottext">Reaction -&gt; UTCTime
+</span><a href="GitHub.Data.Reactions.html#reactionCreatedAt"><span class="hs-identifier hs-var hs-var">reactionCreatedAt</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">UTCTime</span></span><span>
+</span><span id="line-15"></span><span>  </span><span class="hs-special">}</span><span>
+</span><span id="line-16"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679487652"><span id="local-6989586621679487665"><span id="local-6989586621679487669"><span class="annot"><span class="annottext">Int -&gt; Reaction -&gt; ShowS
+[Reaction] -&gt; ShowS
+Reaction -&gt; String
+(Int -&gt; Reaction -&gt; ShowS)
+-&gt; (Reaction -&gt; String) -&gt; ([Reaction] -&gt; ShowS) -&gt; Show Reaction
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; Reaction -&gt; ShowS
+showsPrec :: Int -&gt; Reaction -&gt; ShowS
+$cshow :: Reaction -&gt; String
+show :: Reaction -&gt; String
+$cshowList :: [Reaction] -&gt; ShowS
+showList :: [Reaction] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679487677"><span id="local-6989586621679487689"><span id="local-6989586621679487697"><span id="local-6989586621679487699"><span id="local-6989586621679487701"><span id="local-6989586621679487707"><span id="local-6989586621679487712"><span id="local-6989586621679487715"><span id="local-6989586621679487718"><span id="local-6989586621679487721"><span id="local-6989586621679487724"><span id="local-6989586621679487727"><span id="local-6989586621679487732"><span id="local-6989586621679487737"><span class="annot"><span class="annottext">Typeable Reaction
+Typeable Reaction =&gt;
+(forall (c :: * -&gt; *).
+ (forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+ -&gt; (forall g. g -&gt; c g) -&gt; Reaction -&gt; c Reaction)
+-&gt; (forall (c :: * -&gt; *).
+    (forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+    -&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c Reaction)
+-&gt; (Reaction -&gt; Constr)
+-&gt; (Reaction -&gt; DataType)
+-&gt; (forall (t :: * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d. Data d =&gt; c (t d)) -&gt; Maybe (c Reaction))
+-&gt; (forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d e. (Data d, Data e) =&gt; c (t d e)) -&gt; Maybe (c Reaction))
+-&gt; ((forall b. Data b =&gt; b -&gt; b) -&gt; Reaction -&gt; Reaction)
+-&gt; (forall r r'.
+    (r -&gt; r' -&gt; r)
+    -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; Reaction -&gt; r)
+-&gt; (forall r r'.
+    (r' -&gt; r -&gt; r)
+    -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; Reaction -&gt; r)
+-&gt; (forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; Reaction -&gt; [u])
+-&gt; (forall u. Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; Reaction -&gt; u)
+-&gt; (forall (m :: * -&gt; *).
+    Monad m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; Reaction -&gt; m Reaction)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; Reaction -&gt; m Reaction)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; Reaction -&gt; m Reaction)
+-&gt; Data Reaction
+Reaction -&gt; Constr
+Reaction -&gt; DataType
+(forall b. Data b =&gt; b -&gt; b) -&gt; Reaction -&gt; Reaction
+forall a.
+Typeable a =&gt;
+(forall (c :: * -&gt; *).
+ (forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+ -&gt; (forall g. g -&gt; c g) -&gt; a -&gt; c a)
+-&gt; (forall (c :: * -&gt; *).
+    (forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+    -&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c a)
+-&gt; (a -&gt; Constr)
+-&gt; (a -&gt; DataType)
+-&gt; (forall (t :: * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d. Data d =&gt; c (t d)) -&gt; Maybe (c a))
+-&gt; (forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d e. (Data d, Data e) =&gt; c (t d e)) -&gt; Maybe (c a))
+-&gt; ((forall b. Data b =&gt; b -&gt; b) -&gt; a -&gt; a)
+-&gt; (forall r r'.
+    (r -&gt; r' -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; a -&gt; r)
+-&gt; (forall r r'.
+    (r' -&gt; r -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; a -&gt; r)
+-&gt; (forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; a -&gt; [u])
+-&gt; (forall u. Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; a -&gt; u)
+-&gt; (forall (m :: * -&gt; *).
+    Monad m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; a -&gt; m a)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; a -&gt; m a)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; a -&gt; m a)
+-&gt; Data a
+forall u. Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; Reaction -&gt; u
+forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; Reaction -&gt; [u]
+forall r r'.
+(r -&gt; r' -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; Reaction -&gt; r
+forall r r'.
+(r' -&gt; r -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; Reaction -&gt; r
+forall (m :: * -&gt; *).
+Monad m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; Reaction -&gt; m Reaction
+forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; Reaction -&gt; m Reaction
+forall (c :: * -&gt; *).
+(forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+-&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c Reaction
+forall (c :: * -&gt; *).
+(forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+-&gt; (forall g. g -&gt; c g) -&gt; Reaction -&gt; c Reaction
+forall (t :: * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d. Data d =&gt; c (t d)) -&gt; Maybe (c Reaction)
+forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d e. (Data d, Data e) =&gt; c (t d e)) -&gt; Maybe (c Reaction)
+$cgfoldl :: forall (c :: * -&gt; *).
+(forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+-&gt; (forall g. g -&gt; c g) -&gt; Reaction -&gt; c Reaction
+gfoldl :: forall (c :: * -&gt; *).
+(forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+-&gt; (forall g. g -&gt; c g) -&gt; Reaction -&gt; c Reaction
+$cgunfold :: forall (c :: * -&gt; *).
+(forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+-&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c Reaction
+gunfold :: forall (c :: * -&gt; *).
+(forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+-&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c Reaction
+$ctoConstr :: Reaction -&gt; Constr
+toConstr :: Reaction -&gt; Constr
+$cdataTypeOf :: Reaction -&gt; DataType
+dataTypeOf :: Reaction -&gt; DataType
+$cdataCast1 :: forall (t :: * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d. Data d =&gt; c (t d)) -&gt; Maybe (c Reaction)
+dataCast1 :: forall (t :: * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d. Data d =&gt; c (t d)) -&gt; Maybe (c Reaction)
+$cdataCast2 :: forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d e. (Data d, Data e) =&gt; c (t d e)) -&gt; Maybe (c Reaction)
+dataCast2 :: forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d e. (Data d, Data e) =&gt; c (t d e)) -&gt; Maybe (c Reaction)
+$cgmapT :: (forall b. Data b =&gt; b -&gt; b) -&gt; Reaction -&gt; Reaction
+gmapT :: (forall b. Data b =&gt; b -&gt; b) -&gt; Reaction -&gt; Reaction
+$cgmapQl :: forall r r'.
+(r -&gt; r' -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; Reaction -&gt; r
+gmapQl :: forall r r'.
+(r -&gt; r' -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; Reaction -&gt; r
+$cgmapQr :: forall r r'.
+(r' -&gt; r -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; Reaction -&gt; r
+gmapQr :: forall r r'.
+(r' -&gt; r -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; Reaction -&gt; r
+$cgmapQ :: forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; Reaction -&gt; [u]
+gmapQ :: forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; Reaction -&gt; [u]
+$cgmapQi :: forall u. Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; Reaction -&gt; u
+gmapQi :: forall u. Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; Reaction -&gt; u
+$cgmapM :: forall (m :: * -&gt; *).
+Monad m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; Reaction -&gt; m Reaction
+gmapM :: forall (m :: * -&gt; *).
+Monad m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; Reaction -&gt; m Reaction
+$cgmapMp :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; Reaction -&gt; m Reaction
+gmapMp :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; Reaction -&gt; m Reaction
+$cgmapMo :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; Reaction -&gt; m Reaction
+gmapMo :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; Reaction -&gt; m Reaction
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Data</span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679487748"><span id="local-6989586621679487759"><span class="annot"><span class="annottext">Reaction -&gt; Reaction -&gt; Bool
+(Reaction -&gt; Reaction -&gt; Bool)
+-&gt; (Reaction -&gt; Reaction -&gt; Bool) -&gt; Eq Reaction
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: Reaction -&gt; Reaction -&gt; Bool
+== :: Reaction -&gt; Reaction -&gt; Bool
+$c/= :: Reaction -&gt; Reaction -&gt; Bool
+/= :: Reaction -&gt; Reaction -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679487767"><span id="local-6989586621679487778"><span id="local-6989586621679487785"><span id="local-6989586621679487789"><span id="local-6989586621679487792"><span id="local-6989586621679487795"><span id="local-6989586621679487798"><span class="annot"><span class="annottext">Eq Reaction
+Eq Reaction =&gt;
+(Reaction -&gt; Reaction -&gt; Ordering)
+-&gt; (Reaction -&gt; Reaction -&gt; Bool)
+-&gt; (Reaction -&gt; Reaction -&gt; Bool)
+-&gt; (Reaction -&gt; Reaction -&gt; Bool)
+-&gt; (Reaction -&gt; Reaction -&gt; Bool)
+-&gt; (Reaction -&gt; Reaction -&gt; Reaction)
+-&gt; (Reaction -&gt; Reaction -&gt; Reaction)
+-&gt; Ord Reaction
+Reaction -&gt; Reaction -&gt; Bool
+Reaction -&gt; Reaction -&gt; Ordering
+Reaction -&gt; Reaction -&gt; Reaction
+forall a.
+Eq a =&gt;
+(a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+$ccompare :: Reaction -&gt; Reaction -&gt; Ordering
+compare :: Reaction -&gt; Reaction -&gt; Ordering
+$c&lt; :: Reaction -&gt; Reaction -&gt; Bool
+&lt; :: Reaction -&gt; Reaction -&gt; Bool
+$c&lt;= :: Reaction -&gt; Reaction -&gt; Bool
+&lt;= :: Reaction -&gt; Reaction -&gt; Bool
+$c&gt; :: Reaction -&gt; Reaction -&gt; Bool
+&gt; :: Reaction -&gt; Reaction -&gt; Bool
+$c&gt;= :: Reaction -&gt; Reaction -&gt; Bool
+&gt;= :: Reaction -&gt; Reaction -&gt; Bool
+$cmax :: Reaction -&gt; Reaction -&gt; Reaction
+max :: Reaction -&gt; Reaction -&gt; Reaction
+$cmin :: Reaction -&gt; Reaction -&gt; Reaction
+min :: Reaction -&gt; Reaction -&gt; Reaction
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679487807"><span id="local-6989586621679487809"><span class="annot"><span class="annottext">(forall x. Reaction -&gt; Rep Reaction x)
+-&gt; (forall x. Rep Reaction x -&gt; Reaction) -&gt; Generic Reaction
+forall x. Rep Reaction x -&gt; Reaction
+forall x. Reaction -&gt; Rep Reaction x
+forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+$cfrom :: forall x. Reaction -&gt; Rep Reaction x
+from :: forall x. Reaction -&gt; Rep Reaction x
+$cto :: forall x. Rep Reaction x -&gt; Reaction
+to :: forall x. Rep Reaction x -&gt; Reaction
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Generic</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-17"></span><span>
+</span><span id="line-18"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679487815"><span class="annot"><span class="hs-identifier hs-type">NFData</span></span><span> </span><span class="annot"><a href="GitHub.Data.Reactions.html#Reaction"><span class="hs-identifier hs-type">Reaction</span></a></span></span><span>
+</span><span id="line-19"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679487848"><span id="local-6989586621679487855"><span id="local-6989586621679487861"><span class="annot"><span class="hs-identifier hs-type">Binary</span></span><span> </span><span class="annot"><a href="GitHub.Data.Reactions.html#Reaction"><span class="hs-identifier hs-type">Reaction</span></a></span></span></span></span><span>
+</span><span id="line-20"></span><span>
+</span><span id="line-21"></span><span class="hs-keyword">data</span><span> </span><span id="NewReaction"><span class="annot"><a href="GitHub.Data.Reactions.html#NewReaction"><span class="hs-identifier hs-var">NewReaction</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="NewReaction"><span class="annot"><a href="GitHub.Data.Reactions.html#NewReaction"><span class="hs-identifier hs-var">NewReaction</span></a></span></span><span>
+</span><span id="line-22"></span><span>  </span><span class="hs-special">{</span><span> </span><span id="newReactionContent"><span class="annot"><span class="annottext">NewReaction -&gt; ReactionContent
+</span><a href="GitHub.Data.Reactions.html#newReactionContent"><span class="hs-identifier hs-var hs-var">newReactionContent</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><a href="GitHub.Data.Reactions.html#ReactionContent"><span class="hs-identifier hs-type">ReactionContent</span></a></span><span>
+</span><span id="line-23"></span><span>  </span><span class="hs-special">}</span><span>
+</span><span id="line-24"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679487912"><span id="local-6989586621679487916"><span id="local-6989586621679487920"><span class="annot"><span class="annottext">Int -&gt; NewReaction -&gt; ShowS
+[NewReaction] -&gt; ShowS
+NewReaction -&gt; String
+(Int -&gt; NewReaction -&gt; ShowS)
+-&gt; (NewReaction -&gt; String)
+-&gt; ([NewReaction] -&gt; ShowS)
+-&gt; Show NewReaction
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; NewReaction -&gt; ShowS
+showsPrec :: Int -&gt; NewReaction -&gt; ShowS
+$cshow :: NewReaction -&gt; String
+show :: NewReaction -&gt; String
+$cshowList :: [NewReaction] -&gt; ShowS
+showList :: [NewReaction] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679487925"><span id="local-6989586621679487928"><span id="local-6989586621679487931"><span id="local-6989586621679487933"><span id="local-6989586621679487935"><span id="local-6989586621679487941"><span id="local-6989586621679487946"><span id="local-6989586621679487949"><span id="local-6989586621679487952"><span id="local-6989586621679487955"><span id="local-6989586621679487958"><span id="local-6989586621679487961"><span id="local-6989586621679487966"><span id="local-6989586621679487971"><span class="annot"><span class="annottext">Typeable NewReaction
+Typeable NewReaction =&gt;
+(forall (c :: * -&gt; *).
+ (forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+ -&gt; (forall g. g -&gt; c g) -&gt; NewReaction -&gt; c NewReaction)
+-&gt; (forall (c :: * -&gt; *).
+    (forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+    -&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c NewReaction)
+-&gt; (NewReaction -&gt; Constr)
+-&gt; (NewReaction -&gt; DataType)
+-&gt; (forall (t :: * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d. Data d =&gt; c (t d)) -&gt; Maybe (c NewReaction))
+-&gt; (forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d e. (Data d, Data e) =&gt; c (t d e))
+    -&gt; Maybe (c NewReaction))
+-&gt; ((forall b. Data b =&gt; b -&gt; b) -&gt; NewReaction -&gt; NewReaction)
+-&gt; (forall r r'.
+    (r -&gt; r' -&gt; r)
+    -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; NewReaction -&gt; r)
+-&gt; (forall r r'.
+    (r' -&gt; r -&gt; r)
+    -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; NewReaction -&gt; r)
+-&gt; (forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; NewReaction -&gt; [u])
+-&gt; (forall u.
+    Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; NewReaction -&gt; u)
+-&gt; (forall (m :: * -&gt; *).
+    Monad m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; NewReaction -&gt; m NewReaction)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; NewReaction -&gt; m NewReaction)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; NewReaction -&gt; m NewReaction)
+-&gt; Data NewReaction
+NewReaction -&gt; Constr
+NewReaction -&gt; DataType
+(forall b. Data b =&gt; b -&gt; b) -&gt; NewReaction -&gt; NewReaction
+forall a.
+Typeable a =&gt;
+(forall (c :: * -&gt; *).
+ (forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+ -&gt; (forall g. g -&gt; c g) -&gt; a -&gt; c a)
+-&gt; (forall (c :: * -&gt; *).
+    (forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+    -&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c a)
+-&gt; (a -&gt; Constr)
+-&gt; (a -&gt; DataType)
+-&gt; (forall (t :: * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d. Data d =&gt; c (t d)) -&gt; Maybe (c a))
+-&gt; (forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d e. (Data d, Data e) =&gt; c (t d e)) -&gt; Maybe (c a))
+-&gt; ((forall b. Data b =&gt; b -&gt; b) -&gt; a -&gt; a)
+-&gt; (forall r r'.
+    (r -&gt; r' -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; a -&gt; r)
+-&gt; (forall r r'.
+    (r' -&gt; r -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; a -&gt; r)
+-&gt; (forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; a -&gt; [u])
+-&gt; (forall u. Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; a -&gt; u)
+-&gt; (forall (m :: * -&gt; *).
+    Monad m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; a -&gt; m a)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; a -&gt; m a)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; a -&gt; m a)
+-&gt; Data a
+forall u. Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; NewReaction -&gt; u
+forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; NewReaction -&gt; [u]
+forall r r'.
+(r -&gt; r' -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; NewReaction -&gt; r
+forall r r'.
+(r' -&gt; r -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; NewReaction -&gt; r
+forall (m :: * -&gt; *).
+Monad m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; NewReaction -&gt; m NewReaction
+forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; NewReaction -&gt; m NewReaction
+forall (c :: * -&gt; *).
+(forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+-&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c NewReaction
+forall (c :: * -&gt; *).
+(forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+-&gt; (forall g. g -&gt; c g) -&gt; NewReaction -&gt; c NewReaction
+forall (t :: * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d. Data d =&gt; c (t d)) -&gt; Maybe (c NewReaction)
+forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d e. (Data d, Data e) =&gt; c (t d e))
+-&gt; Maybe (c NewReaction)
+$cgfoldl :: forall (c :: * -&gt; *).
+(forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+-&gt; (forall g. g -&gt; c g) -&gt; NewReaction -&gt; c NewReaction
+gfoldl :: forall (c :: * -&gt; *).
+(forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+-&gt; (forall g. g -&gt; c g) -&gt; NewReaction -&gt; c NewReaction
+$cgunfold :: forall (c :: * -&gt; *).
+(forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+-&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c NewReaction
+gunfold :: forall (c :: * -&gt; *).
+(forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+-&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c NewReaction
+$ctoConstr :: NewReaction -&gt; Constr
+toConstr :: NewReaction -&gt; Constr
+$cdataTypeOf :: NewReaction -&gt; DataType
+dataTypeOf :: NewReaction -&gt; DataType
+$cdataCast1 :: forall (t :: * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d. Data d =&gt; c (t d)) -&gt; Maybe (c NewReaction)
+dataCast1 :: forall (t :: * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d. Data d =&gt; c (t d)) -&gt; Maybe (c NewReaction)
+$cdataCast2 :: forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d e. (Data d, Data e) =&gt; c (t d e))
+-&gt; Maybe (c NewReaction)
+dataCast2 :: forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d e. (Data d, Data e) =&gt; c (t d e))
+-&gt; Maybe (c NewReaction)
+$cgmapT :: (forall b. Data b =&gt; b -&gt; b) -&gt; NewReaction -&gt; NewReaction
+gmapT :: (forall b. Data b =&gt; b -&gt; b) -&gt; NewReaction -&gt; NewReaction
+$cgmapQl :: forall r r'.
+(r -&gt; r' -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; NewReaction -&gt; r
+gmapQl :: forall r r'.
+(r -&gt; r' -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; NewReaction -&gt; r
+$cgmapQr :: forall r r'.
+(r' -&gt; r -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; NewReaction -&gt; r
+gmapQr :: forall r r'.
+(r' -&gt; r -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; NewReaction -&gt; r
+$cgmapQ :: forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; NewReaction -&gt; [u]
+gmapQ :: forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; NewReaction -&gt; [u]
+$cgmapQi :: forall u. Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; NewReaction -&gt; u
+gmapQi :: forall u. Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; NewReaction -&gt; u
+$cgmapM :: forall (m :: * -&gt; *).
+Monad m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; NewReaction -&gt; m NewReaction
+gmapM :: forall (m :: * -&gt; *).
+Monad m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; NewReaction -&gt; m NewReaction
+$cgmapMp :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; NewReaction -&gt; m NewReaction
+gmapMp :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; NewReaction -&gt; m NewReaction
+$cgmapMo :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; NewReaction -&gt; m NewReaction
+gmapMo :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d) -&gt; NewReaction -&gt; m NewReaction
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Data</span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679487976"><span id="local-6989586621679487979"><span class="annot"><span class="annottext">NewReaction -&gt; NewReaction -&gt; Bool
+(NewReaction -&gt; NewReaction -&gt; Bool)
+-&gt; (NewReaction -&gt; NewReaction -&gt; Bool) -&gt; Eq NewReaction
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: NewReaction -&gt; NewReaction -&gt; Bool
+== :: NewReaction -&gt; NewReaction -&gt; Bool
+$c/= :: NewReaction -&gt; NewReaction -&gt; Bool
+/= :: NewReaction -&gt; NewReaction -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679487985"><span id="local-6989586621679487988"><span id="local-6989586621679487991"><span id="local-6989586621679487995"><span id="local-6989586621679487998"><span id="local-6989586621679488001"><span id="local-6989586621679488004"><span class="annot"><span class="annottext">Eq NewReaction
+Eq NewReaction =&gt;
+(NewReaction -&gt; NewReaction -&gt; Ordering)
+-&gt; (NewReaction -&gt; NewReaction -&gt; Bool)
+-&gt; (NewReaction -&gt; NewReaction -&gt; Bool)
+-&gt; (NewReaction -&gt; NewReaction -&gt; Bool)
+-&gt; (NewReaction -&gt; NewReaction -&gt; Bool)
+-&gt; (NewReaction -&gt; NewReaction -&gt; NewReaction)
+-&gt; (NewReaction -&gt; NewReaction -&gt; NewReaction)
+-&gt; Ord NewReaction
+NewReaction -&gt; NewReaction -&gt; Bool
+NewReaction -&gt; NewReaction -&gt; Ordering
+NewReaction -&gt; NewReaction -&gt; NewReaction
+forall a.
+Eq a =&gt;
+(a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+$ccompare :: NewReaction -&gt; NewReaction -&gt; Ordering
+compare :: NewReaction -&gt; NewReaction -&gt; Ordering
+$c&lt; :: NewReaction -&gt; NewReaction -&gt; Bool
+&lt; :: NewReaction -&gt; NewReaction -&gt; Bool
+$c&lt;= :: NewReaction -&gt; NewReaction -&gt; Bool
+&lt;= :: NewReaction -&gt; NewReaction -&gt; Bool
+$c&gt; :: NewReaction -&gt; NewReaction -&gt; Bool
+&gt; :: NewReaction -&gt; NewReaction -&gt; Bool
+$c&gt;= :: NewReaction -&gt; NewReaction -&gt; Bool
+&gt;= :: NewReaction -&gt; NewReaction -&gt; Bool
+$cmax :: NewReaction -&gt; NewReaction -&gt; NewReaction
+max :: NewReaction -&gt; NewReaction -&gt; NewReaction
+$cmin :: NewReaction -&gt; NewReaction -&gt; NewReaction
+min :: NewReaction -&gt; NewReaction -&gt; NewReaction
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679488007"><span id="local-6989586621679488009"><span class="annot"><span class="annottext">(forall x. NewReaction -&gt; Rep NewReaction x)
+-&gt; (forall x. Rep NewReaction x -&gt; NewReaction)
+-&gt; Generic NewReaction
+forall x. Rep NewReaction x -&gt; NewReaction
+forall x. NewReaction -&gt; Rep NewReaction x
+forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+$cfrom :: forall x. NewReaction -&gt; Rep NewReaction x
+from :: forall x. NewReaction -&gt; Rep NewReaction x
+$cto :: forall x. Rep NewReaction x -&gt; NewReaction
+to :: forall x. Rep NewReaction x -&gt; NewReaction
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Generic</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-25"></span><span>
+</span><span id="line-26"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679488012"><span class="annot"><span class="hs-identifier hs-type">NFData</span></span><span> </span><span class="annot"><a href="GitHub.Data.Reactions.html#NewReaction"><span class="hs-identifier hs-type">NewReaction</span></a></span></span><span>
+</span><span id="line-27"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679488023"><span id="local-6989586621679488030"><span id="local-6989586621679488036"><span class="annot"><span class="hs-identifier hs-type">Binary</span></span><span> </span><span class="annot"><a href="GitHub.Data.Reactions.html#NewReaction"><span class="hs-identifier hs-type">NewReaction</span></a></span></span></span></span><span>
+</span><span id="line-28"></span><span>
+</span><span id="line-29"></span><span class="hs-comment">-- |</span><span>
+</span><span id="line-30"></span><span class="hs-comment">-- &lt;https://docs.github.com/en/rest/reactions/reactions?apiVersion=2022-11-28#about-reactions&gt;</span><span>
+</span><span id="line-31"></span><span class="hs-keyword">data</span><span> </span><span id="ReactionContent"><span class="annot"><a href="GitHub.Data.Reactions.html#ReactionContent"><span class="hs-identifier hs-var">ReactionContent</span></a></span></span><span>
+</span><span id="line-32"></span><span>  </span><span class="hs-glyph">=</span><span> </span><span id="PlusOne"><span class="annot"><a href="GitHub.Data.Reactions.html#PlusOne"><span class="hs-identifier hs-var">PlusOne</span></a></span></span><span>
+</span><span id="line-33"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="MinusOne"><span class="annot"><a href="GitHub.Data.Reactions.html#MinusOne"><span class="hs-identifier hs-var">MinusOne</span></a></span></span><span>
+</span><span id="line-34"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="Laugh"><span class="annot"><a href="GitHub.Data.Reactions.html#Laugh"><span class="hs-identifier hs-var">Laugh</span></a></span></span><span>
+</span><span id="line-35"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="Confused"><span class="annot"><a href="GitHub.Data.Reactions.html#Confused"><span class="hs-identifier hs-var">Confused</span></a></span></span><span>
+</span><span id="line-36"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="Heart"><span class="annot"><a href="GitHub.Data.Reactions.html#Heart"><span class="hs-identifier hs-var">Heart</span></a></span></span><span>
+</span><span id="line-37"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="Hooray"><span class="annot"><a href="GitHub.Data.Reactions.html#Hooray"><span class="hs-identifier hs-var">Hooray</span></a></span></span><span>
+</span><span id="line-38"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="Rocket"><span class="annot"><a href="GitHub.Data.Reactions.html#Rocket"><span class="hs-identifier hs-var">Rocket</span></a></span></span><span>
+</span><span id="line-39"></span><span>  </span><span class="hs-glyph">|</span><span> </span><span id="Eyes"><span class="annot"><a href="GitHub.Data.Reactions.html#Eyes"><span class="hs-identifier hs-var">Eyes</span></a></span></span><span>
+</span><span id="line-40"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621679488055"><span id="local-6989586621679488057"><span id="local-6989586621679488060"><span class="annot"><span class="annottext">Int -&gt; ReactionContent -&gt; ShowS
+[ReactionContent] -&gt; ShowS
+ReactionContent -&gt; String
+(Int -&gt; ReactionContent -&gt; ShowS)
+-&gt; (ReactionContent -&gt; String)
+-&gt; ([ReactionContent] -&gt; ShowS)
+-&gt; Show ReactionContent
+forall a.
+(Int -&gt; a -&gt; ShowS) -&gt; (a -&gt; String) -&gt; ([a] -&gt; ShowS) -&gt; Show a
+$cshowsPrec :: Int -&gt; ReactionContent -&gt; ShowS
+showsPrec :: Int -&gt; ReactionContent -&gt; ShowS
+$cshow :: ReactionContent -&gt; String
+show :: ReactionContent -&gt; String
+$cshowList :: [ReactionContent] -&gt; ShowS
+showList :: [ReactionContent] -&gt; ShowS
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Show</span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679488065"><span id="local-6989586621679488067"><span id="local-6989586621679488069"><span id="local-6989586621679488071"><span id="local-6989586621679488073"><span id="local-6989586621679488078"><span id="local-6989586621679488083"><span id="local-6989586621679488086"><span id="local-6989586621679488089"><span id="local-6989586621679488092"><span id="local-6989586621679488095"><span id="local-6989586621679488098"><span id="local-6989586621679488103"><span id="local-6989586621679488108"><span class="annot"><span class="annottext">Typeable ReactionContent
+Typeable ReactionContent =&gt;
+(forall (c :: * -&gt; *).
+ (forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+ -&gt; (forall g. g -&gt; c g) -&gt; ReactionContent -&gt; c ReactionContent)
+-&gt; (forall (c :: * -&gt; *).
+    (forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+    -&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c ReactionContent)
+-&gt; (ReactionContent -&gt; Constr)
+-&gt; (ReactionContent -&gt; DataType)
+-&gt; (forall (t :: * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d. Data d =&gt; c (t d)) -&gt; Maybe (c ReactionContent))
+-&gt; (forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d e. (Data d, Data e) =&gt; c (t d e))
+    -&gt; Maybe (c ReactionContent))
+-&gt; ((forall b. Data b =&gt; b -&gt; b)
+    -&gt; ReactionContent -&gt; ReactionContent)
+-&gt; (forall r r'.
+    (r -&gt; r' -&gt; r)
+    -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; ReactionContent -&gt; r)
+-&gt; (forall r r'.
+    (r' -&gt; r -&gt; r)
+    -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; ReactionContent -&gt; r)
+-&gt; (forall u.
+    (forall d. Data d =&gt; d -&gt; u) -&gt; ReactionContent -&gt; [u])
+-&gt; (forall u.
+    Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; ReactionContent -&gt; u)
+-&gt; (forall (m :: * -&gt; *).
+    Monad m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d)
+    -&gt; ReactionContent -&gt; m ReactionContent)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d)
+    -&gt; ReactionContent -&gt; m ReactionContent)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d)
+    -&gt; ReactionContent -&gt; m ReactionContent)
+-&gt; Data ReactionContent
+ReactionContent -&gt; Constr
+ReactionContent -&gt; DataType
+(forall b. Data b =&gt; b -&gt; b) -&gt; ReactionContent -&gt; ReactionContent
+forall a.
+Typeable a =&gt;
+(forall (c :: * -&gt; *).
+ (forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+ -&gt; (forall g. g -&gt; c g) -&gt; a -&gt; c a)
+-&gt; (forall (c :: * -&gt; *).
+    (forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+    -&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c a)
+-&gt; (a -&gt; Constr)
+-&gt; (a -&gt; DataType)
+-&gt; (forall (t :: * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d. Data d =&gt; c (t d)) -&gt; Maybe (c a))
+-&gt; (forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+    Typeable t =&gt;
+    (forall d e. (Data d, Data e) =&gt; c (t d e)) -&gt; Maybe (c a))
+-&gt; ((forall b. Data b =&gt; b -&gt; b) -&gt; a -&gt; a)
+-&gt; (forall r r'.
+    (r -&gt; r' -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; a -&gt; r)
+-&gt; (forall r r'.
+    (r' -&gt; r -&gt; r) -&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; a -&gt; r)
+-&gt; (forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; a -&gt; [u])
+-&gt; (forall u. Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; a -&gt; u)
+-&gt; (forall (m :: * -&gt; *).
+    Monad m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; a -&gt; m a)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; a -&gt; m a)
+-&gt; (forall (m :: * -&gt; *).
+    MonadPlus m =&gt;
+    (forall d. Data d =&gt; d -&gt; m d) -&gt; a -&gt; m a)
+-&gt; Data a
+forall u.
+Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; ReactionContent -&gt; u
+forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; ReactionContent -&gt; [u]
+forall r r'.
+(r -&gt; r' -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; ReactionContent -&gt; r
+forall r r'.
+(r' -&gt; r -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; ReactionContent -&gt; r
+forall (m :: * -&gt; *).
+Monad m =&gt;
+(forall d. Data d =&gt; d -&gt; m d)
+-&gt; ReactionContent -&gt; m ReactionContent
+forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d)
+-&gt; ReactionContent -&gt; m ReactionContent
+forall (c :: * -&gt; *).
+(forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+-&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c ReactionContent
+forall (c :: * -&gt; *).
+(forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+-&gt; (forall g. g -&gt; c g) -&gt; ReactionContent -&gt; c ReactionContent
+forall (t :: * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d. Data d =&gt; c (t d)) -&gt; Maybe (c ReactionContent)
+forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d e. (Data d, Data e) =&gt; c (t d e))
+-&gt; Maybe (c ReactionContent)
+$cgfoldl :: forall (c :: * -&gt; *).
+(forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+-&gt; (forall g. g -&gt; c g) -&gt; ReactionContent -&gt; c ReactionContent
+gfoldl :: forall (c :: * -&gt; *).
+(forall d b. Data d =&gt; c (d -&gt; b) -&gt; d -&gt; c b)
+-&gt; (forall g. g -&gt; c g) -&gt; ReactionContent -&gt; c ReactionContent
+$cgunfold :: forall (c :: * -&gt; *).
+(forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+-&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c ReactionContent
+gunfold :: forall (c :: * -&gt; *).
+(forall b r. Data b =&gt; c (b -&gt; r) -&gt; c r)
+-&gt; (forall r. r -&gt; c r) -&gt; Constr -&gt; c ReactionContent
+$ctoConstr :: ReactionContent -&gt; Constr
+toConstr :: ReactionContent -&gt; Constr
+$cdataTypeOf :: ReactionContent -&gt; DataType
+dataTypeOf :: ReactionContent -&gt; DataType
+$cdataCast1 :: forall (t :: * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d. Data d =&gt; c (t d)) -&gt; Maybe (c ReactionContent)
+dataCast1 :: forall (t :: * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d. Data d =&gt; c (t d)) -&gt; Maybe (c ReactionContent)
+$cdataCast2 :: forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d e. (Data d, Data e) =&gt; c (t d e))
+-&gt; Maybe (c ReactionContent)
+dataCast2 :: forall (t :: * -&gt; * -&gt; *) (c :: * -&gt; *).
+Typeable t =&gt;
+(forall d e. (Data d, Data e) =&gt; c (t d e))
+-&gt; Maybe (c ReactionContent)
+$cgmapT :: (forall b. Data b =&gt; b -&gt; b) -&gt; ReactionContent -&gt; ReactionContent
+gmapT :: (forall b. Data b =&gt; b -&gt; b) -&gt; ReactionContent -&gt; ReactionContent
+$cgmapQl :: forall r r'.
+(r -&gt; r' -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; ReactionContent -&gt; r
+gmapQl :: forall r r'.
+(r -&gt; r' -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; ReactionContent -&gt; r
+$cgmapQr :: forall r r'.
+(r' -&gt; r -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; ReactionContent -&gt; r
+gmapQr :: forall r r'.
+(r' -&gt; r -&gt; r)
+-&gt; r -&gt; (forall d. Data d =&gt; d -&gt; r') -&gt; ReactionContent -&gt; r
+$cgmapQ :: forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; ReactionContent -&gt; [u]
+gmapQ :: forall u. (forall d. Data d =&gt; d -&gt; u) -&gt; ReactionContent -&gt; [u]
+$cgmapQi :: forall u.
+Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; ReactionContent -&gt; u
+gmapQi :: forall u.
+Int -&gt; (forall d. Data d =&gt; d -&gt; u) -&gt; ReactionContent -&gt; u
+$cgmapM :: forall (m :: * -&gt; *).
+Monad m =&gt;
+(forall d. Data d =&gt; d -&gt; m d)
+-&gt; ReactionContent -&gt; m ReactionContent
+gmapM :: forall (m :: * -&gt; *).
+Monad m =&gt;
+(forall d. Data d =&gt; d -&gt; m d)
+-&gt; ReactionContent -&gt; m ReactionContent
+$cgmapMp :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d)
+-&gt; ReactionContent -&gt; m ReactionContent
+gmapMp :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d)
+-&gt; ReactionContent -&gt; m ReactionContent
+$cgmapMo :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d)
+-&gt; ReactionContent -&gt; m ReactionContent
+gmapMo :: forall (m :: * -&gt; *).
+MonadPlus m =&gt;
+(forall d. Data d =&gt; d -&gt; m d)
+-&gt; ReactionContent -&gt; m ReactionContent
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Data</span></span></span></span></span></span></span></span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679488113"><span id="local-6989586621679488118"><span class="annot"><span class="annottext">ReactionContent -&gt; ReactionContent -&gt; Bool
+(ReactionContent -&gt; ReactionContent -&gt; Bool)
+-&gt; (ReactionContent -&gt; ReactionContent -&gt; Bool)
+-&gt; Eq ReactionContent
+forall a. (a -&gt; a -&gt; Bool) -&gt; (a -&gt; a -&gt; Bool) -&gt; Eq a
+$c== :: ReactionContent -&gt; ReactionContent -&gt; Bool
+== :: ReactionContent -&gt; ReactionContent -&gt; Bool
+$c/= :: ReactionContent -&gt; ReactionContent -&gt; Bool
+/= :: ReactionContent -&gt; ReactionContent -&gt; Bool
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Eq</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679488123"><span id="local-6989586621679488127"><span id="local-6989586621679488131"><span id="local-6989586621679488134"><span id="local-6989586621679488137"><span id="local-6989586621679488140"><span id="local-6989586621679488143"><span class="annot"><span class="annottext">Eq ReactionContent
+Eq ReactionContent =&gt;
+(ReactionContent -&gt; ReactionContent -&gt; Ordering)
+-&gt; (ReactionContent -&gt; ReactionContent -&gt; Bool)
+-&gt; (ReactionContent -&gt; ReactionContent -&gt; Bool)
+-&gt; (ReactionContent -&gt; ReactionContent -&gt; Bool)
+-&gt; (ReactionContent -&gt; ReactionContent -&gt; Bool)
+-&gt; (ReactionContent -&gt; ReactionContent -&gt; ReactionContent)
+-&gt; (ReactionContent -&gt; ReactionContent -&gt; ReactionContent)
+-&gt; Ord ReactionContent
+ReactionContent -&gt; ReactionContent -&gt; Bool
+ReactionContent -&gt; ReactionContent -&gt; Ordering
+ReactionContent -&gt; ReactionContent -&gt; ReactionContent
+forall a.
+Eq a =&gt;
+(a -&gt; a -&gt; Ordering)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; Bool)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; (a -&gt; a -&gt; a)
+-&gt; Ord a
+$ccompare :: ReactionContent -&gt; ReactionContent -&gt; Ordering
+compare :: ReactionContent -&gt; ReactionContent -&gt; Ordering
+$c&lt; :: ReactionContent -&gt; ReactionContent -&gt; Bool
+&lt; :: ReactionContent -&gt; ReactionContent -&gt; Bool
+$c&lt;= :: ReactionContent -&gt; ReactionContent -&gt; Bool
+&lt;= :: ReactionContent -&gt; ReactionContent -&gt; Bool
+$c&gt; :: ReactionContent -&gt; ReactionContent -&gt; Bool
+&gt; :: ReactionContent -&gt; ReactionContent -&gt; Bool
+$c&gt;= :: ReactionContent -&gt; ReactionContent -&gt; Bool
+&gt;= :: ReactionContent -&gt; ReactionContent -&gt; Bool
+$cmax :: ReactionContent -&gt; ReactionContent -&gt; ReactionContent
+max :: ReactionContent -&gt; ReactionContent -&gt; ReactionContent
+$cmin :: ReactionContent -&gt; ReactionContent -&gt; ReactionContent
+min :: ReactionContent -&gt; ReactionContent -&gt; ReactionContent
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Ord</span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679488146"><span id="local-6989586621679488155"><span id="local-6989586621679488162"><span id="local-6989586621679488175"><span id="local-6989586621679488178"><span id="local-6989586621679488183"><span id="local-6989586621679488189"><span id="local-6989586621679488193"><span class="annot"><span class="annottext">Int -&gt; ReactionContent
+ReactionContent -&gt; Int
+ReactionContent -&gt; [ReactionContent]
+ReactionContent -&gt; ReactionContent
+ReactionContent -&gt; ReactionContent -&gt; [ReactionContent]
+ReactionContent
+-&gt; ReactionContent -&gt; ReactionContent -&gt; [ReactionContent]
+(ReactionContent -&gt; ReactionContent)
+-&gt; (ReactionContent -&gt; ReactionContent)
+-&gt; (Int -&gt; ReactionContent)
+-&gt; (ReactionContent -&gt; Int)
+-&gt; (ReactionContent -&gt; [ReactionContent])
+-&gt; (ReactionContent -&gt; ReactionContent -&gt; [ReactionContent])
+-&gt; (ReactionContent -&gt; ReactionContent -&gt; [ReactionContent])
+-&gt; (ReactionContent
+    -&gt; ReactionContent -&gt; ReactionContent -&gt; [ReactionContent])
+-&gt; Enum ReactionContent
+forall a.
+(a -&gt; a)
+-&gt; (a -&gt; a)
+-&gt; (Int -&gt; a)
+-&gt; (a -&gt; Int)
+-&gt; (a -&gt; [a])
+-&gt; (a -&gt; a -&gt; [a])
+-&gt; (a -&gt; a -&gt; [a])
+-&gt; (a -&gt; a -&gt; a -&gt; [a])
+-&gt; Enum a
+$csucc :: ReactionContent -&gt; ReactionContent
+succ :: ReactionContent -&gt; ReactionContent
+$cpred :: ReactionContent -&gt; ReactionContent
+pred :: ReactionContent -&gt; ReactionContent
+$ctoEnum :: Int -&gt; ReactionContent
+toEnum :: Int -&gt; ReactionContent
+$cfromEnum :: ReactionContent -&gt; Int
+fromEnum :: ReactionContent -&gt; Int
+$cenumFrom :: ReactionContent -&gt; [ReactionContent]
+enumFrom :: ReactionContent -&gt; [ReactionContent]
+$cenumFromThen :: ReactionContent -&gt; ReactionContent -&gt; [ReactionContent]
+enumFromThen :: ReactionContent -&gt; ReactionContent -&gt; [ReactionContent]
+$cenumFromTo :: ReactionContent -&gt; ReactionContent -&gt; [ReactionContent]
+enumFromTo :: ReactionContent -&gt; ReactionContent -&gt; [ReactionContent]
+$cenumFromThenTo :: ReactionContent
+-&gt; ReactionContent -&gt; ReactionContent -&gt; [ReactionContent]
+enumFromThenTo :: ReactionContent
+-&gt; ReactionContent -&gt; ReactionContent -&gt; [ReactionContent]
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">Enum</span></span></span></span></span></span></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679488201"><span id="local-6989586621679488203"><span class="annot"><span class="annottext">ReactionContent
+ReactionContent -&gt; ReactionContent -&gt; Bounded ReactionContent
+forall a. a -&gt; a -&gt; Bounded a
+$cminBound :: ReactionContent
+minBound :: ReactionContent
+$cmaxBound :: ReactionContent
+maxBound :: ReactionContent
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Bounded</span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621679488209"><span id="local-6989586621679488211"><span class="annot"><span class="annottext">(forall x. ReactionContent -&gt; Rep ReactionContent x)
+-&gt; (forall x. Rep ReactionContent x -&gt; ReactionContent)
+-&gt; Generic ReactionContent
+forall x. Rep ReactionContent x -&gt; ReactionContent
+forall x. ReactionContent -&gt; Rep ReactionContent x
+forall a.
+(forall x. a -&gt; Rep a x) -&gt; (forall x. Rep a x -&gt; a) -&gt; Generic a
+$cfrom :: forall x. ReactionContent -&gt; Rep ReactionContent x
+from :: forall x. ReactionContent -&gt; Rep ReactionContent x
+$cto :: forall x. Rep ReactionContent x -&gt; ReactionContent
+to :: forall x. Rep ReactionContent x -&gt; ReactionContent
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var">Generic</span></span></span></span><span class="hs-special">)</span><span>
+</span><span id="line-41"></span><span>
+</span><span id="line-42"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679488214"><span class="annot"><span class="hs-identifier hs-type">NFData</span></span><span> </span><span class="annot"><a href="GitHub.Data.Reactions.html#ReactionContent"><span class="hs-identifier hs-type">ReactionContent</span></a></span></span><span>
+</span><span id="line-43"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679488238"><span id="local-6989586621679488244"><span id="local-6989586621679488250"><span class="annot"><span class="hs-identifier hs-type">Binary</span></span><span> </span><span class="annot"><a href="GitHub.Data.Reactions.html#ReactionContent"><span class="hs-identifier hs-type">ReactionContent</span></a></span></span></span></span><span>
+</span><span id="line-44"></span><span>
+</span><span id="line-45"></span><span class="hs-comment">-- JSON instances</span><span>
+</span><span id="line-46"></span><span>
+</span><span id="line-47"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679488324"><span id="local-6989586621679488328"><span class="annot"><span class="hs-identifier hs-type">FromJSON</span></span><span> </span><span class="annot"><a href="GitHub.Data.Reactions.html#Reaction"><span class="hs-identifier hs-type">Reaction</span></a></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-48"></span><span>  </span><span id="local-6989586621679488350"><span class="annot"><span class="annottext">parseJSON :: Value -&gt; Parser Reaction
+</span><a href="#local-6989586621679488350"><span class="hs-identifier hs-var hs-var hs-var">parseJSON</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; (Object -&gt; Parser Reaction) -&gt; Value -&gt; Parser Reaction
+forall a. String -&gt; (Object -&gt; Parser a) -&gt; Value -&gt; Parser a
+</span><span class="hs-identifier hs-var">withObject</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Reaction&quot;</span></span><span> </span><span class="annot"><span class="annottext">((Object -&gt; Parser Reaction) -&gt; Value -&gt; Parser Reaction)
+-&gt; (Object -&gt; Parser Reaction) -&gt; Value -&gt; Parser Reaction
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621679488353"><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679488353"><span class="hs-identifier hs-var">o</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-49"></span><span>    </span><span class="annot"><span class="annottext">Id Reaction
+-&gt; Maybe SimpleUser -&gt; ReactionContent -&gt; UTCTime -&gt; Reaction
+</span><a href="GitHub.Data.Reactions.html#Reaction"><span class="hs-identifier hs-var">Reaction</span></a></span><span>
+</span><span id="line-50"></span><span>      </span><span class="annot"><span class="annottext">(Id Reaction
+ -&gt; Maybe SimpleUser -&gt; ReactionContent -&gt; UTCTime -&gt; Reaction)
+-&gt; Parser (Id Reaction)
+-&gt; Parser
+     (Maybe SimpleUser -&gt; ReactionContent -&gt; UTCTime -&gt; Reaction)
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679488353"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser (Id Reaction)
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">.:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;id&quot;</span></span><span>
+</span><span id="line-51"></span><span>      </span><span class="annot"><span class="annottext">Parser (Maybe SimpleUser -&gt; ReactionContent -&gt; UTCTime -&gt; Reaction)
+-&gt; Parser (Maybe SimpleUser)
+-&gt; Parser (ReactionContent -&gt; UTCTime -&gt; Reaction)
+forall a b. Parser (a -&gt; b) -&gt; Parser a -&gt; Parser b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679488353"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser (Maybe SimpleUser)
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser (Maybe a)
+</span><span class="hs-operator hs-var">.:?</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;user&quot;</span></span><span>
+</span><span id="line-52"></span><span>      </span><span class="annot"><span class="annottext">Parser (ReactionContent -&gt; UTCTime -&gt; Reaction)
+-&gt; Parser ReactionContent -&gt; Parser (UTCTime -&gt; Reaction)
+forall a b. Parser (a -&gt; b) -&gt; Parser a -&gt; Parser b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679488353"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser ReactionContent
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">.:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;content&quot;</span></span><span>
+</span><span id="line-53"></span><span>      </span><span class="annot"><span class="annottext">Parser (UTCTime -&gt; Reaction) -&gt; Parser UTCTime -&gt; Parser Reaction
+forall a b. Parser (a -&gt; b) -&gt; Parser a -&gt; Parser b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">Object
+</span><a href="#local-6989586621679488353"><span class="hs-identifier hs-var">o</span></a></span><span> </span><span class="annot"><span class="annottext">Object -&gt; Key -&gt; Parser UTCTime
+forall a. FromJSON a =&gt; Object -&gt; Key -&gt; Parser a
+</span><span class="hs-operator hs-var">.:</span></span><span> </span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;created_at&quot;</span></span><span>
+</span><span id="line-54"></span><span>
+</span><span id="line-55"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679488359"><span id="local-6989586621679488363"><span id="local-6989586621679488366"><span id="local-6989586621679488369"><span class="annot"><span class="hs-identifier hs-type">ToJSON</span></span><span> </span><span class="annot"><a href="GitHub.Data.Reactions.html#NewReaction"><span class="hs-identifier hs-type">NewReaction</span></a></span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-56"></span><span>  </span><span id="local-6989586621679488379"><span class="annot"><span class="annottext">toJSON :: NewReaction -&gt; Value
+</span><a href="#local-6989586621679488379"><span class="hs-identifier hs-var hs-var hs-var">toJSON</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GitHub.Data.Reactions.html#NewReaction"><span class="hs-identifier hs-type">NewReaction</span></a></span><span> </span><span id="local-6989586621679488381"><span class="annot"><span class="annottext">ReactionContent
+</span><a href="#local-6989586621679488381"><span class="hs-identifier hs-var">content</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Pair] -&gt; Value
+</span><span class="hs-identifier hs-var">object</span></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Key
+</span><span class="hs-string">&quot;content&quot;</span></span><span> </span><span class="annot"><span class="annottext">Key -&gt; ReactionContent -&gt; Pair
+forall v. ToJSON v =&gt; Key -&gt; v -&gt; Pair
+forall e kv v. (KeyValue e kv, ToJSON v) =&gt; Key -&gt; v -&gt; kv
+</span><span class="hs-operator hs-var">.=</span></span><span> </span><span class="annot"><span class="annottext">ReactionContent
+</span><a href="#local-6989586621679488381"><span class="hs-identifier hs-var">content</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-57"></span><span>
+</span><span id="line-58"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679488386"><span id="local-6989586621679488389"><span class="annot"><span class="hs-identifier hs-type">FromJSON</span></span><span> </span><span class="annot"><a href="GitHub.Data.Reactions.html#ReactionContent"><span class="hs-identifier hs-type">ReactionContent</span></a></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-59"></span><span>  </span><span id="local-6989586621679488423"><span class="annot"><span class="annottext">parseJSON :: Value -&gt; Parser ReactionContent
+</span><span class="hs-identifier hs-var hs-var hs-var">parseJSON</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+-&gt; (Text -&gt; Parser ReactionContent)
+-&gt; Value
+-&gt; Parser ReactionContent
+forall a. String -&gt; (Text -&gt; Parser a) -&gt; Value -&gt; Parser a
+</span><span class="hs-identifier hs-var">withText</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;ReactionContent&quot;</span></span><span> </span><span class="annot"><span class="annottext">((Text -&gt; Parser ReactionContent)
+ -&gt; Value -&gt; Parser ReactionContent)
+-&gt; (Text -&gt; Parser ReactionContent)
+-&gt; Value
+-&gt; Parser ReactionContent
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-60"></span><span>    </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;+1&quot;</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">ReactionContent -&gt; Parser ReactionContent
+forall a. a -&gt; Parser a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">ReactionContent
+</span><a href="GitHub.Data.Reactions.html#PlusOne"><span class="hs-identifier hs-var">PlusOne</span></a></span><span>
+</span><span id="line-61"></span><span>    </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;-1&quot;</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">ReactionContent -&gt; Parser ReactionContent
+forall a. a -&gt; Parser a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">ReactionContent
+</span><a href="GitHub.Data.Reactions.html#MinusOne"><span class="hs-identifier hs-var">MinusOne</span></a></span><span>
+</span><span id="line-62"></span><span>    </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;laugh&quot;</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">ReactionContent -&gt; Parser ReactionContent
+forall a. a -&gt; Parser a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">ReactionContent
+</span><a href="GitHub.Data.Reactions.html#Laugh"><span class="hs-identifier hs-var">Laugh</span></a></span><span>
+</span><span id="line-63"></span><span>    </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;confused&quot;</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">ReactionContent -&gt; Parser ReactionContent
+forall a. a -&gt; Parser a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">ReactionContent
+</span><a href="GitHub.Data.Reactions.html#Confused"><span class="hs-identifier hs-var">Confused</span></a></span><span>
+</span><span id="line-64"></span><span>    </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;heart&quot;</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">ReactionContent -&gt; Parser ReactionContent
+forall a. a -&gt; Parser a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">ReactionContent
+</span><a href="GitHub.Data.Reactions.html#Heart"><span class="hs-identifier hs-var">Heart</span></a></span><span>
+</span><span id="line-65"></span><span>    </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;hooray&quot;</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">ReactionContent -&gt; Parser ReactionContent
+forall a. a -&gt; Parser a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">ReactionContent
+</span><a href="GitHub.Data.Reactions.html#Hooray"><span class="hs-identifier hs-var">Hooray</span></a></span><span>
+</span><span id="line-66"></span><span>    </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;rocket&quot;</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">ReactionContent -&gt; Parser ReactionContent
+forall a. a -&gt; Parser a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">ReactionContent
+</span><a href="GitHub.Data.Reactions.html#Rocket"><span class="hs-identifier hs-var">Rocket</span></a></span><span>
+</span><span id="line-67"></span><span>    </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;eyes&quot;</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">ReactionContent -&gt; Parser ReactionContent
+forall a. a -&gt; Parser a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">ReactionContent
+</span><a href="GitHub.Data.Reactions.html#Eyes"><span class="hs-identifier hs-var">Eyes</span></a></span><span>
+</span><span id="line-68"></span><span>    </span><span id="local-6989586621679488425"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679488425"><span class="hs-identifier hs-var">t</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">String -&gt; Parser ReactionContent
+forall a. String -&gt; Parser a
+forall (m :: * -&gt; *) a. MonadFail m =&gt; String -&gt; m a
+</span><span class="hs-identifier hs-var">fail</span></span><span> </span><span class="annot"><span class="annottext">(String -&gt; Parser ReactionContent)
+-&gt; String -&gt; Parser ReactionContent
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;Unknown ReactionContent: &quot;</span></span><span> </span><span class="annot"><span class="annottext">String -&gt; ShowS
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Text -&gt; String
+</span><span class="hs-identifier hs-var">T.unpack</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621679488425"><span class="hs-identifier hs-var">t</span></a></span><span>
+</span><span id="line-69"></span><span>
+</span><span id="line-70"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621679488429"><span id="local-6989586621679488432"><span id="local-6989586621679488435"><span id="local-6989586621679488438"><span class="annot"><span class="hs-identifier hs-type">ToJSON</span></span><span> </span><span class="annot"><a href="GitHub.Data.Reactions.html#ReactionContent"><span class="hs-identifier hs-type">ReactionContent</span></a></span></span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-71"></span><span>  </span><span id="local-6989586621679488448"><span class="annot"><span class="annottext">toJSON :: ReactionContent -&gt; Value
+</span><span class="hs-identifier hs-var hs-var hs-var">toJSON</span></span></span><span> </span><span class="annot"><span class="annottext">ReactionContent
+</span><a href="GitHub.Data.Reactions.html#PlusOne"><span class="hs-identifier hs-var">PlusOne</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Text -&gt; Value
+</span><span class="hs-identifier hs-var">String</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;+1&quot;</span></span><span>
+</span><span id="line-72"></span><span>  </span><span class="annot"><span class="hs-identifier hs-var">toJSON</span></span><span> </span><span class="annot"><span class="annottext">ReactionContent
+</span><a href="GitHub.Data.Reactions.html#MinusOne"><span class="hs-identifier hs-var">MinusOne</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Text -&gt; Value
+</span><span class="hs-identifier hs-var">String</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;-1&quot;</span></span><span>
+</span><span id="line-73"></span><span>  </span><span class="annot"><span class="hs-identifier hs-var">toJSON</span></span><span> </span><span class="annot"><span class="annottext">ReactionContent
+</span><a href="GitHub.Data.Reactions.html#Laugh"><span class="hs-identifier hs-var">Laugh</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Text -&gt; Value
+</span><span class="hs-identifier hs-var">String</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;laugh&quot;</span></span><span>
+</span><span id="line-74"></span><span>  </span><span class="annot"><span class="hs-identifier hs-var">toJSON</span></span><span> </span><span class="annot"><span class="annottext">ReactionContent
+</span><a href="GitHub.Data.Reactions.html#Confused"><span class="hs-identifier hs-var">Confused</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Text -&gt; Value
+</span><span class="hs-identifier hs-var">String</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;confused&quot;</span></span><span>
+</span><span id="line-75"></span><span>  </span><span class="annot"><span class="hs-identifier hs-var">toJSON</span></span><span> </span><span class="annot"><span class="annottext">ReactionContent
+</span><a href="GitHub.Data.Reactions.html#Heart"><span class="hs-identifier hs-var">Heart</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Text -&gt; Value
+</span><span class="hs-identifier hs-var">String</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;heart&quot;</span></span><span>
+</span><span id="line-76"></span><span>  </span><span class="annot"><span class="hs-identifier hs-var">toJSON</span></span><span> </span><span class="annot"><span class="annottext">ReactionContent
+</span><a href="GitHub.Data.Reactions.html#Hooray"><span class="hs-identifier hs-var">Hooray</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Text -&gt; Value
+</span><span class="hs-identifier hs-var">String</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;hooray&quot;</span></span><span>
+</span><span id="line-77"></span><span>  </span><span class="annot"><span class="hs-identifier hs-var">toJSON</span></span><span> </span><span class="annot"><span class="annottext">ReactionContent
+</span><a href="GitHub.Data.Reactions.html#Rocket"><span class="hs-identifier hs-var">Rocket</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Text -&gt; Value
+</span><span class="hs-identifier hs-var">String</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;rocket&quot;</span></span><span>
+</span><span id="line-78"></span><span>  </span><span class="annot"><span class="hs-identifier hs-var">toJSON</span></span><span> </span><span class="annot"><span class="annottext">ReactionContent
+</span><a href="GitHub.Data.Reactions.html#Eyes"><span class="hs-identifier hs-var">Eyes</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Text -&gt; Value
+</span><span class="hs-identifier hs-var">String</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;eyes&quot;</span></span><span>
+</span><span id="line-79"></span></pre></body></html>

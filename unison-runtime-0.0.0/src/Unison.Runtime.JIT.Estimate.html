@@ -1,0 +1,1098 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE LambdaCase #-}</span><span>
+</span><span id="line-2"></span><span>
+</span><span id="line-3"></span><span class="hs-comment">-- | Deciding, before compiling a function, whether native code for it</span><span>
+</span><span id="line-4"></span><span class="hs-comment">-- would be faster than the interpreter. See design.md, &quot;What isn't</span><span>
+</span><span id="line-5"></span><span class="hs-comment">-- compiled&quot;.</span><span>
+</span><span id="line-6"></span><span class="hs-comment">--</span><span>
+</span><span id="line-7"></span><span class="hs-comment">-- What compiling saves is the interpreter's overhead (dispatch and stack</span><span>
+</span><span id="line-8"></span><span class="hs-comment">-- traffic), a few nanoseconds per instruction; the instruction's own work</span><span>
+</span><span id="line-9"></span><span class="hs-comment">-- costs the same either way. What it can cost is exits: leaving native</span><span>
+</span><span id="line-10"></span><span class="hs-comment">-- code for something only the interpreter can do, and coming back, is a</span><span>
+</span><span id="line-11"></span><span class="hs-comment">-- round trip worth several instructions' savings. So a function that does</span><span>
+</span><span id="line-12"></span><span class="hs-comment">-- one foreign call and little else is slower compiled.</span><span>
+</span><span id="line-13"></span><span class="hs-comment">--</span><span>
+</span><span id="line-14"></span><span class="hs-comment">-- The estimate walks the function's MCode and computes, for an average</span><span>
+</span><span id="line-15"></span><span class="hs-comment">-- path from entry to return, the saving (in units of one simple</span><span>
+</span><span id="line-16"></span><span class="hs-comment">-- instruction's overhead) and the number of exits that are certain: taken</span><span>
+</span><span id="line-17"></span><span class="hs-comment">-- every time the code runs. Exits that only happen on a slow path (a fast</span><span>
+</span><span id="line-18"></span><span class="hs-comment">-- path's miss, the poll, stack growth) don't count.</span><span>
+</span><span id="line-19"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Unison.Runtime.JIT.Estimate.html"><span class="hs-identifier">Unison.Runtime.JIT.Estimate</span></a></span><span>
+</span><span id="line-20"></span><span>  </span><span class="hs-special">(</span><span> </span><span class="annot"><a href="Unison.Runtime.JIT.Estimate.html#Estimate"><span class="hs-identifier">Estimate</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-21"></span><span>    </span><span class="annot"><a href="Unison.Runtime.JIT.Estimate.html#judge"><span class="hs-identifier">judge</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-22"></span><span>  </span><span class="hs-special">)</span><span>
+</span><span id="line-23"></span><span class="hs-keyword">where</span><span>
+</span><span id="line-24"></span><span>
+</span><span id="line-25"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Monad</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">unless</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">when</span></span><span class="hs-special">)</span><span>
+</span><span id="line-26"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.IORef</span></span><span>
+</span><span id="line-27"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Map.Strict</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Map</span></span><span>
+</span><span id="line-28"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Maybe</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">catMaybes</span></span><span class="hs-special">)</span><span>
+</span><span id="line-29"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Data.Set</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">Set</span></span><span>
+</span><span id="line-30"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Foreign.Ptr</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Ptr</span></span><span class="hs-special">)</span><span>
+</span><span id="line-31"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Unison.Runtime.JIT.Codegen.html"><span class="hs-identifier">Unison.Runtime.JIT.Codegen</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Runtime.JIT.Codegen.html#Switches"><span class="hs-identifier">Switches</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Unison.Runtime.JIT.Codegen.html#callOutWorthwhile"><span class="hs-identifier">callOutWorthwhile</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Unison.Runtime.JIT.Codegen.html#instrNativeIn"><span class="hs-identifier">instrNativeIn</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Unison.Runtime.JIT.Codegen.html#startsSupported"><span class="hs-identifier">startsSupported</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Unison.Runtime.JIT.Codegen.html#switches"><span class="hs-identifier">switches</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-32"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Unison.Runtime.JIT.Config.html"><span class="hs-identifier">Unison.Runtime.JIT.Config</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Runtime.JIT.Config.html#Config"><span class="hs-identifier">Config</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Unison.Runtime.JIT.Config.html#entryCost"><span class="hs-identifier">entryCost</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Unison.Runtime.JIT.Config.html#exitCost"><span class="hs-identifier">exitCost</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-33"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Unison.Runtime.MCode.html"><span class="hs-identifier">Unison.Runtime.MCode</span></a></span><span> </span><span class="hs-keyword">hiding</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Runtime.MCode.html#Env"><span class="hs-identifier">Env</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-34"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Unison.Runtime.MCode.html"><span class="hs-identifier">Unison.Runtime.MCode</span></a></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">MCode</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Runtime.MCode.html#GRef"><span class="hs-identifier">GRef</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Runtime.MCode.html#Env"><span class="hs-identifier">Env</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-35"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="Unison.Runtime.Stack.html"><span class="hs-identifier">Unison.Runtime.Stack</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Runtime.Stack.html#MSection"><span class="hs-identifier">MSection</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Unison.Runtime.Stack.html#Val"><span class="hs-identifier">Val</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-36"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Util.EnumContainers</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">EC</span></span><span>
+</span><span id="line-37"></span><span>
+</span><span id="line-38"></span><span class="hs-comment">-- | For an average path through a function: the interpreter overhead that</span><span>
+</span><span id="line-39"></span><span class="hs-comment">-- native code avoids, and the exits it is certain to take.</span><span>
+</span><span id="line-40"></span><span class="hs-keyword">data</span><span> </span><span id="Estimate"><span class="annot"><a href="Unison.Runtime.JIT.Estimate.html#Estimate"><span class="hs-identifier hs-var">Estimate</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="Estimate"><span class="annot"><a href="Unison.Runtime.JIT.Estimate.html#Estimate"><span class="hs-identifier hs-var">Estimate</span></a></span></span><span>
+</span><span id="line-41"></span><span>  </span><span class="hs-special">{</span><span> </span><span id="esSaving"><span class="annot"><span class="annottext">Estimate -&gt; Double
+</span><a href="Unison.Runtime.JIT.Estimate.html#esSaving"><span class="hs-identifier hs-var hs-var">esSaving</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">Double</span></span><span class="hs-special">,</span><span>
+</span><span id="line-42"></span><span>    </span><span id="esExits"><span class="annot"><span class="annottext">Estimate -&gt; Double
+</span><a href="Unison.Runtime.JIT.Estimate.html#esExits"><span class="hs-identifier hs-var hs-var">esExits</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">Double</span></span><span class="hs-special">,</span><span>
+</span><span id="line-43"></span><span>    </span><span class="annot"><span class="hs-comment">-- | the path calls the function itself: it is a loop or a recursion</span></span><span>
+</span><span id="line-44"></span><span>    </span><span id="esRec"><span class="annot"><span class="annottext">Estimate -&gt; Bool
+</span><a href="Unison.Runtime.JIT.Estimate.html#esRec"><span class="hs-identifier hs-var hs-var">esRec</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-glyph">!</span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>
+</span><span id="line-45"></span><span>  </span><span class="hs-special">}</span><span>
+</span><span id="line-46"></span><span>
+</span><span id="line-47"></span><span class="annot"><a href="Unison.Runtime.JIT.Estimate.html#plus"><span class="hs-identifier hs-type">plus</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Unison.Runtime.JIT.Estimate.html#Estimate"><span class="hs-identifier hs-type">Estimate</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.Runtime.JIT.Estimate.html#Estimate"><span class="hs-identifier hs-type">Estimate</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.Runtime.JIT.Estimate.html#Estimate"><span class="hs-identifier hs-type">Estimate</span></a></span><span>
+</span><span id="line-48"></span><span id="plus"><span class="annot"><span class="annottext">plus :: Estimate -&gt; Estimate -&gt; Estimate
+</span><a href="Unison.Runtime.JIT.Estimate.html#plus"><span class="hs-identifier hs-var hs-var">plus</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Runtime.JIT.Estimate.html#Estimate"><span class="hs-identifier hs-type">Estimate</span></a></span><span> </span><span id="local-6989586621681850854"><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621681850854"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span id="local-6989586621681850855"><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621681850855"><span class="hs-identifier hs-var">b</span></a></span></span><span> </span><span id="local-6989586621681850856"><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621681850856"><span class="hs-identifier hs-var">l</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Runtime.JIT.Estimate.html#Estimate"><span class="hs-identifier hs-type">Estimate</span></a></span><span> </span><span id="local-6989586621681850857"><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621681850857"><span class="hs-identifier hs-var">c</span></a></span></span><span> </span><span id="local-6989586621681850858"><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621681850858"><span class="hs-identifier hs-var">d</span></a></span></span><span> </span><span id="local-6989586621681850859"><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621681850859"><span class="hs-identifier hs-var">m</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Double -&gt; Double -&gt; Bool -&gt; Estimate
+</span><a href="Unison.Runtime.JIT.Estimate.html#Estimate"><span class="hs-identifier hs-var">Estimate</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621681850854"><span class="hs-identifier hs-var">a</span></a></span><span> </span><span class="annot"><span class="annottext">Double -&gt; Double -&gt; Double
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621681850857"><span class="hs-identifier hs-var">c</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621681850855"><span class="hs-identifier hs-var">b</span></a></span><span> </span><span class="annot"><span class="annottext">Double -&gt; Double -&gt; Double
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621681850858"><span class="hs-identifier hs-var">d</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621681850856"><span class="hs-identifier hs-var">l</span></a></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">||</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621681850859"><span class="hs-identifier hs-var">m</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-49"></span><span>
+</span><span id="line-50"></span><span class="hs-comment">-- | The interpreter's overhead for an instruction or a branch, and for a</span><span>
+</span><span id="line-51"></span><span class="hs-comment">-- call or a let (a frame pushed, arguments moved).</span><span>
+</span><span id="line-52"></span><span class="annot"><a href="Unison.Runtime.JIT.Estimate.html#simple"><span class="hs-identifier hs-type">simple</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Unison.Runtime.JIT.Estimate.html#call"><span class="hs-identifier hs-type">call</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Unison.Runtime.JIT.Estimate.html#Estimate"><span class="hs-identifier hs-type">Estimate</span></a></span><span>
+</span><span id="line-53"></span><span id="simple"><span class="annot"><span class="annottext">simple :: Estimate
+</span><a href="Unison.Runtime.JIT.Estimate.html#simple"><span class="hs-identifier hs-var hs-var">simple</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Double -&gt; Double -&gt; Bool -&gt; Estimate
+</span><a href="Unison.Runtime.JIT.Estimate.html#Estimate"><span class="hs-identifier hs-var">Estimate</span></a></span><span> </span><span class="annot"><span class="annottext">Double
+</span><span class="hs-number">1</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><span class="hs-number">0</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span>
+</span><span id="line-54"></span><span id="call"><span class="annot"><span class="annottext">call :: Estimate
+</span><a href="Unison.Runtime.JIT.Estimate.html#call"><span class="hs-identifier hs-var hs-var">call</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Double -&gt; Double -&gt; Bool -&gt; Estimate
+</span><a href="Unison.Runtime.JIT.Estimate.html#Estimate"><span class="hs-identifier hs-var">Estimate</span></a></span><span> </span><span class="annot"><span class="annottext">Double
+</span><span class="hs-number">3</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><span class="hs-number">0</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span>
+</span><span id="line-55"></span><span>
+</span><span id="line-56"></span><span class="annot"><span class="hs-comment">-- | A certain exit. The node saves nothing: the interpreter does its work.</span></span><span>
+</span><span id="line-57"></span><span class="annot"><a href="Unison.Runtime.JIT.Estimate.html#exit"><span class="hs-identifier hs-type">exit</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Unison.Runtime.JIT.Estimate.html#Estimate"><span class="hs-identifier hs-type">Estimate</span></a></span><span>
+</span><span id="line-58"></span><span id="exit"><span class="annot"><span class="annottext">exit :: Estimate
+</span><a href="Unison.Runtime.JIT.Estimate.html#exit"><span class="hs-identifier hs-var hs-var">exit</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Double -&gt; Double -&gt; Bool -&gt; Estimate
+</span><a href="Unison.Runtime.JIT.Estimate.html#Estimate"><span class="hs-identifier hs-var">Estimate</span></a></span><span> </span><span class="annot"><span class="annottext">Double
+</span><span class="hs-number">0</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><span class="hs-number">1</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span>
+</span><span id="line-59"></span><span>
+</span><span id="line-60"></span><span class="annot"><a href="Unison.Runtime.JIT.Estimate.html#worth"><span class="hs-identifier hs-type">worth</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Unison.Runtime.JIT.Config.html#Config"><span class="hs-identifier hs-type">Config</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="Unison.Runtime.JIT.Estimate.html#Estimate"><span class="hs-identifier hs-type">Estimate</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span>
+</span><span id="line-61"></span><span id="worth"><span class="annot"><span class="annottext">worth :: Config -&gt; Maybe Estimate -&gt; Bool
+</span><a href="Unison.Runtime.JIT.Estimate.html#worth"><span class="hs-identifier hs-var hs-var">worth</span></a></span></span><span> </span><span id="local-6989586621681850866"><span class="annot"><span class="annottext">Config
+</span><a href="#local-6989586621681850866"><span class="hs-identifier hs-var">config</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-62"></span><span>  </span><span class="annot"><span class="annottext">Maybe Estimate
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span> </span><span class="hs-comment">-- never returns; it doesn't matter</span><span>
+</span><span id="line-63"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Runtime.JIT.Estimate.html#Estimate"><span class="hs-identifier hs-type">Estimate</span></a></span><span> </span><span id="local-6989586621681850867"><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621681850867"><span class="hs-identifier hs-var">saving</span></a></span></span><span> </span><span id="local-6989586621681850868"><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621681850868"><span class="hs-identifier hs-var">exits</span></a></span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool
+</span><span class="hs-identifier hs-var">not</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621681850868"><span class="hs-identifier hs-var">exits</span></a></span><span> </span><span class="annot"><span class="annottext">Double -&gt; Double -&gt; Double
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">*</span></span><span> </span><span class="annot"><span class="annottext">Config -&gt; Double
+</span><a href="Unison.Runtime.JIT.Config.html#exitCost"><span class="hs-identifier hs-var">exitCost</span></a></span><span> </span><span class="annot"><span class="annottext">Config
+</span><a href="#local-6989586621681850866"><span class="hs-identifier hs-var">config</span></a></span><span> </span><span class="annot"><span class="annottext">Double -&gt; Double -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&gt;</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621681850867"><span class="hs-identifier hs-var">saving</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-64"></span><span>
+</span><span id="line-65"></span><span class="hs-comment">-- | How likely a call of the function is to exit, as far as is known: its</span><span>
+</span><span id="line-66"></span><span class="hs-comment">-- certain exits on an average path, at most one.</span><span>
+</span><span id="line-67"></span><span class="annot"><a href="Unison.Runtime.JIT.Estimate.html#exiting"><span class="hs-identifier hs-type">exiting</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="Unison.Runtime.JIT.Estimate.html#Estimate"><span class="hs-identifier hs-type">Estimate</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Double</span></span><span>
+</span><span id="line-68"></span><span id="exiting"><span class="annot"><span class="annottext">exiting :: Maybe Estimate -&gt; Double
+</span><a href="Unison.Runtime.JIT.Estimate.html#exiting"><span class="hs-identifier hs-var hs-var">exiting</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Double -&gt; (Estimate -&gt; Double) -&gt; Maybe Estimate -&gt; Double
+forall b a. b -&gt; (a -&gt; b) -&gt; Maybe a -&gt; b
+</span><span class="hs-identifier hs-var">maybe</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><span class="hs-number">0</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Double -&gt; Double -&gt; Double
+forall a. Ord a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-identifier hs-var">min</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><span class="hs-number">1</span></span><span> </span><span class="annot"><span class="annottext">(Double -&gt; Double) -&gt; (Estimate -&gt; Double) -&gt; Estimate -&gt; Double
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">Estimate -&gt; Double
+</span><a href="Unison.Runtime.JIT.Estimate.html#esExits"><span class="hs-identifier hs-var">esExits</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-69"></span><span>
+</span><span id="line-70"></span><span class="hs-comment">-- | What is recorded in the cell (see 'readNativeVerdict'). The low two</span><span>
+</span><span id="line-71"></span><span class="hs-comment">-- bits: 2 not worth compiling, 1 worth it, 3 worth it only for native</span><span>
+</span><span id="line-72"></span><span class="hs-comment">-- callers, because a call saves less than entering native code from the</span><span>
+</span><span id="line-73"></span><span class="hs-comment">-- interpreter costs. Above them, 'exiting' in hundredths.</span><span>
+</span><span id="line-74"></span><span class="annot"><a href="Unison.Runtime.JIT.Estimate.html#verdictOf"><span class="hs-identifier hs-type">verdictOf</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Unison.Runtime.JIT.Config.html#Config"><span class="hs-identifier hs-type">Config</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="Unison.Runtime.JIT.Estimate.html#Estimate"><span class="hs-identifier hs-type">Estimate</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span>
+</span><span id="line-75"></span><span id="verdictOf"><span class="annot"><span class="annottext">verdictOf :: Config -&gt; Maybe Estimate -&gt; Int
+</span><a href="Unison.Runtime.JIT.Estimate.html#verdictOf"><span class="hs-identifier hs-var hs-var">verdictOf</span></a></span></span><span> </span><span id="local-6989586621681850878"><span class="annot"><span class="annottext">Config
+</span><a href="#local-6989586621681850878"><span class="hs-identifier hs-var">config</span></a></span></span><span> </span><span id="local-6989586621681850879"><span class="annot"><span class="annottext">Maybe Estimate
+</span><a href="#local-6989586621681850879"><span class="hs-identifier hs-var">path</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681850880"><span class="hs-identifier hs-var">code</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">4</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">*</span></span><span> </span><span class="annot"><span class="annottext">Double -&gt; Int
+forall b. Integral b =&gt; Double -&gt; b
+forall a b. (RealFrac a, Integral b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">round</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Double
+</span><span class="hs-number">100</span></span><span> </span><span class="annot"><span class="annottext">Double -&gt; Double -&gt; Double
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">*</span></span><span> </span><span class="annot"><span class="annottext">Maybe Estimate -&gt; Double
+</span><a href="Unison.Runtime.JIT.Estimate.html#exiting"><span class="hs-identifier hs-var">exiting</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe Estimate
+</span><a href="#local-6989586621681850879"><span class="hs-identifier hs-var">path</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-76"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-77"></span><span>    </span><span id="local-6989586621681850880"><span class="annot"><span class="annottext">code :: Int
+</span><a href="#local-6989586621681850880"><span class="hs-identifier hs-var hs-var">code</span></a></span></span><span>
+</span><span id="line-78"></span><span>      </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool
+</span><span class="hs-identifier hs-var">not</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Config -&gt; Maybe Estimate -&gt; Bool
+</span><a href="Unison.Runtime.JIT.Estimate.html#worth"><span class="hs-identifier hs-var">worth</span></a></span><span> </span><span class="annot"><span class="annottext">Config
+</span><a href="#local-6989586621681850878"><span class="hs-identifier hs-var">config</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe Estimate
+</span><a href="#local-6989586621681850879"><span class="hs-identifier hs-var">path</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">2</span></span><span>
+</span><span id="line-79"></span><span>      </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Runtime.JIT.Estimate.html#Estimate"><span class="hs-identifier hs-type">Estimate</span></a></span><span> </span><span id="local-6989586621681850882"><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621681850882"><span class="hs-identifier hs-var">saving</span></a></span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Maybe Estimate
+</span><a href="#local-6989586621681850879"><span class="hs-identifier hs-var">path</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621681850882"><span class="hs-identifier hs-var">saving</span></a></span><span> </span><span class="annot"><span class="annottext">Double -&gt; Double -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&lt;</span></span><span> </span><span class="annot"><span class="annottext">Config -&gt; Double
+</span><a href="Unison.Runtime.JIT.Config.html#entryCost"><span class="hs-identifier hs-var">entryCost</span></a></span><span> </span><span class="annot"><span class="annottext">Config
+</span><a href="#local-6989586621681850878"><span class="hs-identifier hs-var">config</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">3</span></span><span>
+</span><span id="line-80"></span><span>      </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span>
+</span><span id="line-81"></span><span>
+</span><span id="line-82"></span><span class="hs-keyword">data</span><span> </span><span id="Cx"><span class="annot"><a href="Unison.Runtime.JIT.Estimate.html#Cx"><span class="hs-identifier hs-var">Cx</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="Cx"><span class="annot"><a href="Unison.Runtime.JIT.Estimate.html#Cx"><span class="hs-identifier hs-var">Cx</span></a></span></span><span>
+</span><span id="line-83"></span><span>  </span><span class="hs-special">{</span><span> </span><span id="cxConfig"><span class="annot"><span class="annottext">Cx -&gt; Config
+</span><a href="Unison.Runtime.JIT.Estimate.html#cxConfig"><span class="hs-identifier hs-var hs-var">cxConfig</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Unison.Runtime.JIT.Config.html#Config"><span class="hs-identifier hs-type">Config</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-84"></span><span>    </span><span id="cxSwitches"><span class="annot"><span class="annottext">Cx -&gt; Switches
+</span><a href="Unison.Runtime.JIT.Estimate.html#cxSwitches"><span class="hs-identifier hs-var hs-var">cxSwitches</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Unison.Runtime.JIT.Codegen.html#Switches"><span class="hs-identifier hs-type">Switches</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-85"></span><span>    </span><span id="cxSelf"><span class="annot"><span class="annottext">Cx -&gt; Ptr NativeCell
+</span><a href="Unison.Runtime.JIT.Estimate.html#cxSelf"><span class="hs-identifier hs-var hs-var">cxSelf</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Unison.Runtime.MCode.html#NativeCell"><span class="hs-identifier hs-type">NativeCell</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-86"></span><span>    </span><span class="hs-comment">-- | how likely a call of the function itself is to exit (from a first</span><span>
+</span><span id="line-87"></span><span>    </span><span class="hs-comment">-- pass that assumed it doesn't)</span><span>
+</span><span id="line-88"></span><span>    </span><span id="cxSelfExits"><span class="annot"><span class="annottext">Cx -&gt; Double
+</span><a href="Unison.Runtime.JIT.Estimate.html#cxSelfExits"><span class="hs-identifier hs-var hs-var">cxSelfExits</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Double</span></span><span class="hs-special">,</span><span>
+</span><span id="line-89"></span><span>    </span><span class="annot"><span class="hs-comment">-- | the functions being judged further up: a cycle is assumed native</span></span><span>
+</span><span id="line-90"></span><span>    </span><span id="cxBusy"><span class="annot"><span class="annottext">Cx -&gt; Set (Ptr NativeCell)
+</span><a href="Unison.Runtime.JIT.Estimate.html#cxBusy"><span class="hs-identifier hs-var hs-var">cxBusy</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Set.Set</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Unison.Runtime.MCode.html#NativeCell"><span class="hs-identifier hs-type">NativeCell</span></a></span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-91"></span><span>    </span><span class="annot"><span class="hs-comment">-- | set when the result relied on that assumption</span></span><span>
+</span><span id="line-92"></span><span>    </span><span id="cxTainted"><span class="annot"><span class="annottext">Cx -&gt; IORef Bool
+</span><a href="Unison.Runtime.JIT.Estimate.html#cxTainted"><span class="hs-identifier hs-var hs-var">cxTainted</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IORef</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span class="hs-special">,</span><span>
+</span><span id="line-93"></span><span>    </span><span class="hs-comment">-- | what was found out during this walk, final or not: whether each</span><span>
+</span><span id="line-94"></span><span>    </span><span class="hs-comment">-- callee is worth compiling, and how likely a call of it is to exit</span><span>
+</span><span id="line-95"></span><span>    </span><span id="cxMemo"><span class="annot"><span class="annottext">Cx -&gt; IORef (Map (Ptr NativeCell) (Bool, Double))
+</span><a href="Unison.Runtime.JIT.Estimate.html#cxMemo"><span class="hs-identifier hs-var hs-var">cxMemo</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IORef</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Map.Map</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Unison.Runtime.MCode.html#NativeCell"><span class="hs-identifier hs-type">NativeCell</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Double</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-96"></span><span>  </span><span class="hs-special">}</span><span>
+</span><span id="line-97"></span><span>
+</span><span id="line-98"></span><span class="hs-comment">-- | Whether the function in this cell, with this body, is worth compiling,</span><span>
+</span><span id="line-99"></span><span class="hs-comment">-- and the estimate that says so (Nothing for code that never returns).</span><span>
+</span><span id="line-100"></span><span class="hs-comment">-- The verdict is recorded in the cell. Callees that have not been judged</span><span>
+</span><span id="line-101"></span><span class="hs-comment">-- are judged on the way, and their verdicts recorded too, so the answer</span><span>
+</span><span id="line-102"></span><span class="hs-comment">-- doesn't depend on the order in which functions get hot.</span><span>
+</span><span id="line-103"></span><span class="annot"><a href="Unison.Runtime.JIT.Estimate.html#judge"><span class="hs-identifier hs-type">judge</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Unison.Runtime.JIT.Config.html#Config"><span class="hs-identifier hs-type">Config</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Ptr</span></span><span> </span><span class="annot"><a href="Unison.Runtime.MCode.html#NativeCell"><span class="hs-identifier hs-type">NativeCell</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.Runtime.Stack.html#MSection"><span class="hs-identifier hs-type">MSection</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="Unison.Runtime.JIT.Estimate.html#Estimate"><span class="hs-identifier hs-type">Estimate</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-104"></span><span id="judge"><span class="annot"><span class="annottext">judge :: Config -&gt; Ptr NativeCell -&gt; MSection -&gt; IO (Bool, Maybe Estimate)
+</span><a href="Unison.Runtime.JIT.Estimate.html#judge"><span class="hs-identifier hs-var hs-var">judge</span></a></span></span><span> </span><span id="local-6989586621681850892"><span class="annot"><span class="annottext">Config
+</span><a href="#local-6989586621681850892"><span class="hs-identifier hs-var">config</span></a></span></span><span> </span><span id="local-6989586621681850893"><span class="annot"><span class="annottext">Ptr NativeCell
+</span><a href="#local-6989586621681850893"><span class="hs-identifier hs-var">cell</span></a></span></span><span> </span><span id="local-6989586621681850894"><span class="annot"><span class="annottext">MSection
+</span><a href="#local-6989586621681850894"><span class="hs-identifier hs-var">sect</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-105"></span><span>  </span><span id="local-6989586621681850895"><span class="annot"><span class="annottext">IORef (Map (Ptr NativeCell) (Bool, Double))
+</span><a href="#local-6989586621681850895"><span class="hs-identifier hs-var">memo</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Map (Ptr NativeCell) (Bool, Double)
+-&gt; IO (IORef (Map (Ptr NativeCell) (Bool, Double)))
+forall a. a -&gt; IO (IORef a)
+</span><span class="hs-identifier hs-var">newIORef</span></span><span> </span><span class="annot"><span class="annottext">Map (Ptr NativeCell) (Bool, Double)
+forall k a. Map k a
+</span><span class="hs-identifier hs-var">Map.empty</span></span><span>
+</span><span id="line-106"></span><span>  </span><span id="local-6989586621681850898"><span class="annot"><span class="annottext">IORef Bool
+</span><a href="#local-6989586621681850898"><span class="hs-identifier hs-var">tainted</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Bool -&gt; IO (IORef Bool)
+forall a. a -&gt; IO (IORef a)
+</span><span class="hs-identifier hs-var">newIORef</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span>
+</span><span id="line-107"></span><span>  </span><span id="local-6989586621681850899"><span class="annot"><span class="annottext">Maybe Estimate
+</span><a href="#local-6989586621681850899"><span class="hs-identifier hs-var">path</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Cx -&gt; MSection -&gt; IO (Maybe Estimate)
+</span><a href="Unison.Runtime.JIT.Estimate.html#function"><span class="hs-identifier hs-var">function</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Config
+-&gt; Switches
+-&gt; Ptr NativeCell
+-&gt; Double
+-&gt; Set (Ptr NativeCell)
+-&gt; IORef Bool
+-&gt; IORef (Map (Ptr NativeCell) (Bool, Double))
+-&gt; Cx
+</span><a href="Unison.Runtime.JIT.Estimate.html#Cx"><span class="hs-identifier hs-var">Cx</span></a></span><span> </span><span class="annot"><span class="annottext">Config
+</span><a href="#local-6989586621681850892"><span class="hs-identifier hs-var">config</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Config -&gt; Switches
+</span><a href="Unison.Runtime.JIT.Codegen.html#switches"><span class="hs-identifier hs-var">switches</span></a></span><span> </span><span class="annot"><span class="annottext">Config
+</span><a href="#local-6989586621681850892"><span class="hs-identifier hs-var">config</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Ptr NativeCell
+</span><a href="#local-6989586621681850893"><span class="hs-identifier hs-var">cell</span></a></span><span> </span><span class="annot"><span class="annottext">Double
+</span><span class="hs-number">0</span></span><span> </span><span class="annot"><span class="annottext">Set (Ptr NativeCell)
+forall a. Set a
+</span><span class="hs-identifier hs-var">Set.empty</span></span><span> </span><span class="annot"><span class="annottext">IORef Bool
+</span><a href="#local-6989586621681850898"><span class="hs-identifier hs-var">tainted</span></a></span><span> </span><span class="annot"><span class="annottext">IORef (Map (Ptr NativeCell) (Bool, Double))
+</span><a href="#local-6989586621681850895"><span class="hs-identifier hs-var">memo</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">MSection
+</span><a href="#local-6989586621681850894"><span class="hs-identifier hs-var">sect</span></a></span><span>
+</span><span id="line-108"></span><span>  </span><span class="annot"><span class="annottext">Bool -&gt; IO () -&gt; IO ()
+forall (f :: * -&gt; *). Applicative f =&gt; Bool -&gt; f () -&gt; f ()
+</span><span class="hs-identifier hs-var">unless</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Ptr NativeCell
+</span><a href="#local-6989586621681850893"><span class="hs-identifier hs-var">cell</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr NativeCell -&gt; Ptr NativeCell -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">Ptr NativeCell
+</span><a href="Unison.Runtime.MCode.html#noNativeCell"><span class="hs-identifier hs-var">noNativeCell</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Ptr NativeCell -&gt; Int -&gt; IO ()
+</span><a href="Unison.Runtime.MCode.html#writeNativeVerdict"><span class="hs-identifier hs-var">writeNativeVerdict</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr NativeCell
+</span><a href="#local-6989586621681850893"><span class="hs-identifier hs-var">cell</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Config -&gt; Maybe Estimate -&gt; Int
+</span><a href="Unison.Runtime.JIT.Estimate.html#verdictOf"><span class="hs-identifier hs-var">verdictOf</span></a></span><span> </span><span class="annot"><span class="annottext">Config
+</span><a href="#local-6989586621681850892"><span class="hs-identifier hs-var">config</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe Estimate
+</span><a href="#local-6989586621681850899"><span class="hs-identifier hs-var">path</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-109"></span><span>  </span><span class="hs-identifier">pure</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Config -&gt; Maybe Estimate -&gt; Bool
+</span><a href="Unison.Runtime.JIT.Estimate.html#worth"><span class="hs-identifier hs-var">worth</span></a></span><span> </span><span class="annot"><span class="annottext">Config
+</span><a href="#local-6989586621681850892"><span class="hs-identifier hs-var">config</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe Estimate
+</span><a href="#local-6989586621681850899"><span class="hs-identifier hs-var">path</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Maybe Estimate
+</span><a href="#local-6989586621681850899"><span class="hs-identifier hs-var">path</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-110"></span><span>
+</span><span id="line-111"></span><span class="hs-comment">-- | The estimate for a whole function. A function that calls itself is</span><span>
+</span><span id="line-112"></span><span class="hs-comment">-- walked twice: the first walk finds how likely a call of it is to exit,</span><span>
+</span><span id="line-113"></span><span class="hs-comment">-- and the second counts that against each of its calls to itself.</span><span>
+</span><span id="line-114"></span><span class="annot"><a href="Unison.Runtime.JIT.Estimate.html#function"><span class="hs-identifier hs-type">function</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Unison.Runtime.JIT.Estimate.html#Cx"><span class="hs-identifier hs-type">Cx</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.Runtime.Stack.html#MSection"><span class="hs-identifier hs-type">MSection</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="Unison.Runtime.JIT.Estimate.html#Estimate"><span class="hs-identifier hs-type">Estimate</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-115"></span><span id="function"><span class="annot"><span class="annottext">function :: Cx -&gt; MSection -&gt; IO (Maybe Estimate)
+</span><a href="Unison.Runtime.JIT.Estimate.html#function"><span class="hs-identifier hs-var hs-var">function</span></a></span></span><span> </span><span id="local-6989586621681850904"><span class="annot"><span class="annottext">Cx
+</span><a href="#local-6989586621681850904"><span class="hs-identifier hs-var">cx</span></a></span></span><span> </span><span id="local-6989586621681850905"><span class="annot"><span class="annottext">MSection
+</span><a href="#local-6989586621681850905"><span class="hs-identifier hs-var">sect</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-116"></span><span>  </span><span id="local-6989586621681850906"><span class="annot"><span class="annottext">Maybe Estimate
+</span><a href="#local-6989586621681850906"><span class="hs-identifier hs-var">first</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Cx -&gt; MSection -&gt; IO (Maybe Estimate)
+</span><a href="Unison.Runtime.JIT.Estimate.html#walk"><span class="hs-identifier hs-var">walk</span></a></span><span> </span><span class="annot"><span class="annottext">Cx
+</span><a href="#local-6989586621681850904"><span class="hs-identifier hs-var">cx</span></a></span><span> </span><span class="hs-special">{</span><span class="annot"><a href="Unison.Runtime.JIT.Estimate.html#cxSelfExits"><span class="hs-identifier hs-var">cxSelfExits</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-number">0</span></span><span class="hs-special">}</span><span> </span><span class="annot"><span class="annottext">MSection
+</span><a href="#local-6989586621681850905"><span class="hs-identifier hs-var">sect</span></a></span><span>
+</span><span id="line-117"></span><span>  </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">Maybe Estimate
+</span><a href="#local-6989586621681850906"><span class="hs-identifier hs-var">first</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-118"></span><span>    </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Runtime.JIT.Estimate.html#Estimate"><span class="hs-identifier hs-type">Estimate</span></a></span><span> </span><span class="annot"><span class="annottext">Double
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621681850908"><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621681850908"><span class="hs-identifier hs-var">exits</span></a></span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621681850908"><span class="hs-identifier hs-var">exits</span></a></span><span> </span><span class="annot"><span class="annottext">Double -&gt; Double -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&gt;</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><span class="hs-number">0</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Cx -&gt; MSection -&gt; IO (Maybe Estimate)
+</span><a href="Unison.Runtime.JIT.Estimate.html#walk"><span class="hs-identifier hs-var">walk</span></a></span><span> </span><span class="annot"><span class="annottext">Cx
+</span><a href="#local-6989586621681850904"><span class="hs-identifier hs-var">cx</span></a></span><span> </span><span class="hs-special">{</span><span class="annot"><a href="Unison.Runtime.JIT.Estimate.html#cxSelfExits"><span class="hs-identifier hs-var">cxSelfExits</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-identifier hs-type">min</span></span><span> </span><span class="annot"><span class="hs-number">1</span></span><span> </span><span class="annot"><a href="#local-6989586621681850908"><span class="hs-identifier hs-type">exits</span></a></span><span class="hs-special">}</span><span> </span><span class="annot"><span class="annottext">MSection
+</span><a href="#local-6989586621681850905"><span class="hs-identifier hs-var">sect</span></a></span><span>
+</span><span id="line-119"></span><span>    </span><span class="annot"><span class="annottext">Maybe Estimate
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Maybe Estimate -&gt; IO (Maybe Estimate)
+forall a. a -&gt; IO a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">Maybe Estimate
+</span><a href="#local-6989586621681850906"><span class="hs-identifier hs-var">first</span></a></span><span>
+</span><span id="line-120"></span><span>
+</span><span id="line-121"></span><span class="hs-comment">-- | Whether a call to this combinator stays in native code, and if it</span><span>
+</span><span id="line-122"></span><span class="hs-comment">-- does, how likely the callee is to exit before it returns.</span><span>
+</span><span id="line-123"></span><span class="annot"><a href="Unison.Runtime.JIT.Estimate.html#native"><span class="hs-identifier hs-type">native</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Unison.Runtime.JIT.Estimate.html#Cx"><span class="hs-identifier hs-type">Cx</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.Runtime.MCode.html#RComb"><span class="hs-identifier hs-type">RComb</span></a></span><span> </span><span class="annot"><a href="Unison.Runtime.Stack.html#Val"><span class="hs-identifier hs-type">Val</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Bool</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Double</span></span><span class="hs-special">)</span><span>
+</span><span id="line-124"></span><span id="native"><span class="annot"><span class="annottext">native :: Cx -&gt; RComb Val -&gt; IO (Bool, Double)
+</span><a href="Unison.Runtime.JIT.Estimate.html#native"><span class="hs-identifier hs-var hs-var">native</span></a></span></span><span> </span><span id="local-6989586621681850910"><span class="annot"><span class="annottext">Cx
+</span><a href="#local-6989586621681850910"><span class="hs-identifier hs-var">cx</span></a></span></span><span> </span><span id="local-6989586621681850911"><span class="annot"><span class="annottext">RComb Val
+</span><a href="#local-6989586621681850911"><span class="hs-identifier hs-var">comb</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">RComb Val -&gt; GComb Val (RComb Val)
+forall val. RComb val -&gt; GComb val (RComb val)
+</span><a href="Unison.Runtime.MCode.html#unRComb"><span class="hs-identifier hs-var">unRComb</span></a></span><span> </span><span class="annot"><span class="annottext">RComb Val
+</span><a href="#local-6989586621681850911"><span class="hs-identifier hs-var">comb</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-125"></span><span>  </span><span class="annot"><a href="Unison.Runtime.MCode.html#CachedVal"><span class="hs-identifier hs-type">CachedVal</span></a></span><span> </span><span class="hs-special">{</span><span class="hs-special">}</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">(Bool, Double) -&gt; IO (Bool, Double)
+forall a. a -&gt; IO a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Double
+</span><span class="hs-number">0</span></span><span class="hs-special">)</span><span>
+</span><span id="line-126"></span><span>  </span><span class="annot"><a href="Unison.Runtime.MCode.html#Comb"><span class="hs-identifier hs-type">Comb</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Runtime.MCode.html#LamI"><span class="hs-identifier hs-type">LamI</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621681850916"><span class="annot"><span class="annottext">MSection
+</span><a href="#local-6989586621681850916"><span class="hs-identifier hs-var">entry</span></a></span></span><span> </span><span id="local-6989586621681850917"><span class="annot"><span class="annottext">Ptr NativeCell
+</span><a href="#local-6989586621681850917"><span class="hs-identifier hs-var">cell</span></a></span></span><span class="hs-special">)</span><span>
+</span><span id="line-127"></span><span>    </span><span class="hs-comment">-- code not loaded through the cache: never compiled</span><span>
+</span><span id="line-128"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Ptr NativeCell
+</span><a href="#local-6989586621681850917"><span class="hs-identifier hs-var">cell</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr NativeCell -&gt; Ptr NativeCell -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">Ptr NativeCell
+</span><a href="Unison.Runtime.MCode.html#noNativeCell"><span class="hs-identifier hs-var">noNativeCell</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">(Bool, Double) -&gt; IO (Bool, Double)
+forall a. a -&gt; IO a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Double
+</span><span class="hs-number">0</span></span><span class="hs-special">)</span><span>
+</span><span id="line-129"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Ptr NativeCell
+</span><a href="#local-6989586621681850917"><span class="hs-identifier hs-var">cell</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr NativeCell -&gt; Ptr NativeCell -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">Cx -&gt; Ptr NativeCell
+</span><a href="Unison.Runtime.JIT.Estimate.html#cxSelf"><span class="hs-identifier hs-var">cxSelf</span></a></span><span> </span><span class="annot"><span class="annottext">Cx
+</span><a href="#local-6989586621681850910"><span class="hs-identifier hs-var">cx</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">(Bool, Double) -&gt; IO (Bool, Double)
+forall a. a -&gt; IO a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Cx -&gt; Double
+</span><a href="Unison.Runtime.JIT.Estimate.html#cxSelfExits"><span class="hs-identifier hs-var">cxSelfExits</span></a></span><span> </span><span class="annot"><span class="annottext">Cx
+</span><a href="#local-6989586621681850910"><span class="hs-identifier hs-var">cx</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-130"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Ptr NativeCell -&gt; Set (Ptr NativeCell) -&gt; Bool
+forall a. Ord a =&gt; a -&gt; Set a -&gt; Bool
+</span><span class="hs-identifier hs-var">Set.member</span></span><span> </span><span class="annot"><span class="annottext">Ptr NativeCell
+</span><a href="#local-6989586621681850917"><span class="hs-identifier hs-var">cell</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Cx -&gt; Set (Ptr NativeCell)
+</span><a href="Unison.Runtime.JIT.Estimate.html#cxBusy"><span class="hs-identifier hs-var">cxBusy</span></a></span><span> </span><span class="annot"><span class="annottext">Cx
+</span><a href="#local-6989586621681850910"><span class="hs-identifier hs-var">cx</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">IORef Bool -&gt; Bool -&gt; IO ()
+forall a. IORef a -&gt; a -&gt; IO ()
+</span><span class="hs-identifier hs-var">writeIORef</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Cx -&gt; IORef Bool
+</span><a href="Unison.Runtime.JIT.Estimate.html#cxTainted"><span class="hs-identifier hs-var">cxTainted</span></a></span><span> </span><span class="annot"><span class="annottext">Cx
+</span><a href="#local-6989586621681850910"><span class="hs-identifier hs-var">cx</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span> </span><span class="annot"><span class="annottext">IO () -&gt; IO (Bool, Double) -&gt; IO (Bool, Double)
+forall a b. IO a -&gt; IO b -&gt; IO b
+forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; m b -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">(Bool, Double) -&gt; IO (Bool, Double)
+forall a. a -&gt; IO a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Double
+</span><span class="hs-number">0</span></span><span class="hs-special">)</span><span>
+</span><span id="line-131"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-132"></span><span>        </span><span id="local-6989586621681850920"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681850920"><span class="hs-identifier hs-var">verdict</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Ptr NativeCell -&gt; IO Int
+</span><a href="Unison.Runtime.MCode.html#readNativeVerdict"><span class="hs-identifier hs-var">readNativeVerdict</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr NativeCell
+</span><a href="#local-6989586621681850917"><span class="hs-identifier hs-var">cell</span></a></span><span>
+</span><span id="line-133"></span><span>        </span><span id="local-6989586621681850921"><span class="annot"><span class="annottext">Maybe (Bool, Double)
+</span><a href="#local-6989586621681850921"><span class="hs-identifier hs-var">known</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Ptr NativeCell
+-&gt; Map (Ptr NativeCell) (Bool, Double) -&gt; Maybe (Bool, Double)
+forall k a. Ord k =&gt; k -&gt; Map k a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Map.lookup</span></span><span> </span><span class="annot"><span class="annottext">Ptr NativeCell
+</span><a href="#local-6989586621681850917"><span class="hs-identifier hs-var">cell</span></a></span><span> </span><span class="annot"><span class="annottext">(Map (Ptr NativeCell) (Bool, Double) -&gt; Maybe (Bool, Double))
+-&gt; IO (Map (Ptr NativeCell) (Bool, Double))
+-&gt; IO (Maybe (Bool, Double))
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">IORef (Map (Ptr NativeCell) (Bool, Double))
+-&gt; IO (Map (Ptr NativeCell) (Bool, Double))
+forall a. IORef a -&gt; IO a
+</span><span class="hs-identifier hs-var">readIORef</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Cx -&gt; IORef (Map (Ptr NativeCell) (Bool, Double))
+</span><a href="Unison.Runtime.JIT.Estimate.html#cxMemo"><span class="hs-identifier hs-var">cxMemo</span></a></span><span> </span><span class="annot"><span class="annottext">Cx
+</span><a href="#local-6989586621681850910"><span class="hs-identifier hs-var">cx</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-134"></span><span>        </span><span class="hs-keyword">case</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Maybe (Bool, Double)
+</span><a href="#local-6989586621681850921"><span class="hs-identifier hs-var">known</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681850920"><span class="hs-identifier hs-var">verdict</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-135"></span><span>          </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621681850925"><span class="annot"><span class="annottext">(Bool, Double)
+</span><a href="#local-6989586621681850925"><span class="hs-identifier hs-var">v</span></a></span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">(Bool, Double) -&gt; IO (Bool, Double)
+forall a. a -&gt; IO a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">(Bool, Double)
+</span><a href="#local-6989586621681850925"><span class="hs-identifier hs-var">v</span></a></span><span>
+</span><span id="line-136"></span><span>          </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Maybe (Bool, Double)
+</span><span class="hs-identifier">_</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-137"></span><span>            </span><span id="local-6989586621681850926"><span class="annot"><span class="annottext">IORef Bool
+</span><a href="#local-6989586621681850926"><span class="hs-identifier hs-var">tainted</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Bool -&gt; IO (IORef Bool)
+forall a. a -&gt; IO (IORef a)
+</span><span class="hs-identifier hs-var">newIORef</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span>
+</span><span id="line-138"></span><span>            </span><span id="local-6989586621681850927"><span class="annot"><span class="annottext">Maybe Estimate
+</span><a href="#local-6989586621681850927"><span class="hs-identifier hs-var">path</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Cx -&gt; MSection -&gt; IO (Maybe Estimate)
+</span><a href="Unison.Runtime.JIT.Estimate.html#function"><span class="hs-identifier hs-var">function</span></a></span><span> </span><span class="annot"><span class="annottext">Cx
+</span><a href="#local-6989586621681850910"><span class="hs-identifier hs-var">cx</span></a></span><span> </span><span class="hs-special">{</span><span class="annot"><a href="Unison.Runtime.JIT.Estimate.html#cxSelf"><span class="hs-identifier hs-var">cxSelf</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="#local-6989586621681850917"><span class="hs-identifier hs-type">cell</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Unison.Runtime.JIT.Estimate.html#cxBusy"><span class="hs-identifier hs-var">cxBusy</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Set.insert</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Runtime.JIT.Estimate.html#cxSelf"><span class="hs-identifier hs-var">cxSelf</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681850910"><span class="hs-identifier hs-type">cx</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Runtime.JIT.Estimate.html#cxBusy"><span class="hs-identifier hs-var">cxBusy</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681850910"><span class="hs-identifier hs-type">cx</span></a></span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><a href="Unison.Runtime.JIT.Estimate.html#cxTainted"><span class="hs-identifier hs-var">cxTainted</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="#local-6989586621681850926"><span class="hs-identifier hs-type">tainted</span></a></span><span class="hs-special">}</span><span> </span><span class="annot"><span class="annottext">MSection
+</span><a href="#local-6989586621681850916"><span class="hs-identifier hs-var">entry</span></a></span><span>
+</span><span id="line-139"></span><span>            </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621681850929"><span class="annot"><span class="annottext">v :: (Bool, Double)
+</span><a href="#local-6989586621681850929"><span class="hs-identifier hs-var hs-var">v</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Config -&gt; Maybe Estimate -&gt; Bool
+</span><a href="Unison.Runtime.JIT.Estimate.html#worth"><span class="hs-identifier hs-var">worth</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Cx -&gt; Config
+</span><a href="Unison.Runtime.JIT.Estimate.html#cxConfig"><span class="hs-identifier hs-var">cxConfig</span></a></span><span> </span><span class="annot"><span class="annottext">Cx
+</span><a href="#local-6989586621681850910"><span class="hs-identifier hs-var">cx</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Maybe Estimate
+</span><a href="#local-6989586621681850927"><span class="hs-identifier hs-var">path</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Maybe Estimate -&gt; Double
+</span><a href="Unison.Runtime.JIT.Estimate.html#exiting"><span class="hs-identifier hs-var">exiting</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe Estimate
+</span><a href="#local-6989586621681850927"><span class="hs-identifier hs-var">path</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-140"></span><span>            </span><span id="local-6989586621681850930"><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621681850930"><span class="hs-identifier hs-var">t</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">IORef Bool -&gt; IO Bool
+forall a. IORef a -&gt; IO a
+</span><span class="hs-identifier hs-var">readIORef</span></span><span> </span><span class="annot"><span class="annottext">IORef Bool
+</span><a href="#local-6989586621681850926"><span class="hs-identifier hs-var">tainted</span></a></span><span>
+</span><span id="line-141"></span><span>            </span><span class="annot"><span class="annottext">Bool -&gt; IO () -&gt; IO ()
+forall (f :: * -&gt; *). Applicative f =&gt; Bool -&gt; f () -&gt; f ()
+</span><span class="hs-identifier hs-var">when</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621681850930"><span class="hs-identifier hs-var">t</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">IORef Bool -&gt; Bool -&gt; IO ()
+forall a. IORef a -&gt; a -&gt; IO ()
+</span><span class="hs-identifier hs-var">writeIORef</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Cx -&gt; IORef Bool
+</span><a href="Unison.Runtime.JIT.Estimate.html#cxTainted"><span class="hs-identifier hs-var">cxTainted</span></a></span><span> </span><span class="annot"><span class="annottext">Cx
+</span><a href="#local-6989586621681850910"><span class="hs-identifier hs-var">cx</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span class="hs-special">)</span><span>
+</span><span id="line-142"></span><span>            </span><span class="annot"><span class="annottext">Bool -&gt; IO () -&gt; IO ()
+forall (f :: * -&gt; *). Applicative f =&gt; Bool -&gt; f () -&gt; f ()
+</span><span class="hs-identifier hs-var">unless</span></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621681850930"><span class="hs-identifier hs-var">t</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Ptr NativeCell -&gt; Int -&gt; IO ()
+</span><a href="Unison.Runtime.MCode.html#writeNativeVerdict"><span class="hs-identifier hs-var">writeNativeVerdict</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr NativeCell
+</span><a href="#local-6989586621681850917"><span class="hs-identifier hs-var">cell</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Config -&gt; Maybe Estimate -&gt; Int
+</span><a href="Unison.Runtime.JIT.Estimate.html#verdictOf"><span class="hs-identifier hs-var">verdictOf</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Cx -&gt; Config
+</span><a href="Unison.Runtime.JIT.Estimate.html#cxConfig"><span class="hs-identifier hs-var">cxConfig</span></a></span><span> </span><span class="annot"><span class="annottext">Cx
+</span><a href="#local-6989586621681850910"><span class="hs-identifier hs-var">cx</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Maybe Estimate
+</span><a href="#local-6989586621681850927"><span class="hs-identifier hs-var">path</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-143"></span><span>            </span><span class="annot"><span class="annottext">IORef (Map (Ptr NativeCell) (Bool, Double))
+-&gt; (Map (Ptr NativeCell) (Bool, Double)
+    -&gt; Map (Ptr NativeCell) (Bool, Double))
+-&gt; IO ()
+forall a. IORef a -&gt; (a -&gt; a) -&gt; IO ()
+</span><span class="hs-identifier hs-var">modifyIORef'</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Cx -&gt; IORef (Map (Ptr NativeCell) (Bool, Double))
+</span><a href="Unison.Runtime.JIT.Estimate.html#cxMemo"><span class="hs-identifier hs-var">cxMemo</span></a></span><span> </span><span class="annot"><span class="annottext">Cx
+</span><a href="#local-6989586621681850910"><span class="hs-identifier hs-var">cx</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Ptr NativeCell
+-&gt; (Bool, Double)
+-&gt; Map (Ptr NativeCell) (Bool, Double)
+-&gt; Map (Ptr NativeCell) (Bool, Double)
+forall k a. Ord k =&gt; k -&gt; a -&gt; Map k a -&gt; Map k a
+</span><span class="hs-identifier hs-var">Map.insert</span></span><span> </span><span class="annot"><span class="annottext">Ptr NativeCell
+</span><a href="#local-6989586621681850917"><span class="hs-identifier hs-var">cell</span></a></span><span> </span><span class="annot"><span class="annottext">(Bool, Double)
+</span><a href="#local-6989586621681850929"><span class="hs-identifier hs-var">v</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-144"></span><span>            </span><span class="hs-identifier">pure</span><span> </span><span class="annot"><span class="annottext">(Bool, Double)
+</span><a href="#local-6989586621681850929"><span class="hs-identifier hs-var">v</span></a></span><span>
+</span><span id="line-145"></span><span>          </span><span class="annot"><span class="annottext">(Maybe (Bool, Double), Int)
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">(Bool, Double) -&gt; IO (Bool, Double)
+forall a. a -&gt; IO a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681850920"><span class="hs-identifier hs-var">verdict</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Integral a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">`mod`</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">4</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">/=</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">2</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Int -&gt; Double
+forall a b. (Integral a, Num b) =&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">fromIntegral</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681850920"><span class="hs-identifier hs-var">verdict</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Integral a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">`div`</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">4</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Double -&gt; Double -&gt; Double
+forall a. Fractional a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">/</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><span class="hs-number">100</span></span><span class="hs-special">)</span><span>
+</span><span id="line-146"></span><span>
+</span><span id="line-147"></span><span class="hs-comment">-- | The estimate for the paths through a section, following what the code</span><span>
+</span><span id="line-148"></span><span class="hs-comment">-- generator does with each node ('genSection'). Nothing: no path returns.</span><span>
+</span><span id="line-149"></span><span class="annot"><a href="Unison.Runtime.JIT.Estimate.html#walk"><span class="hs-identifier hs-type">walk</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="Unison.Runtime.JIT.Estimate.html#Cx"><span class="hs-identifier hs-type">Cx</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="Unison.Runtime.Stack.html#MSection"><span class="hs-identifier hs-type">MSection</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Maybe</span></span><span> </span><span class="annot"><a href="Unison.Runtime.JIT.Estimate.html#Estimate"><span class="hs-identifier hs-type">Estimate</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-150"></span><span id="walk"><span class="annot"><span class="annottext">walk :: Cx -&gt; MSection -&gt; IO (Maybe Estimate)
+</span><a href="Unison.Runtime.JIT.Estimate.html#walk"><span class="hs-identifier hs-var hs-var">walk</span></a></span></span><span> </span><span id="local-6989586621681850937"><span class="annot"><span class="annottext">Cx
+</span><a href="#local-6989586621681850937"><span class="hs-identifier hs-var">cx</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-151"></span><span>  </span><span class="annot"><a href="Unison.Runtime.MCode.html#Yield"><span class="hs-identifier hs-type">Yield</span></a></span><span> </span><span class="annot"><span class="annottext">Args
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Maybe Estimate -&gt; IO (Maybe Estimate)
+forall a. a -&gt; IO a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Estimate -&gt; Maybe Estimate
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">Estimate
+</span><a href="Unison.Runtime.JIT.Estimate.html#simple"><span class="hs-identifier hs-var">simple</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-152"></span><span>  </span><span class="annot"><a href="Unison.Runtime.MCode.html#Die"><span class="hs-identifier hs-type">Die</span></a></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Maybe Estimate -&gt; IO (Maybe Estimate)
+forall a. a -&gt; IO a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">Maybe Estimate
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-153"></span><span>  </span><span class="annot"><span class="annottext">MSection
+</span><a href="Unison.Runtime.MCode.html#Exit"><span class="hs-identifier hs-var">Exit</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Maybe Estimate -&gt; IO (Maybe Estimate)
+forall a. a -&gt; IO a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">Maybe Estimate
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-154"></span><span>  </span><span class="annot"><a href="Unison.Runtime.MCode.html#Ins"><span class="hs-identifier hs-type">Ins</span></a></span><span> </span><span id="local-6989586621681850942"><span class="annot"><span class="annottext">GInstr (RComb Val)
+</span><a href="#local-6989586621681850942"><span class="hs-identifier hs-var">i</span></a></span></span><span> </span><span id="local-6989586621681850943"><span class="annot"><span class="annottext">MSection
+</span><a href="#local-6989586621681850943"><span class="hs-identifier hs-var">rest</span></a></span></span><span>
+</span><span id="line-155"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Switches -&gt; GInstr (RComb Val) -&gt; MSection -&gt; Bool
+</span><a href="Unison.Runtime.JIT.Codegen.html#instrNativeIn"><span class="hs-identifier hs-var">instrNativeIn</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Cx -&gt; Switches
+</span><a href="Unison.Runtime.JIT.Estimate.html#cxSwitches"><span class="hs-identifier hs-var">cxSwitches</span></a></span><span> </span><span class="annot"><span class="annottext">Cx
+</span><a href="#local-6989586621681850937"><span class="hs-identifier hs-var">cx</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">GInstr (RComb Val)
+</span><a href="#local-6989586621681850942"><span class="hs-identifier hs-var">i</span></a></span><span> </span><span class="annot"><span class="annottext">MSection
+</span><a href="#local-6989586621681850943"><span class="hs-identifier hs-var">rest</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">(Estimate -&gt; Estimate) -&gt; Maybe Estimate -&gt; Maybe Estimate
+forall a b. (a -&gt; b) -&gt; Maybe a -&gt; Maybe b
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Estimate -&gt; Estimate -&gt; Estimate
+</span><a href="Unison.Runtime.JIT.Estimate.html#plus"><span class="hs-identifier hs-var">plus</span></a></span><span> </span><span class="annot"><span class="annottext">Estimate
+</span><a href="Unison.Runtime.JIT.Estimate.html#simple"><span class="hs-identifier hs-var">simple</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(Maybe Estimate -&gt; Maybe Estimate)
+-&gt; IO (Maybe Estimate) -&gt; IO (Maybe Estimate)
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">Cx -&gt; MSection -&gt; IO (Maybe Estimate)
+</span><a href="Unison.Runtime.JIT.Estimate.html#walk"><span class="hs-identifier hs-var">walk</span></a></span><span> </span><span class="annot"><span class="annottext">Cx
+</span><a href="#local-6989586621681850937"><span class="hs-identifier hs-var">cx</span></a></span><span> </span><span class="annot"><span class="annottext">MSection
+</span><a href="#local-6989586621681850943"><span class="hs-identifier hs-var">rest</span></a></span><span>
+</span><span id="line-156"></span><span>    </span><span class="hs-comment">-- a call-out: the interpreter runs the instruction, native code goes on</span><span>
+</span><span id="line-157"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">GInstr (RComb Val) -&gt; Maybe Int
+forall comb. GInstr comb -&gt; Maybe Int
+</span><a href="Unison.Runtime.MCode.html#pushCount"><span class="hs-identifier hs-var">pushCount</span></a></span><span> </span><span class="annot"><span class="annottext">GInstr (RComb Val)
+</span><a href="#local-6989586621681850942"><span class="hs-identifier hs-var">i</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">GInstr (RComb Val) -&gt; MSection -&gt; Bool
+</span><a href="Unison.Runtime.JIT.Codegen.html#callOutWorthwhile"><span class="hs-identifier hs-var">callOutWorthwhile</span></a></span><span> </span><span class="annot"><span class="annottext">GInstr (RComb Val)
+</span><a href="#local-6989586621681850942"><span class="hs-identifier hs-var">i</span></a></span><span> </span><span class="annot"><span class="annottext">MSection
+</span><a href="#local-6989586621681850943"><span class="hs-identifier hs-var">rest</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">(Estimate -&gt; Estimate) -&gt; Maybe Estimate -&gt; Maybe Estimate
+forall a b. (a -&gt; b) -&gt; Maybe a -&gt; Maybe b
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Estimate -&gt; Estimate -&gt; Estimate
+</span><a href="Unison.Runtime.JIT.Estimate.html#plus"><span class="hs-identifier hs-var">plus</span></a></span><span> </span><span class="annot"><span class="annottext">Estimate
+</span><a href="Unison.Runtime.JIT.Estimate.html#exit"><span class="hs-identifier hs-var">exit</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(Maybe Estimate -&gt; Maybe Estimate)
+-&gt; IO (Maybe Estimate) -&gt; IO (Maybe Estimate)
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">Cx -&gt; MSection -&gt; IO (Maybe Estimate)
+</span><a href="Unison.Runtime.JIT.Estimate.html#walk"><span class="hs-identifier hs-var">walk</span></a></span><span> </span><span class="annot"><span class="annottext">Cx
+</span><a href="#local-6989586621681850937"><span class="hs-identifier hs-var">cx</span></a></span><span> </span><span class="annot"><span class="annottext">MSection
+</span><a href="#local-6989586621681850943"><span class="hs-identifier hs-var">rest</span></a></span><span>
+</span><span id="line-158"></span><span>    </span><span class="hs-comment">-- the interpreter takes the rest of the function</span><span>
+</span><span id="line-159"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Maybe Estimate -&gt; IO (Maybe Estimate)
+forall a. a -&gt; IO a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Estimate -&gt; Maybe Estimate
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">Estimate
+</span><a href="Unison.Runtime.JIT.Estimate.html#exit"><span class="hs-identifier hs-var">exit</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-160"></span><span>  </span><span class="annot"><a href="Unison.Runtime.MCode.html#Match"><span class="hs-identifier hs-type">Match</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621681850946"><span class="annot"><span class="annottext">GBranch (RComb Val)
+</span><a href="#local-6989586621681850946"><span class="hs-identifier hs-var">br</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">GBranch (RComb Val) -&gt; IO (Maybe Estimate)
+</span><a href="#local-6989586621681850947"><span class="hs-identifier hs-var">branch</span></a></span><span> </span><span class="annot"><span class="annottext">GBranch (RComb Val)
+</span><a href="#local-6989586621681850946"><span class="hs-identifier hs-var">br</span></a></span><span>
+</span><span id="line-161"></span><span>  </span><span class="annot"><a href="Unison.Runtime.MCode.html#NMatch"><span class="hs-identifier hs-type">NMatch</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe Reference
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621681850949"><span class="annot"><span class="annottext">GBranch (RComb Val)
+</span><a href="#local-6989586621681850949"><span class="hs-identifier hs-var">br</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">GBranch (RComb Val) -&gt; IO (Maybe Estimate)
+</span><a href="#local-6989586621681850947"><span class="hs-identifier hs-var">branch</span></a></span><span> </span><span class="annot"><span class="annottext">GBranch (RComb Val)
+</span><a href="#local-6989586621681850949"><span class="hs-identifier hs-var">br</span></a></span><span>
+</span><span id="line-162"></span><span>  </span><span class="annot"><a href="Unison.Runtime.MCode.html#DMatch"><span class="hs-identifier hs-type">DMatch</span></a></span><span> </span><span class="annot"><span class="annottext">Maybe Reference
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621681850951"><span class="annot"><span class="annottext">GBranch (RComb Val)
+</span><a href="#local-6989586621681850951"><span class="hs-identifier hs-var">br</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">GBranch (RComb Val) -&gt; IO (Maybe Estimate)
+</span><a href="#local-6989586621681850947"><span class="hs-identifier hs-var">branch</span></a></span><span> </span><span class="annot"><span class="annottext">GBranch (RComb Val)
+</span><a href="#local-6989586621681850951"><span class="hs-identifier hs-var">br</span></a></span><span>
+</span><span id="line-163"></span><span>  </span><span class="annot"><a href="Unison.Runtime.MCode.html#Call"><span class="hs-identifier hs-type">Call</span></a></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">CombIx
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621681850953"><span class="annot"><span class="annottext">RComb Val
+</span><a href="#local-6989586621681850953"><span class="hs-identifier hs-var">comb</span></a></span></span><span> </span><span id="local-6989586621681850954"><span class="annot"><span class="annottext">Args
+</span><a href="#local-6989586621681850954"><span class="hs-identifier hs-var">args</span></a></span></span><span>
+</span><span id="line-164"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">RComb Val -&gt; Args -&gt; Bool
+forall {val}. RComb val -&gt; Args -&gt; Bool
+</span><a href="#local-6989586621681850955"><span class="hs-identifier hs-var">constant</span></a></span><span> </span><span class="annot"><span class="annottext">RComb Val
+</span><a href="#local-6989586621681850953"><span class="hs-identifier hs-var">comb</span></a></span><span> </span><span class="annot"><span class="annottext">Args
+</span><a href="#local-6989586621681850954"><span class="hs-identifier hs-var">args</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Maybe Estimate -&gt; IO (Maybe Estimate)
+forall a. a -&gt; IO a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Estimate -&gt; Maybe Estimate
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Estimate -&gt; Estimate -&gt; Estimate
+</span><a href="Unison.Runtime.JIT.Estimate.html#plus"><span class="hs-identifier hs-var">plus</span></a></span><span> </span><span class="annot"><span class="annottext">Estimate
+</span><a href="Unison.Runtime.JIT.Estimate.html#simple"><span class="hs-identifier hs-var">simple</span></a></span><span> </span><span class="annot"><span class="annottext">Estimate
+</span><a href="Unison.Runtime.JIT.Estimate.html#simple"><span class="hs-identifier hs-var">simple</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-165"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">RComb Val -&gt; IO (Maybe Estimate)
+</span><a href="#local-6989586621681850956"><span class="hs-identifier hs-var">tailCall</span></a></span><span> </span><span class="annot"><span class="annottext">RComb Val
+</span><a href="#local-6989586621681850953"><span class="hs-identifier hs-var">comb</span></a></span><span>
+</span><span id="line-166"></span><span>  </span><span class="annot"><a href="Unison.Runtime.MCode.html#App"><span class="hs-identifier hs-type">App</span></a></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Runtime.MCode.html#Env"><span class="hs-identifier hs-type">MCode.Env</span></a></span><span> </span><span class="annot"><span class="annottext">CombIx
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621681850958"><span class="annot"><span class="annottext">RComb Val
+</span><a href="#local-6989586621681850958"><span class="hs-identifier hs-var">comb</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621681850959"><span class="annot"><span class="annottext">Args
+</span><a href="#local-6989586621681850959"><span class="hs-identifier hs-var">args</span></a></span></span><span>
+</span><span id="line-167"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">RComb Val -&gt; Args -&gt; Bool
+forall {val}. RComb val -&gt; Args -&gt; Bool
+</span><a href="#local-6989586621681850955"><span class="hs-identifier hs-var">constant</span></a></span><span> </span><span class="annot"><span class="annottext">RComb Val
+</span><a href="#local-6989586621681850958"><span class="hs-identifier hs-var">comb</span></a></span><span> </span><span class="annot"><span class="annottext">Args
+</span><a href="#local-6989586621681850959"><span class="hs-identifier hs-var">args</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Maybe Estimate -&gt; IO (Maybe Estimate)
+forall a. a -&gt; IO a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Estimate -&gt; Maybe Estimate
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Estimate -&gt; Estimate -&gt; Estimate
+</span><a href="Unison.Runtime.JIT.Estimate.html#plus"><span class="hs-identifier hs-var">plus</span></a></span><span> </span><span class="annot"><span class="annottext">Estimate
+</span><a href="Unison.Runtime.JIT.Estimate.html#simple"><span class="hs-identifier hs-var">simple</span></a></span><span> </span><span class="annot"><span class="annottext">Estimate
+</span><a href="Unison.Runtime.JIT.Estimate.html#simple"><span class="hs-identifier hs-var">simple</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-168"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">RComb Val -&gt; IO (Maybe Estimate)
+</span><a href="#local-6989586621681850956"><span class="hs-identifier hs-var">tailCall</span></a></span><span> </span><span class="annot"><span class="annottext">RComb Val
+</span><a href="#local-6989586621681850958"><span class="hs-identifier hs-var">comb</span></a></span><span>
+</span><span id="line-169"></span><span>  </span><span class="annot"><a href="Unison.Runtime.MCode.html#App"><span class="hs-identifier hs-type">App</span></a></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Runtime.MCode.html#Stk"><span class="hs-identifier hs-type">Stk</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Args
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Maybe Estimate -&gt; IO (Maybe Estimate)
+forall a. a -&gt; IO a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Estimate -&gt; Maybe Estimate
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">Estimate
+</span><a href="Unison.Runtime.JIT.Estimate.html#call"><span class="hs-identifier hs-var">call</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-comment">-- a function value: nothing is known about it</span><span>
+</span><span id="line-170"></span><span>  </span><span class="hs-comment">-- a request: a call of the handler, a function value found at run time</span><span>
+</span><span id="line-171"></span><span>  </span><span class="annot"><a href="Unison.Runtime.MCode.html#App"><span class="hs-identifier hs-type">App</span></a></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Runtime.MCode.html#Dyn"><span class="hs-identifier hs-type">Dyn</span></a></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Args
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Switches -&gt; Bool
+</span><a href="Unison.Runtime.JIT.Codegen.html#swRequests"><span class="hs-identifier hs-var">swRequests</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Cx -&gt; Switches
+</span><a href="Unison.Runtime.JIT.Estimate.html#cxSwitches"><span class="hs-identifier hs-var">cxSwitches</span></a></span><span> </span><span class="annot"><span class="annottext">Cx
+</span><a href="#local-6989586621681850937"><span class="hs-identifier hs-var">cx</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Maybe Estimate -&gt; IO (Maybe Estimate)
+forall a. a -&gt; IO a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Estimate -&gt; Maybe Estimate
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">Estimate
+</span><a href="Unison.Runtime.JIT.Estimate.html#call"><span class="hs-identifier hs-var">call</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-172"></span><span>  </span><span class="hs-comment">-- a request match: the pure arm and every ability's arms</span><span>
+</span><span id="line-173"></span><span>  </span><span class="annot"><a href="Unison.Runtime.MCode.html#RMatch"><span class="hs-identifier hs-type">RMatch</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621681850964"><span class="annot"><span class="annottext">MSection
+</span><a href="#local-6989586621681850964"><span class="hs-identifier hs-var">pu</span></a></span></span><span> </span><span id="local-6989586621681850965"><span class="annot"><span class="annottext">EnumMap Word64 (GBranch (RComb Val))
+</span><a href="#local-6989586621681850965"><span class="hs-identifier hs-var">br</span></a></span></span><span>
+</span><span id="line-174"></span><span>    </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Switches -&gt; Bool
+</span><a href="Unison.Runtime.JIT.Codegen.html#swRequests"><span class="hs-identifier hs-var">swRequests</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Cx -&gt; Switches
+</span><a href="Unison.Runtime.JIT.Estimate.html#cxSwitches"><span class="hs-identifier hs-var">cxSwitches</span></a></span><span> </span><span class="annot"><span class="annottext">Cx
+</span><a href="#local-6989586621681850937"><span class="hs-identifier hs-var">cx</span></a></span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621681850966"><span class="annot"><span class="annottext">[[MSection]]
+</span><a href="#local-6989586621681850966"><span class="hs-identifier hs-var">arms</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">(GBranch (RComb Val) -&gt; Maybe [MSection])
+-&gt; [GBranch (RComb Val)] -&gt; Maybe [[MSection]]
+forall (t :: * -&gt; *) (f :: * -&gt; *) a b.
+(Traversable t, Applicative f) =&gt;
+(a -&gt; f b) -&gt; t a -&gt; f (t b)
+forall (f :: * -&gt; *) a b.
+Applicative f =&gt;
+(a -&gt; f b) -&gt; [a] -&gt; f [b]
+</span><span class="hs-identifier hs-var">traverse</span></span><span> </span><span class="annot"><span class="annottext">GBranch (RComb Val) -&gt; Maybe [MSection]
+forall {comb}. GBranch comb -&gt; Maybe [GSection comb]
+</span><a href="#local-6989586621681850968"><span class="hs-identifier hs-var">armsOf</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">((Word64, GBranch (RComb Val)) -&gt; GBranch (RComb Val))
+-&gt; [(Word64, GBranch (RComb Val))] -&gt; [GBranch (RComb Val)]
+forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+</span><span class="hs-identifier hs-var">map</span></span><span> </span><span class="annot"><span class="annottext">(Word64, GBranch (RComb Val)) -&gt; GBranch (RComb Val)
+forall a b. (a, b) -&gt; b
+</span><span class="hs-identifier hs-var">snd</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">EnumMap Word64 (GBranch (RComb Val))
+-&gt; [(Word64, GBranch (RComb Val))]
+forall k a. EnumKey k =&gt; EnumMap k a -&gt; [(k, a)]
+</span><span class="hs-identifier hs-var">EC.mapToList</span></span><span> </span><span class="annot"><span class="annottext">EnumMap Word64 (GBranch (RComb Val))
+</span><a href="#local-6989586621681850965"><span class="hs-identifier hs-var">br</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">[MSection] -&gt; IO (Maybe Estimate)
+</span><a href="#local-6989586621681850971"><span class="hs-identifier hs-var">weigh</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">MSection
+</span><a href="#local-6989586621681850964"><span class="hs-identifier hs-var">pu</span></a></span><span> </span><span class="annot"><span class="annottext">MSection -&gt; [MSection] -&gt; [MSection]
+forall a. a -&gt; [a] -&gt; [a]
+</span><span class="hs-glyph hs-var">:</span></span><span> </span><span class="annot"><span class="annottext">[[MSection]] -&gt; [MSection]
+forall (t :: * -&gt; *) a. Foldable t =&gt; t [a] -&gt; [a]
+</span><span class="hs-identifier hs-var">concat</span></span><span> </span><span class="annot"><span class="annottext">[[MSection]]
+</span><a href="#local-6989586621681850966"><span class="hs-identifier hs-var">arms</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-175"></span><span>  </span><span class="annot"><a href="Unison.Runtime.MCode.html#Let"><span class="hs-identifier hs-type">Let</span></a></span><span> </span><span id="local-6989586621681850974"><span class="annot"><span class="annottext">MSection
+</span><a href="#local-6989586621681850974"><span class="hs-identifier hs-var">b</span></a></span></span><span> </span><span class="annot"><span class="annottext">CombIx
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621681850975"><span class="annot"><span class="annottext">MSection
+</span><a href="#local-6989586621681850975"><span class="hs-identifier hs-var">body</span></a></span></span><span> </span><span class="annot"><span class="annottext">Ptr NativeCell
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-176"></span><span>    </span><span class="annot"><span class="annottext">MSection -&gt; IO (Maybe Estimate)
+</span><a href="#local-6989586621681850976"><span class="hs-identifier hs-var">binding</span></a></span><span> </span><span class="annot"><span class="annottext">MSection
+</span><a href="#local-6989586621681850974"><span class="hs-identifier hs-var">b</span></a></span><span> </span><span class="annot"><span class="annottext">IO (Maybe Estimate)
+-&gt; (Maybe Estimate -&gt; IO (Maybe Estimate)) -&gt; IO (Maybe Estimate)
+forall a b. IO a -&gt; (a -&gt; IO b) -&gt; IO b
+forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; (a -&gt; m b) -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;=</span></span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-177"></span><span>      </span><span class="annot"><span class="annottext">Maybe Estimate
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Maybe Estimate -&gt; IO (Maybe Estimate)
+forall a. a -&gt; IO a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">Maybe Estimate
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-178"></span><span>      </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621681850977"><span class="annot"><span class="annottext">Estimate
+</span><a href="#local-6989586621681850977"><span class="hs-identifier hs-var">e</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">(Estimate -&gt; Estimate) -&gt; Maybe Estimate -&gt; Maybe Estimate
+forall a b. (a -&gt; b) -&gt; Maybe a -&gt; Maybe b
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Estimate -&gt; Estimate -&gt; Estimate
+</span><a href="Unison.Runtime.JIT.Estimate.html#plus"><span class="hs-identifier hs-var">plus</span></a></span><span> </span><span class="annot"><span class="annottext">Estimate
+</span><a href="#local-6989586621681850977"><span class="hs-identifier hs-var">e</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(Maybe Estimate -&gt; Maybe Estimate)
+-&gt; IO (Maybe Estimate) -&gt; IO (Maybe Estimate)
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">Cx -&gt; MSection -&gt; IO (Maybe Estimate)
+</span><a href="Unison.Runtime.JIT.Estimate.html#walk"><span class="hs-identifier hs-var">walk</span></a></span><span> </span><span class="annot"><span class="annottext">Cx
+</span><a href="#local-6989586621681850937"><span class="hs-identifier hs-var">cx</span></a></span><span> </span><span class="annot"><span class="annottext">MSection
+</span><a href="#local-6989586621681850975"><span class="hs-identifier hs-var">body</span></a></span><span>
+</span><span id="line-179"></span><span>  </span><span class="hs-comment">-- the interpreter takes these: a jump to a continuation, a request with</span><span>
+</span><span id="line-180"></span><span>  </span><span class="hs-comment">-- requests disabled, a request match with requests disabled or with arms</span><span>
+</span><span id="line-181"></span><span>  </span><span class="hs-comment">-- the generator has no shape for</span><span>
+</span><span id="line-182"></span><span>  </span><span class="annot"><a href="Unison.Runtime.MCode.html#Jump"><span class="hs-identifier hs-type">Jump</span></a></span><span> </span><span class="hs-special">{</span><span class="hs-special">}</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Maybe Estimate -&gt; IO (Maybe Estimate)
+forall a. a -&gt; IO a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Estimate -&gt; Maybe Estimate
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">Estimate
+</span><a href="Unison.Runtime.JIT.Estimate.html#exit"><span class="hs-identifier hs-var">exit</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-183"></span><span>  </span><span class="annot"><a href="Unison.Runtime.MCode.html#App"><span class="hs-identifier hs-type">App</span></a></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Runtime.MCode.html#Dyn"><span class="hs-identifier hs-type">Dyn</span></a></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Args
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Maybe Estimate -&gt; IO (Maybe Estimate)
+forall a. a -&gt; IO a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Estimate -&gt; Maybe Estimate
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">Estimate
+</span><a href="Unison.Runtime.JIT.Estimate.html#exit"><span class="hs-identifier hs-var">exit</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-184"></span><span>  </span><span class="annot"><a href="Unison.Runtime.MCode.html#RMatch"><span class="hs-identifier hs-type">RMatch</span></a></span><span> </span><span class="hs-special">{</span><span class="hs-special">}</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Maybe Estimate -&gt; IO (Maybe Estimate)
+forall a. a -&gt; IO a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Estimate -&gt; Maybe Estimate
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">Estimate
+</span><a href="Unison.Runtime.JIT.Estimate.html#exit"><span class="hs-identifier hs-var">exit</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-185"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-186"></span><span>    </span><span id="local-6989586621681850979"><span class="annot"><span class="annottext">isSelf :: RComb Val -&gt; Bool
+</span><a href="#local-6989586621681850979"><span class="hs-identifier hs-var hs-var">isSelf</span></a></span></span><span> </span><span id="local-6989586621681850980"><span class="annot"><span class="annottext">RComb Val
+</span><a href="#local-6989586621681850980"><span class="hs-identifier hs-var">comb</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">RComb Val -&gt; GComb Val (RComb Val)
+forall val. RComb val -&gt; GComb val (RComb val)
+</span><a href="Unison.Runtime.MCode.html#unRComb"><span class="hs-identifier hs-var">unRComb</span></a></span><span> </span><span class="annot"><span class="annottext">RComb Val
+</span><a href="#local-6989586621681850980"><span class="hs-identifier hs-var">comb</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-187"></span><span>      </span><span class="annot"><a href="Unison.Runtime.MCode.html#Comb"><span class="hs-identifier hs-type">Comb</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Runtime.MCode.html#LamI"><span class="hs-identifier hs-type">LamI</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">MSection
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621681850981"><span class="annot"><span class="annottext">Ptr NativeCell
+</span><a href="#local-6989586621681850981"><span class="hs-identifier hs-var">cell</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Ptr NativeCell
+</span><a href="#local-6989586621681850981"><span class="hs-identifier hs-var">cell</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr NativeCell -&gt; Ptr NativeCell -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">==</span></span><span> </span><span class="annot"><span class="annottext">Cx -&gt; Ptr NativeCell
+</span><a href="Unison.Runtime.JIT.Estimate.html#cxSelf"><span class="hs-identifier hs-var">cxSelf</span></a></span><span> </span><span class="annot"><span class="annottext">Cx
+</span><a href="#local-6989586621681850937"><span class="hs-identifier hs-var">cx</span></a></span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Bool -&gt; Bool
+</span><span class="hs-operator hs-var">&amp;&amp;</span></span><span> </span><span class="annot"><span class="annottext">Ptr NativeCell
+</span><a href="#local-6989586621681850981"><span class="hs-identifier hs-var">cell</span></a></span><span> </span><span class="annot"><span class="annottext">Ptr NativeCell -&gt; Ptr NativeCell -&gt; Bool
+forall a. Eq a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">/=</span></span><span> </span><span class="annot"><span class="annottext">Ptr NativeCell
+</span><a href="Unison.Runtime.MCode.html#noNativeCell"><span class="hs-identifier hs-var">noNativeCell</span></a></span><span>
+</span><span id="line-188"></span><span>      </span><span class="annot"><span class="annottext">GComb Val (RComb Val)
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span>
+</span><span id="line-189"></span><span>    </span><span class="hs-comment">-- A tail call leaves nothing of the caller behind, so what the callee</span><span>
+</span><span id="line-190"></span><span>    </span><span class="hs-comment">-- does afterwards is not the caller's concern.</span><span>
+</span><span id="line-191"></span><span>    </span><span id="local-6989586621681850956"><span class="annot"><span class="annottext">tailCall :: RComb Val -&gt; IO (Maybe Estimate)
+</span><a href="#local-6989586621681850956"><span class="hs-identifier hs-var hs-var">tailCall</span></a></span></span><span> </span><span id="local-6989586621681850983"><span class="annot"><span class="annottext">RComb Val
+</span><a href="#local-6989586621681850983"><span class="hs-identifier hs-var">comb</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-192"></span><span>      </span><span class="hs-special">(</span><span id="local-6989586621681850984"><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621681850984"><span class="hs-identifier hs-var">ok</span></a></span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Double
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Cx -&gt; RComb Val -&gt; IO (Bool, Double)
+</span><a href="Unison.Runtime.JIT.Estimate.html#native"><span class="hs-identifier hs-var">native</span></a></span><span> </span><span class="annot"><span class="annottext">Cx
+</span><a href="#local-6989586621681850937"><span class="hs-identifier hs-var">cx</span></a></span><span> </span><span class="annot"><span class="annottext">RComb Val
+</span><a href="#local-6989586621681850983"><span class="hs-identifier hs-var">comb</span></a></span><span>
+</span><span id="line-193"></span><span>      </span><span class="annot"><span class="annottext">Maybe Estimate -&gt; IO (Maybe Estimate)
+forall a. a -&gt; IO a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Estimate -&gt; Maybe Estimate
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="hs-special">(</span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621681850984"><span class="hs-identifier hs-var">ok</span></a></span><span> </span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="annottext">Estimate
+</span><a href="Unison.Runtime.JIT.Estimate.html#call"><span class="hs-identifier hs-var">call</span></a></span><span> </span><span class="hs-special">{</span><span class="annot"><a href="Unison.Runtime.JIT.Estimate.html#esRec"><span class="hs-identifier hs-var">esRec</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><a href="#local-6989586621681850979"><span class="hs-identifier hs-type">isSelf</span></a></span><span> </span><span class="annot"><a href="#local-6989586621681850983"><span class="hs-identifier hs-type">comb</span></a></span><span class="hs-special">}</span><span> </span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="annottext">Estimate
+</span><a href="Unison.Runtime.JIT.Estimate.html#exit"><span class="hs-identifier hs-var">exit</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-194"></span><span>    </span><span class="hs-comment">-- A call that returns here. If the callee exits, this function's</span><span>
+</span><span id="line-195"></span><span>    </span><span class="hs-comment">-- frame is unwound with it and the rest of the function is entered</span><span>
+</span><span id="line-196"></span><span>    </span><span class="hs-comment">-- again through the trampoline: that is an exit for this function too.</span><span>
+</span><span id="line-197"></span><span>    </span><span id="local-6989586621681850985"><span class="annot"><span class="annottext">returningCall :: RComb Val -&gt; IO (Maybe Estimate)
+</span><a href="#local-6989586621681850985"><span class="hs-identifier hs-var hs-var">returningCall</span></a></span></span><span> </span><span id="local-6989586621681850986"><span class="annot"><span class="annottext">RComb Val
+</span><a href="#local-6989586621681850986"><span class="hs-identifier hs-var">comb</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-198"></span><span>      </span><span class="hs-special">(</span><span id="local-6989586621681850987"><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621681850987"><span class="hs-identifier hs-var">ok</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621681850988"><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621681850988"><span class="hs-identifier hs-var">exits</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">Cx -&gt; RComb Val -&gt; IO (Bool, Double)
+</span><a href="Unison.Runtime.JIT.Estimate.html#native"><span class="hs-identifier hs-var">native</span></a></span><span> </span><span class="annot"><span class="annottext">Cx
+</span><a href="#local-6989586621681850937"><span class="hs-identifier hs-var">cx</span></a></span><span> </span><span class="annot"><span class="annottext">RComb Val
+</span><a href="#local-6989586621681850986"><span class="hs-identifier hs-var">comb</span></a></span><span>
+</span><span id="line-199"></span><span>      </span><span class="annot"><span class="annottext">Maybe Estimate -&gt; IO (Maybe Estimate)
+forall a. a -&gt; IO a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Estimate -&gt; Maybe Estimate
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="hs-special">(</span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><a href="#local-6989586621681850987"><span class="hs-identifier hs-var">ok</span></a></span><span> </span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="annottext">Double -&gt; Double -&gt; Bool -&gt; Estimate
+</span><a href="Unison.Runtime.JIT.Estimate.html#Estimate"><span class="hs-identifier hs-var">Estimate</span></a></span><span> </span><span class="annot"><span class="annottext">Double
+</span><span class="hs-number">3</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621681850988"><span class="hs-identifier hs-var">exits</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">RComb Val -&gt; Bool
+</span><a href="#local-6989586621681850979"><span class="hs-identifier hs-var">isSelf</span></a></span><span> </span><span class="annot"><span class="annottext">RComb Val
+</span><a href="#local-6989586621681850986"><span class="hs-identifier hs-var">comb</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="annottext">Estimate
+</span><a href="Unison.Runtime.JIT.Estimate.html#exit"><span class="hs-identifier hs-var">exit</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-200"></span><span>    </span><span class="hs-comment">-- a combinator used as a value is a constant, and so is a top-level</span><span>
+</span><span id="line-201"></span><span>    </span><span class="hs-comment">-- value that was evaluated when it was loaded</span><span>
+</span><span id="line-202"></span><span>    </span><span id="local-6989586621681850955"><span class="annot"><span class="annottext">constant :: RComb val -&gt; Args -&gt; Bool
+</span><a href="#local-6989586621681850955"><span class="hs-identifier hs-var hs-var">constant</span></a></span></span><span> </span><span id="local-6989586621681850992"><span class="annot"><span class="annottext">RComb val
+</span><a href="#local-6989586621681850992"><span class="hs-identifier hs-var">comb</span></a></span></span><span> </span><span id="local-6989586621681850993"><span class="annot"><span class="annottext">Args
+</span><a href="#local-6989586621681850993"><span class="hs-identifier hs-var">args</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">RComb val -&gt; GComb val (RComb val)
+forall val. RComb val -&gt; GComb val (RComb val)
+</span><a href="Unison.Runtime.MCode.html#unRComb"><span class="hs-identifier hs-var">unRComb</span></a></span><span> </span><span class="annot"><span class="annottext">RComb val
+</span><a href="#local-6989586621681850992"><span class="hs-identifier hs-var">comb</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Args
+</span><a href="#local-6989586621681850993"><span class="hs-identifier hs-var">args</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-203"></span><span>      </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Runtime.MCode.html#Comb"><span class="hs-identifier hs-type">Comb</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Runtime.MCode.html#LamI"><span class="hs-identifier hs-type">LamI</span></a></span><span> </span><span id="local-6989586621681850994"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681850994"><span class="hs-identifier hs-var">arity</span></a></span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">GSection (RComb val)
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">Ptr NativeCell
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Args
+</span><a href="Unison.Runtime.MCode.html#ZArgs"><span class="hs-identifier hs-var">ZArgs</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681850994"><span class="hs-identifier hs-var">arity</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Bool
+forall a. Ord a =&gt; a -&gt; a -&gt; Bool
+</span><span class="hs-operator hs-var">&gt;</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span>
+</span><span id="line-204"></span><span>      </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Runtime.MCode.html#CachedVal"><span class="hs-identifier hs-type">CachedVal</span></a></span><span> </span><span class="hs-special">{</span><span class="hs-special">}</span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">Args
+</span><a href="Unison.Runtime.MCode.html#ZArgs"><span class="hs-identifier hs-var">ZArgs</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span>
+</span><span id="line-205"></span><span>      </span><span class="annot"><span class="annottext">(GComb val (RComb val), Args)
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span>
+</span><span id="line-206"></span><span>    </span><span class="hs-comment">-- A binding that is a call is a native call if the callee is native,</span><span>
+</span><span id="line-207"></span><span>    </span><span class="hs-comment">-- and otherwise the interpreter's; either way native code continues</span><span>
+</span><span id="line-208"></span><span>    </span><span class="hs-comment">-- with the body. Other bindings are generated inline.</span><span>
+</span><span id="line-209"></span><span>    </span><span id="local-6989586621681850976"><span class="annot"><span class="annottext">binding :: MSection -&gt; IO (Maybe Estimate)
+</span><a href="#local-6989586621681850976"><span class="hs-identifier hs-var hs-var">binding</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-210"></span><span>      </span><span class="annot"><a href="Unison.Runtime.MCode.html#Call"><span class="hs-identifier hs-type">Call</span></a></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">CombIx
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621681850996"><span class="annot"><span class="annottext">RComb Val
+</span><a href="#local-6989586621681850996"><span class="hs-identifier hs-var">comb</span></a></span></span><span> </span><span id="local-6989586621681850997"><span class="annot"><span class="annottext">Args
+</span><a href="#local-6989586621681850997"><span class="hs-identifier hs-var">args</span></a></span></span><span>
+</span><span id="line-211"></span><span>        </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">RComb Val -&gt; Args -&gt; Bool
+forall {val}. RComb val -&gt; Args -&gt; Bool
+</span><a href="#local-6989586621681850955"><span class="hs-identifier hs-var">constant</span></a></span><span> </span><span class="annot"><span class="annottext">RComb Val
+</span><a href="#local-6989586621681850996"><span class="hs-identifier hs-var">comb</span></a></span><span> </span><span class="annot"><span class="annottext">Args
+</span><a href="#local-6989586621681850997"><span class="hs-identifier hs-var">args</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Maybe Estimate -&gt; IO (Maybe Estimate)
+forall a. a -&gt; IO a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Estimate -&gt; Maybe Estimate
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">Estimate
+</span><a href="Unison.Runtime.JIT.Estimate.html#simple"><span class="hs-identifier hs-var">simple</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-212"></span><span>        </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">RComb Val -&gt; IO (Maybe Estimate)
+</span><a href="#local-6989586621681850985"><span class="hs-identifier hs-var">returningCall</span></a></span><span> </span><span class="annot"><span class="annottext">RComb Val
+</span><a href="#local-6989586621681850996"><span class="hs-identifier hs-var">comb</span></a></span><span>
+</span><span id="line-213"></span><span>      </span><span class="annot"><a href="Unison.Runtime.MCode.html#App"><span class="hs-identifier hs-type">App</span></a></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Runtime.MCode.html#Env"><span class="hs-identifier hs-type">MCode.Env</span></a></span><span> </span><span class="annot"><span class="annottext">CombIx
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621681850998"><span class="annot"><span class="annottext">RComb Val
+</span><a href="#local-6989586621681850998"><span class="hs-identifier hs-var">comb</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621681850999"><span class="annot"><span class="annottext">Args
+</span><a href="#local-6989586621681850999"><span class="hs-identifier hs-var">args</span></a></span></span><span>
+</span><span id="line-214"></span><span>        </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">RComb Val -&gt; Args -&gt; Bool
+forall {val}. RComb val -&gt; Args -&gt; Bool
+</span><a href="#local-6989586621681850955"><span class="hs-identifier hs-var">constant</span></a></span><span> </span><span class="annot"><span class="annottext">RComb Val
+</span><a href="#local-6989586621681850998"><span class="hs-identifier hs-var">comb</span></a></span><span> </span><span class="annot"><span class="annottext">Args
+</span><a href="#local-6989586621681850999"><span class="hs-identifier hs-var">args</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Maybe Estimate -&gt; IO (Maybe Estimate)
+forall a. a -&gt; IO a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Estimate -&gt; Maybe Estimate
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">Estimate
+</span><a href="Unison.Runtime.JIT.Estimate.html#simple"><span class="hs-identifier hs-var">simple</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-215"></span><span>        </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">RComb Val -&gt; IO (Maybe Estimate)
+</span><a href="#local-6989586621681850985"><span class="hs-identifier hs-var">returningCall</span></a></span><span> </span><span class="annot"><span class="annottext">RComb Val
+</span><a href="#local-6989586621681850998"><span class="hs-identifier hs-var">comb</span></a></span><span>
+</span><span id="line-216"></span><span>      </span><span class="annot"><a href="Unison.Runtime.MCode.html#App"><span class="hs-identifier hs-type">App</span></a></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Runtime.MCode.html#Stk"><span class="hs-identifier hs-type">Stk</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Args
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Maybe Estimate -&gt; IO (Maybe Estimate)
+forall a. a -&gt; IO a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Estimate -&gt; Maybe Estimate
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">Estimate
+</span><a href="Unison.Runtime.JIT.Estimate.html#call"><span class="hs-identifier hs-var">call</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-217"></span><span>      </span><span class="annot"><a href="Unison.Runtime.MCode.html#App"><span class="hs-identifier hs-type">App</span></a></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Runtime.MCode.html#Dyn"><span class="hs-identifier hs-type">Dyn</span></a></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Args
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Switches -&gt; Bool
+</span><a href="Unison.Runtime.JIT.Codegen.html#swRequests"><span class="hs-identifier hs-var">swRequests</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Cx -&gt; Switches
+</span><a href="Unison.Runtime.JIT.Estimate.html#cxSwitches"><span class="hs-identifier hs-var">cxSwitches</span></a></span><span> </span><span class="annot"><span class="annottext">Cx
+</span><a href="#local-6989586621681850937"><span class="hs-identifier hs-var">cx</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Maybe Estimate -&gt; IO (Maybe Estimate)
+forall a. a -&gt; IO a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Estimate -&gt; Maybe Estimate
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">Estimate
+</span><a href="Unison.Runtime.JIT.Estimate.html#call"><span class="hs-identifier hs-var">call</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-218"></span><span>      </span><span id="local-6989586621681851000"><span class="annot"><span class="annottext">MSection
+</span><a href="#local-6989586621681851000"><span class="hs-identifier hs-var">b</span></a></span></span><span>
+</span><span id="line-219"></span><span>        </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Switches -&gt; MSection -&gt; Bool
+</span><a href="Unison.Runtime.JIT.Codegen.html#startsSupported"><span class="hs-identifier hs-var">startsSupported</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Cx -&gt; Switches
+</span><a href="Unison.Runtime.JIT.Estimate.html#cxSwitches"><span class="hs-identifier hs-var">cxSwitches</span></a></span><span> </span><span class="annot"><span class="annottext">Cx
+</span><a href="#local-6989586621681850937"><span class="hs-identifier hs-var">cx</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">MSection
+</span><a href="#local-6989586621681851000"><span class="hs-identifier hs-var">b</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">(Estimate -&gt; Estimate) -&gt; Maybe Estimate -&gt; Maybe Estimate
+forall a b. (a -&gt; b) -&gt; Maybe a -&gt; Maybe b
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Estimate -&gt; Estimate -&gt; Estimate
+</span><a href="Unison.Runtime.JIT.Estimate.html#plus"><span class="hs-identifier hs-var">plus</span></a></span><span> </span><span class="annot"><span class="annottext">Estimate
+</span><a href="Unison.Runtime.JIT.Estimate.html#call"><span class="hs-identifier hs-var">call</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">(Maybe Estimate -&gt; Maybe Estimate)
+-&gt; IO (Maybe Estimate) -&gt; IO (Maybe Estimate)
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">Cx -&gt; MSection -&gt; IO (Maybe Estimate)
+</span><a href="Unison.Runtime.JIT.Estimate.html#walk"><span class="hs-identifier hs-var">walk</span></a></span><span> </span><span class="annot"><span class="annottext">Cx
+</span><a href="#local-6989586621681850937"><span class="hs-identifier hs-var">cx</span></a></span><span> </span><span class="annot"><span class="annottext">MSection
+</span><a href="#local-6989586621681851000"><span class="hs-identifier hs-var">b</span></a></span><span>
+</span><span id="line-220"></span><span>        </span><span class="hs-glyph">|</span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">otherwise</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Maybe Estimate -&gt; IO (Maybe Estimate)
+forall a. a -&gt; IO a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Estimate -&gt; Maybe Estimate
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">Estimate
+</span><a href="Unison.Runtime.JIT.Estimate.html#exit"><span class="hs-identifier hs-var">exit</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-221"></span><span>    </span><span class="hs-comment">-- The arms weigh the same, with two exceptions: those that can't</span><span>
+</span><span id="line-222"></span><span>    </span><span class="hs-comment">-- return don't count, and in a function that calls itself the arms</span><span>
+</span><span id="line-223"></span><span>    </span><span class="hs-comment">-- that do (the loop, the recursion) weigh more than the arms that</span><span>
+</span><span id="line-224"></span><span>    </span><span class="hs-comment">-- don't (the way out, the base cases).</span><span>
+</span><span id="line-225"></span><span>    </span><span id="local-6989586621681850947"><span class="annot"><span class="annottext">branch :: GBranch (RComb Val) -&gt; IO (Maybe Estimate)
+</span><a href="#local-6989586621681850947"><span class="hs-identifier hs-var hs-var">branch</span></a></span></span><span> </span><span id="local-6989586621681851001"><span class="annot"><span class="annottext">GBranch (RComb Val)
+</span><a href="#local-6989586621681851001"><span class="hs-identifier hs-var">br</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">GBranch (RComb Val) -&gt; Maybe [MSection]
+forall {comb}. GBranch comb -&gt; Maybe [GSection comb]
+</span><a href="#local-6989586621681850968"><span class="hs-identifier hs-var">armsOf</span></a></span><span> </span><span class="annot"><span class="annottext">GBranch (RComb Val)
+</span><a href="#local-6989586621681851001"><span class="hs-identifier hs-var">br</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-226"></span><span>      </span><span class="annot"><span class="annottext">Maybe [MSection]
+</span><span class="hs-identifier hs-var">Nothing</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Maybe Estimate -&gt; IO (Maybe Estimate)
+forall a. a -&gt; IO a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Estimate -&gt; Maybe Estimate
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="annot"><span class="annottext">Estimate
+</span><a href="Unison.Runtime.JIT.Estimate.html#exit"><span class="hs-identifier hs-var">exit</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-227"></span><span>      </span><span class="annot"><span class="hs-identifier hs-type">Just</span></span><span> </span><span id="local-6989586621681851002"><span class="annot"><span class="annottext">[MSection]
+</span><a href="#local-6989586621681851002"><span class="hs-identifier hs-var">sects</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">[MSection] -&gt; IO (Maybe Estimate)
+</span><a href="#local-6989586621681850971"><span class="hs-identifier hs-var">weigh</span></a></span><span> </span><span class="annot"><span class="annottext">[MSection]
+</span><a href="#local-6989586621681851002"><span class="hs-identifier hs-var">sects</span></a></span><span>
+</span><span id="line-228"></span><span>    </span><span id="local-6989586621681850971"><span class="annot"><span class="annottext">weigh :: [MSection] -&gt; IO (Maybe Estimate)
+</span><a href="#local-6989586621681850971"><span class="hs-identifier hs-var hs-var">weigh</span></a></span></span><span> </span><span id="local-6989586621681851003"><span class="annot"><span class="annottext">[MSection]
+</span><a href="#local-6989586621681851003"><span class="hs-identifier hs-var">sects</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-229"></span><span>      </span><span id="local-6989586621681851004"><span class="annot"><span class="annottext">[Estimate]
+</span><a href="#local-6989586621681851004"><span class="hs-identifier hs-var">arms</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">[Maybe Estimate] -&gt; [Estimate]
+forall a. [Maybe a] -&gt; [a]
+</span><span class="hs-identifier hs-var">catMaybes</span></span><span> </span><span class="annot"><span class="annottext">([Maybe Estimate] -&gt; [Estimate])
+-&gt; IO [Maybe Estimate] -&gt; IO [Estimate]
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;$&gt;</span></span><span> </span><span class="annot"><span class="annottext">(MSection -&gt; IO (Maybe Estimate))
+-&gt; [MSection] -&gt; IO [Maybe Estimate]
+forall (t :: * -&gt; *) (m :: * -&gt; *) a b.
+(Traversable t, Monad m) =&gt;
+(a -&gt; m b) -&gt; t a -&gt; m (t b)
+forall (m :: * -&gt; *) a b. Monad m =&gt; (a -&gt; m b) -&gt; [a] -&gt; m [b]
+</span><span class="hs-identifier hs-var">mapM</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Cx -&gt; MSection -&gt; IO (Maybe Estimate)
+</span><a href="Unison.Runtime.JIT.Estimate.html#walk"><span class="hs-identifier hs-var">walk</span></a></span><span> </span><span class="annot"><span class="annottext">Cx
+</span><a href="#local-6989586621681850937"><span class="hs-identifier hs-var">cx</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">[MSection]
+</span><a href="#local-6989586621681851003"><span class="hs-identifier hs-var">sects</span></a></span><span>
+</span><span id="line-230"></span><span>      </span><span class="hs-identifier">pure</span><span> </span><span class="hs-operator">$</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">[Estimate]
+</span><a href="#local-6989586621681851004"><span class="hs-identifier hs-var">arms</span></a></span><span> </span><span class="hs-keyword">of</span><span>
+</span><span id="line-231"></span><span>        </span><span class="hs-special">[</span><span class="hs-special">]</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Maybe Estimate
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-232"></span><span>        </span><span class="annot"><span class="annottext">[Estimate]
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span>
+</span><span id="line-233"></span><span>          </span><span class="hs-keyword">let</span><span> </span><span id="local-6989586621681851007"><span class="annot"><span class="annottext">weight :: Estimate -&gt; Double
+</span><a href="#local-6989586621681851007"><span class="hs-identifier hs-var hs-var">weight</span></a></span></span><span> </span><span id="local-6989586621681851008"><span class="annot"><span class="annottext">Estimate
+</span><a href="#local-6989586621681851008"><span class="hs-identifier hs-var">e</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">if</span><span> </span><span class="annot"><span class="annottext">Estimate -&gt; Bool
+</span><a href="Unison.Runtime.JIT.Estimate.html#esRec"><span class="hs-identifier hs-var">esRec</span></a></span><span> </span><span class="annot"><span class="annottext">Estimate
+</span><a href="#local-6989586621681851008"><span class="hs-identifier hs-var">e</span></a></span><span> </span><span class="hs-keyword">then</span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="Unison.Runtime.JIT.Estimate.html#recursiveWeight"><span class="hs-identifier hs-var">recursiveWeight</span></a></span><span> </span><span class="hs-keyword">else</span><span> </span><span class="annot"><span class="annottext">Double
+</span><span class="hs-number">1</span></span><span>
+</span><span id="line-234"></span><span>              </span><span id="local-6989586621681851010"><span class="annot"><span class="annottext">total :: Double
+</span><a href="#local-6989586621681851010"><span class="hs-identifier hs-var hs-var">total</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Double] -&gt; Double
+forall a. Num a =&gt; [a] -&gt; a
+forall (t :: * -&gt; *) a. (Foldable t, Num a) =&gt; t a -&gt; a
+</span><span class="hs-identifier hs-var">sum</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(Estimate -&gt; Double) -&gt; [Estimate] -&gt; [Double]
+forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+</span><span class="hs-identifier hs-var">map</span></span><span> </span><span class="annot"><span class="annottext">Estimate -&gt; Double
+</span><a href="#local-6989586621681851007"><span class="hs-identifier hs-var">weight</span></a></span><span> </span><span class="annot"><span class="annottext">[Estimate]
+</span><a href="#local-6989586621681851004"><span class="hs-identifier hs-var">arms</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-235"></span><span>              </span><span id="local-6989586621681851012"><span class="annot"><span class="annottext">s :: Double
+</span><a href="#local-6989586621681851012"><span class="hs-identifier hs-var hs-var">s</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Double] -&gt; Double
+forall a. Num a =&gt; [a] -&gt; a
+forall (t :: * -&gt; *) a. (Foldable t, Num a) =&gt; t a -&gt; a
+</span><span class="hs-identifier hs-var">sum</span></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Estimate -&gt; Double
+</span><a href="#local-6989586621681851007"><span class="hs-identifier hs-var">weight</span></a></span><span> </span><span class="annot"><span class="annottext">Estimate
+</span><a href="#local-6989586621681851013"><span class="hs-identifier hs-var">e</span></a></span><span> </span><span class="annot"><span class="annottext">Double -&gt; Double -&gt; Double
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">*</span></span><span> </span><span class="annot"><span class="annottext">Estimate -&gt; Double
+</span><a href="Unison.Runtime.JIT.Estimate.html#esSaving"><span class="hs-identifier hs-var">esSaving</span></a></span><span> </span><span class="annot"><span class="annottext">Estimate
+</span><a href="#local-6989586621681851013"><span class="hs-identifier hs-var">e</span></a></span><span> </span><span class="hs-glyph">|</span><span> </span><span id="local-6989586621681851013"><span class="annot"><span class="annottext">Estimate
+</span><a href="#local-6989586621681851013"><span class="hs-identifier hs-var">e</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">[Estimate]
+</span><a href="#local-6989586621681851004"><span class="hs-identifier hs-var">arms</span></a></span><span class="hs-special">]</span><span> </span><span class="annot"><span class="annottext">Double -&gt; Double -&gt; Double
+forall a. Fractional a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">/</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621681851010"><span class="hs-identifier hs-var">total</span></a></span><span>
+</span><span id="line-236"></span><span>              </span><span id="local-6989586621681851014"><span class="annot"><span class="annottext">x :: Double
+</span><a href="#local-6989586621681851014"><span class="hs-identifier hs-var hs-var">x</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">[Double] -&gt; Double
+forall a. Num a =&gt; [a] -&gt; a
+forall (t :: * -&gt; *) a. (Foldable t, Num a) =&gt; t a -&gt; a
+</span><span class="hs-identifier hs-var">sum</span></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">Estimate -&gt; Double
+</span><a href="#local-6989586621681851007"><span class="hs-identifier hs-var">weight</span></a></span><span> </span><span class="annot"><span class="annottext">Estimate
+</span><a href="#local-6989586621681851015"><span class="hs-identifier hs-var">e</span></a></span><span> </span><span class="annot"><span class="annottext">Double -&gt; Double -&gt; Double
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">*</span></span><span> </span><span class="annot"><span class="annottext">Estimate -&gt; Double
+</span><a href="Unison.Runtime.JIT.Estimate.html#esExits"><span class="hs-identifier hs-var">esExits</span></a></span><span> </span><span class="annot"><span class="annottext">Estimate
+</span><a href="#local-6989586621681851015"><span class="hs-identifier hs-var">e</span></a></span><span> </span><span class="hs-glyph">|</span><span> </span><span id="local-6989586621681851015"><span class="annot"><span class="annottext">Estimate
+</span><a href="#local-6989586621681851015"><span class="hs-identifier hs-var">e</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">[Estimate]
+</span><a href="#local-6989586621681851004"><span class="hs-identifier hs-var">arms</span></a></span><span class="hs-special">]</span><span> </span><span class="annot"><span class="annottext">Double -&gt; Double -&gt; Double
+forall a. Fractional a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">/</span></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621681851010"><span class="hs-identifier hs-var">total</span></a></span><span>
+</span><span id="line-237"></span><span>           </span><span class="hs-keyword">in</span><span> </span><span class="annot"><span class="annottext">Estimate -&gt; Maybe Estimate
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Estimate -&gt; Estimate -&gt; Estimate
+</span><a href="Unison.Runtime.JIT.Estimate.html#plus"><span class="hs-identifier hs-var">plus</span></a></span><span> </span><span class="annot"><span class="annottext">Estimate
+</span><a href="Unison.Runtime.JIT.Estimate.html#simple"><span class="hs-identifier hs-var">simple</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Double -&gt; Double -&gt; Bool -&gt; Estimate
+</span><a href="Unison.Runtime.JIT.Estimate.html#Estimate"><span class="hs-identifier hs-var">Estimate</span></a></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621681851012"><span class="hs-identifier hs-var">s</span></a></span><span> </span><span class="annot"><span class="annottext">Double
+</span><a href="#local-6989586621681851014"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(Estimate -&gt; Bool) -&gt; [Estimate] -&gt; Bool
+forall (t :: * -&gt; *) a. Foldable t =&gt; (a -&gt; Bool) -&gt; t a -&gt; Bool
+</span><span class="hs-identifier hs-var">any</span></span><span> </span><span class="annot"><span class="annottext">Estimate -&gt; Bool
+</span><a href="Unison.Runtime.JIT.Estimate.html#esRec"><span class="hs-identifier hs-var">esRec</span></a></span><span> </span><span class="annot"><span class="annottext">[Estimate]
+</span><a href="#local-6989586621681851004"><span class="hs-identifier hs-var">arms</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-238"></span><span>    </span><span id="local-6989586621681850968"><span class="annot"><span class="annottext">armsOf :: GBranch comb -&gt; Maybe [GSection comb]
+</span><a href="#local-6989586621681850968"><span class="hs-identifier hs-var hs-var">armsOf</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-glyph">\</span><span class="hs-glyph">case</span><span>
+</span><span id="line-239"></span><span>      </span><span class="annot"><a href="Unison.Runtime.MCode.html#Test1"><span class="hs-identifier hs-type">Test1</span></a></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Runtime.MCode.html#Arm"><span class="hs-identifier hs-type">Arm</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621681851020"><span class="annot"><span class="annottext">GSection comb
+</span><a href="#local-6989586621681851020"><span class="hs-identifier hs-var">a</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621681851021"><span class="annot"><span class="annottext">GSection comb
+</span><a href="#local-6989586621681851021"><span class="hs-identifier hs-var">d</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">[GSection comb] -&gt; Maybe [GSection comb]
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">GSection comb
+</span><a href="#local-6989586621681851020"><span class="hs-identifier hs-var">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">GSection comb
+</span><a href="#local-6989586621681851021"><span class="hs-identifier hs-var">d</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-240"></span><span>      </span><span class="annot"><a href="Unison.Runtime.MCode.html#Test2"><span class="hs-identifier hs-type">Test2</span></a></span><span> </span><span class="annot"><span class="annottext">Word64
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Runtime.MCode.html#Arm"><span class="hs-identifier hs-type">Arm</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621681851023"><span class="annot"><span class="annottext">GSection comb
+</span><a href="#local-6989586621681851023"><span class="hs-identifier hs-var">a</span></a></span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Word64
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Runtime.MCode.html#Arm"><span class="hs-identifier hs-type">Arm</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621681851024"><span class="annot"><span class="annottext">GSection comb
+</span><a href="#local-6989586621681851024"><span class="hs-identifier hs-var">b</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621681851025"><span class="annot"><span class="annottext">GSection comb
+</span><a href="#local-6989586621681851025"><span class="hs-identifier hs-var">d</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">[GSection comb] -&gt; Maybe [GSection comb]
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="hs-special">[</span><span class="annot"><span class="annottext">GSection comb
+</span><a href="#local-6989586621681851023"><span class="hs-identifier hs-var">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">GSection comb
+</span><a href="#local-6989586621681851024"><span class="hs-identifier hs-var">b</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="annottext">GSection comb
+</span><a href="#local-6989586621681851025"><span class="hs-identifier hs-var">d</span></a></span><span class="hs-special">]</span><span>
+</span><span id="line-241"></span><span>      </span><span class="annot"><a href="Unison.Runtime.MCode.html#TestW"><span class="hs-identifier hs-type">TestW</span></a></span><span> </span><span id="local-6989586621681851027"><span class="annot"><span class="annottext">GSection comb
+</span><a href="#local-6989586621681851027"><span class="hs-identifier hs-var">d</span></a></span></span><span> </span><span id="local-6989586621681851028"><span class="annot"><span class="annottext">EnumMap Word64 (Arm comb)
+</span><a href="#local-6989586621681851028"><span class="hs-identifier hs-var">m</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">[GSection comb] -&gt; Maybe [GSection comb]
+forall a. a -&gt; Maybe a
+</span><span class="hs-identifier hs-var">Just</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">GSection comb
+</span><a href="#local-6989586621681851027"><span class="hs-identifier hs-var">d</span></a></span><span> </span><span class="annot"><span class="annottext">GSection comb -&gt; [GSection comb] -&gt; [GSection comb]
+forall a. a -&gt; [a] -&gt; [a]
+</span><span class="hs-glyph hs-var">:</span></span><span> </span><span class="annot"><span class="annottext">((Word64, Arm comb) -&gt; GSection comb)
+-&gt; [(Word64, Arm comb)] -&gt; [GSection comb]
+forall a b. (a -&gt; b) -&gt; [a] -&gt; [b]
+</span><span class="hs-identifier hs-var">map</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Arm comb -&gt; GSection comb
+forall comb. Arm comb -&gt; GSection comb
+</span><a href="Unison.Runtime.MCode.html#armSection"><span class="hs-identifier hs-var">armSection</span></a></span><span> </span><span class="annot"><span class="annottext">(Arm comb -&gt; GSection comb)
+-&gt; ((Word64, Arm comb) -&gt; Arm comb)
+-&gt; (Word64, Arm comb)
+-&gt; GSection comb
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">(Word64, Arm comb) -&gt; Arm comb
+forall a b. (a, b) -&gt; b
+</span><span class="hs-identifier hs-var">snd</span></span><span class="hs-special">)</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">EnumMap Word64 (Arm comb) -&gt; [(Word64, Arm comb)]
+forall k a. EnumKey k =&gt; EnumMap k a -&gt; [(k, a)]
+</span><span class="hs-identifier hs-var">EC.mapToList</span></span><span> </span><span class="annot"><span class="annottext">EnumMap Word64 (Arm comb)
+</span><a href="#local-6989586621681851028"><span class="hs-identifier hs-var">m</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-242"></span><span>      </span><span class="hs-comment">-- matches on text and other boxed values are the interpreter's</span><span>
+</span><span id="line-243"></span><span>      </span><span class="annot"><a href="Unison.Runtime.MCode.html#TestT"><span class="hs-identifier hs-type">TestT</span></a></span><span> </span><span class="annot"><span class="annottext">GSection comb
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">Map Text (GSection comb)
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Maybe [GSection comb]
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-244"></span><span>      </span><span class="annot"><a href="Unison.Runtime.MCode.html#TestY"><span class="hs-identifier hs-type">TestY</span></a></span><span> </span><span class="annot"><span class="annottext">GSection comb
+</span><span class="hs-identifier">_</span></span><span> </span><span class="annot"><span class="annottext">Map Bytes (GSection comb)
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Maybe [GSection comb]
+forall a. Maybe a
+</span><span class="hs-identifier hs-var">Nothing</span></span><span>
+</span><span id="line-245"></span><span>
+</span><span id="line-246"></span><span class="hs-comment">-- | How much more often a branch arm that loops or recurses is taken than</span><span>
+</span><span id="line-247"></span><span class="hs-comment">-- one that doesn't. A guess: a loop takes its way out once, a binary</span><span>
+</span><span id="line-248"></span><span class="hs-comment">-- recursion reaches a base case every other call.</span><span>
+</span><span id="line-249"></span><span class="annot"><a href="Unison.Runtime.JIT.Estimate.html#recursiveWeight"><span class="hs-identifier hs-type">recursiveWeight</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Double</span></span><span>
+</span><span id="line-250"></span><span id="recursiveWeight"><span class="annot"><span class="annottext">recursiveWeight :: Double
+</span><a href="Unison.Runtime.JIT.Estimate.html#recursiveWeight"><span class="hs-identifier hs-var hs-var">recursiveWeight</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Double
+</span><span class="hs-number">4</span></span><span>
+</span><span id="line-251"></span></pre></body></html>

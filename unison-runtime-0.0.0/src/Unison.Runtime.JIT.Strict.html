@@ -1,0 +1,140 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span class="hs-pragma">{-# LANGUAGE BangPatterns #-}</span><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# LANGUAGE OverloadedStrings #-}</span><span>
+</span><span id="line-3"></span><span>
+</span><span id="line-4"></span><span class="hs-comment">-- | The strict building blocks of the code generator: packed text, strict</span><span>
+</span><span id="line-5"></span><span class="hs-comment">-- pairs, and the few operations on them that &quot;Unison.Util.Text&quot; and</span><span>
+</span><span id="line-6"></span><span class="hs-comment">-- &quot;Unison.Util.Deque&quot; don't have.</span><span>
+</span><span id="line-7"></span><span class="hs-comment">--</span><span>
+</span><span id="line-8"></span><span class="hs-comment">-- The generator's state and everything it produces are made of these, of</span><span>
+</span><span id="line-9"></span><span class="hs-comment">-- 'Deque' (a finger tree with no laziness anywhere) and of strict record</span><span>
+</span><span id="line-10"></span><span class="hs-comment">-- fields, so that forcing the state to weak head normal form forces all of</span><span>
+</span><span id="line-11"></span><span class="hs-comment">-- it: no thunk over the text of a module outlives the step that made it,</span><span>
+</span><span id="line-12"></span><span class="hs-comment">-- and the text is packed from the start (a 'Text' is a rope of packed</span><span>
+</span><span id="line-13"></span><span class="hs-comment">-- chunks, so appending to a long one doesn't copy it).</span><span>
+</span><span id="line-14"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="Unison.Runtime.JIT.Strict.html"><span class="hs-identifier">Unison.Runtime.JIT.Strict</span></a></span><span>
+</span><span id="line-15"></span><span>  </span><span class="hs-special">(</span><span> </span><span class="annot"><span class="hs-identifier">Text</span></span><span class="hs-special">,</span><span>
+</span><span id="line-16"></span><span>    </span><span class="annot"><a href="Unison.Runtime.JIT.Strict.html#Pair"><span class="hs-identifier">Pair</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-17"></span><span>    </span><span class="annot"><a href="Unison.Runtime.JIT.Strict.html#Triple"><span class="hs-identifier">Triple</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-18"></span><span>    </span><span class="annot"><a href="Unison.Runtime.JIT.Strict.html#tshow"><span class="hs-identifier">tshow</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-19"></span><span>    </span><span class="annot"><a href="Unison.Runtime.JIT.Strict.html#unlinesT"><span class="hs-identifier">unlinesT</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-20"></span><span>    </span><span class="annot"><a href="Unison.Runtime.JIT.Strict.html#intercalateT"><span class="hs-identifier">intercalateT</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-21"></span><span>    </span><span class="annot"><a href="Unison.Runtime.JIT.Strict.html#iforM_"><span class="hs-identifier">iforM_</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-22"></span><span>  </span><span class="hs-special">)</span><span>
+</span><span id="line-23"></span><span class="hs-keyword">where</span><span>
+</span><span id="line-24"></span><span>
+</span><span id="line-25"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Control.Monad</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">foldM_</span></span><span class="hs-special">)</span><span>
+</span><span id="line-26"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Util.Deque</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Deque</span></span><span class="hs-special">)</span><span>
+</span><span id="line-27"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Util.Text</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Text</span></span><span class="hs-special">)</span><span>
+</span><span id="line-28"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><span class="hs-identifier">Unison.Util.Text</span></span><span> </span><span class="hs-keyword">qualified</span><span> </span><span class="hs-keyword">as</span><span> </span><span class="annot"><span class="hs-identifier">UT</span></span><span>
+</span><span id="line-29"></span><span>
+</span><span id="line-30"></span><span class="hs-keyword">data</span><span> </span><span id="Pair"><span class="annot"><a href="Unison.Runtime.JIT.Strict.html#Pair"><span class="hs-identifier hs-var">Pair</span></a></span></span><span> </span><span id="local-6989586621681790304"><span class="annot"><a href="#local-6989586621681790304"><span class="hs-identifier hs-type">a</span></a></span></span><span> </span><span id="local-6989586621681790305"><span class="annot"><a href="#local-6989586621681790305"><span class="hs-identifier hs-type">b</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="Pair"><span class="annot"><a href="Unison.Runtime.JIT.Strict.html#Pair"><span class="hs-identifier hs-var">Pair</span></a></span></span><span> </span><span class="hs-glyph">!</span><span class="annot"><a href="#local-6989586621681790304"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">!</span><span class="annot"><a href="#local-6989586621681790305"><span class="hs-identifier hs-type">b</span></a></span><span>
+</span><span id="line-31"></span><span>
+</span><span id="line-32"></span><span class="hs-keyword">data</span><span> </span><span id="Triple"><span class="annot"><a href="Unison.Runtime.JIT.Strict.html#Triple"><span class="hs-identifier hs-var">Triple</span></a></span></span><span> </span><span id="local-6989586621681790340"><span class="annot"><a href="#local-6989586621681790340"><span class="hs-identifier hs-type">a</span></a></span></span><span> </span><span id="local-6989586621681790341"><span class="annot"><a href="#local-6989586621681790341"><span class="hs-identifier hs-type">b</span></a></span></span><span> </span><span id="local-6989586621681790342"><span class="annot"><a href="#local-6989586621681790342"><span class="hs-identifier hs-type">c</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="Triple"><span class="annot"><a href="Unison.Runtime.JIT.Strict.html#Triple"><span class="hs-identifier hs-var">Triple</span></a></span></span><span> </span><span class="hs-glyph">!</span><span class="annot"><a href="#local-6989586621681790340"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">!</span><span class="annot"><a href="#local-6989586621681790341"><span class="hs-identifier hs-type">b</span></a></span><span> </span><span class="hs-glyph">!</span><span class="annot"><a href="#local-6989586621681790342"><span class="hs-identifier hs-type">c</span></a></span><span>
+</span><span id="line-33"></span><span>
+</span><span id="line-34"></span><span id="local-6989586621681790291"><span class="annot"><a href="Unison.Runtime.JIT.Strict.html#tshow"><span class="hs-identifier hs-type">tshow</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Show</span></span><span> </span><span class="annot"><a href="#local-6989586621681790291"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="#local-6989586621681790291"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span></span><span>
+</span><span id="line-35"></span><span id="tshow"><span class="annot"><span class="annottext">tshow :: forall a. Show a =&gt; a -&gt; Text
+</span><a href="Unison.Runtime.JIT.Strict.html#tshow"><span class="hs-identifier hs-var hs-var">tshow</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String -&gt; Text
+</span><span class="hs-identifier hs-var">UT.pack</span></span><span> </span><span class="annot"><span class="annottext">(String -&gt; Text) -&gt; (a -&gt; String) -&gt; a -&gt; Text
+forall b c a. (b -&gt; c) -&gt; (a -&gt; b) -&gt; a -&gt; c
+</span><span class="hs-operator hs-var">.</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; String
+forall a. Show a =&gt; a -&gt; String
+</span><span class="hs-identifier hs-var">show</span></span><span>
+</span><span id="line-36"></span><span>
+</span><span id="line-37"></span><span class="annot"><span class="hs-comment">-- | Every element followed by a newline.</span></span><span>
+</span><span id="line-38"></span><span class="annot"><a href="Unison.Runtime.JIT.Strict.html#unlinesT"><span class="hs-identifier hs-type">unlinesT</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Deque</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span>
+</span><span id="line-39"></span><span id="unlinesT"><span class="annot"><span class="annottext">unlinesT :: Deque Text -&gt; Text
+</span><a href="Unison.Runtime.JIT.Strict.html#unlinesT"><span class="hs-identifier hs-var hs-var">unlinesT</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Text -&gt; Text -&gt; Text) -&gt; Text -&gt; Deque Text -&gt; Text
+forall b a. (b -&gt; a -&gt; b) -&gt; b -&gt; Deque a -&gt; b
+forall (t :: * -&gt; *) b a.
+Foldable t =&gt;
+(b -&gt; a -&gt; b) -&gt; b -&gt; t a -&gt; b
+</span><span class="hs-identifier hs-var">foldl'</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span id="local-6989586621681790350"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681790350"><span class="hs-identifier hs-var">acc</span></a></span></span><span> </span><span id="local-6989586621681790351"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681790351"><span class="hs-identifier hs-var">l</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681790350"><span class="hs-identifier hs-var">acc</span></a></span><span> </span><span class="annot"><span class="annottext">Text -&gt; Text -&gt; Text
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681790351"><span class="hs-identifier hs-var">l</span></a></span><span> </span><span class="annot"><span class="annottext">Text -&gt; Text -&gt; Text
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-string">&quot;\n&quot;</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Text
+forall a. Monoid a =&gt; a
+</span><span class="hs-identifier hs-var">mempty</span></span><span>
+</span><span id="line-40"></span><span>
+</span><span id="line-41"></span><span class="annot"><span class="hs-comment">-- | The elements with the separator between each two.</span></span><span>
+</span><span id="line-42"></span><span class="annot"><a href="Unison.Runtime.JIT.Strict.html#intercalateT"><span class="hs-identifier hs-type">intercalateT</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Deque</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Text</span></span><span>
+</span><span id="line-43"></span><span id="intercalateT"><span class="annot"><span class="annottext">intercalateT :: Text -&gt; Deque Text -&gt; Text
+</span><a href="Unison.Runtime.JIT.Strict.html#intercalateT"><span class="hs-identifier hs-var hs-var">intercalateT</span></a></span></span><span> </span><span id="local-6989586621681790352"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681790352"><span class="hs-identifier hs-var">sep</span></a></span></span><span> </span><span id="local-6989586621681790353"><span class="annot"><span class="annottext">Deque Text
+</span><a href="#local-6989586621681790353"><span class="hs-identifier hs-var">xs</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">case</span><span> </span><span class="annot"><span class="annottext">(Pair Bool Text -&gt; Text -&gt; Pair Bool Text)
+-&gt; Pair Bool Text -&gt; Deque Text -&gt; Pair Bool Text
+forall b a. (b -&gt; a -&gt; b) -&gt; b -&gt; Deque a -&gt; b
+forall (t :: * -&gt; *) b a.
+Foldable t =&gt;
+(b -&gt; a -&gt; b) -&gt; b -&gt; t a -&gt; b
+</span><span class="hs-identifier hs-var">foldl'</span></span><span> </span><span class="annot"><span class="annottext">Pair Bool Text -&gt; Text -&gt; Pair Bool Text
+</span><a href="#local-6989586621681790354"><span class="hs-identifier hs-var">step</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Bool -&gt; Text -&gt; Pair Bool Text
+forall a b. a -&gt; b -&gt; Pair a b
+</span><a href="Unison.Runtime.JIT.Strict.html#Pair"><span class="hs-identifier hs-var">Pair</span></a></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span> </span><span class="annot"><span class="annottext">Text
+forall a. Monoid a =&gt; a
+</span><span class="hs-identifier hs-var">mempty</span></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Deque Text
+</span><a href="#local-6989586621681790353"><span class="hs-identifier hs-var">xs</span></a></span><span> </span><span class="hs-keyword">of</span><span> </span><span class="annot"><a href="Unison.Runtime.JIT.Strict.html#Pair"><span class="hs-identifier hs-type">Pair</span></a></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier">_</span></span><span> </span><span id="local-6989586621681790355"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681790355"><span class="hs-identifier hs-var">t</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681790355"><span class="hs-identifier hs-var">t</span></a></span><span>
+</span><span id="line-44"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-45"></span><span>    </span><span id="local-6989586621681790354"><span class="annot"><span class="annottext">step :: Pair Bool Text -&gt; Text -&gt; Pair Bool Text
+</span><a href="#local-6989586621681790354"><span class="hs-identifier hs-var hs-var">step</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Runtime.JIT.Strict.html#Pair"><span class="hs-identifier hs-type">Pair</span></a></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">False</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><span class="hs-identifier">_</span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621681790356"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681790356"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Text -&gt; Pair Bool Text
+forall a b. a -&gt; b -&gt; Pair a b
+</span><a href="Unison.Runtime.JIT.Strict.html#Pair"><span class="hs-identifier hs-var">Pair</span></a></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681790356"><span class="hs-identifier hs-var">x</span></a></span><span>
+</span><span id="line-46"></span><span>    </span><span class="annot"><a href="#local-6989586621681790354"><span class="hs-identifier hs-var">step</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="Unison.Runtime.JIT.Strict.html#Pair"><span class="hs-identifier hs-type">Pair</span></a></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span> </span><span id="local-6989586621681790357"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681790357"><span class="hs-identifier hs-var">acc</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621681790358"><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681790358"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">Bool -&gt; Text -&gt; Pair Bool Text
+forall a b. a -&gt; b -&gt; Pair a b
+</span><a href="Unison.Runtime.JIT.Strict.html#Pair"><span class="hs-identifier hs-var">Pair</span></a></span><span> </span><span class="annot"><span class="annottext">Bool
+</span><span class="hs-identifier hs-var">True</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681790357"><span class="hs-identifier hs-var">acc</span></a></span><span> </span><span class="annot"><span class="annottext">Text -&gt; Text -&gt; Text
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681790352"><span class="hs-identifier hs-var">sep</span></a></span><span> </span><span class="annot"><span class="annottext">Text -&gt; Text -&gt; Text
+forall a. Semigroup a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">&lt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Text
+</span><a href="#local-6989586621681790358"><span class="hs-identifier hs-var">x</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-47"></span><span>
+</span><span id="line-48"></span><span class="annot"><span class="hs-comment">-- | 'forM_' with the element's position.</span></span><span>
+</span><span id="line-49"></span><span id="local-6989586621681790306"><span id="local-6989586621681790307"><span class="annot"><a href="Unison.Runtime.JIT.Strict.html#iforM_"><span class="hs-identifier hs-type">iforM_</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Monad</span></span><span> </span><span class="annot"><a href="#local-6989586621681790306"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">Deque</span></span><span> </span><span class="annot"><a href="#local-6989586621681790307"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Int</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621681790307"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621681790306"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621681790306"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span></span></span><span>
+</span><span id="line-50"></span><span id="iforM_"><span class="annot"><span class="annottext">iforM_ :: forall (m :: * -&gt; *) a.
+Monad m =&gt;
+Deque a -&gt; (Int -&gt; a -&gt; m ()) -&gt; m ()
+</span><a href="Unison.Runtime.JIT.Strict.html#iforM_"><span class="hs-identifier hs-var hs-var">iforM_</span></a></span></span><span> </span><span id="local-6989586621681790370"><span class="annot"><span class="annottext">Deque a
+</span><a href="#local-6989586621681790370"><span class="hs-identifier hs-var">xs</span></a></span></span><span> </span><span id="local-6989586621681790371"><span class="annot"><span class="annottext">Int -&gt; a -&gt; m ()
+</span><a href="#local-6989586621681790371"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(Int -&gt; a -&gt; m Int) -&gt; Int -&gt; Deque a -&gt; m ()
+forall (t :: * -&gt; *) (m :: * -&gt; *) b a.
+(Foldable t, Monad m) =&gt;
+(b -&gt; a -&gt; m b) -&gt; b -&gt; t a -&gt; m ()
+</span><span class="hs-identifier hs-var">foldM_</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span> </span><span class="hs-glyph">!</span><span id="local-6989586621681790372"><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681790372"><span class="hs-identifier hs-var">i</span></a></span></span><span> </span><span id="local-6989586621681790373"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621681790373"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">Int -&gt; a -&gt; m ()
+</span><a href="#local-6989586621681790371"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681790372"><span class="hs-identifier hs-var">i</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621681790373"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">m () -&gt; m Int -&gt; m Int
+forall a b. m a -&gt; m b -&gt; m b
+forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; m b -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">Int -&gt; m Int
+forall a. a -&gt; m a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">Int
+</span><a href="#local-6989586621681790372"><span class="hs-identifier hs-var">i</span></a></span><span> </span><span class="annot"><span class="annottext">Int -&gt; Int -&gt; Int
+forall a. Num a =&gt; a -&gt; a -&gt; a
+</span><span class="hs-operator hs-var">+</span></span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">1</span></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">Int
+</span><span class="hs-number">0</span></span><span> </span><span class="annot"><span class="annottext">Deque a
+</span><a href="#local-6989586621681790370"><span class="hs-identifier hs-var">xs</span></a></span><span>
+</span><span id="line-51"></span></pre></body></html>

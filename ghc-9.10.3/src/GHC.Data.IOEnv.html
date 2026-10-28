@@ -1,0 +1,718 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml"><head><link rel="stylesheet" type="text/css" href="style.css" /><script type="text/javascript" src="highlight.js"></script></head><body><pre><span>
+</span><span id="line-2"></span><span class="hs-pragma">{-# LANGUAGE DerivingVia #-}</span><span>
+</span><span id="line-3"></span><span class="hs-pragma">{-# LANGUAGE PatternSynonyms #-}</span><span>
+</span><span id="line-4"></span><span class="hs-comment">--</span><span>
+</span><span id="line-5"></span><span class="hs-comment">-- (c) The University of Glasgow 2002-2006</span><span>
+</span><span id="line-6"></span><span class="hs-comment">--</span><span>
+</span><span id="line-7"></span><span>
+</span><span id="line-8"></span><span class="hs-comment">-- | The IO Monad with an environment</span><span>
+</span><span id="line-9"></span><span class="hs-comment">--</span><span>
+</span><span id="line-10"></span><span class="hs-comment">-- The environment is passed around as a Reader monad but</span><span>
+</span><span id="line-11"></span><span class="hs-comment">-- as its in the IO monad, mutable references can be used</span><span>
+</span><span id="line-12"></span><span class="hs-comment">-- for updating state.</span><span>
+</span><span id="line-13"></span><span class="hs-comment">--</span><span>
+</span><span id="line-14"></span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="GHC.Data.IOEnv.html"><span class="hs-identifier">GHC.Data.IOEnv</span></a></span><span> </span><span class="hs-special">(</span><span>
+</span><span id="line-15"></span><span>        </span><span class="annot"><a href="GHC.Data.IOEnv.html#IOEnv"><span class="hs-identifier">IOEnv</span></a></span><span class="hs-special">,</span><span> </span><span class="hs-comment">-- Instance of Monad</span><span>
+</span><span id="line-16"></span><span>
+</span><span id="line-17"></span><span>        </span><span class="hs-comment">-- Monad utilities</span><span>
+</span><span id="line-18"></span><span>        </span><span class="hs-keyword">module</span><span> </span><span class="annot"><a href="GHC.Utils.Monad.html"><span class="hs-identifier">GHC.Utils.Monad</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-19"></span><span>
+</span><span id="line-20"></span><span>        </span><span class="hs-comment">-- Errors</span><span>
+</span><span id="line-21"></span><span>        </span><span class="annot"><a href="GHC.Data.IOEnv.html#failM"><span class="hs-identifier">failM</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Data.IOEnv.html#failWithM"><span class="hs-identifier">failWithM</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-22"></span><span>        </span><span class="annot"><a href="GHC.Data.IOEnv.html#IOEnvFailure"><span class="hs-identifier">IOEnvFailure</span></a></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">,</span><span>
+</span><span id="line-23"></span><span>
+</span><span id="line-24"></span><span>        </span><span class="hs-comment">-- Getting at the environment</span><span>
+</span><span id="line-25"></span><span>        </span><span class="annot"><a href="GHC.Data.IOEnv.html#getEnv"><span class="hs-identifier">getEnv</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Data.IOEnv.html#setEnv"><span class="hs-identifier">setEnv</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Data.IOEnv.html#updEnv"><span class="hs-identifier">updEnv</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-26"></span><span>
+</span><span id="line-27"></span><span>        </span><span class="annot"><a href="GHC.Data.IOEnv.html#runIOEnv"><span class="hs-identifier">runIOEnv</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Data.IOEnv.html#unsafeInterleaveM"><span class="hs-identifier">unsafeInterleaveM</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Data.IOEnv.html#uninterruptibleMaskM_"><span class="hs-identifier">uninterruptibleMaskM_</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-28"></span><span>        </span><span class="annot"><a href="GHC.Data.IOEnv.html#tryM"><span class="hs-identifier">tryM</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Data.IOEnv.html#tryAllM"><span class="hs-identifier">tryAllM</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Data.IOEnv.html#tryMostM"><span class="hs-identifier">tryMostM</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Data.IOEnv.html#fixM"><span class="hs-identifier">fixM</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-29"></span><span>
+</span><span id="line-30"></span><span>        </span><span class="hs-comment">-- I/O operations</span><span>
+</span><span id="line-31"></span><span>        </span><span class="annot"><span class="hs-identifier">IORef</span></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Data.IOEnv.html#newMutVar"><span class="hs-identifier">newMutVar</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Data.IOEnv.html#readMutVar"><span class="hs-identifier">readMutVar</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Data.IOEnv.html#writeMutVar"><span class="hs-identifier">writeMutVar</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Data.IOEnv.html#updMutVar"><span class="hs-identifier">updMutVar</span></a></span><span class="hs-special">,</span><span>
+</span><span id="line-32"></span><span>        </span><span class="annot"><a href="GHC.Data.IOEnv.html#atomicUpdMutVar"><span class="hs-identifier">atomicUpdMutVar</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="GHC.Data.IOEnv.html#atomicUpdMutVar%27"><span class="hs-identifier">atomicUpdMutVar'</span></a></span><span>
+</span><span id="line-33"></span><span>  </span><span class="hs-special">)</span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-34"></span><span>
+</span><span id="line-35"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Prelude.html"><span class="hs-identifier">GHC.Prelude</span></a></span><span>
+</span><span id="line-36"></span><span>
+</span><span id="line-37"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Driver.DynFlags.html"><span class="hs-identifier">GHC.Driver.DynFlags</span></a></span><span>
+</span><span id="line-38"></span><span class="hs-keyword">import</span><span> </span><span class="hs-pragma">{-# SOURCE</span><span> </span><span class="hs-pragma">#-}</span><span> </span><span class="annot"><a href="GHC.Driver.Hooks.html"><span class="hs-identifier">GHC.Driver.Hooks</span></a></span><span>
+</span><span id="line-39"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.20.2.0-6654/src/GHC.IO.html"><span class="hs-identifier">GHC.IO</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">catchException</span></span><span class="hs-special">)</span><span>
+</span><span id="line-40"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Utils.Exception.html"><span class="hs-identifier">GHC.Utils.Exception</span></a></span><span>
+</span><span id="line-41"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Unit.Module.html"><span class="hs-identifier">GHC.Unit.Module</span></a></span><span>
+</span><span id="line-42"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Utils.Panic.html"><span class="hs-identifier">GHC.Utils.Panic</span></a></span><span>
+</span><span id="line-43"></span><span>
+</span><span id="line-44"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.20.2.0-6654/src/Data.IORef.html"><span class="hs-identifier">Data.IORef</span></a></span><span>       </span><span class="hs-special">(</span><span> </span><span class="annot"><span class="hs-identifier">IORef</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">newIORef</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">readIORef</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">writeIORef</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">modifyIORef</span></span><span class="hs-special">,</span><span>
+</span><span id="line-45"></span><span>                          </span><span class="annot"><span class="hs-identifier">atomicModifyIORef</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">atomicModifyIORef'</span></span><span> </span><span class="hs-special">)</span><span>
+</span><span id="line-46"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.20.2.0-6654/src/System.IO.Unsafe.html"><span class="hs-identifier">System.IO.Unsafe</span></a></span><span> </span><span class="hs-special">(</span><span> </span><span class="annot"><span class="hs-identifier">unsafeInterleaveIO</span></span><span> </span><span class="hs-special">)</span><span>
+</span><span id="line-47"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.20.2.0-6654/src/System.IO.html"><span class="hs-identifier">System.IO</span></a></span><span>        </span><span class="hs-special">(</span><span> </span><span class="annot"><span class="hs-identifier">fixIO</span></span><span> </span><span class="hs-special">)</span><span>
+</span><span id="line-48"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.20.2.0-6654/src/Control.Monad.html"><span class="hs-identifier">Control.Monad</span></a></span><span>
+</span><span id="line-49"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../transformers-0.6.1.1-c721/src/Control.Monad.Trans.Reader.html"><span class="hs-identifier">Control.Monad.Trans.Reader</span></a></span><span>
+</span><span id="line-50"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../exceptions-0.10.9-d4a4/src/Control.Monad.Catch.html"><span class="hs-identifier">Control.Monad.Catch</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="../../exceptions-0.10.9-d4a4/src/Control.Monad.Catch.html#MonadCatch"><span class="hs-identifier">MonadCatch</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="../../exceptions-0.10.9-d4a4/src/Control.Monad.Catch.html#MonadMask"><span class="hs-identifier">MonadMask</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="../../exceptions-0.10.9-d4a4/src/Control.Monad.Catch.html#MonadThrow"><span class="hs-identifier">MonadThrow</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-51"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Utils.Monad.html"><span class="hs-identifier">GHC.Utils.Monad</span></a></span><span>
+</span><span id="line-52"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="GHC.Utils.Logger.html"><span class="hs-identifier">GHC.Utils.Logger</span></a></span><span>
+</span><span id="line-53"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.20.2.0-6654/src/Control.Applicative.html"><span class="hs-identifier">Control.Applicative</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">Alternative</span></span><span class="hs-special">(</span><span class="hs-glyph">..</span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-54"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.20.2.0-6654/src/GHC.Exts.html"><span class="hs-identifier">GHC.Exts</span></a></span><span class="hs-special">(</span><span> </span><span class="annot"><span class="hs-identifier">oneShot</span></span><span> </span><span class="hs-special">)</span><span>
+</span><span id="line-55"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.20.2.0-6654/src/Control.Concurrent.MVar.html"><span class="hs-identifier">Control.Concurrent.MVar</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">newEmptyMVar</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">readMVar</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">putMVar</span></span><span class="hs-special">)</span><span>
+</span><span id="line-56"></span><span class="hs-keyword">import</span><span> </span><span class="annot"><a href="../../base-4.20.2.0-6654/src/Control.Concurrent.html"><span class="hs-identifier">Control.Concurrent</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier">forkIO</span></span><span class="hs-special">,</span><span> </span><span class="annot"><span class="hs-identifier">killThread</span></span><span class="hs-special">)</span><span>
+</span><span id="line-57"></span><span>
+</span><span id="line-58"></span><span class="hs-comment">----------------------------------------------------------------------</span><span>
+</span><span id="line-59"></span><span class="hs-comment">-- Defining the monad type</span><span>
+</span><span id="line-60"></span><span class="hs-comment">----------------------------------------------------------------------</span><span>
+</span><span id="line-61"></span><span>
+</span><span id="line-62"></span><span>
+</span><span id="line-63"></span><span class="hs-keyword">newtype</span><span> </span><span id="IOEnv"><span class="annot"><a href="GHC.Data.IOEnv.html#IOEnv"><span class="hs-identifier hs-var">IOEnv</span></a></span></span><span> </span><span id="local-6989586621682618692"><span class="annot"><a href="#local-6989586621682618692"><span class="hs-identifier hs-type">env</span></a></span></span><span> </span><span id="local-6989586621682618693"><span class="annot"><a href="#local-6989586621682618693"><span class="hs-identifier hs-type">a</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="IOEnv%27"><span class="annot"><a href="GHC.Data.IOEnv.html#IOEnv%27"><span class="hs-identifier hs-var">IOEnv'</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621682618692"><span class="hs-identifier hs-type">env</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="#local-6989586621682618693"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-64"></span><span>  </span><span class="hs-keyword">deriving</span><span> </span><span class="hs-special">(</span><span id="local-6989586621682618704"><span class="annot"><span class="annottext">Monad (IOEnv env)
+Monad (IOEnv env) =&gt;
+(forall e a. (HasCallStack, Exception e) =&gt; e -&gt; IOEnv env a)
+-&gt; MonadThrow (IOEnv env)
+forall env. Monad (IOEnv env)
+forall e a. (HasCallStack, Exception e) =&gt; e -&gt; IOEnv env a
+forall env e a. (HasCallStack, Exception e) =&gt; e -&gt; IOEnv env a
+forall (m :: * -&gt; *).
+Monad m =&gt;
+(forall e a. (HasCallStack, Exception e) =&gt; e -&gt; m a)
+-&gt; MonadThrow m
+$cthrowM :: forall env e a. (HasCallStack, Exception e) =&gt; e -&gt; IOEnv env a
+throwM :: forall e a. (HasCallStack, Exception e) =&gt; e -&gt; IOEnv env a
+</span><a href="../../exceptions-0.10.9-d4a4/src/Control.Monad.Catch.html#MonadThrow"><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var">MonadThrow</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682618726"><span class="annot"><span class="annottext">MonadThrow (IOEnv env)
+MonadThrow (IOEnv env) =&gt;
+(forall e a.
+ (HasCallStack, Exception e) =&gt;
+ IOEnv env a -&gt; (e -&gt; IOEnv env a) -&gt; IOEnv env a)
+-&gt; MonadCatch (IOEnv env)
+forall env. MonadThrow (IOEnv env)
+forall e a.
+(HasCallStack, Exception e) =&gt;
+IOEnv env a -&gt; (e -&gt; IOEnv env a) -&gt; IOEnv env a
+forall env e a.
+(HasCallStack, Exception e) =&gt;
+IOEnv env a -&gt; (e -&gt; IOEnv env a) -&gt; IOEnv env a
+forall (m :: * -&gt; *).
+MonadThrow m =&gt;
+(forall e a.
+ (HasCallStack, Exception e) =&gt;
+ m a -&gt; (e -&gt; m a) -&gt; m a)
+-&gt; MonadCatch m
+$ccatch :: forall env e a.
+(HasCallStack, Exception e) =&gt;
+IOEnv env a -&gt; (e -&gt; IOEnv env a) -&gt; IOEnv env a
+catch :: forall e a.
+(HasCallStack, Exception e) =&gt;
+IOEnv env a -&gt; (e -&gt; IOEnv env a) -&gt; IOEnv env a
+</span><a href="../../exceptions-0.10.9-d4a4/src/Control.Monad.Catch.html#MonadCatch"><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var">MonadCatch</span></a></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682618746"><span id="local-6989586621682618758"><span id="local-6989586621682618769"><span class="annot"><span class="annottext">MonadCatch (IOEnv env)
+MonadCatch (IOEnv env) =&gt;
+(forall b.
+ HasCallStack =&gt;
+ ((forall a. IOEnv env a -&gt; IOEnv env a) -&gt; IOEnv env b)
+ -&gt; IOEnv env b)
+-&gt; (forall b.
+    HasCallStack =&gt;
+    ((forall a. IOEnv env a -&gt; IOEnv env a) -&gt; IOEnv env b)
+    -&gt; IOEnv env b)
+-&gt; (forall a b c.
+    HasCallStack =&gt;
+    IOEnv env a
+    -&gt; (a -&gt; ExitCase b -&gt; IOEnv env c)
+    -&gt; (a -&gt; IOEnv env b)
+    -&gt; IOEnv env (b, c))
+-&gt; MonadMask (IOEnv env)
+forall env. MonadCatch (IOEnv env)
+forall b.
+HasCallStack =&gt;
+((forall a. IOEnv env a -&gt; IOEnv env a) -&gt; IOEnv env b)
+-&gt; IOEnv env b
+forall env b.
+HasCallStack =&gt;
+((forall a. IOEnv env a -&gt; IOEnv env a) -&gt; IOEnv env b)
+-&gt; IOEnv env b
+forall a b c.
+HasCallStack =&gt;
+IOEnv env a
+-&gt; (a -&gt; ExitCase b -&gt; IOEnv env c)
+-&gt; (a -&gt; IOEnv env b)
+-&gt; IOEnv env (b, c)
+forall env a b c.
+HasCallStack =&gt;
+IOEnv env a
+-&gt; (a -&gt; ExitCase b -&gt; IOEnv env c)
+-&gt; (a -&gt; IOEnv env b)
+-&gt; IOEnv env (b, c)
+forall (m :: * -&gt; *).
+MonadCatch m =&gt;
+(forall b. HasCallStack =&gt; ((forall a. m a -&gt; m a) -&gt; m b) -&gt; m b)
+-&gt; (forall b.
+    HasCallStack =&gt;
+    ((forall a. m a -&gt; m a) -&gt; m b) -&gt; m b)
+-&gt; (forall a b c.
+    HasCallStack =&gt;
+    m a -&gt; (a -&gt; ExitCase b -&gt; m c) -&gt; (a -&gt; m b) -&gt; m (b, c))
+-&gt; MonadMask m
+$cmask :: forall env b.
+HasCallStack =&gt;
+((forall a. IOEnv env a -&gt; IOEnv env a) -&gt; IOEnv env b)
+-&gt; IOEnv env b
+mask :: forall b.
+HasCallStack =&gt;
+((forall a. IOEnv env a -&gt; IOEnv env a) -&gt; IOEnv env b)
+-&gt; IOEnv env b
+$cuninterruptibleMask :: forall env b.
+HasCallStack =&gt;
+((forall a. IOEnv env a -&gt; IOEnv env a) -&gt; IOEnv env b)
+-&gt; IOEnv env b
+uninterruptibleMask :: forall b.
+HasCallStack =&gt;
+((forall a. IOEnv env a -&gt; IOEnv env a) -&gt; IOEnv env b)
+-&gt; IOEnv env b
+$cgeneralBracket :: forall env a b c.
+HasCallStack =&gt;
+IOEnv env a
+-&gt; (a -&gt; ExitCase b -&gt; IOEnv env c)
+-&gt; (a -&gt; IOEnv env b)
+-&gt; IOEnv env (b, c)
+generalBracket :: forall a b c.
+HasCallStack =&gt;
+IOEnv env a
+-&gt; (a -&gt; ExitCase b -&gt; IOEnv env c)
+-&gt; (a -&gt; IOEnv env b)
+-&gt; IOEnv env (b, c)
+</span><a href="../../exceptions-0.10.9-d4a4/src/Control.Monad.Catch.html#MonadMask"><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var hs-var">MonadMask</span></a></span></span></span></span><span class="hs-special">,</span><span> </span><span id="local-6989586621682618785"><span class="annot"><span class="annottext">Monad (IOEnv env)
+Monad (IOEnv env) =&gt;
+(forall a. (a -&gt; IOEnv env a) -&gt; IOEnv env a)
+-&gt; MonadFix (IOEnv env)
+forall env. Monad (IOEnv env)
+forall a. (a -&gt; IOEnv env a) -&gt; IOEnv env a
+forall env a. (a -&gt; IOEnv env a) -&gt; IOEnv env a
+forall (m :: * -&gt; *).
+Monad m =&gt;
+(forall a. (a -&gt; m a) -&gt; m a) -&gt; MonadFix m
+$cmfix :: forall env a. (a -&gt; IOEnv env a) -&gt; IOEnv env a
+mfix :: forall a. (a -&gt; IOEnv env a) -&gt; IOEnv env a
+</span><span class="hs-identifier hs-var hs-var hs-var hs-var hs-var">MonadFix</span></span></span><span class="hs-special">)</span><span> </span><span class="hs-keyword">via</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="../../transformers-0.6.1.1-c721/src/Control.Monad.Trans.Reader.html#ReaderT"><span class="hs-identifier hs-type">ReaderT</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682618692"><span class="hs-identifier hs-type">env</span></a></span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span class="hs-special">)</span><span>
+</span><span id="line-65"></span><span>
+</span><span id="line-66"></span><span>
+</span><span id="line-67"></span><span class="hs-comment">-- See Note [The one-shot state monad trick] in GHC.Utils.Monad</span><span>
+</span><span id="line-68"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621682618443"><span class="annot"><span class="hs-identifier hs-type">Functor</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Data.IOEnv.html#IOEnv"><span class="hs-identifier hs-type">IOEnv</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682618443"><span class="hs-identifier hs-type">env</span></a></span><span class="hs-special">)</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-69"></span><span>   </span><span id="local-6989586621682618799"><span class="annot"><span class="annottext">fmap :: forall a b. (a -&gt; b) -&gt; IOEnv env a -&gt; IOEnv env b
+</span><span class="hs-identifier hs-var hs-var hs-var">fmap</span></span></span><span> </span><span id="local-6989586621682618800"><span class="annot"><span class="annottext">a -&gt; b
+</span><a href="#local-6989586621682618800"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Data.IOEnv.html#IOEnv"><span class="hs-identifier hs-type">IOEnv</span></a></span><span> </span><span id="local-6989586621682618802"><span class="annot"><span class="annottext">env -&gt; IO a
+</span><a href="#local-6989586621682618802"><span class="hs-identifier hs-var">g</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(env -&gt; IO b) -&gt; IOEnv env b
+forall env a. (env -&gt; IO a) -&gt; IOEnv env a
+</span><a href="GHC.Data.IOEnv.html#IOEnv"><span class="hs-identifier hs-var">IOEnv</span></a></span><span> </span><span class="annot"><span class="annottext">((env -&gt; IO b) -&gt; IOEnv env b) -&gt; (env -&gt; IO b) -&gt; IOEnv env b
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621682618803"><span class="annot"><span class="annottext">env
+</span><a href="#local-6989586621682618803"><span class="hs-identifier hs-var">env</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">(a -&gt; b) -&gt; IO a -&gt; IO b
+forall a b. (a -&gt; b) -&gt; IO a -&gt; IO b
+forall (f :: * -&gt; *) a b. Functor f =&gt; (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-identifier hs-var">fmap</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; b
+</span><a href="#local-6989586621682618800"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">env -&gt; IO a
+</span><a href="#local-6989586621682618802"><span class="hs-identifier hs-var">g</span></a></span><span> </span><span class="annot"><span class="annottext">env
+</span><a href="#local-6989586621682618803"><span class="hs-identifier hs-var">env</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-70"></span><span>   </span><span id="local-6989586621682618808"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621682618808"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span id="local-6989586621682618809"><span class="annot"><span class="annottext">&lt;$ :: forall a b. a -&gt; IOEnv env b -&gt; IOEnv env a
+</span><a href="#local-6989586621682618809"><span class="hs-operator hs-var hs-var hs-var">&lt;$</span></a></span></span><span> </span><span class="annot"><a href="GHC.Data.IOEnv.html#IOEnv"><span class="hs-identifier hs-type">IOEnv</span></a></span><span> </span><span id="local-6989586621682618811"><span class="annot"><span class="annottext">env -&gt; IO b
+</span><a href="#local-6989586621682618811"><span class="hs-identifier hs-var">g</span></a></span></span><span>     </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(env -&gt; IO a) -&gt; IOEnv env a
+forall env a. (env -&gt; IO a) -&gt; IOEnv env a
+</span><a href="GHC.Data.IOEnv.html#IOEnv"><span class="hs-identifier hs-var">IOEnv</span></a></span><span> </span><span class="annot"><span class="annottext">((env -&gt; IO a) -&gt; IOEnv env a) -&gt; (env -&gt; IO a) -&gt; IOEnv env a
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621682618812"><span class="annot"><span class="annottext">env
+</span><a href="#local-6989586621682618812"><span class="hs-identifier hs-var">env</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">env -&gt; IO b
+</span><a href="#local-6989586621682618811"><span class="hs-identifier hs-var">g</span></a></span><span> </span><span class="annot"><span class="annottext">env
+</span><a href="#local-6989586621682618812"><span class="hs-identifier hs-var">env</span></a></span><span> </span><span class="annot"><span class="annottext">IO b -&gt; IO a -&gt; IO a
+forall a b. IO a -&gt; IO b -&gt; IO b
+forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; m b -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;</span></span><span> </span><span class="annot"><span class="annottext">a -&gt; IO a
+forall a. a -&gt; IO a
+forall (f :: * -&gt; *) a. Applicative f =&gt; a -&gt; f a
+</span><span class="hs-identifier hs-var">pure</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621682618808"><span class="hs-identifier hs-var">a</span></a></span><span>
+</span><span id="line-71"></span><span>
+</span><span id="line-72"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621682618463"><span class="annot"><a href="../../base-4.20.2.0-6654/src/Control.Monad.IO.Class.html#MonadIO"><span class="hs-identifier hs-type">MonadIO</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Data.IOEnv.html#IOEnv"><span class="hs-identifier hs-type">IOEnv</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682618463"><span class="hs-identifier hs-type">env</span></a></span><span class="hs-special">)</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-73"></span><span>   </span><span id="local-6989586621682618818"><span class="annot"><span class="annottext">liftIO :: forall a. IO a -&gt; IOEnv env a
+</span><a href="#local-6989586621682618818"><span class="hs-identifier hs-var hs-var hs-var">liftIO</span></a></span></span><span> </span><span id="local-6989586621682618820"><span class="annot"><span class="annottext">IO a
+</span><a href="#local-6989586621682618820"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(env -&gt; IO a) -&gt; IOEnv env a
+forall env a. (env -&gt; IO a) -&gt; IOEnv env a
+</span><a href="GHC.Data.IOEnv.html#IOEnv"><span class="hs-identifier hs-var">IOEnv</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span class="annot"><span class="annottext">env
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">IO a
+</span><a href="#local-6989586621682618820"><span class="hs-identifier hs-var">f</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-74"></span><span>
+</span><span id="line-75"></span><span class="hs-keyword">pattern</span><span> </span><span class="annot"><a href="GHC.Data.IOEnv.html#IOEnv"><span class="hs-identifier hs-type">IOEnv</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-keyword">forall</span><span> </span><span id="local-6989586621682618446"><span class="annot"><a href="#local-6989586621682618446"><span class="hs-identifier hs-type">env</span></a></span></span><span> </span><span id="local-6989586621682618447"><span class="annot"><a href="#local-6989586621682618447"><span class="hs-identifier hs-type">a</span></a></span></span><span class="hs-operator">.</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621682618446"><span class="hs-identifier hs-type">env</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="#local-6989586621682618447"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Data.IOEnv.html#IOEnv"><span class="hs-identifier hs-type">IOEnv</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682618446"><span class="hs-identifier hs-type">env</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682618447"><span class="hs-identifier hs-type">a</span></a></span><span>
+</span><span id="line-76"></span><span class="hs-keyword">pattern</span><span> </span><span id="IOEnv"><span id="%24mIOEnv"><span id="%24bIOEnv"><span class="annot"><span class="annottext">$mIOEnv :: forall {r} {env} {a}.
+IOEnv env a -&gt; ((env -&gt; IO a) -&gt; r) -&gt; ((# #) -&gt; r) -&gt; r
+$bIOEnv :: forall env a. (env -&gt; IO a) -&gt; IOEnv env a
+</span><a href="GHC.Data.IOEnv.html#IOEnv"><span class="hs-identifier hs-var hs-var hs-var">IOEnv</span></a></span></span></span></span><span> </span><span class="annot"><a href="#local-6989586621682618823"><span class="hs-identifier hs-type">m</span></a></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><a href="GHC.Data.IOEnv.html#IOEnv%27"><span class="hs-identifier hs-type">IOEnv'</span></a></span><span> </span><span id="local-6989586621682618823"><span class="annot"><a href="#local-6989586621682618823"><span class="hs-identifier hs-var">m</span></a></span></span><span>
+</span><span id="line-77"></span><span>  </span><span class="hs-keyword">where</span><span>
+</span><span id="line-78"></span><span>    </span><span class="annot"><a href="GHC.Data.IOEnv.html#IOEnv"><span class="hs-identifier hs-var">IOEnv</span></a></span><span> </span><span id="local-6989586621682618824"><span class="annot"><span class="annottext">env -&gt; IO a
+</span><a href="#local-6989586621682618824"><span class="hs-identifier hs-var">m</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(env -&gt; IO a) -&gt; IOEnv env a
+forall env a. (env -&gt; IO a) -&gt; IOEnv env a
+</span><a href="GHC.Data.IOEnv.html#IOEnv%27"><span class="hs-identifier hs-var">IOEnv'</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">(env -&gt; IO a) -&gt; env -&gt; IO a
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-identifier hs-var">oneShot</span></span><span> </span><span class="annot"><span class="annottext">env -&gt; IO a
+</span><a href="#local-6989586621682618824"><span class="hs-identifier hs-var">m</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-79"></span><span>
+</span><span id="line-80"></span><span class="hs-pragma">{-# COMPLETE</span><span> </span><span class="annot"><a href="GHC.Data.IOEnv.html#IOEnv"><span class="hs-pragma hs-type">IOEnv</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-81"></span><span>
+</span><span id="line-82"></span><span id="local-6989586621682618469"><span id="local-6989586621682618470"><span class="annot"><a href="GHC.Data.IOEnv.html#unIOEnv"><span class="hs-identifier hs-type">unIOEnv</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Data.IOEnv.html#IOEnv"><span class="hs-identifier hs-type">IOEnv</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682618469"><span class="hs-identifier hs-type">env</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682618470"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621682618469"><span class="hs-identifier hs-type">env</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="#local-6989586621682618470"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span></span><span>
+</span><span id="line-83"></span><span id="unIOEnv"><span class="annot"><span class="annottext">unIOEnv :: forall env a. IOEnv env a -&gt; env -&gt; IO a
+</span><a href="GHC.Data.IOEnv.html#unIOEnv"><span class="hs-identifier hs-var hs-var">unIOEnv</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Data.IOEnv.html#IOEnv"><span class="hs-identifier hs-type">IOEnv</span></a></span><span> </span><span id="local-6989586621682618826"><span class="annot"><span class="annottext">env -&gt; IO a
+</span><a href="#local-6989586621682618826"><span class="hs-identifier hs-var">m</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">env -&gt; IO a
+</span><a href="#local-6989586621682618826"><span class="hs-identifier hs-var">m</span></a></span><span>
+</span><span id="line-84"></span><span>
+</span><span id="line-85"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621682618827"><span id="local-6989586621682618834"><span class="annot"><span class="hs-identifier hs-type">Monad</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Data.IOEnv.html#IOEnv"><span class="hs-identifier hs-type">IOEnv</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682618827"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-86"></span><span>    </span><span id="local-6989586621682618837"><span class="annot"><span class="annottext">&gt;&gt;= :: forall a b. IOEnv m a -&gt; (a -&gt; IOEnv m b) -&gt; IOEnv m b
+</span><span class="hs-operator hs-var hs-var hs-var">(&gt;&gt;=)</span></span></span><span>  </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">IOEnv m a -&gt; (a -&gt; IOEnv m b) -&gt; IOEnv m b
+forall m a b. IOEnv m a -&gt; (a -&gt; IOEnv m b) -&gt; IOEnv m b
+</span><a href="GHC.Data.IOEnv.html#thenM"><span class="hs-identifier hs-var">thenM</span></a></span><span>
+</span><span id="line-87"></span><span>    </span><span id="local-6989586621682618840"><span class="annot"><span class="annottext">&gt;&gt; :: forall a b. IOEnv m a -&gt; IOEnv m b -&gt; IOEnv m b
+</span><span class="hs-operator hs-var hs-var hs-var">(&gt;&gt;)</span></span></span><span>   </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">IOEnv m a -&gt; IOEnv m b -&gt; IOEnv m b
+forall a b. IOEnv m a -&gt; IOEnv m b -&gt; IOEnv m b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f a -&gt; f b -&gt; f b
+</span><span class="hs-operator hs-var">(*&gt;)</span></span><span>
+</span><span id="line-88"></span><span>
+</span><span id="line-89"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621682618486"><span class="annot"><span class="hs-identifier hs-type">MonadFail</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Data.IOEnv.html#IOEnv"><span class="hs-identifier hs-type">IOEnv</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682618486"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-90"></span><span>    </span><span id="local-6989586621682618846"><span class="annot"><span class="annottext">fail :: forall a. String -&gt; IOEnv m a
+</span><span class="hs-identifier hs-var hs-var hs-var">fail</span></span></span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">IOEnv m a
+forall env a. IOEnv env a
+</span><a href="GHC.Data.IOEnv.html#failM"><span class="hs-identifier hs-var">failM</span></a></span><span> </span><span class="hs-comment">-- Ignore the string</span><span>
+</span><span id="line-91"></span><span>
+</span><span id="line-92"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621682618847"><span id="local-6989586621682618853"><span id="local-6989586621682618857"><span class="annot"><span class="hs-identifier hs-type">Applicative</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Data.IOEnv.html#IOEnv"><span class="hs-identifier hs-type">IOEnv</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682618847"><span class="hs-identifier hs-type">m</span></a></span><span class="hs-special">)</span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-93"></span><span>    </span><span id="local-6989586621682618860"><span class="annot"><span class="annottext">pure :: forall a. a -&gt; IOEnv m a
+</span><span class="hs-identifier hs-var hs-var hs-var">pure</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">a -&gt; IOEnv m a
+forall a env. a -&gt; IOEnv env a
+</span><a href="GHC.Data.IOEnv.html#returnM"><span class="hs-identifier hs-var">returnM</span></a></span><span>
+</span><span id="line-94"></span><span>    </span><span class="annot"><a href="GHC.Data.IOEnv.html#IOEnv"><span class="hs-identifier hs-type">IOEnv</span></a></span><span> </span><span id="local-6989586621682618863"><span class="annot"><span class="annottext">m -&gt; IO (a -&gt; b)
+</span><a href="#local-6989586621682618863"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span id="local-6989586621682618864"><span class="annot"><span class="annottext">&lt;*&gt; :: forall a b. IOEnv m (a -&gt; b) -&gt; IOEnv m a -&gt; IOEnv m b
+</span><span class="hs-operator hs-var hs-var hs-var">&lt;*&gt;</span></span></span><span> </span><span class="annot"><a href="GHC.Data.IOEnv.html#IOEnv"><span class="hs-identifier hs-type">IOEnv</span></a></span><span> </span><span id="local-6989586621682618865"><span class="annot"><span class="annottext">m -&gt; IO a
+</span><a href="#local-6989586621682618865"><span class="hs-identifier hs-var">x</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(m -&gt; IO b) -&gt; IOEnv m b
+forall env a. (env -&gt; IO a) -&gt; IOEnv env a
+</span><a href="GHC.Data.IOEnv.html#IOEnv"><span class="hs-identifier hs-var">IOEnv</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span> </span><span id="local-6989586621682618866"><span class="annot"><span class="annottext">m
+</span><a href="#local-6989586621682618866"><span class="hs-identifier hs-var">env</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">m -&gt; IO (a -&gt; b)
+</span><a href="#local-6989586621682618863"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">m
+</span><a href="#local-6989586621682618866"><span class="hs-identifier hs-var">env</span></a></span><span> </span><span class="annot"><span class="annottext">IO (a -&gt; b) -&gt; IO a -&gt; IO b
+forall a b. IO (a -&gt; b) -&gt; IO a -&gt; IO b
+forall (f :: * -&gt; *) a b. Applicative f =&gt; f (a -&gt; b) -&gt; f a -&gt; f b
+</span><span class="hs-operator hs-var">&lt;*&gt;</span></span><span> </span><span class="annot"><span class="annottext">m -&gt; IO a
+</span><a href="#local-6989586621682618865"><span class="hs-identifier hs-var">x</span></a></span><span> </span><span class="annot"><span class="annottext">m
+</span><a href="#local-6989586621682618866"><span class="hs-identifier hs-var">env</span></a></span><span> </span><span class="hs-special">)</span><span>
+</span><span id="line-95"></span><span>    </span><span id="local-6989586621682618867"><span class="annot"><span class="annottext">*&gt; :: forall a b. IOEnv m a -&gt; IOEnv m b -&gt; IOEnv m b
+</span><span class="hs-operator hs-var hs-var hs-var">(*&gt;)</span></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">IOEnv m a -&gt; IOEnv m b -&gt; IOEnv m b
+forall m a b. IOEnv m a -&gt; IOEnv m b -&gt; IOEnv m b
+</span><a href="GHC.Data.IOEnv.html#thenM_"><span class="hs-identifier hs-var">thenM_</span></a></span><span>
+</span><span id="line-96"></span><span>
+</span><span id="line-97"></span><span id="local-6989586621682618499"><span id="local-6989586621682618500"><span class="annot"><a href="GHC.Data.IOEnv.html#returnM"><span class="hs-identifier hs-type">returnM</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="#local-6989586621682618499"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Data.IOEnv.html#IOEnv"><span class="hs-identifier hs-type">IOEnv</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682618500"><span class="hs-identifier hs-type">env</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682618499"><span class="hs-identifier hs-type">a</span></a></span></span></span><span>
+</span><span id="line-98"></span><span id="returnM"><span class="annot"><span class="annottext">returnM :: forall a env. a -&gt; IOEnv env a
+</span><a href="GHC.Data.IOEnv.html#returnM"><span class="hs-identifier hs-var hs-var">returnM</span></a></span></span><span> </span><span id="local-6989586621682618870"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621682618870"><span class="hs-identifier hs-var">a</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(env -&gt; IO a) -&gt; IOEnv env a
+forall env a. (env -&gt; IO a) -&gt; IOEnv env a
+</span><a href="GHC.Data.IOEnv.html#IOEnv"><span class="hs-identifier hs-var">IOEnv</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span> </span><span class="annot"><span class="annottext">env
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">a -&gt; IO a
+forall a. a -&gt; IO a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621682618870"><span class="hs-identifier hs-var">a</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-99"></span><span>
+</span><span id="line-100"></span><span id="local-6989586621682618871"><span id="local-6989586621682618872"><span id="local-6989586621682618873"><span class="annot"><a href="GHC.Data.IOEnv.html#thenM"><span class="hs-identifier hs-type">thenM</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Data.IOEnv.html#IOEnv"><span class="hs-identifier hs-type">IOEnv</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682618871"><span class="hs-identifier hs-type">env</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682618872"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621682618872"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Data.IOEnv.html#IOEnv"><span class="hs-identifier hs-type">IOEnv</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682618871"><span class="hs-identifier hs-type">env</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682618873"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Data.IOEnv.html#IOEnv"><span class="hs-identifier hs-type">IOEnv</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682618871"><span class="hs-identifier hs-type">env</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682618873"><span class="hs-identifier hs-type">b</span></a></span></span></span></span><span>
+</span><span id="line-101"></span><span id="thenM"><span class="annot"><span class="annottext">thenM :: forall m a b. IOEnv m a -&gt; (a -&gt; IOEnv m b) -&gt; IOEnv m b
+</span><a href="GHC.Data.IOEnv.html#thenM"><span class="hs-identifier hs-var hs-var">thenM</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Data.IOEnv.html#IOEnv"><span class="hs-identifier hs-type">IOEnv</span></a></span><span> </span><span id="local-6989586621682618875"><span class="annot"><span class="annottext">env -&gt; IO a
+</span><a href="#local-6989586621682618875"><span class="hs-identifier hs-var">m</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621682618876"><span class="annot"><span class="annottext">a -&gt; IOEnv env b
+</span><a href="#local-6989586621682618876"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(env -&gt; IO b) -&gt; IOEnv env b
+forall env a. (env -&gt; IO a) -&gt; IOEnv env a
+</span><a href="GHC.Data.IOEnv.html#IOEnv"><span class="hs-identifier hs-var">IOEnv</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span> </span><span id="local-6989586621682618877"><span class="annot"><span class="annottext">env
+</span><a href="#local-6989586621682618877"><span class="hs-identifier hs-var">env</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span> </span><span class="hs-special">{</span><span> </span><span id="local-6989586621682618878"><span class="annot"><a href="#local-6989586621682618878"><span class="hs-identifier hs-var">r</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">env -&gt; IO a
+</span><a href="#local-6989586621682618875"><span class="hs-identifier hs-var">m</span></a></span><span> </span><span class="annot"><span class="annottext">env
+</span><a href="#local-6989586621682618877"><span class="hs-identifier hs-var">env</span></a></span><span> </span><span class="hs-special">;</span><span>
+</span><span id="line-102"></span><span>                                         </span><span class="annot"><a href="GHC.Data.IOEnv.html#unIOEnv"><span class="hs-identifier hs-type">unIOEnv</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621682618876"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682618878"><span class="hs-identifier hs-type">r</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><a href="#local-6989586621682618877"><span class="hs-identifier hs-type">env</span></a></span><span> </span><span class="hs-special">}</span><span class="hs-special">)</span><span>
+</span><span id="line-103"></span><span>
+</span><span id="line-104"></span><span id="local-6989586621682618879"><span id="local-6989586621682618880"><span id="local-6989586621682618881"><span class="annot"><a href="GHC.Data.IOEnv.html#thenM_"><span class="hs-identifier hs-type">thenM_</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Data.IOEnv.html#IOEnv"><span class="hs-identifier hs-type">IOEnv</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682618879"><span class="hs-identifier hs-type">env</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682618880"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Data.IOEnv.html#IOEnv"><span class="hs-identifier hs-type">IOEnv</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682618879"><span class="hs-identifier hs-type">env</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682618881"><span class="hs-identifier hs-type">b</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Data.IOEnv.html#IOEnv"><span class="hs-identifier hs-type">IOEnv</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682618879"><span class="hs-identifier hs-type">env</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682618881"><span class="hs-identifier hs-type">b</span></a></span></span></span></span><span>
+</span><span id="line-105"></span><span id="thenM_"><span class="annot"><span class="annottext">thenM_ :: forall m a b. IOEnv m a -&gt; IOEnv m b -&gt; IOEnv m b
+</span><a href="GHC.Data.IOEnv.html#thenM_"><span class="hs-identifier hs-var hs-var">thenM_</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Data.IOEnv.html#IOEnv"><span class="hs-identifier hs-type">IOEnv</span></a></span><span> </span><span id="local-6989586621682618883"><span class="annot"><span class="annottext">env -&gt; IO a
+</span><a href="#local-6989586621682618883"><span class="hs-identifier hs-var">m</span></a></span></span><span class="hs-special">)</span><span> </span><span id="local-6989586621682618884"><span class="annot"><span class="annottext">IOEnv env b
+</span><a href="#local-6989586621682618884"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(env -&gt; IO b) -&gt; IOEnv env b
+forall env a. (env -&gt; IO a) -&gt; IOEnv env a
+</span><a href="GHC.Data.IOEnv.html#IOEnv"><span class="hs-identifier hs-var">IOEnv</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span> </span><span id="local-6989586621682618885"><span class="annot"><span class="annottext">env
+</span><a href="#local-6989586621682618885"><span class="hs-identifier hs-var">env</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span> </span><span class="hs-special">{</span><span> </span><span class="annot"><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">env -&gt; IO a
+</span><a href="#local-6989586621682618883"><span class="hs-identifier hs-var">m</span></a></span><span> </span><span class="annot"><span class="annottext">env
+</span><a href="#local-6989586621682618885"><span class="hs-identifier hs-var">env</span></a></span><span> </span><span class="hs-special">;</span><span> </span><span class="annot"><a href="GHC.Data.IOEnv.html#unIOEnv"><span class="hs-identifier hs-type">unIOEnv</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682618884"><span class="hs-identifier hs-type">f</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682618885"><span class="hs-identifier hs-type">env</span></a></span><span> </span><span class="hs-special">}</span><span class="hs-special">)</span><span>
+</span><span id="line-106"></span><span>
+</span><span id="line-107"></span><span id="local-6989586621682618488"><span id="local-6989586621682618489"><span class="annot"><a href="GHC.Data.IOEnv.html#failM"><span class="hs-identifier hs-type">failM</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Data.IOEnv.html#IOEnv"><span class="hs-identifier hs-type">IOEnv</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682618488"><span class="hs-identifier hs-type">env</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682618489"><span class="hs-identifier hs-type">a</span></a></span></span></span><span>
+</span><span id="line-108"></span><span id="failM"><span class="annot"><span class="annottext">failM :: forall env a. IOEnv env a
+</span><a href="GHC.Data.IOEnv.html#failM"><span class="hs-identifier hs-var hs-var">failM</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(env -&gt; IO a) -&gt; IOEnv env a
+forall env a. (env -&gt; IO a) -&gt; IOEnv env a
+</span><a href="GHC.Data.IOEnv.html#IOEnv"><span class="hs-identifier hs-var">IOEnv</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span> </span><span class="annot"><span class="annottext">env
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">IOEnvFailure -&gt; IO a
+forall e a. (HasCallStack, Exception e) =&gt; e -&gt; IO a
+</span><span class="hs-identifier hs-var">throwIO</span></span><span> </span><span class="annot"><span class="annottext">IOEnvFailure
+</span><a href="GHC.Data.IOEnv.html#IOEnvFailure"><span class="hs-identifier hs-var">IOEnvFailure</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-109"></span><span>
+</span><span id="line-110"></span><span id="local-6989586621682618892"><span id="local-6989586621682618893"><span class="annot"><a href="GHC.Data.IOEnv.html#failWithM"><span class="hs-identifier hs-type">failWithM</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">String</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Data.IOEnv.html#IOEnv"><span class="hs-identifier hs-type">IOEnv</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682618892"><span class="hs-identifier hs-type">env</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682618893"><span class="hs-identifier hs-type">a</span></a></span></span></span><span>
+</span><span id="line-111"></span><span id="failWithM"><span class="annot"><span class="annottext">failWithM :: forall m a. String -&gt; IOEnv m a
+</span><a href="GHC.Data.IOEnv.html#failWithM"><span class="hs-identifier hs-var hs-var">failWithM</span></a></span></span><span> </span><span id="local-6989586621682618894"><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621682618894"><span class="hs-identifier hs-var">s</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(env -&gt; IO a) -&gt; IOEnv env a
+forall env a. (env -&gt; IO a) -&gt; IOEnv env a
+</span><a href="GHC.Data.IOEnv.html#IOEnv"><span class="hs-identifier hs-var">IOEnv</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span> </span><span class="annot"><span class="annottext">env
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">IOError -&gt; IO a
+forall a. IOError -&gt; IO a
+</span><span class="hs-identifier hs-var">ioError</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">String -&gt; IOError
+</span><span class="hs-identifier hs-var">userError</span></span><span> </span><span class="annot"><span class="annottext">String
+</span><a href="#local-6989586621682618894"><span class="hs-identifier hs-var">s</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-112"></span><span>
+</span><span id="line-113"></span><span class="hs-keyword">data</span><span> </span><span id="IOEnvFailure"><span class="annot"><a href="GHC.Data.IOEnv.html#IOEnvFailure"><span class="hs-identifier hs-var">IOEnvFailure</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span id="IOEnvFailure"><span class="annot"><a href="GHC.Data.IOEnv.html#IOEnvFailure"><span class="hs-identifier hs-var">IOEnvFailure</span></a></span></span><span>
+</span><span id="line-114"></span><span>
+</span><span id="line-115"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621682618898"><span id="local-6989586621682618903"><span class="annot"><span class="hs-identifier hs-type">Show</span></span><span> </span><span class="annot"><a href="GHC.Data.IOEnv.html#IOEnvFailure"><span class="hs-identifier hs-type">IOEnvFailure</span></a></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-116"></span><span>    </span><span id="local-6989586621682618906"><span class="annot"><span class="annottext">show :: IOEnvFailure -&gt; String
+</span><a href="#local-6989586621682618906"><span class="hs-identifier hs-var hs-var hs-var">show</span></a></span></span><span> </span><span class="annot"><span class="annottext">IOEnvFailure
+</span><a href="GHC.Data.IOEnv.html#IOEnvFailure"><span class="hs-identifier hs-var">IOEnvFailure</span></a></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">String
+</span><span class="hs-string">&quot;IOEnv failure&quot;</span></span><span>
+</span><span id="line-117"></span><span>
+</span><span id="line-118"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621682618913"><span id="local-6989586621682618916"><span id="local-6989586621682618919"><span id="local-6989586621682618922"><span class="annot"><span class="hs-identifier hs-type">Exception</span></span><span> </span><span class="annot"><a href="GHC.Data.IOEnv.html#IOEnvFailure"><span class="hs-identifier hs-type">IOEnvFailure</span></a></span></span></span></span></span><span>
+</span><span id="line-119"></span><span>
+</span><span id="line-120"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621682618531"><span class="annot"><a href="GHC.Driver.DynFlags.html#ContainsDynFlags"><span class="hs-identifier hs-type">ContainsDynFlags</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682618531"><span class="hs-identifier hs-type">env</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="GHC.Driver.DynFlags.html#HasDynFlags"><span class="hs-identifier hs-type">HasDynFlags</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Data.IOEnv.html#IOEnv"><span class="hs-identifier hs-type">IOEnv</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682618531"><span class="hs-identifier hs-type">env</span></a></span><span class="hs-special">)</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-121"></span><span>    </span><span id="local-6989586621682618932"><span class="annot"><span class="annottext">getDynFlags :: IOEnv env DynFlags
+</span><a href="#local-6989586621682618932"><span class="hs-identifier hs-var hs-var hs-var">getDynFlags</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span> </span><span id="local-6989586621682618934"><span class="annot"><a href="#local-6989586621682618934"><span class="hs-identifier hs-var">env</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">IOEnv env env
+forall env. IOEnv env env
+</span><a href="GHC.Data.IOEnv.html#getEnv"><span class="hs-identifier hs-var">getEnv</span></a></span><span>
+</span><span id="line-122"></span><span>                     </span><span class="annot"><span class="hs-identifier hs-type">return</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">$!</span></span><span> </span><span class="annot"><a href="GHC.Driver.DynFlags.html#extractDynFlags"><span class="hs-identifier hs-type">extractDynFlags</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682618934"><span class="hs-identifier hs-type">env</span></a></span><span>
+</span><span id="line-123"></span><span>
+</span><span id="line-124"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621682618542"><span class="annot"><a href="GHC.Driver.Hooks.html#ContainsHooks"><span class="hs-identifier hs-type">ContainsHooks</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682618542"><span class="hs-identifier hs-type">env</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="GHC.Driver.Hooks.html#HasHooks"><span class="hs-identifier hs-type">HasHooks</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Data.IOEnv.html#IOEnv"><span class="hs-identifier hs-type">IOEnv</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682618542"><span class="hs-identifier hs-type">env</span></a></span><span class="hs-special">)</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-125"></span><span>    </span><span id="local-6989586621682618944"><span class="annot"><span class="annottext">getHooks :: IOEnv env Hooks
+</span><a href="#local-6989586621682618944"><span class="hs-identifier hs-var hs-var hs-var">getHooks</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span> </span><span id="local-6989586621682618946"><span class="annot"><a href="#local-6989586621682618946"><span class="hs-identifier hs-var">env</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">IOEnv env env
+forall env. IOEnv env env
+</span><a href="GHC.Data.IOEnv.html#getEnv"><span class="hs-identifier hs-var">getEnv</span></a></span><span>
+</span><span id="line-126"></span><span>                  </span><span class="annot"><span class="hs-identifier hs-type">return</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">$!</span></span><span> </span><span class="annot"><a href="GHC.Driver.Hooks.html#extractHooks"><span class="hs-identifier hs-type">extractHooks</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682618946"><span class="hs-identifier hs-type">env</span></a></span><span>
+</span><span id="line-127"></span><span>
+</span><span id="line-128"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621682618549"><span class="annot"><a href="GHC.Utils.Logger.html#ContainsLogger"><span class="hs-identifier hs-type">ContainsLogger</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682618549"><span class="hs-identifier hs-type">env</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="GHC.Utils.Logger.html#HasLogger"><span class="hs-identifier hs-type">HasLogger</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Data.IOEnv.html#IOEnv"><span class="hs-identifier hs-type">IOEnv</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682618549"><span class="hs-identifier hs-type">env</span></a></span><span class="hs-special">)</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-129"></span><span>    </span><span id="local-6989586621682618955"><span class="annot"><span class="annottext">getLogger :: IOEnv env Logger
+</span><a href="#local-6989586621682618955"><span class="hs-identifier hs-var hs-var hs-var">getLogger</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span> </span><span id="local-6989586621682618957"><span class="annot"><a href="#local-6989586621682618957"><span class="hs-identifier hs-var">env</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">IOEnv env env
+forall env. IOEnv env env
+</span><a href="GHC.Data.IOEnv.html#getEnv"><span class="hs-identifier hs-var">getEnv</span></a></span><span>
+</span><span id="line-130"></span><span>                   </span><span class="annot"><span class="hs-identifier hs-type">return</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">$!</span></span><span> </span><span class="annot"><a href="GHC.Utils.Logger.html#extractLogger"><span class="hs-identifier hs-type">extractLogger</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682618957"><span class="hs-identifier hs-type">env</span></a></span><span>
+</span><span id="line-131"></span><span>
+</span><span id="line-132"></span><span>
+</span><span id="line-133"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621682618556"><span class="annot"><a href="GHC.Unit.Module.html#ContainsModule"><span class="hs-identifier hs-type">ContainsModule</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682618556"><span class="hs-identifier hs-type">env</span></a></span><span> </span><span class="hs-glyph">=&gt;</span><span> </span><span class="annot"><a href="GHC.Unit.Module.html#HasModule"><span class="hs-identifier hs-type">HasModule</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Data.IOEnv.html#IOEnv"><span class="hs-identifier hs-type">IOEnv</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682618556"><span class="hs-identifier hs-type">env</span></a></span><span class="hs-special">)</span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-134"></span><span>    </span><span id="local-6989586621682618966"><span class="annot"><span class="annottext">getModule :: IOEnv env Module
+</span><a href="#local-6989586621682618966"><span class="hs-identifier hs-var hs-var hs-var">getModule</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span> </span><span id="local-6989586621682618968"><span class="annot"><a href="#local-6989586621682618968"><span class="hs-identifier hs-var">env</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">IOEnv env env
+forall env. IOEnv env env
+</span><a href="GHC.Data.IOEnv.html#getEnv"><span class="hs-identifier hs-var">getEnv</span></a></span><span>
+</span><span id="line-135"></span><span>                   </span><span class="annot"><span class="hs-identifier hs-type">return</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">$</span></span><span> </span><span class="annot"><a href="GHC.Unit.Module.html#extractModule"><span class="hs-identifier hs-type">extractModule</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682618968"><span class="hs-identifier hs-type">env</span></a></span><span>
+</span><span id="line-136"></span><span>
+</span><span id="line-137"></span><span class="hs-comment">----------------------------------------------------------------------</span><span>
+</span><span id="line-138"></span><span class="hs-comment">-- Fundamental combinators specific to the monad</span><span>
+</span><span id="line-139"></span><span class="hs-comment">----------------------------------------------------------------------</span><span>
+</span><span id="line-140"></span><span>
+</span><span id="line-141"></span><span>
+</span><span id="line-142"></span><span class="hs-comment">---------------------------</span><span>
+</span><span id="line-143"></span><span id="local-6989586621682618558"><span id="local-6989586621682618559"><span class="annot"><a href="GHC.Data.IOEnv.html#runIOEnv"><span class="hs-identifier hs-type">runIOEnv</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="#local-6989586621682618558"><span class="hs-identifier hs-type">env</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Data.IOEnv.html#IOEnv"><span class="hs-identifier hs-type">IOEnv</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682618558"><span class="hs-identifier hs-type">env</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682618559"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="#local-6989586621682618559"><span class="hs-identifier hs-type">a</span></a></span></span></span><span>
+</span><span id="line-144"></span><span id="runIOEnv"><span class="annot"><span class="annottext">runIOEnv :: forall env a. env -&gt; IOEnv env a -&gt; IO a
+</span><a href="GHC.Data.IOEnv.html#runIOEnv"><span class="hs-identifier hs-var hs-var">runIOEnv</span></a></span></span><span> </span><span id="local-6989586621682618970"><span class="annot"><span class="annottext">env
+</span><a href="#local-6989586621682618970"><span class="hs-identifier hs-var">env</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Data.IOEnv.html#IOEnv"><span class="hs-identifier hs-type">IOEnv</span></a></span><span> </span><span id="local-6989586621682618971"><span class="annot"><span class="annottext">env -&gt; IO a
+</span><a href="#local-6989586621682618971"><span class="hs-identifier hs-var">m</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">env -&gt; IO a
+</span><a href="#local-6989586621682618971"><span class="hs-identifier hs-var">m</span></a></span><span> </span><span class="annot"><span class="annottext">env
+</span><a href="#local-6989586621682618970"><span class="hs-identifier hs-var">env</span></a></span><span>
+</span><span id="line-145"></span><span>
+</span><span id="line-146"></span><span>
+</span><span id="line-147"></span><span class="hs-comment">---------------------------</span><span>
+</span><span id="line-148"></span><span class="hs-pragma">{-# NOINLINE</span><span> </span><span class="annot"><a href="GHC.Data.IOEnv.html#fixM"><span class="hs-pragma hs-type">fixM</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-149"></span><span>  </span><span class="hs-comment">-- Aargh!  Not inlining fixM alleviates a space leak problem.</span><span>
+</span><span id="line-150"></span><span>  </span><span class="hs-comment">-- Normally fixM is used with a lazy tuple match: if the optimiser is</span><span>
+</span><span id="line-151"></span><span>  </span><span class="hs-comment">-- shown the definition of fixM, it occasionally transforms the code</span><span>
+</span><span id="line-152"></span><span>  </span><span class="hs-comment">-- in such a way that the code generator doesn't spot the selector</span><span>
+</span><span id="line-153"></span><span>  </span><span class="hs-comment">-- thunks.  Sigh.</span><span>
+</span><span id="line-154"></span><span>
+</span><span id="line-155"></span><span id="local-6989586621682618562"><span id="local-6989586621682618563"><span class="annot"><a href="GHC.Data.IOEnv.html#fixM"><span class="hs-identifier hs-type">fixM</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621682618562"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Data.IOEnv.html#IOEnv"><span class="hs-identifier hs-type">IOEnv</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682618563"><span class="hs-identifier hs-type">env</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682618562"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Data.IOEnv.html#IOEnv"><span class="hs-identifier hs-type">IOEnv</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682618563"><span class="hs-identifier hs-type">env</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682618562"><span class="hs-identifier hs-type">a</span></a></span></span></span><span>
+</span><span id="line-156"></span><span id="fixM"><span class="annot"><span class="annottext">fixM :: forall a env. (a -&gt; IOEnv env a) -&gt; IOEnv env a
+</span><a href="GHC.Data.IOEnv.html#fixM"><span class="hs-identifier hs-var hs-var">fixM</span></a></span></span><span> </span><span id="local-6989586621682618972"><span class="annot"><span class="annottext">a -&gt; IOEnv env a
+</span><a href="#local-6989586621682618972"><span class="hs-identifier hs-var">f</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(env -&gt; IO a) -&gt; IOEnv env a
+forall env a. (env -&gt; IO a) -&gt; IOEnv env a
+</span><a href="GHC.Data.IOEnv.html#IOEnv"><span class="hs-identifier hs-var">IOEnv</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span> </span><span id="local-6989586621682618973"><span class="annot"><span class="annottext">env
+</span><a href="#local-6989586621682618973"><span class="hs-identifier hs-var">env</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">(a -&gt; IO a) -&gt; IO a
+forall a. (a -&gt; IO a) -&gt; IO a
+</span><span class="hs-identifier hs-var">fixIO</span></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span> </span><span id="local-6989586621682618974"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621682618974"><span class="hs-identifier hs-var">r</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">IOEnv env a -&gt; env -&gt; IO a
+forall env a. IOEnv env a -&gt; env -&gt; IO a
+</span><a href="GHC.Data.IOEnv.html#unIOEnv"><span class="hs-identifier hs-var">unIOEnv</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a -&gt; IOEnv env a
+</span><a href="#local-6989586621682618972"><span class="hs-identifier hs-var">f</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621682618974"><span class="hs-identifier hs-var">r</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">env
+</span><a href="#local-6989586621682618973"><span class="hs-identifier hs-var">env</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-157"></span><span>
+</span><span id="line-158"></span><span>
+</span><span id="line-159"></span><span class="hs-comment">---------------------------</span><span>
+</span><span id="line-160"></span><span id="local-6989586621682618567"><span id="local-6989586621682618568"><span class="annot"><a href="GHC.Data.IOEnv.html#tryM"><span class="hs-identifier hs-type">tryM</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Data.IOEnv.html#IOEnv"><span class="hs-identifier hs-type">IOEnv</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682618567"><span class="hs-identifier hs-type">env</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682618568"><span class="hs-identifier hs-type">r</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Data.IOEnv.html#IOEnv"><span class="hs-identifier hs-type">IOEnv</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682618567"><span class="hs-identifier hs-type">env</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Either</span></span><span> </span><span class="annot"><a href="GHC.Data.IOEnv.html#IOEnvFailure"><span class="hs-identifier hs-type">IOEnvFailure</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682618568"><span class="hs-identifier hs-type">r</span></a></span><span class="hs-special">)</span></span></span><span>
+</span><span id="line-161"></span><span class="hs-comment">-- Reflect UserError exceptions (only) into IOEnv monad</span><span>
+</span><span id="line-162"></span><span class="hs-comment">-- Other exceptions are not caught; they are simply propagated as exns</span><span>
+</span><span id="line-163"></span><span class="hs-comment">--</span><span>
+</span><span id="line-164"></span><span class="hs-comment">-- The idea is that errors in the program being compiled will give rise</span><span>
+</span><span id="line-165"></span><span class="hs-comment">-- to UserErrors.  But, say, pattern-match failures in GHC itself should</span><span>
+</span><span id="line-166"></span><span class="hs-comment">-- not be caught here, else they'll be reported as errors in the program</span><span>
+</span><span id="line-167"></span><span class="hs-comment">-- begin compiled!</span><span>
+</span><span id="line-168"></span><span id="tryM"><span class="annot"><span class="annottext">tryM :: forall env r. IOEnv env r -&gt; IOEnv env (Either IOEnvFailure r)
+</span><a href="GHC.Data.IOEnv.html#tryM"><span class="hs-identifier hs-var hs-var">tryM</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Data.IOEnv.html#IOEnv"><span class="hs-identifier hs-type">IOEnv</span></a></span><span> </span><span id="local-6989586621682618975"><span class="annot"><span class="annottext">env -&gt; IO r
+</span><a href="#local-6989586621682618975"><span class="hs-identifier hs-var">thing</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(env -&gt; IO (Either IOEnvFailure r))
+-&gt; IOEnv env (Either IOEnvFailure r)
+forall env a. (env -&gt; IO a) -&gt; IOEnv env a
+</span><a href="GHC.Data.IOEnv.html#IOEnv"><span class="hs-identifier hs-var">IOEnv</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span> </span><span id="local-6989586621682618976"><span class="annot"><span class="annottext">env
+</span><a href="#local-6989586621682618976"><span class="hs-identifier hs-var">env</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">IO r -&gt; IO (Either IOEnvFailure r)
+forall a. IO a -&gt; IO (Either IOEnvFailure a)
+</span><a href="GHC.Data.IOEnv.html#tryIOEnvFailure"><span class="hs-identifier hs-var">tryIOEnvFailure</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">env -&gt; IO r
+</span><a href="#local-6989586621682618975"><span class="hs-identifier hs-var">thing</span></a></span><span> </span><span class="annot"><span class="annottext">env
+</span><a href="#local-6989586621682618976"><span class="hs-identifier hs-var">env</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-169"></span><span>
+</span><span id="line-170"></span><span id="local-6989586621682618571"><span class="annot"><a href="GHC.Data.IOEnv.html#tryIOEnvFailure"><span class="hs-identifier hs-type">tryIOEnvFailure</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="#local-6989586621682618571"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Either</span></span><span> </span><span class="annot"><a href="GHC.Data.IOEnv.html#IOEnvFailure"><span class="hs-identifier hs-type">IOEnvFailure</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682618571"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span><span>
+</span><span id="line-171"></span><span id="tryIOEnvFailure"><span class="annot"><span class="annottext">tryIOEnvFailure :: forall a. IO a -&gt; IO (Either IOEnvFailure a)
+</span><a href="GHC.Data.IOEnv.html#tryIOEnvFailure"><span class="hs-identifier hs-var hs-var">tryIOEnvFailure</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">IO a -&gt; IO (Either IOEnvFailure a)
+forall e a. Exception e =&gt; IO a -&gt; IO (Either e a)
+</span><span class="hs-identifier hs-var">try</span></span><span>
+</span><span id="line-172"></span><span>
+</span><span id="line-173"></span><span id="local-6989586621682618575"><span id="local-6989586621682618576"><span class="annot"><a href="GHC.Data.IOEnv.html#tryAllM"><span class="hs-identifier hs-type">tryAllM</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Data.IOEnv.html#IOEnv"><span class="hs-identifier hs-type">IOEnv</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682618575"><span class="hs-identifier hs-type">env</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682618576"><span class="hs-identifier hs-type">r</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Data.IOEnv.html#IOEnv"><span class="hs-identifier hs-type">IOEnv</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682618575"><span class="hs-identifier hs-type">env</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Either</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">SomeException</span></span><span> </span><span class="annot"><a href="#local-6989586621682618576"><span class="hs-identifier hs-type">r</span></a></span><span class="hs-special">)</span></span></span><span>
+</span><span id="line-174"></span><span class="hs-comment">-- Catch *all* synchronous exceptions</span><span>
+</span><span id="line-175"></span><span class="hs-comment">-- This is used when running a Template-Haskell splice, when</span><span>
+</span><span id="line-176"></span><span class="hs-comment">-- even a pattern-match failure is a programmer error</span><span>
+</span><span id="line-177"></span><span id="tryAllM"><span class="annot"><span class="annottext">tryAllM :: forall env r. IOEnv env r -&gt; IOEnv env (Either SomeException r)
+</span><a href="GHC.Data.IOEnv.html#tryAllM"><span class="hs-identifier hs-var hs-var">tryAllM</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Data.IOEnv.html#IOEnv"><span class="hs-identifier hs-type">IOEnv</span></a></span><span> </span><span id="local-6989586621682618980"><span class="annot"><span class="annottext">env -&gt; IO r
+</span><a href="#local-6989586621682618980"><span class="hs-identifier hs-var">thing</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(env -&gt; IO (Either SomeException r))
+-&gt; IOEnv env (Either SomeException r)
+forall env a. (env -&gt; IO a) -&gt; IOEnv env a
+</span><a href="GHC.Data.IOEnv.html#IOEnv"><span class="hs-identifier hs-var">IOEnv</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span> </span><span id="local-6989586621682618981"><span class="annot"><span class="annottext">env
+</span><a href="#local-6989586621682618981"><span class="hs-identifier hs-var">env</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">IO r -&gt; IO (Either SomeException r)
+forall a. IO a -&gt; IO (Either SomeException a)
+</span><a href="GHC.Data.IOEnv.html#safeTry"><span class="hs-identifier hs-var">safeTry</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">env -&gt; IO r
+</span><a href="#local-6989586621682618980"><span class="hs-identifier hs-var">thing</span></a></span><span> </span><span class="annot"><span class="annottext">env
+</span><a href="#local-6989586621682618981"><span class="hs-identifier hs-var">env</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-178"></span><span>
+</span><span id="line-179"></span><span class="annot"><span class="hs-comment">-- | Like 'try', but doesn't catch asynchronous exceptions</span></span><span>
+</span><span id="line-180"></span><span id="local-6989586621682618579"><span class="annot"><a href="GHC.Data.IOEnv.html#safeTry"><span class="hs-identifier hs-type">safeTry</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="annot"><a href="#local-6989586621682618579"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Either</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">SomeException</span></span><span> </span><span class="annot"><a href="#local-6989586621682618579"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span><span>
+</span><span id="line-181"></span><span id="safeTry"><span class="annot"><span class="annottext">safeTry :: forall a. IO a -&gt; IO (Either SomeException a)
+</span><a href="GHC.Data.IOEnv.html#safeTry"><span class="hs-identifier hs-var hs-var">safeTry</span></a></span></span><span> </span><span id="local-6989586621682618993"><span class="annot"><span class="annottext">IO a
+</span><a href="#local-6989586621682618993"><span class="hs-identifier hs-var">act</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-182"></span><span>  </span><span id="local-6989586621682618994"><span class="annot"><a href="#local-6989586621682618994"><span class="hs-identifier hs-var">var</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">IO (MVar (Either SomeException a))
+forall a. IO (MVar a)
+</span><span class="hs-identifier hs-var">newEmptyMVar</span></span><span>
+</span><span id="line-183"></span><span>  </span><span class="hs-comment">-- uninterruptible because we want to mask around 'killThread', which is interruptible.</span><span>
+</span><span id="line-184"></span><span>  </span><span class="annot"><span class="hs-identifier hs-type">uninterruptibleMask</span></span><span> </span><span class="annot"><span class="hs-operator hs-type">$</span></span><span> </span><span class="hs-glyph">\</span><span id="local-6989586621682618996"><span class="annot"><span class="annottext">forall a. IO a -&gt; IO a
+</span><a href="#local-6989586621682618996"><span class="hs-identifier hs-var">restore</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-185"></span><span>    </span><span class="hs-comment">-- Fork, so that 'act' is safe from all asynchronous exceptions other than the ones we send it</span><span>
+</span><span id="line-186"></span><span>    </span><span id="local-6989586621682618997"><span class="annot"><a href="#local-6989586621682618997"><span class="hs-identifier hs-var">t</span></a></span></span><span> </span><span class="hs-glyph">&lt;-</span><span> </span><span class="annot"><span class="annottext">IO () -&gt; IO ThreadId
+</span><span class="hs-identifier hs-var">forkIO</span></span><span> </span><span class="annot"><span class="annottext">(IO () -&gt; IO ThreadId) -&gt; IO () -&gt; IO ThreadId
+forall a b. (a -&gt; b) -&gt; a -&gt; b
+</span><span class="hs-operator hs-var">$</span></span><span> </span><span class="annot"><span class="annottext">IO a -&gt; IO (Either SomeException a)
+forall e a. Exception e =&gt; IO a -&gt; IO (Either e a)
+</span><span class="hs-identifier hs-var">try</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">IO a -&gt; IO a
+forall a. IO a -&gt; IO a
+</span><a href="#local-6989586621682618996"><span class="hs-identifier hs-var">restore</span></a></span><span> </span><span class="annot"><span class="annottext">IO a
+</span><a href="#local-6989586621682618993"><span class="hs-identifier hs-var">act</span></a></span><span class="hs-special">)</span><span> </span><span class="annot"><span class="annottext">IO (Either SomeException a)
+-&gt; (Either SomeException a -&gt; IO ()) -&gt; IO ()
+forall a b. IO a -&gt; (a -&gt; IO b) -&gt; IO b
+forall (m :: * -&gt; *) a b. Monad m =&gt; m a -&gt; (a -&gt; m b) -&gt; m b
+</span><span class="hs-operator hs-var">&gt;&gt;=</span></span><span> </span><span class="annot"><span class="annottext">MVar (Either SomeException a) -&gt; Either SomeException a -&gt; IO ()
+forall a. MVar a -&gt; a -&gt; IO ()
+</span><span class="hs-identifier hs-var">putMVar</span></span><span> </span><span class="annot"><span class="annottext">MVar (Either SomeException a)
+</span><a href="#local-6989586621682618994"><span class="hs-identifier hs-var">var</span></a></span><span>
+</span><span id="line-187"></span><span>    </span><span class="annot"><a href="#local-6989586621682618996"><span class="hs-identifier hs-type">restore</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">readMVar</span></span><span> </span><span class="annot"><a href="#local-6989586621682618994"><span class="hs-identifier hs-type">var</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-188"></span><span>      </span><span class="annot"><span class="hs-operator hs-type">`catchException`</span></span><span> </span><span class="hs-glyph">\</span><span class="hs-special">(</span><span id="local-6989586621682618998"><span class="annot"><span class="annottext">SomeException
+</span><a href="#local-6989586621682618998"><span class="hs-identifier hs-var">e</span></a></span></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">SomeException</span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-keyword">do</span><span>
+</span><span id="line-189"></span><span>        </span><span class="hs-comment">-- Control reaches this point only if the parent thread was sent an async exception</span><span>
+</span><span id="line-190"></span><span>        </span><span class="hs-comment">-- In that case, kill the 'act' thread and re-raise the exception</span><span>
+</span><span id="line-191"></span><span>        </span><span class="annot"><span class="annottext">ThreadId -&gt; IO ()
+</span><span class="hs-identifier hs-var">killThread</span></span><span> </span><span class="annot"><span class="annottext">ThreadId
+</span><a href="#local-6989586621682618997"><span class="hs-identifier hs-var">t</span></a></span><span>
+</span><span id="line-192"></span><span>        </span><span class="annot"><span class="annottext">SomeException -&gt; IO (Either SomeException a)
+forall e a. (HasCallStack, Exception e) =&gt; e -&gt; IO a
+</span><span class="hs-identifier hs-var">throwIO</span></span><span> </span><span class="annot"><span class="annottext">SomeException
+</span><a href="#local-6989586621682618998"><span class="hs-identifier hs-var">e</span></a></span><span>
+</span><span id="line-193"></span><span>
+</span><span id="line-194"></span><span id="local-6989586621682618999"><span id="local-6989586621682619000"><span class="annot"><a href="GHC.Data.IOEnv.html#tryMostM"><span class="hs-identifier hs-type">tryMostM</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Data.IOEnv.html#IOEnv"><span class="hs-identifier hs-type">IOEnv</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682618999"><span class="hs-identifier hs-type">env</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682619000"><span class="hs-identifier hs-type">r</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Data.IOEnv.html#IOEnv"><span class="hs-identifier hs-type">IOEnv</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682618999"><span class="hs-identifier hs-type">env</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">Either</span></span><span> </span><span class="annot"><span class="hs-identifier hs-type">SomeException</span></span><span> </span><span class="annot"><a href="#local-6989586621682619000"><span class="hs-identifier hs-type">r</span></a></span><span class="hs-special">)</span></span></span><span>
+</span><span id="line-195"></span><span id="tryMostM"><span class="annot"><span class="annottext">tryMostM :: forall env r. IOEnv env r -&gt; IOEnv env (Either SomeException r)
+</span><a href="GHC.Data.IOEnv.html#tryMostM"><span class="hs-identifier hs-var hs-var">tryMostM</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Data.IOEnv.html#IOEnv"><span class="hs-identifier hs-type">IOEnv</span></a></span><span> </span><span id="local-6989586621682619001"><span class="annot"><span class="annottext">env -&gt; IO r
+</span><a href="#local-6989586621682619001"><span class="hs-identifier hs-var">thing</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(env -&gt; IO (Either SomeException r))
+-&gt; IOEnv env (Either SomeException r)
+forall env a. (env -&gt; IO a) -&gt; IOEnv env a
+</span><a href="GHC.Data.IOEnv.html#IOEnv"><span class="hs-identifier hs-var">IOEnv</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span> </span><span id="local-6989586621682619002"><span class="annot"><span class="annottext">env
+</span><a href="#local-6989586621682619002"><span class="hs-identifier hs-var">env</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">IO r -&gt; IO (Either SomeException r)
+forall a. IO a -&gt; IO (Either SomeException a)
+</span><a href="GHC.Utils.Panic.html#tryMost"><span class="hs-identifier hs-var">tryMost</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">env -&gt; IO r
+</span><a href="#local-6989586621682619001"><span class="hs-identifier hs-var">thing</span></a></span><span> </span><span class="annot"><span class="annottext">env
+</span><a href="#local-6989586621682619002"><span class="hs-identifier hs-var">env</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-196"></span><span>
+</span><span id="line-197"></span><span class="hs-comment">---------------------------</span><span>
+</span><span id="line-198"></span><span id="local-6989586621682618592"><span id="local-6989586621682618593"><span class="annot"><a href="GHC.Data.IOEnv.html#unsafeInterleaveM"><span class="hs-identifier hs-type">unsafeInterleaveM</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Data.IOEnv.html#IOEnv"><span class="hs-identifier hs-type">IOEnv</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682618592"><span class="hs-identifier hs-type">env</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682618593"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Data.IOEnv.html#IOEnv"><span class="hs-identifier hs-type">IOEnv</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682618592"><span class="hs-identifier hs-type">env</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682618593"><span class="hs-identifier hs-type">a</span></a></span></span></span><span>
+</span><span id="line-199"></span><span id="unsafeInterleaveM"><span class="annot"><span class="annottext">unsafeInterleaveM :: forall env a. IOEnv env a -&gt; IOEnv env a
+</span><a href="GHC.Data.IOEnv.html#unsafeInterleaveM"><span class="hs-identifier hs-var hs-var">unsafeInterleaveM</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Data.IOEnv.html#IOEnv"><span class="hs-identifier hs-type">IOEnv</span></a></span><span> </span><span id="local-6989586621682619004"><span class="annot"><span class="annottext">env -&gt; IO a
+</span><a href="#local-6989586621682619004"><span class="hs-identifier hs-var">m</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(env -&gt; IO a) -&gt; IOEnv env a
+forall env a. (env -&gt; IO a) -&gt; IOEnv env a
+</span><a href="GHC.Data.IOEnv.html#IOEnv"><span class="hs-identifier hs-var">IOEnv</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span> </span><span id="local-6989586621682619005"><span class="annot"><span class="annottext">env
+</span><a href="#local-6989586621682619005"><span class="hs-identifier hs-var">env</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">IO a -&gt; IO a
+forall a. IO a -&gt; IO a
+</span><span class="hs-identifier hs-var">unsafeInterleaveIO</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">env -&gt; IO a
+</span><a href="#local-6989586621682619004"><span class="hs-identifier hs-var">m</span></a></span><span> </span><span class="annot"><span class="annottext">env
+</span><a href="#local-6989586621682619005"><span class="hs-identifier hs-var">env</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-200"></span><span>
+</span><span id="line-201"></span><span id="local-6989586621682619006"><span id="local-6989586621682619007"><span class="annot"><a href="GHC.Data.IOEnv.html#uninterruptibleMaskM_"><span class="hs-identifier hs-type">uninterruptibleMaskM_</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Data.IOEnv.html#IOEnv"><span class="hs-identifier hs-type">IOEnv</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682619006"><span class="hs-identifier hs-type">env</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682619007"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Data.IOEnv.html#IOEnv"><span class="hs-identifier hs-type">IOEnv</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682619006"><span class="hs-identifier hs-type">env</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682619007"><span class="hs-identifier hs-type">a</span></a></span></span></span><span>
+</span><span id="line-202"></span><span id="uninterruptibleMaskM_"><span class="annot"><span class="annottext">uninterruptibleMaskM_ :: forall env a. IOEnv env a -&gt; IOEnv env a
+</span><a href="GHC.Data.IOEnv.html#uninterruptibleMaskM_"><span class="hs-identifier hs-var hs-var">uninterruptibleMaskM_</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Data.IOEnv.html#IOEnv"><span class="hs-identifier hs-type">IOEnv</span></a></span><span> </span><span id="local-6989586621682619008"><span class="annot"><span class="annottext">env -&gt; IO a
+</span><a href="#local-6989586621682619008"><span class="hs-identifier hs-var">m</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(env -&gt; IO a) -&gt; IOEnv env a
+forall env a. (env -&gt; IO a) -&gt; IOEnv env a
+</span><a href="GHC.Data.IOEnv.html#IOEnv"><span class="hs-identifier hs-var">IOEnv</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span> </span><span id="local-6989586621682619009"><span class="annot"><span class="annottext">env
+</span><a href="#local-6989586621682619009"><span class="hs-identifier hs-var">env</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">IO a -&gt; IO a
+forall a. IO a -&gt; IO a
+</span><span class="hs-identifier hs-var">uninterruptibleMask_</span></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">env -&gt; IO a
+</span><a href="#local-6989586621682619008"><span class="hs-identifier hs-var">m</span></a></span><span> </span><span class="annot"><span class="annottext">env
+</span><a href="#local-6989586621682619009"><span class="hs-identifier hs-var">env</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-203"></span><span>
+</span><span id="line-204"></span><span class="hs-comment">----------------------------------------------------------------------</span><span>
+</span><span id="line-205"></span><span class="hs-comment">-- Alternative/MonadPlus</span><span>
+</span><span id="line-206"></span><span class="hs-comment">----------------------------------------------------------------------</span><span>
+</span><span id="line-207"></span><span>
+</span><span id="line-208"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621682618604"><span id="local-6989586621682619016"><span id="local-6989586621682619020"><span class="annot"><span class="hs-identifier hs-type">Alternative</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Data.IOEnv.html#IOEnv"><span class="hs-identifier hs-type">IOEnv</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682618604"><span class="hs-identifier hs-type">env</span></a></span><span class="hs-special">)</span></span></span></span><span> </span><span class="hs-keyword">where</span><span>
+</span><span id="line-209"></span><span>    </span><span id="local-6989586621682619025"><span class="annot"><span class="annottext">empty :: forall a. IOEnv env a
+</span><a href="#local-6989586621682619025"><span class="hs-identifier hs-var hs-var hs-var">empty</span></a></span></span><span>   </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(env -&gt; IO a) -&gt; IOEnv env a
+forall env a. (env -&gt; IO a) -&gt; IOEnv env a
+</span><a href="GHC.Data.IOEnv.html#IOEnv"><span class="hs-identifier hs-var">IOEnv</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">IO a -&gt; env -&gt; IO a
+forall a b. a -&gt; b -&gt; a
+</span><span class="hs-identifier hs-var">const</span></span><span> </span><span class="annot"><span class="annottext">IO a
+forall a. IO a
+forall (f :: * -&gt; *) a. Alternative f =&gt; f a
+</span><span class="hs-identifier hs-var">empty</span></span><span class="hs-special">)</span><span>
+</span><span id="line-210"></span><span>    </span><span id="local-6989586621682619029"><span class="annot"><span class="annottext">IOEnv env a
+</span><a href="#local-6989586621682619029"><span class="hs-identifier hs-var">m</span></a></span></span><span> </span><span id="local-6989586621682619030"><span class="annot"><span class="annottext">&lt;|&gt; :: forall a. IOEnv env a -&gt; IOEnv env a -&gt; IOEnv env a
+</span><a href="#local-6989586621682619030"><span class="hs-operator hs-var hs-var hs-var">&lt;|&gt;</span></a></span></span><span> </span><span id="local-6989586621682619032"><span class="annot"><span class="annottext">IOEnv env a
+</span><a href="#local-6989586621682619032"><span class="hs-identifier hs-var">n</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(env -&gt; IO a) -&gt; IOEnv env a
+forall env a. (env -&gt; IO a) -&gt; IOEnv env a
+</span><a href="GHC.Data.IOEnv.html#IOEnv"><span class="hs-identifier hs-var">IOEnv</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span id="local-6989586621682619033"><span class="annot"><span class="annottext">env
+</span><a href="#local-6989586621682619033"><span class="hs-identifier hs-var">env</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">IOEnv env a -&gt; env -&gt; IO a
+forall env a. IOEnv env a -&gt; env -&gt; IO a
+</span><a href="GHC.Data.IOEnv.html#unIOEnv"><span class="hs-identifier hs-var">unIOEnv</span></a></span><span> </span><span class="annot"><span class="annottext">IOEnv env a
+</span><a href="#local-6989586621682619029"><span class="hs-identifier hs-var">m</span></a></span><span> </span><span class="annot"><span class="annottext">env
+</span><a href="#local-6989586621682619033"><span class="hs-identifier hs-var">env</span></a></span><span> </span><span class="annot"><span class="annottext">IO a -&gt; IO a -&gt; IO a
+forall a. IO a -&gt; IO a -&gt; IO a
+forall (f :: * -&gt; *) a. Alternative f =&gt; f a -&gt; f a -&gt; f a
+</span><span class="hs-operator hs-var">&lt;|&gt;</span></span><span> </span><span class="annot"><span class="annottext">IOEnv env a -&gt; env -&gt; IO a
+forall env a. IOEnv env a -&gt; env -&gt; IO a
+</span><a href="GHC.Data.IOEnv.html#unIOEnv"><span class="hs-identifier hs-var">unIOEnv</span></a></span><span> </span><span class="annot"><span class="annottext">IOEnv env a
+</span><a href="#local-6989586621682619032"><span class="hs-identifier hs-var">n</span></a></span><span> </span><span class="annot"><span class="annottext">env
+</span><a href="#local-6989586621682619033"><span class="hs-identifier hs-var">env</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-211"></span><span>
+</span><span id="line-212"></span><span class="hs-keyword">instance</span><span> </span><span id="local-6989586621682618614"><span id="local-6989586621682619039"><span id="local-6989586621682619043"><span class="annot"><span class="hs-identifier hs-type">MonadPlus</span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Data.IOEnv.html#IOEnv"><span class="hs-identifier hs-type">IOEnv</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682618614"><span class="hs-identifier hs-type">env</span></a></span><span class="hs-special">)</span></span></span></span><span>
+</span><span id="line-213"></span><span>
+</span><span id="line-214"></span><span class="hs-comment">----------------------------------------------------------------------</span><span>
+</span><span id="line-215"></span><span class="hs-comment">-- Accessing input/output</span><span>
+</span><span id="line-216"></span><span class="hs-comment">----------------------------------------------------------------------</span><span>
+</span><span id="line-217"></span><span>
+</span><span id="line-218"></span><span id="local-6989586621682618615"><span id="local-6989586621682618616"><span class="annot"><a href="GHC.Data.IOEnv.html#newMutVar"><span class="hs-identifier hs-type">newMutVar</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="#local-6989586621682618615"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Data.IOEnv.html#IOEnv"><span class="hs-identifier hs-type">IOEnv</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682618616"><span class="hs-identifier hs-type">env</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="hs-identifier hs-type">IORef</span></span><span> </span><span class="annot"><a href="#local-6989586621682618615"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span></span></span><span>
+</span><span id="line-219"></span><span id="newMutVar"><span class="annot"><span class="annottext">newMutVar :: forall a env. a -&gt; IOEnv env (IORef a)
+</span><a href="GHC.Data.IOEnv.html#newMutVar"><span class="hs-identifier hs-var hs-var">newMutVar</span></a></span></span><span> </span><span id="local-6989586621682619047"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621682619047"><span class="hs-identifier hs-var">val</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">IO (IORef a) -&gt; IOEnv env (IORef a)
+forall a. IO a -&gt; IOEnv env a
+forall (m :: * -&gt; *) a. MonadIO m =&gt; IO a -&gt; m a
+</span><a href="../../base-4.20.2.0-6654/src/Control.Monad.IO.Class.html#liftIO"><span class="hs-identifier hs-var">liftIO</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">a -&gt; IO (IORef a)
+forall a. a -&gt; IO (IORef a)
+</span><span class="hs-identifier hs-var">newIORef</span></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621682619047"><span class="hs-identifier hs-var">val</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-220"></span><span>
+</span><span id="line-221"></span><span id="local-6989586621682618621"><span id="local-6989586621682618622"><span class="annot"><a href="GHC.Data.IOEnv.html#writeMutVar"><span class="hs-identifier hs-type">writeMutVar</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IORef</span></span><span> </span><span class="annot"><a href="#local-6989586621682618621"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621682618621"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Data.IOEnv.html#IOEnv"><span class="hs-identifier hs-type">IOEnv</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682618622"><span class="hs-identifier hs-type">env</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span></span></span><span>
+</span><span id="line-222"></span><span id="writeMutVar"><span class="annot"><span class="annottext">writeMutVar :: forall a env. IORef a -&gt; a -&gt; IOEnv env ()
+</span><a href="GHC.Data.IOEnv.html#writeMutVar"><span class="hs-identifier hs-var hs-var">writeMutVar</span></a></span></span><span> </span><span id="local-6989586621682619049"><span class="annot"><span class="annottext">IORef a
+</span><a href="#local-6989586621682619049"><span class="hs-identifier hs-var">var</span></a></span></span><span> </span><span id="local-6989586621682619050"><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621682619050"><span class="hs-identifier hs-var">val</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">IO () -&gt; IOEnv env ()
+forall a. IO a -&gt; IOEnv env a
+forall (m :: * -&gt; *) a. MonadIO m =&gt; IO a -&gt; m a
+</span><a href="../../base-4.20.2.0-6654/src/Control.Monad.IO.Class.html#liftIO"><span class="hs-identifier hs-var">liftIO</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">IORef a -&gt; a -&gt; IO ()
+forall a. IORef a -&gt; a -&gt; IO ()
+</span><span class="hs-identifier hs-var">writeIORef</span></span><span> </span><span class="annot"><span class="annottext">IORef a
+</span><a href="#local-6989586621682619049"><span class="hs-identifier hs-var">var</span></a></span><span> </span><span class="annot"><span class="annottext">a
+</span><a href="#local-6989586621682619050"><span class="hs-identifier hs-var">val</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-223"></span><span>
+</span><span id="line-224"></span><span id="local-6989586621682618626"><span id="local-6989586621682618627"><span class="annot"><a href="GHC.Data.IOEnv.html#readMutVar"><span class="hs-identifier hs-type">readMutVar</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IORef</span></span><span> </span><span class="annot"><a href="#local-6989586621682618626"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Data.IOEnv.html#IOEnv"><span class="hs-identifier hs-type">IOEnv</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682618627"><span class="hs-identifier hs-type">env</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682618626"><span class="hs-identifier hs-type">a</span></a></span></span></span><span>
+</span><span id="line-225"></span><span id="readMutVar"><span class="annot"><span class="annottext">readMutVar :: forall a env. IORef a -&gt; IOEnv env a
+</span><a href="GHC.Data.IOEnv.html#readMutVar"><span class="hs-identifier hs-var hs-var">readMutVar</span></a></span></span><span> </span><span id="local-6989586621682619052"><span class="annot"><span class="annottext">IORef a
+</span><a href="#local-6989586621682619052"><span class="hs-identifier hs-var">var</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">IO a -&gt; IOEnv env a
+forall a. IO a -&gt; IOEnv env a
+forall (m :: * -&gt; *) a. MonadIO m =&gt; IO a -&gt; m a
+</span><a href="../../base-4.20.2.0-6654/src/Control.Monad.IO.Class.html#liftIO"><span class="hs-identifier hs-var">liftIO</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">IORef a -&gt; IO a
+forall a. IORef a -&gt; IO a
+</span><span class="hs-identifier hs-var">readIORef</span></span><span> </span><span class="annot"><span class="annottext">IORef a
+</span><a href="#local-6989586621682619052"><span class="hs-identifier hs-var">var</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-226"></span><span>
+</span><span id="line-227"></span><span id="local-6989586621682618631"><span id="local-6989586621682618632"><span class="annot"><a href="GHC.Data.IOEnv.html#updMutVar"><span class="hs-identifier hs-type">updMutVar</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IORef</span></span><span> </span><span class="annot"><a href="#local-6989586621682618631"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621682618631"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621682618631"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Data.IOEnv.html#IOEnv"><span class="hs-identifier hs-type">IOEnv</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682618632"><span class="hs-identifier hs-type">env</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-special">)</span></span></span><span>
+</span><span id="line-228"></span><span id="updMutVar"><span class="annot"><span class="annottext">updMutVar :: forall a env. IORef a -&gt; (a -&gt; a) -&gt; IOEnv env ()
+</span><a href="GHC.Data.IOEnv.html#updMutVar"><span class="hs-identifier hs-var hs-var">updMutVar</span></a></span></span><span> </span><span id="local-6989586621682619054"><span class="annot"><span class="annottext">IORef a
+</span><a href="#local-6989586621682619054"><span class="hs-identifier hs-var">var</span></a></span></span><span> </span><span id="local-6989586621682619055"><span class="annot"><span class="annottext">a -&gt; a
+</span><a href="#local-6989586621682619055"><span class="hs-identifier hs-var">upd</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">IO () -&gt; IOEnv env ()
+forall a. IO a -&gt; IOEnv env a
+forall (m :: * -&gt; *) a. MonadIO m =&gt; IO a -&gt; m a
+</span><a href="../../base-4.20.2.0-6654/src/Control.Monad.IO.Class.html#liftIO"><span class="hs-identifier hs-var">liftIO</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">IORef a -&gt; (a -&gt; a) -&gt; IO ()
+forall a. IORef a -&gt; (a -&gt; a) -&gt; IO ()
+</span><span class="hs-identifier hs-var">modifyIORef</span></span><span> </span><span class="annot"><span class="annottext">IORef a
+</span><a href="#local-6989586621682619054"><span class="hs-identifier hs-var">var</span></a></span><span> </span><span class="annot"><span class="annottext">a -&gt; a
+</span><a href="#local-6989586621682619055"><span class="hs-identifier hs-var">upd</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-229"></span><span>
+</span><span id="line-230"></span><span class="hs-comment">-- | Atomically update the reference.  Does not force the evaluation of the</span><span>
+</span><span id="line-231"></span><span class="hs-comment">-- new variable contents.  For strict update, use 'atomicUpdMutVar''.</span><span>
+</span><span id="line-232"></span><span id="local-6989586621682618636"><span id="local-6989586621682618637"><span id="local-6989586621682618638"><span class="annot"><a href="GHC.Data.IOEnv.html#atomicUpdMutVar"><span class="hs-identifier hs-type">atomicUpdMutVar</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IORef</span></span><span> </span><span class="annot"><a href="#local-6989586621682618636"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621682618636"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621682618636"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621682618637"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Data.IOEnv.html#IOEnv"><span class="hs-identifier hs-type">IOEnv</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682618638"><span class="hs-identifier hs-type">env</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682618637"><span class="hs-identifier hs-type">b</span></a></span></span></span></span><span>
+</span><span id="line-233"></span><span id="atomicUpdMutVar"><span class="annot"><span class="annottext">atomicUpdMutVar :: forall a b env. IORef a -&gt; (a -&gt; (a, b)) -&gt; IOEnv env b
+</span><a href="GHC.Data.IOEnv.html#atomicUpdMutVar"><span class="hs-identifier hs-var hs-var">atomicUpdMutVar</span></a></span></span><span> </span><span id="local-6989586621682619057"><span class="annot"><span class="annottext">IORef a
+</span><a href="#local-6989586621682619057"><span class="hs-identifier hs-var">var</span></a></span></span><span> </span><span id="local-6989586621682619058"><span class="annot"><span class="annottext">a -&gt; (a, b)
+</span><a href="#local-6989586621682619058"><span class="hs-identifier hs-var">upd</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">IO b -&gt; IOEnv env b
+forall a. IO a -&gt; IOEnv env a
+forall (m :: * -&gt; *) a. MonadIO m =&gt; IO a -&gt; m a
+</span><a href="../../base-4.20.2.0-6654/src/Control.Monad.IO.Class.html#liftIO"><span class="hs-identifier hs-var">liftIO</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">IORef a -&gt; (a -&gt; (a, b)) -&gt; IO b
+forall a b. IORef a -&gt; (a -&gt; (a, b)) -&gt; IO b
+</span><span class="hs-identifier hs-var">atomicModifyIORef</span></span><span> </span><span class="annot"><span class="annottext">IORef a
+</span><a href="#local-6989586621682619057"><span class="hs-identifier hs-var">var</span></a></span><span> </span><span class="annot"><span class="annottext">a -&gt; (a, b)
+</span><a href="#local-6989586621682619058"><span class="hs-identifier hs-var">upd</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-234"></span><span>
+</span><span id="line-235"></span><span class="annot"><span class="hs-comment">-- | Strict variant of 'atomicUpdMutVar'.</span></span><span>
+</span><span id="line-236"></span><span id="local-6989586621682619059"><span id="local-6989586621682619060"><span id="local-6989586621682619061"><span class="annot"><a href="GHC.Data.IOEnv.html#atomicUpdMutVar%27"><span class="hs-identifier hs-type">atomicUpdMutVar'</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><span class="hs-identifier hs-type">IORef</span></span><span> </span><span class="annot"><a href="#local-6989586621682619059"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621682619059"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621682619059"><span class="hs-identifier hs-type">a</span></a></span><span class="hs-special">,</span><span> </span><span class="annot"><a href="#local-6989586621682619060"><span class="hs-identifier hs-type">b</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Data.IOEnv.html#IOEnv"><span class="hs-identifier hs-type">IOEnv</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682619061"><span class="hs-identifier hs-type">env</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682619060"><span class="hs-identifier hs-type">b</span></a></span></span></span></span><span>
+</span><span id="line-237"></span><span id="atomicUpdMutVar%27"><span class="annot"><span class="annottext">atomicUpdMutVar' :: forall a b env. IORef a -&gt; (a -&gt; (a, b)) -&gt; IOEnv env b
+</span><a href="GHC.Data.IOEnv.html#atomicUpdMutVar%27"><span class="hs-identifier hs-var hs-var">atomicUpdMutVar'</span></a></span></span><span> </span><span id="local-6989586621682619063"><span class="annot"><span class="annottext">IORef a
+</span><a href="#local-6989586621682619063"><span class="hs-identifier hs-var">var</span></a></span></span><span> </span><span id="local-6989586621682619064"><span class="annot"><span class="annottext">a -&gt; (a, b)
+</span><a href="#local-6989586621682619064"><span class="hs-identifier hs-var">upd</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">IO b -&gt; IOEnv env b
+forall a. IO a -&gt; IOEnv env a
+forall (m :: * -&gt; *) a. MonadIO m =&gt; IO a -&gt; m a
+</span><a href="../../base-4.20.2.0-6654/src/Control.Monad.IO.Class.html#liftIO"><span class="hs-identifier hs-var">liftIO</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">IORef a -&gt; (a -&gt; (a, b)) -&gt; IO b
+forall a b. IORef a -&gt; (a -&gt; (a, b)) -&gt; IO b
+</span><span class="hs-identifier hs-var">atomicModifyIORef'</span></span><span> </span><span class="annot"><span class="annottext">IORef a
+</span><a href="#local-6989586621682619063"><span class="hs-identifier hs-var">var</span></a></span><span> </span><span class="annot"><span class="annottext">a -&gt; (a, b)
+</span><a href="#local-6989586621682619064"><span class="hs-identifier hs-var">upd</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-238"></span><span>
+</span><span id="line-239"></span><span class="hs-comment">----------------------------------------------------------------------</span><span>
+</span><span id="line-240"></span><span class="hs-comment">-- Accessing the environment</span><span>
+</span><span id="line-241"></span><span class="hs-comment">----------------------------------------------------------------------</span><span>
+</span><span id="line-242"></span><span>
+</span><span id="line-243"></span><span id="local-6989586621682618532"><span class="annot"><a href="GHC.Data.IOEnv.html#getEnv"><span class="hs-identifier hs-type">getEnv</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="GHC.Data.IOEnv.html#IOEnv"><span class="hs-identifier hs-type">IOEnv</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682618532"><span class="hs-identifier hs-type">env</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682618532"><span class="hs-identifier hs-type">env</span></a></span></span><span>
+</span><span id="line-244"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="GHC.Data.IOEnv.html#getEnv"><span class="hs-pragma hs-type">getEnv</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-245"></span><span id="getEnv"><span class="annot"><span class="annottext">getEnv :: forall env. IOEnv env env
+</span><a href="GHC.Data.IOEnv.html#getEnv"><span class="hs-identifier hs-var hs-var">getEnv</span></a></span></span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(env -&gt; IO env) -&gt; IOEnv env env
+forall env a. (env -&gt; IO a) -&gt; IOEnv env a
+</span><a href="GHC.Data.IOEnv.html#IOEnv"><span class="hs-identifier hs-var">IOEnv</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span> </span><span id="local-6989586621682619066"><span class="annot"><span class="annottext">env
+</span><a href="#local-6989586621682619066"><span class="hs-identifier hs-var">env</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">env -&gt; IO env
+forall a. a -&gt; IO a
+forall (m :: * -&gt; *) a. Monad m =&gt; a -&gt; m a
+</span><span class="hs-identifier hs-var">return</span></span><span> </span><span class="annot"><span class="annottext">env
+</span><a href="#local-6989586621682619066"><span class="hs-identifier hs-var">env</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-246"></span><span>
+</span><span id="line-247"></span><span class="annot"><span class="hs-comment">-- | Perform a computation with a different environment</span></span><span>
+</span><span id="line-248"></span><span id="local-6989586621682618648"><span id="local-6989586621682618649"><span id="local-6989586621682618650"><span class="annot"><a href="GHC.Data.IOEnv.html#setEnv"><span class="hs-identifier hs-type">setEnv</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="annot"><a href="#local-6989586621682618648"><span class="hs-identifier hs-type">env'</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Data.IOEnv.html#IOEnv"><span class="hs-identifier hs-type">IOEnv</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682618648"><span class="hs-identifier hs-type">env'</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682618649"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Data.IOEnv.html#IOEnv"><span class="hs-identifier hs-type">IOEnv</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682618650"><span class="hs-identifier hs-type">env</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682618649"><span class="hs-identifier hs-type">a</span></a></span></span></span></span><span>
+</span><span id="line-249"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="GHC.Data.IOEnv.html#setEnv"><span class="hs-pragma hs-type">setEnv</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-250"></span><span id="setEnv"><span class="annot"><span class="annottext">setEnv :: forall env' a env. env' -&gt; IOEnv env' a -&gt; IOEnv env a
+</span><a href="GHC.Data.IOEnv.html#setEnv"><span class="hs-identifier hs-var hs-var">setEnv</span></a></span></span><span> </span><span id="local-6989586621682619067"><span class="annot"><span class="annottext">env'
+</span><a href="#local-6989586621682619067"><span class="hs-identifier hs-var">new_env</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Data.IOEnv.html#IOEnv"><span class="hs-identifier hs-type">IOEnv</span></a></span><span> </span><span id="local-6989586621682619068"><span class="annot"><span class="annottext">env' -&gt; IO a
+</span><a href="#local-6989586621682619068"><span class="hs-identifier hs-var">m</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(env -&gt; IO a) -&gt; IOEnv env a
+forall env a. (env -&gt; IO a) -&gt; IOEnv env a
+</span><a href="GHC.Data.IOEnv.html#IOEnv"><span class="hs-identifier hs-var">IOEnv</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span> </span><span class="annot"><span class="annottext">env
+</span><span class="hs-identifier">_</span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">env' -&gt; IO a
+</span><a href="#local-6989586621682619068"><span class="hs-identifier hs-var">m</span></a></span><span> </span><span class="annot"><span class="annottext">env'
+</span><a href="#local-6989586621682619067"><span class="hs-identifier hs-var">new_env</span></a></span><span class="hs-special">)</span><span>
+</span><span id="line-251"></span><span>
+</span><span id="line-252"></span><span class="annot"><span class="hs-comment">-- | Perform a computation with an altered environment</span></span><span>
+</span><span id="line-253"></span><span id="local-6989586621682618654"><span id="local-6989586621682618655"><span id="local-6989586621682618656"><span class="annot"><a href="GHC.Data.IOEnv.html#updEnv"><span class="hs-identifier hs-type">updEnv</span></a></span><span> </span><span class="hs-glyph">::</span><span> </span><span class="hs-special">(</span><span class="annot"><a href="#local-6989586621682618654"><span class="hs-identifier hs-type">env</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="#local-6989586621682618655"><span class="hs-identifier hs-type">env'</span></a></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Data.IOEnv.html#IOEnv"><span class="hs-identifier hs-type">IOEnv</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682618655"><span class="hs-identifier hs-type">env'</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682618656"><span class="hs-identifier hs-type">a</span></a></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><a href="GHC.Data.IOEnv.html#IOEnv"><span class="hs-identifier hs-type">IOEnv</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682618654"><span class="hs-identifier hs-type">env</span></a></span><span> </span><span class="annot"><a href="#local-6989586621682618656"><span class="hs-identifier hs-type">a</span></a></span></span></span></span><span>
+</span><span id="line-254"></span><span class="hs-pragma">{-# INLINE</span><span> </span><span class="annot"><a href="GHC.Data.IOEnv.html#updEnv"><span class="hs-pragma hs-type">updEnv</span></a></span><span> </span><span class="hs-pragma">#-}</span><span>
+</span><span id="line-255"></span><span id="updEnv"><span class="annot"><span class="annottext">updEnv :: forall env env' a. (env -&gt; env') -&gt; IOEnv env' a -&gt; IOEnv env a
+</span><a href="GHC.Data.IOEnv.html#updEnv"><span class="hs-identifier hs-var hs-var">updEnv</span></a></span></span><span> </span><span id="local-6989586621682619069"><span class="annot"><span class="annottext">env -&gt; env'
+</span><a href="#local-6989586621682619069"><span class="hs-identifier hs-var">upd</span></a></span></span><span> </span><span class="hs-special">(</span><span class="annot"><a href="GHC.Data.IOEnv.html#IOEnv"><span class="hs-identifier hs-type">IOEnv</span></a></span><span> </span><span id="local-6989586621682619070"><span class="annot"><span class="annottext">env' -&gt; IO a
+</span><a href="#local-6989586621682619070"><span class="hs-identifier hs-var">m</span></a></span></span><span class="hs-special">)</span><span> </span><span class="hs-glyph">=</span><span> </span><span class="annot"><span class="annottext">(env -&gt; IO a) -&gt; IOEnv env a
+forall env a. (env -&gt; IO a) -&gt; IOEnv env a
+</span><a href="GHC.Data.IOEnv.html#IOEnv"><span class="hs-identifier hs-var">IOEnv</span></a></span><span> </span><span class="hs-special">(</span><span class="hs-glyph">\</span><span> </span><span id="local-6989586621682619071"><span class="annot"><span class="annottext">env
+</span><a href="#local-6989586621682619071"><span class="hs-identifier hs-var">env</span></a></span></span><span> </span><span class="hs-glyph">-&gt;</span><span> </span><span class="annot"><span class="annottext">env' -&gt; IO a
+</span><a href="#local-6989586621682619070"><span class="hs-identifier hs-var">m</span></a></span><span> </span><span class="hs-special">(</span><span class="annot"><span class="annottext">env -&gt; env'
+</span><a href="#local-6989586621682619069"><span class="hs-identifier hs-var">upd</span></a></span><span> </span><span class="annot"><span class="annottext">env
+</span><a href="#local-6989586621682619071"><span class="hs-identifier hs-var">env</span></a></span><span class="hs-special">)</span><span class="hs-special">)</span><span>
+</span><span id="line-256"></span></pre></body></html>
