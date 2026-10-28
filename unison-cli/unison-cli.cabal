@@ -169,6 +169,7 @@ library
       Unison.Main
       Unison.MCP
       Unison.MCP.Allowlist
+      Unison.MCP.LineNumbers
       Unison.MCP.Output
       Unison.MCP.Wrapper
       Unison.Share.Codeserver

@@ -10,6 +10,7 @@ import Unison.Cli.Share.Ref
 import Unison.Codebase.Transcript (Transcript)
 import Unison.Codebase.Transcript.Parser qualified as Transcript
 import Unison.MCP.Allowlist
+import Unison.MCP.LineNumbers
 import Unison.MCP.Output
 
 test :: Test ()
@@ -18,6 +19,7 @@ test =
     [ allowlistTests,
       shareRefTests,
       searchWordsTests,
+      lineNumberTests,
       outputTests
     ]
 
@@ -121,3 +123,101 @@ searchWordsTests =
   where
     parsesTo input expected = scope (Text.unpack (Text.unwords input)) (expectEqual (Right expected) (parseSearchWords input))
     fails input = scope (Text.unpack (Text.unwords input)) (expect (either (const True) (const False) (parseSearchWords input)))
+
+lineNumberTests :: Test ()
+lineNumberTests =
+  scope "line numbers" . tests $
+    [ scope "messages about unison blocks count from the start of the transcript" do
+        output <- absolutized source "your transcript" outputOfRun
+        expect ("      5 | y = bad" `Text.isInfixOf` output)
+        -- two digits: the `|`s stay lined up
+        expect ("     10 | w = worse" `Text.isInfixOf` output)
+        expect ("Line numbers in the messages above are lines of your transcript." `Text.isInfixOf` output),
+      scope "the note says what the numbers are lines of" do
+        output <- absolutized source "transcript.md" outputOfRun
+        expect ("lines of transcript.md." `Text.isInfixOf` output),
+      scope "messages about a file that was loaded are left alone" do
+        output <- absolutized source "your transcript" outputOfRun
+        expect ("      2 | foo = bad" `Text.isInfixOf` output),
+      scope "the error of a failed unison block, in the failure trailer, is rewritten too" do
+        output <- absolutized "``` unison\nx = 1\ny = bad\n```\n" "your transcript" failedRun
+        expect ("    3 | y = bad" `Text.isInfixOf` output),
+      scope "nothing changes when there are no messages to rewrite" do
+        let untouched = "``` unison\nx = 1\n```\n\n``` ucm :added-by-ucm\n  + x : Nat\n```\n"
+        output <- absolutized "``` unison\nx = 1\n```\n" "your transcript" untouched
+        expect (not ("Line numbers in the messages" `Text.isInfixOf` output)),
+      scope "numbers that are not lines of the block are left alone" do
+        let out = "``` unison\nx = 1\n```\n\n``` ucm :added-by-ucm\n    9 | not a line of the block\n```\n"
+        output <- absolutized "``` unison\nx = 1\n```\n" "your transcript" out
+        expect ("    9 | not a line of the block" `Text.isInfixOf` output)
+    ]
+  where
+    -- The code of the first unison block starts on line 4, and that of the second on line 9.
+    source =
+      Text.unlines
+        [ "# T",
+          "",
+          "``` unison",
+          "x = 1",
+          "y = bad",
+          "```",
+          "",
+          "``` unison",
+          "z = 2",
+          "w = worse",
+          "```"
+        ]
+    outputOfRun =
+      Text.unlines
+        [ "# T",
+          "",
+          "``` unison",
+          "x = 1",
+          "y = bad",
+          "```",
+          "",
+          "``` ucm :added-by-ucm",
+          "  I couldn't figure out what bad refers to here:",
+          "",
+          "      2 | y = bad",
+          "```",
+          "",
+          "``` unison",
+          "z = 2",
+          "w = worse",
+          "```",
+          "",
+          "``` ucm :added-by-ucm",
+          "  I couldn't figure out what worse refers to here:",
+          "",
+          "      2 | w = worse",
+          "```",
+          "",
+          "``` ucm",
+          "scratch/main> load other.u",
+          "",
+          "  I couldn't figure out what bad refers to here:",
+          "",
+          "      2 | foo = bad",
+          "```"
+        ]
+    failedRun =
+      Text.unlines
+        [ "``` unison",
+          "x = 1",
+          "y = bad",
+          "```",
+          "",
+          "🛑",
+          "",
+          "The transcript failed due to an error in the stanza above. The error is:",
+          "",
+          "```",
+          "I couldn't figure out what bad refers to here:",
+          "",
+          "    2 | y = bad",
+          "```"
+        ]
+    absolutized sourceText name outputText = do
+      output <- parse outputText
+      pure (Transcript.format (absolutizeLineNumbers name sourceText output))

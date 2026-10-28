@@ -9,6 +9,7 @@ import Data.Proxy (Proxy (..))
 import Data.ByteString qualified as BS
 import Data.Text qualified as Text
 import Data.Text.Encoding qualified as Text
+import Data.Text.Encoding.Error qualified as Text
 import Data.Aeson.Key qualified as Key
 import Data.Aeson.KeyMap qualified as KeyMap
 import Network.MCP.Server qualified as MCP
@@ -23,6 +24,7 @@ import Unison.Codebase.Transcript
 import Unison.Codebase.Transcript.Parser qualified as Transcript
 import Unison.Codebase.Transcript.Runner qualified as Transcript
 import Unison.MCP.Allowlist
+import Unison.MCP.LineNumbers
 import Unison.MCP.Output
 import Unison.MCP.Wrapper
 import Unison.Parser.Ann (Ann)
@@ -176,8 +178,10 @@ runTranscript runner codebase outputDir tier TranscriptArgs {transcript, transcr
   loadTranscript >>= \case
     Left problem -> pure (errorToolResult problem)
     Right (name, source, hint) -> do
+      let sourceName = if isJust transcriptFile then Text.pack name else "your transcript"
       let ok text = textToolResult (text <> hint)
           failed text = errorToolResult (text <> hint)
+      let absolutize = absolutizeLineNumbers sourceName (Text.decodeUtf8With Text.lenientDecode source)
       case Transcript.parse name source of
         Left err -> pure (failed ("The transcript didn't parse:\n" <> Text.pack (P.errorBundlePretty err)))
         Right parsed -> do
@@ -191,11 +195,11 @@ runTranscript runner codebase outputDir tier TranscriptArgs {transcript, transcr
                       <> section "Standard output" stdout
                       <> section "Standard error" stderr
               case result of
-                Right done -> ok <$> deliver outputDir (withProgramOutput (Transcript.format done))
+                Right done -> ok <$> deliver outputDir (withProgramOutput (Transcript.format (absolutize done)))
                 Left (Transcript.RunFailure failure) -> do
                   -- The error is what the client most needs, so it always comes back inline, even when the transcript before it
                   -- is long enough to go to a file.
-                  let (body, trailer) = splitFailure failure
+                  let (body, trailer) = splitFailure (absolutize failure)
                   shown <- deliver outputDir (withProgramOutput (Transcript.format body))
                   pure (failed (Text.stripEnd shown <> "\n\n" <> Transcript.format trailer))
                 Left (Transcript.ParseError err) -> pure (failed (Text.pack (P.errorBundlePretty err)))
