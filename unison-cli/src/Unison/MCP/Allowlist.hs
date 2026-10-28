@@ -107,6 +107,7 @@ commandTiers =
         "clear",
         "quit",
         "share.project-search",
+        "share.search",
         "share.source",
         "share.render"
       ]

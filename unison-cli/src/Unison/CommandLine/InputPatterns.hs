@@ -181,7 +181,7 @@ import Unison.Cli.Pretty
     prettySlashProjectBranchName,
     prettyURI,
   )
-import Unison.Cli.Share.Ref (ShareRef (..), parseShareRef)
+import Unison.Cli.Share.Ref (ShareRef (..), parseSearchWords, parseShareRef)
 import Unison.Codebase (Codebase)
 import Unison.Codebase qualified as Codebase
 import Unison.Codebase.Editor.Input (BranchIdG (..), DeleteTarget (..), Input)
@@ -3627,6 +3627,40 @@ shareProjectSearch =
           <$> traverse (unsupportedStructuredArgument shareProjectSearch "a search query") args
     }
 
+shareSearch :: InputPattern
+shareSearch =
+  InputPattern
+    { patternName = "share.search",
+      aliases = [],
+      visibility = I.Visible,
+      params = Parameters [] $ OnePlus ("query", noCompletionsArg),
+      help =
+        P.lines
+          [ P.wrapColumn2
+              [ ( makeExample shareSearch ["<name>"],
+                  "searches Unison Share for terms and types with that name, like `List.map` or `map`."
+                ),
+                ( makeExample shareSearch ["<type>"],
+                  "searches for terms by type, like `[a] -> Nat`."
+                ),
+                ( makeExample shareSearch ["@<name>"],
+                  "searches for users, organizations and projects, like `@unison`."
+                ),
+                ( makeExample shareSearch ["<query> in @user/project"],
+                  "searches only that project, and `in @user` only that user's projects."
+                )
+              ],
+            "",
+            P.wrap "Each match is printed with a reference you can give to `share.source` or `share.render`."
+          ],
+      parse = \args -> do
+        words_ <- traverse (unsupportedStructuredArgument shareSearch "a search query") args
+        (query, filter_) <- first (P.wrap . P.text) (parseSearchWords (Text.words (Text.pack (unwords words_))))
+        when ("@" `Text.isPrefixOf` query && isJust filter_) do
+          Left . P.wrap $ "A filter with `in` only applies when searching for definitions, not for users and projects."
+        pure (Input.ShareSearchI query filter_)
+    }
+
 -- | Shared by the @share.source@ and @share.render@ parsers.
 parseShareRefArg :: InputPattern -> Bool -> I.Arguments -> Either (P.Pretty CT.ColorText) ShareRef
 parseShareRefArg pat pathRequired = \case
@@ -4081,6 +4115,7 @@ validInputs =
       projectsInputPattern,
       shareProjectSearch,
       shareRender,
+      shareSearch,
       shareSource,
       pull,
       pullWithoutHistory,

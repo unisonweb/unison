@@ -17,6 +17,7 @@ test =
   scope "mcp" . tests $
     [ allowlistTests,
       shareRefTests,
+      searchWordsTests,
       outputTests
     ]
 
@@ -103,3 +104,20 @@ outputTests =
         expectEqual long contents
         expect (not ("line\nline" `Text.isInfixOf` message))
     ]
+
+searchWordsTests :: Test ()
+searchWordsTests =
+  scope "search words" . tests $
+    [ parsesTo ["List.map"] ("List.map", Nothing),
+      parsesTo ["[a]", "->", "Nat"] ("[a] -> Nat", Nothing),
+      parsesTo ["map", "in", "@unison"] ("map", Just (FilterUser "@unison")),
+      parsesTo ["map", "in", "@unison/base"] ("map", Just (FilterProject "@unison/base")),
+      -- `in` is only a filter when it is followed by a user or a project
+      parsesTo ["fold", "in", "order"] ("fold in order", Nothing),
+      fails ["map", "in", "@"],
+      fails ["map", "in", "@a/b/c"],
+      fails ["in", "@unison"]
+    ]
+  where
+    parsesTo input expected = scope (Text.unpack (Text.unwords input)) (expectEqual (Right expected) (parseSearchWords input))
+    fails input = scope (Text.unpack (Text.unwords input)) (expect (either (const True) (const False) (parseSearchWords input)))

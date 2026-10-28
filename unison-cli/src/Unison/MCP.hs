@@ -121,7 +121,7 @@ transcriptTool run tier =
     (description, annotations) = case tier of
       ReadOnly ->
         ( "Run a transcript that doesn't change the codebase: searching, viewing, docs, diffs, history, tests, and "
-            <> "reading from Share (`share.project-search`, `share.source`, `share.render`). Every project and branch "
+            <> "reading from Share (`share.search`, `share.project-search`, `share.source`, `share.render`). Every project and branch "
             <> "the transcript names must already exist.",
           ToolAnnotations
             { title = Just "Run a read-only transcript",

@@ -5,7 +5,8 @@
 module Unison.Cli.Share.Definitions
   ( -- * API calls
     SearchHit (..),
-    searchProjects,
+    searchEntities,
+    searchDefinitions,
     getReadme,
     getDefinitions,
   )
@@ -14,6 +15,7 @@ where
 import Control.Monad.Reader (ask)
 import Data.Aeson (FromJSON (..), (.:), (.:?))
 import Data.Aeson qualified as Aeson
+import Data.Text qualified as Text
 import Data.Proxy (Proxy (..))
 import Servant.API ((:<|>) (..), (:>))
 import Servant.API qualified as Servant
@@ -24,15 +26,32 @@ import Unison.Cli.Monad qualified as Cli
 import Unison.Cli.Share.Projects (hardCodedBaseUrl)
 import Unison.Cli.Share.Ref
 import Unison.Prelude
-import Unison.Server.Types (DefinitionDisplayResults)
+import Unison.Server.Types (DefinitionDisplayResults, DefinitionSearchResult, DefinitionSearchResults (..))
 
-data SearchHit = SearchHit
-  { projectRef :: Text,
-    summary :: Maybe Text
-  }
+-- | One match of an entity search: a project, or a user or organization.
+data SearchHit
+  = -- | The project, like @\@unison/base@, and its summary.
+    ProjectHit Text (Maybe Text)
+  | -- | The handle, with the @\@@, and the name.
+    UserHit Text (Maybe Text)
+  | OrgHit Text (Maybe Text)
 
 instance FromJSON SearchHit where
-  parseJSON = Aeson.withObject "SearchHit" \o -> SearchHit <$> o .: "projectRef" <*> o .:? "summary"
+  parseJSON = Aeson.withObject "SearchHit" \o ->
+    o .: "tag" >>= \case
+      "project" -> ProjectHit <$> o .: "projectRef" <*> o .:? "summary"
+      "user" -> UserHit . ("@" <>) <$> o .: "handle" <*> o .:? "name"
+      "org" -> do
+        user <- o .: "user"
+        OrgHit <$> (("@" <>) <$> user .: "handle") <*> user .:? "name"
+      (tag :: Text) -> fail ("unknown kind of search hit: " <> Text.unpack tag)
+
+-- | The hits we understand; Share may well add kinds we don't.
+newtype SearchHits = SearchHits [SearchHit]
+
+instance FromJSON SearchHits where
+  parseJSON = Aeson.withArray "SearchHits" \hits ->
+    SearchHits . catMaybes . toList <$> traverse (\hit -> (Just <$> parseJSON hit) <|> pure Nothing) hits
 
 newtype ReadmeResponse = ReadmeResponse Text
 
@@ -48,7 +67,13 @@ instance FromJSON ProjectInfo where
   parseJSON = Aeson.withObject "ProjectInfo" \o -> ProjectInfo <$> o .:? "latestRelease" <*> o .: "defaultBranch"
 
 type ShareAPI =
-  ("search" :> Servant.QueryParam "query" Text :> Servant.Get '[Servant.JSON] [SearchHit])
+  ("search" :> Servant.QueryParam "query" Text :> Servant.Get '[Servant.JSON] SearchHits)
+    :<|> ( "search-definitions"
+             :> Servant.QueryParam "query" Text
+             :> Servant.QueryParam "project-filter" Text
+             :> Servant.QueryParam "user-filter" Text
+             :> Servant.Get '[Servant.JSON] DefinitionSearchResults
+         )
     :<|> Project (Servant.Get '[Servant.JSON] ProjectInfo)
     :<|> Project ("readme" :> Servant.Get '[Servant.JSON] ReadmeResponse)
     :<|> Project ("branches" :> Servant.Capture "branch" Text :> DefinitionByName)
@@ -60,12 +85,14 @@ type Project api =
 type DefinitionByName =
   "definitions" :> "by-name" :> Servant.Capture "name" Text :> Servant.Get '[Servant.JSON] DefinitionDisplayResults
 
-httpSearch :: Maybe Text -> Servant.ClientM [SearchHit]
+httpSearch :: Maybe Text -> Servant.ClientM SearchHits
+httpSearchDefinitions :: Maybe Text -> Maybe Text -> Maybe Text -> Servant.ClientM DefinitionSearchResults
 httpProjectInfo :: Text -> Text -> Servant.ClientM ProjectInfo
 httpReadme :: Text -> Text -> Servant.ClientM ReadmeResponse
 httpBranchDefinition :: Text -> Text -> Text -> Text -> Servant.ClientM DefinitionDisplayResults
 httpReleaseDefinition :: Text -> Text -> Text -> Text -> Servant.ClientM DefinitionDisplayResults
 ( httpSearch
+    :<|> httpSearchDefinitions
     :<|> httpProjectInfo
     :<|> httpReadme
     :<|> httpBranchDefinition
@@ -77,8 +104,17 @@ run action = do
   Cli.Env {authHTTPClient = AuthenticatedHttpClient httpManager} <- ask
   liftIO $ Servant.runClientM action (Servant.mkClientEnv httpManager hardCodedBaseUrl)
 
-searchProjects :: Text -> Cli (Either Servant.ClientError [SearchHit])
-searchProjects query = run (httpSearch (Just query))
+-- | Search for projects (and, for a query that starts with an @\@@, users and organizations).
+searchEntities :: Text -> Cli (Either Servant.ClientError [SearchHit])
+searchEntities query = run (httpSearch (Just query)) <&> fmap \(SearchHits hits) -> hits
+
+-- | Search for terms and types, by name or by type, in all of Share or in part of it.
+searchDefinitions :: Text -> Maybe SearchFilter -> Cli (Either Servant.ClientError [DefinitionSearchResult])
+searchDefinitions query filter_ =
+  run (httpSearchDefinitions (Just query) projectFilter userFilter) <&> fmap \(DefinitionSearchResults results) -> results
+  where
+    projectFilter = case filter_ of Just (FilterProject project) -> Just project; _ -> Nothing
+    userFilter = case filter_ of Just (FilterUser user) -> Just user; _ -> Nothing
 
 -- | The project's README, as markdown.
 getReadme :: ShareRef -> Cli (Either Servant.ClientError Text)

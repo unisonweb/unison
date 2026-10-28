@@ -944,6 +944,26 @@
   `@user/project/releases/1.2.3:name` for a specific release, or
   `@user/project/branch:name` for a branch.
 
+  share.search
+  `share.search <name>`                    searches Unison Share
+                                           for terms and types
+                                           with that name, like
+                                           `List.map` or `map`.
+  `share.search <type>`                    searches for terms by
+                                           type, like `[a] ->
+                                           Nat`.
+  `share.search @<name>`                   searches for users,
+                                           organizations and
+                                           projects, like
+                                           `@unison`.
+  `share.search <query> in @user/project`  searches only that
+                                           project, and `in
+                                           @user` only that
+                                           user's projects.
+
+  Each match is printed with a reference you can give to
+  `share.source` or `share.render`.
+
   share.source
   `share.source @user/project:name`  prints the source of a
                                      definition on Share.

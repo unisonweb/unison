@@ -137,16 +137,18 @@ If the result is more than 25 lines, it is written to a temporary file and the t
 
 ### Reading from Share
 
-Three commands read from [Unison Share](https://share.unison-lang.org) without touching your codebase. They work at the UCM command line too.
+Four commands read from [Unison Share](https://share.unison-lang.org) without touching your codebase. They work at the UCM command line too.
 
 ``` ucm
+myproject/main> share.search List.map in @unison/base
+myproject/main> share.search [a] -> Nat
 myproject/main> share.project-search http
 myproject/main> share.source @unison/base:List.map
 myproject/main> share.render @unison/base:List.map
 myproject/main> share.render @unison/base
 ```
 
-`share.project-search` finds projects. `share.source` prints the source of a definition, and `share.render` prints its documentation, or a project's README if you give it no name. By default they look at the project's latest release; `@unison/base/releases/7.20.0:List.map` picks a release and `@unison/base/main:List.map` a branch.
+`share.search` is the search box on the front page of Share: a name like `List.map` or a type like `[a] -> Nat` finds terms and types, a query starting with `@` finds users, organizations and projects, and `in @user/project` (or `in @user`) narrows a definition search. `share.project-search` finds projects by name or summary. `share.source` prints the source of a definition, and `share.render` prints its documentation, or a project's README if you give it no name. By default they look at the project's latest release; `@unison/base/releases/7.20.0:List.map` picks a release and `@unison/base/main:List.map` a branch.
 
 ## Usage
 

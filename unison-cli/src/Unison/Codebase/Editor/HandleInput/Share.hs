@@ -1,6 +1,7 @@
 -- | Handlers for the @share.*@ commands, which read from Unison Share and never touch the local codebase.
 module Unison.Codebase.Editor.HandleInput.Share
   ( handleShareProjectSearch,
+    handleShareSearch,
     handleShareSource,
     handleShareRender,
   )
@@ -13,24 +14,71 @@ import Servant.Client qualified as Servant
 import Unison.Cli.Monad (Cli)
 import Unison.Cli.Monad qualified as Cli
 import Unison.Cli.Share.Definitions
-import Unison.Cli.Share.Ref (ShareRef (..))
+import Unison.Cli.Share.Ref (SearchFilter, ShareRef (..))
 import Unison.Codebase.Editor.DisplayObject (DisplayObject (..))
 import Unison.Codebase.Editor.Output qualified as Output
 import Unison.Prelude
 import Unison.Server.Doc.Markdown.Render qualified as Doc
 import Unison.Server.Doc.Markdown.Types qualified as Markdown
 import Unison.Server.Syntax qualified as Syntax
-import Unison.Server.Types (DefinitionDisplayResults (..), TermDefinition (..), TypeDefinition (..))
+import Unison.Server.Types
+  ( DefinitionDisplayResults (..),
+    DefinitionSearchResult (..),
+    TermDefinition (..),
+    TermOrTypeSummary (..),
+    TermSummary (..),
+    TypeDefinition (..),
+    TypeSummary (..),
+  )
+import Unison.Syntax.Name qualified as Name
 
 handleShareProjectSearch :: Text -> Cli ()
-handleShareProjectSearch query = do
-  hits <- searchProjects query & onLeftM (Cli.returnEarly . Output.ServantClientError)
+handleShareProjectSearch = searchEntities'
+
+-- | Like the search box on the front page of Share: a query that starts with an @\@@ looks for users, organizations
+-- and projects, and anything else looks for terms and types, by name or by type.
+handleShareSearch :: Text -> Maybe SearchFilter -> Cli ()
+handleShareSearch query filter_
+  | "@" `Text.isPrefixOf` query = searchEntities' query
+  | otherwise = do
+      results <- searchDefinitions query filter_ & onLeftM (Cli.returnEarly . Output.ServantClientError)
+      case results of
+        [] -> Cli.respond (Output.ShareText ("No definitions found matching " <> query))
+        _ ->
+          Cli.respond . Output.ShareText . Text.unlines $
+            (results >>= renderMatch)
+              ++ [ "\nThese are the first " <> tShow (length results) <> " matches. To narrow the search, add `in @user` or `in @user/project`."
+                   | length results >= maxMatches
+                 ]
+  where
+    maxMatches = 20
+
+    renderMatch :: DefinitionSearchResult -> [Text]
+    renderMatch DefinitionSearchResult {fqn, summary, project, branchRef} =
+      (into @Text project <> "/" <> into @Text branchRef <> ":" <> Name.toText fqn)
+        : (("  " <>) <$> take 4 (Text.lines source))
+      where
+        source = case summary of
+          ToTTermSummary TermSummary {summary = displayed} -> displayObject displayed
+          ToTTypeSummary TypeSummary {summary = displayed} -> displayObject displayed
+        displayObject = \case
+          UserObject text -> Syntax.toPlain text
+          BuiltinObject text -> Syntax.toPlain text <> " (builtin)"
+          MissingObject hash -> "<missing definition " <> tShow hash <> ">"
+
+searchEntities' :: Text -> Cli ()
+searchEntities' query = do
+  hits <- searchEntities query & onLeftM (Cli.returnEarly . Output.ServantClientError)
   case hits of
-    [] -> Cli.respond (Output.ShareText ("No projects found matching " <> query))
+    [] -> Cli.respond (Output.ShareText ("Nothing found matching " <> query))
     _ ->
       Cli.respond . Output.ShareText . Text.unlines $
-        hits <&> \SearchHit {projectRef, summary} ->
-          projectRef <> maybe "" (\s -> "  " <> Text.replace "\n" " " s) summary
+        hits <&> \case
+          ProjectHit ref summary -> ref <> describe summary
+          UserHit handle name -> handle <> "  (user)" <> describe name
+          OrgHit handle name -> handle <> "  (organization)" <> describe name
+  where
+    describe = maybe "" \s -> "  " <> Text.replace "\n" " " s
 
 -- | Print the source of the definition at @path@.
 handleShareSource :: ShareRef -> Cli ()
