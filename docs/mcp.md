@@ -118,7 +118,7 @@ After saving, restart Kiro CLI. You can verify the server is loaded with `/mcp` 
 
 ## Tools
 
-There are four tools. They all take a `transcript` (the Markdown text) and differ only in which UCM commands they allow, so an agent can be given just as much power as you're comfortable with. A transcript that uses a command its tool doesn't allow is rejected before anything runs, with a list of what to change.
+There are four tools. They all take the transcript either as `transcript` (the Markdown text) or as `transcript-file` (the path of a file that has it, relative to the directory the server was started in; the file isn't changed), and they differ only in which UCM commands they allow, so an agent can be given just as much power as you're comfortable with. A transcript that uses a command its tool doesn't allow is rejected before anything runs, with a list of what to change.
 
 | Tool | Allows |
 | --- | --- |
@@ -129,9 +129,11 @@ There are four tools. They all take a `transcript` (the Markdown text) and diffe
 
 The last two are marked destructive, so agents that ask for approval before using destructive tools will ask before using them.
 
+For anything long, `transcript-file` is better: when something goes wrong, the agent can edit just the part that needs fixing and run the file again, without spending tokens on sending the whole transcript each time. When a transcript sent inline is more than 25 lines, the reply says so.
+
 A call that takes more than five minutes is cancelled; set `UNISON_MCP_TIMEOUT` (in seconds) in the server's environment to change that.
 
-If the result is more than 25 lines, it is written to a temporary file and the tool returns the path, so the agent can search the file instead of reading all of it. The files are removed when the MCP server exits.
+If the result is more than 25 lines, it is written to a temporary file and the tool returns the path, so the agent can search the file instead of reading all of it. The files are removed when the MCP server exits. When a transcript fails, the error is always in the reply itself; only the part of the transcript before the failure goes to the file.
 
 ### Reading from Share
 

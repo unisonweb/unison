@@ -2,9 +2,11 @@
 module Unison.MCP (runOnStdIO) where
 
 import Control.Concurrent.MVar (newMVar, withMVar)
-import Data.Aeson (FromJSON (..), (.:))
+import CMark qualified
+import Data.Aeson (FromJSON (..), (.:?))
 import Data.Aeson qualified as Aeson
 import Data.Proxy (Proxy (..))
+import Data.ByteString qualified as BS
 import Data.Text qualified as Text
 import Data.Text.Encoding qualified as Text
 import Data.Aeson.Key qualified as Key
@@ -27,6 +29,7 @@ import Unison.Parser.Ann (Ann)
 import Unison.Prelude
 import Unison.Project (ProjectAndBranch (..))
 import Unison.Symbol (Symbol)
+import UnliftIO qualified
 
 serverDescription :: Text
 serverDescription =
@@ -39,10 +42,15 @@ serverDescription =
       "everything, including deleting projects and branches and pushing to Share."
     ]
 
-newtype TranscriptArgs = TranscriptArgs {transcript :: Text}
+-- | The transcript to run, given either as text or as the path of a file that has it.
+data TranscriptArgs = TranscriptArgs
+  { transcript :: Maybe Text,
+    transcriptFile :: Maybe FilePath
+  }
 
 instance FromJSON TranscriptArgs where
-  parseJSON = Aeson.withObject "TranscriptArgs" \o -> TranscriptArgs <$> o .: "transcript"
+  parseJSON = Aeson.withObject "TranscriptArgs" \o ->
+    TranscriptArgs <$> o .:? "transcript" <*> o .:? "transcript-file"
 
 instance HasInputSchema TranscriptArgs where
   toInputSchema _ =
@@ -53,12 +61,20 @@ instance HasInputSchema TranscriptArgs where
             [ ( "transcript",
                 Aeson.object
                   [ ("type", Aeson.String "string"),
-                    ("description", Aeson.String "A Unison transcript: Markdown with ucm and unison code blocks.")
+                    ("description", Aeson.String "A Unison transcript: Markdown with ucm and unison code blocks. Give this or transcript-file.")
+                  ]
+              ),
+              ( "transcript-file",
+                Aeson.object
+                  [ ("type", Aeson.String "string"),
+                    ( "description",
+                      Aeson.String
+                        "The path of a file containing a Unison transcript, relative to the server's working directory. Preferred for anything long: when something goes wrong you can edit just the part that needs fixing and run the file again, without sending the whole transcript each time. The file is not changed."
+                    )
                   ]
               )
             ]
-        ),
-        ("required", Aeson.toJSON ["transcript" :: Text])
+        )
       ]
 
 -- | Run the MCP server until we hit EOF.
@@ -96,7 +112,7 @@ transcriptTool :: (Tier -> TranscriptArgs -> IO CallToolResult) -> Tier -> Tool 
 transcriptTool run tier =
   Tool
     { toolName = Unison.MCP.Allowlist.toolName tier,
-      toolDescription = description,
+      toolDescription = description <> " " <> howToGiveTheTranscript,
       toolAnnotations = annotations,
       toolArgType = Proxy,
       toolHandler = run tier
@@ -149,31 +165,80 @@ transcriptTool run tier =
             }
         )
 
+-- | Added to every tool's description, so agents find `transcript-file` without having to read the schema.
+howToGiveTheTranscript :: Text
+howToGiveTheTranscript =
+  "Give the transcript as `transcript` (its text) or, preferably for anything long, as `transcript-file` (the path of "
+    <> "a file that has it), so that when something goes wrong you can edit just the part that needs fixing and run it again."
+
 runTranscript :: Transcript.Runner -> Codebase IO Symbol Ann -> OutputDir -> Tier -> TranscriptArgs -> IO CallToolResult
-runTranscript runner codebase outputDir tier TranscriptArgs {transcript = source} =
-  case Transcript.parse name (Text.encodeUtf8 source) of
-    Left err -> pure (errorToolResult ("The transcript didn't parse:\n" <> Text.pack (P.errorBundlePretty err)))
-    Right parsed -> do
-      missing <- if tier == ReadOnly then missingContexts codebase parsed else pure []
-      case validate tier parsed ++ missing of
-        violations@(_ : _) -> pure (errorToolResult (renderViolations tier violations))
-        [] -> do
-          (stdout, stderr, result) <- captureHandles (runner name (Text.encodeUtf8 source) codebase)
-          let withProgramOutput rendered =
-                rendered
-                  <> section "Standard output" stdout
-                  <> section "Standard error" stderr
-          case result of
-            Right done -> textToolResult <$> deliver outputDir (withProgramOutput (Transcript.format done))
-            Left (Transcript.RunFailure failed) -> errorToolResult <$> deliver outputDir (withProgramOutput (Transcript.format failed))
-            Left (Transcript.ParseError err) -> pure (errorToolResult (Text.pack (P.errorBundlePretty err)))
-            Left Transcript.PortBindingFailure -> pure (errorToolResult "The codebase server failed to start: no port was available.")
-            Left (Transcript.Exception err) -> pure (errorToolResult ("The transcript failed with an exception: " <> tShow err))
+runTranscript runner codebase outputDir tier TranscriptArgs {transcript, transcriptFile} =
+  loadTranscript >>= \case
+    Left problem -> pure (errorToolResult problem)
+    Right (name, source, hint) -> do
+      let ok text = textToolResult (text <> hint)
+          failed text = errorToolResult (text <> hint)
+      case Transcript.parse name source of
+        Left err -> pure (failed ("The transcript didn't parse:\n" <> Text.pack (P.errorBundlePretty err)))
+        Right parsed -> do
+          missing <- if tier == ReadOnly then missingContexts codebase parsed else pure []
+          case validate tier parsed ++ missing of
+            violations@(_ : _) -> pure (failed (renderViolations tier violations))
+            [] -> do
+              (stdout, stderr, result) <- captureHandles (runner name source codebase)
+              let withProgramOutput rendered =
+                    rendered
+                      <> section "Standard output" stdout
+                      <> section "Standard error" stderr
+              case result of
+                Right done -> ok <$> deliver outputDir (withProgramOutput (Transcript.format done))
+                Left (Transcript.RunFailure failure) -> do
+                  -- The error is what the client most needs, so it always comes back inline, even when the transcript before it
+                  -- is long enough to go to a file.
+                  let (body, trailer) = splitFailure failure
+                  shown <- deliver outputDir (withProgramOutput (Transcript.format body))
+                  pure (failed (Text.stripEnd shown <> "\n\n" <> Transcript.format trailer))
+                Left (Transcript.ParseError err) -> pure (failed (Text.pack (P.errorBundlePretty err)))
+                Left Transcript.PortBindingFailure -> pure (failed "The codebase server failed to start: no port was available.")
+                Left (Transcript.Exception err) -> pure (failed ("The transcript failed with an exception: " <> tShow err))
   where
-    name = "transcript.md"
+    -- The transcript's name (for error messages), its contents, and what to add to the reply.
+    loadTranscript :: IO (Either Text (String, ByteString, Text))
+    loadTranscript =
+      case (transcript, transcriptFile) of
+        (Just text, Nothing) ->
+          pure . Right $
+            ( "transcript.md",
+              Text.encodeUtf8 text,
+              if length (Text.lines text) > maxInlineLines then preferFileHint else ""
+            )
+        (Nothing, Just path) ->
+          UnliftIO.tryIO (BS.readFile path) <&> \case
+            Left err -> Left ("I couldn't read the transcript file " <> Text.pack path <> ": " <> tShow err)
+            Right contents -> Right (path, contents, "")
+        (Just _, Just _) -> pure (Left "Give either `transcript` or `transcript-file`, not both.")
+        (Nothing, Nothing) -> pure (Left "Give the transcript as `transcript` (its text) or `transcript-file` (the path of a file that has it).")
     section heading text
       | Text.null (Text.strip text) = ""
       | otherwise = "\n" <> heading <> " of the transcript:\n\n" <> text
+    preferFileHint =
+      Text.unlines
+        [ "",
+          "",
+          "Note: this transcript was sent inline and is more than " <> tShow maxInlineLines <> " lines long. Prefer `transcript-file`: write the",
+          "transcript to a file and pass its path. When something goes wrong you can then edit just the part that needs",
+          "fixing and run the file again, without spending tokens on sending the whole transcript each time."
+        ]
+
+-- | A failed transcript is the stanzas that ran, then a marker (🛑) and what went wrong. Split them there.
+splitFailure :: Transcript -> (Transcript, Transcript)
+splitFailure Transcript {frontmatter, stanzas} =
+  (Transcript frontmatter body, Transcript Aeson.Null trailer)
+  where
+    (body, trailer) = break isMarker stanzas
+    isMarker = \case
+      Left (CMark.Node _ CMark.PARAGRAPH [CMark.Node _ (CMark.TEXT "🛑") _]) -> True
+      _ -> False
 
 -- | The runner creates a project or branch that a command's context (like @myproject/main>@) names if it doesn't exist,
 -- which is a change, so for a tool that makes none, they have to exist already.

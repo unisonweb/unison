@@ -926,6 +926,33 @@
     as though they were provided at the command line when
     running `mymain` as an executable.
 
+  share.project-search
+  `share.project-search <query>`  searches Unison Share for
+                                  projects and libraries
+                                  matching the query.
+
+  share.render
+  `share.render @user/project`       prints the README of a
+                                     project on Share.
+  `share.render @user/project:name`  prints the rendered
+                                     documentation of a
+                                     definition, or of a doc if
+                                     it names one.
+
+  By default these look at the latest release of the project, or
+  its default branch if it has none. Use
+  `@user/project/releases/1.2.3:name` for a specific release, or
+  `@user/project/branch:name` for a branch.
+
+  share.source
+  `share.source @user/project:name`  prints the source of a
+                                     definition on Share.
+
+  By default these look at the latest release of the project, or
+  its default branch if it has none. Use
+  `@user/project/releases/1.2.3:name` for a specific release, or
+  `@user/project/branch:name` for a branch.
+
   signature (or sig)
   `signature foo` displays the type signature of `foo`.
 

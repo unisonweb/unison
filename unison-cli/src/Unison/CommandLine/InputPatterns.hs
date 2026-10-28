@@ -3638,6 +3638,11 @@ parseShareRefArg pat pathRequired = \case
     pure ref
   args -> wrongArgsLength "exactly one argument" args
 
+shareRefHelp :: P.Pretty P.ColorText
+shareRefHelp =
+  "By default these look at the latest release of the project, or its default branch if it has none. "
+    <> "Use `@user/project/releases/1.2.3:name` for a specific release, or `@user/project/branch:name` for a branch."
+
 shareSource :: InputPattern
 shareSource =
   InputPattern
@@ -3646,13 +3651,14 @@ shareSource =
       visibility = I.Visible,
       params = Parameters [("definition on Share", noCompletionsArg)] $ Optional [] Nothing,
       help =
-        P.wrapColumn2
-          [ ( makeExample shareSource ["@user/project:path.to.definition"],
-              "prints the source of a definition from the latest release of a project on Share."
-            ),
-            ( makeExample shareSource ["@user/project/releases/1.2.3:path.to.definition"],
-              "prints it from a specific release, and `@user/project/branch:...` from a branch."
-            )
+        P.lines
+          [ P.wrapColumn2
+              [ ( makeExample shareSource ["@user/project:name"],
+                  "prints the source of a definition on Share."
+                )
+              ],
+            "",
+            P.wrap shareRefHelp
           ],
       parse = fmap Input.ShareSourceI . parseShareRefArg shareSource True
     }
@@ -3665,14 +3671,17 @@ shareRender =
       visibility = I.Visible,
       params = Parameters [("project or definition on Share", noCompletionsArg)] $ Optional [] Nothing,
       help =
-        P.wrapColumn2
-          [ ( makeExample shareRender ["@user/project"],
-              "prints the README of a project on Share."
-            ),
-            ( makeExample shareRender ["@user/project:path.to.definition"],
-              "prints the rendered documentation of a definition, or of a doc if it names one. \
-              \Releases and branches are selected as for `share.source`."
-            )
+        P.lines
+          [ P.wrapColumn2
+              [ ( makeExample shareRender ["@user/project"],
+                  "prints the README of a project on Share."
+                ),
+                ( makeExample shareRender ["@user/project:name"],
+                  "prints the rendered documentation of a definition, or of a doc if it names one."
+                )
+              ],
+            "",
+            P.wrap shareRefHelp
           ],
       parse = fmap Input.ShareRenderI . parseShareRefArg shareRender False
     }
